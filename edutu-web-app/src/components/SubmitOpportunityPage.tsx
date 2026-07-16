@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Coins,
   Inbox,
   Loader2,
   MessageCircle,
@@ -20,6 +21,11 @@ import {
   type OpportunitySubmissionStatus,
   type SubmitOpportunityInput,
 } from '../services/opportunitySubmissions';
+import { isUpgradeRequiredError } from '../services/productApi';
+import {
+  fetchSubmissionsPolicy,
+  type SubmissionsPolicy,
+} from '../services/webConfig';
 
 const CATEGORIES = ['scholarship', 'fellowship', 'internship', 'job', 'grant', 'competition', 'program', 'other'];
 
@@ -58,6 +64,22 @@ export default function SubmitOpportunityPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  // Out-of-credits (HTTP 402) gets its own inline error with a wallet link.
+  const [creditsError, setCreditsError] = useState<{ required?: number } | null>(null);
+  // Admin-controlled submission policy (fee + review). null while loading.
+  const [policy, setPolicy] = useState<SubmissionsPolicy | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSubmissionsPolicy().then((p) => {
+      if (!cancelled) setPolicy(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const feeCredits = policy?.paidSubmissions ? policy.costCredits : 0;
 
   const [items, setItems] = useState<OpportunitySubmission[]>([]);
   const [loadingMine, setLoadingMine] = useState(false);
@@ -96,6 +118,7 @@ export default function SubmitOpportunityPage() {
   const handleSubmit = async () => {
     setFormError(null);
     setFormSuccess(null);
+    setCreditsError(null);
     if ((form.title || '').trim().length < 3) {
       setFormError('Give the opportunity a clear title (at least 3 characters).');
       return;
@@ -107,7 +130,7 @@ export default function SubmitOpportunityPage() {
     setSubmitting(true);
     try {
       const token = await resolveToken();
-      await submitOpportunity(
+      const created = await submitOpportunity(
         {
           ...form,
           deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined,
@@ -115,9 +138,17 @@ export default function SubmitOpportunityPage() {
         token,
       );
       setForm(EMPTY_FORM);
-      setFormSuccess('Submitted for review! Our team will get back to you — track it under “My submissions”.');
+      setFormSuccess(
+        created.status === 'approved'
+          ? 'Submitted and published! It is live in the opportunity catalog.'
+          : 'Submitted for review! Our team will get back to you — track it under “My submissions”.',
+      );
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      if (isUpgradeRequiredError(error) && error.code === 'insufficient_credits') {
+        setCreditsError({ required: error.required });
+      } else {
+        setFormError(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -174,9 +205,40 @@ export default function SubmitOpportunityPage() {
         {tab === 'submit' ? (
           <div className="space-y-4">
             <p className="rounded-2xl border border-subtle bg-surface-elevated p-4 text-sm text-text-secondary">
-              Tell us about an opportunity you found. Our team reviews every submission before it goes live — the more
-              detail you add, the faster it gets approved.
+              {policy && !policy.requireApproval
+                ? 'Tell us about an opportunity you found. Approved details help others discover it faster.'
+                : 'Tell us about an opportunity you found. Our team reviews every submission before it goes live — the more detail you add, the faster it gets approved.'}
             </p>
+
+            {feeCredits > 0 && (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+                <Coins size={18} className="mt-0.5 shrink-0 text-amber-500" />
+                <div className="text-text-primary">
+                  <p className="font-semibold">
+                    Submitting costs {feeCredits} {feeCredits === 1 ? 'credit' : 'credits'} — your balance is deducted
+                    when you submit.
+                  </p>
+                  {policy?.requireApproval && (
+                    <p className="mt-1 text-text-secondary">
+                      Your submission still goes through admin review before it appears in the catalog.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {creditsError && (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+                You don’t have enough credits to submit
+                {typeof creditsError.required === 'number'
+                  ? ` — this costs ${creditsError.required} credits.`
+                  : '.'}{' '}
+                <Link to="/app/wallet" className="font-bold underline">
+                  Top up your wallet
+                </Link>{' '}
+                and try again.
+              </div>
+            )}
 
             {formError && (
               <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-500">
@@ -244,7 +306,8 @@ export default function SubmitOpportunityPage() {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white transition hover:opacity-90 disabled:opacity-60"
             >
               {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              Submit for review
+              {policy && !policy.requireApproval ? 'Submit' : 'Submit for review'}
+              {feeCredits > 0 ? ` (${feeCredits} ${feeCredits === 1 ? 'credit' : 'credits'})` : ''}
             </button>
           </div>
         ) : (

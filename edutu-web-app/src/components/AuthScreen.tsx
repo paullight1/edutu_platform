@@ -15,7 +15,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useClerk, useSignIn, useSignUp } from "@clerk/clerk-react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { rememberPostAuthRedirect } from "../lib/auth";
 
@@ -101,6 +101,76 @@ const FieldShell = ({
 const baseInputClass =
   "h-12 w-full rounded-xl border border-subtle bg-surface-layer px-4 text-sm text-text-primary outline-none transition focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 placeholder:text-text-muted";
 
+const OTP_LENGTH = 6;
+
+const OtpInput = ({
+  value,
+  onChange,
+  onComplete,
+  disabled,
+  label,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  onComplete?: (code: string) => void;
+  disabled?: boolean;
+  label: string;
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const activeIndex = Math.min(value.length, OTP_LENGTH - 1);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        aria-label={label}
+        value={value}
+        onChange={(event) => {
+          const next = event.target.value
+            .replace(/\D/g, "")
+            .slice(0, OTP_LENGTH);
+          onChange(next);
+          if (next.length === OTP_LENGTH && value.length < OTP_LENGTH) {
+            onComplete?.(next);
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        disabled={disabled}
+        className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
+        autoFocus
+      />
+      <div className="flex justify-center gap-2 sm:gap-2.5" aria-hidden="true">
+        {Array.from({ length: OTP_LENGTH }).map((_, index) => {
+          const isActive = focused && index === activeIndex && !disabled;
+          return (
+            <div
+              key={index}
+              className={`flex h-14 w-full max-w-[52px] items-center justify-center rounded-xl border bg-surface-layer text-xl font-semibold text-text-primary transition ${
+                isActive
+                  ? "border-brand ring-2 ring-brand/40"
+                  : value[index]
+                    ? "border-strong"
+                    : "border-subtle"
+              }`}
+            >
+              {value[index] ?? (
+                <span
+                  className={`h-5 w-px ${isActive ? "animate-pulse bg-brand" : "bg-transparent"}`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const describeFactors = (factors: { strategy: string }[] | null | undefined) =>
   factors?.map((factor) => factor.strategy.replace(/_/g, " ")).join(", ") ||
   "none returned";
@@ -176,9 +246,30 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [secondFactorStrategy, setSecondFactorStrategy] =
     useState<SecondFactorStrategy>("");
   const [secondFactorId, setSecondFactorId] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const verifyFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(
+      () => setResendCooldown((seconds) => seconds - 1),
+      1000,
+    );
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  useEffect(() => {
+    if (
+      mode === "verify" ||
+      mode === "verify-sign-in" ||
+      mode === "verify-second-factor"
+    ) {
+      setResendCooldown(30);
+    }
+  }, [mode]);
 
   useEffect(() => {
     const from = (
@@ -303,24 +394,24 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     ) {
       if (completedSignIn.status === "needs_new_password") {
         throw new Error(
-          "Clerk requires this account to create a new password before signing in.",
+          "This account needs a new password before signing in. Use “Forgot password?” to reset it.",
         );
       }
 
       if (completedSignIn.status === "needs_identifier") {
         throw new Error(
-          "Clerk still needs an email address or username before it can sign you in.",
+          "Please enter your email address or username to sign in.",
         );
       }
 
       if (completedSignIn.status === "needs_first_factor") {
         throw new Error(
-          `Clerk still needs a first sign-in factor. Available methods: ${describeFactors(completedSignIn.supportedFirstFactors)}.`,
+          `We need one more sign-in step. Available methods: ${describeFactors(completedSignIn.supportedFirstFactors)}.`,
         );
       }
 
       throw new Error(
-        `Clerk did not complete sign-in. Current status: ${completedSignIn.status ?? "unknown"}.`,
+        `We couldn't finish signing you in (status: ${completedSignIn.status ?? "unknown"}). Please try again.`,
       );
     }
 
@@ -360,7 +451,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       }
 
       setError(
-        `Clerk did not complete sign-in. Current status: ${attempt.status ?? "unknown"}.`,
+        `We couldn't finish signing you in (status: ${attempt.status ?? "unknown"}). Please try again.`,
       );
     } catch (err: unknown) {
       setError(parseError(err));
@@ -429,7 +520,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       }
 
       setError(
-        `Clerk did not complete sign-in. Current status: ${attempt.status ?? "unknown"}.`,
+        `We couldn't finish signing you in (status: ${attempt.status ?? "unknown"}). Please try again.`,
       );
     } catch (err: unknown) {
       setError(parseError(err));
@@ -620,6 +711,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           strategy: "email_code",
           emailAddressId: emailCodeFactor.emailAddressId,
         });
+        setResendCooldown(30);
         return;
       }
 
@@ -631,6 +723,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             strategy: "email_code",
             emailAddressId: secondFactorId || undefined,
           });
+          setResendCooldown(30);
           return;
         }
         if (secondFactorStrategy === "phone_code") {
@@ -638,6 +731,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             strategy: "phone_code",
             phoneNumberId: secondFactorId || undefined,
           });
+          setResendCooldown(30);
           return;
         }
         throw new Error(
@@ -650,6 +744,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       await clerkSignUp.prepareEmailAddressVerification({
         strategy: "email_code",
       });
+      setResendCooldown(30);
     } catch (err: unknown) {
       setError(parseError(err));
     } finally {
@@ -680,7 +775,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           ? t("auth.subtitles.secondFactorTotp")
           : secondFactorStrategy === "backup_code"
             ? t("auth.subtitles.secondFactorBackup")
-            : t("auth.subtitles.secondFactorCode")
+            : secondFactorStrategy === "email_code" && emailAddress
+              ? t("auth.subtitles.secondFactorEmail", { email: emailAddress })
+              : t("auth.subtitles.secondFactorCode")
         : mode === "reset-password"
           ? resetCodeSent
             ? t("auth.subtitles.resetSent", { email: emailAddress })
@@ -854,6 +951,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 mode === "verify-sign-in" ||
                 mode === "verify-second-factor" ? (
                   <form
+                    ref={verifyFormRef}
                     onSubmit={
                       mode === "verify-second-factor"
                         ? handleVerifySecondFactor
@@ -863,37 +961,33 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     }
                     className="space-y-5"
                   >
-                    <FieldShell label={t("auth.fields.verificationCode")}>
-                      <input
-                        type="text"
-                        inputMode={
-                          secondFactorStrategy === "backup_code"
-                            ? "text"
-                            : "numeric"
-                        }
-                        maxLength={
-                          secondFactorStrategy === "backup_code" ? 32 : 6
-                        }
+                    {mode === "verify-second-factor" &&
+                    secondFactorStrategy === "backup_code" ? (
+                      <FieldShell label={t("auth.fields.verificationCode")}>
+                        <input
+                          type="text"
+                          inputMode="text"
+                          maxLength={32}
+                          value={code}
+                          onChange={(event) =>
+                            setCode(event.target.value.trim().slice(0, 32))
+                          }
+                          className={`${baseInputClass} text-center text-lg`}
+                          placeholder={t("auth.placeholders.backupCode")}
+                          autoFocus
+                        />
+                      </FieldShell>
+                    ) : (
+                      <OtpInput
                         value={code}
-                        onChange={(event) =>
-                          setCode(
-                            mode === "verify-second-factor" &&
-                              secondFactorStrategy === "backup_code"
-                              ? event.target.value.trim().slice(0, 32)
-                              : event.target.value
-                                  .replace(/\D/g, "")
-                                  .slice(0, 6),
-                          )
-                        }
-                        className={`${baseInputClass} text-center text-lg`}
-                        placeholder={
-                          secondFactorStrategy === "backup_code"
-                            ? t("auth.placeholders.backupCode")
-                            : t("auth.placeholders.code")
-                        }
-                        autoFocus
+                        onChange={setCode}
+                        onComplete={() => {
+                          if (!loading) verifyFormRef.current?.requestSubmit();
+                        }}
+                        disabled={loading}
+                        label={t("auth.fields.verificationCode")}
                       />
-                    </FieldShell>
+                    )}
                     <button
                       type="submit"
                       disabled={loading || code.length < 6}
@@ -905,11 +999,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         <Check size={17} />
                       )}
                       {loading
-                        ? "Verifying..."
+                        ? t("auth.buttons.verifying")
                         : mode === "verify-second-factor" ||
                             mode === "verify-sign-in"
-                          ? "Verify and sign in"
-                          : "Verify email"}
+                          ? t("auth.buttons.verifyAndSignIn")
+                          : t("auth.buttons.verifyEmail")}
                     </button>
                     {(mode !== "verify-second-factor" ||
                       secondFactorStrategy === "email_code" ||
@@ -917,12 +1011,24 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       <button
                         type="button"
                         onClick={handleResendCode}
-                        disabled={loading}
+                        disabled={loading || resendCooldown > 0}
                         className="w-full text-center text-sm font-medium text-brand disabled:text-text-muted"
                       >
-                        Resend code
+                        {resendCooldown > 0
+                          ? t("auth.buttons.resendCodeIn", {
+                              seconds: resendCooldown,
+                            })
+                          : t("auth.buttons.resendCode")}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => resetMode("sign-in")}
+                      className="mx-auto flex w-full items-center justify-center gap-1.5 text-center text-sm font-medium text-text-secondary transition hover:text-text-primary"
+                    >
+                      <ArrowLeft size={15} />
+                      {t("auth.buttons.backToSignIn")}
+                    </button>
                   </form>
                 ) : mode === "reset-password" ? (
                   <form
@@ -1199,14 +1305,32 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                               className="mt-0.5 h-4 w-4 rounded border-subtle accent-brand focus-visible:ring-2 focus-visible:ring-brand/40"
                             />
                             <span>
-                              I agree to Edutu's terms and privacy policy.
+                              I agree to Edutu's{" "}
+                              <Link
+                                to="/terms"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-brand underline-offset-2 hover:underline"
+                              >
+                                terms
+                              </Link>{" "}
+                              and{" "}
+                              <Link
+                                to="/privacy"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-brand underline-offset-2 hover:underline"
+                              >
+                                privacy policy
+                              </Link>
+                              .
                             </span>
                           </label>
 
-                          <div
-                            id="clerk-captcha"
-                            className="min-h-[65px] rounded-xl border border-subtle bg-surface-elevated p-2"
-                          />
+                          {/* Clerk injects its smart CAPTCHA here only when a
+                              challenge is required — keep the mount invisible
+                              while empty so it doesn't render a blank box. */}
+                          <div id="clerk-captcha" className="empty:hidden" />
                         </>
                       )}
 
@@ -1268,7 +1392,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 )}
 
                 <p className="mt-8 text-center text-xs leading-5 text-text-muted">
-                  By continuing, you agree to Edutu's Terms & Privacy Policy.
+                  By continuing, you agree to Edutu's{" "}
+                  <Link
+                    to="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-brand underline-offset-2 hover:underline"
+                  >
+                    Terms
+                  </Link>{" "}
+                  &{" "}
+                  <Link
+                    to="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-brand underline-offset-2 hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
                 </p>
               </div>
             </div>

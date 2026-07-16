@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Bookmark, CalendarClock, Send, type LucideIcon } from "lucide-react";
-import { useProfileStats } from "../hooks/useProfileStats";
+import { useProfileStats, type ProfileStats } from "../hooks/useProfileStats";
 
 interface StatTile {
   key: keyof Pick<
@@ -41,8 +41,15 @@ const TILES: StatTile[] = [
   },
 ];
 
-export default function ProfileQuickStats() {
-  const stats = useProfileStats();
+export default function ProfileQuickStats({
+  stats: sharedStats,
+}: {
+  /** Pass stats from a parent that already runs useProfileStats to avoid a
+   * second round of bookmark/application fetches. */
+  stats?: ProfileStats;
+} = {}) {
+  const ownStats = useProfileStats({ enabled: !sharedStats });
+  const stats = sharedStats ?? ownStats;
 
   return (
     <div className="mt-5 grid grid-cols-3 gap-3 sm:gap-4">

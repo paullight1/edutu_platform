@@ -28,6 +28,7 @@ import {
   profiles,
 } from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
+import { deferForQuietHours, type QuietHours } from "../common/quiet-hours";
 import type {
   BroadcastNotificationDto,
   NotificationPreferencesDto,
@@ -42,10 +43,46 @@ const DEFAULT_CHANNELS = {
 
 const BROADCAST_BATCH_SIZE = 500;
 
+// Brevo caps `messageVersions` (individual per-recipient copies) at 1000 per
+// /v3/smtp/email call; larger audiences are sent in successive calls.
+const BREVO_VERSION_LIMIT = 1000;
+
+/**
+ * Maps a notification `kind` to the per-topic preference that mutes it. Kinds
+ * absent from this map (e.g. "admin-broadcast" and transactional notices like
+ * a creator application result) have no topic switch of their own and are
+ * governed by the `pushNotifications` master switch alone.
+ */
+const TOPIC_PREFERENCE_BY_KIND: Record<string, keyof typeof TOPIC_COLUMNS> = {
+  "opportunity-alert": "opportunityAlerts",
+  "deadline-reminder": "deadlineReminders",
+  "goal-reminder": "goalReminders",
+  achievement: "achievementCelebrations",
+};
+
+const TOPIC_COLUMNS = {
+  opportunityAlerts: true,
+  deadlineReminders: true,
+  goalReminders: true,
+  achievementCelebrations: true,
+};
+
 type BroadcastRecipient = {
   userId: string;
   email: string | null;
   fullName: string | null;
+};
+
+/** A user's delivery-relevant preferences, resolved once per broadcast. */
+type DeliveryPreferences = {
+  pushNotifications: boolean;
+  emailNotifications: boolean;
+  opportunityAlerts: boolean;
+  deadlineReminders: boolean;
+  goalReminders: boolean;
+  achievementCelebrations: boolean;
+  quietHours: QuietHours;
+  timezone: string | null;
 };
 
 @Injectable()
@@ -390,7 +427,47 @@ export class NotificationsService {
       };
     }
 
-    return this.deliverBroadcast(dto);
+    const result = await this.deliverBroadcast(dto);
+
+    // Audit trail: immediate broadcasts previously left no record anywhere.
+    // Record them in notification_queue as already-processed "sent" rows so
+    // the admin history shows every broadcast with its delivery summary.
+    // Best-effort — a delivered broadcast must not fail because logging did.
+    try {
+      const now = new Date();
+      await db.insert(notificationQueue).values({
+        payload: dto as unknown as Record<string, unknown>,
+        scheduledFor: now,
+        status: "sent",
+        processedAt: now,
+        result: result as unknown as Record<string, unknown>,
+        createdBy: toDatabaseUserId(adminUserId),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record broadcast history: ${this.errorMessage(error)}`,
+      );
+    }
+
+    return result;
+  }
+
+  /** Cancels a still-pending scheduled broadcast. Processed rows are history. */
+  async cancelQueuedBroadcast(id: string) {
+    const [deleted] = await db
+      .delete(notificationQueue)
+      .where(
+        and(
+          eq(notificationQueue.id, id),
+          eq(notificationQueue.status, "pending"),
+        ),
+      )
+      .returning({ id: notificationQueue.id });
+
+    if (!deleted) {
+      throw new NotFoundException("Pending scheduled notification not found");
+    }
+    return { success: true, id: deleted.id };
   }
 
   async listQueue(limit = 50) {
@@ -481,6 +558,90 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * Resolves delivery preferences + timezone for a batch of users.
+   *
+   * Users with no `notification_preferences` row fall back to the column
+   * defaults (push on, topics on, quiet hours 22:00–08:00) so behaviour matches
+   * what the settings screen shows before it has ever been saved.
+   *
+   * The `profiles` join is dual-keyed because `profiles.user_id` is text that
+   * may hold either the raw auth subject (the canonical write key, which is
+   * what the mobile app stamps the timezone onto) or the derived uuid written
+   * by older backend paths. Matching only one representation reads a stale row
+   * and evaluates quiet hours in the wrong timezone. Preferring the most
+   * recently updated non-null timezone keeps travellers correct.
+   */
+  private async loadDeliveryPreferences(
+    userIds: string[],
+  ): Promise<Map<string, DeliveryPreferences>> {
+    const prefs = new Map<string, DeliveryPreferences>();
+    if (!userIds.length) return prefs;
+
+    for (const batch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
+      const result = await db.execute(sql`
+        select u.user_id                                  as user_id,
+               coalesce(p.push_notifications, true)       as push_notifications,
+               coalesce(p.email_notifications, false)     as email_notifications,
+               coalesce(p.opportunity_alerts, true)       as opportunity_alerts,
+               coalesce(p.deadline_reminders, true)       as deadline_reminders,
+               coalesce(p.goal_reminders, true)           as goal_reminders,
+               coalesce(p.achievement_celebrations, true) as achievement_celebrations,
+               p.quiet_hours                              as quiet_hours,
+               (
+                 select pr.timezone
+                 from profiles pr
+                 where (pr.user_id = u.user_id::text
+                        or public.clerk_id_to_uuid(pr.user_id)::text = u.user_id::text)
+                   and pr.timezone is not null
+                 order by pr.updated_at desc nulls last
+                 limit 1
+               )                                          as timezone
+        from unnest(array[${sql.join(
+          batch.map((id) => sql`${id}`),
+          sql`, `,
+        )}]::uuid[]) as u(user_id)
+        left join notification_preferences p on p.user_id = u.user_id
+      `);
+
+      for (const row of result as unknown as Array<{
+        user_id: string;
+        push_notifications: boolean;
+        email_notifications: boolean;
+        opportunity_alerts: boolean;
+        deadline_reminders: boolean;
+        goal_reminders: boolean;
+        achievement_celebrations: boolean;
+        quiet_hours: QuietHours;
+        timezone: string | null;
+      }>) {
+        prefs.set(row.user_id, {
+          pushNotifications: row.push_notifications,
+          emailNotifications: row.email_notifications,
+          opportunityAlerts: row.opportunity_alerts,
+          deadlineReminders: row.deadline_reminders,
+          goalReminders: row.goal_reminders,
+          achievementCelebrations: row.achievement_celebrations,
+          quietHours: row.quiet_hours ?? null,
+          timezone: row.timezone,
+        });
+      }
+    }
+
+    return prefs;
+  }
+
+  /** Whether `kind` may be pushed to this user (master switch + topic switch). */
+  private allowsPush(
+    prefs: DeliveryPreferences | undefined,
+    kind: string | undefined,
+  ): boolean {
+    if (!prefs) return true; // No row: column defaults allow push.
+    if (!prefs.pushNotifications) return false;
+    const topic = TOPIC_PREFERENCE_BY_KIND[kind || ""];
+    return topic ? prefs[topic] : true;
+  }
+
   private async deliverBroadcast(dto: BroadcastNotificationDto) {
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };
     const recipients = await this.resolveRecipients(dto);
@@ -525,12 +686,62 @@ export class NotificationsService {
       }
     }
 
-    const push = channels.push
-      ? await this.sendPush(recipients, dto)
-      : { sent: 0, skipped: "disabled" };
-    const email = channels.email
-      ? await this.sendEmailWebhook(recipients, dto)
-      : { sent: 0, skipped: "disabled" };
+    // Preferences are enforced HERE rather than in each caller: every push in
+    // the app funnels through this method, so honouring the user's settings
+    // once means new senders inherit it instead of having to remember. In-app
+    // rows above are deliberately unfiltered — the inbox is not an interruption.
+    const prefs =
+      channels.push || channels.email
+        ? await this.loadDeliveryPreferences(recipients.map((r) => r.userId))
+        : new Map<string, DeliveryPreferences>();
+
+    let push: Record<string, unknown> = { sent: 0, skipped: "disabled" };
+    if (channels.push) {
+      const allowed = recipients.filter((recipient) =>
+        this.allowsPush(prefs.get(recipient.userId), dto.kind),
+      );
+      const mutedCount = recipients.length - allowed.length;
+
+      // Callers that precompute `scheduledFor` (the alerts engine) already
+      // cleared quiet hours, and a redelivery of an already-deferred item must
+      // never defer again — either would loop.
+      const alreadyDeferred = Boolean(dto.metadata?.quietHoursDeferred);
+
+      const deliverNow: BroadcastRecipient[] = [];
+      const deferred: Array<{ recipient: BroadcastRecipient; at: string }> = [];
+
+      for (const recipient of allowed) {
+        const pref = prefs.get(recipient.userId);
+        const at = alreadyDeferred
+          ? undefined
+          : deferForQuietHours(pref?.quietHours ?? null, pref?.timezone);
+        if (at) deferred.push({ recipient, at });
+        else deliverNow.push(recipient);
+      }
+
+      if (deferred.length) await this.deferPush(deferred, dto);
+
+      const sent = deliverNow.length
+        ? await this.sendPush(deliverNow, dto)
+        : { sent: 0, skipped: "all recipients muted or deferred" };
+
+      push = {
+        ...sent,
+        ...(mutedCount ? { muted: mutedCount } : {}),
+        ...(deferred.length ? { deferredForQuietHours: deferred.length } : {}),
+      };
+    }
+
+    let email: Record<string, unknown> = { sent: 0, skipped: "disabled" };
+    if (channels.email) {
+      const allowed = recipients.filter(
+        (recipient) =>
+          prefs.get(recipient.userId)?.emailNotifications !== false,
+      );
+      email = allowed.length
+        ? await this.sendEmail(allowed, dto)
+        : { sent: 0, skipped: "all recipients opted out of email" };
+    }
 
     for (const ids of this.chunk(notificationIds, BROADCAST_BATCH_SIZE)) {
       await db
@@ -552,6 +763,39 @@ export class NotificationsService {
       push,
       email,
     };
+  }
+
+  /**
+   * Re-queues a push for delivery at the end of each user's quiet-hours window.
+   *
+   * The requeued payload is push-only: the in-app row was already written by
+   * this broadcast, and re-running the full delivery would duplicate it. The
+   * `quietHoursDeferred` marker stops the redelivery from deferring a second
+   * time if the drainer happens to run while the window is still closing.
+   */
+  private async deferPush(
+    deferred: Array<{ recipient: BroadcastRecipient; at: string }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    for (const batch of this.chunk(deferred, BROADCAST_BATCH_SIZE)) {
+      await db.insert(notificationQueue).values(
+        batch.map(({ recipient, at }) => ({
+          payload: {
+            ...dto,
+            audience: "specific",
+            targetUserIds: [recipient.userId],
+            channels: { inApp: false, push: true, email: false },
+            scheduledFor: undefined,
+            metadata: {
+              ...(dto.metadata || {}),
+              quietHoursDeferred: true,
+            },
+          } as unknown as Record<string, unknown>,
+          scheduledFor: new Date(at),
+          createdBy: recipient.userId,
+        })),
+      );
+    }
   }
 
   private async resolveRecipients(
@@ -829,6 +1073,148 @@ export class NotificationsService {
     return chunks;
   }
 
+  /**
+   * Email transport dispatcher. Prefers Brevo transactional email when
+   * BREVO_API_KEY is configured; otherwise falls back to the legacy generic
+   * webhook (NOTIFICATION_EMAIL_WEBHOOK_URL). Recipients arriving here have
+   * already been filtered by the per-user `emailNotifications` preference in
+   * deliverBroadcast — this method only handles transport.
+   */
+  private async sendEmail(
+    recipients: Array<{ email: string | null; fullName: string | null }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    const emailRecipients = recipients.filter((recipient) => recipient.email);
+    if (!emailRecipients.length) return { sent: 0, skipped: "no emails" };
+
+    if (process.env.BREVO_API_KEY) {
+      return this.sendBrevoEmail(emailRecipients, dto);
+    }
+    return this.sendEmailWebhook(emailRecipients, dto);
+  }
+
+  /**
+   * Sends the broadcast as individual transactional emails via the Brevo REST
+   * API. One API call covers up to BREVO_VERSION_LIMIT recipients using
+   * `messageVersions`, which gives every recipient their own copy (no shared
+   * "to" header leaking the audience). Failures are logged and reported in the
+   * result — they never abort the broadcast.
+   */
+  private async sendBrevoEmail(
+    recipients: Array<{ email: string | null; fullName: string | null }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    const apiKey = process.env.BREVO_API_KEY as string;
+    const sender = {
+      name: "Edutu",
+      email: process.env.BREVO_SENDER_EMAIL || "no-reply@edutu.org",
+    };
+
+    // Dedupe by lowercased email so duplicate profile rows or repeated target
+    // ids can't send the same person the same email twice.
+    const seen = new Set<string>();
+    const unique: Array<{ email: string; name?: string }> = [];
+    for (const recipient of recipients) {
+      const email = recipient.email?.trim();
+      if (!email || !email.includes("@")) continue;
+      const key = email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const name = recipient.fullName?.trim();
+      unique.push(name ? { email, name } : { email });
+    }
+
+    if (!unique.length) return { sent: 0, skipped: "no emails" };
+
+    const subject = dto.title.trim();
+    const htmlContent = this.buildBroadcastEmailHtml(dto);
+
+    let sent = 0;
+    const failures: string[] = [];
+
+    for (const batch of this.chunk(unique, BREVO_VERSION_LIMIT)) {
+      try {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": apiKey,
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            sender,
+            subject,
+            htmlContent,
+            messageVersions: batch.map((to) => ({ to: [to] })),
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = (await response.text().catch(() => "")).slice(0, 300);
+          failures.push(`Brevo ${response.status}: ${detail}`);
+          continue;
+        }
+
+        sent += batch.length;
+      } catch (error) {
+        failures.push(
+          error instanceof Error ? error.message : "Brevo request failed",
+        );
+      }
+    }
+
+    if (failures.length) {
+      this.logger.warn(
+        `Brevo email broadcast issues (${sent}/${unique.length} sent): ${Array.from(new Set(failures)).join("; ")}`,
+      );
+    }
+
+    return {
+      sent,
+      provider: "brevo",
+      ...(failures.length
+        ? { failed: Array.from(new Set(failures)).join("; ") }
+        : {}),
+    };
+  }
+
+  /** Minimal branded HTML wrapper around the plain-text broadcast body. */
+  private buildBroadcastEmailHtml(dto: BroadcastNotificationDto): string {
+    const title = this.escapeHtml(dto.title.trim());
+    const body = this.escapeHtml(dto.body.trim()).replace(/\r?\n/g, "<br />");
+
+    return [
+      "<div style=\"margin:0;padding:24px 12px;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;\">",
+      '<div style="max-width:560px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">',
+      '<div style="background-color:#101828;padding:20px 28px;">',
+      '<span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">edutu</span>',
+      "</div>",
+      '<div style="padding:28px;">',
+      `<h1 style="margin:0 0 16px 0;font-size:20px;line-height:1.3;color:#101828;">${title}</h1>`,
+      `<p style="margin:0;font-size:15px;line-height:1.6;color:#374151;">${body}</p>`,
+      "</div>",
+      '<div style="padding:16px 28px;border-top:1px solid #e5e7eb;">',
+      '<p style="margin:0;font-size:12px;line-height:1.6;color:#98a2b3;">',
+      "You received this email from Edutu. Manage your notification preferences in the Edutu app.",
+      '<br />&copy; Edutu &middot; <a href="https://edutu.org" style="color:#98a2b3;">edutu.org</a>',
+      "</p>",
+      "</div>",
+      "</div>",
+      "</div>",
+    ].join("");
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // Legacy transport: forwards the recipient list to an external webhook.
+  // Only used when BREVO_API_KEY is not configured.
   private async sendEmailWebhook(
     recipients: Array<{ email: string | null; fullName: string | null }>,
     dto: BroadcastNotificationDto,

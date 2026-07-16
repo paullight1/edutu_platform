@@ -20,6 +20,7 @@ import {
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { BottomScrimView } from "../../components/ui/BottomScrim";
 import ReAnimated, {
     useSharedValue,
     useAnimatedStyle,
@@ -40,8 +41,11 @@ import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOve
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
 import { useNavFabState } from "../../lib/navFabStore";
+import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
+import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
+import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
 import { updateProfile } from "@edutu/core/src/services/profile";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
@@ -56,6 +60,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // the detached circle (66) and the row gap (10). The pill's width is animated
 // between this and 0 when it compresses into the circle.
 const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
+// Height of the pill and the detached circle; also sizes the scrim behind them.
+const NAV_PILL_HEIGHT = 66;
+
+// Content height of the full-width bar styles, above the safe-area padding.
+const NAV_BAR_HEIGHT = 58;
 
 // Real Apple Liquid Glass (iOS 26+); elsewhere we use a blur fallback.
 const HAS_LIQUID_GLASS = (() => {
@@ -65,6 +74,35 @@ const HAS_LIQUID_GLASS = (() => {
         return false;
     }
 })();
+
+// Safe-area padding under the full-width bar. Android's gesture inset can be
+// 0, so keep a floor there; iOS's home-indicator inset is already generous.
+function getBarBottomPad(bottomInset: number): number {
+    return Platform.OS === "ios" ? bottomInset : Math.max(bottomInset, 6);
+}
+
+// Where the create speed-dial should start fanning out, i.e. just above
+// whatever the current style uses as the Plus button.
+function getCreateDialBottom(style: NavBarStyle, bottomInset: number): number {
+    if (style === "glass") return Math.max(bottomInset, 10) + 76;
+    const barTop = getBarBottomPad(bottomInset) + NAV_BAR_HEIGHT;
+    switch (style) {
+        case "fab":
+            return barTop + 14 + 60 + 10;   // clears the floating button
+        case "center":
+            return barTop + 46;             // clears the raised button
+        default:
+            return barTop + 10;             // 'tabs': the button is in the bar
+    }
+}
+
+function getBottomNavOffset(bottomInset: number): number {
+    if (Platform.OS === 'ios') {
+        return Math.max(bottomInset - 8, 10);
+    }
+
+    return bottomInset > 0 ? Math.max(bottomInset, 8) : 8;
+}
 
 // ─── Badge Component ─────────────────────────────────────────────────────────
 function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
@@ -184,9 +222,7 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     >
                         <Menu size={20} color={accentColor} strokeWidth={2} />
                     </TouchableOpacity>
-                    <View style={styles.brandLogoChip}>
-                        <EdutuLogo size={28} frameless />
-                    </View>
+                    <EdutuLogo size={36} frameless />
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
                     />
@@ -244,6 +280,47 @@ interface NavCircleAction {
     target: string;
 }
 
+export function isAiKind(kind: NavCircleKind): boolean {
+    return kind === "ai" || kind === "ai-discover";
+}
+
+// Shared by the detached circle and the in-bar action item ('tabs' style), so
+// the two can't drift apart.
+function navActionIcon(kind: NavCircleKind, color: string, size: number) {
+    switch (kind) {
+        case "create":
+            return <Plus size={size + 2} color={color} strokeWidth={2.8} />;
+        case "edit":
+            return <Pencil size={size - 2} color={color} strokeWidth={2.4} />;
+        default:
+            return <Sparkles size={size} color={color} strokeWidth={2.2} />;
+    }
+}
+
+/** Full, spoken-length label — accessibility and the circle. */
+function navActionLabelKey(kind: NavCircleKind): string {
+    switch (kind) {
+        case "create":
+            return "tabs.createNew";
+        case "edit":
+            return "tabs.editProfile";
+        default:
+            return "tabs.openEdutuAi";
+    }
+}
+
+/** Terse label that fits under an icon in the bar. */
+function navActionShortLabelKey(kind: NavCircleKind): string {
+    switch (kind) {
+        case "create":
+            return "tabs.createShort";
+        case "edit":
+            return "tabs.editShort";
+        default:
+            return "tabs.aiShort";
+    }
+}
+
 function MorphingNavCircle({
     action,
     hidden,
@@ -252,6 +329,8 @@ function MorphingNavCircle({
     glassBackground,
     onPress,
     dialOpen = false,
+    size = 66,
+    filled = false,
 }: {
     action: NavCircleAction;
     hidden: boolean;
@@ -261,6 +340,10 @@ function MorphingNavCircle({
     glassBackground: (rounded: number) => React.ReactNode;
     onPress: (action: NavCircleAction) => void;
     dialOpen?: boolean;
+    /** Diameter. The raised centre button is smaller than the detached one. */
+    size?: number;
+    /** Bar styles fill the button with the accent instead of glass. */
+    filled?: boolean;
 }) {
     const { t } = useTranslation('home');
     const [shown, setShown] = useState<NavCircleAction>(action);
@@ -327,36 +410,21 @@ function MorphingNavCircle({
     // Render the live action while kinds match so target/theme updates apply
     // without re-triggering the morph.
     const active = shown.kind === action.kind ? action : shown;
-    const isAI = active.kind === "ai" || active.kind === "ai-discover";
+    const isAI = isAiKind(active.kind);
 
-    const overlayColor =
-        active.kind === "create" || active.kind === "edit"
+    // A bar-style button is a conventional filled FAB — accent through, white
+    // glyph. The glass pill's button only tints for create/edit and leaves the
+    // AI sparkle sitting on bare glass.
+    const overlayColor = filled
+        ? solidColor
+        : active.kind === "create" || active.kind === "edit"
             ? `${solidColor}F0`
             : active.kind === "ai-discover"
                 ? `${solidColor}2E`
                 : null;
 
-    const icon = (() => {
-        switch (active.kind) {
-            case "create":
-                return <Plus size={26} color="#FFFFFF" strokeWidth={2.8} />;
-            case "edit":
-                return <Pencil size={22} color="#FFFFFF" strokeWidth={2.4} />;
-            default:
-                return <Sparkles size={24} color={accent} strokeWidth={2.2} />;
-        }
-    })();
-
-    const label = (() => {
-        switch (active.kind) {
-            case "create":
-                return t('tabs.createNew', 'Create goal or roadmap');
-            case "edit":
-                return t('tabs.editProfile', 'Edit profile');
-            default:
-                return t('tabs.openEdutuAi');
-        }
-    })();
+    const icon = navActionIcon(active.kind, filled || !isAI ? "#FFFFFF" : accent, 24);
+    const label = t(navActionLabelKey(active.kind));
 
     const scale = morph.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
     const rotate = morph.interpolate({ inputRange: [0, 1], outputRange: ["-60deg", "0deg"] });
@@ -382,12 +450,14 @@ function MorphingNavCircle({
                 } : undefined}
                 delayLongPress={280}
                 activeOpacity={0.85}
-                style={styles.navCircle}
+                style={[styles.navCircle, { width: size, height: size, borderRadius: size / 2 }]}
                 accessibilityRole="button"
                 accessibilityLabel={label}
                 accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
             >
-                {glassBackground(999)}
+                {/* A filled button is opaque accent through, so the blur would
+                    render only to be covered — skip the cost entirely. */}
+                {!filled && glassBackground(999)}
                 {overlayColor && (
                     <View
                         pointerEvents="none"
@@ -401,6 +471,47 @@ function MorphingNavCircle({
                 )}
             </TouchableOpacity>
         </Animated.View>
+    );
+}
+
+// ─── In-Bar Action Item ───────────────────────────────────────────────────────
+// The 'tabs' style has nothing floating, so the contextual action rides inside
+// the bar as an ordinary item. Same icon, same long-press-for-voice, tinted
+// with the accent so it still reads as the primary action.
+function BarActionItem({
+    action,
+    accent,
+    onPress,
+}: {
+    action: NavCircleAction;
+    accent: string;
+    onPress: (action: NavCircleAction) => void;
+}) {
+    const { t } = useTranslation('home');
+    const isAI = isAiKind(action.kind);
+    const label = t(navActionShortLabelKey(action.kind));
+
+    return (
+        <TouchableOpacity
+            onPress={() => onPress(action)}
+            onLongPress={isAI ? () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                openVoiceMode('voice');
+            } : undefined}
+            delayLongPress={280}
+            activeOpacity={0.6}
+            style={styles.tabItem}
+            accessibilityRole="button"
+            accessibilityLabel={t(navActionLabelKey(action.kind))}
+            accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
+        >
+            <View style={styles.tabIconWrap}>
+                {navActionIcon(action.kind, accent, 24)}
+            </View>
+            <Text style={[styles.tabLabel, { color: accent, fontWeight: "700" }]} numberOfLines={1}>
+                {label}
+            </Text>
+        </TouchableOpacity>
     );
 }
 
@@ -504,7 +615,9 @@ function CreateSpeedDial({
 }
 
 // ─── Bottom Navigation Bar ────────────────────────────────────────────────────
-function BottomNav({
+// Exported as a seam so the four nav styles can be rendered under test without
+// standing up the whole authenticated layout.
+export function BottomNav({
     tabs,
     activeRoute,
     onTabPress,
@@ -532,6 +645,8 @@ function BottomNav({
     colors: any;
 }) {
     const insets = useSafeAreaInsets();
+    const { style: navBarStyle } = useNavStyleSettings();
+    const isBar = isBarStyle(navBarStyle);
     // Brighter accent + higher-contrast inactive so labels stay legible on the
     // translucent glass over dark content.
     const accent = isDark ? "#A5B4FC" : (colors.accent || "#4F46E5");
@@ -542,7 +657,7 @@ function BottomNav({
     const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.06)";
     const activeBubble = isDark ? "rgba(129,140,248,0.30)" : "rgba(79,70,229,0.14)";
 
-    // Shared glass background for both the pill and the detached circle.
+    // Shared glass background for the pill and the detached circle.
     const glassBackground = (rounded: number) =>
         HAS_LIQUID_GLASS ? (
             <GlassView
@@ -575,8 +690,9 @@ function BottomNav({
     // compresses toward the right-hand corner: its width springs to zero while
     // the tabs — anchored to the pill's shrinking left edge — slide right and
     // are swallowed one by one by the circle, which swells as it "catches"
-    // them and lands on the contextual icon.
-    const isCollapsed = circleAction.kind !== "ai";
+    // them and lands on the contextual icon. The bar styles are static: no
+    // collapse, every tab always visible.
+    const isCollapsed = !isBar && circleAction.kind !== "ai";
     const collapse = useSharedValue(isCollapsed ? 1 : 0);
 
     useEffect(() => {
@@ -592,6 +708,16 @@ function BottomNav({
         opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
     }));
 
+    // The scrim exists to keep content from colliding with the tabs, so it
+    // scales back with them: once the pill has collapsed to just the circle
+    // there is far less chrome to separate, and a full-strength wash reads as
+    // a bug. Rides the same spring so it never pops.
+    const scrimStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(collapse.value, [0, 1], [1, 0.42], Extrapolation.CLAMP),
+    }));
+
+    const scrimHeight = Math.max(insets.bottom, 10) + NAV_PILL_HEIGHT + 20;
+
     // Tabs fade ahead of the clip so nothing gets sliced mid-glyph.
     const pillContentStyle = useAnimatedStyle(() => ({
         opacity: interpolate(collapse.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
@@ -603,11 +729,115 @@ function BottomNav({
         ],
     }));
 
+    // ── Conventional full-width bar ('fab' / 'tabs' / 'center') ──────────────
+    // Flush to the bottom edge, square corners, hairline on top. The three
+    // variants differ only in where the contextual action sits.
+    if (isBar) {
+        const barPad = getBarBottomPad(insets.bottom);
+        const circle = (
+            <MorphingNavCircle
+                action={circleAction}
+                // Scroll-hiding only makes sense for something floating over the
+                // content. The raised centre button is part of the bar — hiding
+                // it would leave a hole between the tabs.
+                hidden={navBarStyle === "fab" && circleHidden}
+                accent={accent}
+                solidColor={colors.accent || "#6366F1"}
+                isDark={isDark}
+                glassBackground={glassBackground}
+                onPress={onCirclePress}
+                dialOpen={createDialOpen}
+                size={navBarStyle === "center" ? 58 : 60}
+                filled
+            />
+        );
+
+        const tabItems = tabs.map((tab) => (
+            <TabItem
+                key={tab.key}
+                icon={tab.icon}
+                label={tab.label}
+                color={activeRoute === tab.key ? accent : inactive}
+                isActive={activeRoute === tab.key}
+                highlight={activeBubble}
+                badge={tab.badge}
+                onPress={() => onTabPress(tab.key, tab.route)}
+                isDark={isDark}
+            />
+        ));
+
+        return (
+            <>
+                {navBarStyle === "fab" && (
+                    <View
+                        pointerEvents="box-none"
+                        style={[styles.barFabWrap, { bottom: barPad + NAV_BAR_HEIGHT + 14 }]}
+                    >
+                        {circle}
+                    </View>
+                )}
+                <View
+                    testID="nav-bar-surface"
+                    style={[
+                        styles.solidBar,
+                        {
+                            paddingBottom: barPad,
+                            backgroundColor: colors.card || (isDark ? "#0F172A" : "#FFFFFF"),
+                            borderTopColor: colors.border || borderCol,
+                        },
+                    ]}
+                >
+                    {navBarStyle === "center" && (
+                        <View pointerEvents="box-none" style={styles.barCenterWrap}>
+                            {circle}
+                        </View>
+                    )}
+                    <View style={styles.solidBarRow}>
+                        {navBarStyle === "center" ? (
+                            <>
+                                {tabItems.slice(0, 2)}
+                                {/* Well the raised button sits in. */}
+                                <View pointerEvents="none" style={styles.barCenterGap} />
+                                {tabItems.slice(2)}
+                            </>
+                        ) : (
+                            tabItems
+                        )}
+                        {navBarStyle === "tabs" && (
+                            <BarActionItem
+                                action={circleAction}
+                                accent={accent}
+                                onPress={onCirclePress}
+                            />
+                        )}
+                    </View>
+                </View>
+            </>
+        );
+    }
+
     return (
-        <View
-            style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
-            pointerEvents="box-none"
-        >
+        <>
+            {/* The pill floats over live content, so without this the list runs
+                sharp and legible straight off the bottom edge and competes with
+                the tabs. Fades the page out behind and below the pill.
+                Stops are rgba(bg) — NOT 'transparent', which interpolates
+                through black on iOS and leaves a grey haze. */}
+            <ReAnimated.View
+                pointerEvents="none"
+                style={[styles.navScrim, { height: scrimHeight }, scrimStyle]}
+            >
+                <BottomScrimView
+                    height={scrimHeight}
+                    base={colors.background}
+                    isDark={isDark}
+                />
+            </ReAnimated.View>
+            <View
+                testID="nav-pill-surface"
+                style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
+                pointerEvents="box-none"
+            >
             {/* Main floating glass pill with the tabs; compresses into the circle */}
             <ReAnimated.View
                 style={[styles.navPill, pillStyle]}
@@ -651,7 +881,8 @@ function BottomNav({
                     dialOpen={createDialOpen}
                 />
             </ReAnimated.View>
-        </View>
+            </View>
+        </>
     );
 }
 
@@ -751,6 +982,33 @@ export default function AppLayout() {
             const data = response.notification.request.content.data as Record<string, unknown> | undefined;
             if (!data) return;
 
+            // Action buttons. Android handles these headlessly in
+            // notificationActionTask; this path is iOS (and the foreground case
+            // on both), where the actions are configured to open the app because
+            // iOS can't run our JS for a background action tap.
+            const opportunityId = typeof data.opportunityId === "string" ? data.opportunityId : null;
+            if (response.actionIdentifier === ACTION_ASK) {
+                const question = response.userText?.trim();
+                if (question) {
+                    // voiceMsg (not prefill) because the user already typed the
+                    // question and submitted it — that's an explicit send, so it
+                    // clears the bar prefill exists to protect.
+                    router.push(`/chat?voiceMsg=${encodeURIComponent(question)}` as never);
+                } else {
+                    router.push("/chat" as never);
+                }
+                return;
+            }
+            if (response.actionIdentifier === ACTION_SAVE && opportunityId) {
+                // Actually save. Routing with a param would be a no-op — the
+                // detail screen reads no action param.
+                if (userId) {
+                    void saveOpportunity(supabase, userId, opportunityId, getToken);
+                }
+                router.push(`/opportunities/${opportunityId}` as never);
+                return;
+            }
+
             if (typeof data.url === "string" && data.url.startsWith("/")) {
                 router.push(data.url as never);
                 return;
@@ -770,7 +1028,7 @@ export default function AppLayout() {
         void Notifications.getLastNotificationResponseAsync().then(handleResponse);
 
         return () => subscription.remove();
-    }, [isSignedIn, router]);
+    }, [isSignedIn, router, userId, getToken]);
 
     const getActiveRoute = (): string => {
         const path = pathname.toLowerCase();
@@ -819,6 +1077,7 @@ export default function AppLayout() {
     // target depends on where the user is: /goals* creates a personal goal,
     // /roadmaps opens Creator Studio to build a roadmap.
     const { profileFabHidden } = useNavFabState();
+    const { style: navBarStyle } = useNavStyleSettings();
     const normalizedPathname = pathname.toLowerCase().replace(/\/+$/, '') || '/';
     const circleAction: NavCircleAction =
         activeRoute === "roadmaps"
@@ -933,7 +1192,7 @@ export default function AppLayout() {
                 <>
                     <CreateSpeedDial
                         open={createDialOpen}
-                        bottom={Math.max(insets.bottom, 10) + 76}
+                        bottom={getCreateDialBottom(navBarStyle, insets.bottom)}
                         solidColor={colors.accent || "#6366F1"}
                         onClose={() => setCreateDialOpen(false)}
                         onSelect={(target) => {
@@ -1000,6 +1259,15 @@ const styles = StyleSheet.create({
     appContainer: {
         flex: 1,
     },
+    // Sits under navRow (zIndex 998 vs 999) and spans the full width, ignoring
+    // navRow's 14pt insets — the fade has to reach the screen edges.
+    navScrim: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 998,
+    },
     navRow: {
         position: "absolute",
         left: 14,
@@ -1011,6 +1279,43 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
         gap: 10,
         zIndex: 999,
+    },
+    // ── Full-width bar styles ('fab' / 'tabs' / 'center') ────────────────────
+    solidBar: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        zIndex: 999,
+        // Lifts the bar off content that scrolls under it, without the glass
+        // pill's heavy floating shadow.
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    solidBarRow: {
+        height: NAV_BAR_HEIGHT,
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    barFabWrap: {
+        position: "absolute",
+        right: 16,
+        zIndex: 1000,
+    },
+    barCenterWrap: {
+        position: "absolute",
+        top: -22,
+        left: 0,
+        right: 0,
+        alignItems: "center",
+        zIndex: 1000,
+    },
+    barCenterGap: {
+        width: 76,
     },
     navPill: {
         // Width is animated (NAV_PILL_WIDTH ↔ 0) by the collapse spring.
@@ -1181,16 +1486,6 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    // Light chip behind the colored logo so its dark-navy details stay legible
-    // on any theme's dark header background.
-    brandLogoChip: {
-        width: 36,
-        height: 36,
-        borderRadius: 11,
-        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
     },

@@ -30,9 +30,12 @@ import {
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import { isProductApiUnavailableError } from "../services/productApi";
+import { syncOpportunityPreferences } from "../services/opportunityPreferences";
 import { COUNTRIES } from "../data/countries";
+import MultiSelectDropdown from "./ui/MultiSelectDropdown";
 import PullToRefresh from "./ui/PullToRefresh";
 import ProfileQuickStats from "./ProfileQuickStats";
+import { useProfileStats } from "../hooks/useProfileStats";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Label from "./ui/Label";
@@ -63,6 +66,16 @@ function formatDate(value?: string | null) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatTimeAgo(value: string) {
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "";
+  const mins = Math.floor((Date.now() - timestamp) / (1000 * 60));
+  if (mins < 60) return `${Math.max(mins, 0)}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString();
 }
 
 function parseSkills(value: string) {
@@ -168,91 +181,20 @@ function toggleTag(list: string[], value: string): string[] {
     : [...list, value];
 }
 
-/**
- * Toggleable tag chips: presets plus any already-selected custom values, with
- * an optional free-text adder. Selected chips get a brand ring + check mark.
- */
-function TagPicker({
-  options,
-  selected,
-  onToggle,
-  onAdd,
-  addPlaceholder,
-  addListId,
-}: {
-  options: string[];
-  selected: string[];
-  onToggle: (value: string) => void;
-  onAdd?: (value: string) => void;
-  addPlaceholder?: string;
-  addListId?: string;
-}) {
-  const [draft, setDraft] = useState("");
-  const isSelected = (value: string) =>
-    selected.some((v) => v.toLowerCase() === value.toLowerCase());
-  const customSelected = selected.filter(
-    (v) => !options.some((o) => o.toLowerCase() === v.toLowerCase()),
-  );
-  const chips = [...options, ...customSelected];
+const COUNTRY_FLAGS = new Map(
+  COUNTRIES.map((entry) => [entry.name.toLowerCase(), entry.flag]),
+);
 
-  const commitDraft = () => {
-    const value = draft.trim();
-    if (!value || !onAdd) return;
-    onAdd(value);
-    setDraft("");
-  };
+const countryFlag = (name: string) => COUNTRY_FLAGS.get(name.toLowerCase());
 
-  return (
-    <div>
-      <div className="flex flex-wrap gap-2">
-        {chips.map((value) => {
-          const active = isSelected(value);
-          return (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onToggle(value)}
-              aria-pressed={active}
-              className={
-                active
-                  ? "inline-flex items-center gap-1.5 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-xs font-semibold text-brand-600 ring-1 ring-brand-500/40 transition active:scale-[0.97]"
-                  : "inline-flex items-center gap-1.5 rounded-full border border-subtle bg-surface-layer px-3 py-1.5 text-xs font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary active:scale-[0.97]"
-              }
-            >
-              {active ? <CheckCircle2 size={13} className="shrink-0" /> : null}
-              {value}
-            </button>
-          );
-        })}
-      </div>
-      {onAdd ? (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commitDraft();
-              }
-            }}
-            list={addListId}
-            placeholder={addPlaceholder || "Add your own…"}
-            className="h-9 w-full max-w-xs rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary outline-none focus:border-brand-500/50"
-          />
-          <button
-            type="button"
-            onClick={commitDraft}
-            disabled={!draft.trim()}
-            className="h-9 shrink-0 rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
+// Popular destinations first, then the rest of the catalog — the dropdown's
+// search makes the full list navigable.
+const ALL_COUNTRY_NAMES = [
+  ...DESTINATION_OPTIONS,
+  ...COUNTRIES.map((entry) => entry.name).filter(
+    (name) => !DESTINATION_OPTIONS.includes(name),
+  ),
+];
 
 const FIELD_LABEL_CLASS_NAME = "font-semibold text-text-primary";
 const FIELD_INPUT_CLASS_NAME =
@@ -267,6 +209,8 @@ export default function ProfilePage() {
   const { getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const { user, signOut } = useAppAuth();
+  // One fetch feeds both the quick-stats tiles and the Recent Activity card.
+  const profileStats = useProfileStats();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [fullName, setFullName] = useState("");
@@ -506,6 +450,14 @@ export default function ProfilePage() {
           updateBackendProfile(token, payload),
         ),
       );
+      // Ride-along sync of the engine's preferred categories/regions —
+      // best-effort, never blocks or fails the profile save itself.
+      void withFreshTokenRetry((token) =>
+        syncOpportunityPreferences(token, {
+          interests,
+          interestedCountries,
+        }),
+      ).catch(() => {});
       setSessionBroken(false);
       showSaved("Profile saved — your matches will use the new details.");
     } catch (saveError) {
@@ -519,6 +471,33 @@ export default function ProfilePage() {
       scrollToStatus();
     }
   };
+
+  // Moved here from the dashboard: latest saves and tracked applications,
+  // newest first. Same shape the home sidebar used to render.
+  const recentActivity = useMemo(() => {
+    const savedItems = profileStats.savedRecords.slice(0, 3).map((bookmark) => ({
+      id: `bookmark-${bookmark.id}`,
+      title: `Saved ${bookmark.opportunity_title}`,
+      date: formatTimeAgo(bookmark.created_at),
+      timestamp: new Date(bookmark.created_at).getTime(),
+      icon: <Bookmark size={16} />,
+    }));
+
+    const applicationItems = profileStats.applicationRecords
+      .slice(0, 3)
+      .map((application) => ({
+        id: `application-${application.id}`,
+        title: `Tracked ${application.opportunity_title}`,
+        date: formatTimeAgo(application.applied_at),
+        timestamp: new Date(application.applied_at).getTime(),
+        icon: <Send size={16} />,
+      }));
+
+    return [...savedItems, ...applicationItems]
+      .filter((item) => Number.isFinite(item.timestamp))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 5);
+  }, [profileStats.savedRecords, profileStats.applicationRecords]);
 
   return (
     <div className="min-h-[100dvh] bg-surface-body text-text-primary">
@@ -540,8 +519,7 @@ export default function ProfilePage() {
                   Your profile
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
-                  Keep your details current so Edutu can tune recommendations,
-                  deadlines, and application support around you.
+                  Your details power your matches and deadlines.
                 </p>
               </div>
               <div className="rounded-2xl border border-subtle bg-surface-elevated p-4">
@@ -567,19 +545,27 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="mt-5">
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span>Profile completeness</span>
-                    <span className="text-brand">
-                      {completenessPercent}%
-                    </span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full border border-subtle bg-surface-body">
-                    <div
-                      className="h-full rounded-full bg-brand transition-all"
-                      style={{ width: `${completenessPercent}%` }}
-                    />
-                  </div>
-                  <p className="mt-3 text-xs font-semibold text-text-muted">
+                  {completenessPercent < 100 ? (
+                    <>
+                      <div className="flex items-center justify-between text-sm font-semibold">
+                        <span>Profile completeness</span>
+                        <span className="text-brand">
+                          {completenessPercent}%
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full border border-subtle bg-surface-body">
+                        <div
+                          className="h-full rounded-full bg-brand transition-all"
+                          style={{ width: `${completenessPercent}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  <p
+                    className={`text-xs font-semibold text-text-muted ${
+                      completenessPercent < 100 ? "mt-3" : "mt-0"
+                    }`}
+                  >
                     Last updated{" "}
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
@@ -588,7 +574,71 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          <ProfileQuickStats />
+          <ProfileQuickStats stats={profileStats} />
+
+          {recentActivity.length > 0 && (
+            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft">
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-warning/10 p-2 text-warning">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold">Recent Activity</h2>
+                    <p className="text-xs text-text-muted">
+                      Latest saved and tracked opportunities
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {(profileStats.saved ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/saved")}
+                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                    >
+                      Saved
+                    </button>
+                  )}
+                  {(profileStats.applications ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/applications")}
+                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                    >
+                      Applied
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {recentActivity.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group flex items-center gap-3 rounded-2xl p-3 transition-all hover:bg-surface-elevated"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success">
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium transition-colors group-hover:text-brand">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] font-medium text-text-muted">
+                        {item.date}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 flex items-center justify-between border-t border-subtle pt-4 text-[10px] font-medium tracking-widest text-text-muted">
+                <span>Saved {profileStats.saved ?? 0}</span>
+                <span>Applications {profileStats.applications ?? 0}</span>
+              </div>
+            </section>
+          )}
 
           <div ref={statusRef} aria-live="polite">
             {sessionBroken ? (
@@ -869,30 +919,21 @@ export default function ProfilePage() {
                     Interested countries
                   </span>
                   <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
-                    Tap the countries you'd study or work in — selected ones
-                    show a check.
+                    Pick the countries you'd study or work in.
                   </p>
-                  <TagPicker
-                    options={DESTINATION_OPTIONS}
+                  <MultiSelectDropdown
+                    label="Interested countries"
+                    options={ALL_COUNTRY_NAMES}
                     selected={interestedCountries}
                     onToggle={(value) =>
                       setInterestedCountries((current) =>
                         toggleTag(current, value),
                       )
                     }
-                    onAdd={(value) =>
-                      setInterestedCountries((current) =>
-                        toggleTag(current, value),
-                      )
-                    }
-                    addPlaceholder="Add another country…"
-                    addListId="profile-country-options"
+                    placeholder="Select countries…"
+                    searchPlaceholder="Search countries…"
+                    optionPrefix={countryFlag}
                   />
-                  <datalist id="profile-country-options">
-                    {COUNTRIES.map((entry) => (
-                      <option key={entry.name} value={entry.name} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div className="block sm:col-span-2">
@@ -902,16 +943,16 @@ export default function ProfilePage() {
                   <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
                     Pick everything you want Edutu to hunt for.
                   </p>
-                  <TagPicker
+                  <MultiSelectDropdown
+                    label="Opportunity interests"
                     options={INTEREST_OPTIONS}
                     selected={interests}
                     onToggle={(value) =>
                       setInterests((current) => toggleTag(current, value))
                     }
-                    onAdd={(value) =>
-                      setInterests((current) => toggleTag(current, value))
-                    }
-                    addPlaceholder="Add your own interest…"
+                    placeholder="Select interests…"
+                    searchPlaceholder="Search or add your own…"
+                    allowCustom
                   />
                 </div>
 

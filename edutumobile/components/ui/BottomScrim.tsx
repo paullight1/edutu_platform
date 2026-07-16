@@ -18,8 +18,23 @@ import { useTheme } from '../context/ThemeContext';
  */
 export function BottomScrim({ height = 140 }: { height?: number }) {
   const { colors, isDark } = useTheme();
-  const base = colors.background;
+  return <BottomScrimView height={height} base={colors.background} isDark={isDark} />;
+}
 
+/**
+ * The same scrim, but with the theme passed in. Use this where the caller
+ * already has `colors`/`isDark` as props and must not reach for context —
+ * BottomNav is rendered standalone in tests and would throw on useTheme().
+ */
+export function BottomScrimView({
+  height = 140,
+  base,
+  isDark,
+}: {
+  height?: number;
+  base: string;
+  isDark: boolean;
+}) {
   // transparent → background: the fade is stronger/taller in dark mode where a hard
   // content edge behind the translucent tab bar is more noticeable.
   return (
@@ -34,7 +49,7 @@ export function BottomScrim({ height = 140 }: { height?: number }) {
 }
 
 /** Accepts #RGB / #RRGGBB / rgb()/rgba() and returns an rgba() with the given alpha. */
-function withAlpha(color: string, alpha: number): string {
+export function withAlpha(color: string, alpha: number): string {
   if (color.startsWith('#')) {
     let hex = color.slice(1);
     if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');

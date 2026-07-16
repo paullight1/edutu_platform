@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { cn } from "../lib/cn";
+import AppFooter from "./AppFooter";
 import OfflineBanner from "./OfflineBanner";
 
 interface AppWorkspaceShellProps {
@@ -471,6 +472,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         <OfflineBanner />
 
         <div className="min-w-0">{children}</div>
+        <AppFooter />
       </div>
 
       {isMobileMoreOpen ? (

@@ -4,11 +4,17 @@
     "display": "Préférences d'affichage",
     "language": "Langue",
     "notifications": "Notifications",
+    "accessibility": "Accessibilité",
     "privacySecurity": "Confidentialité et sécurité",
+    "support": "Assistance et à propos",
     "legal": "Mentions légales",
     "dangerZone": "Zone sensible"
   },
   "display": {
+    "appearance": "Apparence",
+    "modeLight": "Clair",
+    "modeDark": "Sombre",
+    "modeSystem": "Système",
     "systemAppearance": "Apparence du système",
     "systemAppearanceDesc": "Suit les réglages de votre appareil",
     "auto": "Auto",
@@ -18,8 +24,21 @@
       "ocean": "Brise Océane",
       "sunset": "Soleil d'Afrique",
       "forest": "Forêt d'Émeraude",
-      "royal": "Velours Royal"
-    }
+      "royal": "Velours Royal",
+      "rose": "Éclosion Rose",
+      "amethyst": "Améthyste",
+      "graphite": "Graphite",
+      "crimson": "Cramoisi"
+    },
+    "navBar": "Barre de navigation",
+    "navBarGlass": "Pilule en verre",
+    "navBarGlassDesc": "Une pilule translucide flottante qui floute le contenu derrière elle, avec un bouton d’action séparé.",
+    "navBarFab": "Barre + bouton",
+    "navBarTabs": "Barre classique",
+    "navBarCenter": "Bouton central",
+    "navBarFabDesc": "Une barre pleine largeur en bas, avec le bouton d’action flottant au-dessus de son coin droit.",
+    "navBarTabsDesc": "Une barre pleine largeur en bas. Rien ne flotte : l’action devient un onglet dans la barre.",
+    "navBarCenterDesc": "Une barre pleine largeur en bas, avec l’action surélevée au centre et les onglets répartis autour."
   },
   "language": {
     "label": "Langue de l'application",
@@ -33,9 +52,23 @@
     "push": "Notifications push",
     "pushDesc": "Mises à jour en temps réel",
     "email": "Alertes par e-mail",
-    "emailDesc": "Résumé hebdomadaire et actualités",
+    "emailDesc": "Actualités et annonces produit",
     "haptics": "Retour haptique",
-    "hapticsDesc": "Vibrations tactiles"
+    "hapticsDesc": "Vibrations tactiles",
+    "quietHours": "Heures silencieuses",
+    "quietHoursDesc": "Couper les alertes pendant les périodes définies",
+    "from": "De",
+    "to": "À",
+    "quietStartTitle": "Début des heures silencieuses",
+    "quietEndTitle": "Fin des heures silencieuses",
+    "saveFailed": "Impossible d'enregistrer ce réglage. Vérifiez votre connexion et réessayez.",
+    "permissionTitle": "Les notifications sont désactivées",
+    "permissionMessage": "Edutu a besoin de l'autorisation de votre appareil pour envoyer des alertes d'opportunités et des rappels d'échéance. Activez-la dans les Réglages.",
+    "openSettings": "Ouvrir les Réglages"
+  },
+  "accessibility": {
+    "reduceMotion": "Réduire les animations",
+    "reduceMotionDesc": "Limiter les animations dans toute l'application"
   },
   "security": {
     "passwordKeys": "Mot de passe et clés",
@@ -55,7 +88,50 @@
     "passwordAddedTitle": "Mot de passe ajouté",
     "passwordAddedMessage": "Vous pouvez maintenant aussi vous connecter avec votre e-mail et votre mot de passe.",
     "passwordErrorTitle": "Impossible d'ajouter le mot de passe",
-    "passwordErrorMessage": "Veuillez réessayer."
+    "passwordErrorMessage": "Veuillez réessayer.",
+    "changePassword": "Changer le mot de passe",
+    "changePasswordDesc": "Utilisez au moins 8 caractères. Votre mot de passe actuel est requis pour confirmer.",
+    "currentPassword": "Mot de passe actuel",
+    "updatePassword": "Mettre à jour",
+    "passwordChanged": "Mot de passe mis à jour",
+    "currentRequiredTitle": "Mot de passe actuel requis",
+    "currentRequiredMessage": "Saisissez votre mot de passe actuel pour confirmer ce changement.",
+    "signOutOtherDevices": "Déconnecter tous les autres appareils",
+    "connectedAccounts": "Comptes connectés",
+    "connected": "Connecté",
+    "sessions": {
+      "title": "Appareils actifs",
+      "thisDevice": "Cet appareil",
+      "unknownDevice": "Appareil inconnu",
+      "lastActive": "Actif {{time}}",
+      "now": "à l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}} h",
+      "daysAgo": "il y a {{count}} j",
+      "revoke": "Déconnecter",
+      "revokeTitle": "Déconnecter cet appareil ?",
+      "revokeMessage": "{{device}} sera déconnecté de votre compte Edutu.",
+      "revoked": "Appareil déconnecté",
+      "revokeFailed": "Impossible de déconnecter cet appareil. Réessayez.",
+      "revokeAll": "Tout déconnecter",
+      "revokeAllTitle": "Déconnecter les autres appareils ?",
+      "revokeAllMessage": "{{count}} autre(s) appareil(s) seront déconnectés. Cet appareil restera connecté.",
+      "revokedAll": "Autres appareils déconnectés",
+      "empty": "Aucun autre appareil connecté.",
+      "loadFailed": "Impossible de charger vos appareils. Tirez pour réessayer.",
+      "hint": "Si vous voyez un appareil que vous ne reconnaissez pas, déconnectez-le et changez votre mot de passe."
+    }
+  },
+  "support": {
+    "help": "Centre d'aide",
+    "helpDesc": "Guides, FAQ et contact",
+    "rate": "Noter Edutu",
+    "rateDesc": "L'application vous plaît ? Laissez un avis",
+    "share": "Partager Edutu",
+    "shareDesc": "Invitez vos amis à progresser avec vous",
+    "shareMessage": "J'utilise Edutu pour trouver des bourses, des stages et des opportunités partout en Afrique. Rejoignez-moi : https://edutu.org",
+    "version": "Version de l'application",
+    "versionValue": "Vous utilisez la version {{version}}"
   },
   "legal": {
     "privacyPolicy": "Politique de confidentialité",
@@ -64,7 +140,11 @@
     "termsDesc": "Accord utilisateur et politiques"
   },
   "account": {
+    "manage": "Gérer le compte",
+    "signOut": "Se déconnecter",
+    "signOutConfirm": "Vous devrez vous reconnecter pour accéder à votre compte.",
     "deleteAccount": "Supprimer le compte",
+    "deleteHint": "Cela efface définitivement votre profil, vos objectifs et votre progression. Cette action est irréversible.",
     "deleteConfirmMessage": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible. Toutes vos données, vos objectifs et votre progression seront définitivement supprimés.",
     "userNotFound": "Utilisateur introuvable. Veuillez réessayer.",
     "dataDeleteError": "Impossible de supprimer vos données. Veuillez réessayer avant de supprimer votre compte.",

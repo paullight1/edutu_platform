@@ -65,3 +65,10 @@ export const BulkIdsSchema = z.object({
 });
 
 export type BulkIdsDto = z.infer<typeof BulkIdsSchema>;
+
+export const BulkVerifySchema = z.object({
+  ids: BulkIdsField,
+  dryRun: z.boolean().optional(),
+});
+
+export type BulkVerifyDto = z.infer<typeof BulkVerifySchema>;

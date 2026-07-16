@@ -6,7 +6,10 @@
     "me": "Yo",
     "openEdutuAi": "Abrir Edutu AI",
     "badgeOverflow": "99+",
-    "holdForVoice": "Mantén pulsado para el modo de voz"
+    "holdForVoice": "Mantén pulsado para el modo de voz",
+    "aiShort": "Edutu IA",
+    "createShort": "Crear",
+    "editShort": "Editar"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} crédito · {{label}}",

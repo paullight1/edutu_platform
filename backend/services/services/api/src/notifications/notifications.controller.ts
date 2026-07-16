@@ -111,4 +111,10 @@ export class NotificationsController {
   processDue() {
     return this.notificationsService.processDueQueue();
   }
+
+  @Delete("admin/queue/:id")
+  @UseGuards(AdminGuard)
+  cancelQueued(@Param("id") id: string) {
+    return this.notificationsService.cancelQueuedBroadcast(id);
+  }
 }

@@ -113,8 +113,9 @@ jest.mock('expo-glass-effect', () => {
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
-  requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
-  getPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  // The real API returns both `granted` and `status`; callers use either.
+  requestPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
+  getPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
   getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
   setNotificationChannelAsync: jest.fn(),
   scheduleNotificationAsync: jest.fn(async () => 'notification-id'),
@@ -179,6 +180,18 @@ jest.mock('expo-linear-gradient', () => {
   const React = require('react');
   const { View } = require('react-native');
   return { LinearGradient: (props: Record<string, unknown>) => React.createElement(View, props) };
+});
+
+// The icon sets pull in expo-font -> expo-modules-core, whose native
+// EventEmitter throws under jest. The discovery tiles use Ionicons for their
+// filled glyphs, so every screen importing them needs this.
+jest.mock('@expo/vector-icons/Ionicons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props: Record<string, unknown>) => React.createElement(View, props),
+  };
 });
 
 jest.mock('expo-file-system', () => ({

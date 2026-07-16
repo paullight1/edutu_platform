@@ -30,24 +30,27 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+// Minimal, opaque toasts: a solid surface for every variant so nothing looks
+// washed-out over the page. The small colored icon carries the semantics;
+// error keeps a faint tinted border for extra signal.
 const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-subtle bg-surface-layer text-text-primary',
-  success: 'border-success/20 bg-success/10 text-success',
-  error: 'border-danger/20 bg-danger/10 text-danger',
-  warning: 'border-warning/20 bg-warning/10 text-warning',
-  info: 'border-info/20 bg-info/10 text-info',
-  offline: 'border-subtle bg-surface-elevated text-text-secondary',
-  online: 'border-success/20 bg-success/10 text-success'
+  default: 'border-subtle',
+  success: 'border-subtle',
+  error: 'border-danger/40',
+  warning: 'border-warning/40',
+  info: 'border-subtle',
+  offline: 'border-subtle',
+  online: 'border-subtle'
 };
 
 const VARIANT_ICONS: Record<ToastVariant, React.ReactNode> = {
   default: null,
-  success: <CheckCircle size={18} className="text-success" />,
-  error: <XCircle size={18} className="text-danger" />,
-  warning: <AlertTriangle size={18} className="text-warning" />,
-  info: <Info size={18} className="text-info" />,
-  offline: <WifiOff size={18} className="text-text-muted" />,
-  online: <Wifi size={18} className="text-success" />
+  success: <CheckCircle size={16} className="text-success" />,
+  error: <XCircle size={16} className="text-danger" />,
+  warning: <AlertTriangle size={16} className="text-warning" />,
+  info: <Info size={16} className="text-info" />,
+  offline: <WifiOff size={16} className="text-text-muted" />,
+  online: <Wifi size={16} className="text-success" />
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -141,40 +144,38 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <div
             key={t.id}
             className={cn(
-              'pointer-events-auto w-full rounded-xl border p-4 shadow-lg backdrop-blur-sm',
-              'transform transition-all duration-300 ease-out',
+              'pointer-events-auto flex w-full items-start gap-2.5 rounded-xl border bg-surface-layer px-3.5 py-2.5 shadow-elevated',
+              'transition-all duration-300 ease-out',
               'animate-in slide-in-from-top-2 fade-in',
               VARIANT_STYLES[t.variant ?? 'default']
             )}
             role="alert"
             aria-live="polite"
           >
-            <div className="flex items-start gap-3">
-              {/* Icon */}
-              {VARIANT_ICONS[t.variant ?? 'default'] && (
-                <span className="shrink-0 mt-0.5">
-                  {VARIANT_ICONS[t.variant ?? 'default']}
-                </span>
+            {/* Icon */}
+            {VARIANT_ICONS[t.variant ?? 'default'] && (
+              <span className="mt-px shrink-0">
+                {VARIANT_ICONS[t.variant ?? 'default']}
+              </span>
+            )}
+
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold leading-snug text-text-primary">{t.title}</p>
+              {t.description && (
+                <p className="mt-0.5 text-[12.5px] leading-snug text-text-muted">{t.description}</p>
               )}
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">{t.title}</p>
-                {t.description && (
-                  <p className="mt-1 text-sm opacity-80">{t.description}</p>
-                )}
-              </div>
-
-              {/* Close button */}
-              <button
-                type="button"
-                className="shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-current opacity-60 hover:opacity-100 transition-opacity"
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss notification"
-              >
-                <X size={16} />
-              </button>
             </div>
+
+            {/* Close button */}
+            <button
+              type="button"
+              className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text-primary"
+              onClick={() => dismiss(t.id)}
+              aria-label="Dismiss notification"
+            >
+              <X size={14} />
+            </button>
           </div>
         ))}
       </div>

@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useAuth as useAppAuth } from "./useAuth";
 import { getProductApiToken } from "../lib/clerkToken";
-import { getBookmarks } from "../services/bookmarks";
-import { getApplications } from "../services/applications";
+import { getBookmarks, type BookmarkRecord } from "../services/bookmarks";
+import {
+  getApplications,
+  type ApplicationRecord,
+} from "../services/applications";
 import { getDeadlines } from "../services/deadlines";
 
 export interface ProfileStats {
@@ -11,6 +14,9 @@ export interface ProfileStats {
   saved: number | null;
   applications: number | null;
   deadlines: number | null;
+  /** Full records backing the counts, for the Recent Activity card. */
+  savedRecords: BookmarkRecord[];
+  applicationRecords: ApplicationRecord[];
   loading: boolean;
 }
 
@@ -18,6 +24,8 @@ const EMPTY: ProfileStats = {
   saved: null,
   applications: null,
   deadlines: null,
+  savedRecords: [],
+  applicationRecords: [],
   loading: true,
 };
 
@@ -26,7 +34,12 @@ const EMPTY: ProfileStats = {
  * tracked applications, upcoming deadlines). Every source is loaded
  * independently so one failing endpoint never blanks the whole row.
  */
-export function useProfileStats(): ProfileStats {
+export function useProfileStats(options?: {
+  /** Set false when a parent already fetched and passes stats down — the
+   * hook stays mounted (hooks can't be conditional) but skips the network. */
+  enabled?: boolean;
+}): ProfileStats {
+  const enabled = options?.enabled !== false;
   const { user } = useAppAuth();
   const { getToken } = useClerkAuth();
   const [stats, setStats] = useState<ProfileStats>(EMPTY);
@@ -35,6 +48,8 @@ export function useProfileStats(): ProfileStats {
 
   useEffect(() => {
     let active = true;
+
+    if (!enabled) return;
 
     if (!userId) {
       setStats({ ...EMPTY, loading: false });
@@ -69,6 +84,10 @@ export function useProfileStats(): ProfileStats {
           deadlines.status === "fulfilled"
             ? deadlines.value.summary.total
             : null,
+        savedRecords:
+          bookmarks.status === "fulfilled" ? bookmarks.value : [],
+        applicationRecords:
+          applications.status === "fulfilled" ? applications.value : [],
         loading: false,
       });
     })();
@@ -76,7 +95,7 @@ export function useProfileStats(): ProfileStats {
     return () => {
       active = false;
     };
-  }, [userId, getToken]);
+  }, [userId, getToken, enabled]);
 
   return stats;
 }

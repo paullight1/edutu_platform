@@ -203,6 +203,10 @@ export interface AdminOpportunityListQuery {
   includeExpired?: boolean;
   /** Only rows with no deadline at all — the re-scrape/AI recovery cohort. */
   missingDeadline?: boolean;
+  /** Only featured rows — mirrors the Featured stat card. */
+  featured?: boolean;
+  /** Deadline within the next 7 days — mirrors the Expiring Soon stat card. */
+  expiringSoon?: boolean;
 }
 
 export interface SitemapOpportunityEntry {
@@ -969,7 +973,9 @@ export class OpportunitiesService {
   }
 
   async findAdminList(query: AdminOpportunityListQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 100);
+    // Clamp matches the largest page size the admin UI offers (200); a lower
+    // cap silently truncated the "200 rows" option to 100.
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 200);
     const page = Math.max(Number(query.page) || 1, 1);
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -1001,7 +1007,65 @@ export class OpportunitiesService {
       const hasStatusFilter = Boolean(query.status && query.status !== "all");
 
       if (hasStatusFilter) {
-        request = request.eq("status", query.status);
+        if (query.status === "closed") {
+          // "Closed" must mean what the UI shows. effectiveStatus() renders an
+          // 'active' row with a passed deadline as Closed, so a literal
+          // eq('status','closed') returned a list missing rows that were badged
+          // Closed right there on screen.
+          request = request.or(
+            `status.eq.closed,close_date.lt.${new Date().toISOString().slice(0, 10)}`,
+          );
+        } else if (query.status === "active") {
+          // Mirror image: an 'active' row past its deadline is not active.
+          request = request
+            .eq("status", "active")
+            .or(
+              `close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`,
+            );
+        } else {
+          request = request.eq("status", query.status);
+        }
+      }
+
+      // "Expired" is not a stored status: it's status='closed' OR a close_date
+      // in the past. The hourly verification job flips passed deadlines to
+      // 'closed', but until it runs a row can still say 'active' with a dead
+      // deadline — so both predicates are needed to actually exclude expired.
+      //
+      // Skipped when an explicit status is requested: asking for status=closed
+      // AND not-expired is a contradiction that would always return zero rows.
+      if (query.includeExpired === false && !hasStatusFilter) {
+        request = request
+          .neq("status", "closed")
+          // close_date is nullable, and a null deadline is not an expiry —
+          // a plain gte would silently drop every rolling opportunity.
+          .or(
+            `close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`,
+          );
+      }
+
+      // Both columns must be empty: the 2026-07-12 migration coalesced
+      // close_date <-> deadline, so a row with either one still has a date.
+      if (query.missingDeadline) {
+        request = request.is("close_date", null).is("deadline", null);
+      }
+
+      if (query.featured) {
+        request = request.eq("is_featured", true);
+      }
+
+      // Same window as the expiringSoon stat: close_date within [today,
+      // today + 7 days]. Date-only strings compare against midnight, matching
+      // the RPC's current_date + interval '7 days' boundary.
+      if (query.expiringSoon) {
+        const today = new Date().toISOString().slice(0, 10);
+        const inSevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        request = request
+          .not("close_date", "is", null)
+          .gte("close_date", today)
+          .lte("close_date", inSevenDays);
       }
 
       // "Expired" is not a stored status: it's status='closed' OR a close_date
@@ -1108,10 +1172,23 @@ export class OpportunitiesService {
       }`,
     );
 
+    // Must mirror opportunity_admin_stats() (migration 20260715090000) — if the
+    // two disagree, the cards silently change meaning depending on whether the
+    // RPC happened to be reachable.
     const result = await db.execute(sql`
       select
         count(*)::int as total,
-        count(*) filter (where status = 'active')::int as active,
+        count(*) filter (
+          where status = 'active'
+            and (close_date is null or close_date >= current_date)
+        )::int as active,
+        count(*) filter (
+          where status = 'closed'
+             or (close_date is not null and close_date < current_date)
+        )::int as expired,
+        count(*) filter (
+          where close_date is null and deadline is null
+        )::int as "missingDeadline",
         count(*) filter (where is_featured = true)::int as featured,
         count(*) filter (
           where status = 'pending_review'
@@ -1132,6 +1209,8 @@ export class OpportunitiesService {
       result[0] || {
         total: 0,
         active: 0,
+        expired: 0,
+        missingDeadline: 0,
         featured: 0,
         needsReview: 0,
         expiringSoon: 0,

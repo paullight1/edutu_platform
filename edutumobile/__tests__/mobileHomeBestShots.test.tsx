@@ -251,11 +251,11 @@ describe('home Best Shots — empty states and dedupe', () => {
     const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    expect(getByText('Your strongest match lands here')).toBeTruthy();
-    expect(getByText(/Complete your profile and we'll surface the few you can actually win/)).toBeTruthy();
+    expect(getByText('Complete your profile')).toBeTruthy();
+    expect(getByText(/Unlock the matches you can actually win/)).toBeTruthy();
     // The "profile already complete" copy must NOT appear here.
     expect(queryByText(/Nothing's cleared the bar yet/)).toBeNull();
-    expect(queryByText('Still finding your best shot')).toBeNull();
+    expect(queryByText('Finding your best match')).toBeNull();
 
     // The whole card is tappable and routes to the profile screen.
     fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
@@ -273,11 +273,11 @@ describe('home Best Shots — empty states and dedupe', () => {
     const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    expect(getByText('Still finding your best shot')).toBeTruthy();
+    expect(getByText('Finding your best match')).toBeTruthy();
     expect(getByText(/Nothing's cleared the bar yet/)).toBeTruthy();
     // Must NOT tell a completed-profile user to complete their profile.
-    expect(queryByText('Your strongest match lands here')).toBeNull();
-    expect(queryByText(/Complete your profile and we'll surface/)).toBeNull();
+    expect(queryByText('Complete your profile')).toBeNull();
+    expect(queryByText(/Unlock the matches you can actually win/)).toBeNull();
 
     fireEvent.press(getByLabelText('Browse opportunities while we find your best shot'));
     expect(mockPush).toHaveBeenCalledWith('/opportunities');

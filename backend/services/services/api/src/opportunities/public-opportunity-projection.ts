@@ -70,6 +70,20 @@ export function stripInternalOpportunityFields(
   if (typeof sourceImageUrl === "string" && sourceImageUrl.length > 0) {
     cleaned.source_image_url = sourceImageUrl;
   }
+  // Hoist the generated share card too: clients use it for share sheets and
+  // as the image fallback when the scraper found no unique source image.
+  const shareCard = metadata?.share_card as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const shareCardUrl = shareCard?.url;
+  if (
+    typeof shareCardUrl === "string" &&
+    shareCardUrl.length > 0 &&
+    cleaned.share_image_url == null
+  ) {
+    cleaned.share_image_url = shareCardUrl;
+  }
   return cleaned;
 }
 

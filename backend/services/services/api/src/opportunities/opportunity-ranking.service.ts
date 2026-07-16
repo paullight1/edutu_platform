@@ -39,6 +39,11 @@ import {
   normalizeSemantic,
 } from "./recommendation-blender";
 import { TtlCache } from "../common/cache/ttl-cache";
+import {
+  matchEducationLevel,
+  matchedGoals,
+  mergePreferencePatch,
+} from "./profile-fit.util";
 
 // Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
 // (legacy behavior only). Lets the new engine ship dark and flip via env.
@@ -158,18 +163,25 @@ export class OpportunityRankingService {
   }
 
   async upsertUserPreferences(userId: string, input: OpportunityPreferenceDto) {
+    // Merge-PATCH: keys absent from the input keep their stored values, so a
+    // client updating preferredCategories can't wipe the excludedCategories
+    // accumulated from dismiss signals.
+    const merged = mergePreferencePatch(
+      this.toPreferenceDto(await this.getUserPreferences(userId)),
+      input,
+    );
     const values = {
       userId,
-      preferredCategories: input.preferredCategories ?? null,
-      preferredRegions: input.preferredRegions ?? null,
-      preferredFundingTypes: input.preferredFundingTypes ?? null,
-      preferredOpportunityTypes: input.preferredOpportunityTypes ?? null,
-      preferredSkills: input.preferredSkills ?? null,
-      excludedCategories: input.excludedCategories ?? null,
-      remoteOnly: input.remoteOnly ?? false,
-      maxDeadlineDays: input.maxDeadlineDays ?? null,
-      notes: input.notes ?? null,
-      metadata: input.metadata ?? null,
+      preferredCategories: merged.preferredCategories ?? null,
+      preferredRegions: merged.preferredRegions ?? null,
+      preferredFundingTypes: merged.preferredFundingTypes ?? null,
+      preferredOpportunityTypes: merged.preferredOpportunityTypes ?? null,
+      preferredSkills: merged.preferredSkills ?? null,
+      excludedCategories: merged.excludedCategories ?? null,
+      remoteOnly: merged.remoteOnly ?? false,
+      maxDeadlineDays: merged.maxDeadlineDays ?? null,
+      notes: merged.notes ?? null,
+      metadata: merged.metadata ?? null,
       updatedAt: new Date(),
     };
 
@@ -1239,6 +1251,15 @@ export class OpportunityRankingService {
       reasons.push(`Relevant to field of study: ${fieldOfStudy}.`);
     }
 
+    const educationLevel = matchEducationLevel(
+      profile?.degree,
+      opportunityText,
+    );
+    if (educationLevel) {
+      score += 10;
+      reasons.push(`Open to your education level (${educationLevel}).`);
+    }
+
     const interestedCountries = [
       ...(profile?.interestedCountries || []),
       ...(profile?.interested_countries || []),
@@ -1259,6 +1280,20 @@ export class OpportunityRankingService {
     ) {
       score += 6;
       reasons.push(`Relevant to current country: ${profile.country}.`);
+    }
+
+    const goalHits = matchedGoals(userGoals, opportunityText);
+    if (goalHits.length) {
+      score += Math.min(12, goalHits.length * 6);
+      const goalTitles = goalHits
+        .map((goal) => goal.title)
+        .filter(Boolean)
+        .slice(0, 2);
+      reasons.push(
+        goalTitles.length
+          ? `Advances your goals: ${goalTitles.join(", ")}.`
+          : "Advances your stated goals.",
+      );
     }
 
     if (message) {

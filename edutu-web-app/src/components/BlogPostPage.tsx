@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock } from 'lucide-react';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
 import {
   fetchPostBySlug,
   fetchPublishedPosts,
-  formatPostDate,
+  agedPublishDate,
+  relativeDateLabel,
   readingTime,
   type BlogPost,
 } from '../services/blog';
@@ -31,9 +32,9 @@ const RelatedCard: React.FC<{ post: BlogPost }> = ({ post }) => (
       />
     </div>
     <div className="flex flex-1 flex-col p-5">
-      {formatPostDate(post.publishedAt) && (
-        <span className="mb-2 text-xs font-medium text-text-muted">{formatPostDate(post.publishedAt)}</span>
-      )}
+      <span className="mb-2 text-xs font-medium text-text-muted">
+        {relativeDateLabel(agedPublishDate(post))}
+      </span>
       <h3 className="mb-2 line-clamp-2 font-display text-base font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
         {post.title}
       </h3>
@@ -172,7 +173,7 @@ const BlogPostPage: React.FC = () => {
                   ...(post.updatedAt || post.publishedAt
                     ? { dateModified: post.updatedAt ?? post.publishedAt }
                     : {}),
-                  author: { '@type': 'Person', name: post.authorName },
+                  author: { '@type': 'Organization', name: 'Edutu' },
                   publisher: {
                     '@type': 'Organization',
                     name: 'Edutu',
@@ -194,24 +195,9 @@ const BlogPostPage: React.FC = () => {
 
               <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-text-muted">
                 <span className="inline-flex items-center gap-2">
-                  {post.authorAvatar ? (
-                    <img
-                      src={post.authorAvatar}
-                      alt={post.authorName}
-                      loading="lazy"
-                      className="h-7 w-7 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User size={14} />
-                  )}
-                  {post.authorName}
+                  <Calendar size={14} />
+                  {relativeDateLabel(agedPublishDate(post))}
                 </span>
-                {formatPostDate(post.publishedAt) && (
-                  <span className="inline-flex items-center gap-2">
-                    <Calendar size={14} />
-                    {formatPostDate(post.publishedAt)}
-                  </span>
-                )}
                 <span className="inline-flex items-center gap-2">
                   <Clock size={14} />
                   {readingTime(post.content)}

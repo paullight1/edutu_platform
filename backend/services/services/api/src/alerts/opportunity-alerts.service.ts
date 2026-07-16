@@ -10,8 +10,7 @@ import {
 import { NotificationsService } from "../notifications/notifications.service";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
 import { AiService } from "../ai";
-
-type QuietHours = { start: string; end: string } | null;
+import { deferForQuietHours, type QuietHours } from "../common/quiet-hours";
 
 interface AlertCandidate {
   id: string;
@@ -48,8 +47,6 @@ interface DeadlinePair {
   quietHours: QuietHours;
   timezone: string | null;
 }
-
-const DEFAULT_QUIET_HOURS = { start: "22:00", end: "08:00" };
 
 // Tunables (env-overridable). Conservative by default: the fastest way to get
 // push notifications disabled is to send too many of them.
@@ -201,7 +198,7 @@ export class OpportunityAlertsService {
       targetUserIds: [userId],
       channels: { inApp: true, push: true, email: false },
       dedupeKey: `interest:${userId}:${pick.id}`,
-      scheduledFor: this.deferForQuietHours(user.quietHours, user.timezone),
+      scheduledFor: deferForQuietHours(user.quietHours, user.timezone),
       metadata: {
         opportunityId: pick.id,
         // The pulse lands in chat with a ready-to-send question — the coach
@@ -510,7 +507,7 @@ export class OpportunityAlertsService {
 
   private async remindUser(userId: string, pairs: DeadlinePair[]) {
     const quietHours = pairs[0].quietHours;
-    const scheduledFor = this.deferForQuietHours(quietHours, pairs[0].timezone);
+    const scheduledFor = deferForQuietHours(quietHours, pairs[0].timezone);
     let sent = 0;
 
     // Too many at once reads as spam — collapse into a single summary push.
@@ -639,68 +636,6 @@ export class OpportunityAlertsService {
     if (days <= 0) return "today";
     if (days === 1) return "tomorrow";
     return `in ${days} days`;
-  }
-
-  /**
-   * If "now" falls inside the user's quiet hours — evaluated in THEIR local
-   * timezone (profiles.timezone, synced from the device; UTC fallback) —
-   * returns an ISO timestamp at the end of the window so the queue drainer
-   * delivers it then; otherwise undefined (deliver immediately).
-   */
-  private deferForQuietHours(
-    quietHours: QuietHours,
-    timezone?: string | null,
-  ): string | undefined {
-    const window =
-      quietHours?.start && quietHours?.end ? quietHours : DEFAULT_QUIET_HOURS;
-    const parse = (value: string) => {
-      const [h, m] = value.split(":").map((part) => Number(part));
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-      return h * 60 + m;
-    };
-
-    const start = parse(window.start);
-    const end = parse(window.end);
-    if (start === null || end === null || start === end) return undefined;
-
-    const now = new Date();
-    const nowMins = this.localMinutes(now, timezone);
-
-    const inWindow =
-      start < end
-        ? nowMins >= start && nowMins < end
-        : nowMins >= start || nowMins < end; // window wraps midnight
-
-    if (!inWindow) return undefined;
-
-    // Deliver when the local clock reaches the window end: advancing the UTC
-    // instant by the local minutes-until-end sidesteps offset math entirely.
-    const minutesUntilEnd = (end - nowMins + 24 * 60) % (24 * 60) || 24 * 60;
-    return new Date(now.getTime() + minutesUntilEnd * 60_000).toISOString();
-  }
-
-  /** Minutes past local midnight in the given IANA timezone (UTC on failure). */
-  private localMinutes(now: Date, timezone?: string | null): number {
-    if (timezone) {
-      try {
-        const parts = new Intl.DateTimeFormat("en-GB", {
-          timeZone: timezone,
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }).formatToParts(now);
-        const hour = Number(parts.find((part) => part.type === "hour")?.value);
-        const minute = Number(
-          parts.find((part) => part.type === "minute")?.value,
-        );
-        if (Number.isFinite(hour) && Number.isFinite(minute)) {
-          return (hour % 24) * 60 + minute;
-        }
-      } catch {
-        // Invalid tz string — fall through to UTC.
-      }
-    }
-    return now.getUTCHours() * 60 + now.getUTCMinutes();
   }
 
   private async forEachWithConcurrency<T>(

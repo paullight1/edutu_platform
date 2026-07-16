@@ -9,7 +9,6 @@ import {
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
-import { useCountUp } from '../hooks/useCountUp';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
@@ -161,37 +160,11 @@ const testimonials = [
     { quote: 'I went from confused about where to apply to having a focused list of real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=160' },
 ];
 
-const homeImpactStats: { value: number; suffix?: string; label: string }[] = [
-    { value: 31, label: 'Countries reached' },
-    { value: 67000, suffix: '+', label: 'Young people reached' },
-    { value: 50000, suffix: '+', label: 'Community members' },
-    { value: 500, suffix: '+', label: 'First-class graduates' },
-];
-
 const SectionEyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
         {children}
     </span>
 );
-
-const HomeImpactStat: React.FC<{ value: number; suffix?: string; label: string }> = ({
-    value,
-    suffix,
-    label,
-}) => {
-    const { ref, value: current } = useCountUp<HTMLDivElement>(value, { duration: 2000 });
-    return (
-        <div ref={ref}>
-            <div className="font-display text-[32px] font-semibold leading-none tracking-tight text-text-primary sm:text-[40px]">
-                {Math.round(current).toLocaleString()}
-                {suffix}
-            </div>
-            <div className="mt-2 text-[13px] font-medium leading-snug text-text-secondary sm:text-[14px]">
-                {label}
-            </div>
-        </div>
-    );
-};
 
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const { data: opportunities } = useOpportunities();
@@ -477,24 +450,11 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
                             <Link
                                 to="/impact"
-                                className="group inline-flex items-center gap-2 self-start rounded-xl border border-subtle px-5 py-3 text-[16px] font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
+                                className="group inline-flex items-center gap-2 self-start rounded-xl bg-brand px-6 py-3 text-[16px] font-semibold text-white no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
                             >
                                 View our full impact
                                 <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
                             </Link>
-                        </div>
-
-                        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                            {homeImpactStats.map((stat, index) => (
-                                <motion.div
-                                    key={stat.label}
-                                    {...fadeUp}
-                                    transition={{ duration: 0.4, delay: index * 0.08 }}
-                                    className="rounded-3xl border border-subtle bg-surface-layer p-6 shadow-soft"
-                                >
-                                    <HomeImpactStat value={stat.value} suffix={stat.suffix} label={stat.label} />
-                                </motion.div>
-                            ))}
                         </div>
                     </div>
                 </section>

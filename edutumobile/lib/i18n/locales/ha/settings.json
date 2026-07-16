@@ -4,11 +4,17 @@
     "display": "Zaɓin Nuni",
     "language": "Harshe",
     "notifications": "Sanarwa",
+    "accessibility": "Sauƙin Amfani",
     "privacySecurity": "Sirri da Tsaro",
+    "support": "Taimako da Bayani",
     "legal": "Shari'a",
     "dangerZone": "Yankin Haɗari"
   },
   "display": {
+    "appearance": "Kamanni",
+    "modeLight": "Haske",
+    "modeDark": "Duhu",
+    "modeSystem": "Na'ura",
     "systemAppearance": "Kamannin Na'ura",
     "systemAppearanceDesc": "Yana bin saitunan na'urarka",
     "auto": "Kai tsaye",
@@ -18,8 +24,21 @@
       "ocean": "Iskar Teku",
       "sunset": "Faɗuwar Ranar Afirka",
       "forest": "Dajin Emerald",
-      "royal": "Alfarmar Sarauta"
-    }
+      "royal": "Alfarmar Sarauta",
+      "rose": "Furen Wardi",
+      "amethyst": "Shunayya",
+      "graphite": "Toka",
+      "crimson": "Jan Wuta"
+    },
+    "navBar": "Sandar Kewayawa",
+    "navBarGlass": "Kwaya ta gilashi",
+    "navBarGlassDesc": "Kwaya mai iyo mai haske wadda take ɓoye abin da ke bayanta, tare da maɓallin aiki daban.",
+    "navBarFab": "Sanda da maɓalli",
+    "navBarTabs": "Sanda ta gargajiya",
+    "navBarCenter": "Maɓallin tsakiya",
+    "navBarFabDesc": "Sanda mai cikakken faɗi a ƙasa, tare da maɓallin aiki yana iyo sama da kusurwar dama.",
+    "navBarTabsDesc": "Sanda mai cikakken faɗi a ƙasa. Babu abin da ke iyo — aikin yana cikin sandar a matsayin shafi.",
+    "navBarCenterDesc": "Sanda mai cikakken faɗi a ƙasa, tare da aikin a ɗaga shi a tsakiya, shafuka kuma a rarraba kewaye."
   },
   "language": {
     "label": "Harshen Manhaja",
@@ -33,9 +52,23 @@
     "push": "Sanarwar Turawa",
     "pushDesc": "Sabbin bayanai kai tsaye",
     "email": "Faɗakarwar Imel",
-    "emailDesc": "Taƙaitawar mako da sabbin bayanai",
+    "emailDesc": "Labarai da sanarwar samfur",
     "haptics": "Girgiza",
-    "hapticsDesc": "Amsawar girgiza"
+    "hapticsDesc": "Amsawar girgiza",
+    "quietHours": "Lokutan Shiru",
+    "quietHoursDesc": "Kashe faɗakarwa a lokutan da ka zaɓa",
+    "from": "Daga",
+    "to": "Zuwa",
+    "quietStartTitle": "Farkon lokutan shiru",
+    "quietEndTitle": "Ƙarshen lokutan shiru",
+    "saveFailed": "An kasa adana wannan saitin. Duba haɗin yanar gizonka sannan ka sake gwadawa.",
+    "permissionTitle": "An kashe sanarwuka",
+    "permissionMessage": "Edutu na buƙatar izinin na'urarka don aika faɗakarwar dama da tunatarwar ƙarshen wa'adi. Kunna shi a cikin Saituna.",
+    "openSettings": "Buɗe Saituna"
+  },
+  "accessibility": {
+    "reduceMotion": "Rage Motsi",
+    "reduceMotionDesc": "Rage motsin hoto a duk faɗin manhajar"
   },
   "security": {
     "passwordKeys": "Kalmar Sirri da Makullai",
@@ -55,7 +88,50 @@
     "passwordAddedTitle": "An ƙara kalmar sirri",
     "passwordAddedMessage": "Yanzu za ka iya shiga da imel da kalmar sirri ma.",
     "passwordErrorTitle": "Ba a iya ƙara kalmar sirri ba",
-    "passwordErrorMessage": "Da fatan za a sake gwadawa."
+    "passwordErrorMessage": "Da fatan za a sake gwadawa.",
+    "changePassword": "Canza kalmar sirri",
+    "changePasswordDesc": "Yi amfani da haruffa 8 aƙalla. Kana buƙatar kalmar sirrinka ta yanzu don tabbatarwa.",
+    "currentPassword": "Kalmar sirri ta yanzu",
+    "updatePassword": "Sabunta kalmar sirri",
+    "passwordChanged": "An sabunta kalmar sirri",
+    "currentRequiredTitle": "Ana buƙatar kalmar sirri ta yanzu",
+    "currentRequiredMessage": "Shigar da kalmar sirrinka ta yanzu don tabbatar da wannan canjin.",
+    "signOutOtherDevices": "Fita daga duk sauran na'urori",
+    "connectedAccounts": "Asusun da aka haɗa",
+    "connected": "An haɗa",
+    "sessions": {
+      "title": "Na'urorin da ke aiki",
+      "thisDevice": "Wannan na'urar",
+      "unknownDevice": "Na'urar da ba a sani ba",
+      "lastActive": "Ta yi aiki {{time}}",
+      "now": "yanzu haka",
+      "minutesAgo": "minti {{count}} da suka wuce",
+      "hoursAgo": "awa {{count}} da suka wuce",
+      "daysAgo": "kwana {{count}} da suka wuce",
+      "revoke": "Fita",
+      "revokeTitle": "A fitar da wannan na'urar?",
+      "revokeMessage": "Za a fitar da {{device}} daga asusunka na Edutu.",
+      "revoked": "An fitar da na'urar",
+      "revokeFailed": "An kasa fitar da wannan na'urar. Sake gwadawa.",
+      "revokeAll": "Fitar da duka",
+      "revokeAllTitle": "A fitar da sauran na'urori?",
+      "revokeAllMessage": "Za a fitar da wasu na'urori {{count}}. Wannan na'urar za ta ci gaba da kasancewa.",
+      "revokedAll": "An fitar da sauran na'urori",
+      "empty": "Babu wasu na'urorin da suka shiga.",
+      "loadFailed": "An kasa loda na'urorinka. Ja ƙasa don sake gwadawa.",
+      "hint": "Idan ka ga na'urar da ba ka sani ba, ka fitar da ita sannan ka canza kalmar sirrinka."
+    }
+  },
+  "support": {
+    "help": "Cibiyar Taimako",
+    "helpDesc": "Jagorori, tambayoyi da tuntuɓar taimako",
+    "rate": "Kimanta Edutu",
+    "rateDesc": "Kana jin daɗin manhajar? Ka bar bita",
+    "share": "Raba Edutu",
+    "shareDesc": "Ka gayyaci abokai su ci gaba tare da kai",
+    "shareMessage": "Ina amfani da Edutu don neman tallafin karatu, horon aiki da damarmaki a faɗin Afirka. Ka kasance tare da ni: https://edutu.org",
+    "version": "Sigar Manhaja",
+    "versionValue": "Kana kan siga ta {{version}}"
   },
   "legal": {
     "privacyPolicy": "Manufar Sirri",
@@ -64,7 +140,11 @@
     "termsDesc": "Yarjejeniyar mai amfani da manufofi"
   },
   "account": {
+    "manage": "Sarrafa asusu",
+    "signOut": "Fita",
+    "signOutConfirm": "Za ka buƙaci sake shiga don amfani da asusunka.",
     "deleteAccount": "Goge Asusu",
+    "deleteHint": "Wannan zai goge bayanan martabarka, manufofinka, da ci gabanka gaba ɗaya. Ba za a iya juyar da shi ba.",
     "deleteConfirmMessage": "Ka tabbata kana son goge asusunka? Ba za a iya juyar da wannan matakin ba. Duk bayanan ka, manufofinka, da ci gabanka za a goge su gaba ɗaya.",
     "userNotFound": "Ba a samu mai amfani ba. Da fatan za a sake gwadawa.",
     "dataDeleteError": "Ba mu iya goge bayanan manhajarka ba. Da fatan ka sake gwadawa kafin goge asusunka.",

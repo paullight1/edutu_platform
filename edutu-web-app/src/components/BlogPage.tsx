@@ -8,7 +8,8 @@ import Seo from './Seo';
 import Pagination from './ui/Pagination';
 import {
   fetchPublishedPosts,
-  formatPostDate,
+  agedPublishDate,
+  relativeDateLabel,
   readingTime,
   type BlogPost,
 } from '../services/blog';
@@ -29,33 +30,6 @@ function topicLabel(post: BlogPost): string | null {
   if (post.category) return prettyTag(post.category);
   return null;
 }
-
-const AuthorAvatar: React.FC<{ name: string; src: string | null; size?: number }> = ({
-  name,
-  src,
-  size = 36,
-}) => {
-  const initial = name.trim().charAt(0).toUpperCase() || 'E';
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={name}
-        loading="lazy"
-        className="rounded-full object-cover shrink-0 ring-2 ring-surface-body"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-full bg-brand/15 font-semibold text-brand"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-    >
-      {initial}
-    </div>
-  );
-};
 
 const TopicChip: React.FC<{ label: string }> = ({ label }) => (
   <span className="inline-flex items-center rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold capitalize text-brand">
@@ -104,6 +78,16 @@ const BlogPage: React.FC = () => {
   }, [posts, searchQuery]);
 
   const featuredPost = useMemo(() => posts.find((p) => p.featured) ?? null, [posts]);
+
+  // Newest-first rank per post → drives well-spaced, back-dated publish labels.
+  const rankById = useMemo(() => {
+    const map = new Map<string, number>();
+    posts.forEach((post, index) => map.set(post.id, index));
+    return map;
+  }, [posts]);
+
+  const publishedLabel = (post: BlogPost): string =>
+    relativeDateLabel(agedPublishDate(post, rankById.get(post.id)));
 
   const showFeatured = Boolean(featuredPost) && searchQuery === '';
   const gridPosts = useMemo(
@@ -208,11 +192,9 @@ const BlogPage: React.FC = () => {
                 </div>
                 <div className="lg:col-span-7">
                   <div className="mb-4 flex items-center gap-3">
-                    {formatPostDate(featuredPost.publishedAt) && (
-                      <span className="text-sm font-medium text-text-muted">
-                        {formatPostDate(featuredPost.publishedAt)}
-                      </span>
-                    )}
+                    <span className="text-sm font-medium text-text-muted">
+                      {publishedLabel(featuredPost)}
+                    </span>
                     {topicLabel(featuredPost) && <TopicChip label={topicLabel(featuredPost)!} />}
                   </div>
                   <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand md:text-4xl">
@@ -223,12 +205,9 @@ const BlogPage: React.FC = () => {
                       {featuredPost.excerpt}
                     </p>
                   )}
-                  <div className="mt-6 flex items-center gap-3">
-                    <AuthorAvatar name={featuredPost.authorName} src={featuredPost.authorAvatar} size={44} />
-                    <div>
-                      <div className="text-sm font-semibold text-text-primary">{featuredPost.authorName}</div>
-                      <div className="text-xs text-text-muted">{readingTime(featuredPost.content)}</div>
-                    </div>
+                  <div className="mt-6 flex items-center gap-2 text-sm font-medium text-brand">
+                    Read article
+                    <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>
               </Link>
@@ -259,11 +238,9 @@ const BlogPage: React.FC = () => {
                     </div>
                     <div className="flex flex-1 flex-col p-6">
                       <div className="mb-3 flex items-center gap-3">
-                        {formatPostDate(post.publishedAt) && (
-                          <span className="text-xs font-medium text-text-muted">
-                            {formatPostDate(post.publishedAt)}
-                          </span>
-                        )}
+                        <span className="text-xs font-medium text-text-muted">
+                          {publishedLabel(post)}
+                        </span>
                         {topicLabel(post) && <TopicChip label={topicLabel(post)!} />}
                       </div>
                       <h3 className="mb-2 line-clamp-2 font-display text-lg font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
@@ -274,12 +251,8 @@ const BlogPage: React.FC = () => {
                           {post.excerpt}
                         </p>
                       )}
-                      <div className="mt-auto flex items-center gap-3">
-                        <AuthorAvatar name={post.authorName} src={post.authorAvatar} size={34} />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-text-primary">{post.authorName}</div>
-                          <div className="text-xs text-text-muted">{readingTime(post.content)}</div>
-                        </div>
+                      <div className="mt-auto flex items-center gap-3 border-t border-subtle pt-4">
+                        <span className="text-xs font-medium text-text-muted">{readingTime(post.content)}</span>
                         <ChevronRight
                           size={18}
                           className="ml-auto text-brand transition-transform group-hover:translate-x-1"

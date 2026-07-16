@@ -56,6 +56,7 @@ import {
     type DiscoveryTileSize,
     type HomeCategoryTile,
 } from "../../lib/discoveryCategories";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from "../../lib/discoveryTileGlyphs";
 import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { useTranslation } from "react-i18next";
@@ -139,7 +140,7 @@ function DiscoveryCardFace({ item, title }: { item: DiscoveryCategory; title: st
 // Size-aware tile face: icon = gradient square with a glyph, card = the
 // classic half-width card, long = full-width banner with glyph + chevron.
 function DiscoveryTileFace({ item, size, title }: { item: DiscoveryCategory; size: DiscoveryTileSize; title: string }) {
-    const Glyph = DISCOVERY_TILE_GLYPHS[item.id];
+    const glyph = DISCOVERY_TILE_GLYPHS[item.id];
 
     if (size === 'icon') {
         return (
@@ -149,7 +150,7 @@ function DiscoveryTileFace({ item, size, title }: { item: DiscoveryCategory; siz
                 end={{ x: 1, y: 1 }}
                 style={styles.iconTileSquare}
             >
-                <Glyph size={24} color="#FFFFFF" strokeWidth={1.7} />
+                <Ionicons name={glyph} size={24} color="#FFFFFF" />
             </LinearGradient>
         );
     }
@@ -158,7 +159,7 @@ function DiscoveryTileFace({ item, size, title }: { item: DiscoveryCategory; siz
         const row = (
             <View style={styles.longTileRow}>
                 <View style={styles.longTileGlyph}>
-                    <Glyph size={18} color="#FFFFFF" strokeWidth={1.9} />
+                    <Ionicons name={glyph} size={18} color="#FFFFFF" />
                 </View>
                 <Text style={styles.longTileTitle} numberOfLines={1}>{title}</Text>
                 <ChevronRight size={18} color="rgba(255,255,255,0.85)" />
@@ -204,7 +205,7 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
                 if (tile.size === 'icon') {
                     return (
                         <AnimatedPressable
-                            key={category.id}
+                            key={`${category.id}-${tile.size}`}
                             onPress={onPress}
                             style={styles.iconTileWrap}
                             entering={FadeInDown.delay(index * 60).duration(360).springify()}
@@ -219,8 +220,16 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
                     );
                 }
                 return (
+                    // Key includes the size so a size change REMOUNTS instead of
+                    // updating in place. Both branches render an AnimatedPressable,
+                    // so with a bare category.id React reuses the view and
+                    // Reanimated applies the new width without clearing the old
+                    // style's backgroundColor/borderRadius — leaving a dark plate
+                    // behind icon tiles. Tiles start at the 'card' default and flip
+                    // to 'icon' when the saved layout loads, so this hit every
+                    // default category on every cold start.
                     <AnimatedPressable
-                        key={category.id}
+                        key={`${category.id}-${tile.size}`}
                         onPress={onPress}
                         style={tile.size === 'long' ? styles.longTileCard : styles.discoveryCard}
                         entering={FadeInDown.delay(index * 60).duration(360).springify()}
@@ -1239,11 +1248,11 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
 }) {
     const isSearching = variant === 'searching';
     const emptyTitle = isSearching
-        ? "Still finding your best shot"
-        : "Your strongest match lands here";
+        ? "Finding your best match"
+        : "Complete your profile";
     const emptyDesc = isSearching
-        ? "Nothing's cleared the bar yet. Browse your recommendations below while we track down a stronger fit."
-        : "Complete your profile and we'll surface the few you can actually win.";
+        ? "Nothing's cleared the bar yet — see recommendations below."
+        : "Unlock the matches you can actually win.";
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
         ? "Browse opportunities while we find your best shot"
@@ -1263,24 +1272,26 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
             hapticFeedback="light"
             scaleTo={0.98}
         >
-            <View style={styles.bestShotEmptyText}>
-                <Text
-                    style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}
-                    numberOfLines={1}
-                    maxFontSizeMultiplier={1.3}
-                >
-                    {emptyTitle}
-                </Text>
-                <Text
-                    style={[styles.bestShotEmptyDesc, { color: textSecondary }]}
-                    numberOfLines={2}
-                    maxFontSizeMultiplier={1.3}
-                >
-                    {emptyDesc}
-                </Text>
-            </View>
+            <View style={styles.bestShotEmptyRow}>
+                <View style={styles.bestShotEmptyText}>
+                    <Text
+                        style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.3}
+                    >
+                        {emptyTitle}
+                    </Text>
+                    <Text
+                        style={[styles.bestShotEmptyDesc, { color: textSecondary }]}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.3}
+                    >
+                        {emptyDesc}
+                    </Text>
+                </View>
 
-            <ChevronRight size={22} color={isDark ? '#818CF8' : '#6366F1'} strokeWidth={2.4} />
+                <ChevronRight size={22} color={isDark ? '#818CF8' : '#6366F1'} strokeWidth={2.4} />
+            </View>
         </AnimatedPressable>
     );
 }
@@ -1311,9 +1322,6 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                             Your best shots
-                        </Text>
-                        <Text style={[styles.bestShotSubtitle, { color: textSecondary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                            Fewer, winnable — these are yours.
                         </Text>
                     </View>
                 </View>
@@ -1600,7 +1608,9 @@ export default function Dashboard() {
                                 scaleTo={0.9}
                                 accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
                             >
-                                <ChevronRight size={18} color="#6366F1" />
+                                <View style={styles.viewMorePillInner}>
+                                    <ChevronRight size={18} color="#6366F1" />
+                                </View>
                             </AnimatedPressable>
                         </View>
                         {featuredOpportunities.length > 0 ? (
@@ -1666,7 +1676,9 @@ export default function Dashboard() {
                                 scaleTo={0.9}
                                 accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
                             >
-                                <ChevronRight size={18} color="#6366F1" />
+                                <View style={styles.viewMorePillInner}>
+                                    <ChevronRight size={18} color="#6366F1" />
+                                </View>
                             </AnimatedPressable>
                         </View>
                         <View style={styles.oppGridContainer}>
@@ -2557,14 +2569,22 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(99,102,241,0.12)',
     },
     viewMorePill: {
-        alignItems: 'center',
-        justifyContent: 'center',
         marginLeft: 'auto',
         flexShrink: 0,
         height: 34,
         width: 34,
         borderRadius: 999,
         backgroundColor: 'rgba(99,102,241,0.12)',
+    },
+    // Centering has to happen inside AnimatedPressable's nested Pressable, not
+    // on the pill — styles passed to the pill land on an outer wrapper and the
+    // chevron ends up pinned to the top of the circle. Safe to drop the pill's
+    // own alignItems here because its 34x34 is explicit, so the wrapper's
+    // flex:1 still resolves against a real height.
+    viewMorePillInner: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     viewMoreText: {
         color: '#6366F1',
@@ -2655,10 +2675,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 18,
     },
-    bestShotSubtitle: {
-        fontSize: 12,
-        marginTop: 1,
-    },
     bestShotRail: {
         paddingRight: 20,
         gap: CARD_GAP,
@@ -2716,13 +2732,25 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     bestShotEmptyCard: {
+        // Keep row/center here even though the visible row is the inner View:
+        // AnimatedPressable's wrapper is flex:1, and in a column parent that
+        // resolves flexBasis 0 against an auto height and collapses the card.
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
         borderWidth: 1,
         borderRadius: 18,
         paddingVertical: 16,
         paddingHorizontal: 16,
+    },
+    // The row lives on an inner View, not on the card: AnimatedPressable puts
+    // its own Animated.View + Pressable between the style you pass and the
+    // children, so a flexDirection set on the card never reaches them and the
+    // chevron drops below the text.
+    bestShotEmptyRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
     bestShotEmptyText: {
         flex: 1,

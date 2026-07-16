@@ -78,6 +78,11 @@ export class OpportunityShareCardService {
       existing?.url &&
       existing?.fingerprint === fingerprint
     ) {
+      await this.ensureImageFallback(
+        opportunity.id,
+        opportunity.image_url,
+        String(existing.url),
+      );
       return existing as ShareCardResult;
     }
 
@@ -102,7 +107,7 @@ export class OpportunityShareCardService {
       const { data } = this.supabase.storage.from(BUCKET).getPublicUrl(path);
       const { data: latestOpportunity } = await this.supabase
         .from("opportunities")
-        .select("metadata")
+        .select("metadata, image_url")
         .eq("id", opportunity.id)
         .maybeSingle();
       const latestMetadata = this.asRecord(
@@ -127,6 +132,11 @@ export class OpportunityShareCardService {
           updated_at: new Date().toISOString(),
         })
         .eq("id", opportunity.id);
+      await this.ensureImageFallback(
+        opportunity.id,
+        latestOpportunity?.image_url ?? opportunity.image_url,
+        shareCard.url,
+      );
 
       return shareCard;
     } catch (error) {
@@ -1009,5 +1019,32 @@ export class OpportunityShareCardService {
     return value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, any>)
       : {};
+  }
+
+  /**
+   * An opportunity the scraper couldn't find a unique image for uses its
+   * generated branded card as the feed/hero image. Generated images are
+   * recognizable by the bucket in their URL, so a later scrape that finds a
+   * real image can still replace them — a real image is never overwritten.
+   */
+  private async ensureImageFallback(
+    opportunityId: string,
+    currentImageUrl: unknown,
+    cardUrl: string,
+  ): Promise<void> {
+    if (!this.supabase || !cardUrl) return;
+    const current =
+      typeof currentImageUrl === "string" ? currentImageUrl.trim() : "";
+    if (current && !current.includes(`/${BUCKET}/`)) return;
+    if (current === cardUrl) return;
+    const { error } = await this.supabase
+      .from("opportunities")
+      .update({ image_url: cardUrl })
+      .eq("id", opportunityId);
+    if (error) {
+      this.logger.warn(
+        `Could not set generated image fallback for ${opportunityId}: ${error.message}`,
+      );
+    }
   }
 }

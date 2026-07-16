@@ -12,7 +12,10 @@
     "createRoadmap": "Roadmap",
     "createNew": "Create goal or roadmap",
     "closeCreateMenu": "Close create menu",
-    "editProfile": "Edit profile"
+    "editProfile": "Edit profile",
+    "aiShort": "Edutu AI",
+    "createShort": "Create",
+    "editShort": "Edit"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} credit · {{label}}",

@@ -1090,7 +1090,9 @@ export class ScraperService implements OnModuleInit {
       )
       .eq("source", "scraper")
       .or(
-        'image_url.is.null,organization.is.null,organization.eq."Program Organizer",summary.ilike."*being verified by Edutu*"',
+        // Generated share-card fallbacks still count as "missing an image" so
+        // the backfill keeps trying to find each row a real one.
+        'image_url.is.null,image_url.like."*opportunity-share-cards*",organization.is.null,organization.eq."Program Organizer",summary.ilike."*being verified by Edutu*"',
       )
       .order("updated_at", { ascending: true })
       .limit(cappedLimit);
@@ -1110,11 +1112,15 @@ export class ScraperService implements OnModuleInit {
         batch.map(async (row) => {
           try {
             const meta = (row.metadata ?? {}) as Record<string, any>;
+            // application_url last: legacy rows (pre-apply_url ingestion)
+            // stored the aggregator detail page there and are otherwise
+            // unreachable by the enrichment pipeline.
             const applyUrl =
               meta.detail_url ||
               meta.aggregator_url ||
               row.apply_url ||
-              row.source_url;
+              row.source_url ||
+              row.application_url;
             if (!applyUrl?.startsWith("http")) {
               stillIncomplete++;
               return;
@@ -2340,8 +2346,9 @@ export class ScraperService implements OnModuleInit {
         cachedBenefits.length > 0 &&
         cachedApplicationProcess.length > 0 &&
         // A text-complete row without an image must still deep-fetch, or the
-        // image backfill can never repair it.
-        Boolean(existing?.image_url)
+        // image backfill can never repair it. A generated share-card fallback
+        // is not a real image for this purpose.
+        this.isRealImageUrl(existing?.image_url)
       ) {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
@@ -2419,8 +2426,13 @@ export class ScraperService implements OnModuleInit {
         }
       }
       // Listing-provided image (e.g. WordPress featured media) is the last
-      // candidate — it must pass the same uniqueness claim.
-      if (!sourceImageUrl && item.image_url) {
+      // candidate — it must pass the same uniqueness claim. A generated
+      // share-card fallback carried in from the DB is not a source image.
+      if (
+        !sourceImageUrl &&
+        item.image_url &&
+        this.isRealImageUrl(item.image_url)
+      ) {
         sourceImageUrl = await this.claimUniqueImage(
           [item.image_url],
           item.apply_url,
@@ -3368,6 +3380,18 @@ ${text}`;
     $("article img, .entry-content img, .post-content img, main img").each(
       (_, el) => {
         if (candidates.length >= 5) return;
+        // Related-post grids and sidebars nest their own <article>/<img>
+        // inside the page (e.g. Elementor posts widgets), so a naive
+        // "article img" harvest returns OTHER posts' thumbnails — which then
+        // either mis-label this opportunity or get rejected as duplicates.
+        if (
+          $(el).closest(
+            ".elementor-post, .elementor-posts, .jp-relatedposts, " +
+              '[class*="related"], [class*="widget"], aside, nav, footer',
+          ).length > 0
+        ) {
+          return;
+        }
         push(
           this.extractImageCandidate($(el).attr("src"), baseUrl) ||
             this.extractImageCandidate($(el).attr("data-src"), baseUrl) ||
@@ -3378,6 +3402,20 @@ ${text}`;
     );
 
     return candidates;
+  }
+
+  /**
+   * False for generated share-card fallbacks (recognized by their storage
+   * bucket) — they fill the UI when scraping finds nothing, but must never
+   * satisfy "this row already has an image" checks or the real image could
+   * never arrive later.
+   */
+  private isRealImageUrl(url: unknown): boolean {
+    return (
+      typeof url === "string" &&
+      url.trim().length > 0 &&
+      !url.includes("opportunity-share-cards")
+    );
   }
 
   private normalizeImageKey(url: string): string | null {
