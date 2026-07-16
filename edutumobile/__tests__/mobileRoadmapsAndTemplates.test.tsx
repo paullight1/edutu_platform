@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
 import { Alert, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -375,5 +376,112 @@ describe('mobile roadmaps and templates routes', () => {
     await waitFor(() => expect(getByText('Start This Roadmap')).toBeTruthy());
     expect(getByText('8 weeks')).toBeTruthy();
     expect(getByText('For: Aspiring developers')).toBeTruthy();
+  });
+
+  describe('roadmap intent intake', () => {
+    beforeEach(async () => {
+      await AsyncStorage.clear();
+    });
+
+    // Routes the intent endpoints on top of the catalog route. /roadmaps/ai/assist
+    // stays on the ok:false default, which exercises the built-in-questions fallback.
+    function routeIntentFetch({
+      intent,
+      recommended = [],
+    }: {
+      intent: unknown;
+      recommended?: unknown[];
+    }) {
+      const calls: { url: string; method: string; body?: string }[] = [];
+      mockFetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        calls.push({ url, method, body: init?.body as string | undefined });
+        if (url.includes('/roadmaps?')) {
+          return { ok: true, json: async () => [makeRoadmap()] } as Response;
+        }
+        if (url.includes('/roadmaps/intent')) {
+          return {
+            ok: true,
+            json: async () => (method === 'POST' ? {} : intent),
+          } as Response;
+        }
+        if (url.includes('/roadmaps/recommended')) {
+          return { ok: true, json: async () => recommended } as Response;
+        }
+        return { ok: false, status: 402, json: async () => ({}) } as Response;
+      });
+      global.fetch = mockFetch as never;
+      return calls;
+    }
+
+    it('asks the intake questions when no intent is stored and saves the answers', async () => {
+      const calls = routeIntentFetch({
+        intent: null,
+        recommended: [{ ...makeRoadmap(), id: 'rec-1', title: 'Recommended Roadmap' }],
+      });
+
+      const { getByText, queryByText } = render(<RoadmapsScreen />);
+      await waitFor(() => expect(getByText('Frontend Roadmap')).toBeTruthy());
+      await waitFor(() => expect(getByText('Help Us Find Your Perfect Roadmap')).toBeTruthy());
+
+      await act(async () => {
+        pressNearestTouchTarget(getByText('Beginner'));
+      });
+      await act(async () => {
+        pressNearestTouchTarget(getByText('Find My Roadmaps'));
+      });
+
+      await waitFor(() => {
+        const post = calls.find(
+          (call) => call.url.includes('/roadmaps/intent') && call.method === 'POST',
+        );
+        expect(post).toBeTruthy();
+        // The DTO's English enum, mapped from the tapped option's position —
+        // not the (translated) label itself.
+        expect(JSON.parse(post!.body!)).toEqual(
+          expect.objectContaining({ currentLevel: 'beginner' }),
+        );
+      });
+
+      // Modal closes and the list is seeded with the personalized picks.
+      await waitFor(() => expect(getByText('Recommended Roadmap')).toBeTruthy());
+      expect(queryByText('Find My Roadmaps')).toBeNull();
+    });
+
+    it('seeds the list with personalized picks when intent already exists', async () => {
+      routeIntentFetch({
+        intent: { id: 'intent-1', currentLevel: 'beginner' },
+        recommended: [{ ...makeRoadmap(), id: 'rec-1', title: 'Recommended Roadmap' }],
+      });
+
+      const { getByText, queryByText } = render(<RoadmapsScreen />);
+      await waitFor(() => expect(getByText('Recommended Roadmap')).toBeTruthy());
+      expect(queryByText('Help Us Find Your Perfect Roadmap')).toBeNull();
+    });
+
+    it('remembers a skip and never re-prompts', async () => {
+      routeIntentFetch({ intent: null });
+
+      const first = render(<RoadmapsScreen />);
+      await waitFor(() =>
+        expect(first.getByText('Help Us Find Your Perfect Roadmap')).toBeTruthy(),
+      );
+      await act(async () => {
+        pressNearestTouchTarget(first.getByText('Skip for now'));
+      });
+      await waitFor(() =>
+        expect(first.queryByText('Help Us Find Your Perfect Roadmap')).toBeNull(),
+      );
+      expect(await AsyncStorage.getItem('edutu_roadmaps_intent_prompt_dismissed')).toBe('1');
+      first.unmount();
+
+      routeIntentFetch({ intent: null });
+      const second = render(<RoadmapsScreen />);
+      await waitFor(() => expect(second.getByText('Frontend Roadmap')).toBeTruthy());
+      // Give the intent check a beat to run — the modal must stay away.
+      await act(async () => {});
+      expect(second.queryByText('Help Us Find Your Perfect Roadmap')).toBeNull();
+    });
   });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { ErrorBoundary } from './ErrorBoundary';
+import { useTranslation } from 'react-i18next';
 import { EmptyState, EmptyStateVariant } from './EmptyState';
 import {
   Skeleton,
@@ -83,13 +83,12 @@ export function withLoadingStates<P extends object>(
   defaultEmptyVariant: EmptyStateVariant = 'generic',
 ) {
   return function LoadingStatesWrapper(props: P & Partial<WithLoadingStatesProps>) {
+    const { t } = useTranslation('common');
     const {
       isLoading,
       error,
       isEmpty,
-      // Destructured only to strip it from `rest` before spreading onto the
-      // wrapped component.
-      onRetry: _onRetry,
+      onRetry,
       skeletonVariant = defaultSkeleton,
       emptyStateVariant = defaultEmptyVariant,
       emptyStateTitle,
@@ -100,10 +99,16 @@ export function withLoadingStates<P extends object>(
     } = props as P & WithLoadingStatesProps;
 
     if (error) {
+      // A real error state, not an ErrorBoundary: boundaries only catch
+      // children that THROW, so wrapping the (healthy) children in one used
+      // to render them as if nothing was wrong and never surfaced onRetry.
       return (
-        <ErrorBoundary message={typeof error === 'string' ? error : error?.message}>
-          <WrappedComponent {...(rest as unknown as P)} />
-        </ErrorBoundary>
+        <EmptyState
+          variant="error"
+          description={typeof error === 'string' ? error : error?.message}
+          actionLabel={onRetry ? t('actions.tryAgain') : undefined}
+          onAction={onRetry}
+        />
       );
     }
 

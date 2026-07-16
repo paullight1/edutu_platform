@@ -303,7 +303,8 @@
         "hours5to10": "Awanni 5-10",
         "hours10to20": "Awanni 10-20",
         "hours20plus": "Awanni 20+"
-      }
+      },
+      "saveFailed": "An kasa ajiye amsoshinka. Da fatan za a sake gwadawa."
     },
     "feedback": {
       "title": "Yaya wannan taswirar hanya take?",
