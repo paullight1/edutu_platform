@@ -380,6 +380,59 @@ export const aiDocuments = pgTable(
   (table) => [index("idx_ai_documents_user").on(table.userId, table.updatedAt)],
 );
 
+// User-provided files (real CVs, transcripts, essays) uploaded so the win-coach
+// works from the user's actual materials. The binary lives in the private
+// 'cv-files' bucket; extractedText is the parsed plain text the agent reads.
+export const userUploads = pgTable(
+  "user_uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // TEXT (not uuid): raw Clerk id, matching ai_documents / user_ai_memories.
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull().default("other"), // cv | transcript | essay | other
+    fileName: text("file_name").notNull(),
+    storagePath: text("storage_path").notNull(), // path within the 'cv-files' bucket
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull().default(0),
+    extractedText: text("extracted_text"),
+    parseStatus: text("parse_status").notNull().default("pending"), // pending | done | failed
+    parseError: text("parse_error"),
+    opportunityId: uuid("opportunity_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("user_uploads_user_idx").on(table.userId, table.createdAt)],
+);
+
+// Which documents (AI-drafted ai_documents or user_uploads) were attached to /
+// submitted to which application. This is what lets the coach say "your SOP is
+// still a draft". role: cv | sop | transcript | other; status: missing | draft |
+// submitted.
+export const applicationDocuments = pgTable(
+  "application_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id").notNull(),
+    userId: text("user_id").notNull(),
+    documentId: uuid("document_id"),
+    uploadId: uuid("upload_id"),
+    role: text("role").notNull().default("other"),
+    status: text("status").notNull().default("missing"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("application_documents_app_idx").on(table.applicationId),
+    index("application_documents_user_idx").on(table.userId),
+  ],
+);
+
 // One row per push alert actually surfaced to a user, so the alert engine
 // never re-sends the same opportunity and can enforce per-day caps.
 // kind: 'interest' | 'deadline_7d' | 'deadline_3d' | 'deadline_1d'
