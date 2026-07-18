@@ -36,6 +36,7 @@ import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
 import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { DocumentsModule } from "./documents/documents.module";
+import { UploadsModule } from "./uploads/uploads.module";
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { DocumentsModule } from "./documents/documents.module";
     MeModule,
     ChatModule,
     DocumentsModule,
+    UploadsModule,
     SettingsModule,
     MonetizationModule,
     AdminModule,
