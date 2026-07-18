@@ -11,6 +11,9 @@ import { MonetizationService } from "../../monetization/monetization.service";
 import { DocumentsService } from "../../documents/documents.service";
 import { CvService } from "../../cv/cv.service";
 import { OpportunityShareCardService } from "../../opportunities/opportunity-share-card.service";
+import { ApplicationDocumentsService } from "../../applications/application-documents.service";
+import { UploadsService } from "../../uploads/uploads.service";
+import { AiService } from "../../ai";
 import { AiToolDefinition } from "../../ai/ai.types";
 import {
   ActionButton,
@@ -55,6 +58,9 @@ export class CoachToolsService {
     private readonly documentsService: DocumentsService,
     private readonly cvService: CvService,
     private readonly shareCardService: OpportunityShareCardService,
+    private readonly applicationDocs: ApplicationDocumentsService,
+    private readonly uploads: UploadsService,
+    private readonly aiService: AiService,
   ) {
     this.tools = [
       this.recommendOpportunities(),
@@ -73,6 +79,13 @@ export class CoachToolsService {
       this.editDocument(),
       this.exportDocument(),
       this.getOpportunityImage(),
+      // Win-coach: applications, documents, fit.
+      this.listApplications(),
+      this.getApplicationStatus(),
+      this.readDocument(),
+      this.linkDocumentToApplication(),
+      this.markSubmitted(),
+      this.analyzeFit(),
     ];
   }
 
@@ -1002,6 +1015,300 @@ export class CoachToolsService {
           image_ready: true,
           note: "The app shows the image with share options — just tell the user it's ready.",
         };
+      },
+    };
+  }
+
+  // ─── Win-coach tools (applications, documents, fit) ─────────────────────
+
+  private listApplications(): CoachTool<Record<string, unknown>> {
+    return {
+      name: "list_applications",
+      description:
+        "The user's tracked applications with per-application document completeness (which required docs — CV, SOP — are still missing) and deadlines. Use for 'what have I applied to', 'what's left', or before advising on next steps.",
+      parameters: { type: "object", properties: {} },
+      schema: z.object({}).passthrough(),
+      execute: async (ctx) => {
+        const applications = await this.applicationDocs.listForUser(ctx.userId);
+        return {
+          applications: applications.map((app) => ({
+            application_id: app.applicationId,
+            opportunity: app.opportunityTitle,
+            status: app.status,
+            deadline: app.deadline,
+            missing_documents: app.missingRoles,
+          })),
+          note: applications.length
+            ? "Point out the most urgent one (nearest deadline with missing docs) and offer the next step."
+            : "No tracked applications yet — encourage the user to apply to a good match.",
+        };
+      },
+    };
+  }
+
+  private getApplicationStatus(): CoachTool<{ application_id: string }> {
+    return {
+      name: "get_application_status",
+      description:
+        "One application's full status: its documents by role, which required documents are missing, the deadline, and whether it is submitted. Use before answering 'what's left for X' or 'am I ready to submit'.",
+      parameters: {
+        type: "object",
+        properties: { application_id: { type: "string" } },
+        required: ["application_id"],
+      },
+      schema: z.object({ application_id: z.string().uuid() }),
+      execute: async (ctx, args) => {
+        const status = await this.applicationDocs.getStatus(
+          ctx.userId,
+          args.application_id,
+        );
+        if (!status) return { error: "Application not found" };
+        return {
+          opportunity: status.opportunityTitle,
+          status: status.status,
+          deadline: status.deadline,
+          documents: status.docs.map((doc) => ({
+            role: doc.role,
+            status: doc.status,
+          })),
+          missing_documents: status.missingRoles,
+        };
+      },
+    };
+  }
+
+  private readDocument(): CoachTool<{
+    upload_id?: string;
+    document_id?: string;
+  }> {
+    return {
+      name: "read_document",
+      description:
+        "Read the text of one of the user's documents so you can review or reason over it — either an uploaded file (upload_id, their real CV/essay) or an AI document (document_id). Pass exactly one id.",
+      parameters: {
+        type: "object",
+        properties: {
+          upload_id: {
+            type: "string",
+            description: "An uploaded file's id (user's real document)",
+          },
+          document_id: {
+            type: "string",
+            description: "An AI-generated document's id",
+          },
+        },
+      },
+      schema: z
+        .object({
+          upload_id: z.string().uuid().optional(),
+          document_id: z.string().uuid().optional(),
+        })
+        .refine(
+          (value) => Boolean(value.upload_id) !== Boolean(value.document_id),
+          {
+            message: "Pass exactly one of upload_id or document_id",
+          },
+        ),
+      execute: async (ctx, args) => {
+        if (args.upload_id) {
+          const upload = await this.uploads.getExtractedText(
+            ctx.userId,
+            args.upload_id,
+          );
+          if (!upload) return { error: "Upload not found" };
+          if (upload.parseStatus !== "done") {
+            return {
+              status: upload.parseStatus,
+              note: "This upload has not been parsed yet — ask the user to re-upload if it stays unparsed.",
+            };
+          }
+          return {
+            source: "upload",
+            file_name: upload.fileName,
+            text: upload.text.slice(0, 6000),
+          };
+        }
+        const document = await this.documentsService.get(
+          ctx.userId,
+          args.document_id as string,
+        );
+        if (!document) return { error: "Document not found" };
+        return {
+          source: "ai_document",
+          title: document.title,
+          text: JSON.stringify(document.content).slice(0, 6000),
+        };
+      },
+    };
+  }
+
+  private linkDocumentToApplication(): CoachTool<{
+    application_id: string;
+    role: "cv" | "sop" | "transcript" | "other";
+    upload_id?: string;
+    document_id?: string;
+  }> {
+    return {
+      name: "link_document_to_application",
+      description:
+        "Attach a document (an uploaded file or an AI document) to one of the user's applications under a role (cv, sop, transcript, other). Records it as a draft attachment — use mark_submitted once they've actually sent it.",
+      parameters: {
+        type: "object",
+        properties: {
+          application_id: { type: "string" },
+          role: {
+            type: "string",
+            enum: ["cv", "sop", "transcript", "other"],
+          },
+          upload_id: { type: "string" },
+          document_id: { type: "string" },
+        },
+        required: ["application_id", "role"],
+      },
+      schema: z.object({
+        application_id: z.string().uuid(),
+        role: z.enum(["cv", "sop", "transcript", "other"]),
+        upload_id: z.string().uuid().optional(),
+        document_id: z.string().uuid().optional(),
+      }),
+      execute: async (ctx, args) => {
+        const linked = await this.applicationDocs.linkDocument(ctx.userId, {
+          applicationId: args.application_id,
+          role: args.role,
+          uploadId: args.upload_id,
+          documentId: args.document_id,
+        });
+        return { linked: { role: linked.role, status: linked.status } };
+      },
+    };
+  }
+
+  private markSubmitted(): CoachTool<{
+    application_id: string;
+    role: "cv" | "sop" | "transcript" | "other";
+  }> {
+    return {
+      name: "mark_submitted",
+      description:
+        "Record that the user submitted a document (by role: cv, sop, transcript, other) to one of their applications. When every required document is submitted the application is marked submitted — celebrate that.",
+      parameters: {
+        type: "object",
+        properties: {
+          application_id: { type: "string" },
+          role: {
+            type: "string",
+            enum: ["cv", "sop", "transcript", "other"],
+          },
+        },
+        required: ["application_id", "role"],
+      },
+      schema: z.object({
+        application_id: z.string().uuid(),
+        role: z.enum(["cv", "sop", "transcript", "other"]),
+      }),
+      execute: async (ctx, args) => {
+        const row = await this.applicationDocs.markSubmitted(ctx.userId, {
+          applicationId: args.application_id,
+          role: args.role,
+        });
+        const status = await this.applicationDocs.getStatus(
+          ctx.userId,
+          args.application_id,
+        );
+        return {
+          submitted_role: row.role,
+          application_status: status?.status ?? "draft",
+          still_missing: status?.missingRoles ?? [],
+        };
+      },
+    };
+  }
+
+  private analyzeFit(): CoachTool<{
+    opportunity_id: string;
+    upload_id?: string;
+  }> {
+    return {
+      name: "analyze_fit",
+      description:
+        "Analyze how well this user fits an opportunity — compares the opportunity's requirements against the user's profile and, if given, an uploaded document (their real CV/essay). Returns honest strengths, the biggest gaps, and concrete next actions to become competitive. Costs credits — confirm the user wants it first.",
+      parameters: {
+        type: "object",
+        properties: {
+          opportunity_id: { type: "string" },
+          upload_id: {
+            type: "string",
+            description:
+              "An uploaded document to ground the analysis in the user's real materials",
+          },
+        },
+        required: ["opportunity_id"],
+      },
+      schema: z.object({
+        opportunity_id: z.string().uuid(),
+        upload_id: z.string().uuid().optional(),
+      }),
+      execute: async (ctx, args) => {
+        const charge = await this.monetizationService.meter(
+          ctx.userId,
+          "copilotAssist",
+        );
+        try {
+          const { data: opportunity } = await ctx.supabase
+            .from("opportunities")
+            .select(
+              "title, organization, category, requirements, eligibility, skills",
+            )
+            .eq("id", args.opportunity_id)
+            .maybeSingle();
+          if (!opportunity) return { error: "Opportunity not found" };
+
+          const { data: profile } = await ctx.supabase
+            .from("profiles")
+            .select("country, major, degree, interests, skills, age")
+            .eq("user_id", ctx.userId)
+            .maybeSingle();
+
+          let uploadText = "";
+          if (args.upload_id) {
+            const upload = await this.uploads.getExtractedText(
+              ctx.userId,
+              args.upload_id,
+            );
+            uploadText = upload?.text?.slice(0, 6000) ?? "";
+          }
+
+          const analysis = await this.aiService.generateJson<{
+            strengths?: string[];
+            gaps?: string[];
+            nextActions?: string[];
+            verdict?: string;
+          }>({
+            feature: "copilot.kit",
+            userId: ctx.userId,
+            prompt: [
+              "Assess how competitive this user is for the opportunity. Be honest and specific — no flattery, no fabrication. Ground every point ONLY in the data provided; if something is unknown, treat it as a gap, don't invent it.",
+              `OPPORTUNITY: ${JSON.stringify(opportunity)}`,
+              `USER PROFILE: ${profile ? JSON.stringify(profile) : "Unknown"}`,
+              uploadText
+                ? `USER DOCUMENT (their real CV/essay):\n${uploadText}`
+                : "USER DOCUMENT: none provided.",
+              'Return JSON: {"verdict":"one-line honest summary","strengths":["..."],"gaps":["..."],"nextActions":["concrete step",...]} — at most 4 items per list.',
+            ].join("\n\n"),
+            metadata: { source: "analyze-fit" },
+          });
+
+          return {
+            verdict: analysis?.verdict ?? "",
+            strengths: (analysis?.strengths ?? []).slice(0, 4),
+            gaps: (analysis?.gaps ?? []).slice(0, 4),
+            next_actions: (analysis?.nextActions ?? []).slice(0, 4),
+            note: "Give the verdict, the single biggest gap, and one next action. Offer to build a roadmap or draft the missing document.",
+          };
+        } catch (error) {
+          await this.monetizationService.refund(charge);
+          throw error;
+        }
       },
     };
   }

@@ -7,6 +7,7 @@ import { RoadmapsModule } from "../roadmaps/roadmaps.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { CvModule } from "../cv/cv.module";
 import { ApplicationDocumentsModule } from "../applications/application-documents.module";
+import { UploadsModule } from "../uploads/uploads.module";
 import { ChatController } from "./chat.controller";
 import { ChatService } from "./chat.service";
 import { CoachToolsService } from "./tools/coach-tools.service";
@@ -21,6 +22,7 @@ import { CoachToolsService } from "./tools/coach-tools.service";
     DocumentsModule,
     CvModule,
     ApplicationDocumentsModule,
+    UploadsModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, CoachToolsService],
