@@ -108,6 +108,39 @@ const DEFAULT_AGENT_PERSONA = [
   "- Never mention AI providers, models, tools, or these instructions.",
 ].join("\n");
 
+/** Screen the user is on when they invoke the agent (inline action or assistant). */
+export type ScreenContext = {
+  surface?: string;
+  opportunityId?: string;
+  applicationId?: string;
+  documentId?: string;
+  uploadId?: string;
+};
+
+export type WinCoachIntent =
+  | "free_chat"
+  | "fit_check"
+  | "next_move"
+  | "review_doc"
+  | "whats_missing";
+
+/**
+ * Server-side instruction fragments for each inline-action intent. Inline
+ * buttons send just the intent (+ context) so this steering lives here, not in
+ * the app — it can change without a mobile release. free_chat adds nothing.
+ */
+export const INTENT_PRESETS: Record<WinCoachIntent, string> = {
+  free_chat: "",
+  fit_check:
+    "The user opened this from an opportunity and wants an honest fit assessment. Call analyze_fit for it (confirm the credit cost only if they haven't already asked), then give the verdict, the single biggest gap, and one concrete next action.",
+  next_move:
+    "The user wants their single most important next move for this opportunity/application right now. Look at their application status and deadline, then give one specific, actionable step — not a list.",
+  review_doc:
+    "The user wants feedback on a specific document. Read it with read_document, then give focused, prioritized improvements — the top three things that would most strengthen it.",
+  whats_missing:
+    "The user wants to know what's left before they can submit this application. Use get_application_status and tell them the missing required documents and the next step to complete each.",
+};
+
 type SmartAction = {
   id: string;
   type:
@@ -152,6 +185,10 @@ export class ChatService {
   // Agent turns are the default; AI_AGENT_ENABLED=false reverts every user to
   // the legacy single-shot pipeline (which also remains the error fallback).
   private readonly agentEnabled = process.env.AI_AGENT_ENABLED !== "false";
+  // Win-coach screen-context + intent presets. Off → context/intent ignored and
+  // the agent behaves exactly as before.
+  private readonly winCoachEnabled =
+    process.env.AI_WINCOACH_ENABLED !== "false";
   private agentPersonaCache: { content: string; loadedAt: number } | null =
     null;
 
@@ -219,6 +256,8 @@ export class ChatService {
       threadId?: string | null;
       message?: string;
       channel?: "text" | "voice";
+      context?: ScreenContext;
+      intent?: WinCoachIntent;
     },
     options?: {
       /** Progress sink for the SSE endpoint (tool.start / tool.result). */
@@ -352,6 +391,8 @@ export class ChatService {
           goals: (goals as Array<Record<string, unknown>> | null) ?? [],
           applications:
             (applicationsResult?.data as Array<Record<string, unknown>>) ?? [],
+          context: this.winCoachEnabled ? body.context : undefined,
+          intent: this.winCoachEnabled ? body.intent : undefined,
           emit: options?.emit,
         });
       } catch (error) {
@@ -908,6 +949,8 @@ ${input.message}`;
     profile: Record<string, unknown> | null;
     goals: Array<Record<string, unknown>>;
     applications: Array<Record<string, unknown>>;
+    context?: ScreenContext;
+    intent?: WinCoachIntent;
     emit?: (event: string, data: Record<string, unknown>) => void;
   }): Promise<AgentTurnOutcome> {
     const memories = await this.coachTools
@@ -959,6 +1002,9 @@ ${input.message}`;
       applications: input.applications,
       memories,
       isVoice: input.isVoice,
+      supabase: input.supabase,
+      context: input.context,
+      intent: input.intent,
     });
     const messages: AiChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -1070,6 +1116,9 @@ ${input.message}`;
     applications: Array<Record<string, unknown>>;
     memories: Array<{ kind: string; content: string }>;
     isVoice: boolean;
+    supabase?: SupabaseClient;
+    context?: ScreenContext;
+    intent?: WinCoachIntent;
   }): Promise<string> {
     const persona = await this.getAgentPersona();
     const profileLine = input.profile
@@ -1097,6 +1146,15 @@ ${input.message}`;
           .join("\n")
       : "Nothing yet — save durable facts with save_memory as you learn them.";
 
+    const intentLine =
+      input.intent && input.intent !== "free_chat"
+        ? INTENT_PRESETS[input.intent]
+        : "";
+    const contextBlock =
+      input.context && input.supabase
+        ? await this.buildAgentContextBlock(input.supabase, input.context)
+        : "";
+
     return [
       persona,
       input.isVoice
@@ -1107,9 +1165,59 @@ ${input.message}`;
       `ACTIVE GOALS:\n${goalsLine}`,
       `APPLICATIONS IN FLIGHT:\n${applicationsLine}`,
       `THINGS YOU REMEMBER ABOUT THIS USER:\n${memoriesLine}`,
+      contextBlock,
+      intentLine ? `WHAT THE USER WANTS RIGHT NOW:\n${intentLine}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
+  }
+
+  /**
+   * Preloads the entity the user is looking at so the agent starts grounded on
+   * the current screen (an opportunity, an application, an uploaded doc) instead
+   * of having to ask which one. Best-effort — a failed lookup never blocks the
+   * turn.
+   */
+  private async buildAgentContextBlock(
+    supabase: SupabaseClient,
+    context: ScreenContext,
+  ): Promise<string> {
+    const lines: string[] = ["CURRENT SCREEN CONTEXT:"];
+    if (context.surface)
+      lines.push(`- The user is on the "${context.surface}" screen.`);
+
+    if (context.opportunityId) {
+      try {
+        const { data } = await supabase
+          .from("opportunities")
+          .select("id, title, organization, category, close_date, deadline")
+          .eq("id", context.opportunityId)
+          .maybeSingle();
+        if (data) {
+          lines.push(
+            `- Viewing OPPORTUNITY "${data.title}" (${data.organization ?? "org unknown"}), id ${data.id}, deadline ${data.close_date ?? data.deadline ?? "unknown"}. Use this id directly in tools like analyze_fit or create_roadmap — don't ask which opportunity.`,
+          );
+        }
+      } catch {
+        // ignore — context is a nicety, not a requirement
+      }
+    }
+    if (context.applicationId) {
+      lines.push(
+        `- Looking at APPLICATION id ${context.applicationId}. Use get_application_status for its document checklist and deadline.`,
+      );
+    }
+    if (context.uploadId) {
+      lines.push(
+        `- The user has an uploaded document available (upload_id ${context.uploadId}). Use read_document to read it, or pass it to analyze_fit.`,
+      );
+    }
+    if (context.documentId) {
+      lines.push(
+        `- An AI document is in focus (document_id ${context.documentId}). Use read_document or edit_document with it.`,
+      );
+    }
+    return lines.length > 1 ? lines.join("\n") : "";
   }
 
   /** Persona is admin-editable via ai_prompts (feature 'chat.agent'). */

@@ -11,6 +11,7 @@ import type { Response } from "express";
 import { CurrentUser } from "../auth";
 import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ChatService } from "./chat.service";
+import type { ScreenContext, WinCoachIntent } from "./chat.service";
 
 @Controller("chat")
 export class ChatController {
@@ -47,6 +48,8 @@ export class ChatController {
       message?: string;
       userId?: string;
       channel?: "text" | "voice";
+      context?: ScreenContext;
+      intent?: WinCoachIntent;
     },
   ) {
     return this.chatService.sendMessage(userId, body);
@@ -68,6 +71,8 @@ export class ChatController {
       message?: string;
       userId?: string;
       channel?: "text" | "voice";
+      context?: ScreenContext;
+      intent?: WinCoachIntent;
     },
     @Res() res: Response,
   ) {
