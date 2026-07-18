@@ -5,6 +5,33 @@ import { requestProductApi } from './productApi';
 const CHAT_PROXY_TIMEOUT_MS = 10000;
 const CHAT_SEND_TIMEOUT_MS = 12000;
 
+/** Screen the user is on when invoking the win-coach (inline action or assistant). */
+export type ScreenContext = {
+  surface?: string;
+  opportunityId?: string;
+  applicationId?: string;
+  documentId?: string;
+  uploadId?: string;
+};
+
+/** Inline-action intent preset understood by the backend agent. */
+export type WinCoachIntent =
+  | 'free_chat'
+  | 'fit_check'
+  | 'next_move'
+  | 'review_doc'
+  | 'whats_missing';
+
+export type SendChatMessageOptions = {
+  threadId?: string | null;
+  message: string;
+  userId: string;
+  authToken?: string | null;
+  channel?: 'text' | 'voice';
+  context?: ScreenContext;
+  intent?: WinCoachIntent;
+};
+
 /**
  * Thrown when the backend rate-limits the user (HTTP 429). The chat UI surfaces
  * a distinct "message limit" message for this case instead of a generic failure.
@@ -27,7 +54,7 @@ function getApiBaseUrl() {
  * other failures so callers can fall back to the supabase chat-proxy path.
  */
 async function postChatMessageToBackend(
-  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null; channel?: 'text' | 'voice' },
+  options: SendChatMessageOptions,
 ): Promise<SendChatMessageResult | null> {
   const apiBaseUrl = getApiBaseUrl();
   const token = options.authToken;
@@ -52,6 +79,10 @@ async function postChatMessageToBackend(
         message: options.message,
         userId: options.userId,
         channel: options.channel,
+        // Win-coach screen context + intent — backend-only (the chat-proxy
+        // fallback ignores these), so send them just on this path.
+        ...(options.context ? { context: options.context } : {}),
+        ...(options.intent ? { intent: options.intent } : {}),
       }),
       signal: controller.signal,
     });
@@ -235,7 +266,7 @@ export async function renameChatThread(supabase: SupabaseClient, threadId: strin
 
 export async function sendChatMessage(
   supabase: SupabaseClient,
-  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null; channel?: 'text' | 'voice' }
+  options: SendChatMessageOptions
 ): Promise<SendChatMessageResult> {
   try {
     const backendResult = await postChatMessageToBackend(options);
