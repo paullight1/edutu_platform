@@ -101,6 +101,9 @@ import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
 import { notificationService } from "../../../lib/notifications";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
+import { AiActionBar } from "../../../components/ai/AiActionBar";
+import { DocumentUpload } from "../../../components/ai/DocumentUpload";
+import { useAiAction } from "../../../hooks/useAiAction";
 import Reanimated, {
   FadeInDown,
   Easing,
@@ -460,6 +463,16 @@ export default function OpportunityDetailScreen() {
   const { getToken, isSignedIn } = useAuth();
   const { isDark, colors } = useTheme();
   const upgradeSheet = useUpgradeSheet();
+  // Win-coach inline actions for this opportunity; a freshly uploaded CV is
+  // passed to the fit check so the AI reasons over the user's real document.
+  const [winCoachUploadId, setWinCoachUploadId] = useState<string | undefined>(
+    undefined,
+  );
+  const runWinCoach = useAiAction({
+    surface: "opportunity_detail",
+    opportunityId: id,
+    uploadId: winCoachUploadId,
+  });
 
   // Guests may read + share this opportunity, but applying, saving, dismissing,
   // planning, and AI all require an account — raise the wall instead.
@@ -1812,6 +1825,33 @@ export default function OpportunityDetailScreen() {
                   </Text>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Win-coach: fit + next move for this opportunity */}
+          {isSignedIn && (
+            <View style={{ marginBottom: 20, gap: 10 }}>
+              <AiActionBar
+                actions={[
+                  {
+                    label: "Am I a fit?",
+                    intent: "fit_check",
+                    message: `Am I a good fit for "${opportunity.title}"? Give me an honest assessment.`,
+                  },
+                  {
+                    label: "Next move",
+                    intent: "next_move",
+                    message: `What's my single most important next move to win "${opportunity.title}"?`,
+                  },
+                ]}
+                onRun={runWinCoach}
+              />
+              <DocumentUpload
+                kind="cv"
+                opportunityId={id}
+                label="Upload your CV for a sharper fit check"
+                onUploaded={setWinCoachUploadId}
+              />
             </View>
           )}
 

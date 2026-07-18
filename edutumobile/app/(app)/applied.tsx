@@ -21,6 +21,8 @@ import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
 import type { Opportunity } from "../../packages/core/src/types/opportunity";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
+import { AiActionBar } from "../../components/ai/AiActionBar";
+import { useAiAction } from "../../hooks/useAiAction";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 
@@ -223,6 +225,9 @@ export default function AppliedPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const userId = user?.id;
+  // Win-coach across all tracked applications — the agent uses list_applications
+  // to find the most urgent gaps.
+  const runWinCoach = useAiAction({ surface: "application_tracker" });
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
   const [rawLoading, setLoading] = useState(true);
   // Signed-out users have nothing to load — derive instead of synchronously
@@ -499,6 +504,26 @@ export default function AppliedPage() {
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
     return (
+      <View>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <AiActionBar
+          actions={[
+            {
+              label: "What's missing?",
+              intent: "whats_missing",
+              message:
+                "Across my applications, which are missing required documents and closest to their deadline? What should I finish first?",
+            },
+            {
+              label: "My next win move",
+              intent: "next_move",
+              message:
+                "Looking at everything I've applied to, what's my single most important next move right now?",
+            },
+          ]}
+          onRun={runWinCoach}
+        />
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -525,6 +550,7 @@ export default function AppliedPage() {
           );
         })}
       </ScrollView>
+      </View>
     );
   };
 
