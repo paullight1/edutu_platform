@@ -73,7 +73,11 @@
     "narrowBy": "تضييق حسب:",
     "view": "عرض",
     "categoryFallback": "فرصة",
-    "typing": "Edutu يتحقق من الفرص"
+    "typing": "Edutu يتحقق من الفرص",
+    "fitExcellent": "ملاءمة ممتازة",
+    "fitStrong": "ملاءمة قوية",
+    "fitGood": "ملاءمة جيدة",
+    "fitWorthALook": "يستحق النظرة"
   },
   "followUp": {
     "country": "الدولة",

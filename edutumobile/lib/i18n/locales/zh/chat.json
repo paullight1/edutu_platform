@@ -73,7 +73,11 @@
     "narrowBy": "按条件筛选：",
     "view": "查看",
     "categoryFallback": "机会",
-    "typing": "Edutu 正在查找机会"
+    "typing": "Edutu 正在查找机会",
+    "fitExcellent": "非常匹配",
+    "fitStrong": "高度匹配",
+    "fitGood": "较匹配",
+    "fitWorthALook": "值得一看"
   },
   "followUp": {
     "country": "国家/地区",

@@ -20,6 +20,7 @@ import {
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
 import type { Opportunity } from "../../packages/core/src/types/opportunity";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
@@ -128,6 +129,7 @@ function RejectionSupportCard({
   textPrimary: string;
   textSecondary: string;
 }) {
+  const { t } = useTranslation('home');
   const [reflection, setReflection] = useState(initialReflection);
   const [saved, setSaved] = useState(Boolean(initialReflection));
 
@@ -193,7 +195,7 @@ function RejectionSupportCard({
           <View style={styles.nextShotMetaRow}>
             {nextMatchPct >= 40 ? (
               <Text style={{ color: accentColor, fontSize: 11, fontWeight: '800' }}>
-                {nextMatchPct}% match
+                {t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(nextMatchPct)])}
               </Text>
             ) : null}
             {nextDeadline ? (

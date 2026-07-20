@@ -1,4 +1,4 @@
-import { getMatchTier, MATCH_TIER_KEY } from '../matchTier';
+import { getMatchTier, MATCH_TIER_KEY } from '@edutu/core/src/utils/matchTier';
 
 test('tier boundaries', () => {
   expect(getMatchTier(80)).toBe('excellent');

@@ -73,7 +73,11 @@
     "narrowBy": "Taƙaita da:",
     "view": "Duba",
     "categoryFallback": "Dama",
-    "typing": "Edutu yana duba damammaki"
+    "typing": "Edutu yana duba damammaki",
+    "fitExcellent": "Ya dace sosai",
+    "fitStrong": "Ya dace da kyau",
+    "fitGood": "Ya dace",
+    "fitWorthALook": "Ya cancanci dubawa"
   },
   "followUp": {
     "country": "Ƙasa",
