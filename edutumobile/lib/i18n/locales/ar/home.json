@@ -184,6 +184,7 @@
     "save": "وفّر",
     "billedMonthly": "تُدفع شهريًا",
     "perMonthBilledYearly": "{{price}} شهريًا، تُدفع سنويًا",
+    "seasonDuration": "وصول برو لمدة {{count}} يومًا",
     "features": {
       "unlimitedAi": "توليد غير محدود بالذكاء الاصطناعي",
       "premiumTemplates": "قوالب سيرة ذاتية مميزة",

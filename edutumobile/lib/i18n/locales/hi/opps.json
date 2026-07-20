@@ -102,6 +102,7 @@
     "daysRemaining_one": "{{count}} दिन शेष",
     "daysRemaining_other": "{{count}} दिन शेष",
     "feasibility": "{{count}} आवश्यकताएँ — अभी भी संभव है। पहले से शुरू करें।",
+    "feasibility_one": "1 आवश्यकता — अभी भी संभव है। इसे शुरू करें।",
     "stipendFunding": "स्टाइपेंड / फ़ंडिंग",
     "freeToApply": "आवेदन निःशुल्क",
     "applicationFee": "आवेदन शुल्क: {{fee}}",

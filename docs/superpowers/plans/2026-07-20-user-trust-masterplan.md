@@ -399,10 +399,12 @@ seasonPass: z.object({
 
 ## Rollout / Deploy checklist (post-merge; user's flow)
 
-- Render env: `RECS_ELIGIBILITY_GATE=true`, `RECS_HIDDEN_GEMS=true`, `SCRAPER_SCAM_GATE=true`, `APPLICATION_GHOST_NUDGES_ENABLED=true` (opt-in — ships dark), `FREE_CHAT_GRACE_DAYS=7`.
-- Migrations (2) applied live via MCP during Tasks 4.1 / 5.1 — verify with `list_migrations`.
+- Render env: `RECS_ELIGIBILITY_GATE=true`, `RECS_HIDDEN_GEMS=true`, `SCRAPER_SCAM_GATE=true`, `APPLICATION_GHOST_NUDGES_ENABLED=true` (opt-in — ships dark; enable only after validating nudge copy/threshold, since the first run can nudge the entire standing backlog of stale submitted applications at once, not just newly-stale ones), `FREE_CHAT_GRACE_DAYS=7`.
+- Migrations (3) applied live via MCP during Tasks 4.1 / 5.1 — `20260720112224_signals_engagement_index`, `20260720114241_application_no_response_status`, `20260720115946_widen_notifications_kind_check` — verified via `list_migrations`.
 - RevenueCat: create non-renewing product `season_pass` (mobile paywall hides it until then).
-- Admin: enable `pricing.seasonPass.enabled` via settings once pricing confirmed.
+- Redeploy the `revenuecat-webhook` Supabase edge function (changed on this branch) and set `EDUTU_API_URL` on it so season duration follows admin config instead of falling back to 90 days.
+- Deploy order matters: Render backend → pay.edutu.org site → `revenuecat-webhook` edge function → flip `pricing.seasonPass.enabled` in admin. Deploying pay-edutu-org before the backend/edge fn are live risks selling season passes the backend can't correctly duration.
+- Admin: enable `pricing.seasonPass.enabled` via settings once pricing confirmed (last step, after the deploy order above).
 - Existing scraped rows have legacy free-form eligibility ⇒ they fail open (no gating) until re-scraped (3-day recheck cycle refreshes actives). Optional LLM backfill deliberately deferred.
 - The Desktop working tree has unpushed work (doc-nudge cron, pro-expiry cron, `AI_WINCOACH_ENABLED` naming); this plan builds only on what's on origin/main. Reconcile at merge if that work lands first.
 

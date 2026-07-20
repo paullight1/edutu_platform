@@ -24,9 +24,10 @@ export function toMinorUnits(amountMajor: number): number {
 
 /**
  * Days of Pro granted per plan for one-time (non-recurring) charges.
- * NOTE: the real season-pass duration is admin-configured and always supplied as
- * an explicit `expiresAt` at the grant sites — the 90 here is only a type-safe
- * fallback so this helper stays total over the union and is never used for season.
+ * NOTE: grant sites pass an admin-configured `durationDays` (not `expiresAt`) for
+ * season, and `grantPro` extends from max(current active expiry, now) using that
+ * duration — so the 90 here is a rarely-reachable, type-safe fallback that keeps
+ * this helper total over the union rather than the value actually used for season.
  */
 export function planDurationDays(plan: BillingPlan): number {
   if (plan === 'yearly') return 366;

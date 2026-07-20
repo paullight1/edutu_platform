@@ -175,6 +175,7 @@
     "save": "省",
     "billedMonthly": "按月计费",
     "perMonthBilledYearly": "每月 {{price}}，按年计费",
+    "seasonDuration": "{{count}} 天 Pro 权益",
     "features": {
       "unlimitedAi": "无限次 AI 生成",
       "premiumTemplates": "高级简历模板",

@@ -175,6 +175,7 @@
     "save": "Economize",
     "billedMonthly": "Cobrança mensal",
     "perMonthBilledYearly": "{{price}} por mês, cobrado anualmente",
+    "seasonDuration": "Acesso Pro de {{count}} dias",
     "features": {
       "unlimitedAi": "Geração ilimitada com IA",
       "premiumTemplates": "Modelos de CV premium",

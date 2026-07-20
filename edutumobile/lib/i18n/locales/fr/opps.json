@@ -102,6 +102,7 @@
     "daysRemaining_one": "{{count}} jour restant",
     "daysRemaining_other": "{{count}} jours restants",
     "feasibility": "{{count}} conditions — c'est encore faisable. Commencez par la première.",
+    "feasibility_one": "1 condition — c'est encore faisable. Commencez maintenant.",
     "stipendFunding": "Allocation / Financement",
     "freeToApply": "Candidature gratuite",
     "applicationFee": "Frais de candidature : {{fee}}",

@@ -933,8 +933,9 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 </h2>
                 {showFeasibility ? (
                   <p className="text-sm text-text-secondary">
-                    {requirements.length} requirements — still doable. Start with
-                    the first one.
+                    {requirements.length}{" "}
+                    {requirements.length === 1 ? "requirement" : "requirements"}{" "}
+                    — still doable. Start with the first one.
                   </p>
                 ) : null}
                 <ul className="space-y-3 text-base leading-7 text-text-secondary">

@@ -175,6 +175,7 @@
     "save": "Tanadi",
     "billedMonthly": "Ana biya kowane wata",
     "perMonthBilledYearly": "{{price}} a wata, ana biya kowace shekara",
+    "seasonDuration": "Damar Pro na kwanaki {{count}}",
     "features": {
       "unlimitedAi": "Ƙirƙirar AI mara iyaka",
       "premiumTemplates": "Samfurorin CV na premium",

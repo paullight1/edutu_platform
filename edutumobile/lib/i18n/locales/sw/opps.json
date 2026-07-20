@@ -102,6 +102,7 @@
     "daysRemaining_one": "Imebaki siku {{count}}",
     "daysRemaining_other": "Zimebaki siku {{count}}",
     "feasibility": "Mahitaji {{count}} — bado inawezekana. Anza na la kwanza.",
+    "feasibility_one": "Hitaji 1 — bado linawezekana. Anza nalo.",
     "stipendFunding": "Posho / Ufadhili",
     "freeToApply": "Kutuma maombi ni bure",
     "applicationFee": "Ada ya maombi: {{fee}}",

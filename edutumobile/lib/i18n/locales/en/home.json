@@ -208,6 +208,7 @@
     "billedWeekly": "Billed weekly",
     "billedMonthly": "Billed monthly",
     "perMonthBilledYearly": "{{price}} per month, billed yearly",
+    "seasonDuration": "{{count}}-day Pro access",
     "features": {
       "unlimitedAi": "Unlimited AI generation",
       "premiumTemplates": "Premium CV templates",

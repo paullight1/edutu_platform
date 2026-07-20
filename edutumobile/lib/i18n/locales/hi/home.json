@@ -175,6 +175,7 @@
     "save": "बचत",
     "billedMonthly": "मासिक बिलिंग",
     "perMonthBilledYearly": "{{price}} प्रति माह, वार्षिक बिलिंग",
+    "seasonDuration": "{{count}} दिनों की प्रो पहुँच",
     "features": {
       "unlimitedAi": "अनलिमिटेड AI जनरेशन",
       "premiumTemplates": "प्रीमियम CV टेम्पलेट्स",

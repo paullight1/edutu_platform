@@ -175,6 +175,7 @@
     "save": "Okoa",
     "billedMonthly": "Hulipwa kila mwezi",
     "perMonthBilledYearly": "{{price}} kwa mwezi, hulipwa kila mwaka",
+    "seasonDuration": "Ufikiaji wa Pro wa siku {{count}}",
     "features": {
       "unlimitedAi": "Utengenezaji wa AI bila kikomo",
       "premiumTemplates": "Violezo vya CV vya premium",

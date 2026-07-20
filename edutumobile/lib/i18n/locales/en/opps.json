@@ -128,6 +128,7 @@
     "daysRemaining_one": "{{count}} day remaining",
     "daysRemaining_other": "{{count}} days remaining",
     "feasibility": "{{count}} requirements — still doable. Start with the first one.",
+    "feasibility_one": "1 requirement — still doable. Start with it.",
     "stipendFunding": "Stipend / Funding",
     "freeToApply": "Free to apply",
     "applicationFee": "Application fee: {{fee}}",

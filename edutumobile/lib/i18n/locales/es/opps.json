@@ -102,6 +102,7 @@
     "daysRemaining_one": "{{count}} día restante",
     "daysRemaining_other": "{{count}} días restantes",
     "feasibility": "{{count}} requisitos — aún es posible. Empieza por el primero.",
+    "feasibility_one": "1 requisito — aún es posible. Empieza ya.",
     "stipendFunding": "Estipendio / Financiamiento",
     "freeToApply": "Gratis para aplicar",
     "applicationFee": "Tarifa de solicitud: {{fee}}",

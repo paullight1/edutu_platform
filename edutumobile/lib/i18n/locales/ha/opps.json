@@ -102,6 +102,7 @@
     "daysRemaining_one": "Saura kwana {{count}}",
     "daysRemaining_other": "Saura kwanaki {{count}}",
     "feasibility": "Bukatun {{count}} — har yanzu ana iya yi. Fara da na farko.",
+    "feasibility_one": "Bukata 1 — har yanzu ana iya yi. Fara da ita.",
     "stipendFunding": "Alawus / Kuɗaɗe",
     "freeToApply": "Neman aiki kyauta ne",
     "applicationFee": "Kudin neman: {{fee}}",
