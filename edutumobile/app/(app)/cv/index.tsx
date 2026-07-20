@@ -25,6 +25,7 @@ import { supabase } from '../../../lib/supabase';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { CVTemplate, UserCV } from '@edutu/core/src/types/cv';
 import * as cvService from '@edutu/core/src/services/cv';
+import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { isAiBillingError } from '@edutu/core/src/services/productApi';
 import { useUpgradeSheet } from '../../../components/context/UpgradeSheetContext';
 import { exportCVAsPdf } from '../../../lib/exportCv';
@@ -158,6 +159,10 @@ export default function CVBuilderScreen() {
     const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
+    // Single source of truth for Pro across the whole app (RevenueCat on-device
+    // + profiles.is_pro + billing_entitlements). CV used to read profiles.is_pro
+    // alone, which disagreed with the rest of the app after an on-device purchase.
+    const { isPro } = useProStatus(supabase, user?.id || null);
     const upgradeSheet = useUpgradeSheet();
 
     const [activeSection, setActiveSection] = useState<CVSection>('templates');
@@ -168,7 +173,6 @@ export default function CVBuilderScreen() {
         name: t('defaults.myCv'),
         data_json: {},
     });
-    const [isPro, setIsPro] = useState(false);
     const [trialUsed, setTrialUsed] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -345,13 +349,12 @@ export default function CVBuilderScreen() {
         return Promise.all([
             cvService.fetchCVTemplates(supabase, { includePremium: true }),
             cvService.fetchUserCVs(supabase, userId),
-            cvService.getUserProStatus(supabase, userId),
+            cvService.getCvTrialStatus(supabase, userId),
         ])
-            .then(([templatesData, cvsData, proStatus]) => {
+            .then(([templatesData, cvsData, trialStatus]) => {
                 setTemplates(templatesData);
                 setUserCVs(cvsData);
-                setIsPro(proStatus.isPro);
-                setTrialUsed(proStatus.cvTrialUsed);
+                setTrialUsed(trialStatus.cvTrialUsed);
             })
             .catch((error) => {
                 console.error('Error loading CV data:', error);

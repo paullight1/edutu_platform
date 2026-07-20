@@ -9,11 +9,19 @@ import Purchases, {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const REVENUECAT_API_KEY = Platform.select({
+const RAW_REVENUECAT_API_KEY = Platform.select({
   ios: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || '',
   android: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || '',
   default: '',
 });
+
+// A `test_`-prefixed key is RevenueCat's Test Store (no App Store / Play
+// products needed) — great for development, but it must never drive billing in
+// a store-shipped build. In release builds we treat a test key as "no key",
+// so the paywall degrades to its unconfigured behaviour instead of offering a
+// non-functional purchase. Real store builds ship `appl_` / `goog_` keys.
+const REVENUECAT_API_KEY =
+  RAW_REVENUECAT_API_KEY.startsWith('test_') && !__DEV__ ? '' : RAW_REVENUECAT_API_KEY;
 
 let isRevenueCatConfigured = false;
 let configuredUserId: string | null = null;

@@ -173,6 +173,32 @@ serve(async (req) => {
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
+// RevenueCat sends the store UPPERCASE (APP_STORE / PLAY_STORE / …), but the
+// `subscriptions.store` CHECK constraint only allows lowercase
+// app_store / play_store / stripe. Without this mapping every subscription row
+// silently fails the constraint and never gets recorded.
+const STORE_MAP: Record<string, string> = {
+  APP_STORE: 'app_store',
+  MAC_APP_STORE: 'app_store',
+  PLAY_STORE: 'play_store',
+  AMAZON: 'play_store',
+  STRIPE: 'stripe',
+  RC_BILLING: 'stripe',
+  PROMOTIONAL: 'app_store',
+};
+function normalizeStore(store?: string): string {
+  if (!store) return 'app_store';
+  return STORE_MAP[store.toUpperCase()] ?? store.toLowerCase();
+}
+
+// `subscriptions.environment` allows only lowercase sandbox/production;
+// RevenueCat sends SANDBOX/PRODUCTION. Anything else → null (column is nullable
+// and NULL passes the CHECK) so an unexpected value can't block the row.
+function normalizeEnvironment(env?: string): string | null {
+  const e = (env || '').toLowerCase();
+  return e === 'sandbox' || e === 'production' ? e : null;
+}
+
 async function handleSubscriptionActive(
   userId: string,
   data: RevenueCatEvent['event']['data'],
@@ -199,13 +225,13 @@ async function handleSubscriptionActive(
       user_id: userId,
       revenuecat_id: data.transaction_id,
       product_id: data.product_id,
-      store: data.store,
+      store: normalizeStore(data.store),
       status: 'active',
       expires_at: expiresAt?.toISOString(),
       is_trial_period: isTrial,
       auto_renewing: type === 'RENEWAL',
       will_renew: true,
-      environment: data.environment,
+      environment: normalizeEnvironment(data.environment),
       original_transaction_id: data.transaction_id,
       latest_transaction_id: data.transaction_id,
       raw_data: data,
@@ -244,19 +270,24 @@ async function handleSubscriptionActive(
     });
   }
 
-  // Log transaction
-  await supabaseAdmin.from('payment_transactions').insert({
+  // Log transaction. `amount` is an integer column, but RevenueCat prices are
+  // decimals (e.g. 6.99) — store minor units (cents) so nothing is lost and the
+  // insert stops silently failing on "invalid input syntax for type integer".
+  const { error: txError } = await supabaseAdmin.from('payment_transactions').insert({
     user_id: userId,
     type: 'subscription_purchase',
-    amount: data.price,
+    amount: Math.round((data.price || 0) * 100),
     currency: data.currency,
     transaction_id: data.transaction_id,
     product_id: data.product_id,
-    store: data.store,
+    store: normalizeStore(data.store),
     status: 'completed',
     description: `${isTrial ? 'Trial' : 'Subscription'} ${type === 'RENEWAL' ? 'renewal' : 'purchase'}`,
     metadata: data,
   });
+  if (txError) {
+    console.error('Error logging payment transaction:', txError);
+  }
 }
 
 async function handleSubscriptionCancelled(

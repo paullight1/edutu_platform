@@ -45,7 +45,8 @@ const mockUserState = {
 
 const mockFetchCVTemplates = jest.fn();
 const mockFetchUserCVs = jest.fn();
-const mockGetUserProStatus = jest.fn();
+const mockGetCvTrialStatus = jest.fn();
+const mockUseProStatus = jest.fn();
 const mockCreateUserCV = jest.fn();
 const mockUpdateUserCV = jest.fn();
 const mockDeleteUserCV = jest.fn();
@@ -133,7 +134,7 @@ jest.mock('@edutu/core/src/services/opportunities', () => ({
 jest.mock('@edutu/core/src/services/cv', () => ({
   fetchCVTemplates: (...args: unknown[]) => mockFetchCVTemplates(...args),
   fetchUserCVs: (...args: unknown[]) => mockFetchUserCVs(...args),
-  getUserProStatus: (...args: unknown[]) => mockGetUserProStatus(...args),
+  getCvTrialStatus: (...args: unknown[]) => mockGetCvTrialStatus(...args),
   createUserCV: (...args: unknown[]) => mockCreateUserCV(...args),
   updateUserCV: (...args: unknown[]) => mockUpdateUserCV(...args),
   deleteUserCV: (...args: unknown[]) => mockDeleteUserCV(...args),
@@ -143,6 +144,10 @@ jest.mock('@edutu/core/src/services/cv', () => ({
   improveCVSummaryWithAI: jest.fn(async () => ({ summary: 'Improved summary.' })),
   tailorCVForOpportunity: (...args: unknown[]) => mockTailorCVForOpportunity(...args),
   useCVTrial: (...args: unknown[]) => mockUseCVTrial(...args),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/hooks/useProStatus', () => ({
+  useProStatus: (...args: unknown[]) => mockUseProStatus(...args),
 }), { virtual: true });
 
 jest.mock('lucide-react-native', () => {
@@ -188,7 +193,16 @@ describe('mobile CV builder', () => {
     mockImagePrefetch.mockClear();
     mockFetchCVTemplates.mockReset().mockImplementation(() => Promise.resolve(mockTemplates));
     mockFetchUserCVs.mockReset().mockImplementation(() => Promise.resolve(mockUserCVs));
-    mockGetUserProStatus.mockReset().mockImplementation(() => Promise.resolve(mockProStatus));
+    mockGetCvTrialStatus.mockReset().mockImplementation(() =>
+      Promise.resolve({ cvTrialUsed: mockProStatus.cvTrialUsed }),
+    );
+    mockUseProStatus.mockReset().mockImplementation(() => ({
+      isPro: mockProStatus.isPro,
+      isLoading: false,
+      proSince: null,
+      subscriptionId: null,
+      refreshStatus: jest.fn(),
+    }));
     mockCreateUserCV.mockReset().mockResolvedValue({ id: 'cv-new', user_id: 'user-1' });
     mockUpdateUserCV.mockReset().mockResolvedValue({ id: 'cv-1' });
     mockDeleteUserCV.mockReset().mockResolvedValue(undefined);

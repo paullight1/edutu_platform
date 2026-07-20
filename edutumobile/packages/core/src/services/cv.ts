@@ -477,20 +477,18 @@ export async function setPrimaryCV(
   }
 }
 
-export async function getUserProStatus(
+// Pro status is NOT sourced here — it comes from the single shared `useProStatus`
+// hook (RevenueCat on-device + profiles.is_pro + billing_entitlements) so every
+// gate in the app agrees. This only reports the CV-specific one-off free trial.
+export async function getCvTrialStatus(
   supabase: SupabaseClient,
   userId: string,
-): Promise<{ isPro: boolean; cvTrialUsed: boolean }> {
+): Promise<{ cvTrialUsed: boolean }> {
   try {
     const data = await fetchProfile(supabase, userId);
-    return {
-      // Fail CLOSED: a missing/null profile must not be treated as Pro,
-      // otherwise a failed fetch silently unlocks premium features.
-      isPro: Boolean(data?.is_pro ?? false),
-      cvTrialUsed: Boolean(data?.cv_trial_used ?? false),
-    };
+    return { cvTrialUsed: Boolean(data?.cv_trial_used ?? false) };
   } catch {
-    return { isPro: false, cvTrialUsed: false };
+    return { cvTrialUsed: false };
   }
 }
 
