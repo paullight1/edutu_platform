@@ -185,6 +185,10 @@ const UserContentSettingsSchema = z.object({
 
 const PricingSettingsSchema = z.object({
   currency: z.string().trim().min(3).max(4),
+  // Fixed display rate used to fold USD mobile-store revenue into the NGN admin
+  // dashboard (1 USD → this many NGN). A reporting constant, not a live FX quote.
+  // Defaulted so stored settings that predate this field still validate.
+  usdToNgnRate: z.number().min(1).max(100_000).default(1000),
   weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
   monthlyPrice: z.number().min(0).max(10_000_000),
   yearlyPrice: z.number().min(0).max(10_000_000),
@@ -326,6 +330,7 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
   // covers 3-person payroll + infra at ~100 paying subscribers.
   pricing: {
     currency: "NGN",
+    usdToNgnRate: 1000,
     weeklyPrice: 2000,
     monthlyPrice: 6500,
     yearlyPrice: 60000,
