@@ -1,7 +1,16 @@
-// Legacy entry: the simple uploadAsync(url, fileUri, options) that PUTs a local
-// file straight to a signed storage URL. The new File API has no one-call PUT.
-import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { requestProductApi, type GetAuthToken } from './productApi';
+
+// Lazy-required inside uploadDocument (not a top-level import): the legacy
+// entry touches native EventEmitter at load, which breaks importing this module
+// in screen tests. Deferring keeps the module import side-effect-free.
+type LegacyFileSystem = {
+  uploadAsync: (
+    url: string,
+    fileUri: string,
+    options: Record<string, unknown>,
+  ) => Promise<{ status: number }>;
+  FileSystemUploadType: { BINARY_CONTENT: number };
+};
 
 export type UploadKind = 'cv' | 'transcript' | 'essay' | 'other';
 
@@ -58,6 +67,7 @@ export async function uploadDocument(
     throw new Error('Could not start the upload. Please try again.');
   }
 
+  const { uploadAsync, FileSystemUploadType } = require('expo-file-system/legacy') as LegacyFileSystem;
   const put = await uploadAsync(signed.uploadUrl, file.uri, {
     httpMethod: 'PUT',
     uploadType: FileSystemUploadType.BINARY_CONTENT,
