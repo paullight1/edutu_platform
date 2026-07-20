@@ -791,6 +791,11 @@ export default function Monetization() {
                 <NumField label="Weekly price" value={pricing.weeklyPrice} onChange={(weeklyPrice) => updatePricing({ weeklyPrice })} />
                 <NumField label="Monthly price" value={pricing.monthlyPrice} onChange={(monthlyPrice) => updatePricing({ monthlyPrice })} />
                 <NumField label="Yearly price" value={pricing.yearlyPrice} onChange={(yearlyPrice) => updatePricing({ yearlyPrice })} />
+                <NumField
+                  label="USD → NGN rate (stats)"
+                  value={pricing.usdToNgnRate}
+                  onChange={(usdToNgnRate) => updatePricing({ usdToNgnRate })}
+                />
               </div>
               {pricing.monthlyPrice > 0 && pricing.yearlyPrice > 0 && (
                 <p className="mz-hint">
@@ -798,6 +803,11 @@ export default function Monetization() {
                   {Math.max(0, Math.round((1 - pricing.yearlyPrice / (pricing.monthlyPrice * 12)) * 100))}% off monthly).
                 </p>
               )}
+              <p className="mz-hint">
+                Mobile-store (Apple/Google) revenue is charged in USD; the revenue dashboard folds it into
+                ₦ at this rate (e.g. $6.99 × {pricing.usdToNgnRate || 1000} = {formatMoney((pricing.usdToNgnRate || 1000) * 6.99, currency)}).
+                A reporting rate, not a live FX quote.
+              </p>
             </EditorCard>
 
             <EditorCard
