@@ -11,9 +11,13 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowRight, BriefcaseBusiness, GraduationCap, Landmark, Plane, Sparkles, type LucideIcon } from 'lucide-react-native';
+import { ArrowRight, BriefcaseBusiness, Check, GraduationCap, Landmark, Plane, Sparkles, type LucideIcon } from 'lucide-react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -195,9 +199,15 @@ export default function OnboardingWelcome() {
       </View>
 
       {sheetOpen ? (
-        <View style={styles.sheetOverlay}>
+        <Animated.View
+          style={styles.sheetOverlay}
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(160)}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setSheetOpen(false)} />
-          <View
+          <Animated.View
+            entering={SlideInDown.springify().damping(20).stiffness(200).mass(0.9)}
+            exiting={SlideOutDown.duration(200)}
             style={[
               styles.sheet,
               {
@@ -206,10 +216,17 @@ export default function OnboardingWelcome() {
               },
             ]}
           >
+            <View style={[styles.grabber, { backgroundColor: isDark ? 'rgba(248,250,252,0.16)' : 'rgba(20,18,23,0.14)' }]} />
+
             <View style={styles.sheetHeader}>
-              <View style={[styles.sheetIcon, { backgroundColor: softButtonColor }]}>
-                <Sparkles color={primaryTextColor} size={34} fill={primaryTextColor} />
-              </View>
+              <LinearGradient
+                colors={['#2E7BF6', '#1D4ED8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sheetIcon}
+              >
+                <Sparkles color="#FFFFFF" size={32} fill="#FFFFFF" />
+              </LinearGradient>
             </View>
 
             <Text style={[styles.sheetTitle, { color: primaryTextColor }]}>{t('welcome.getStarted')}</Text>
@@ -217,8 +234,20 @@ export default function OnboardingWelcome() {
               {t('welcome.sheetDescription')}
             </Text>
 
+            <View style={styles.trustRow}>
+              <View style={[styles.trustDot, { backgroundColor: isDark ? 'rgba(52,211,153,0.16)' : 'rgba(5,150,105,0.12)' }]}>
+                <Check color={isDark ? '#34D399' : '#059669'} size={13} strokeWidth={3} />
+              </View>
+              <Text style={[styles.trustText, { color: mutedTextColor }]}>
+                {t('welcome.trustLine', { defaultValue: 'Free to start — no card needed' })}
+              </Text>
+            </View>
+
             <Pressable
-              style={[styles.sheetPrimaryButton, { backgroundColor: isDark ? '#F8FAFC' : '#151316' }]}
+              style={({ pressed }) => [
+                styles.sheetPrimaryButton,
+                { backgroundColor: isDark ? '#F8FAFC' : '#151316', opacity: pressed ? 0.9 : 1 },
+              ]}
               onPress={() => router.push('/(auth)/sign-up')}
             >
               <Text style={[styles.sheetPrimaryText, { color: isDark ? '#111217' : '#FFFFFF' }]}>
@@ -228,7 +257,10 @@ export default function OnboardingWelcome() {
             </Pressable>
 
             <Pressable
-              style={[styles.sheetSecondaryButton, { backgroundColor: softButtonColor }]}
+              style={({ pressed }) => [
+                styles.sheetSecondaryButton,
+                { backgroundColor: softButtonColor, opacity: pressed ? 0.85 : 1 },
+              ]}
               onPress={() => router.push('/(auth)/sign-in')}
             >
               <Text style={[styles.sheetSecondaryText, { color: primaryTextColor }]}>
@@ -244,9 +276,10 @@ export default function OnboardingWelcome() {
               <Text style={[styles.sheetGuestText, { color: mutedTextColor }]}>
                 {t('welcome.continueWithoutLogin', { defaultValue: 'Continue without login' })}
               </Text>
+              <ArrowRight color={mutedTextColor} size={16} />
             </Pressable>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -362,27 +395,31 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
     paddingHorizontal: 28,
-    paddingTop: 42,
+    paddingTop: 14,
+  },
+  grabber: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 22,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 44,
+    marginBottom: 22,
   },
   sheetIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
+    shadowColor: '#1D4ED8',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
   },
   sheetTitle: {
     fontSize: 34,
@@ -390,15 +427,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sheetDescription: {
-    marginTop: 16,
-    fontSize: 21,
-    lineHeight: 31,
+    marginTop: 12,
+    fontSize: 19,
+    lineHeight: 28,
     fontWeight: '500',
   },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
+  },
+  trustDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   sheetPrimaryButton: {
-    height: 68,
-    borderRadius: 16,
-    marginTop: 34,
+    height: 66,
+    borderRadius: 18,
+    marginTop: 24,
     flexDirection: 'row',
     gap: 10,
     alignItems: 'center',
@@ -409,24 +463,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sheetSecondaryButton: {
-    height: 68,
-    borderRadius: 16,
-    marginTop: 14,
+    height: 66,
+    borderRadius: 18,
+    marginTop: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sheetSecondaryText: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '600',
   },
   sheetGuestButton: {
-    marginTop: 16,
+    marginTop: 18,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
     paddingVertical: 6,
   },
   sheetGuestText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    textDecorationLine: 'underline',
   },
 });
