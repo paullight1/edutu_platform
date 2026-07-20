@@ -139,7 +139,8 @@
       "interview": "इंटरव्यू",
       "offer": "ऑफ़र",
       "rejected": "अस्वीकृत",
-      "withdrawn": "वापस लिया"
+      "withdrawn": "वापस लिया",
+      "no_response": "कोई जवाब नहीं"
     },
     "filters": {
       "total": "कुल",

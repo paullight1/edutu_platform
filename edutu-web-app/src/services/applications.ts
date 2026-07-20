@@ -10,7 +10,10 @@ export type ApplicationStatus =
   | 'interview'
   | 'offer'
   | 'rejected'
-  | 'withdrawn';
+  | 'withdrawn'
+  // Terminal: the org never replied and the user is closing the loop. Grouped
+  // with rejected/withdrawn (never in the active pipeline).
+  | 'no_response';
 type DatabaseApplicationStatus = ApplicationStatus;
 
 /** The active pipeline stages, in order, for kanban-style rendering. */
@@ -72,12 +75,15 @@ function toAppStatus(status: string): ApplicationStatus {
       return 'offer';
     case 'archived':
       return 'withdrawn';
+    case 'ghosted':
+      return 'no_response';
     case 'draft':
     case 'submitted':
     case 'interview':
     case 'offer':
     case 'rejected':
     case 'withdrawn':
+    case 'no_response':
       return status;
     default:
       return 'submitted';

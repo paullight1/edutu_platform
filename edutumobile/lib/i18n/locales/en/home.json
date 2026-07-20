@@ -170,7 +170,8 @@
       "interview": "Interview",
       "offer": "Offer",
       "rejected": "Rejected",
-      "withdrawn": "Withdrawn"
+      "withdrawn": "Withdrawn",
+      "no_response": "No response"
     },
     "filters": {
       "total": "Total",

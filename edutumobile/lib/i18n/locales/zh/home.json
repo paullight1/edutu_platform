@@ -139,7 +139,8 @@
       "interview": "面试",
       "offer": "录取",
       "rejected": "未通过",
-      "withdrawn": "已撤回"
+      "withdrawn": "已撤回",
+      "no_response": "无回应"
     },
     "filters": {
       "total": "全部",

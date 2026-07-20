@@ -139,7 +139,8 @@
       "interview": "Usaili",
       "offer": "Ofa",
       "rejected": "Limekataliwa",
-      "withdrawn": "Limeondolewa"
+      "withdrawn": "Limeondolewa",
+      "no_response": "Hakuna jibu"
     },
     "filters": {
       "total": "Jumla",

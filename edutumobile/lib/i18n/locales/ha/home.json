@@ -139,7 +139,8 @@
       "interview": "Hira",
       "offer": "Tayin",
       "rejected": "An ƙi",
-      "withdrawn": "An janye"
+      "withdrawn": "An janye",
+      "no_response": "Babu amsa"
     },
     "filters": {
       "total": "Jimla",

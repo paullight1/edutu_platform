@@ -139,7 +139,8 @@
       "interview": "Entrevista",
       "offer": "Oferta",
       "rejected": "Rechazada",
-      "withdrawn": "Retirada"
+      "withdrawn": "Retirada",
+      "no_response": "Sin respuesta"
     },
     "filters": {
       "total": "Total",

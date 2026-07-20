@@ -146,7 +146,8 @@
       "interview": "مقابلة",
       "offer": "عرض",
       "rejected": "مرفوض",
-      "withdrawn": "منسحب"
+      "withdrawn": "منسحب",
+      "no_response": "بدون رد"
     },
     "filters": {
       "total": "الإجمالي",
