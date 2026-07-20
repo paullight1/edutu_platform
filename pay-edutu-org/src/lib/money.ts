@@ -1,4 +1,7 @@
-export type BillingPlan = 'monthly' | 'yearly';
+// 'season' is a ONE-OFF purchase (no Paystack plan code) that grants Pro until a
+// fixed date; its duration is admin-configured (pricing.seasonPass.durationDays),
+// so it is never derived from planDurationDays below.
+export type BillingPlan = 'monthly' | 'yearly' | 'season';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   NGN: '₦', USD: '$', GHS: '₵', KES: 'KSh', ZAR: 'R', GBP: '£', EUR: '€',
@@ -19,9 +22,16 @@ export function toMinorUnits(amountMajor: number): number {
   return Math.round(amountMajor * 100);
 }
 
-/** Days of Pro granted per plan for one-time (non-recurring) charges. */
+/**
+ * Days of Pro granted per plan for one-time (non-recurring) charges.
+ * NOTE: the real season-pass duration is admin-configured and always supplied as
+ * an explicit `expiresAt` at the grant sites — the 90 here is only a type-safe
+ * fallback so this helper stays total over the union and is never used for season.
+ */
 export function planDurationDays(plan: BillingPlan): number {
-  return plan === 'yearly' ? 366 : 31;
+  if (plan === 'yearly') return 366;
+  if (plan === 'season') return 90;
+  return 31;
 }
 
 export function addDays(from: Date, days: number): Date {
@@ -31,5 +41,5 @@ export function addDays(from: Date, days: number): Date {
 }
 
 export function isBillingPlan(value: unknown): value is BillingPlan {
-  return value === 'monthly' || value === 'yearly';
+  return value === 'monthly' || value === 'yearly' || value === 'season';
 }

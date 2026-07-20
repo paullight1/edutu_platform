@@ -4,7 +4,7 @@ import { addDays, planDurationDays, type BillingPlan } from './money';
 export interface GrantInput {
   userId: string;
   plan: BillingPlan;
-  source: 'paystack' | 'admin_grant';
+  source: 'paystack' | 'admin_grant' | 'season_pass';
   reference?: string;
   email?: string | null;
   /** Explicit expiry (else derived from plan duration). */
