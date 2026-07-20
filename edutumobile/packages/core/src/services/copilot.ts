@@ -93,6 +93,30 @@ export async function fetchApplicationKits(
   return Array.isArray(result) ? result : [];
 }
 
+/**
+ * The size of the user's reusable "answer bank" — the essay drafts saved
+ * across every application kit. Surfaced in the rejection/closure card so a
+ * loss visibly deposits a surviving asset. Best-effort: any failure (no
+ * session, network, unavailable route) resolves to 0 so the caller omits the
+ * line rather than blocking the card.
+ */
+export async function fetchAnswerBankCount(
+  getAuthToken: GetAuthToken,
+): Promise<number> {
+  try {
+    const result = await requestProductApi<{ answers?: unknown[]; count?: number }>(
+      '/copilot/answers',
+      { method: 'GET' },
+      getAuthToken,
+    );
+    if (result && typeof result.count === 'number') return result.count;
+    if (result && Array.isArray(result.answers)) return result.answers.length;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function fetchApplicationKit(
   opportunityId: string,
   getAuthToken: GetAuthToken,

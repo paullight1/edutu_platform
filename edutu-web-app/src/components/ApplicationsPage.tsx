@@ -30,6 +30,7 @@ import type { MatchResult } from '../services/personalizedRecommendations';
 import type { Opportunity } from '../types/opportunity';
 import {
   APPLICATION_PIPELINE,
+  fetchAnswerBankCount,
   getApplications,
   removeApplication,
   updateApplicationStatus,
@@ -211,6 +212,9 @@ export default function ApplicationsPage() {
     match: MatchResult;
   } | null>(null);
   const [nextShotLoading, setNextShotLoading] = useState(false);
+  // How many reusable essay drafts the user has banked — surfaced in the
+  // closure panel so a rejection visibly deposits a surviving asset.
+  const [answerBankCount, setAnswerBankCount] = useState(0);
   // Celebration burst is reserved for the biggest moment: an offer.
   const [celebrating, setCelebrating] = useState(false);
 
@@ -276,6 +280,21 @@ export default function ApplicationsPage() {
   useEffect(() => {
     void loadApplications();
   }, [loadApplications]);
+
+  // Lazily count the answer bank only once a closure panel actually opens —
+  // never on page load. Failures resolve to 0 and simply hide the line.
+  useEffect(() => {
+    if (!rejectionPanelId) return;
+    let cancelled = false;
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      const count = await fetchAnswerBankCount(token);
+      if (!cancelled) setAnswerBankCount(count);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectionPanelId, getToken]);
 
   const visibleApplications = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -604,6 +623,11 @@ export default function ApplicationsPage() {
                           <p className="mt-1 text-xs leading-5 text-text-muted">
                             {CLOSURE_COPY[application.status === 'no_response' ? 'no_response' : 'rejected'].body}
                           </p>
+                          {answerBankCount > 0 ? (
+                            <p className="mt-2 text-xs font-semibold text-brand">
+                              Your answer bank now holds {answerBankCount} answers you can reuse.
+                            </p>
+                          ) : null}
                         </div>
                         <button
                           type="button"

@@ -189,7 +189,8 @@
     "emptySubtitle": "Opportunities you apply for will appear here.",
     "emptyFilter": "No applications in this stage.",
     "browseOpportunities": "Browse Opportunities",
-    "loading": "Loading applications..."
+    "loading": "Loading applications...",
+    "answerBankLine": "Your answer bank holds {{count}} reusable answers."
   },
   "paywall": {
     "title": "Premium",

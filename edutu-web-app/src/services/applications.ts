@@ -206,6 +206,27 @@ export async function updateApplicationStatus(
   return mapApiApplication(response, '');
 }
 
+/**
+ * The size of the user's reusable "answer bank" — the essay drafts saved
+ * across every application kit. Used to reframe a rejection/no_response
+ * closure around the asset that survives it. Best-effort: any failure (no
+ * session, network, unavailable route) resolves to 0 so the caller simply
+ * omits the line rather than blocking or erroring the closure panel.
+ */
+export async function fetchAnswerBankCount(token?: string | null): Promise<number> {
+  if (!hasToken(token)) return 0;
+  try {
+    const response = await productApiRequest<{ answers?: unknown[]; count?: number }>(
+      '/copilot/answers',
+      token,
+    );
+    if (typeof response?.count === 'number') return response.count;
+    return Array.isArray(response?.answers) ? response.answers.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function removeApplication(id: string, token?: string | null): Promise<void> {
   if (!hasToken(token)) {
     throw new Error('A signed-in session is required to remove applications.');

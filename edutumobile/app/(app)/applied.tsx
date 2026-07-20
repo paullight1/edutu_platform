@@ -17,6 +17,7 @@ import {
   getNextApplicationStage,
   updateTrackedApplicationStatus,
 } from "../../packages/core/src/services/applications";
+import { fetchAnswerBankCount } from "../../packages/core/src/services/copilot";
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
 import type { Opportunity } from "../../packages/core/src/types/opportunity";
@@ -117,6 +118,7 @@ function RejectionSupportCard({
   onSaveReflection,
   nextBestShot,
   onOpenNext,
+  answerBankCount,
   cardBg,
   borderColor,
   accentColor,
@@ -128,6 +130,7 @@ function RejectionSupportCard({
   onSaveReflection: (text: string) => void;
   nextBestShot: Opportunity | null;
   onOpenNext: (opportunity: Opportunity) => void;
+  answerBankCount: number;
   cardBg: string;
   borderColor: string;
   accentColor: string;
@@ -167,6 +170,11 @@ function RejectionSupportCard({
       <Text style={[styles.rejectionBody, { color: textSecondary }]}>
         {body}
       </Text>
+      {answerBankCount > 0 ? (
+        <Text style={[styles.answerBankLine, { color: accentColor }]}>
+          {t('applied.answerBankLine', { count: answerBankCount })}
+        </Text>
+      ) : null}
       <View style={styles.reflectionRow}>
         <TextInput
           value={reflection}
@@ -257,6 +265,23 @@ export default function AppliedPage() {
   // plus stored one-line reflections keyed by application id.
   const [rejectionCardId, setRejectionCardId] = useState<string | null>(null);
   const [reflections, setReflections] = useState<Record<string, string>>({});
+  // Reusable essay drafts the user has banked — surfaced in the closure card so
+  // a loss visibly deposits a surviving asset. Fetched lazily only once a
+  // closure card opens; any failure stays 0 and simply hides the line.
+  const [answerBankCount, setAnswerBankCount] = useState(0);
+
+  useEffect(() => {
+    if (!rejectionCardId) return;
+    let cancelled = false;
+    fetchAnswerBankCount(getToken)
+      .then((count) => {
+        if (!cancelled) setAnswerBankCount(count);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectionCardId, getToken]);
 
   useEffect(() => {
     AsyncStorage.getItem(REJECTION_REFLECTIONS_KEY)
@@ -505,6 +530,7 @@ export default function AppliedPage() {
         onSaveReflection={(text) => saveReflection(item.id, text)}
         nextBestShot={nextBestShot}
         onOpenNext={openNextBestShot}
+        answerBankCount={answerBankCount}
         cardBg={cardBg}
         borderColor={borderColor}
         accentColor={accentColor}
@@ -513,7 +539,7 @@ export default function AppliedPage() {
       />
     ) : null}
     </View>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, answerBankCount]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -797,6 +823,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 6,
+  },
+  answerBankLine: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 8,
   },
   reflectionRow: {
     flexDirection: 'row',

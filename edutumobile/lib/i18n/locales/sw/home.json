@@ -158,7 +158,8 @@
     "emptySubtitle": "Fursa unazoomba zitaonekana hapa.",
     "emptyFilter": "Hakuna maombi katika hatua hii.",
     "browseOpportunities": "Vinjari Fursa",
-    "loading": "Inapakia maombi..."
+    "loading": "Inapakia maombi...",
+    "answerBankLine": "Benki yako ya majibu ina majibu {{count}} yanayoweza kutumika tena."
   },
   "paywall": {
     "title": "Premium",

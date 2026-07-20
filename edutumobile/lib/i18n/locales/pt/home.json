@@ -158,7 +158,8 @@
     "emptySubtitle": "As oportunidades a que você se candidatar aparecerão aqui.",
     "emptyFilter": "Nenhuma candidatura nesta etapa.",
     "browseOpportunities": "Explorar oportunidades",
-    "loading": "Carregando candidaturas..."
+    "loading": "Carregando candidaturas...",
+    "answerBankLine": "Seu banco de respostas tem {{count}} respostas reutilizáveis."
   },
   "paywall": {
     "title": "Premium",

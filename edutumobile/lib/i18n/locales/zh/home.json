@@ -158,7 +158,8 @@
     "emptySubtitle": "你申请的机会会出现在这里。",
     "emptyFilter": "该阶段暂无申请。",
     "browseOpportunities": "浏览机会",
-    "loading": "正在加载申请记录…"
+    "loading": "正在加载申请记录…",
+    "answerBankLine": "你的答案库中有 {{count}} 条可复用的答案。"
   },
   "paywall": {
     "title": "高级版",
