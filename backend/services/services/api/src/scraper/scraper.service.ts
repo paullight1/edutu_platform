@@ -2161,6 +2161,10 @@ export class ScraperService implements OnModuleInit {
       uniqueRecords,
       existingUrls,
     );
+    // Scam gate: hold listings the extractor flagged with scam signals
+    // (metadata.red_flags) for admin review; composes with the gates above.
+    // Toggle via SCRAPER_SCAM_GATE (default ON).
+    this.opportunityDedupService.applyScamGate(uniqueRecords, existingUrls);
 
     const SELECT_COLUMNS =
       "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";
