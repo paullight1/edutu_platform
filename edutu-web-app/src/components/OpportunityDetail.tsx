@@ -40,7 +40,7 @@ import {
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
-import { WhyThisMatches } from "./opportunity/MatchInsights";
+import { getMatchLabel, WhyThisMatches } from "./opportunity/MatchInsights";
 import { recordOpportunitySignal } from "../services/opportunitySignals";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
@@ -734,8 +734,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const factItems = [
     {
-      label: "Match",
-      value: `${matchPercentage}%`,
+      label: "Fit",
+      value: getMatchLabel(matchPercentage),
       icon: Target,
     },
     {

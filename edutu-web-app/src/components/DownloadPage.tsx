@@ -124,14 +124,14 @@ function PhoneMockup() {
             {
               org: "Mastercard Foundation",
               title: "Scholars Program 2027",
-              match: "94% match",
+              match: "Excellent fit",
               due: "Due in 12 days",
               dueTone: "bg-amber-100 text-amber-700",
             },
             {
               org: "Google Africa",
               title: "Developer Scholarship",
-              match: "89% match",
+              match: "Strong fit",
               due: "Due in 30 days",
               dueTone: "bg-emerald-100 text-emerald-700",
             },
