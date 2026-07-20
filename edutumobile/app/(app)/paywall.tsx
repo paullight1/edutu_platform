@@ -7,7 +7,6 @@ import {
   Image,
   Linking,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -85,7 +84,7 @@ export default function PaywallScreen() {
   // Real opportunity posters (Mastercard Foundation, scholarships, country
   // programs…) from the offline snapshot — the collage sells what Pro unlocks.
   const [heroImages, setHeroImages] = useState<string[]>([]);
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { width: screenWidth } = useWindowDimensions();
   const [redirecting, setRedirecting] = useState(false);
   // Native in-app purchase state (iOS StoreKit / Android Play Billing).
   const [iapPackages, setIapPackages] = useState<PurchasesPackage[]>([]);
@@ -387,17 +386,18 @@ export default function PaywallScreen() {
         />
       )}
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        contentContainerStyle={{
-          minHeight: screenHeight,
-          paddingTop: insets.top + 10,
-          paddingBottom: Math.max(insets.bottom, 14),
-          paddingHorizontal: 18,
-          justifyContent: 'flex-end',
-        }}
+      {/* Fixed one-screen layout — no scrolling. topGroup sits in the collage
+          area, bottomGroup (plans + CTA) anchors to the bottom; space-between
+          distributes them to fill exactly one screen. */}
+      <View
+        style={[
+          styles.pageContent,
+          {
+            paddingTop: insets.top + 56,
+            paddingBottom: Math.max(insets.bottom, 14),
+            paddingHorizontal: 18,
+          },
+        ]}
       >
         {/* Overlay controls pinned to the very top */}
         <View style={[styles.topRow, { top: insets.top + 10 }]}>
@@ -419,35 +419,40 @@ export default function PaywallScreen() {
           ) : null}
         </View>
 
-        {/* Brand mini-mark */}
-        <View style={styles.brandRow}>
-          <Text style={styles.brandText}>edutu</Text>
-          <View style={styles.proPill}>
-            <Text style={styles.proPillText}>{t('paywall.proBadge')}</Text>
+        {/* TOP: brand + headline live up in the gradient / collage area */}
+        <View style={styles.topGroup}>
+          <View style={styles.brandRow}>
+            <Text style={styles.brandText}>edutu</Text>
+            <View style={styles.proPill}>
+              <Text style={styles.proPillText}>{t('paywall.proBadge')}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* Two-tone headline over the collage */}
-        <View style={styles.headline}>
-          <Text style={[styles.headlineLine, { color: accent }]}>
-            {isPro ? t('paywall.premiumIsActive') : copy(paywall.heroLine1, t('paywall.heroLine1'))}
-          </Text>
-          {!isPro && (
-            <Text style={[styles.headlineLine, { color: '#FFFFFF' }]}>
-              {copy(paywall.heroLine2, t('paywall.heroLine2'))}
+          {/* Two-tone headline over the collage */}
+          <View style={styles.headline}>
+            <Text style={[styles.headlineLine, { color: accent }]}>
+              {isPro ? t('paywall.premiumIsActive') : copy(paywall.heroLine1, t('paywall.heroLine1'))}
             </Text>
-          )}
+            {!isPro && (
+              <Text style={[styles.headlineLine, { color: '#FFFFFF' }]}>
+                {copy(paywall.heroLine2, t('paywall.heroLine2'))}
+              </Text>
+            )}
+          </View>
+          <Text style={styles.subtitle} numberOfLines={2}>
+            {isPro ? t('paywall.heroActive') : copy(paywall.subtitle, t('paywall.heroUpsell'))}
+          </Text>
         </View>
-        <Text style={styles.subtitle} numberOfLines={2}>
-          {isPro ? t('paywall.heroActive') : copy(paywall.subtitle, t('paywall.heroUpsell'))}
-        </Text>
 
+        {/* BOTTOM: plans, CTA, legal */}
+        <View style={styles.bottomGroup}>
         {!isPro ? (
           <>
             {/* Optional admin-set benefit bullets */}
             {paywall.features.length > 0 && (
               <View style={styles.featureList}>
-                {paywall.features.map((feature) => (
+                {/* Cap at 4 so the fixed (non-scrolling) layout always fits. */}
+                {paywall.features.slice(0, 4).map((feature) => (
                   <View key={feature} style={styles.featureRow}>
                     <Check size={13} color={accent} strokeWidth={3} />
                     <Text style={styles.featureText} numberOfLines={1}>{feature}</Text>
@@ -545,30 +550,34 @@ export default function PaywallScreen() {
             </TouchableOpacity>
 
             {/* On device we only sell via the store. If products can't load we
-                say so rather than dead-ending — never an external checkout. */}
+                say so rather than dead-ending — one short line, not a paragraph. */}
             {USE_NATIVE_IAP && !iapLoading && iapUnavailable && (
-              <Text style={styles.secureNote} numberOfLines={2}>
+              <Text style={styles.secureNote} numberOfLines={1}>
                 {t('paywall.iapUnavailable', {
                   defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
                 })}
               </Text>
             )}
 
-            {/* iOS IAP keeps the fixed renewal disclosure (App Store rules);
-                only the web-checkout note is admin-overridable. */}
-            <Text style={styles.secureNote} numberOfLines={2}>
-              {iapActive ? t('paywall.renewalNote') : copy(paywall.secureNote, t('paywall.secureNote'))}
-            </Text>
+            {/* Apple REQUIRES the auto-renew disclosure when charging via
+                StoreKit — kept only on that path; the web/Paystack note is gone. */}
+            {iapActive && (
+              <Text style={styles.secureNote} numberOfLines={2}>
+                {t('paywall.renewalNote')}
+              </Text>
+            )}
 
-            <View style={styles.legalRow}>
-              <TouchableOpacity activeOpacity={0.7} onPress={() => void Linking.openURL('https://edutu.org/terms')}>
-                <Text style={styles.legalLink}>{t('paywall.terms')}</Text>
-              </TouchableOpacity>
-              <Text style={styles.legalDot}>·</Text>
-              <TouchableOpacity activeOpacity={0.7} onPress={() => void Linking.openURL('https://edutu.org/privacy')}>
-                <Text style={styles.legalLink}>{t('paywall.privacy')}</Text>
-              </TouchableOpacity>
-            </View>
+            {/* One clean, tappable legal line (reference-clean look). */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => void Linking.openURL('https://edutu.org/terms')}
+              style={styles.legalRow}
+              accessibilityRole="link"
+            >
+              <Text style={styles.legalText}>
+                {t('paywall.termsApply', { defaultValue: 'Terms & conditions apply' })}
+              </Text>
+            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -581,7 +590,8 @@ export default function PaywallScreen() {
             </TouchableOpacity>
           </>
         )}
-      </ScrollView>
+        </View>
+      </View>
     </View>
   );
 }
@@ -590,7 +600,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scrollView: { flex: 1 },
+  pageContent: { flex: 1, justifyContent: 'space-between' },
 
   // ── Background collage ──
   collageWrap: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
@@ -625,6 +635,12 @@ const styles = StyleSheet.create({
   },
   restoreButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 4 },
   restoreText: { color: 'rgba(255,255,255,0.92)', fontSize: 14.5, fontWeight: '600' },
+
+  // ── Layout groups ──
+  // Brand + headline sit up in the gradient/collage area; plans + CTA anchor
+  // to the bottom (contentContainer uses justify: space-between).
+  topGroup: { marginTop: 6 },
+  bottomGroup: {},
 
   // ── Copy ──
   brandRow: {
@@ -758,15 +774,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   legalRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     minHeight: 30,
-    marginTop: 2,
+    marginTop: 12,
   },
-  legalLink: { color: TEXT_DIM, fontSize: 12, fontWeight: '600' },
-  legalDot: { color: TEXT_DIM, fontSize: 12 },
+  legalText: {
+    color: TEXT_DIM,
+    fontSize: 12.5,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 
   // ── Pro-active state ──
   manageButton: {
