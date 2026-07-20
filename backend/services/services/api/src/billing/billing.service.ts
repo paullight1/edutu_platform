@@ -29,12 +29,11 @@ const PRO_FEATURES = [
   "creator_tools",
 ] as const;
 
-// Admin revenue mixes currencies: web/Paystack charges NGN, but mobile IAP goes
-// through RevenueCat and lands in USD (the App/Play store product price). To
-// report one comparable figure we normalise everything to NGN at a FIXED
-// display rate — this is a reporting constant for the admin dashboard, NOT a
-// live FX quote. $1 → ₦1000 (so $6.99 ≈ ₦6,990). Change here if the rate moves.
-const USD_TO_NGN = 1000;
+// Fallback USD→NGN display rate if admin settings can't be read. The live value
+// comes from admin_settings.pricing.usdToNgnRate (editable in the admin
+// dashboard) — a reporting constant for folding USD mobile-store revenue into
+// the NGN figures, NOT a live FX quote. $1 → ₦1000 (so $6.99 ≈ ₦6,990).
+const DEFAULT_USD_TO_NGN = 1000;
 
 // Revenue lives in two tables with DIFFERENT unit conventions:
 //   • billing_transactions.amount  → MAJOR units (₦6,500 stored as 6500)
@@ -43,13 +42,14 @@ const USD_TO_NGN = 1000;
 // drop test money: Paystack test-mode rows (metadata.domain = 'test') and
 // RevenueCat sandbox rows (metadata.environment = 'SANDBOX'). A normalised
 // `env` column is exposed so callers can filter or label without re-deriving it.
-const NORMALISED_REVENUE_CTE = sql`
+// `rate` is the admin-configured USD→NGN factor, passed in per call.
+const normalisedRevenueCte = (rate: number) => sql`
   normalised_tx as (
     -- Web / Paystack — amount already in major NGN units.
     select
       id, user_id, provider, provider_reference, type,
       round(
-        amount * (case when upper(coalesce(currency, 'NGN')) = 'USD' then ${USD_TO_NGN} else 1 end)
+        amount * (case when upper(coalesce(currency, 'NGN')) = 'USD' then ${rate} else 1 end)
       )::bigint as amount,
       'NGN' as currency, status, metadata, created_at,
       lower(coalesce(metadata->>'domain', 'live')) as env
@@ -60,7 +60,7 @@ const NORMALISED_REVENUE_CTE = sql`
     select
       id, user_id, store as provider, transaction_id as provider_reference, type,
       round(
-        amount / 100.0 * (case when upper(coalesce(currency, 'USD')) = 'USD' then ${USD_TO_NGN} else 1 end)
+        amount / 100.0 * (case when upper(coalesce(currency, 'USD')) = 'USD' then ${rate} else 1 end)
       )::bigint as amount,
       'NGN' as currency, status, metadata, created_at,
       lower(coalesce(metadata->>'environment', 'production')) as env
@@ -116,6 +116,13 @@ export class BillingService {
   private async getPricing(): Promise<PricingSettings> {
     const { settings } = await this.settingsService.getSettings();
     return settings.pricing ?? DEFAULT_ADMIN_SETTINGS.pricing;
+  }
+
+  // Admin-configured USD→NGN display rate, guarded to a sane positive number so
+  // a bad stored value can never blow up (or zero out) the revenue conversion.
+  private usdToNgnRate(pricing: PricingSettings): number {
+    const rate = Number((pricing as { usdToNgnRate?: number }).usdToNgnRate);
+    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_USD_TO_NGN;
   }
 
   private planAmount(pricing: PricingSettings, plan: BillingInterval): number {
@@ -493,10 +500,15 @@ export class BillingService {
 
   // ─── Admin oversight: revenue, subscribers, credit flow, AI cost ────────
   async getAdminOverview() {
+    // Fetch pricing up front — the USD→NGN rate it carries feeds the revenue
+    // CTE, and it's returned to the client too (so only one settings read).
+    const pricing = await this.getPricing();
+    const revenueCte = normalisedRevenueCte(this.usdToNgnRate(pricing));
+
     const [revenue, subs, credits, topSpenders, aiUsage, recent] =
       await Promise.all([
         db.execute(sql`
-          with ${NORMALISED_REVENUE_CTE}
+          with ${revenueCte}
           select
             coalesce(sum(amount) filter (where created_at >= date_trunc('month', now())), 0) as month_revenue,
             coalesce(sum(amount) filter (where created_at >= now() - interval '30 days'), 0) as last_30d_revenue,
@@ -537,7 +549,7 @@ export class BillingService {
           where day = current_date
         `),
         db.execute(sql`
-          with ${NORMALISED_REVENUE_CTE}
+          with ${revenueCte}
           select id, user_id, provider, provider_reference, type, amount,
                  currency, status, metadata, created_at
           from normalised_tx
@@ -547,7 +559,6 @@ export class BillingService {
       ]);
 
     const rows = (r: unknown) => (r as { rows?: any[] }).rows ?? [];
-    const pricing = await this.getPricing();
     return {
       pricing,
       revenue: rows(revenue)[0] ?? {},
@@ -562,8 +573,9 @@ export class BillingService {
   async listAdminTransactions(limit = 50, offset = 0) {
     const capped = Math.min(Math.max(Number(limit) || 50, 1), 200);
     const skip = Math.max(Number(offset) || 0, 0);
+    const revenueCte = normalisedRevenueCte(this.usdToNgnRate(await this.getPricing()));
     const result = await db.execute(sql`
-      with ${NORMALISED_REVENUE_CTE}
+      with ${revenueCte}
       select id, user_id, provider, provider_reference, type, amount,
              currency, status, metadata, created_at
       from normalised_tx
