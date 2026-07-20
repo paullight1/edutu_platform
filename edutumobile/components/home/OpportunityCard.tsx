@@ -4,6 +4,7 @@ import { ChevronRight, BookmarkPlus, Share2, Sparkles, MoreVertical } from "luci
 import { FadeInDown } from "react-native-reanimated";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { AnimatedPressable } from "../ui/AnimatedPressable";
 import { useTranslation } from "react-i18next";
 
@@ -152,7 +153,7 @@ function OpportunityCardBase({
                 {showMatch && (
                     <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
                         <Sparkles size={9} color={accent} />
-                        <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                        <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
                     </View>
                 )}
                 <Text style={[styles.oppTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>

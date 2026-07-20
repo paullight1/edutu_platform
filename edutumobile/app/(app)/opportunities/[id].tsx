@@ -78,6 +78,7 @@ import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { LinearGradient } from "expo-linear-gradient";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -1536,7 +1537,7 @@ export default function OpportunityDetailScreen() {
                 style={[styles.matchBadge, { backgroundColor: "#10B98115" }]}
               >
                 <Text style={[styles.matchText, { color: "#10B981" }]}>
-                  {t("detail.matchPercent", { match: opportunity.match })}
+                  {t("detail." + MATCH_TIER_KEY[getMatchTier(opportunity.match ?? 0)])}
                 </Text>
               </View>
             )}
