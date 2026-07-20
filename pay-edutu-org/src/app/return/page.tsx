@@ -1,7 +1,7 @@
 import { config } from '@/lib/env';
 import { verifyTransaction } from '@/lib/paystack';
 import { grantPro, recordPayment } from '@/lib/entitlements';
-import { addDays, isBillingPlan } from '@/lib/money';
+import { isBillingPlan } from '@/lib/money';
 import { fetchPricing } from '@/lib/pricing';
 import { ReturnRedirect } from './ReturnRedirect';
 
@@ -80,8 +80,9 @@ export default async function ReturnPage({ searchParams }: { searchParams: Searc
           // /return-page and webhook races runs grantPro — no double grant.
           if (isNew) {
             if (isSeason) {
-              // One-off pass → fixed expiry now + admin-configured duration
-              // (identical to the webhook path; fallback 90 if config unavailable).
+              // One-off pass → EXTENDS from remaining Pro time by the admin-configured
+              // duration (identical to the webhook path; fallback 90 if config
+              // unavailable). Omitting `expiresAt` engages grantPro's extend logic.
               const durationDays = (await fetchPricing()).seasonPass.durationDays;
               await grantPro({
                 userId: uid,
@@ -89,7 +90,7 @@ export default async function ReturnPage({ searchParams }: { searchParams: Searc
                 source: 'season_pass',
                 reference: verified.reference,
                 email: verified.email,
-                expiresAt: addDays(new Date(), durationDays),
+                durationDays,
               });
             } else {
               await grantPro({ userId: uid, plan, source: 'paystack', reference: verified.reference, email: verified.email });
