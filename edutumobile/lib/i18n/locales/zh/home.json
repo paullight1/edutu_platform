@@ -231,7 +231,11 @@
     "notInterestedTitle": "不感兴趣？",
     "notInterestedMessage": "我们会减少向你展示此类机会。",
     "notInterestedConfirm": "不感兴趣",
-    "percentMatch": "匹配度 {{percent}}%"
+    "percentMatch": "匹配度 {{percent}}%",
+    "fitExcellent": "非常匹配",
+    "fitStrong": "高度匹配",
+    "fitGood": "较匹配",
+    "fitWorthALook": "值得一看"
   },
   "creditPack": {
     "title": "购买积分",

@@ -290,6 +290,10 @@
     "notInterestedMessage": "We'll show you fewer opportunities like this one.",
     "notInterestedConfirm": "Not interested",
     "percentMatch": "{{percent}}% match",
+    "fitExcellent": "Excellent fit",
+    "fitStrong": "Strong fit",
+    "fitGood": "Good fit",
+    "fitWorthALook": "Worth a look",
     "remote": "Remote"
   },
   "creditPack": {

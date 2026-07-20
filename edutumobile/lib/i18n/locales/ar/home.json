@@ -243,7 +243,11 @@
     "notInterestedTitle": "غير مهتم؟",
     "notInterestedMessage": "سنعرض لك عددًا أقل من الفرص المشابهة لهذه.",
     "notInterestedConfirm": "غير مهتم",
-    "percentMatch": "تطابق {{percent}}%"
+    "percentMatch": "تطابق {{percent}}%",
+    "fitExcellent": "ملاءمة ممتازة",
+    "fitStrong": "ملاءمة قوية",
+    "fitGood": "ملاءمة جيدة",
+    "fitWorthALook": "يستحق النظرة"
   },
   "creditPack": {
     "title": "شراء نقاط",

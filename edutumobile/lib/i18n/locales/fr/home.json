@@ -231,7 +231,11 @@
     "notInterestedTitle": "Pas intéressé ?",
     "notInterestedMessage": "Nous vous montrerons moins d'opportunités de ce type.",
     "notInterestedConfirm": "Pas intéressé",
-    "percentMatch": "{{percent}} % de correspondance"
+    "percentMatch": "{{percent}} % de correspondance",
+    "fitExcellent": "Excellente adéquation",
+    "fitStrong": "Forte adéquation",
+    "fitGood": "Bonne adéquation",
+    "fitWorthALook": "À découvrir"
   },
   "creditPack": {
     "title": "Acheter des Crédits",

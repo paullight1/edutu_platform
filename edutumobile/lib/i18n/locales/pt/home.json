@@ -231,7 +231,11 @@
     "notInterestedTitle": "Sem interesse?",
     "notInterestedMessage": "Vamos mostrar menos oportunidades como esta.",
     "notInterestedConfirm": "Sem interesse",
-    "percentMatch": "{{percent}}% de compatibilidade"
+    "percentMatch": "{{percent}}% de compatibilidade",
+    "fitExcellent": "Encaixe excelente",
+    "fitStrong": "Encaixe forte",
+    "fitGood": "Bom encaixe",
+    "fitWorthALook": "Vale conferir"
   },
   "creditPack": {
     "title": "Comprar créditos",

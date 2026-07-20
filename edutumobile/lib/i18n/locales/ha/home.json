@@ -231,7 +231,11 @@
     "notInterestedTitle": "Ba ka da sha'awa?",
     "notInterestedMessage": "Za mu rage nuna maka damammaki irin wannan.",
     "notInterestedConfirm": "Ba ni da sha'awa",
-    "percentMatch": "Dacewa {{percent}}%"
+    "percentMatch": "Dacewa {{percent}}%",
+    "fitExcellent": "Ya dace sosai",
+    "fitStrong": "Ya dace da kyau",
+    "fitGood": "Ya dace",
+    "fitWorthALook": "Ya cancanci dubawa"
   },
   "creditPack": {
     "title": "Sayi Kirediti",

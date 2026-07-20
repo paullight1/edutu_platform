@@ -231,7 +231,11 @@
     "notInterestedTitle": "Huvutiwi nayo?",
     "notInterestedMessage": "Tutakuonyesha fursa chache zaidi kama hii.",
     "notInterestedConfirm": "Sivutiwi",
-    "percentMatch": "Inakufaa kwa {{percent}}%"
+    "percentMatch": "Inakufaa kwa {{percent}}%",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
   },
   "creditPack": {
     "title": "Nunua Krediti",

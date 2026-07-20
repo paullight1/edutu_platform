@@ -231,7 +231,11 @@
     "notInterestedTitle": "रुचि नहीं है?",
     "notInterestedMessage": "हम आपको इस जैसे अवसर कम दिखाएँगे।",
     "notInterestedConfirm": "रुचि नहीं है",
-    "percentMatch": "{{percent}}% मैच"
+    "percentMatch": "{{percent}}% मैच",
+    "fitExcellent": "बेहतरीन मेल",
+    "fitStrong": "मज़बूत मेल",
+    "fitGood": "अच्छा मेल",
+    "fitWorthALook": "देखने लायक"
   },
   "creditPack": {
     "title": "क्रेडिट खरीदें",
