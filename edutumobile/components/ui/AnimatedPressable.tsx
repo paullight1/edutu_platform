@@ -12,7 +12,7 @@ import Animated, {
     ZoomIn,
     Layout,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 
 // ─────────────────────────────────────────────────────────────
 // Animated TouchableOpacity (legacy API, same spring feedback)
@@ -39,10 +39,10 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
         const triggerHaptic = () => {
             if (hapticFeedback === 'none') return;
             switch (hapticFeedback) {
-                case 'light': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); break;
-                case 'medium': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); break;
-                case 'heavy': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); break;
-                case 'selection': Haptics.selectionAsync(); break;
+                case 'light': haptics.light(); break;
+                case 'medium': haptics.medium(); break;
+                case 'heavy': haptics.heavy(); break;
+                case 'selection': haptics.selection(); break;
             }
         };
 
@@ -123,10 +123,10 @@ export const AnimatedTouchableOpacity: React.FC<AnimatedTouchableOpacityProps> =
     const triggerHaptic = () => {
         if (hapticFeedback === 'none') return;
         switch (hapticFeedback) {
-            case 'light': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); break;
-            case 'medium': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); break;
-            case 'heavy': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); break;
-            case 'selection': Haptics.selectionAsync(); break;
+            case 'light': haptics.light(); break;
+            case 'medium': haptics.medium(); break;
+            case 'heavy': haptics.heavy(); break;
+            case 'selection': haptics.selection(); break;
         }
     };
 

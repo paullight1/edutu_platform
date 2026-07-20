@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../lib/haptics';
 import {
   AudioModule,
   RecordingPresets,
@@ -80,7 +80,7 @@ export function useVoiceRecording({
       setIsRecording(false);
       setIsProcessing(true);
       clearTimers();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      haptics.light();
 
       await recorder.stop();
       const uri = recorder.uri;
@@ -153,7 +153,7 @@ export function useVoiceRecording({
       await recorder.prepareToRecordAsync();
       recorder.record();
       setIsRecording(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      haptics.medium();
 
       const startTime = Date.now();
       durationTimerRef.current = setInterval(
@@ -177,7 +177,7 @@ export function useVoiceRecording({
     setIsProcessing(false);
     setDuration(0);
     setError(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    haptics.warning();
   }, [recorder, clearTimers]);
 
   return {

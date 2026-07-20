@@ -67,7 +67,7 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 import { getDeadlineBadge } from '@edutu/core/src/utils/deadline';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
@@ -481,7 +481,7 @@ export default function ChatScreen() {
             if (deviceActions?.length) void runDeviceActions(deviceActions);
             // A spin result gets a celebratory buzz as the card pinwheels in.
             if (result?.assistantMessage?.metadata?.actionButtons?.some(b => b.kind === 'spin_again')) {
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                void haptics.success();
             }
         } catch (err) {
             console.error('Failed to send message:', err);

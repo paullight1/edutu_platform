@@ -28,7 +28,7 @@ import ReAnimated, {
     interpolate,
     Extrapolation,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../lib/haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
 import { UpgradeSheetProvider } from "../../components/context/UpgradeSheetContext";
@@ -371,7 +371,7 @@ function MorphingNavCircle({
             if (!finished) return;
             setShown(latestAction.current);
             slide.setValue(-14);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            haptics.light();
             Animated.parallel([
                 Animated.spring(morph, { toValue: 1, friction: 6, tension: 140, useNativeDriver: true }),
                 Animated.spring(slide, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
@@ -437,7 +437,7 @@ function MorphingNavCircle({
             <TouchableOpacity
                 onPress={() => onPress(latestAction.current)}
                 onLongPress={isAI ? () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    haptics.medium();
                     openVoiceMode('voice');
                 } : undefined}
                 delayLongPress={280}
@@ -487,7 +487,7 @@ function BarActionItem({
         <TouchableOpacity
             onPress={() => onPress(action)}
             onLongPress={isAI ? () => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                haptics.medium();
                 openVoiceMode('voice');
             } : undefined}
             delayLongPress={280}
@@ -538,7 +538,7 @@ function CreateSpeedDial({
 
     useEffect(() => {
         if (open) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            haptics.light();
             Animated.spring(dial, { toValue: 1, friction: 7, tension: 120, useNativeDriver: true }).start();
         } else {
             Animated.timing(dial, { toValue: 0, duration: 150, useNativeDriver: true }).start(({ finished }) => {
@@ -587,7 +587,7 @@ function CreateSpeedDial({
                         >
                             <TouchableOpacity
                                 onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                    haptics.light();
                                     onSelect(option.target);
                                 }}
                                 activeOpacity={0.85}

@@ -42,7 +42,7 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../../lib/haptics";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -475,13 +475,13 @@ export default function ApplicationCopilotScreen() {
           categoryItems.length > 0 && categoryItems.every((entry) => nextState[entry.id]);
 
         if (categoryDone) {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          void haptics.success();
           setPraise(null);
           setCategoryBanner(CATEGORY_COMPLETE_COPY[item.category]);
           if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
           bannerTimerRef.current = setTimeout(() => setCategoryBanner(null), 3500);
         } else {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          void haptics.light();
           const lines = TICK_PRAISE[item.category];
           setPraise({ itemId: item.id, text: lines[Math.floor(Math.random() * lines.length)] });
           if (praiseTimerRef.current) clearTimeout(praiseTimerRef.current);
@@ -518,7 +518,7 @@ export default function ApplicationCopilotScreen() {
 
   const shareRefereeDraft = useCallback(() => {
     if (!refereeDraft) return;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void haptics.light();
     void Share.share({ message: refereeDraft }).catch(() => undefined);
   }, [refereeDraft]);
 

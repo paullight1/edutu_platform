@@ -15,6 +15,7 @@ import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supa
 import { flushSignalQueue } from "../packages/core/src/services/signalQueue";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { hydrateNavBarStyle } from "../lib/navStyleStore";
+import { hydrateHaptics } from "../lib/haptics";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
 import { AppControlGate } from "../components/mobile-control/AppControlGate";
 import { AppControlProvider } from "../components/context/AppControlContext";
@@ -200,6 +201,8 @@ export default function RootLayout() {
     // chose "solid" doesn't see a frame of glass on every cold start.
     useEffect(() => {
         void hydrateNavBarStyle();
+        // Load the haptics on/off preference before the first tap can fire one.
+        void hydrateHaptics();
     }, []);
 
     // ErrorBoundary is now the OUTERMOST wrapper. Previously it lived inside
