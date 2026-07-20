@@ -33,6 +33,11 @@ export class CopilotController {
     return this.copilotService.listKits(userId);
   }
 
+  @Get("answers")
+  listAnswers(@CurrentUser("id") userId: string) {
+    return this.copilotService.listAnswers(userId);
+  }
+
   @Get("kits/:opportunityId")
   getKit(
     @CurrentUser("id") userId: string,

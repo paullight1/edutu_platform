@@ -21,6 +21,29 @@ import {
 
 const MAX_MEMORIES_PER_USER = 60;
 
+/**
+ * Returned by draft_sop when we have no notes in the user's own words and no
+ * prior SOP to build from. Drafting a Statement of Purpose from thin air
+ * invents a biography — fabricated experiences read as dishonest to funders and
+ * trip AI detectors. So instead of ghostwriting, we hand the coach a short
+ * micro-interview to run first, then it calls draft_sop again with the answers.
+ */
+const SOP_INTERVIEW_GUIDANCE = {
+  status: "needs_user_input",
+  action_required: "interview_first",
+  reason:
+    "No notes in the user's own words, and no existing Statement of Purpose to build from. Do NOT draft yet: an SOP written from thin air invents a biography, which reads as dishonest to funders and gets flagged by AI detectors.",
+  instruction:
+    "Before drafting, run a short micro-interview so the SOP is built from the user's real story. Ask these four questions warmly and in your own words — ideally one or two at a time, not as a cold form — then call draft_sop again with their answers passed as `notes`.",
+  questions: [
+    "The specific moment or experience that first sparked this ambition — when was it and what actually happened?",
+    "The hardest relevant thing you've actually done — a project, role, obstacle or responsibility you saw through.",
+    "Why THIS program/opportunity specifically — what about it fits where you're headed?",
+    "What you'll do with it — the concrete goal or impact you're aiming for afterwards.",
+  ],
+  note: "No credits were charged. Gather the answers first, then draft.",
+} as const;
+
 /** Compact card the model sees — full rows would blow the context. */
 function toToolOpportunity(row: Record<string, any>) {
   return {
@@ -829,7 +852,7 @@ export class CoachToolsService {
     return {
       name: "draft_sop",
       description:
-        "Draft a Statement of Purpose (personal statement) using best-practice structure — hook, background, motivation & fit, goals, closing — grounded in the user's profile and a target opportunity. Saves it as an editable document. Costs credits — confirm first. Ask for the user's own notes/motivations before drafting if you have none; their voice makes it authentic.",
+        "Draft a Statement of Purpose (personal statement) from the user's OWN story — hook, background, motivation & fit, goals, closing — grounded in their notes, profile and a target opportunity. Saves it as an editable document. Costs credits — confirm first. IMPORTANT: pass the user's own notes/motivations in `notes`. If you have none and they have no existing SOP, this tool will NOT draft — it returns a short interview for you to run first, because an SOP invented from nothing fabricates their biography.",
       parameters: {
         type: "object",
         properties: {
@@ -849,11 +872,25 @@ export class CoachToolsService {
         notes: z.string().max(2000).optional(),
       }),
       execute: async (ctx, args) => {
+        const notes = (args.notes ?? "").trim();
+        // Interview-first: no voice from the user AND nothing prior to build on
+        // → hand back the micro-interview instead of ghostwriting a biography.
+        // No credits are metered here — nothing was drafted.
+        if (!notes) {
+          const hasPriorSop = await this.hasExistingSop(
+            ctx.userId,
+            args.opportunity_id,
+          );
+          if (!hasPriorSop) {
+            return SOP_INTERVIEW_GUIDANCE;
+          }
+        }
+
         const charge = await this.monetizationService.meter(ctx.userId, "cvAi");
         try {
           const document = await this.documentsService.generateSop(ctx.userId, {
             opportunityId: args.opportunity_id ?? null,
-            notes: args.notes,
+            notes: notes || undefined,
           });
           ctx.collectDocuments([this.documentToCard(document)]);
           return {
@@ -867,6 +904,27 @@ export class CoachToolsService {
         }
       },
     };
+  }
+
+  /**
+   * True when the user already has a saved Statement of Purpose we could build
+   * from (matching the target opportunity when one is named). Failures are
+   * treated as "none" so a lookup hiccup can never block the interview path.
+   */
+  private async hasExistingSop(
+    userId: string,
+    opportunityId?: string,
+  ): Promise<boolean> {
+    try {
+      const documents = await this.documentsService.list(userId);
+      return documents.some(
+        (document) =>
+          document.type === "sop" &&
+          (!opportunityId || document.opportunityId === opportunityId),
+      );
+    } catch {
+      return false;
+    }
   }
 
   private editDocument(): CoachTool<{

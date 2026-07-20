@@ -139,7 +139,8 @@
       "interview": "面试",
       "offer": "录取",
       "rejected": "未通过",
-      "withdrawn": "已撤回"
+      "withdrawn": "已撤回",
+      "no_response": "无回应"
     },
     "filters": {
       "total": "全部",
@@ -157,7 +158,8 @@
     "emptySubtitle": "你申请的机会会出现在这里。",
     "emptyFilter": "该阶段暂无申请。",
     "browseOpportunities": "浏览机会",
-    "loading": "正在加载申请记录…"
+    "loading": "正在加载申请记录…",
+    "answerBankLine": "你的答案库中有 {{count}} 条可复用的答案。"
   },
   "paywall": {
     "title": "高级版",
@@ -173,6 +175,7 @@
     "save": "省",
     "billedMonthly": "按月计费",
     "perMonthBilledYearly": "每月 {{price}}，按年计费",
+    "seasonDuration": "{{count}} 天 Pro 权益",
     "features": {
       "unlimitedAi": "无限次 AI 生成",
       "premiumTemplates": "高级简历模板",
@@ -231,7 +234,11 @@
     "notInterestedTitle": "不感兴趣？",
     "notInterestedMessage": "我们会减少向你展示此类机会。",
     "notInterestedConfirm": "不感兴趣",
-    "percentMatch": "匹配度 {{percent}}%"
+    "percentMatch": "匹配度 {{percent}}%",
+    "fitExcellent": "非常匹配",
+    "fitStrong": "高度匹配",
+    "fitGood": "较匹配",
+    "fitWorthALook": "值得一看"
   },
   "creditPack": {
     "title": "购买积分",

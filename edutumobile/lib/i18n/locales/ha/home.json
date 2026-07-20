@@ -139,7 +139,8 @@
       "interview": "Hira",
       "offer": "Tayin",
       "rejected": "An ƙi",
-      "withdrawn": "An janye"
+      "withdrawn": "An janye",
+      "no_response": "Babu amsa"
     },
     "filters": {
       "total": "Jimla",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Damammakin da ka nema za su bayyana a nan.",
     "emptyFilter": "Babu buƙatar nema a wannan matakin.",
     "browseOpportunities": "Binciko Damammaki",
-    "loading": "Ana loda buƙatun nema..."
+    "loading": "Ana loda buƙatun nema...",
+    "answerBankLine": "Bankin amsoshinka yana da amsoshi {{count}} da za a sake amfani da su."
   },
   "paywall": {
     "title": "Premium",
@@ -173,6 +175,7 @@
     "save": "Tanadi",
     "billedMonthly": "Ana biya kowane wata",
     "perMonthBilledYearly": "{{price}} a wata, ana biya kowace shekara",
+    "seasonDuration": "Damar Pro na kwanaki {{count}}",
     "features": {
       "unlimitedAi": "Ƙirƙirar AI mara iyaka",
       "premiumTemplates": "Samfurorin CV na premium",
@@ -231,7 +234,11 @@
     "notInterestedTitle": "Ba ka da sha'awa?",
     "notInterestedMessage": "Za mu rage nuna maka damammaki irin wannan.",
     "notInterestedConfirm": "Ba ni da sha'awa",
-    "percentMatch": "Dacewa {{percent}}%"
+    "percentMatch": "Dacewa {{percent}}%",
+    "fitExcellent": "Ya dace sosai",
+    "fitStrong": "Ya dace da kyau",
+    "fitGood": "Ya dace",
+    "fitWorthALook": "Ya cancanci dubawa"
   },
   "creditPack": {
     "title": "Sayi Kirediti",

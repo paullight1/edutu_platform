@@ -17,14 +17,16 @@ import {
   getNextApplicationStage,
   updateTrackedApplicationStatus,
 } from "../../packages/core/src/services/applications";
+import { fetchAnswerBankCount } from "../../packages/core/src/services/copilot";
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
 import type { Opportunity } from "../../packages/core/src/types/opportunity";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 
-const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
+const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn', 'no_response'];
 
 // One-line reflections users leave after a rejection, keyed by application id.
 const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
@@ -62,6 +64,9 @@ function getStatusColor(value: ApplicationStatus) {
       return '#EF4444';
     case 'withdrawn':
       return '#64748B';
+    case 'no_response':
+      // Neutral slate — closure, not a red failure. The silence is on them.
+      return '#64748B';
     case 'draft':
       return '#F59E0B';
     case 'submitted':
@@ -87,7 +92,7 @@ function formatDeadline(value?: string | null) {
 function PipelineStepper({ status, inactiveColor }: { status: ApplicationStatus; inactiveColor: string }) {
   const stageIndex = APPLICATION_PIPELINE.indexOf(status);
   const isRejected = status === 'rejected';
-  const isWithdrawn = status === 'withdrawn';
+  const isWithdrawn = status === 'withdrawn' || status === 'no_response';
   const isTerminal = isRejected || isWithdrawn;
 
   return (
@@ -108,26 +113,31 @@ function PipelineStepper({ status, inactiveColor }: { status: ApplicationStatus;
 // Supportive inline card shown right after the user marks an application
 // rejected: warm reframe + optional one-line reflection + the next best shot.
 function RejectionSupportCard({
+  variant = 'rejected',
   initialReflection,
   onSaveReflection,
   nextBestShot,
   onOpenNext,
+  answerBankCount,
   cardBg,
   borderColor,
   accentColor,
   textPrimary,
   textSecondary,
 }: {
+  variant?: 'rejected' | 'no_response';
   initialReflection: string;
   onSaveReflection: (text: string) => void;
   nextBestShot: Opportunity | null;
   onOpenNext: (opportunity: Opportunity) => void;
+  answerBankCount: number;
   cardBg: string;
   borderColor: string;
   accentColor: string;
   textPrimary: string;
   textSecondary: string;
 }) {
+  const { t } = useTranslation('home');
   const [reflection, setReflection] = useState(initialReflection);
   const [saved, setSaved] = useState(Boolean(initialReflection));
 
@@ -140,17 +150,31 @@ function RejectionSupportCard({
   const nextMatchPct = nextBestShot ? Math.round(nextBestShot.match ?? 0) : 0;
   const nextDeadline = nextBestShot ? getDeadlineBadge(nextBestShot.deadline) : null;
 
+  // no_response is closure the user owns — never a rejection, never their fault.
+  const isNoResponse = variant === 'no_response';
+  const title = isNoResponse
+    ? "No response counts as closed — that's on them, not you."
+    : "This one said no. That's data, not a verdict.";
+  const body = isNoResponse
+    ? 'Your work is saved for the next one. If anything stood out about this one, note it — future you will use it.'
+    : 'Every strong applicant collects rejections on the way to a yes. If anything stood out about this one, note it — future you will use it.';
+
   return (
     <View style={[styles.rejectionCard, { backgroundColor: cardBg, borderColor }]}>
       <View style={styles.rejectionHeader}>
         <Heart size={16} color="#F472B6" />
         <Text style={[styles.rejectionTitle, { color: textPrimary }]}>
-          This one said no. That&apos;s data, not a verdict.
+          {title}
         </Text>
       </View>
       <Text style={[styles.rejectionBody, { color: textSecondary }]}>
-        Every strong applicant collects rejections on the way to a yes. If anything stood out about this one, note it — future you will use it.
+        {body}
       </Text>
+      {answerBankCount > 0 ? (
+        <Text style={[styles.answerBankLine, { color: accentColor }]}>
+          {t('applied.answerBankLine', { count: answerBankCount })}
+        </Text>
+      ) : null}
       <View style={styles.reflectionRow}>
         <TextInput
           value={reflection}
@@ -193,7 +217,7 @@ function RejectionSupportCard({
           <View style={styles.nextShotMetaRow}>
             {nextMatchPct >= 40 ? (
               <Text style={{ color: accentColor, fontSize: 11, fontWeight: '800' }}>
-                {nextMatchPct}% match
+                {t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(nextMatchPct)])}
               </Text>
             ) : null}
             {nextDeadline ? (
@@ -241,6 +265,23 @@ export default function AppliedPage() {
   // plus stored one-line reflections keyed by application id.
   const [rejectionCardId, setRejectionCardId] = useState<string | null>(null);
   const [reflections, setReflections] = useState<Record<string, string>>({});
+  // Reusable essay drafts the user has banked — surfaced in the closure card so
+  // a loss visibly deposits a surviving asset. Fetched lazily only once a
+  // closure card opens; any failure stays 0 and simply hides the line.
+  const [answerBankCount, setAnswerBankCount] = useState(0);
+
+  useEffect(() => {
+    if (!rejectionCardId) return;
+    let cancelled = false;
+    fetchAnswerBankCount(getToken)
+      .then((count) => {
+        if (!cancelled) setAnswerBankCount(count);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectionCardId, getToken]);
 
   useEffect(() => {
     AsyncStorage.getItem(REJECTION_REFLECTIONS_KEY)
@@ -337,7 +378,8 @@ export default function AppliedPage() {
       setApplications((current) => current.map((item) => (
         item.id === applicationId ? { ...item, status } : item
       )));
-      if (status === 'rejected') {
+      if (status === 'rejected' || status === 'no_response') {
+        // Closure should never dead-end: surface the next best shot card.
         setRejectionCardId(applicationId);
       } else {
         setRejectionCardId((current) => (current === applicationId ? null : current));
@@ -362,6 +404,7 @@ export default function AppliedPage() {
       offer: 0,
       rejected: 0,
       withdrawn: 0,
+      no_response: 0,
     };
     applications.forEach((application) => {
       counts[application.status] += 1;
@@ -375,13 +418,13 @@ export default function AppliedPage() {
     { key: 'submitted' as StatFilter, label: t('applied.status.submitted'), count: stats.submitted, color: getStatusColor('submitted') },
     { key: 'interview' as StatFilter, label: t('applied.status.interview'), count: stats.interview, color: getStatusColor('interview') },
     { key: 'offer' as StatFilter, label: t('applied.status.offer'), count: stats.offer, color: '#10B981' },
-    { key: 'closed' as StatFilter, label: t('applied.filters.closed'), count: stats.rejected + stats.withdrawn, color: '#EF4444' },
+    { key: 'closed' as StatFilter, label: t('applied.filters.closed'), count: stats.rejected + stats.withdrawn + stats.no_response, color: '#EF4444' },
   ]), [applications.length, stats, accentColor, t]);
 
   const filteredApplications = useMemo(() => {
     if (activeFilter === 'all') return applications;
     if (activeFilter === 'closed') {
-      return applications.filter((item) => item.status === 'rejected' || item.status === 'withdrawn');
+      return applications.filter((item) => item.status === 'rejected' || item.status === 'withdrawn' || item.status === 'no_response');
     }
     return applications.filter((item) => item.status === activeFilter);
   }, [applications, activeFilter]);
@@ -480,12 +523,14 @@ export default function AppliedPage() {
       </View>
       <ChevronRight size={18} color={textSecondary} />
     </TouchableOpacity>
-    {item.status === 'rejected' && rejectionCardId === item.id ? (
+    {(item.status === 'rejected' || item.status === 'no_response') && rejectionCardId === item.id ? (
       <RejectionSupportCard
+        variant={item.status === 'no_response' ? 'no_response' : 'rejected'}
         initialReflection={reflections[item.id] ?? ''}
         onSaveReflection={(text) => saveReflection(item.id, text)}
         nextBestShot={nextBestShot}
         onOpenNext={openNextBestShot}
+        answerBankCount={answerBankCount}
         cardBg={cardBg}
         borderColor={borderColor}
         accentColor={accentColor}
@@ -494,7 +539,7 @@ export default function AppliedPage() {
       />
     ) : null}
     </View>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, answerBankCount]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -778,6 +823,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 6,
+  },
+  answerBankLine: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 8,
   },
   reflectionRow: {
     flexDirection: 'row',

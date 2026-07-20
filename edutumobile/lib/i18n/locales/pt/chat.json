@@ -73,7 +73,11 @@
     "narrowBy": "Filtrar por:",
     "view": "Ver",
     "categoryFallback": "Oportunidade",
-    "typing": "O Edutu está verificando oportunidades"
+    "typing": "O Edutu está verificando oportunidades",
+    "fitExcellent": "Encaixe excelente",
+    "fitStrong": "Encaixe forte",
+    "fitGood": "Bom encaixe",
+    "fitWorthALook": "Vale conferir"
   },
   "followUp": {
     "country": "País",

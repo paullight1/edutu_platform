@@ -73,7 +73,11 @@
     "narrowBy": "Narrow by:",
     "view": "View",
     "categoryFallback": "Opportunity",
-    "typing": "Edutu is checking opportunities"
+    "typing": "Edutu is checking opportunities",
+    "fitExcellent": "Excellent fit",
+    "fitStrong": "Strong fit",
+    "fitGood": "Good fit",
+    "fitWorthALook": "Worth a look"
   },
   "followUp": {
     "country": "Country",

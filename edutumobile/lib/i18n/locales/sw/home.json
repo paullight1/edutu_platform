@@ -139,7 +139,8 @@
       "interview": "Usaili",
       "offer": "Ofa",
       "rejected": "Limekataliwa",
-      "withdrawn": "Limeondolewa"
+      "withdrawn": "Limeondolewa",
+      "no_response": "Hakuna jibu"
     },
     "filters": {
       "total": "Jumla",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Fursa unazoomba zitaonekana hapa.",
     "emptyFilter": "Hakuna maombi katika hatua hii.",
     "browseOpportunities": "Vinjari Fursa",
-    "loading": "Inapakia maombi..."
+    "loading": "Inapakia maombi...",
+    "answerBankLine": "Benki yako ya majibu ina majibu {{count}} yanayoweza kutumika tena."
   },
   "paywall": {
     "title": "Premium",
@@ -173,6 +175,7 @@
     "save": "Okoa",
     "billedMonthly": "Hulipwa kila mwezi",
     "perMonthBilledYearly": "{{price}} kwa mwezi, hulipwa kila mwaka",
+    "seasonDuration": "Ufikiaji wa Pro wa siku {{count}}",
     "features": {
       "unlimitedAi": "Utengenezaji wa AI bila kikomo",
       "premiumTemplates": "Violezo vya CV vya premium",
@@ -231,7 +234,11 @@
     "notInterestedTitle": "Huvutiwi nayo?",
     "notInterestedMessage": "Tutakuonyesha fursa chache zaidi kama hii.",
     "notInterestedConfirm": "Sivutiwi",
-    "percentMatch": "Inakufaa kwa {{percent}}%"
+    "percentMatch": "Inakufaa kwa {{percent}}%",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
   },
   "creditPack": {
     "title": "Nunua Krediti",

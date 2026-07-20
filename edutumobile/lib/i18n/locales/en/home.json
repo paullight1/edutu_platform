@@ -170,7 +170,8 @@
       "interview": "Interview",
       "offer": "Offer",
       "rejected": "Rejected",
-      "withdrawn": "Withdrawn"
+      "withdrawn": "Withdrawn",
+      "no_response": "No response"
     },
     "filters": {
       "total": "Total",
@@ -188,7 +189,8 @@
     "emptySubtitle": "Opportunities you apply for will appear here.",
     "emptyFilter": "No applications in this stage.",
     "browseOpportunities": "Browse Opportunities",
-    "loading": "Loading applications..."
+    "loading": "Loading applications...",
+    "answerBankLine": "Your answer bank holds {{count}} reusable answers."
   },
   "paywall": {
     "title": "Premium",
@@ -206,6 +208,7 @@
     "billedWeekly": "Billed weekly",
     "billedMonthly": "Billed monthly",
     "perMonthBilledYearly": "{{price}} per month, billed yearly",
+    "seasonDuration": "{{count}}-day Pro access",
     "features": {
       "unlimitedAi": "Unlimited AI generation",
       "premiumTemplates": "Premium CV templates",
@@ -290,6 +293,10 @@
     "notInterestedMessage": "We'll show you fewer opportunities like this one.",
     "notInterestedConfirm": "Not interested",
     "percentMatch": "{{percent}}% match",
+    "fitExcellent": "Excellent fit",
+    "fitStrong": "Strong fit",
+    "fitGood": "Good fit",
+    "fitWorthALook": "Worth a look",
     "remote": "Remote"
   },
   "creditPack": {

@@ -259,6 +259,11 @@ function AdminPricingContent() {
                 yearlyPrice: form.promoYearlyPrice.trim() ? parsePrice(form.promoYearlyPrice) : null,
             },
             creditPacks: creditPacks as PricingConfig['creditPacks'],
+            // Season pass is edited on the admin web portal, not here — preserve
+            // whatever the server sent (the spread carries it at runtime; this
+            // keeps the type satisfied and never blanks it).
+            seasonPass:
+                ((fullSettings.pricing as PricingConfig | undefined)?.seasonPass) ?? DEFAULT_PRICING.seasonPass,
         };
 
         setSaving(true);

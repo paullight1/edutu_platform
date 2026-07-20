@@ -73,7 +73,11 @@
     "narrowBy": "इनसे सीमित करें:",
     "view": "देखें",
     "categoryFallback": "अवसर",
-    "typing": "Edutu अवसर देख रहा है"
+    "typing": "Edutu अवसर देख रहा है",
+    "fitExcellent": "बेहतरीन मेल",
+    "fitStrong": "मज़बूत मेल",
+    "fitGood": "अच्छा मेल",
+    "fitWorthALook": "देखने लायक"
   },
   "followUp": {
     "country": "देश",

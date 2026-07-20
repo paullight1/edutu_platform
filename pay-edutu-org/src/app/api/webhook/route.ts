@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/paystack';
 import { findUidForRenewal, grantPro, markSubscriptionCanceled, recordPayment, upsertSubscription } from '@/lib/entitlements';
 import { isBillingPlan } from '@/lib/money';
+import { fetchPricing } from '@/lib/pricing';
+
+/** True for one-off season-pass charges (reference minted as `edutu_season_…`). */
+function isSeasonReference(reference: unknown): boolean {
+  return typeof reference === 'string' && reference.startsWith('edutu_season_');
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,7 +71,24 @@ export async function POST(req: NextRequest) {
           raw: data,
         });
         if (isNew) {
-          await grantPro({ userId: uid, plan, source: 'paystack', reference: data.reference, email: data.customer?.email });
+          if (isSeasonReference(data.reference)) {
+            // One-off pass → EXTENDS from remaining Pro time by the admin-configured
+            // duration (fallback 90 if config unreadable). We omit `expiresAt` so
+            // grantPro's own extend-from-remaining path runs with this duration.
+            // recordPayment's reference idempotency above guarantees this grant
+            // runs once, so /return + webhook never double-extend.
+            const durationDays = (await fetchPricing()).seasonPass.durationDays;
+            await grantPro({
+              userId: uid,
+              plan: 'season',
+              source: 'season_pass',
+              reference: data.reference,
+              email: data.customer?.email,
+              durationDays,
+            });
+          } else {
+            await grantPro({ userId: uid, plan, source: 'paystack', reference: data.reference, email: data.customer?.email });
+          }
         }
         break;
       }

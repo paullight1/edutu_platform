@@ -139,7 +139,8 @@
       "interview": "इंटरव्यू",
       "offer": "ऑफ़र",
       "rejected": "अस्वीकृत",
-      "withdrawn": "वापस लिया"
+      "withdrawn": "वापस लिया",
+      "no_response": "कोई जवाब नहीं"
     },
     "filters": {
       "total": "कुल",
@@ -157,7 +158,8 @@
     "emptySubtitle": "आप जिन अवसरों पर अप्लाई करेंगे, वे यहाँ दिखेंगे।",
     "emptyFilter": "इस चरण में कोई आवेदन नहीं है।",
     "browseOpportunities": "अवसर ब्राउज़ करें",
-    "loading": "आवेदन लोड हो रहे हैं..."
+    "loading": "आवेदन लोड हो रहे हैं...",
+    "answerBankLine": "आपके उत्तर बैंक में {{count}} पुनः उपयोगी उत्तर हैं।"
   },
   "paywall": {
     "title": "प्रीमियम",
@@ -173,6 +175,7 @@
     "save": "बचत",
     "billedMonthly": "मासिक बिलिंग",
     "perMonthBilledYearly": "{{price}} प्रति माह, वार्षिक बिलिंग",
+    "seasonDuration": "{{count}} दिनों की प्रो पहुँच",
     "features": {
       "unlimitedAi": "अनलिमिटेड AI जनरेशन",
       "premiumTemplates": "प्रीमियम CV टेम्पलेट्स",
@@ -231,7 +234,11 @@
     "notInterestedTitle": "रुचि नहीं है?",
     "notInterestedMessage": "हम आपको इस जैसे अवसर कम दिखाएँगे।",
     "notInterestedConfirm": "रुचि नहीं है",
-    "percentMatch": "{{percent}}% मैच"
+    "percentMatch": "{{percent}}% मैच",
+    "fitExcellent": "बेहतरीन मेल",
+    "fitStrong": "मज़बूत मेल",
+    "fitGood": "अच्छा मेल",
+    "fitWorthALook": "देखने लायक"
   },
   "creditPack": {
     "title": "क्रेडिट खरीदें",

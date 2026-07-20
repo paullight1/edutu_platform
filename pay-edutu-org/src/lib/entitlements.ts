@@ -4,11 +4,17 @@ import { addDays, planDurationDays, type BillingPlan } from './money';
 export interface GrantInput {
   userId: string;
   plan: BillingPlan;
-  source: 'paystack' | 'admin_grant';
+  source: 'paystack' | 'admin_grant' | 'season_pass';
   reference?: string;
   email?: string | null;
-  /** Explicit expiry (else derived from plan duration). */
+  /** Explicit expiry (else derived from duration and extended from remaining time). */
   expiresAt?: Date;
+  /**
+   * Days to add when deriving the expiry (only used when `expiresAt` is absent).
+   * Lets a one-off season pass EXTEND from remaining Pro time using its
+   * admin-configured length instead of `planDurationDays(plan)`.
+   */
+  durationDays?: number;
 }
 
 /**
@@ -34,7 +40,10 @@ export async function grantPro(input: GrantInput): Promise<void> {
       ? new Date(existing.expires_at)
       : null;
     const base = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
-    expiresAt = addDays(base, planDurationDays(input.plan));
+    // A caller-supplied duration (season pass) wins over the plan default so the
+    // pass stacks its configured length on top of any remaining paid days.
+    const days = input.durationDays ?? planDurationDays(input.plan);
+    expiresAt = addDays(base, days);
   }
 
   const { error } = await db

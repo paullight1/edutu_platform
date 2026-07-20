@@ -73,7 +73,11 @@
     "narrowBy": "Bana kwa:",
     "view": "Tazama",
     "categoryFallback": "Fursa",
-    "typing": "Edutu inaangalia fursa"
+    "typing": "Edutu inaangalia fursa",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
   },
   "followUp": {
     "country": "Nchi",

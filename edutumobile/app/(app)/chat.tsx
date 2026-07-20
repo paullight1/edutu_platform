@@ -52,6 +52,7 @@ import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadmapGenerator';
+import { getMatchTier, MATCH_TIER_KEY } from '@edutu/core/src/utils/matchTier';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
@@ -1083,7 +1084,7 @@ export default function ChatScreen() {
                                                 <View style={styles.opportunityFooter}>
                                                     {typeof opportunity.matchScore === 'number' && opportunity.matchScore > 0 ? (
                                                         <Text style={[styles.matchBadge, { color: accentColor }]} numberOfLines={1}>
-                                                            {t('messages.matchScore', { defaultValue: '{{score}}% match', score: Math.round(opportunity.matchScore) })}
+                                                            {t('messages.' + MATCH_TIER_KEY[getMatchTier(opportunity.matchScore)])}
                                                         </Text>
                                                     ) : (
                                                         <Text style={[styles.opportunityMeta, { color: textSecondary }]} numberOfLines={1}>

@@ -139,7 +139,8 @@
       "interview": "Entrevista",
       "offer": "Oferta",
       "rejected": "Rechazada",
-      "withdrawn": "Retirada"
+      "withdrawn": "Retirada",
+      "no_response": "Sin respuesta"
     },
     "filters": {
       "total": "Total",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Las oportunidades a las que postules aparecerán aquí.",
     "emptyFilter": "No hay postulaciones en esta etapa.",
     "browseOpportunities": "Explorar oportunidades",
-    "loading": "Cargando postulaciones..."
+    "loading": "Cargando postulaciones...",
+    "answerBankLine": "Tu banco de respuestas tiene {{count}} respuestas reutilizables."
   },
   "paywall": {
     "title": "Premium",
@@ -173,6 +175,7 @@
     "save": "Ahorra",
     "billedMonthly": "Facturación mensual",
     "perMonthBilledYearly": "{{price}} al mes, con facturación anual",
+    "seasonDuration": "Acceso Pro de {{count}} días",
     "features": {
       "unlimitedAi": "Generación con IA ilimitada",
       "premiumTemplates": "Plantillas de CV premium",
@@ -231,7 +234,11 @@
     "notInterestedTitle": "¿No te interesa?",
     "notInterestedMessage": "Te mostraremos menos oportunidades como esta.",
     "notInterestedConfirm": "No me interesa",
-    "percentMatch": "{{percent}}% de coincidencia"
+    "percentMatch": "{{percent}}% de coincidencia",
+    "fitExcellent": "Encaje excelente",
+    "fitStrong": "Encaje fuerte",
+    "fitGood": "Buen encaje",
+    "fitWorthALook": "Vale la pena mirar"
   },
   "creditPack": {
     "title": "Comprar créditos",

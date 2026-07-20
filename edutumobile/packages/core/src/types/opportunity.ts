@@ -55,6 +55,16 @@ export interface Opportunity {
   featuredRank?: number;
   stipend?: number;
   currency?: string;
+  /**
+   * Cost to apply, persisted on `metadata.application_fee`. `isFree === true`
+   * means explicitly free; `amount` is the fee when known. When both are null (or
+   * absent) the fee is unknown and the UI renders nothing — never guess.
+   */
+  applicationFee?: {
+    isFree: boolean | null;
+    amount: number | null;
+    currency: string | null;
+  } | null;
   eligibility?: Record<string, unknown>;
   openDate?: string | null;
   createdAt?: string;

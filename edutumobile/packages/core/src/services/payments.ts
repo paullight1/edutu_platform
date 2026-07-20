@@ -29,7 +29,12 @@ export const PRODUCTS = {
   // Pro subscription
   PRO_MONTHLY: 'pro_monthly',
   PRO_YEARLY: 'pro_yearly',
-  
+
+  // One-off Season Pass (non-renewing) — grants Pro for a fixed run of days.
+  // Manual step: create this non-renewing product in the RevenueCat dashboard
+  // before enabling the season option on native.
+  SEASON_PASS: 'season_pass',
+
   // Credit packages
   CREDITS_SMALL: 'credits_small',    // 50 credits
   CREDITS_MEDIUM: 'credits_medium',  // 200 credits

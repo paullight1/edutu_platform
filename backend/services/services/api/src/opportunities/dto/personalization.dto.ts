@@ -53,6 +53,9 @@ export const OpportunitySignalSchema = z
       "outcome_offer",
       "outcome_rejected",
       "outcome_withdrawn",
+      // The org went silent and the user closed the loop themselves — teaches
+      // the engine which sources ghost applicants.
+      "outcome_ghosted",
       // Served-but-not-clicked exposure (with {surface, position} in details).
       // Weight 0 in scoring; powers impression-fatigue and, later, CTR eval.
       "impression",

@@ -28,15 +28,31 @@ export async function GET(req: NextRequest) {
 
   try {
     const pricing = await fetchPricing();
-    const amountMajor = effectivePrice(pricing, plan);
+
+    // Resolve the server-authoritative amount, reference, and plan code. A
+    // season pass is a ONE-OFF charge: no Paystack plan code (so `initTransaction`
+    // runs a single charge, not a subscription) and promos never apply to it.
+    let amountMajor: number;
+    let reference: string;
+    let planCode: string | undefined;
+    if (plan === 'season') {
+      // Never mint a charge for a pass the admin hasn't turned on.
+      if (!pricing.seasonPass.enabled) {
+        return NextResponse.redirect(`${config.baseUrl()}/return?status=error&reason=bad_request`, 303);
+      }
+      amountMajor = pricing.seasonPass.price;
+      reference = `edutu_season_${crypto.randomUUID()}`;
+      planCode = undefined;
+    } else {
+      amountMajor = effectivePrice(pricing, plan);
+      reference = `edutu_${plan}_${crypto.randomUUID()}`;
+      planCode = (plan === 'monthly' ? config.planMonthly() : config.planYearly()) || undefined;
+    }
     const amountMinor = toMinorUnits(amountMajor);
 
     // Paystack requires an email; synthesise a stable placeholder if the app
     // couldn't supply one (still tied to the user via metadata.uid).
     const payerEmail = email && /.+@.+\..+/.test(email) ? email : `${uid}@users.edutu.org`;
-
-    const reference = `edutu_${plan}_${crypto.randomUUID()}`;
-    const planCode = plan === 'monthly' ? config.planMonthly() : config.planYearly();
 
     const init = await initTransaction({
       email: payerEmail,
@@ -56,7 +72,7 @@ export async function GET(req: NextRequest) {
           { display_name: 'Plan', variable_name: 'plan', value: plan },
         ],
       },
-      planCode: planCode || undefined,
+      planCode,
     });
 
     return NextResponse.redirect(init.authorizationUrl, 303);

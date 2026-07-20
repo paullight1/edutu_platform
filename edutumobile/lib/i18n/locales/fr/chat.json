@@ -73,7 +73,11 @@
     "narrowBy": "Affiner par :",
     "view": "Voir",
     "categoryFallback": "Opportunité",
-    "typing": "Edutu consulte les opportunités"
+    "typing": "Edutu consulte les opportunités",
+    "fitExcellent": "Excellente adéquation",
+    "fitStrong": "Forte adéquation",
+    "fitGood": "Bonne adéquation",
+    "fitWorthALook": "À découvrir"
   },
   "followUp": {
     "country": "Pays",
