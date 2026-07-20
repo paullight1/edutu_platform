@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Dimensions,
-    Animated, useAnimatedValue, Image, RefreshControl
+    Image, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
@@ -12,7 +12,7 @@ import { BookOpen, Users, Plus,
     DollarSign, X, CheckCircle, ChevronRight,
     LayoutGrid, Award, Clock, Upload,
     ChevronLeft, FileText,
-    ArrowRight, Info, AlertCircle, Sparkles, Target,
+    ArrowRight, Info, AlertCircle, Gift, Target,
     Map, Eye, PenLine, Trash2
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,8 +27,6 @@ import { toSafeUUID } from '@edutu/core/src/utils/auth';
 import { useCreatorAccess } from '@edutu/core/src/hooks/useCreatorAccess';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.75;
-const CARD_SPACING = 16;
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 
 /** fetch() that aborts after `ms` so a cold Render backend can't hang the UI forever. */
@@ -100,8 +98,6 @@ export default function CreatorDashboard() {
     const [resources, setResources] = useState<Resource[]>([]);
     const [checklistItems, setChecklistItems] = useState<any[]>([]);
 
-    const scrollX = useAnimatedValue(0);
-
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : '#ffffff';
@@ -128,6 +124,7 @@ export default function CreatorDashboard() {
             // empty dashboard (they can still create). So any non-ok response or
             // network error degrades to an empty list instead of an error screen.
             let list: any[] = [];
+            let roadmapsOk = false;
             try {
                 const res = await fetchWithTimeout(`${API_URL}/roadmaps/mine`, {
                     headers: {
@@ -138,6 +135,7 @@ export default function CreatorDashboard() {
                 if (res.ok) {
                     const mine = await res.json();
                     list = Array.isArray(mine) ? mine : [];
+                    roadmapsOk = true;
                 } else {
                     console.warn(`Creator dashboard: /roadmaps/mine returned ${res.status}; showing empty state`);
                     setListDegraded(true);
@@ -158,21 +156,29 @@ export default function CreatorDashboard() {
                 credits = profile?.credits || 0;
             } catch { /* ignore */ }
 
-            setData({
-                listings: list.map((r: any) => ({
-                    id: r.id,
-                    title: r.title,
-                    category: r.category || 'general',
-                    status: r.status === 'published' ? 'published' : 'personal',
-                    enrollmentCount: r.enrollment_count ?? r.enrollmentCount ?? 0,
-                    raw: r,
-                })),
-                totalEarnings: credits,
-                totalEnrollments: list.reduce(
-                    (acc: number, r: any) => acc + (r.enrollment_count ?? r.enrollmentCount ?? 0),
-                    0,
-                ),
-                totalListings: list.length,
+            // On a degraded roadmaps fetch, preserve whatever was already on
+            // screen instead of blanking the list — the retry banner explains
+            // the staleness rather than the UI silently claiming zero roadmaps.
+            setData((prev: any) => {
+                if (!roadmapsOk) {
+                    return { ...(prev || {}), totalEarnings: credits };
+                }
+                return {
+                    listings: list.map((r: any) => ({
+                        id: r.id,
+                        title: r.title,
+                        category: r.category || 'general',
+                        status: r.status === 'published' ? 'published' : 'personal',
+                        enrollmentCount: r.enrollment_count ?? r.enrollmentCount ?? 0,
+                        raw: r,
+                    })),
+                    totalEarnings: credits,
+                    totalEnrollments: list.reduce(
+                        (acc: number, r: any) => acc + (r.enrollment_count ?? r.enrollmentCount ?? 0),
+                        0,
+                    ),
+                    totalListings: list.length,
+                };
             });
         }).catch((e: any) => {
             console.error('Failed to load creator dashboard:', e);
@@ -580,55 +586,29 @@ export default function CreatorDashboard() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Stats Cards - Horizontal Scrollable */}
+                {/* Overview — three at-a-glance stats in one compact panel.
+                    A fixed 3-up row keeps every number on screen; the old
+                    75%-width horizontal carousel forced a scroll for three
+                    single-digit values and buried them in whitespace. */}
                 <Text style={[styles.sectionLabel, { color: textSecondary }]}>{t('creatorDashboard.overview')}</Text>
-                <Animated.ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.statsScroll}
-                    onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
-                    snapToInterval={CARD_WIDTH + CARD_SPACING}
-                    decelerationRate="fast"
-                >
+                <View style={[styles.statsPanel, { backgroundColor: cardBg, borderColor }]}>
                     {[
-                        { label: t('creatorDashboard.stats.totalCredits'), value: data?.totalEarnings ?? 0, icon: DollarSign, color: '#10B981', gradient: ['#10B981', '#059669'] },
-                        { label: t('creatorDashboard.stats.totalStudents'), value: data?.totalEnrollments ?? 0, icon: Users, color: '#3B82F6', gradient: ['#3B82F6', '#2563EB'] },
-                        { label: t('creatorDashboard.stats.roadmaps'), value: data?.totalListings ?? 0, icon: LayoutGrid, color: '#3b82f6', gradient: ['#3b82f6', '#2563eb'] },
+                        { label: t('creatorDashboard.stats.totalCredits'), value: data?.totalEarnings ?? 0, icon: DollarSign, color: '#10B981' },
+                        { label: t('creatorDashboard.stats.totalStudents'), value: data?.totalEnrollments ?? 0, icon: Users, color: '#3B82F6' },
+                        { label: t('creatorDashboard.stats.roadmaps'), value: data?.totalListings ?? 0, icon: LayoutGrid, color: colors.accent },
                     ].map((stat, i) => (
-                        <Animated.View
-                            key={i}
-                            style={[
-                                styles.statCard,
-                                {
-                                    transform: [{
-                                        scale: scrollX.interpolate({
-                                            inputRange: [
-                                                (i - 1) * (CARD_WIDTH + CARD_SPACING),
-                                                i * (CARD_WIDTH + CARD_SPACING),
-                                                (i + 1) * (CARD_WIDTH + CARD_SPACING),
-                                            ],
-                                            outputRange: [0.92, 1, 0.92],
-                                            extrapolate: 'clamp',
-                                        })
-                                    }]
-                                }
-                            ]}
-                        >
-                            <LinearGradient
-                                colors={stat.gradient as [string, string]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.statCardGradient}
-                            >
-                                <View style={styles.statIconBox}>
-                                    <stat.icon color="white" size={24} />
+                        <React.Fragment key={i}>
+                            {i > 0 && <View style={[styles.statColDivider, { backgroundColor: borderColor }]} />}
+                            <View style={styles.statCol}>
+                                <View style={[styles.statIconChip, { backgroundColor: `${stat.color}15` }]}>
+                                    <stat.icon color={stat.color} size={20} />
                                 </View>
-                                <Text style={styles.statValue}>{stat.value}</Text>
-                                <Text style={styles.statLabel}>{stat.label}</Text>
-                            </LinearGradient>
-                        </Animated.View>
+                                <Text style={[styles.statValue, { color: textPrimary }]} numberOfLines={1}>{stat.value}</Text>
+                                <Text style={[styles.statLabel, { color: textSecondary }]} numberOfLines={1}>{stat.label}</Text>
+                            </View>
+                        </React.Fragment>
                     ))}
-                </Animated.ScrollView>
+                </View>
 
                 {/* Status banner: rewards (approved) / under review (pending) /
                     not approved + reapply (rejected) / publish upsell (never applied) */}
@@ -696,7 +676,7 @@ export default function CreatorDashboard() {
                             end={{ x: 1, y: 1 }}
                             style={styles.rewardGradient}
                         >
-                            <Sparkles color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
+                            <Gift color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
                             <View style={styles.rewardTextGroup}>
                                 <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.upsell.title')}</Text>
                                 <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>{t('creatorDashboard.upsell.text')}</Text>
@@ -730,22 +710,27 @@ export default function CreatorDashboard() {
                     )}
 
                     {(!data?.listings || data.listings.length === 0) ? (
-                        <View style={[styles.emptyState, { backgroundColor: cardBg, borderColor }]}>
-                            <View style={[styles.emptyIconBox, { backgroundColor: `${colors.accent}10` }]}>
-                                <BookOpen color={colors.accent} size={36} />
+                        // A failed load already shows the retry banner above; don't
+                        // also assert "No roadmaps yet" — that would claim zero when
+                        // the truth is unknown.
+                        listDegraded ? null : (
+                            <View style={[styles.emptyState, { backgroundColor: cardBg, borderColor }]}>
+                                <View style={[styles.emptyIconBox, { backgroundColor: `${colors.accent}10` }]}>
+                                    <BookOpen color={colors.accent} size={36} />
+                                </View>
+                                <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('creatorDashboard.empty.title')}</Text>
+                                <Text style={[styles.emptySubtext, { color: textSecondary }]}>
+                                    {t('creatorDashboard.empty.subtext')}
+                                </Text>
+                                <TouchableOpacity
+                                    style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
+                                    onPress={openCreateWizard}
+                                >
+                                    <Plus size={18} color="white" />
+                                    <Text style={styles.emptyBtnText}>{t('creatorDashboard.empty.cta')}</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('creatorDashboard.empty.title')}</Text>
-                            <Text style={[styles.emptySubtext, { color: textSecondary }]}>
-                                {t('creatorDashboard.empty.subtext')}
-                            </Text>
-                            <TouchableOpacity
-                                style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
-                                onPress={openCreateWizard}
-                            >
-                                <Plus size={18} color="white" />
-                                <Text style={styles.emptyBtnText}>{t('creatorDashboard.empty.cta')}</Text>
-                            </TouchableOpacity>
-                        </View>
+                        )
                     ) : (
                         data.listings.map((listing: any) => {
                             const catColor = CATEGORY_COLORS[listing.category]?.primary || '#94A3B8';
@@ -1327,12 +1312,12 @@ const styles = StyleSheet.create({
 
     // Stats
     sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 20, marginBottom: 12 },
-    statsScroll: { paddingHorizontal: 20 - CARD_SPACING / 2, gap: CARD_SPACING, marginBottom: 24 },
-    statCard: { width: CARD_WIDTH, height: 140, borderRadius: 20, overflow: 'hidden', marginRight: CARD_SPACING },
-    statCardGradient: { flex: 1, padding: 20, justifyContent: 'space-between' },
-    statIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    statValue: { color: 'white', fontSize: 28, fontWeight: 'bold' },
-    statLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' },
+    statsPanel: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 28, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+    statCol: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 18, paddingHorizontal: 8 },
+    statColDivider: { width: 1, alignSelf: 'stretch', marginVertical: 14 },
+    statIconChip: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    statValue: { fontSize: 22, fontWeight: '800' },
+    statLabel: { fontSize: 11.5, fontWeight: '600', textAlign: 'center' },
 
     // Reward Banner
     rewardBanner: { paddingHorizontal: 20, marginBottom: 28 },
