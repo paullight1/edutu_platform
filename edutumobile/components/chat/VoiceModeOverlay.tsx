@@ -18,7 +18,7 @@ import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { useTranslation } from 'react-i18next';
-import { MessageSquare, Mic, MicOff, Settings2, Sparkles, X } from 'lucide-react-native';
+import { MessageSquare, Mic, MicOff, Settings2, AudioLines, X } from 'lucide-react-native';
 import Animated, {
     Easing,
     FadeIn,
@@ -108,7 +108,7 @@ function VoiceSessionScreen({
     useEffect(() => {
         setPremiumVoiceEnabled(isPro || proLoading);
     }, [isPro, proLoading]);
-    const { reducedMotion } = useTheme();
+    const { reducedMotion, colors } = useTheme();
     const { design } = useVoiceSettings();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const settingsPausedMicRef = useRef(false);
@@ -289,8 +289,8 @@ function VoiceSessionScreen({
                     </ScrollView>
                 ) : null}
                 {session.errorCode === 'limit' ? (
-                    <TouchableOpacity onPress={handleUpgrade} activeOpacity={0.85} style={styles.upgradePill}>
-                        <Sparkles size={14} color="#FFFFFF" />
+                    <TouchableOpacity onPress={handleUpgrade} activeOpacity={0.85} style={[styles.upgradePill, { backgroundColor: colors.accent }]}>
+                        <AudioLines size={14} color="#FFFFFF" />
                         <Text style={styles.upgradePillText}>{t('limit.upgradeCta')}</Text>
                     </TouchableOpacity>
                 ) : null}
@@ -489,7 +489,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 7,
-        backgroundColor: '#6366F1',
         paddingHorizontal: 18,
         paddingVertical: 10,
         borderRadius: 999,

@@ -54,11 +54,9 @@ edutu_app/
 | `/auth` | AuthScreen | Login/signup |
 | `/app/home` | Dashboard | Main dashboard with quick actions |
 | `/app/opportunities` | AllOpportunities | Browse opportunities |
-| `/app/chat` | ChatInterface | AI chat |
 | `/app/profile` | Profile | User profile |
 | `/app/goals` | AllGoals | Goal management |
 | `/app/community` | CommunityMarketplace | Shared roadmaps |
-| `/app/cv` | CVManagement | CV tools |
 | `/app/saved` | SavedOpportunities | Saved/bookmarked opportunities |
 | `/app/applied` | AppliedOpportunities | Track application statuses |
 | `/app/deadlines` | DeadlinesScreen | Upcoming deadlines tracker |
@@ -81,7 +79,7 @@ edutu_app/
 
 - **Dashboard**: Personalized greeting, analytics grid, featured opportunities carousel, goals tracker, quick actions sidebar
 - **Opportunities**: Browse, search, filter, save, and apply to opportunities
-- **AI Coach**: Chat-based AI assistance for career guidance
+- **AI Coach & CV builder**: Mobile-app-only. The web app has no chat/coach surface — `/coach`, `/app/coach`, `/chat`, `/app/chat`, `/cv` and `/app/cv` all redirect to `/dashboard` (see `App.tsx`). Do not build against a web `ChatInterface` or `CVManagement` component; they do not exist.
 - **Goal Management**: Create, track, and complete goals with personalized roadmaps
 - **AI Roadmap Wizard**: Auto-generate roadmaps from opportunities using AI
 - **Community Marketplace**: Discover and share community roadmaps

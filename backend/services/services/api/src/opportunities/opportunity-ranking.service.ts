@@ -1104,19 +1104,67 @@ export class OpportunityRankingService {
 
   /** Structured reasons for clients that render icons per reason kind. */
   private toReasonDetails(row: RankedOpportunity) {
-    return row.matchReasons.map((label, index) => {
-      let kind = "category";
-      if (label.startsWith("Strong fit") || label.startsWith("Good overall")) {
-        kind = "semantic";
-      } else if (label.startsWith("Because you engaged")) {
-        kind = "behavior";
-      } else if (label.startsWith("Deadline in")) {
-        kind = "deadline";
-      } else if (label.includes("behavior suggests")) {
-        kind = "behavior";
-      }
-      return { kind, label, points: row.matchReasons.length - index };
-    });
+    return row.matchReasons.map((label, index) => ({
+      kind: this.classifyReasonKind(label),
+      label,
+      points: row.matchReasons.length - index,
+    }));
+  }
+
+  /**
+   * Map a reason label to a structured kind. Kinds let clients render a
+   * per-reason icon AND — crucially — tell substantive fit (field / skills /
+   * interests / goals) apart from mere eligibility (location / remote), so a
+   * "best shot" is never awarded on geography alone. Matching is by the
+   * English label prefixes emitted in this file; order matters where prefixes
+   * overlap (e.g. "Relevant to field of study" vs "Relevant to <country>").
+   */
+  private classifyReasonKind(label: string): string {
+    if (label.startsWith("Strong fit") || label.startsWith("Good overall")) {
+      return "semantic";
+    }
+    if (
+      label.startsWith("Because you engaged") ||
+      label.includes("behavior suggests")
+    ) {
+      return "behavior";
+    }
+    if (label.startsWith("Deadline")) {
+      return "deadline";
+    }
+    if (label.startsWith("Relevant to field of study")) {
+      return "field";
+    }
+    if (
+      label.startsWith("Reflects user skills") ||
+      label.startsWith("Supports preferred skills")
+    ) {
+      return "experience";
+    }
+    if (label.startsWith("Aligned with interests")) {
+      return "interest";
+    }
+    if (label.startsWith("Advances")) {
+      return "goal";
+    }
+    if (label.startsWith("Open to your education level")) {
+      return "education";
+    }
+    if (label.startsWith("Supports remote")) {
+      return "remote";
+    }
+    // Geography / eligibility — allowed to apply, but not fit on its own.
+    // "Relevant to <country>." (current-country match) lands here because the
+    // field-of-study case above already returned.
+    if (
+      label.startsWith("Relevant to current country") ||
+      label.startsWith("Relevant to ") ||
+      label.startsWith("Aligned with preferred region") ||
+      label.startsWith("Matches interested countries")
+    ) {
+      return "location";
+    }
+    return "category";
   }
 
   /**

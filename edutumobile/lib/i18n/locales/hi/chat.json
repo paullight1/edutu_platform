@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "AI कोच"
+    "title": "AI कोच",
+    "historyButtonLabel": "बातचीत इतिहास"
   },
   "loading": {
     "conversation": "बातचीत लोड हो रही है..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "रिमोट"
   },
-  "answers": {
-    "checkingOpportunities": "आपके लिए Edutu के अवसर देख रहा हूँ।",
-    "matchesFound": "मुझे Edutu से {{count}} मैच मिले।\nकार्ड स्वाइप करें या सर्च को और सीमित करें।",
-    "roadmapChecking": "मैं आपके अवसर देख रहा हूँ।\nफिर रोडमैप बनाऊँगा।",
-    "roadmapMatchFound": "मुझे एक संभावित मैच मिला।\nलक्ष्य और रिमाइंडर बनाने के लिए 'बनाएँ' पर टैप करें।",
-    "roadmapWhichOpportunity": "यह किस अवसर के लिए है?\nनाम भेजें या अवसर ब्राउज़ करें।"
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "स्कॉलरशिप खोजें",
-      "subtitle": "इस महीने उपलब्ध"
+      "subtitle": "इस महीने उपलब्ध",
+      "message": "इस महीने आवेदन करने योग्य स्कॉलरशिप खोजें"
     },
     "mastercard": {
       "title": "Mastercard मैच",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "रोडमैप बनाएँ",
-      "subtitle": "मेरा अगला आवेदन प्लान करें"
+      "subtitle": "मेरा अगला आवेदन प्लान करें",
+      "message": "मेरे अगले आवेदन के लिए एक रोडमैप बनाएँ"
     },
     "internships": {
       "title": "इंटर्नशिप डेडलाइन",
@@ -73,20 +69,25 @@
     "narrowBy": "इनसे सीमित करें:",
     "view": "देखें",
     "categoryFallback": "अवसर",
-    "typing": "Edutu अवसर देख रहा है"
+    "typing": "Edutu सोच रहा है…",
+    "aiThinkingAnnouncement": "Edutu सोच रहा है",
+    "aiRepliedAnnouncement": "Edutu ने जवाब दिया",
+    "stoppedNotice": "आपने यह जवाब रोक दिया — यह अधूरा हो सकता है।",
+    "stoppedEarlyNotice": "Edutu के जवाब देने से पहले आपने इसे रोक दिया।",
+    "interruptedNotice": "कनेक्शन टूट गया, इसलिए यह जवाब अधूरा है। पूरा जवाब पाने के लिए फिर से पूछें।",
+    "truncatedNotice": "यह जवाब अधूरा है — Edutu के पास इसे पूरा करने की जगह नहीं बची।"
   },
   "followUp": {
     "country": "देश",
     "deadline": "डेडलाइन",
-    "funding": "फ़ंडिंग"
+    "funding": "फ़ंडिंग",
+    "narrowByCountry": "इन्हें देश के अनुसार सीमित करें",
+    "narrowByDeadline": "इन्हें डेडलाइन के अनुसार सीमित करें",
+    "narrowByFunding": "इन्हें फ़ंडिंग के अनुसार सीमित करें"
   },
   "roadmapPanel": {
     "title": "रोडमैप बनाएँ",
     "subtitle": "लक्ष्य, डेडलाइन, रिमाइंडर",
-    "searching": "अवसर खोजे जा रहे हैं...",
-    "matchMeta": "{{category}} · डेडलाइन {{deadline}}",
-    "daysLeft": "{{count}} दिन बाकी",
-    "dailySteps": "{{count}} दैनिक स्टेप",
     "build": "बनाएँ"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "Edutu को मैसेज करें...",
-    "send": "भेजें"
+    "send": "भेजें",
+    "stopLabel": "जवाब लिखना रोकें",
+    "sending": "भेजा जा रहा है…"
   },
   "threads": {
     "modalTitle": "बातचीतें",
@@ -106,7 +109,9 @@
       "yesterday": "कल",
       "thisWeek": "इस हफ़्ते",
       "older": "पुरानी"
-    }
+    },
+    "itemA11yLabel": "बातचीत: {{title}}, {{date}}",
+    "closeButtonLabel": "बातचीत इतिहास बंद करें"
   },
   "voice": {
     "titleTranscript": "वॉइस मैसेज",
@@ -158,5 +163,43 @@
     "voiceNigerian": "नाइजीरियाई अंग्रेज़ी",
     "voiceAll": "और आवाज़ें",
     "voiceHint": "साफ़ और स्वाभाविक आवाज़ों के लिए फ़ोन सेटिंग्स में उन्नत आवाज़ें डाउनलोड करें — iOS: सेटिंग्स → एक्सेसिबिलिटी → स्पोकन कंटेंट → वॉइसेस; Android: Google Text-to-Speech की आवाज़ें इंस्टॉल करें।"
+  },
+  "winCoach": {
+    "sheetTitle": "Edutu कोच",
+    "thinking": "इसके बारे में आपके लिए सोच रहा हूँ…",
+    "signInRequired": "Edutu कोच का उपयोग करने के लिए साइन इन करें।",
+    "noReplyFallback": "मैं अभी जवाब नहीं बना पाया — कृपया फिर से कोशिश करें।",
+    "billingLimitReached": "इसमें AI क्रेडिट खर्च होते हैं और आपके क्रेडिट खत्म हो गए हैं। जारी रखने के लिए Edutu Pro में अपग्रेड करें या टॉप-अप करें।",
+    "documentUpload": {
+      "defaultLabel": "एक दस्तावेज़ अपलोड करें",
+      "cvLabel": "बेहतर फिट जाँच के लिए अपना CV अपलोड करें",
+      "uploading": "अपलोड हो रहा है…",
+      "processing": "प्रोसेस हो रहा है…",
+      "ready": "{{name}} — तैयार",
+      "readFailed": "वह फ़ाइल पढ़ी नहीं जा सकी। PDF, DOCX या टेक्स्ट फ़ाइल आज़माएँ।",
+      "uploadFailed": "अपलोड विफल रहा। कृपया फिर से कोशिश करें।"
+    },
+    "openInChat": "चैट में खोलें",
+    "actions": {
+      "fitCheck": "क्या मैं इसके लिए सही हूँ?",
+      "nextMove": "अगला कदम",
+      "whatsMissing": "क्या छूट रहा है?",
+      "nextWinMove": "मेरा अगला जीत वाला कदम"
+    }
+  },
+  "limit": {
+    "title": "आपकी AI सीमा पूरी हो गई है",
+    "body": "आपने अभी के लिए Edutu के मुफ़्त AI मैसेज इस्तेमाल कर लिए हैं। असीमित कोचिंग, रोडमैप और आपके अनुसार तैयार मैच पाने के लिए प्रो में अपग्रेड करें।",
+    "upgradeCta": "प्रो में अपग्रेड करें",
+    "errorTitle": "मैसेज नहीं भेजा जा सका",
+    "errorBody": "कनेक्शन में रुकावट आ गई। इसे फिर से भेजने के लिए फिर से कोशिश करें पर टैप करें।",
+    "retryCta": "फिर से कोशिश करें",
+    "dismissCta": "अभी नहीं",
+    "savedTitle": "आपका संदेश सुरक्षित है",
+    "savedBody": "आपने जो लिखा वह हमने रख लिया: “{{message}}”। जब तैयार हों तब भेजें।",
+    "resendCta": "अभी भेजें"
+  },
+  "actions": {
+    "createRoadmapPrompt": "हाँ, मेरे लिए वह रोडमैप बनाइए।"
   }
 }

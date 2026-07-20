@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Sparkles, Crown } from 'lucide-react-native';
+import { X, Crown } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,7 @@ import {
     formatMoney,
 } from '../../lib/pricing';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
+import { useWelcomeModalActive } from '../../lib/welcomeModalStore';
 
 // One impression per calendar day so the ad never nags.
 const LAST_SHOWN_KEY = '@edutu/login_offer_last_shown';
@@ -48,9 +49,11 @@ export function LoginOfferModal() {
 
     const [visible, setVisible] = useState(false);
     const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
+    // Wait out the first-run greeting so the promo never stacks on top of it.
+    const welcomeActive = useWelcomeModalActive();
 
     useEffect(() => {
-        if (!user?.id || proLoading || isPro) return;
+        if (!user?.id || proLoading || isPro || welcomeActive) return;
         let cancelled = false;
 
         const maybeShow = async () => {
@@ -76,7 +79,7 @@ export function LoginOfferModal() {
 
         void maybeShow();
         return () => { cancelled = true; };
-    }, [user?.id, proLoading, isPro]);
+    }, [user?.id, proLoading, isPro, welcomeActive]);
 
     const promoActive = hasPromoDiscount(pricing, 'monthly');
     const regular = pricing.monthlyPrice;
@@ -121,11 +124,11 @@ export function LoginOfferModal() {
                 {/* Header */}
                 <Animated.View entering={FadeInDown.delay(120).duration(420)} style={[styles.header, { marginTop: insets.top + 84 }]}>
                     <View style={styles.titleRow}>
-                        <Sparkles size={18} color={accent} fill={accent} />
+                        <Crown size={18} color={accent} fill={accent} />
                         <Text style={[styles.title, { color: textPrimary }]}>
                             {promoActive ? t('paywall.loginOffer.title') : t('paywall.loginOffer.genericTitle')}
                         </Text>
-                        <Sparkles size={18} color={accent} fill={accent} />
+                        <Crown size={18} color={accent} fill={accent} />
                     </View>
                     <Text style={[styles.subtitle, { color: textSecondary }]}>
                         {promoActive

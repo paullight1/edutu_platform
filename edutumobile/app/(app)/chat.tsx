@@ -17,6 +17,7 @@ import {
     Share,
     StyleSheet,
     Dimensions,
+    AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -37,23 +38,20 @@ import {
     RotateCcw,
     Flag,
     FileText,
+    Square,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
-import i18n from '../../lib/i18n';
+import i18n, { getCurrentLanguage } from '../../lib/i18n';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
 import { useChat } from '@edutu/core/src/hooks/useChat';
 import { ChatRateLimitError } from '@edutu/core/src/services/chat';
-import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatImageCard, ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
+import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatImageCard, ChatMessage, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
 import { syncMilestonesToCalendar } from '../../lib/calendarSync';
-import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
-import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
-import { Opportunity } from '@edutu/core/src/types/opportunity';
-import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadmapGenerator';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
@@ -141,20 +139,12 @@ function TypingReveal({
     return <>{children(content.slice(0, visibleLength))}</>;
 }
 
-const OPPORTUNITY_SEARCH_PATTERNS = [
-    /\b(show|find|get|recommend|list|suggest|available|matching|trending)\b.*\b(scholarships?|opportunities?|internships?|fellowships?|grants?|jobs?)\b/i,
-    /\b(scholarships?|opportunities?|internships?|fellowships?|grants?|jobs?)\b.*\b(show|find|get|recommend|list|suggest|available|matching|trending)\b/i,
-    /\b(mastercard)\b.*\b(opportunities?|scholarships?|matches|available)\b/i,
-];
-
-const ROADMAP_PATTERNS = [
-    /\broadmap\b/i,
-    /\b(plan|prepare|timeline|schedule)\b.*\b(apply|application|opportunity|scholarship)\b/i,
-    /\bbuild\b.*\b(plan|roadmap)\b/i,
-];
 const SCREEN_WIDTH = Dimensions.get('window').width;
-// List padding (16) + assistant avatar (30) + row gap (10): lets the shelf
-// and roadmap rails escape the message column and bleed edge-to-edge.
+// Id of the live bubble that renders the server's token stream. It is never a
+// real message — `turn.final` replaces it with the persisted one.
+const STREAMING_MESSAGE_ID = '__edutu_streaming__';
+// List padding (16) + assistant avatar (30) + row gap (10): lets the opportunity
+// shelf escape the message column and bleed edge-to-edge.
 const CHAT_RAIL_FULL_BLEED_OFFSET = 56;
 
 function formatOpportunityDeadline(deadline?: string | null) {
@@ -164,140 +154,98 @@ function formatOpportunityDeadline(deadline?: string | null) {
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function isRoadmapConversation(text?: string | null) {
-    const normalized = String(text || '').toLowerCase();
-    return ROADMAP_PATTERNS.some(pattern => pattern.test(normalized));
+// --- Markdown-lite -----------------------------------------------------------
+// The bubble renders what the model actually wrote. Bold and tables are handled
+// first class; everything else falls through as readable plain text. Nothing is
+// ever deleted — silently dropping a table's rows is invisible data loss.
+const TABLE_ROW = /^\|.*\|$/;
+// A separator/alignment row made only of dashes, colons, spaces and (optional)
+// pipes — matches both `|---|---|` and the pipe-less `--- | ---` GFM form.
+const SEPARATOR_LIKE = /^[-\s|:]+$/;
+
+type MessageBlock =
+    | { kind: 'text'; line: string }
+    | { kind: 'table'; rows: string[][] };
+
+function splitTableCells(line: string) {
+    return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
 }
 
-function isOpportunitySearchConversation(text?: string | null) {
-    const normalized = String(text || '').toLowerCase();
-    if (isRoadmapConversation(normalized)) return false;
-    return OPPORTUNITY_SEARCH_PATTERNS.some(pattern => pattern.test(normalized));
+function countPipes(line: string) {
+    return (line.match(/\|/g) || []).length;
 }
 
-function compactOpportunityAnswer(count: number) {
-    if (count <= 0) {
-        return i18n.t('chat:answers.checkingOpportunities');
-    }
+function parseMessageBlocks(content: string): MessageBlock[] {
+    const blocks: MessageBlock[] = [];
+    let tableRows: string[][] | null = null;
+    // Pipe count shared by the currently-open table's rows, and how many raw
+    // lines (including a suppressed separator) that table has consumed so far.
+    let tablePipeCount = 0;
+    let tableRawRowCount = 0;
 
-    return i18n.t('chat:answers.matchesFound', { count });
-}
-
-function compactRoadmapAnswer(matchCount: number, loading: boolean) {
-    if (loading && matchCount === 0) {
-        return i18n.t('chat:answers.roadmapChecking');
-    }
-
-    if (matchCount > 0) {
-        return i18n.t('chat:answers.roadmapMatchFound');
-    }
-
-    return i18n.t('chat:answers.roadmapWhichOpportunity');
-}
-
-function toChatOpportunityCard(opportunity: Opportunity): ChatOpportunityCard {
-    return {
-        id: opportunity.id,
-        title: opportunity.title,
-        organization: opportunity.organization,
-        category: opportunity.category,
-        location: opportunity.isRemote ? i18n.t('chat:location.remote') : opportunity.location,
-        deadline: opportunity.deadline ?? null,
-        summary: opportunity.aiSummary || opportunity.description,
-        imageUrl: opportunity.image ?? opportunity.shareImageUrl ?? null,
-        applyUrl: opportunity.applyUrl ?? null,
-        matchScore: opportunity.match,
-        matchReason: opportunity.matchReasons?.[0] ?? null,
+    const flushTable = () => {
+        if (tableRows && tableRows.length > 0) {
+            blocks.push({ kind: 'table', rows: tableRows });
+        }
+        tableRows = null;
+        tablePipeCount = 0;
+        tableRawRowCount = 0;
     };
+
+    const lines = content
+        .replace(/\r/g, '')
+        .replace(/^\s*#+\s*/gm, '')
+        .split('\n')
+        .map(line => line.trim());
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isStrictRow = TABLE_ROW.test(line);
+        const pipes = countPipes(line);
+        // GFM lets a table omit its outer pipes as long as every row still has
+        // the same number of cells. We approximate "same row" with "same pipe
+        // count" and only accept it when that count matches a neighbour that
+        // is already part of (or about to start) a table — a lone "A | B" in
+        // regular prose never matches this on its own.
+        const isPipelessRow = !isStrictRow && pipes > 0 && (
+            (tableRows !== null && pipes === tablePipeCount) ||
+            pipes === countPipes(lines[i + 1] ?? '')
+        );
+
+        if (isStrictRow || isPipelessRow) {
+            if (!tableRows) tableRows = [];
+            tablePipeCount = pipes;
+            // The alignment row (`|---|---|` or pipe-less `--- | ---`) is only
+            // ever the table's second physical line. A later all-dash line
+            // (e.g. `| - | - |` meaning "no data") is real content and must
+            // not be swallowed just because it looks like a separator.
+            const isSeparatorPosition = tableRawRowCount === 1;
+            if (!(isSeparatorPosition && SEPARATOR_LIKE.test(line))) {
+                tableRows.push(splitTableCells(line));
+            }
+            tableRawRowCount += 1;
+            continue;
+        }
+
+        flushTable();
+        if (!line) continue;
+        if (/^-{3,}$/.test(line)) continue;
+        blocks.push({ kind: 'text', line });
+    }
+
+    flushTable();
+    return blocks;
 }
 
-function rankFallbackOpportunities(opportunities: Opportunity[], query: string) {
-    const terms = query
-        .toLowerCase()
-        .split(/\W+/)
-        .filter(term => term.length > 2);
-
-    const now = Date.now();
-
-    return [...opportunities]
-        .map((opportunity) => {
-            const haystack = [
-                opportunity.title,
-                opportunity.organization,
-                opportunity.category,
-                opportunity.location,
-                opportunity.description,
-                opportunity.aiSummary,
-                ...(opportunity.tags || []),
-                ...(opportunity.aiTags || []),
-                ...(opportunity.requirements || []),
-                ...(opportunity.benefits || []),
-            ].join(' ').toLowerCase();
-
-            const keywordScore = terms.reduce((score, term) => score + (haystack.includes(term) ? 8 : 0), 0);
-            const categoryScore = /scholarship|mastercard|fund/i.test(query) && opportunity.category?.toLowerCase().includes('scholar') ? 20 : 0;
-            const deadlineTime = opportunity.deadline ? new Date(opportunity.deadline).getTime() : Number.POSITIVE_INFINITY;
-            const deadlineScore = Number.isFinite(deadlineTime) && deadlineTime >= now ? 12 : 0;
-
-            return {
-                opportunity,
-                score: keywordScore + categoryScore + deadlineScore + (opportunity.match || 0) / 5,
-            };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 6)
-        .map(item => toChatOpportunityCard(item.opportunity));
-}
-
-function getRoadmapSearchTerms(query: string) {
-    return query
-        .toLowerCase()
-        .split(/\W+/)
-        .filter(term => term.length > 2)
-        .filter(term => ![
-            'build',
-            'roadmap',
-            'plan',
-            'prepare',
-            'next',
-            'application',
-            'apply',
-            'opportunity',
-            'scholarship',
-            'for',
-            'the',
-            'and',
-            'with',
-            'from',
-            'this',
-            'that',
-            'my',
-        ].includes(term));
-}
-
-function findRoadmapOpportunityMatches(opportunities: Opportunity[], query: string) {
-    const terms = getRoadmapSearchTerms(query);
-    if (terms.length === 0) return [];
-
-    return [...opportunities]
-        .map((opportunity) => {
-            const haystack = [
-                opportunity.title,
-                opportunity.organization,
-                opportunity.category,
-                opportunity.location,
-                opportunity.description,
-                ...(opportunity.tags || []),
-                ...(opportunity.aiTags || []),
-            ].join(' ').toLowerCase();
-
-            const score = terms.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0);
-            return { opportunity, score };
-        })
-        .filter(item => item.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 4)
-        .map(item => item.opportunity);
+// Splits **bold** runs into styled segments instead of stripping the markers.
+function renderInlineMarkdown(text: string): React.ReactNode {
+    if (!text.includes('**')) return text;
+    return text.split(/(\*\*[^*]+\*\*)/g).map((segment, index) => {
+        const bold = segment.match(/^\*\*([^*]+)\*\*$/);
+        return bold
+            ? <Text key={`bold-${index}`} style={styles.boldSegment}>{bold[1]}</Text>
+            : segment;
+    });
 }
 
 export default function ChatScreen() {
@@ -317,13 +265,16 @@ export default function ChatScreen() {
     // this the optimistic bubble just vanishes and it reads as a bug.
     const [sendError, setSendError] = useState<{ type: 'limit' | 'generic'; message: string } | null>(null);
     const lastAttemptRef = useRef<string | null>(null);
+    // Holds the message that hit the limit while the user is away at the
+    // paywall, so returning to chat offers a one-tap re-send. It is never sent
+    // automatically — an upgrade must not silently spend a credit.
+    const [pendingResend, setPendingResend] = useState<string | null>(null);
     const voiceSentRef = useRef(false);
     const [isThreadsVisible, setIsThreadsVisible] = useState(false);
     const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
     const lastBotMessageRef = useRef<string | null>(null);
-    const [roadmapActionId, setRoadmapActionId] = useState<string | null>(null);
     // Composer mic = one-shot dictation on its own screen (distinct from the
     // hands-free live voice stream opened by the waveform button).
     const [voiceRecOpen, setVoiceRecOpen] = useState(false);
@@ -344,14 +295,14 @@ export default function ChatScreen() {
     // Keep the welcome screen light: two focused starters instead of a wall of cards.
     const quickPrompts = useMemo(() => [
         {
-            text: 'Find scholarships I can apply for this month',
+            text: t('quickPrompts.findScholarships.message'),
             title: t('quickPrompts.findScholarships.title'),
             subtitle: t('quickPrompts.findScholarships.subtitle'),
             icon: GraduationCap,
             topic: 'Scholarships',
         },
         {
-            text: 'Build a roadmap for my next application',
+            text: t('quickPrompts.buildRoadmap.message'),
             title: t('quickPrompts.buildRoadmap.title'),
             subtitle: t('quickPrompts.buildRoadmap.subtitle'),
             icon: Route,
@@ -360,18 +311,16 @@ export default function ChatScreen() {
     ], [t]);
 
     const {
-        goals,
-        createGoal,
-        updateGoal,
-    } = useGoals(supabase, user?.id || null);
-
-    const {
         threads,
         messages,
         selectedThreadId,
         isLoadingThreads,
         isLoadingMessages,
         isSending,
+        isStreaming,
+        streamingContent,
+        streamedMessageId,
+        stopGeneration,
         selectThread,
         sendMessage,
         loadThreads
@@ -379,17 +328,39 @@ export default function ChatScreen() {
         supabase,
         userId: user?.id || null,
         getAuthToken: getToken,
-        onSessionRecorded: (topic) => { if (__DEV__) console.log('Session recorded:', topic); }
+        onSessionRecorded: (topic) => { if (__DEV__) console.log('Session recorded:', topic); },
+        // Read live off i18next on every render (never a stored preference) so
+        // a mid-session language switch is reflected on the very next send —
+        // this matters most for the crisis-support reply language.
+        locale: getCurrentLanguage(),
     });
 
-    const {
-        data: availableOpportunities,
-        loading: isLoadingOpportunities,
-    } = useOpportunities({
-        supabase,
-        userId: user?.id || undefined,
-        getAuthToken: getToken,
-    });
+    // Screen-reader users get no visual typing indicator, so the AI's
+    // working state must be spoken explicitly. Announce once when a send
+    // starts and once when it finishes — never per token, which would make
+    // the screen unusable with a screen reader.
+    // Seeded false (not `isSending`) so a mount that occurs while a send is
+    // already in flight (thread restore, screen remount) still announces —
+    // seeding from the live value would silently swallow that first edge.
+    const wasSendingRef = useRef(false);
+    useEffect(() => {
+        if (isSending && !wasSendingRef.current) {
+            AccessibilityInfo.announceForAccessibility(t('messages.aiThinkingAnnouncement'));
+        } else if (!isSending && wasSendingRef.current) {
+            AccessibilityInfo.announceForAccessibility(t('messages.aiRepliedAnnouncement'));
+        }
+        wasSendingRef.current = isSending;
+    }, [isSending, t]);
+
+    // A send-error banner (and the resend it offers) belongs to the thread it
+    // failed on. Switching threads — via the history sheet or "New
+    // Conversation" — must not carry a stale "your message is saved" offer
+    // into an unrelated conversation.
+    const handleSelectThread = useCallback((threadId: string | null) => {
+        setSendError(null);
+        setPendingResend(null);
+        selectThread(threadId);
+    }, [selectThread]);
 
     // Premium neural TTS (the message play button) is a Pro perk — free users
     // fall back to the device voice. Fail-open while entitlements resolve.
@@ -470,10 +441,16 @@ export default function ChatScreen() {
     }, [t]);
 
     const handleSend = useCallback(async (overrideText?: string) => {
+        // Quick-prompt chips and agent action buttons stay tappable while a
+        // reply is generating. A second send would overwrite the abort
+        // controller — orphaning the first stream so it can never be stopped —
+        // and run two metered turns at once. One turn at a time.
+        if (isSending) return;
         const text = (overrideText || input).trim();
         if (!text) return;
         setInput('');
         setSendError(null);
+        setPendingResend(null);
         lastAttemptRef.current = text;
         lastBotMessageRef.current = null;
         try {
@@ -488,12 +465,24 @@ export default function ChatScreen() {
         } catch (err) {
             console.error('Failed to send message:', err);
             const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
+            // The send never happened, so the words the user typed are still
+            // theirs — put them back in the composer rather than losing them
+            // behind the paywall. (Only when they haven't started typing again.)
+            setInput((current) => current || text);
             setSendError({
                 type: isLimit ? 'limit' : 'generic',
                 message: isLimit ? t('limit.body') : t('limit.errorBody'),
             });
         }
-    }, [input, sendMessage, runDeviceActions, t]);
+    }, [input, isSending, sendMessage, runDeviceActions, t]);
+
+    // Stop generating. Whatever text already arrived stays on screen (labelled
+    // as stopped) and the composer returns to its normal state — the send is
+    // never left hanging.
+    const handleStopGenerating = useCallback(() => {
+        stopGeneration?.();
+        void haptics.light();
+    }, [stopGeneration]);
 
     const handleRetrySend = useCallback(() => {
         const text = lastAttemptRef.current;
@@ -579,108 +568,6 @@ export default function ChatScreen() {
         }
     }, [router, handleViewOpportunity, handleSend, t]);
 
-    const handleBuildRoadmapFromOpportunity = useCallback(async (opportunity: Opportunity) => {
-        if (!user?.id) {
-            Alert.alert(t('alerts.signInRequiredTitle'), t('alerts.signInRequiredMessage'));
-            return;
-        }
-
-        const roadmapId = `ai-roadmap-${opportunity.id}`;
-        const alreadyCreated = goals.some(goal =>
-            goal.source === 'imported' &&
-            (goal.roadmap_id === roadmapId ||
-                goal.template_id === roadmapId ||
-                goal.opportunity_title?.toLowerCase() === opportunity.title.toLowerCase())
-        );
-
-        if (alreadyCreated) {
-            Alert.alert(t('alerts.roadmapExistsTitle'), t('alerts.roadmapExistsMessage'), [
-                { text: t('alerts.openGoals'), onPress: () => router.push('/goals') },
-                { text: t('common:actions.cancel'), style: 'cancel' },
-            ]);
-            return;
-        }
-
-        setRoadmapActionId(opportunity.id);
-        try {
-            const roadmap = generateRoadmapFromOpportunity(opportunity);
-            const resourceText = roadmap.resources
-                .slice(0, 4)
-                .map(resource => `${resource.title}: ${resource.url || resource.description}`)
-                .join('\n');
-            const goalsToCreate = [
-                {
-                    title: t('goals.submitTitle', { title: opportunity.title }),
-                    description: t('goals.submitDescription', { strategy: roadmap.winningStrategy, resources: resourceText }),
-                    deadline: roadmap.submissionTargetDate,
-                    priority: 'high' as const,
-                },
-                ...roadmap.milestones.map((milestone, index) => ({
-                    title: milestone.title,
-                    description: milestone.description || t('goals.milestoneDescription', { title: opportunity.title }),
-                    deadline: milestone.date,
-                    priority: index === roadmap.milestones.length - 1 ? 'high' as const : 'medium' as const,
-                })),
-                ...roadmap.dailyPlan.map((day) => ({
-                    title: day.title,
-                    description: t('goals.dailyDescription', { description: day.description, focus: day.focus, minutes: day.durationMinutes }),
-                    deadline: day.date,
-                    priority: day.focus === 'submission' || day.focus === 'writing' ? 'high' as const : 'medium' as const,
-                })),
-                ...roadmap.checklist.map((item) => ({
-                    title: item.title,
-                    description: t('goals.checklistDescription', { title: opportunity.title }),
-                    deadline: undefined,
-                    priority: 'low' as const,
-                })),
-            ];
-
-            const createdGoals = [];
-            for (const goalInput of goalsToCreate) {
-                const createdGoal = await createGoal({
-                    title: goalInput.title,
-                    description: goalInput.description,
-                    category: opportunity.title,
-                    deadline: goalInput.deadline,
-                    priority: goalInput.priority,
-                    source: 'imported',
-                    templateId: roadmapId,
-                    roadmap_id: roadmapId,
-                    opportunity_title: opportunity.title,
-                    reminder_enabled: Boolean(goalInput.deadline),
-                    reminder_date: goalInput.deadline,
-                });
-                createdGoals.push(createdGoal);
-            }
-
-            for (const goal of createdGoals) {
-                if (!goal.deadline) continue;
-                const notificationId = await notificationService.scheduleGoalReminder(
-                    goal.id,
-                    goal.title,
-                    goal.deadline,
-                );
-                if (notificationId) {
-                    await updateGoal(goal.id, { notification_id: notificationId });
-                }
-            }
-
-            Alert.alert(
-                t('alerts.roadmapCreatedTitle'),
-                t('alerts.roadmapCreatedMessage', { count: createdGoals.length }),
-                [
-                    { text: t('alerts.openGoals'), onPress: () => router.push('/goals') },
-                    { text: t('alerts.stayHere'), style: 'cancel' },
-                ],
-            );
-        } catch (error) {
-            console.error('Failed to build AI roadmap from chat:', error);
-            Alert.alert(t('alerts.couldNotCreateRoadmapTitle'), t('alerts.tryAgainFromOpportunity'));
-        } finally {
-            setRoadmapActionId(null);
-        }
-    }, [createGoal, goals, router, t, updateGoal, user?.id]);
-
     // Adjust-during-render: clear the highlighted message once TTS stops.
     // The guard self-falsifies (speakingMessageId becomes null), so no loop.
     if (!isSpeaking && speakingMessageId) {
@@ -759,6 +646,24 @@ export default function ChatScreen() {
         return [...messages].reverse().find(message => message.role === 'assistant')?.id ?? null;
     }, [messages]);
 
+    // The reply the server is streaming right now, rendered as a live bubble.
+    // It carries only text the server actually sent — no cards, no actions —
+    // and is dropped the moment `turn.final` commits the real message.
+    const hasStreamedText = typeof streamingContent === 'string' && streamingContent.length > 0;
+    const renderedMessages = useMemo(() => (
+        hasStreamedText
+            ? [
+                ...messages,
+                {
+                    id: STREAMING_MESSAGE_ID,
+                    role: 'assistant' as const,
+                    content: streamingContent as string,
+                    created_at: '',
+                },
+            ]
+            : messages
+    ), [messages, streamingContent, hasStreamedText]);
+
     const groupedThreadItems = useMemo(() => {
         const today = new Date();
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -788,38 +693,70 @@ export default function ChatScreen() {
     const renderFormattedMessage = useCallback((content: string, isBot: boolean) => {
         const color = isBot ? textPrimary : '#FFFFFF';
         const mutedColor = isBot ? textSecondary : 'rgba(255,255,255,0.82)';
-        const cleanContent = content
-            .replace(/\*/g, '')
-            .replace(/^#+\s*/gm, '')
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => {
-                if (!line) return true;
-                if (/^-{3,}$/.test(line)) return false;
-                if (/^\|?[-\s|:]+$/.test(line)) return false;
-                if (/^\|.*\|$/.test(line)) return false;
-                return true;
-            })
-            .join('\n');
-        const lines = cleanContent
-            .replace(/\r/g, '')
-            .split('\n')
-            .map(line => line.trim())
-            .filter(Boolean);
+        const tableBorder = isBot ? borderColor : 'rgba(255,255,255,0.32)';
+        const blocks = parseMessageBlocks(content);
 
-        if (lines.length <= 1) {
+        if (blocks.length === 0) {
+            return <Text style={[styles.messageText, { color }]}>{''}</Text>;
+        }
+
+        if (blocks.length === 1 && blocks[0].kind === 'text') {
             return (
                 <Text style={[styles.messageText, { color }]}>
-                    {cleanContent}
+                    {renderInlineMarkdown(blocks[0].line)}
                 </Text>
             );
         }
 
         return (
             <View style={styles.formattedMessage}>
-                {lines.map((line, index) => {
+                {blocks.map((block, index) => {
+                    if (block.kind === 'table') {
+                        // Tables scroll sideways rather than being dropped —
+                        // a comparison the model produced must survive intact.
+                        return (
+                            <ScrollView
+                                key={`table-${index}`}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.tableScroll}
+                            >
+                                <View style={[styles.table, { borderColor: tableBorder }]}>
+                                    {block.rows.map((row, rowIndex) => (
+                                        <View
+                                            key={`row-${rowIndex}`}
+                                            style={[
+                                                styles.tableRow,
+                                                rowIndex === 0 && { backgroundColor: isBot ? accentTint : 'rgba(255,255,255,0.16)' },
+                                            ]}
+                                        >
+                                            {row.map((cell, cellIndex) => (
+                                                <View
+                                                    key={`cell-${cellIndex}`}
+                                                    style={[styles.tableCell, { borderColor: tableBorder }]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.messageText,
+                                                            styles.tableCellText,
+                                                            rowIndex === 0 && styles.boldSegment,
+                                                            { color },
+                                                        ]}
+                                                    >
+                                                        {renderInlineMarkdown(cell)}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        );
+                    }
+
+                    const line = block.line;
                     const numberedMatch = line.match(/^(\d+)[.)]\s+(.+)/);
-                    const bulletMatch = line.match(/^[-•]\s+(.+)/);
+                    const bulletMatch = line.match(/^[-•*]\s+(.+)/);
                     const starMatch = line.match(/^(⭐|★|☆)\s*(.+)/);
                     const isLeadLine = index === 0 && !numberedMatch && !bulletMatch && !starMatch;
 
@@ -830,7 +767,7 @@ export default function ChatScreen() {
                                     <Text style={[styles.numberBadgeText, { color }]}>{numberedMatch[1]}</Text>
                                 </View>
                                 <Text style={[styles.messageText, styles.formattedRowText, { color }]}>
-                                    {numberedMatch[2]}
+                                    {renderInlineMarkdown(numberedMatch[2])}
                                 </Text>
                             </View>
                         );
@@ -841,7 +778,7 @@ export default function ChatScreen() {
                             <View key={`${line}-${index}`} style={styles.formattedRow}>
                                 <Text style={styles.starMarker}>★</Text>
                                 <Text style={[styles.messageText, styles.formattedRowText, styles.starText, { color }]}>
-                                    {starMatch[2]}
+                                    {renderInlineMarkdown(starMatch[2])}
                                 </Text>
                             </View>
                         );
@@ -852,7 +789,7 @@ export default function ChatScreen() {
                             <View key={`${line}-${index}`} style={styles.formattedRow}>
                                 <Text style={[styles.bulletMarker, { color: mutedColor }]}>•</Text>
                                 <Text style={[styles.messageText, styles.formattedRowText, { color }]}>
-                                    {bulletMatch[1]}
+                                    {renderInlineMarkdown(bulletMatch[1])}
                                 </Text>
                             </View>
                         );
@@ -867,38 +804,39 @@ export default function ChatScreen() {
                                 { color: isLeadLine ? color : mutedColor },
                             ]}
                         >
-                            {line}
+                            {renderInlineMarkdown(line)}
                         </Text>
                     );
                 })}
             </View>
         );
-    }, [textPrimary, textSecondary, accentTint]);
+    }, [textPrimary, textSecondary, accentTint, borderColor]);
 
-    const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
+    const renderMessage = ({ item }: { item: ChatMessage }) => {
         const isBot = item.role === 'assistant';
+        const isStreamingBubble = item.id === STREAMING_MESSAGE_ID;
         const isCurrentlySpeaking = speakingMessageId === item.id;
-        const previousUserMessage = isBot
-            ? stripChatContext([...messages.slice(0, index)].reverse().find(message => message.role === 'user')?.content ?? '')
-            : null;
-        const isRoadmapRequest = isRoadmapConversation(previousUserMessage);
-        const shouldShowOpportunityCards = isBot && !isRoadmapRequest && (
-            (item.metadata?.opportunities?.length ?? 0) > 0 ||
-            isOpportunitySearchConversation(previousUserMessage) ||
-            isOpportunitySearchConversation(item.content)
-        );
-        const roadmapMatches = isBot && isRoadmapRequest
-            ? findRoadmapOpportunityMatches(availableOpportunities, previousUserMessage || '')
-            : [];
-        const shouldShowRoadmapPanel = isBot && isRoadmapRequest && (isLoadingOpportunities || roadmapMatches.length > 0);
-        const fallbackCards = shouldShowOpportunityCards
-            ? rankFallbackOpportunities(availableOpportunities, `${previousUserMessage || ''} ${item.content}`)
-            : [];
-        const opportunityCards = isBot
-            ? (item.metadata?.opportunities?.length ? item.metadata.opportunities : fallbackCards)
-            : [];
-        const shouldTypeReveal = isBot && item.id === latestAssistantMessageId;
-        const showOpportunityShelf = shouldShowOpportunityCards && (opportunityCards.length > 0 || isLoadingOpportunities);
+        // The server decides when a turn is about building a plan (it derives it
+        // from the agent's own tool calls), so the offer appears in every
+        // language. The client no longer reads the user's words to guess: the
+        // English-only regex it used to run hid this panel in 8 of 9 locales.
+        const shouldShowRoadmapPanel = isBot && item.metadata?.roadmapIntent === true;
+        // Cards come from the agent's own tool output and nowhere else. If the
+        // agent recommended nothing, the user sees nothing — the client never
+        // invents results on its behalf.
+        const opportunityCards = isBot ? (item.metadata?.opportunities ?? []) : [];
+        // Text the user already watched arrive token by token must not be
+        // replayed through the fake typewriter when `turn.final` commits it.
+        const shouldTypeReveal =
+            isBot &&
+            !isStreamingBubble &&
+            item.id === latestAssistantMessageId &&
+            item.id !== streamedMessageId &&
+            // A stopped or cut-short reply is text the user already watched
+            // arrive — replaying it would look like it restarted.
+            !item.metadata?.stopped &&
+            !item.metadata?.interrupted;
+        const showOpportunityShelf = opportunityCards.length > 0;
         // "Spin" replies (single surprise pick + a Spin-again chip) get a
         // slot-machine pinwheel reveal — only on the live latest message, so
         // scrolling old threads doesn't replay it.
@@ -906,12 +844,9 @@ export default function ChatScreen() {
             shouldTypeReveal &&
             opportunityCards.length === 1 &&
             (item.metadata?.actionButtons?.some((button) => button.kind === 'spin_again') ?? false);
-        const displayContent = shouldShowRoadmapPanel
-            ? compactRoadmapAnswer(roadmapMatches.length, isLoadingOpportunities)
-            : shouldShowOpportunityCards
-                ? compactOpportunityAnswer(opportunityCards.length)
-                // User bubbles hide any opportunity context appended after the sentinel.
-                : isBot ? item.content : stripChatContext(item.content);
+        // Assistant text is rendered exactly as the agent produced it. User
+        // bubbles hide any opportunity context appended after the sentinel.
+        const displayContent = isBot ? item.content : stripChatContext(item.content);
 
         return (
             <Animated.View
@@ -921,7 +856,7 @@ export default function ChatScreen() {
                 <View style={[
                     styles.messageContainer,
                     isBot ? styles.messageContainerAssistant : styles.messageContainerUser,
-                    isBot && (showOpportunityShelf || shouldShowRoadmapPanel) && styles.messageContainerAssistantWide,
+                    isBot && showOpportunityShelf && styles.messageContainerAssistantWide,
                 ]}>
                     {isBot ? (
                         <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: accentTint, borderColor: accentColor + '33' }]}>
@@ -940,7 +875,22 @@ export default function ChatScreen() {
                                 </TypingReveal>
                             ) : renderFormattedMessage(displayContent, isBot)}
 
-                            {isBot && (
+                            {/* An answer the user stopped, one the connection cut
+                                short, or one the server flagged partial is
+                                labelled as such — never presented as complete. */}
+                            {isBot && (item.metadata?.stopped || item.metadata?.interrupted || item.metadata?.truncated) ? (
+                                <Text style={[styles.replyNotice, { color: textSecondary }]}>
+                                    {item.metadata?.stoppedBeforeReply
+                                        ? t('messages.stoppedEarlyNotice')
+                                        : item.metadata?.stopped
+                                            ? t('messages.stoppedNotice')
+                                            : item.metadata?.interrupted
+                                                ? t('messages.interruptedNotice')
+                                                : t('messages.truncatedNotice')}
+                                </Text>
+                            ) : null}
+
+                            {isBot && !isStreamingBubble && (
                                 <View style={styles.messageActions}>
                                     <TouchableOpacity
                                         onPress={() => handleSpeakMessage(item.id, displayContent)}
@@ -990,30 +940,7 @@ export default function ChatScreen() {
                                     decelerationRate="fast"
                                     snapToInterval={248}
                                 >
-                                {opportunityCards.length === 0 ? (
-                                    [0, 1, 2].map((placeholder) => (
-                                        <View
-                                            key={`loading-opportunity-${placeholder}`}
-                                            style={[
-                                                styles.opportunityCard,
-                                                styles.opportunityLoadingCard,
-                                                {
-                                                    backgroundColor: isDark ? 'rgba(15,23,42,0.96)' : '#FFFFFF',
-                                                    borderColor,
-                                                },
-                                            ]}
-                                        >
-                                            <View style={[styles.opportunityLoadingImage, { backgroundColor: accentTint }]}>
-                                                <ActivityIndicator size="small" color={accentColor} />
-                                            </View>
-                                            <View style={styles.opportunityBody}>
-                                                <View style={[styles.loadingLine, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
-                                                <View style={[styles.loadingLine, styles.loadingLineMedium, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
-                                                <View style={[styles.loadingLine, styles.loadingLineShort, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
-                                            </View>
-                                        </View>
-                                    ))
-                                ) : opportunityCards.map((opportunity, cardIndex) => {
+                                {opportunityCards.map((opportunity, cardIndex) => {
                                     const badge = getDeadlineBadge(opportunity.deadline);
                                     // First card of a ranked set gets the "Top pick" accent —
                                     // only when a real match score backs the claim.
@@ -1128,7 +1055,7 @@ export default function ChatScreen() {
                                         {(['country', 'deadline', 'funding'] as const).map((filterKey) => (
                                             <TouchableOpacity
                                                 key={filterKey}
-                                                onPress={() => handleSend(`Narrow these by ${filterKey}`)}
+                                                onPress={() => handleSend(t(`followUp.narrowBy${filterKey[0].toUpperCase()}${filterKey.slice(1)}`))}
                                                 style={[styles.followUpChip, { borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC' }]}
                                             >
                                                 <Text style={[styles.followUpChipText, { color: textPrimary }]}>{t(`followUp.${filterKey}`)}</Text>
@@ -1138,6 +1065,15 @@ export default function ChatScreen() {
                                 ) : null}
                             </Animated.View>
                         )}
+                        {/* A tool, not AI output: the panel offers ONE action and
+                            names no opportunities of its own. The cards it used to
+                            show were ranked client-side by keyword over the local
+                            catalogue and rendered inside the assistant's row, where
+                            they read as things Edutu had suggested. Building now
+                            goes back through the agent, which runs the real
+                            create_roadmap tool (metered, confirmed, and reported in
+                            the conversation) against opportunities it actually
+                            surfaced. */}
                         {shouldShowRoadmapPanel && (
                             <View style={styles.roadmapBuilderPanel}>
                                 <View style={styles.roadmapBuilderHeader}>
@@ -1148,59 +1084,20 @@ export default function ChatScreen() {
                                         {t('roadmapPanel.subtitle')}
                                     </Text>
                                 </View>
-
-                                {isLoadingOpportunities && roadmapMatches.length === 0 ? (
-                                    <View style={[styles.roadmapStatusCard, { backgroundColor: cardBg, borderColor }]}>
-                                        <ActivityIndicator size="small" color={accentColor} />
-                                        <Text style={[styles.roadmapStatusText, { color: textSecondary }]}>
-                                            {t('roadmapPanel.searching')}
-                                        </Text>
-                                    </View>
-                                ) : roadmapMatches.length > 0 ? (
-                                    <ScrollView
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.roadmapMatchRail}
-                                    >
-                                        {roadmapMatches.map((opportunity) => {
-                                            const preview = generateRoadmapFromOpportunity(opportunity);
-                                            return (
-                                                <TouchableOpacity
-                                                    key={opportunity.id}
-                                                    activeOpacity={0.88}
-                                                    onPress={() => handleBuildRoadmapFromOpportunity(opportunity)}
-                                                    disabled={roadmapActionId === opportunity.id}
-                                                    style={[
-                                                        styles.roadmapMatchCard,
-                                                        { backgroundColor: cardBg, borderColor },
-                                                    ]}
-                                                >
-                                                    <Text style={[styles.roadmapMatchMeta, { color: accentColor }]} numberOfLines={1}>
-                                                        {t('roadmapPanel.matchMeta', { category: opportunity.category || t('messages.categoryFallback'), deadline: formatOpportunityDeadline(opportunity.deadline) })}
-                                                    </Text>
-                                                    <Text style={[styles.roadmapMatchTitle, { color: textPrimary }]} numberOfLines={3}>
-                                                        {opportunity.title}
-                                                    </Text>
-                                                    <View style={styles.roadmapPreviewGrid}>
-                                                        <Text style={[styles.roadmapPreviewText, { color: textSecondary }]}>
-                                                            {t('roadmapPanel.daysLeft', { count: preview.daysUntilDeadline })}
-                                                        </Text>
-                                                        <Text style={[styles.roadmapPreviewText, { color: textSecondary }]}>
-                                                            {t('roadmapPanel.dailySteps', { count: preview.dailyPlan.length })}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={[styles.roadmapBuildButton, { backgroundColor: accentColor }]}>
-                                                        {roadmapActionId === opportunity.id ? (
-                                                            <ActivityIndicator size="small" color="#FFFFFF" />
-                                                        ) : (
-                                                            <Text style={styles.roadmapBuildButtonText}>{t('roadmapPanel.build')}</Text>
-                                                        )}
-                                                    </View>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </ScrollView>
-                                ) : null}
+                                <TouchableOpacity
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('roadmapPanel.title')}
+                                    activeOpacity={0.88}
+                                    disabled={isSending || isStreaming}
+                                    onPress={() => void handleSend(t('actions.createRoadmapPrompt', { defaultValue: 'Yes, build me that roadmap.' }))}
+                                    style={[
+                                        styles.roadmapBuildButton,
+                                        { backgroundColor: accentColor },
+                                        (isSending || isStreaming) && styles.roadmapBuildButtonDisabled,
+                                    ]}
+                                >
+                                    <Text style={styles.roadmapBuildButtonText}>{t('roadmapPanel.build')}</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
                         {isBot && (item.metadata?.images?.length ?? 0) > 0 ? (
@@ -1308,7 +1205,7 @@ export default function ChatScreen() {
     const renderThreadItem = ({ item }: { item: ChatThread }) => (
         <TouchableOpacity
             onPress={() => {
-                selectThread(item.id);
+                handleSelectThread(item.id);
                 setIsThreadsVisible(false);
             }}
             style={[
@@ -1316,6 +1213,11 @@ export default function ChatScreen() {
                 { backgroundColor: cardBg, borderColor },
                 selectedThreadId === item.id && { backgroundColor: accentColor + '33', borderColor: accentColor }
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={t('threads.itemA11yLabel', {
+                title: item.title || t('threads.newConversation'),
+                date: new Date(item.updated_at).toLocaleDateString(),
+            })}
         >
             <View style={styles.threadContent}>
                 <Text style={[styles.threadTitle, { color: textPrimary }]} numberOfLines={1}>
@@ -1324,7 +1226,15 @@ export default function ChatScreen() {
                 <Text style={[
                     styles.threadDate,
                     { color: textSecondary },
-                    selectedThreadId === item.id && { color: '#A5B4FC' }
+                    // `accentLight` is tuned for vivid packs (indigo/blue) where the
+                    // dark-mode tint is far lighter than the accent itself. On
+                    // desaturated packs (graphite/zinc) accent and accentLight sit
+                    // close together, so this text fails WCAG AA against the
+                    // accent-tinted row background in dark mode. `colors.foreground`
+                    // is the pack's own guaranteed-legible-on-surface token, so use
+                    // it in dark mode; light mode's accentLight already measures
+                    // comfortably above 4.5:1 across packs, so leave it as-is there.
+                    selectedThreadId === item.id && { color: isDark ? colors.foreground : colors.accentLight }
                 ]}>
                     {new Date(item.updated_at).toLocaleDateString()}
                 </Text>
@@ -1359,6 +1269,8 @@ export default function ChatScreen() {
                         <TouchableOpacity
                             onPress={() => setIsThreadsVisible(true)}
                             style={[styles.historyBtn, { backgroundColor: cardBg }]}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('header.historyButtonLabel')}
                         >
                             <History size={20} color={textSecondary} />
                         </TouchableOpacity>
@@ -1379,7 +1291,7 @@ export default function ChatScreen() {
                     ) : (
                         <FlatList
                             ref={flatListRef}
-                            data={messages}
+                            data={renderedMessages}
                             keyExtractor={(item) => item.id}
                             renderItem={renderMessage}
                             contentContainerStyle={[styles.messagesList, { paddingBottom: 20 }]}
@@ -1422,7 +1334,12 @@ export default function ChatScreen() {
                             }
                             ListFooterComponent={
                                 <>
-                                    {isSending ? (
+                                    {/* Thinking dots cover only the gap before the
+                                        first token (and any pause after the
+                                        discard rule clears a preamble) — once
+                                        real text is streaming, the text is the
+                                        indicator. */}
+                                    {isSending && !hasStreamedText ? (
                                         <View style={styles.typingRow}>
                                             <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: accentTint, borderColor: accentColor + '33' }]}>
                                                 <EdutuLogo size={22} frameless />
@@ -1495,7 +1412,11 @@ export default function ChatScreen() {
                                     {sendError.type === 'limit' ? (
                                         <TouchableOpacity
                                             style={[styles.sendErrorPrimary, { backgroundColor: accentColor }]}
-                                            onPress={() => { setSendError(null); router.push('/paywall'); }}
+                                            onPress={() => {
+                                                setSendError(null);
+                                                setPendingResend(lastAttemptRef.current);
+                                                router.push('/paywall');
+                                            }}
                                             activeOpacity={0.85}
                                         >
                                             <Crown size={14} color="#FFFFFF" />
@@ -1514,6 +1435,49 @@ export default function ChatScreen() {
                                     <TouchableOpacity
                                         style={styles.sendErrorSecondary}
                                         onPress={() => setSendError(null)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={[styles.sendErrorSecondaryText, { color: textSecondary }]}>{t('limit.dismissCta')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Animated.View>
+                    ) : null}
+
+                    {/* Returning from the paywall: the message that hit the
+                        limit is still in the composer and one tap away. Edutu
+                        never re-sends it on the user's behalf. */}
+                    {!sendError && pendingResend ? (
+                        <Animated.View
+                            entering={FadeInDown.duration(260)}
+                            style={[styles.sendErrorBanner, { backgroundColor: accentTint, borderColor: accentColor + '55' }]}
+                        >
+                            <View style={[styles.sendErrorIcon, { backgroundColor: accentColor + '22' }]}>
+                                <RotateCcw size={18} color={accentColor} />
+                            </View>
+                            <View style={styles.sendErrorCopy}>
+                                <Text style={[styles.sendErrorTitle, { color: textPrimary }]}>
+                                    {t('limit.savedTitle')}
+                                </Text>
+                                <Text style={[styles.sendErrorBody, { color: textSecondary }]} numberOfLines={2}>
+                                    {t('limit.savedBody', { message: pendingResend })}
+                                </Text>
+                                <View style={styles.sendErrorActions}>
+                                    <TouchableOpacity
+                                        style={[styles.sendErrorPrimary, { backgroundColor: accentColor }]}
+                                        onPress={() => {
+                                            const text = input.trim() || pendingResend;
+                                            setPendingResend(null);
+                                            void handleSend(text);
+                                        }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Send size={14} color="#FFFFFF" />
+                                        <Text style={styles.sendErrorPrimaryText}>{t('limit.resendCta')}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.sendErrorSecondary}
+                                        onPress={() => setPendingResend(null)}
                                         activeOpacity={0.7}
                                     >
                                         <Text style={[styles.sendErrorSecondaryText, { color: textSecondary }]}>{t('limit.dismissCta')}</Text>
@@ -1551,10 +1515,31 @@ export default function ChatScreen() {
                                 }}
                             />
 
-                            {/* Composer trailing actions: with text → Send;
-                                empty → the two voice toggles (tap-to-talk
-                                voice mode, hands-free live mode). */}
-                            {input.trim() ? (
+                            {/* Composer trailing actions: while a reply is
+                                generating → Stop; with text → Send; empty →
+                                the two voice toggles (tap-to-talk voice mode,
+                                hands-free live mode). */}
+                            {isStreaming ? (
+                                <TouchableOpacity
+                                    onPress={handleStopGenerating}
+                                    style={[styles.iconBtn, styles.sendBtn, { backgroundColor: accentColor }]}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('input.stopLabel')}
+                                >
+                                    <Square size={15} color="white" fill="white" />
+                                </TouchableOpacity>
+                            ) : isSending ? (
+                                // Sending over the non-streaming transport: there
+                                // is nothing to abort, so show a disabled send
+                                // rather than a Stop button that does nothing.
+                                <View
+                                    style={[styles.iconBtn, styles.sendBtn, { backgroundColor: accentColor, opacity: 0.5 }]}
+                                    accessibilityRole="progressbar"
+                                    accessibilityLabel={t('input.sending')}
+                                >
+                                    <Send size={18} color="white" />
+                                </View>
+                            ) : input.trim() ? (
                                 <TouchableOpacity
                                     onPress={() => handleSend()}
                                     style={[styles.iconBtn, styles.sendBtn, { backgroundColor: accentColor }]}
@@ -1618,14 +1603,18 @@ export default function ChatScreen() {
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: textPrimary }]}>{t('threads.modalTitle')}</Text>
-                            <TouchableOpacity onPress={() => setIsThreadsVisible(false)}>
+                            <TouchableOpacity
+                                onPress={() => setIsThreadsVisible(false)}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('threads.closeButtonLabel')}
+                            >
                                 <X size={24} color={textSecondary} />
                             </TouchableOpacity>
                         </View>
 
                         <TouchableOpacity
                             onPress={() => {
-                                selectThread(null);
+                                handleSelectThread(null);
                                 setIsThreadsVisible(false);
                             }}
                             style={[styles.newConvBtn, { backgroundColor: accentTint, borderColor: accentColor + '4D' }]}
@@ -1725,6 +1714,12 @@ const styles = StyleSheet.create({
         lineHeight: 23,
         flexWrap: 'wrap',
     },
+    replyNotice: {
+        marginTop: 6,
+        fontSize: 12.5,
+        lineHeight: 17,
+        fontStyle: 'italic',
+    },
     formattedMessage: {
         gap: 8,
     },
@@ -1738,6 +1733,30 @@ const styles = StyleSheet.create({
     },
     leadLine: {
         fontWeight: '700',
+    },
+    boldSegment: {
+        fontWeight: '700',
+    },
+    tableScroll: {
+        maxWidth: SCREEN_WIDTH - 72,
+    },
+    table: {
+        borderWidth: 1,
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    tableRow: {
+        flexDirection: 'row',
+    },
+    tableCell: {
+        minWidth: 104,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderWidth: StyleSheet.hairlineWidth,
+    },
+    tableCellText: {
+        fontSize: 13.5,
+        lineHeight: 19,
     },
     bulletMarker: {
         width: 16,
@@ -1815,26 +1834,6 @@ const styles = StyleSheet.create({
     },
     opportunityCardTop: {
         borderWidth: 1.5,
-    },
-    opportunityLoadingCard: {
-        minHeight: 214,
-    },
-    opportunityLoadingImage: {
-        width: '100%',
-        height: 120,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    loadingLine: {
-        height: 12,
-        width: '100%',
-        borderRadius: 999,
-    },
-    loadingLineShort: {
-        width: '46%',
-    },
-    loadingLineMedium: {
-        width: '74%',
     },
     viewMoreOpportunityCard: {
         width: 132,
@@ -1958,14 +1957,14 @@ const styles = StyleSheet.create({
         fontSize: 12.5,
         fontWeight: '700',
     },
+    // No longer full-bleed: without the card rail the panel is a compact CTA
+    // that sits under the reply at the normal message width.
     roadmapBuilderPanel: {
-        width: SCREEN_WIDTH,
-        marginLeft: -CHAT_RAIL_FULL_BLEED_OFFSET,
-        gap: 10,
+        marginTop: 10,
+        gap: 8,
+        alignSelf: 'flex-start',
     },
-    roadmapBuilderHeader: {
-        paddingHorizontal: 16,
-    },
+    roadmapBuilderHeader: {},
     roadmapBuilderTitle: {
         fontSize: 13,
         fontWeight: '900',
@@ -1975,60 +1974,16 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
     },
-    roadmapStatusCard: {
-        minHeight: 82,
-        borderRadius: 16,
-        borderWidth: 1,
-        marginHorizontal: 16,
-        padding: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    roadmapStatusText: {
-        flex: 1,
-        fontSize: 13,
-        lineHeight: 18,
-        fontWeight: '700',
-    },
-    roadmapMatchRail: {
-        gap: 12,
-        paddingHorizontal: 16,
-    },
-    roadmapMatchCard: {
-        width: 210,
-        minHeight: 184,
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 12,
-        justifyContent: 'space-between',
-    },
-    roadmapMatchMeta: {
-        fontSize: 10,
-        lineHeight: 14,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-    },
-    roadmapMatchTitle: {
-        fontSize: 14,
-        lineHeight: 18,
-        fontWeight: '900',
-        marginVertical: 8,
-    },
-    roadmapPreviewGrid: {
-        gap: 4,
-        marginBottom: 10,
-    },
-    roadmapPreviewText: {
-        fontSize: 11,
-        lineHeight: 15,
-        fontWeight: '700',
-    },
     roadmapBuildButton: {
         height: 36,
+        paddingHorizontal: 18,
         borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
+        alignSelf: 'flex-start',
+    },
+    roadmapBuildButtonDisabled: {
+        opacity: 0.5,
     },
     roadmapBuildButtonText: {
         color: '#FFFFFF',

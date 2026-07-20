@@ -101,6 +101,23 @@ export interface ChatMessageMetadata {
   documents?: ChatDocumentCard[];
   images?: ChatImageCard[];
   optimistic?: boolean;
+  /** Server flagged the answer as incomplete (agent hit its round/token budget). */
+  truncated?: boolean;
+  /** The user pressed stop mid-stream; content is whatever had arrived. */
+  stopped?: boolean;
+  /** Stop was pressed before a single token arrived, so there is no content to show. */
+  stoppedBeforeReply?: boolean;
+  /** The stream died before `turn.final`; content is whatever had arrived. */
+  interrupted?: boolean;
+  /**
+   * The turn was about building an application plan, so the app may offer its
+   * "Build roadmap" affordance. The server derives it from the agent's own tool
+   * calls (create_roadmap / create_goals / offer_roadmap) — it replaces the
+   * English-only regex the app used to run over the user's message, which hid
+   * the affordance in all 8 non-English locales. Absent means "no offer",
+   * exactly as before the flag existed.
+   */
+  roadmapIntent?: boolean;
   intent?: 'opportunity_search' | 'career_guidance' | 'study_help' | 'general';
 }
 

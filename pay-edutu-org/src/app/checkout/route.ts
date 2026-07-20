@@ -8,6 +8,24 @@ import { isBillingPlan, toMinorUnits } from '@/lib/money';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Payment channels to offer per currency, for markets where we want to
+// GUARANTEE the local non-card methods surface (mobile money, transfer, USSD).
+// Paystack's `channels` param is a WHITELIST — it restricts, not expands — so
+// we only send it for currencies we've explicitly curated. For any other
+// currency we return undefined, letting Paystack show every method enabled on
+// the account for that currency (the pre-existing default behaviour).
+function channelsForCurrency(currency: string): string[] | undefined {
+  switch ((currency || '').toUpperCase()) {
+    case 'NGN':
+      return ['card', 'bank_transfer', 'ussd', 'bank', 'qr'];
+    case 'GHS':
+    case 'KES':
+      return ['card', 'mobile_money', 'bank_transfer'];
+    default:
+      return undefined;
+  }
+}
+
 // GET /checkout?uid=..&email=..&plan=monthly|yearly&ref=..&platform=..
 // Validates the price server-side (never trusts the query `amount`), creates a
 // Paystack transaction, and 303-redirects the browser to the hosted card page.
@@ -38,12 +56,21 @@ export async function GET(req: NextRequest) {
     const reference = `edutu_${plan}_${crypto.randomUUID()}`;
     const planCode = plan === 'monthly' ? config.planMonthly() : config.planYearly();
 
+    // Recurring subscriptions can only auto-charge cards, so Paystack forces
+    // card-only when a plan is attached. For one-time charges (the default for
+    // our market) offer the channels our users actually have: mobile money in
+    // GHS/KES, bank transfer + USSD in NGN, cards everywhere.
+    const channels = planCode
+      ? undefined
+      : channelsForCurrency(pricing.currency);
+
     const init = await initTransaction({
       email: payerEmail,
       amountMinor,
       currency: pricing.currency,
       reference,
       callbackUrl: `${config.baseUrl()}/return`,
+      channels,
       metadata: {
         uid,
         plan,

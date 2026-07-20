@@ -282,7 +282,13 @@
       "continueBrowsing": "Endelea Kuvinjari",
       "failedTitle": "Kujiunga Kumeshindikana",
       "failed": "Kujiunga kumeshindikana",
-      "failedMessage": "Imeshindikana kujiunga."
+      "failedMessage": "Imeshindikana kujiunga.",
+      "offlineTitle": "Uko nje ya mtandao",
+      "offlineMessage": "Tumeshindwa kufikia Edutu. Angalia muunganisho wako na ujaribu tena.",
+      "retry": "Jaribu tena",
+      "cancel": "Ghairi",
+      "signInTitle": "Kipindi kimeisha",
+      "signInMessage": "Tafadhali ingia tena ili kuanza ramani hii."
     },
     "intent": {
       "title": "Tusaidie Kupata Ramani ya Njia Inayokufaa Kabisa",

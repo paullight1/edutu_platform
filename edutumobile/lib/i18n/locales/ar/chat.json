@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "المدرب الذكي"
+    "title": "المدرب الذكي",
+    "historyButtonLabel": "سجل المحادثات"
   },
   "loading": {
     "conversation": "جارٍ تحميل المحادثة..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "عن بُعد"
   },
-  "answers": {
-    "checkingOpportunities": "أتحقق من فرص Edutu من أجلك.",
-    "matchesFound": "وجدت {{count}} نتيجة مطابقة من Edutu.\nمرّر البطاقات أو ضيّق نطاق البحث.",
-    "roadmapChecking": "أتحقق من فرصك الآن.\nثم سأبني خارطة الطريق.",
-    "roadmapMatchFound": "وجدت تطابقًا محتملًا.\nاضغط على «إنشاء» لإنشاء الأهداف والتذكيرات.",
-    "roadmapWhichOpportunity": "لأي فرصة تريد ذلك؟\nأرسل الاسم أو تصفح الفرص."
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "ابحث عن منح دراسية",
-      "subtitle": "المتاحة هذا الشهر"
+      "subtitle": "المتاحة هذا الشهر",
+      "message": "ابحث عن منح دراسية يمكنني التقديم عليها هذا الشهر"
     },
     "mastercard": {
       "title": "فرص Mastercard المطابقة",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "أنشئ خارطة طريق",
-      "subtitle": "خطط لطلب تقديمي التالي"
+      "subtitle": "خطط لطلب تقديمي التالي",
+      "message": "أنشئ خارطة طريق لطلبي التالي"
     },
     "internships": {
       "title": "مواعيد التدريب النهائية",
@@ -73,32 +69,25 @@
     "narrowBy": "تضييق حسب:",
     "view": "عرض",
     "categoryFallback": "فرصة",
-    "typing": "Edutu يتحقق من الفرص"
+    "typing": "Edutu يفكر…",
+    "aiThinkingAnnouncement": "إيدوتو يفكر",
+    "aiRepliedAnnouncement": "رد إيدوتو",
+    "stoppedNotice": "لقد أوقفت هذا الرد — قد يكون غير مكتمل.",
+    "stoppedEarlyNotice": "لقد أوقفت هذا قبل أن يرد Edutu.",
+    "interruptedNotice": "انقطع الاتصال، لذا هذا الرد غير مكتمل. اسأل مرة أخرى للحصول على الإجابة الكاملة.",
+    "truncatedNotice": "هذه الإجابة جزئية — لم تتوفر مساحة كافية لإكمالها."
   },
   "followUp": {
     "country": "الدولة",
     "deadline": "الموعد النهائي",
-    "funding": "التمويل"
+    "funding": "التمويل",
+    "narrowByCountry": "ضيّق النتائج حسب الدولة",
+    "narrowByDeadline": "ضيّق النتائج حسب الموعد النهائي",
+    "narrowByFunding": "ضيّق النتائج حسب التمويل"
   },
   "roadmapPanel": {
     "title": "أنشئ خارطة طريق",
     "subtitle": "أهداف ومواعيد نهائية وتذكيرات",
-    "searching": "جارٍ البحث في الفرص...",
-    "matchMeta": "{{category}} · ينتهي في {{deadline}}",
-    "daysLeft": "متبقٍّ {{count}} يوم",
-    "daysLeft_zero": "لم يتبقّ أي يوم",
-    "daysLeft_one": "متبقٍّ يوم واحد",
-    "daysLeft_two": "متبقٍّ يومان",
-    "daysLeft_few": "متبقٍّ {{count}} أيام",
-    "daysLeft_many": "متبقٍّ {{count}} يومًا",
-    "daysLeft_other": "متبقٍّ {{count}} يوم",
-    "dailySteps": "{{count}} خطوة يومية",
-    "dailySteps_zero": "لا توجد خطوات يومية",
-    "dailySteps_one": "خطوة يومية واحدة",
-    "dailySteps_two": "خطوتان يوميتان",
-    "dailySteps_few": "{{count}} خطوات يومية",
-    "dailySteps_many": "{{count}} خطوة يومية",
-    "dailySteps_other": "{{count}} خطوة يومية",
     "build": "إنشاء"
   },
   "empty": {
@@ -107,7 +96,9 @@
   },
   "input": {
     "placeholder": "راسل Edutu...",
-    "send": "إرسال"
+    "send": "إرسال",
+    "stopLabel": "إيقاف التوليد",
+    "sending": "جارٍ الإرسال…"
   },
   "threads": {
     "modalTitle": "المحادثات",
@@ -118,7 +109,9 @@
       "yesterday": "أمس",
       "thisWeek": "هذا الأسبوع",
       "older": "أقدم"
-    }
+    },
+    "itemA11yLabel": "محادثة: {{title}}، {{date}}",
+    "closeButtonLabel": "إغلاق سجل المحادثات"
   },
   "voice": {
     "titleTranscript": "رسالة صوتية",
@@ -170,5 +163,43 @@
     "voiceNigerian": "الإنجليزية النيجيرية",
     "voiceAll": "المزيد من الأصوات",
     "voiceHint": "للحصول على أصوات أوضح وأكثر طبيعية، نزّل الأصوات المحسّنة من إعدادات هاتفك — iOS: الإعدادات ← تسهيلات الاستخدام ← المحتوى المنطوق ← الأصوات؛ أندرويد: ثبّت أصوات تحويل النص إلى كلام من Google."
+  },
+  "winCoach": {
+    "sheetTitle": "مدرب Edutu",
+    "thinking": "أفكّر في هذا من أجلك…",
+    "signInRequired": "سجّل الدخول لاستخدام مدرب Edutu.",
+    "noReplyFallback": "لم أتمكن من إنشاء رد الآن — يرجى المحاولة مرة أخرى.",
+    "billingLimitReached": "هذا يستهلك أرصدة الذكاء الاصطناعي، وقد نفدت أرصدتك. ترقَّ إلى Edutu Pro أو أعد الشحن للمتابعة.",
+    "documentUpload": {
+      "defaultLabel": "ارفع مستندًا",
+      "cvLabel": "ارفع سيرتك الذاتية للحصول على تقييم أدق",
+      "uploading": "جارٍ الرفع…",
+      "processing": "جارٍ المعالجة…",
+      "ready": "{{name}} — جاهز",
+      "readFailed": "تعذّرت قراءة هذا الملف. جرّب ملف PDF أو DOCX أو نصي.",
+      "uploadFailed": "فشل الرفع. يرجى المحاولة مرة أخرى."
+    },
+    "openInChat": "افتح في المحادثة",
+    "actions": {
+      "fitCheck": "هل أنا مناسب؟",
+      "nextMove": "الخطوة التالية",
+      "whatsMissing": "ما الذي ينقصني؟",
+      "nextWinMove": "خطوتي التالية للفوز"
+    }
+  },
+  "limit": {
+    "title": "لقد وصلت إلى حد الذكاء الاصطناعي",
+    "body": "لقد استخدمت رسائل Edutu المجانية بالذكاء الاصطناعي حاليًا. ترقَّ إلى Edutu Pro للحصول على تدريب غير محدود وخرائط طريق وتوصيات مخصصة.",
+    "upgradeCta": "الترقية إلى Pro",
+    "errorTitle": "لم يتم إرسال الرسالة",
+    "errorBody": "حدث خلل في الاتصال. اضغط على إعادة المحاولة لإرسالها مرة أخرى.",
+    "retryCta": "إعادة المحاولة",
+    "dismissCta": "ليس الآن",
+    "savedTitle": "تم حفظ رسالتك",
+    "savedBody": "احتفظنا بما كتبته: «{{message}}». أرسله متى شئت.",
+    "resendCta": "أرسلها الآن"
+  },
+  "actions": {
+    "createRoadmapPrompt": "نعم، أنشئ لي خارطة الطريق هذه."
   }
 }

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Flag,
+  LayoutTemplate,
   Loader2,
   Megaphone,
   Pencil,
@@ -27,8 +28,9 @@ import {
   type ModuleAccess,
   type WidgetFeed,
 } from '../lib/mobileControlApi';
+import { ServerDrivenPanel } from '../components/ServerDrivenPanel';
 
-type Tab = 'campaigns' | 'flags' | 'widgets' | 'appControl';
+type Tab = 'campaigns' | 'flags' | 'widgets' | 'serverUi' | 'appControl';
 
 const campaignTemplate: MobileCampaign = {
   key: '',
@@ -77,6 +79,10 @@ const TAB_META: Record<Tab, { label: string; hint: string }> = {
   widgets: {
     label: 'Widget Feeds',
     hint: 'Content for the home-screen and lock-screen widgets on users’ phones.',
+  },
+  serverUi: {
+    label: 'Home & Features',
+    hint: 'Compose the mobile home screen, add web-backed features, and reveal dark-shipped features — all live on next app open, no store release.',
   },
   appControl: {
     label: 'App Control',
@@ -189,6 +195,7 @@ export default function MobileControl() {
       (appControl.maintenance.enabled ? 1 : 0) +
       LOCKABLE_MODULES.filter(({ key }) => (appControl.moduleLocks[key] ?? 'free') !== 'free').length,
     totalGates: 2 + LOCKABLE_MODULES.length,
+    liveHomeBlocks: appControl.homeLayout?.published.length ?? 0,
   }), [campaigns, flags, widgets, appControl]);
 
   useEffect(() => {
@@ -334,6 +341,7 @@ export default function MobileControl() {
         <TabButton icon={<Megaphone size={16} />} active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} label={TAB_META.campaigns.label} count={stats.activeCampaigns} total={campaigns.length} />
         <TabButton icon={<Flag size={16} />} active={activeTab === 'flags'} onClick={() => setActiveTab('flags')} label={TAB_META.flags.label} count={stats.enabledFlags} total={flags.length} />
         <TabButton icon={<Bell size={16} />} active={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} label={TAB_META.widgets.label} count={stats.activeWidgets} total={widgets.length} />
+        <TabButton icon={<LayoutTemplate size={16} />} active={activeTab === 'serverUi'} onClick={() => setActiveTab('serverUi')} label={TAB_META.serverUi.label} count={stats.liveHomeBlocks} total={stats.liveHomeBlocks} />
         <TabButton icon={<ShieldAlert size={16} />} active={activeTab === 'appControl'} onClick={() => setActiveTab('appControl')} label={TAB_META.appControl.label} count={stats.activeGates} total={stats.totalGates} alert={stats.activeGates > 0} />
       </nav>
       <p className="mc-tab-hint">{TAB_META[activeTab].hint}</p>
@@ -395,6 +403,9 @@ export default function MobileControl() {
                 renderMeta={(item) => `${item.feed_type.replace('_', ' ')} · ${item.placement.replace('_', ' ')}`}
               />
             </>
+          )}
+          {activeTab === 'serverUi' && (
+            <ServerDrivenPanel value={appControl} onChange={setAppControl} onNotice={setNotice} onError={setError} />
           )}
           {activeTab === 'appControl' && (
             <AppControlPanel value={appControl} onChange={setAppControl} onNotice={setNotice} onError={setError} />

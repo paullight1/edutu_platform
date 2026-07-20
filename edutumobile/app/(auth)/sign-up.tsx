@@ -9,16 +9,19 @@ import {
 } from 'react-native';
 import { useAuth, useSignUp, useUser } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, useRouter } from 'expo-router';
 import {
   ArrowRight,
   Eye,
   EyeOff,
   Mail,
-  Sparkles,
+  Rocket,
+  Ticket,
   User,
   Lock,
 } from 'lucide-react-native';
+import { PENDING_REFERRAL_KEY } from '@edutu/core/src/services/referrals';
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
@@ -77,6 +80,26 @@ export default function SignUpScreen() {
   const [codeFocused, setCodeFocused] = React.useState(false);
   const [resendCooldown, setResendCooldown] = React.useState(0);
   const lastSubmittedCodeRef = React.useRef('');
+  // Referral: prefilled from a tapped invite link (stashed by app/invite.tsx),
+  // or typed manually. Persisted to AsyncStorage on submit so the post-auth
+  // redemption effect in (app)/_layout.tsx can redeem it once authenticated.
+  const [referralCode, setReferralCode] = React.useState('');
+  const [showReferral, setShowReferral] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(PENDING_REFERRAL_KEY)
+      .then((stored) => {
+        if (active && stored) {
+          setReferralCode(stored);
+          setShowReferral(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -117,6 +140,17 @@ export default function SignUpScreen() {
     }
 
     setLoading(true);
+
+    // Carry the referral code past account creation. Redemption happens once
+    // the user is authenticated (post-auth effect), not here.
+    try {
+      const trimmedReferral = referralCode.trim();
+      if (trimmedReferral) {
+        await AsyncStorage.setItem(PENDING_REFERRAL_KEY, trimmedReferral);
+      }
+    } catch {
+      // Non-fatal: a lost code just means no referral credit.
+    }
 
     try {
       await signUp.create({
@@ -305,7 +339,7 @@ export default function SignUpScreen() {
     <AuthShell
       title={t('signUp.title')}
       subtitle={t('signUp.subtitle')}
-      icon={Sparkles}
+      icon={Rocket}
       align="top"
     >
       {error ? <ErrorBox message={error} /> : null}
@@ -359,6 +393,34 @@ export default function SignUpScreen() {
             )}
           </Pressable>
         </View>
+
+        {showReferral ? (
+          <>
+            <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ticket color={colors.textSecondary} size={18} />
+              <TextInput
+                value={referralCode}
+                onChangeText={setReferralCode}
+                placeholder={t('signUp.referral.placeholder', { defaultValue: 'Referral code (optional)' })}
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={[styles.pillInput, { color: colors.foreground }]}
+              />
+            </View>
+            <Text style={[styles.consentText, { color: colors.textSecondary }]}>
+              {t('signUp.referral.hint', {
+                defaultValue: "You'll both earn 10 credits once you finish your profile.",
+              })}
+            </Text>
+          </>
+        ) : (
+          <Pressable onPress={() => setShowReferral(true)} hitSlop={8}>
+            <Text style={[styles.footerLink, { color: '#2563EB', textAlign: 'center', marginTop: 4 }]}>
+              {t('signUp.referral.toggle', { defaultValue: 'Have a referral code?' })}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <Pressable

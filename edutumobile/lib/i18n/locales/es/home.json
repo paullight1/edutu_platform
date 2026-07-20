@@ -231,7 +231,12 @@
     "notInterestedTitle": "¿No te interesa?",
     "notInterestedMessage": "Te mostraremos menos oportunidades como esta.",
     "notInterestedConfirm": "No me interesa",
-    "percentMatch": "{{percent}}% de coincidencia"
+    "percentMatch": "{{percent}}% de coincidencia",
+    "shareLabel": "Compartir esta oportunidad",
+    "bookmarkAddLabel": "Guardar oportunidad",
+    "bookmarkRemoveLabel": "Quitar de guardados",
+    "moreOptionsLabel": "Más opciones",
+    "moreOptionsHint": "Marcar esta oportunidad como no interesante"
   },
   "creditPack": {
     "title": "Comprar créditos",

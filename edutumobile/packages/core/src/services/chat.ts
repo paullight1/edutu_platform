@@ -30,6 +30,14 @@ export type SendChatMessageOptions = {
   channel?: 'text' | 'voice';
   context?: ScreenContext;
   intent?: WinCoachIntent;
+  /**
+   * The app's current UI language (e.g. "en", "sw"), sourced live from
+   * i18next by the caller — never a stored preference, since the user can
+   * switch language mid-session. The backend's crisis-support path replies
+   * in this language (falling back to `Accept-Language`, then English); it is
+   * optional and additive everywhere else.
+   */
+  locale?: string | null;
 };
 
 /**
@@ -83,6 +91,7 @@ async function postChatMessageToBackend(
         // fallback ignores these), so send them just on this path.
         ...(options.context ? { context: options.context } : {}),
         ...(options.intent ? { intent: options.intent } : {}),
+        ...(options.locale ? { locale: options.locale } : {}),
       }),
       signal: controller.signal,
     });
@@ -273,6 +282,12 @@ export async function sendChatMessage(
 
     if (backendResult) return backendResult;
 
+    // `locale` IS forwarded here: the chat-proxy edge function now runs the
+    // shared multilingual crisis module (supabase/functions/_shared/
+    // crisis-support.ts), so a self-harm message caught on this fallback path
+    // is answered in the user's language with the crisis contact + directory,
+    // matching the Nest /chat/messages behaviour. It is ignored for all
+    // non-crisis turns.
     const { data, error } = await withTimeout(supabase.functions.invoke<SendChatMessageResult>('chat-proxy', {
       headers: options.authToken ? { Authorization: `Bearer ${options.authToken}` } : undefined,
       body: {
@@ -280,6 +295,7 @@ export async function sendChatMessage(
         message: options.message,
         userId: options.userId,
         channel: options.channel,
+        ...(options.locale ? { locale: options.locale } : {}),
       },
     }), CHAT_PROXY_TIMEOUT_MS);
 

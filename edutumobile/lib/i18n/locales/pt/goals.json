@@ -282,7 +282,13 @@
             "continueBrowsing": "Continuar explorando",
             "failedTitle": "Falha na inscrição",
             "failed": "Falha na inscrição",
-            "failedMessage": "Não foi possível se inscrever."
+            "failedMessage": "Não foi possível se inscrever.",
+            "offlineTitle": "Você está offline",
+            "offlineMessage": "Não foi possível conectar ao Edutu. Verifique sua conexão e tente novamente.",
+            "retry": "Tentar novamente",
+            "cancel": "Cancelar",
+            "signInTitle": "Sessão expirada",
+            "signInMessage": "Faça login novamente para iniciar este roteiro."
         },
         "intent": {
             "title": "Ajude-nos a encontrar seu roteiro perfeito",

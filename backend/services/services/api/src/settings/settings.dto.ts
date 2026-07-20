@@ -62,11 +62,60 @@ const MobileMaintenanceSchema = z.object({
   message: z.string().trim().min(1).max(500),
 });
 
+// A single admin-composed block of the mobile home feed. `props` is a loose
+// record on purpose: each block type validates its own props on the client, so
+// introducing a new block type (shipped later via EAS Update) never needs a
+// settings-schema change and never invalidates an admin write from an older
+// client. Keep this lenient — a malformed block must degrade to "skipped on the
+// client", not fail the whole settings merge.
+const HomeBlockSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  type: z.string().trim().min(1).max(60),
+  props: z.record(z.string(), z.unknown()).default({}),
+  enabled: z.boolean().default(true),
+});
+
+// Server-driven home composition. `draft` is admin-only staging; `published`
+// is what the app renders; `lastPublished` backs one-step rollback. All three
+// default to empty so an app with no configured layout renders its built-in
+// hardcoded home.
+const HomeLayoutSchema = z.object({
+  draft: z.array(HomeBlockSchema).max(40).default([]),
+  published: z.array(HomeBlockSchema).max(40).default([]),
+  lastPublished: z.array(HomeBlockSchema).max(40).default([]),
+});
+
+// An admin-defined feature that opens a web surface inside the app (the
+// Twitter/X pattern) — lets the admin add a whole new feature without shipping
+// native code. `url` is deliberately not z.url(): a malformed stored URL must
+// degrade to a WebView error state on the client, not blow up the settings
+// merge and knock every other group back to defaults.
+const CustomFeatureSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(80),
+  subtitle: z.string().trim().max(160).default(""),
+  // lucide/ionicons name or emoji; the client maps it or falls back to default.
+  icon: z.string().trim().max(60).default(""),
+  url: z.string().trim().min(1).max(1000),
+  openMode: z.enum(["webview", "external"]).default("webview"),
+  placement: z.enum(["home", "tools", "both"]).default("tools"),
+  enabled: z.boolean().default(true),
+});
+
 const MobileAppSettingsSchema = z.object({
   forceUpdate: MobileForceUpdateSchema,
   maintenance: MobileMaintenanceSchema,
   // moduleKey -> access level; unknown keys default to "free" on the client.
   moduleLocks: z.record(z.string().max(60), ModuleAccessSchema),
+  // Simple on/off reveal flags for dark-shipped features (key -> enabled).
+  // Distinct from moduleLocks (free/pro/disabled gating of existing modules).
+  featureFlags: z.record(z.string().max(60), z.boolean()).default({}),
+  homeLayout: HomeLayoutSchema.default({
+    draft: [],
+    published: [],
+    lastPublished: [],
+  }),
+  customFeatures: z.array(CustomFeatureSchema).max(30).default([]),
 });
 
 // Admin-controlled subscription pricing shown on the paywall and used by
@@ -183,8 +232,28 @@ const UserContentSettingsSchema = z.object({
   submissionCostCredits: z.number().int().min(0).max(100_000).default(0),
 });
 
+// Admin-controlled safety knobs. The crisis contact number is surfaced in the
+// AI coach's self-harm support message. Own top-level group, every field
+// defaulted, so a stored row that omits it (every deployment predating this
+// group) still resolves and never invalidates the other settings on read.
+// Validation is deliberately permissive: international phone formats vary, and
+// a too-strict regex could reject a valid number an admin enters — degrading a
+// safety path to the default is worse than accepting an odd-looking string.
+const SafetySettingsSchema = z.object({
+  crisisContactPhone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .default("+2348169400427"),
+});
+
 const PricingSettingsSchema = z.object({
   currency: z.string().trim().min(3).max(4),
+  // Fixed display rate used to fold USD mobile-store revenue into the NGN admin
+  // dashboard (1 USD → this many NGN). A reporting constant, not a live FX quote.
+  // Defaulted so stored settings that predate this field still validate.
+  usdToNgnRate: z.number().min(1).max(100_000).default(1000),
   weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
   monthlyPrice: z.number().min(0).max(10_000_000),
   yearlyPrice: z.number().min(0).max(10_000_000),
@@ -224,15 +293,20 @@ export const AdminSettingsSchema = z.object({
   paywall: PaywallSettingsSchema.optional(),
   webContent: WebContentSettingsSchema.optional(),
   userContent: UserContentSettingsSchema.optional(),
+  safety: SafetySettingsSchema.optional(),
 });
 
 export type ModuleAccess = z.infer<typeof ModuleAccessSchema>;
+export type HomeBlock = z.infer<typeof HomeBlockSchema>;
+export type HomeLayout = z.infer<typeof HomeLayoutSchema>;
+export type CustomFeature = z.infer<typeof CustomFeatureSchema>;
 export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
 export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
 export type PaywallSettings = z.infer<typeof PaywallSettingsSchema>;
 export type WebHeroBanner = z.infer<typeof WebHeroBannerSchema>;
 export type WebContentSettings = z.infer<typeof WebContentSettingsSchema>;
 export type UserContentSettings = z.infer<typeof UserContentSettingsSchema>;
+export type SafetySettings = z.infer<typeof SafetySettingsSchema>;
 
 export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
 
@@ -244,6 +318,7 @@ type ResolvedAdminSettings = AdminSettingsDto & {
   paywall: PaywallSettings;
   webContent: WebContentSettings;
   userContent: UserContentSettings;
+  safety: SafetySettings;
 };
 
 export interface AdminSettingsResponse {
@@ -304,11 +379,17 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
         "Edutu is undergoing scheduled maintenance. Please check back shortly.",
     },
     moduleLocks: {},
+    // No flags, no server-driven layout, no custom features by default = the
+    // app renders its built-in home and native feature set.
+    featureFlags: {},
+    homeLayout: { draft: [], published: [], lastPublished: [] },
+    customFeatures: [],
   },
   // Nigeria-first pricing (NGN, Paystack). Sustainability model 2026-07:
   // covers 3-person payroll + infra at ~100 paying subscribers.
   pricing: {
     currency: "NGN",
+    usdToNgnRate: 1000,
     weeklyPrice: 2000,
     monthlyPrice: 6500,
     yearlyPrice: 60000,
@@ -362,6 +443,10 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
     paidSubmissions: false,
     submissionCostCredits: 0,
   },
+  // Default crisis contact shown in the AI coach's self-harm support message.
+  safety: {
+    crisisContactPhone: "+2348169400427",
+  },
 };
 
 export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
@@ -403,6 +488,25 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       moduleLocks:
         partial.mobileApp?.moduleLocks ??
         DEFAULT_ADMIN_SETTINGS.mobileApp.moduleLocks,
+      featureFlags:
+        partial.mobileApp?.featureFlags ??
+        DEFAULT_ADMIN_SETTINGS.mobileApp.featureFlags,
+      // Preserve each sub-array independently so a save that only touches the
+      // draft can't wipe the published layout (or vice versa).
+      homeLayout: {
+        draft:
+          partial.mobileApp?.homeLayout?.draft ??
+          DEFAULT_ADMIN_SETTINGS.mobileApp.homeLayout.draft,
+        published:
+          partial.mobileApp?.homeLayout?.published ??
+          DEFAULT_ADMIN_SETTINGS.mobileApp.homeLayout.published,
+        lastPublished:
+          partial.mobileApp?.homeLayout?.lastPublished ??
+          DEFAULT_ADMIN_SETTINGS.mobileApp.homeLayout.lastPublished,
+      },
+      customFeatures:
+        partial.mobileApp?.customFeatures ??
+        DEFAULT_ADMIN_SETTINGS.mobileApp.customFeatures,
     },
     pricing: {
       ...DEFAULT_ADMIN_SETTINGS.pricing,
@@ -442,7 +546,12 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       ...DEFAULT_ADMIN_SETTINGS.userContent,
       ...(partial.userContent ?? {}),
     },
-    // mobileApp, pricing, paywall, webContent + userContent are always constructed above;
-    // the schema marks them optional only for inbound payload compatibility.
+    safety: {
+      ...DEFAULT_ADMIN_SETTINGS.safety,
+      ...(partial.safety ?? {}),
+    },
+    // mobileApp, pricing, paywall, webContent, userContent + safety are always
+    // constructed above; the schema marks them optional only for inbound
+    // payload compatibility.
   }) as ResolvedAdminSettings;
 }

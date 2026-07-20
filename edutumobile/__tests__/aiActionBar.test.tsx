@@ -34,7 +34,7 @@ jest.mock('lucide-react-native', () => {
   );
 });
 
-const { AiActionBar } = require('../components/ai/AiActionBar');
+const { AiActionBar, AiActionError } = require('../components/ai/AiActionBar');
 
 const actions: AiAction[] = [
   { label: 'Am I a fit?', intent: 'fit_check', message: 'Am I a fit for this?' },
@@ -51,7 +51,10 @@ describe('AiActionBar', () => {
   });
 
   it('runs the tapped action and shows the reply', async () => {
-    const onRun = jest.fn().mockResolvedValue("You're a strong fit — apply.");
+    const onRun = jest.fn().mockResolvedValue({
+      text: "You're a strong fit — apply.",
+      threadId: 'thread-1',
+    });
     const { getByText } = render(
       <AiActionBar actions={actions} onRun={onRun} />,
     );
@@ -66,16 +69,88 @@ describe('AiActionBar', () => {
     );
   });
 
-  it('shows an error message when the action fails', async () => {
-    const onRun = jest.fn().mockRejectedValue(new Error('Out of credits.'));
+  it('lets the user reopen the thread the advice lives in', async () => {
+    const onRun = jest.fn().mockResolvedValue({
+      text: 'Polish your essay.',
+      threadId: 'thread-7',
+    });
+    const onOpenInChat = jest.fn();
     const { getByText } = render(
-      <AiActionBar actions={actions} onRun={onRun} />,
+      <AiActionBar
+        actions={actions}
+        onRun={onRun}
+        onOpenInChat={onOpenInChat}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByText('Am I a fit?'));
+    });
+
+    await waitFor(() => expect(getByText('Open in chat')).toBeTruthy());
+    fireEvent.press(getByText('Open in chat'));
+    expect(onOpenInChat).toHaveBeenCalledWith('thread-7');
+  });
+
+  it('hides "Open in chat" when there is no thread to open', async () => {
+    const onRun = jest.fn().mockResolvedValue({
+      text: 'Polish your essay.',
+      threadId: null,
+    });
+    const { getByText, queryByText } = render(
+      <AiActionBar actions={actions} onRun={onRun} onOpenInChat={jest.fn()} />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByText('Am I a fit?'));
+    });
+
+    await waitFor(() => expect(getByText('Polish your essay.')).toBeTruthy());
+    expect(queryByText('Open in chat')).toBeNull();
+  });
+
+  it('offers a retry when a generic failure happens', async () => {
+    const onRun = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Something broke.'))
+      .mockResolvedValueOnce({ text: 'Second time lucky.', threadId: null });
+    const onUpgrade = jest.fn();
+    const { getByText, queryByText } = render(
+      <AiActionBar actions={actions} onRun={onRun} onUpgrade={onUpgrade} />,
     );
 
     await act(async () => {
       fireEvent.press(getByText('Next move'));
     });
 
-    await waitFor(() => expect(getByText('Out of credits.')).toBeTruthy());
+    await waitFor(() => expect(getByText('Something broke.')).toBeTruthy());
+    // A generic failure is not a billing problem — no upsell.
+    expect(queryByText('Upgrade to Pro')).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(getByText('Retry'));
+    });
+
+    await waitFor(() => expect(getByText('Second time lucky.')).toBeTruthy());
+    expect(onRun).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers Upgrade alongside Retry when the failure is a billing limit', async () => {
+    const onRun = jest
+      .fn()
+      .mockRejectedValue(new AiActionError('You are out of credits.', 'billing'));
+    const onUpgrade = jest.fn();
+    const { getByText } = render(
+      <AiActionBar actions={actions} onRun={onRun} onUpgrade={onUpgrade} />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByText('Next move'));
+    });
+
+    await waitFor(() => expect(getByText('You are out of credits.')).toBeTruthy());
+    expect(getByText('Retry')).toBeTruthy();
+    fireEvent.press(getByText('Upgrade to Pro'));
+    expect(onUpgrade).toHaveBeenCalled();
   });
 });

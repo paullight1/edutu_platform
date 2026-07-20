@@ -27,7 +27,7 @@ import {
   LayoutGrid,
   CheckCircle2,
   Search,
-  Sparkles,
+  Target,
   MapPin,
   Clock,
   TrendingUp,
@@ -183,7 +183,7 @@ function getCategoryIcon(category: string) {
   if (cat.includes('scholar')) return Award;
   if (cat.includes('job')) return Globe;
   if (cat.includes('intern')) return Users;
-  if (cat.includes('fellow')) return Sparkles;
+  if (cat.includes('fellow')) return Award;
   return Compass;
 }
 
@@ -455,7 +455,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
         )}
         {item.match >= FOR_YOU_THRESHOLD && (
           <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
-            <Sparkles size={10} color="white" />
+            <Target size={10} color="white" />
             <Text style={styles.detailMatchText}>{item.match}%</Text>
           </View>
         )}
@@ -558,7 +558,7 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
         )}
         {item.match >= FOR_YOU_THRESHOLD && (
           <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
-            <Sparkles size={10} color="white" />
+            <Target size={10} color="white" />
             <Text style={styles.detailMatchText}>{item.match}%</Text>
           </View>
         )}
@@ -1191,7 +1191,7 @@ export default function OpportunitiesScreen() {
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleRow}>
                     <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
-                      <Sparkles color={colors.accent} size={16} />
+                      <Target color={colors.accent} size={16} />
                     </View>
                     <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('list.forYou')}</Text>
                   </View>
@@ -1205,7 +1205,7 @@ export default function OpportunitiesScreen() {
                   // personalize. This is the ONLY case where For You has no cards.
                   <View style={[styles.completeProfileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={[styles.completeProfileIcon, { backgroundColor: `${colors.accent}18` }]}>
-                      <Sparkles color={colors.accent} size={22} />
+                      <Target color={colors.accent} size={22} />
                     </View>
                     <Text style={[styles.completeProfileTitle, { color: colors.foreground }]}>
                       {t('list.completeProfile')}
@@ -1235,7 +1235,7 @@ export default function OpportunitiesScreen() {
                 ) : (
                   // Profile complete but opportunities not loaded yet.
                   <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border, width: '100%' }]}>
-                    <Sparkles color={colors.accent} size={24} />
+                    <Compass color={colors.accent} size={24} />
                     <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
                       {t('list.buildingMatches')}
                     </Text>

@@ -79,6 +79,29 @@ describe('normaliseAppControl', () => {
     expect(config.maintenance.enabled).toBe(false);
     expect(config.forceUpdate.minVersion).toBe('2.0.0');
   });
+
+  it('defaults the server-driven keys and keeps only boolean feature flags', () => {
+    expect(normaliseAppControl({}).featureFlags).toEqual({});
+    expect(normaliseAppControl({}).homeLayout).toEqual([]);
+    expect(normaliseAppControl({}).customFeatures).toEqual([]);
+
+    const config = normaliseAppControl({
+      featureFlags: { newTab: true, beta: 'yes', off: false },
+    });
+    expect(config.featureFlags).toEqual({ newTab: true, off: false });
+  });
+
+  it('normalises embedded home layout and custom features', () => {
+    const config = normaliseAppControl({
+      homeLayout: [{ id: 'a', type: 'announcement', props: { title: 'Hi' } }],
+      customFeatures: [
+        { id: 'f1', title: 'Community', url: 'https://edutu.org/community' },
+      ],
+    });
+    expect(config.homeLayout).toHaveLength(1);
+    expect(config.homeLayout[0].id).toBe('a');
+    expect(config.customFeatures[0].openMode).toBe('webview');
+  });
 });
 
 describe('getModuleAccess', () => {

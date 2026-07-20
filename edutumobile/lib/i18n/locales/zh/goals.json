@@ -282,7 +282,13 @@
             "continueBrowsing": "继续浏览",
             "failedTitle": "加入失败",
             "failed": "加入失败",
-            "failedMessage": "无法加入。"
+            "failedMessage": "无法加入。",
+            "offlineTitle": "您已离线",
+            "offlineMessage": "无法连接到 Edutu。请检查网络连接后重试。",
+            "retry": "重试",
+            "cancel": "取消",
+            "signInTitle": "会话已过期",
+            "signInMessage": "请重新登录以开始此路线图。"
         },
         "intent": {
             "title": "帮我们找到最适合你的路线图",

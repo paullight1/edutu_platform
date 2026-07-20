@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, type ViewProps } from 'react-
 import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react-native';
 import {
-  SearchX, Bookmark, Target, FileText, Bell, Inbox, AlertCircle, WifiOff, Sparkles,
+  SearchX, Bookmark, Target, FileText, Bell, Inbox, AlertCircle, WifiOff, ArrowRight,
 } from 'lucide-react-native';
 
 export type EmptyStateVariant =
@@ -101,7 +101,7 @@ export function EmptyState({
           onPress={onAction}
           activeOpacity={0.8}
         >
-          <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <ArrowRight size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.actionLabel}>{displayActionLabel}</Text>
         </TouchableOpacity>
       ))}

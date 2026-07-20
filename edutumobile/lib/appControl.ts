@@ -1,4 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  normaliseHomeLayout,
+  normaliseCustomFeatures,
+  type CustomFeature,
+  type HomeBlock,
+} from './homeBlocks';
 
 // ─── Remote app control ───────────────────────────────────────────────────────
 // Admin-managed gating served inside GET /mobile-control/config (appControl
@@ -28,6 +34,12 @@ export interface AppControlConfig {
   forceUpdate: ForceUpdateConfig;
   maintenance: MaintenanceConfig;
   moduleLocks: Record<string, ModuleAccess>;
+  // Simple on/off reveal flags for dark-shipped features (key -> enabled).
+  featureFlags: Record<string, boolean>;
+  // Published, server-driven home layout (empty = built-in hardcoded home).
+  homeLayout: HomeBlock[];
+  // Enabled admin-defined web-backed features.
+  customFeatures: CustomFeature[];
 }
 
 export const OPEN_APP_CONTROL: AppControlConfig = {
@@ -42,6 +54,9 @@ export const OPEN_APP_CONTROL: AppControlConfig = {
   },
   maintenance: { enabled: false, title: '', message: '' },
   moduleLocks: {},
+  featureFlags: {},
+  homeLayout: [],
+  customFeatures: [],
 };
 
 // Registry of remotely lockable modules. `prefixes` are pathname prefixes the
@@ -79,6 +94,21 @@ export function getModuleAccess(
 ): ModuleAccess {
   const access = config?.moduleLocks?.[moduleKey];
   return access === 'pro' || access === 'disabled' ? access : 'free';
+}
+
+/**
+ * Remote on/off state for a reveal flag. Fail-open default: an unconfigured
+ * flag (or missing config) returns the caller's fallback, which should be the
+ * feature's built-in default so a config miss never hides a shipped feature
+ * that used to be on.
+ */
+export function getFeatureFlag(
+  config: AppControlConfig | null | undefined,
+  key: string,
+  fallback = false,
+): boolean {
+  const value = config?.featureFlags?.[key];
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 /**
@@ -133,7 +163,21 @@ export function normaliseAppControl(payload: unknown): AppControlConfig {
     }
   }
 
-  return { forceUpdate, maintenance, moduleLocks };
+  const featureFlags: Record<string, boolean> = {};
+  if (record.featureFlags && typeof record.featureFlags === 'object') {
+    for (const [key, value] of Object.entries(record.featureFlags)) {
+      if (typeof value === 'boolean') featureFlags[key] = value;
+    }
+  }
+
+  return {
+    forceUpdate,
+    maintenance,
+    moduleLocks,
+    featureFlags,
+    homeLayout: normaliseHomeLayout(record.homeLayout),
+    customFeatures: normaliseCustomFeatures(record.customFeatures),
+  };
 }
 
 // ─── Last-known-config cache ─────────────────────────────────────────────────

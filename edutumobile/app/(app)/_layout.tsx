@@ -7,7 +7,6 @@ import {
     Home,
     Compass,
     ShoppingBag,
-    Sparkles,
     Bell,
     UserCircle,
     BadgeCheck,
@@ -25,10 +24,14 @@ import ReAnimated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
+    withTiming,
+    withSequence,
+    Easing,
     interpolate,
     Extrapolation,
 } from "react-native-reanimated";
 import { haptics } from "../../lib/haptics";
+import { AiSparkGlyph } from "../../components/ui/AiSparkGlyph";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
@@ -169,13 +172,17 @@ function TabItem({
 // ─── Edutu AI Button ──────────────────────────────────────────────────────────
 function HeaderLogoTitle({
     color,
+    isDark,
 }: {
     color: string;
+    isDark: boolean;
 }) {
     const finalTitle = 'Edutu';
 
     return (
-        <Text style={[styles.brandText, { color }]} numberOfLines={1}>
+        // Lighter in light mode: dark-on-white reads much heavier than
+        // white-on-dark at the same weight, so 900 looked over-bold on light.
+        <Text style={[styles.brandText, { color, fontWeight: isDark ? '900' : '700' }]} numberOfLines={1}>
             {finalTitle}
         </Text>
     );
@@ -224,6 +231,7 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     <EdutuLogo size={36} frameless />
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
+                        isDark={isDark}
                     />
                     {!proLoading && (isPro ? (
                         <BadgeCheck
@@ -284,15 +292,29 @@ export function isAiKind(kind: NavCircleKind): boolean {
 }
 
 // Shared by the detached circle and the in-bar action item ('tabs' style), so
-// the two can't drift apart.
-function navActionIcon(kind: NavCircleKind, color: string, size: number) {
+// the two can't drift apart. Plain function, not a component — it hooks into
+// nothing, callers pass everything in.
+function navActionIcon(
+    kind: NavCircleKind,
+    color: string,
+    size: number,
+    // Solid/filled buttons want a filled spark; on bare glass it stays an
+    // outline so it sits at the same visual weight as the Lucide tab icons.
+    filled = false,
+) {
     switch (kind) {
         case "create":
             return <Plus size={size + 2} color={color} strokeWidth={2.8} />;
         case "edit":
             return <Pencil size={size - 2} color={color} strokeWidth={2.4} />;
         default:
-            return <Sparkles size={size} color={color} strokeWidth={2.2} />;
+            // A line illustration, not the colourful orb: at nav size the orb's
+            // gradients read as a coloured blob next to the monochrome tab
+            // icons. The spark inherits the bar's colour instead — see
+            // AiSparkGlyph's docblock. The orb still owns voice mode itself.
+            // 1.25× so the spark carries the 66px circle without crowding it,
+            // and still fits the 34px in-bar icon slot.
+            return <AiSparkGlyph size={Math.round(size * 1.25)} color={color} filled={filled} />;
     }
 }
 
@@ -330,6 +352,7 @@ function MorphingNavCircle({
     dialOpen = false,
     size = 66,
     filled = false,
+    reducedMotion = false,
 }: {
     action: NavCircleAction;
     hidden: boolean;
@@ -343,6 +366,7 @@ function MorphingNavCircle({
     size?: number;
     /** Bar styles fill the button with the accent instead of glass. */
     filled?: boolean;
+    reducedMotion?: boolean;
 }) {
     const { t } = useTranslation('home');
     const [shown, setShown] = useState<NavCircleAction>(action);
@@ -411,6 +435,62 @@ function MorphingNavCircle({
     const active = shown.kind === action.kind ? action : shown;
     const isAI = isAiKind(active.kind);
 
+    // ── Press feel + hold-charge (Reanimated, layered on top of the legacy
+    // Animated morph/slide/reveal above — this only ever adds a scale on the
+    // button's own wrapper, so it composes rather than fights). A tap dips
+    // the circle down like any other press; on AI kinds the same gesture
+    // then keeps gathering into a slight swell for the 280ms hold so the
+    // user can see the long-press registering, and a decisive extra swell
+    // marks the hand-off into voice mode. Released early or dragged out —
+    // TouchableOpacity fires onPressOut for both — it eases straight back to
+    // rest. Skipped entirely under reducedMotion: no charge, no swell, the
+    // action just fires.
+    const press = useSharedValue(1);
+    const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
+    // Set by handleTriggerVoice, cleared by handlePressOut: the finger is
+    // almost always still down when the 280ms long-press fires, so it lifts
+    // ~80ms later — right in the middle of the "become the orb" swell below.
+    // Without this guard, that lift's onPressOut immediately overwrites
+    // `press` with its own reset animation, truncating the swell to a
+    // fraction of its arc. When the flag is set, onPressOut just clears it
+    // and leaves the swell alone to finish on its own.
+    const triggeredRef = useRef(false);
+
+    const handlePressIn = () => {
+        if (reducedMotion) return;
+        if (isAI) {
+            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+            press.value = withSequence(
+                withTiming(0.96, { duration: 90, easing: Easing.out(Easing.quad) }),
+                withTiming(1.07, { duration: 190, easing: Easing.out(Easing.cubic) }),
+            );
+        } else {
+            press.value = withTiming(0.96, { duration: 90, easing: Easing.out(Easing.quad) });
+        }
+    };
+    const handlePressOut = () => {
+        if (triggeredRef.current) {
+            triggeredRef.current = false;
+            return;
+        }
+        if (reducedMotion) return;
+        // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+        press.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
+    };
+    const handleTriggerVoice = () => {
+        triggeredRef.current = true;
+        haptics.medium();
+        if (!reducedMotion) {
+            // The circle becomes the orb — a decisive swell, then settle.
+            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+            press.value = withSequence(
+                withTiming(1.18, { duration: 160, easing: Easing.out(Easing.cubic) }),
+                withTiming(1, { duration: 180, easing: Easing.out(Easing.cubic) }),
+            );
+        }
+        openVoiceMode('voice');
+    };
+
     // A bar-style button is a conventional filled FAB — accent through, white
     // glyph. The glass pill's button only tints for create/edit and leaves the
     // AI sparkle sitting on bare glass.
@@ -422,7 +502,7 @@ function MorphingNavCircle({
                 ? `${solidColor}2E`
                 : null;
 
-    const icon = navActionIcon(active.kind, filled || !isAI ? "#FFFFFF" : accent, 24);
+    const icon = navActionIcon(active.kind, filled || !isAI ? "#FFFFFF" : accent, 24, filled);
     const label = t(navActionLabelKey(active.kind));
 
     const scale = morph.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
@@ -441,34 +521,38 @@ function MorphingNavCircle({
                 ],
             }}
         >
-            <TouchableOpacity
-                onPress={() => onPress(latestAction.current)}
-                onLongPress={isAI ? () => {
-                    haptics.medium();
-                    openVoiceMode('voice');
-                } : undefined}
-                delayLongPress={280}
-                activeOpacity={0.85}
-                style={[styles.navCircle, { width: size, height: size, borderRadius: size / 2 }]}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
-            >
-                {/* A filled button is opaque accent through, so the blur would
-                    render only to be covered — skip the cost entirely. */}
-                {!filled && glassBackground(999)}
-                {overlayColor && (
-                    <View
-                        pointerEvents="none"
-                        style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor, borderRadius: 999 }]}
-                    />
-                )}
-                {active.kind === "create" ? (
-                    <Animated.View style={{ transform: [{ rotate: plusRotate }] }}>{icon}</Animated.View>
-                ) : (
-                    icon
-                )}
-            </TouchableOpacity>
+            <ReAnimated.View style={pressStyle}>
+                <TouchableOpacity
+                    onPress={() => {
+                        haptics.light();
+                        onPress(latestAction.current);
+                    }}
+                    onPressIn={handlePressIn}
+                    onPressOut={handlePressOut}
+                    onLongPress={isAI ? handleTriggerVoice : undefined}
+                    delayLongPress={280}
+                    activeOpacity={0.85}
+                    style={[styles.navCircle, { width: size, height: size, borderRadius: size / 2 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
+                >
+                    {/* A filled button is opaque accent through, so the blur would
+                        render only to be covered — skip the cost entirely. */}
+                    {!filled && glassBackground(999)}
+                    {overlayColor && (
+                        <View
+                            pointerEvents="none"
+                            style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor, borderRadius: 999 }]}
+                        />
+                    )}
+                    {active.kind === "create" ? (
+                        <Animated.View style={{ transform: [{ rotate: plusRotate }] }}>{icon}</Animated.View>
+                    ) : (
+                        icon
+                    )}
+                </TouchableOpacity>
+            </ReAnimated.View>
         </Animated.View>
     );
 }
@@ -481,36 +565,86 @@ function BarActionItem({
     action,
     accent,
     onPress,
+    reducedMotion = false,
 }: {
     action: NavCircleAction;
     accent: string;
     onPress: (action: NavCircleAction) => void;
+    reducedMotion?: boolean;
 }) {
     const { t } = useTranslation('home');
     const isAI = isAiKind(action.kind);
     const label = t(navActionShortLabelKey(action.kind));
 
+    // Same press-feel/hold-charge contract as MorphingNavCircle — see its
+    // comment for the full rationale. Kept in lockstep so the 'tabs' style
+    // doesn't feel like a different button.
+    const press = useSharedValue(1);
+    const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
+    // Set by handleTriggerVoice, cleared by handlePressOut — see
+    // MorphingNavCircle's `triggeredRef` comment; identical fix, kept in
+    // lockstep so both buttons finish the "become the orb" swell the same way.
+    const triggeredRef = useRef(false);
+
+    const handlePressIn = () => {
+        if (reducedMotion) return;
+        if (isAI) {
+            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+            press.value = withSequence(
+                withTiming(0.96, { duration: 90, easing: Easing.out(Easing.quad) }),
+                withTiming(1.07, { duration: 190, easing: Easing.out(Easing.cubic) }),
+            );
+        } else {
+            press.value = withTiming(0.96, { duration: 90, easing: Easing.out(Easing.quad) });
+        }
+    };
+    const handlePressOut = () => {
+        if (triggeredRef.current) {
+            triggeredRef.current = false;
+            return;
+        }
+        if (reducedMotion) return;
+        // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+        press.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
+    };
+    const handleTriggerVoice = () => {
+        triggeredRef.current = true;
+        haptics.medium();
+        if (!reducedMotion) {
+            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+            press.value = withSequence(
+                withTiming(1.18, { duration: 160, easing: Easing.out(Easing.cubic) }),
+                withTiming(1, { duration: 180, easing: Easing.out(Easing.cubic) }),
+            );
+        }
+        openVoiceMode('voice');
+    };
+
     return (
-        <TouchableOpacity
-            onPress={() => onPress(action)}
-            onLongPress={isAI ? () => {
-                haptics.medium();
-                openVoiceMode('voice');
-            } : undefined}
-            delayLongPress={280}
-            activeOpacity={0.6}
-            style={styles.tabItem}
-            accessibilityRole="button"
-            accessibilityLabel={t(navActionLabelKey(action.kind))}
-            accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
-        >
-            <View style={styles.tabIconWrap}>
-                {navActionIcon(action.kind, accent, 24)}
-            </View>
-            <Text style={[styles.tabLabel, { color: accent, fontWeight: "700" }]} numberOfLines={1}>
-                {label}
-            </Text>
-        </TouchableOpacity>
+        <ReAnimated.View style={[{ flex: 1 }, pressStyle]}>
+            <TouchableOpacity
+                onPress={() => {
+                    haptics.light();
+                    onPress(action);
+                }}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                onLongPress={isAI ? handleTriggerVoice : undefined}
+                delayLongPress={280}
+                activeOpacity={0.6}
+                style={styles.tabItem}
+                accessibilityRole="button"
+                accessibilityLabel={t(navActionLabelKey(action.kind))}
+                accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
+            >
+                <View style={styles.tabIconWrap}>
+                    {navActionIcon(action.kind, accent, 24)}
+                </View>
+                <Text style={[styles.tabLabel, { color: accent, fontWeight: "700" }]} numberOfLines={1}>
+                    {label}
+                </Text>
+            </TouchableOpacity>
+        </ReAnimated.View>
     );
 }
 
@@ -626,6 +760,7 @@ export function BottomNav({
     createDialOpen,
     isDark,
     colors,
+    reducedMotion = false,
 }: {
     tabs: Array<{
         key: string;
@@ -642,6 +777,7 @@ export function BottomNav({
     createDialOpen: boolean;
     isDark: boolean;
     colors: any;
+    reducedMotion?: boolean;
 }) {
     const insets = useSafeAreaInsets();
     const { style: navBarStyle } = useNavStyleSettings();
@@ -652,8 +788,14 @@ export function BottomNav({
     const inactive = isDark ? "#C7CCD4" : "#5B6472";
     const glassTint = isDark
         ? (Platform.OS === "android" ? "rgba(22,24,34,0.94)" : "rgba(20,22,32,0.72)")
-        : (Platform.OS === "android" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.78)");
-    const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.06)";
+        // Light: a faintly cool frost (not pure white) so the bar reads as a
+        // surface over white content instead of vanishing into it.
+        : (Platform.OS === "android" ? "rgba(255,255,255,0.96)" : "rgba(246,248,252,0.82)");
+    // A defined edge is what separates floating glass from bright content in
+    // light mode (Liquid Glass leans on the rim, not opacity). Stronger in light.
+    const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.14)";
+    // Specular top highlight — the edge-lit sheen that reads as "glass".
+    const specularCol = isDark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.9)";
     const activeBubble = isDark ? "rgba(129,140,248,0.30)" : "rgba(79,70,229,0.14)";
 
     // Shared glass background for the pill and the detached circle.
@@ -668,17 +810,26 @@ export function BottomNav({
         ) : (
             <>
                 <BlurView
-                    intensity={isDark ? 40 : 60}
+                    intensity={isDark ? 40 : 72}
                     tint={isDark ? "systemChromeMaterialDark" : "systemChromeMaterialLight"}
                     experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
                     style={StyleSheet.absoluteFill}
                 />
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
+                {/* Defined outer edge — the main separator from bright content. */}
                 <View
                     pointerEvents="none"
                     style={[
                         StyleSheet.absoluteFillObject,
-                        { borderRadius: rounded, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, borderColor: borderCol },
+                        { borderRadius: rounded, borderCurve: "continuous", borderWidth: 1, borderColor: borderCol },
+                    ]}
+                />
+                {/* Specular top rim — the edge-lit sheen that sells it as glass. */}
+                <View
+                    pointerEvents="none"
+                    style={[
+                        StyleSheet.absoluteFillObject,
+                        { borderRadius: rounded, borderCurve: "continuous", borderTopWidth: 1.5, borderColor: specularCol },
                     ]}
                 />
             </>
@@ -748,6 +899,7 @@ export function BottomNav({
                 dialOpen={createDialOpen}
                 size={navBarStyle === "center" ? 58 : 60}
                 filled
+                reducedMotion={reducedMotion}
             />
         );
 
@@ -807,6 +959,7 @@ export function BottomNav({
                                 action={circleAction}
                                 accent={accent}
                                 onPress={onCirclePress}
+                                reducedMotion={reducedMotion}
                             />
                         )}
                     </View>
@@ -878,6 +1031,7 @@ export function BottomNav({
                     glassBackground={glassBackground}
                     onPress={onCirclePress}
                     dialOpen={createDialOpen}
+                    reducedMotion={reducedMotion}
                 />
             </ReAnimated.View>
             </View>
@@ -963,7 +1117,7 @@ export default function AppLayout() {
     const { t } = useTranslation('home');
     const { isSignedIn, isLoaded, getToken, userId } = useAuth();
     const { user } = useUser();
-    const { isDark, colors } = useTheme();
+    const { isDark, colors, reducedMotion } = useTheme();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
@@ -1110,6 +1264,7 @@ export default function AppLayout() {
     const hideSharedHeader = activeRoute === "subpage" ||
         pathname.includes("chat") ||
         pathname.includes("onboarding") ||
+        pathname.includes("referral") ||
         pathname.includes("/cv") ||
         activeRoute === "opportunities" ||
         activeRoute === "roadmaps" ||
@@ -1150,6 +1305,7 @@ export default function AppLayout() {
         !hasOpportunityCategory &&
         !pathname.includes("chat") &&
         !pathname.includes("/cv") &&
+        !pathname.includes("referral") &&
         !pathname.includes("paywall");
 
     if (!isLoaded || !guestHydrated) return null;
@@ -1270,6 +1426,7 @@ export default function AppLayout() {
                         createDialOpen={createDialOpen}
                         isDark={isDark}
                         colors={colors}
+                        reducedMotion={reducedMotion}
                     />
                 </>
             )}
@@ -1450,6 +1607,13 @@ const styles = StyleSheet.create({
     },
     tabIconWrap: {
         position: "relative",
+        // Fixed size so every glyph (AI spark, Plus, Pencil) occupies the
+        // same footprint in the row, which is only 56px tall and shares it
+        // with a label: 34 + 4 (gap) + 14 (label) = 52px.
+        width: 34,
+        height: 34,
+        alignItems: "center",
+        justifyContent: "center",
     },
     tabLabel: {
         fontSize: 11,

@@ -70,7 +70,9 @@ export default function EditProfileScreen() {
             });
         },
     });
-    // TODO: wire REFER_FRIEND when referral flow exists
+    // Referrals now have a dedicated flow (/referrals + the redeem/settle
+    // RPCs in migration 032). REFER_FRIEND credits are granted server-side at
+    // referral settlement, not via a self-serve award() call here.
 
     useEffect(() => {
         if (!user) return;

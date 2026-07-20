@@ -123,7 +123,15 @@ interface AdminSettings {
         paidSubmissions: boolean;
         submissionCostCredits: number;
     };
+    safety: {
+        crisisContactPhone: string;
+    };
 }
+
+// Baked-in default crisis contact — mirrors the backend DEFAULT_ADMIN_SETTINGS
+// so the field is never blank and a save can never send an empty value (which
+// the backend Zod min(1) would reject, resetting ALL settings).
+const DEFAULT_CRISIS_CONTACT = '+2348169400427';
 
 interface AdminSettingsResponse {
     success: boolean;
@@ -172,6 +180,9 @@ const defaultSettings: AdminSettings = {
         paidSubmissions: false,
         submissionCostCredits: 0,
     },
+    safety: {
+        crisisContactPhone: DEFAULT_CRISIS_CONTACT,
+    },
 };
 
 function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminSettings {
@@ -208,11 +219,15 @@ function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminS
             ...defaultSettings.userContent,
             ...(value?.userContent ?? {}),
         },
+        safety: {
+            ...defaultSettings.safety,
+            ...(value?.safety ?? {}),
+        },
     };
 }
 
 const Settings = () => {
-    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api' | 'webContent'>('platform');
+    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api' | 'webContent' | 'safety'>('platform');
     const [savedMessage, setSavedMessage] = useState('');
     const [hasChanges, setHasChanges] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -276,6 +291,13 @@ const Settings = () => {
                     }))
                     .filter((banner) => banner.title && banner.imageUrl)
                     .slice(0, MAX_HERO_BANNERS),
+            },
+            safety: {
+                // Never send an empty crisis contact: the backend Zod min(1)
+                // would reject the whole payload and reset ALL settings. A blank
+                // input degrades to the baked-in default.
+                crisisContactPhone:
+                    settings.safety.crisisContactPhone.trim() || DEFAULT_CRISIS_CONTACT,
             },
         };
 
@@ -357,6 +379,7 @@ const Settings = () => {
         { id: 'security', label: 'Security', icon: Shield, description: 'Login & password policy' },
         { id: 'api', label: 'API & Integrations', icon: Webhook, description: 'Keys & webhooks' },
         { id: 'webContent', label: 'Web Content', icon: ImageIcon, description: 'Homepage hero banners' },
+        { id: 'safety', label: 'Safety', icon: AlertTriangle, description: 'Crisis support contact' },
     ] as const;
 
     const updateHeroBanners = (heroBanners: WebHeroBanner[]) => {
@@ -662,6 +685,37 @@ const Settings = () => {
             </div>
         );
     };
+
+    const renderSafetySection = () => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="card" style={{ padding: '24px' }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '19px', fontWeight: 600 }}>Crisis support</h3>
+                <p style={{ color: 'var(--text-tertiary)', margin: '0 0 20px 0', fontSize: '14px', lineHeight: 1.6 }}>
+                    When the AI coach detects a message about self-harm, it replies with a
+                    support message that includes this contact number and a link to
+                    findahelpline.com. The findahelpline.com link is fixed; the number below
+                    is what students are given to reach the Edutu team directly.
+                </p>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Crisis support contact number</label>
+                    <input
+                        type="tel"
+                        className="input-field"
+                        value={settings.safety.crisisContactPhone}
+                        maxLength={40}
+                        placeholder={DEFAULT_CRISIS_CONTACT}
+                        onChange={(e) => updateSetting('safety', 'crisisContactPhone', e.target.value)}
+                    />
+                    <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '8px' }}>
+                        Shown in the AI coach's self-harm support message. Include the country
+                        code (e.g. {DEFAULT_CRISIS_CONTACT}). If left blank on save it falls
+                        back to the default {DEFAULT_CRISIS_CONTACT}.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
 
     const renderPlatformSection = () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -1256,6 +1310,7 @@ const Settings = () => {
                     {activeSection === 'security' && renderSecuritySection()}
                     {activeSection === 'api' && renderApiSection()}
                     {activeSection === 'webContent' && renderWebContentSection()}
+                    {activeSection === 'safety' && renderSafetySection()}
                 </div>
             </div>
         </div>

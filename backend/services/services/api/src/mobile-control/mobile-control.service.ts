@@ -31,6 +31,9 @@ const OPEN_APP_CONTROL: AppControlConfig = {
   },
   maintenance: { enabled: false, title: "", message: "" },
   moduleLocks: {},
+  featureFlags: {},
+  homeLayout: [],
+  customFeatures: [],
 };
 
 type ControlTable =
@@ -111,6 +114,16 @@ export class MobileControlService {
             ...mobileApp.maintenance,
           },
           moduleLocks: mobileApp.moduleLocks ?? {},
+          featureFlags: mobileApp.featureFlags ?? {},
+          // Only the published layout reaches the app; the admin draft stays
+          // server-side. Disabled blocks are dropped here too.
+          homeLayout: (mobileApp.homeLayout?.published ?? []).filter(
+            (block) => block?.enabled !== false,
+          ),
+          // Draft/disabled custom features never reach the app.
+          customFeatures: (mobileApp.customFeatures ?? []).filter(
+            (feature) => feature?.enabled !== false,
+          ),
         }
       : OPEN_APP_CONTROL;
 

@@ -18,6 +18,11 @@ type TableRow = Record<string, unknown>;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// NOTE: every name here must be a real column on `opportunities`. PostgREST
+// rejects the ENTIRE select if one is unknown, which silently blanks out all
+// hydration (saved/applied screens then render "Opportunity"/"Unknown"). There
+// is deliberately no `match_score` — match is computed per user by the ranking
+// engine and is not stored on the row; `quality_score` is the stored score.
 const OPPORTUNITY_FIELDS = [
   "id",
   "title",
@@ -27,7 +32,6 @@ const OPPORTUNITY_FIELDS = [
   "deadline",
   "close_date",
   "image_url",
-  "match_score",
   "quality_score",
 ].join(",");
 
@@ -513,10 +517,24 @@ export class MeService {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
     if (!uniqueIds.length) return new Map<string, TableRow>();
 
-    const { data, error } = await this.client
+    let { data, error } = await this.client
       .from("opportunities")
       .select(OPPORTUNITY_FIELDS)
       .in("id", uniqueIds);
+
+    // A single unknown column makes PostgREST reject the whole select, which
+    // would blank out every hydrated title/deadline at once. Retry with "*" so
+    // schema drift degrades into "slightly wider payload" instead of "every
+    // saved card says Opportunity/Unknown".
+    if (error) {
+      this.logger.warn(
+        `Could not hydrate opportunities with explicit fields (${error.message}); retrying with "*"`,
+      );
+      ({ data, error } = await this.client
+        .from("opportunities")
+        .select("*")
+        .in("id", uniqueIds));
+    }
 
     if (error) {
       this.logger.warn(`Could not hydrate opportunities: ${error.message}`);

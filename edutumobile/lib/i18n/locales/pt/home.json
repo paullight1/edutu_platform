@@ -231,7 +231,12 @@
     "notInterestedTitle": "Sem interesse?",
     "notInterestedMessage": "Vamos mostrar menos oportunidades como esta.",
     "notInterestedConfirm": "Sem interesse",
-    "percentMatch": "{{percent}}% de compatibilidade"
+    "percentMatch": "{{percent}}% de compatibilidade",
+    "shareLabel": "Compartilhar esta oportunidade",
+    "bookmarkAddLabel": "Salvar oportunidade",
+    "bookmarkRemoveLabel": "Remover dos salvos",
+    "moreOptionsLabel": "Mais opções",
+    "moreOptionsHint": "Marcar esta oportunidade como não interessante"
   },
   "creditPack": {
     "title": "Comprar créditos",

@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "AI Coach"
+    "title": "AI Coach",
+    "historyButtonLabel": "Conversation history"
   },
   "loading": {
     "conversation": "Loading conversation..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "Remote"
   },
-  "answers": {
-    "checkingOpportunities": "Checking Edutu opportunities for you.",
-    "matchesFound": "I found {{count}} matches from Edutu.\nSwipe the cards or narrow the search.",
-    "roadmapChecking": "I’m checking your opportunities.\nThen I’ll build the roadmap.",
-    "roadmapMatchFound": "I found a possible match.\nTap Build to create goals and reminders.",
-    "roadmapWhichOpportunity": "Which opportunity is this for?\nSend the name or browse Opportunities."
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "Find scholarships",
-      "subtitle": "Available this month"
+      "subtitle": "Available this month",
+      "message": "Find scholarships I can apply for this month"
     },
     "mastercard": {
       "title": "Mastercard matches",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "Build roadmap",
-      "subtitle": "Plan my next application"
+      "subtitle": "Plan my next application",
+      "message": "Build a roadmap for my next application"
     },
     "internships": {
       "title": "Internship deadlines",
@@ -73,20 +69,25 @@
     "narrowBy": "Narrow by:",
     "view": "View",
     "categoryFallback": "Opportunity",
-    "typing": "Edutu is checking opportunities"
+    "typing": "Edutu is thinking…",
+    "aiThinkingAnnouncement": "Edutu is thinking",
+    "aiRepliedAnnouncement": "Edutu replied",
+    "stoppedNotice": "You stopped this reply — it may be incomplete.",
+    "stoppedEarlyNotice": "You stopped this before Edutu replied.",
+    "interruptedNotice": "The connection dropped, so this reply is incomplete. Ask again to get the full answer.",
+    "truncatedNotice": "This answer is partial — Edutu ran out of room to finish it."
   },
   "followUp": {
     "country": "Country",
     "deadline": "Deadline",
-    "funding": "Funding"
+    "funding": "Funding",
+    "narrowByCountry": "Narrow these by country",
+    "narrowByDeadline": "Narrow these by deadline",
+    "narrowByFunding": "Narrow these by funding"
   },
   "roadmapPanel": {
     "title": "Build roadmap",
     "subtitle": "Goals, deadlines, reminders",
-    "searching": "Searching opportunities...",
-    "matchMeta": "{{category}} · due {{deadline}}",
-    "daysLeft": "{{count}} days left",
-    "dailySteps": "{{count}} daily steps",
     "build": "Build"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "Message Edutu...",
-    "send": "Send"
+    "send": "Send",
+    "stopLabel": "Stop generating",
+    "sending": "Sending…"
   },
   "threads": {
     "modalTitle": "Conversations",
@@ -106,7 +109,9 @@
       "yesterday": "Yesterday",
       "thisWeek": "This Week",
       "older": "Older"
-    }
+    },
+    "itemA11yLabel": "Conversation: {{title}}, {{date}}",
+    "closeButtonLabel": "Close conversation history"
   },
   "voice": {
     "titleTranscript": "Voice Message",
@@ -127,7 +132,10 @@
     "errorTitle": "Message didn't send",
     "errorBody": "Something interrupted the connection. Tap retry to send it again.",
     "retryCta": "Retry",
-    "dismissCta": "Not now"
+    "dismissCta": "Not now",
+    "savedTitle": "Your message is saved",
+    "savedBody": "We kept what you typed: “{{message}}”. Send it whenever you are ready.",
+    "resendCta": "Send it now"
   },
   "voiceMode": {
     "badgeVoice": "Voice chat",
@@ -196,5 +204,28 @@
   },
   "images": {
     "shareHint": "Tap to share"
+  },
+  "winCoach": {
+    "sheetTitle": "Edutu Coach",
+    "thinking": "Thinking through this for you…",
+    "signInRequired": "Sign in to use Edutu Coach.",
+    "noReplyFallback": "I couldn't generate a response just now — please try again.",
+    "billingLimitReached": "This uses AI credits and you are out. Upgrade to Edutu Pro or top up to continue.",
+    "documentUpload": {
+      "defaultLabel": "Upload a document",
+      "cvLabel": "Upload your CV for a sharper fit check",
+      "uploading": "Uploading…",
+      "processing": "Processing…",
+      "ready": "{{name}} — ready",
+      "readFailed": "Couldn't read that file. Try a PDF, DOCX, or text file.",
+      "uploadFailed": "Upload failed. Please try again."
+    },
+    "openInChat": "Open in chat",
+    "actions": {
+      "fitCheck": "Am I a fit?",
+      "nextMove": "Next move",
+      "whatsMissing": "What's missing?",
+      "nextWinMove": "My next win move"
+    }
   }
 }

@@ -67,3 +67,26 @@ describe("win-coach tools", () => {
     expect(def?.description.toLowerCase()).toContain("fit");
   });
 });
+
+/**
+ * offer_roadmap is a pure signal — the model's language-independent way of
+ * saying "this turn is about a plan" before anything is created. It replaces
+ * the app's English-only regex, so it must be registered, free of side effects,
+ * and callable with no arguments at all.
+ */
+describe("offer_roadmap signal tool", () => {
+  const service = makeService();
+
+  it("is registered", () => {
+    expect(service.getDefinitions().map((tool) => tool.name)).toContain(
+      "offer_roadmap",
+    );
+  });
+
+  it("succeeds with no arguments and touches nothing", async () => {
+    // Every collaborator is a `never` stub: if the tool called into one of
+    // them this would throw, so a clean result proves it has no side effects.
+    const out = await service.execute("offer_roadmap", "", ctx);
+    expect(JSON.parse(out)).toMatchObject({ ok: true });
+  });
+});

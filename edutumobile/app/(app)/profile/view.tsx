@@ -14,7 +14,6 @@ import {
     MapPin,
     GraduationCap,
     Edit3,
-    Sparkles,
     Target,
     CheckCircle2,
     Calendar,
@@ -318,7 +317,7 @@ export default function ProfileViewScreen() {
                         <ProfileStatCard
                             title={t('view.stats.matches')}
                             value={String(matchedOpportunities.length)}
-                            icon={Sparkles}
+                            icon={Target}
                             colors={['#2563eb', '#3b82f6']}
                             onPress={() => router.push('/opportunities')}
                         />

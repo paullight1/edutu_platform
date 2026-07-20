@@ -33,7 +33,7 @@ import {
     LogOut,
     Star,
     Share2,
-    Sparkles,
+    HelpCircle,
     Info,
     Clock,
     Wind,
@@ -691,7 +691,7 @@ export default function SettingsScreen() {
                     <SectionLabel color={sectionText}>{t('sections.support')}</SectionLabel>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
                         <SettingRow
-                            icon={<Sparkles size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
+                            icon={<HelpCircle size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
                             label={t('support.help')} desc={t('support.helpDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
                             onPress={() => router.push('/help')}

@@ -177,7 +177,8 @@
         "applied": "المقدم",
         "deadlines": "المواعيد",
         "wallet": "المحفظة",
-        "creator": "المنشئ"
+        "creator": "المنشئ",
+        "upgradeToPro": "الترقية إلى Pro"
     },
     "saved": {
         "title": "الفرص المحفوظة",

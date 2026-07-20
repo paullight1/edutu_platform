@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme, StatusBar } from 'react-native';
+import { useColorScheme } from 'react-native';
 
 export type ThemePackage =
   | 'default'
@@ -159,7 +159,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       fontSize, setFontSize, reducedMotion, setReducedMotion,
       highContrast, setHighContrast,
     }}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      {/* Status bar is driven by a single expo-status-bar controller in
+          app/_layout.tsx (keyed off isDark). A second react-native StatusBar
+          here competed with it and let the native default (white content,
+          forced by UIUserInterfaceStyle=Dark) leak through in light mode,
+          making the clock/indicators invisible on the light background. */}
       {children}
     </ThemeContext.Provider>
   );

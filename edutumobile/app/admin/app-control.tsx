@@ -82,6 +82,12 @@ function AppControlAdminContent() {
                     forceUpdate: { ...OPEN_APP_CONTROL.forceUpdate, ...(mobileApp?.forceUpdate ?? {}) },
                     maintenance: { ...OPEN_APP_CONTROL.maintenance, ...(mobileApp?.maintenance ?? {}) },
                     moduleLocks: mobileApp?.moduleLocks ?? {},
+                    // This screen doesn't edit the server-driven layout / custom
+                    // features / reveal flags (managed in the web admin). Keep
+                    // them empty here and preserve the stored values on save.
+                    featureFlags: {},
+                    homeLayout: [],
+                    customFeatures: [],
                 });
             } else {
                 Alert.alert('Error', 'Could not load app control settings. Check your connection and admin access.');
@@ -98,14 +104,22 @@ function AppControlAdminContent() {
             return;
         }
         setSaving(true);
+        // Preserve the server-driven layout / custom features / reveal flags
+        // exactly as stored — the client-side `control` holds only the flattened
+        // published view of those, which must never be written back over the
+        // full {draft, published, lastPublished} settings shape.
+        const storedMobileApp =
+            (fullSettings.mobileApp as Record<string, unknown> | undefined) ?? {};
         const payload = {
             ...fullSettings,
             mobileApp: {
-                ...control,
+                ...storedMobileApp,
                 forceUpdate: {
                     ...control.forceUpdate,
                     minVersion: control.forceUpdate.minVersion.trim(),
                 },
+                maintenance: control.maintenance,
+                moduleLocks: control.moduleLocks,
             },
         };
         const response = await requestProductApi<AdminSettingsPayload>(

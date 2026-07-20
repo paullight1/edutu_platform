@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Sparkles } from "lucide-react-native";
+import { Star } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
@@ -129,6 +129,7 @@ export default function FeaturedOpportunitiesScreen() {
                         textPrimary={textPrimary}
                         textSecondary={textSecondary}
                         accent={colors.accent || '#6366F1'}
+                        border={colors.border}
                         index={index}
                         bookmarked={bookmarkedIds.includes(item.id)}
                         onPress={handleOpen}
@@ -147,7 +148,7 @@ export default function FeaturedOpportunitiesScreen() {
                     ) : (
                         <View style={styles.emptyState}>
                             <View style={styles.emptyIcon}>
-                                <Sparkles size={32} color="#6366F1" />
+                                <Star size={32} color="#6366F1" fill="#6366F1" />
                             </View>
                             <Text style={[styles.emptyTitle, { color: textPrimary }]}>
                                 {t('featured.emptyTitle', { defaultValue: 'No featured opportunities yet' })}

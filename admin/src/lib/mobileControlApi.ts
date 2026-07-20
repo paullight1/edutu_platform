@@ -60,11 +60,71 @@ export interface MobileMaintenance {
 
 export type ModuleAccess = 'free' | 'pro' | 'disabled';
 
+// One admin-composed home block. `props` shape depends on `type` and is
+// validated on the mobile client, so the admin can add block types the backend
+// schema doesn't enumerate.
+export interface HomeBlock {
+  id: string;
+  type: string;
+  props: Record<string, unknown>;
+  enabled: boolean;
+}
+
+// Draft is admin-only staging; published is what the app renders; lastPublished
+// backs one-step rollback.
+export interface HomeLayout {
+  draft: HomeBlock[];
+  published: HomeBlock[];
+  lastPublished: HomeBlock[];
+}
+
+export type CustomFeatureOpenMode = 'webview' | 'external';
+export type CustomFeaturePlacement = 'home' | 'tools' | 'both';
+
+// An admin-defined web-backed feature that opens inside the app (or the system
+// browser) — lets the admin add a new feature without a store release.
+export interface CustomFeature {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  url: string;
+  openMode: CustomFeatureOpenMode;
+  placement: CustomFeaturePlacement;
+  enabled: boolean;
+}
+
+// The catalogue of block types the composer offers. Adding one here surfaces it
+// in the picker; the mobile renderer must know the type or it renders nothing.
+export const HOME_BLOCK_TYPES: Array<{
+  type: string;
+  label: string;
+  hint: string;
+  native?: boolean;
+}> = [
+  { type: 'announcement', label: 'Announcement', hint: 'Dismissible titled card with optional CTA.' },
+  { type: 'promo_banner', label: 'Promo banner', hint: 'Full-width image banner, optional link.' },
+  { type: 'info_card', label: 'Info card', hint: 'Static info card with optional link.' },
+  { type: 'curated_rail', label: 'Curated rail', hint: 'Horizontal rail of chosen opportunity IDs.' },
+  { type: 'web_feature', label: 'Web feature card', hint: 'Card that opens a custom feature.' },
+];
+
 export interface MobileAppSettings {
   forceUpdate: MobileForceUpdate;
   maintenance: MobileMaintenance;
   moduleLocks: Record<string, ModuleAccess>;
+  // Optional so a load from a backend that predates these keys still typechecks;
+  // the UI fills defaults on load.
+  featureFlags?: Record<string, boolean>;
+  homeLayout?: HomeLayout;
+  customFeatures?: CustomFeature[];
 }
+
+export const EMPTY_HOME_LAYOUT: HomeLayout = {
+  draft: [],
+  published: [],
+  lastPublished: [],
+};
 
 export interface BroadcastPayload {
   title: string;
@@ -120,6 +180,9 @@ export const DEFAULT_MOBILE_APP_SETTINGS: MobileAppSettings = {
     message: 'Edutu is briefly down for maintenance. Please check back shortly.',
   },
   moduleLocks: {},
+  featureFlags: {},
+  homeLayout: { draft: [], published: [], lastPublished: [] },
+  customFeatures: [],
 };
 
 type ResourceName = 'campaigns' | 'feature-flags' | 'widget-feeds';
@@ -177,7 +240,15 @@ export const appControlApi = {
     const response = await request<{ settings?: { mobileApp?: MobileAppSettings } }>(
       '/admin/settings',
     );
-    return response.settings?.mobileApp ?? DEFAULT_MOBILE_APP_SETTINGS;
+    const mobileApp = response.settings?.mobileApp ?? DEFAULT_MOBILE_APP_SETTINGS;
+    // Fill the server-driven keys so the composer always has state to edit,
+    // even when talking to a backend that predates them.
+    return {
+      ...mobileApp,
+      featureFlags: mobileApp.featureFlags ?? {},
+      homeLayout: mobileApp.homeLayout ?? { draft: [], published: [], lastPublished: [] },
+      customFeatures: mobileApp.customFeatures ?? [],
+    };
   },
   async saveMobileApp(mobileApp: MobileAppSettings): Promise<MobileAppSettings> {
     const response = await request<{ settings?: { mobileApp?: MobileAppSettings } }>(

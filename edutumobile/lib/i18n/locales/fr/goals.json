@@ -282,7 +282,13 @@
             "continueBrowsing": "Continuer à parcourir",
             "failedTitle": "Échec de l'inscription",
             "failed": "Échec de l'inscription",
-            "failedMessage": "Inscription impossible."
+            "failedMessage": "Inscription impossible.",
+            "offlineTitle": "Vous êtes hors ligne",
+            "offlineMessage": "Impossible de joindre Edutu. Vérifiez votre connexion et réessayez.",
+            "retry": "Réessayer",
+            "cancel": "Annuler",
+            "signInTitle": "Session expirée",
+            "signInMessage": "Veuillez vous reconnecter pour démarrer ce parcours."
         },
         "intent": {
             "title": "Aidez-nous à trouver votre parcours idéal",

@@ -8,12 +8,12 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { haptics } from '../../lib/haptics';
 import { useAuth } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
-import { Check, Lock, Sparkles } from 'lucide-react-native';
+import { Check, Lock } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import { OrbPreview } from '../ui/OrbPreview';
 import { speak as edutuSpeak, isPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import {
     ORB_DESIGNS,
@@ -29,101 +29,6 @@ interface VoiceSettingsSheetProps {
     onClose: () => void;
 }
 
-const PREVIEW = 64;
-
-/** Stylized previews — the live orb behind the sheet is the real preview. */
-function DesignPreview({ design }: { design: OrbDesign }) {
-    switch (design) {
-        case 'ring':
-            return <View style={[p.base, p.ring]} />;
-        case 'bubble':
-            return (
-                <LinearGradient
-                    colors={['#8B5CF6', '#6D28D9', '#3B82F6']}
-                    start={{ x: 0.1, y: 0.1 }}
-                    end={{ x: 0.9, y: 0.9 }}
-                    style={[p.base, p.round]}
-                >
-                    <Sparkles size={22} color="rgba(255,255,255,0.95)" />
-                </LinearGradient>
-            );
-        case 'crystal':
-            return (
-                <LinearGradient
-                    colors={['#E9D5FF', '#C7B9FF', '#93C5FD']}
-                    start={{ x: 0.1, y: 0.1 }}
-                    end={{ x: 0.9, y: 0.9 }}
-                    style={[p.base, p.round]}
-                >
-                    <Sparkles size={24} color="rgba(255,255,255,0.98)" />
-                </LinearGradient>
-            );
-        case 'glass':
-            return (
-                <LinearGradient
-                    colors={['#2A1743', '#581C87', '#9333EA']}
-                    start={{ x: 0.15, y: 0.1 }}
-                    end={{ x: 0.85, y: 0.95 }}
-                    style={[p.base, p.round, p.glass]}
-                >
-                    <View style={p.glassSwirl} />
-                    <View style={p.glassSheen} />
-                </LinearGradient>
-            );
-        case 'blob':
-            return (
-                <LinearGradient
-                    colors={['#EAF6FF', '#EDE4FF', '#F7C8E6']}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={[p.base, p.round, p.blobBody]}
-                >
-                    <View style={p.blobEyes}>
-                        <View style={p.blobEye} />
-                        <View style={p.blobEye} />
-                    </View>
-                </LinearGradient>
-            );
-        case 'petals': {
-            const dots = Array.from({ length: 7 });
-            return (
-                <View style={[p.base, p.petals]}>
-                    {dots.map((_, i) => {
-                        const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
-                        const r = PREVIEW * 0.30;
-                        return (
-                            <View
-                                key={i}
-                                style={[
-                                    p.petalDot,
-                                    {
-                                        backgroundColor: i < 3 ? '#EC4899' : i < 5 ? '#A855F7' : '#6D28D9',
-                                        transform: [
-                                            { translateX: Math.cos(a) * r },
-                                            { translateY: Math.sin(a) * r },
-                                            { rotate: `${a + Math.PI / 2}rad` },
-                                        ],
-                                    },
-                                ]}
-                            />
-                        );
-                    })}
-                </View>
-            );
-        }
-        case 'robot':
-            return (
-                <View style={[p.base, p.robot]}>
-                    <View style={p.visor}>
-                        <View style={p.eye} />
-                        <View style={p.eye} />
-                    </View>
-                </View>
-            );
-        default:
-            return <View style={[p.base, p.particles]} />;
-    }
-}
 
 export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps) {
     const { t } = useTranslation('chat');
@@ -195,7 +100,7 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
                                     accessibilityState={{ selected }}
                                     accessibilityLabel={designLabels[design]}
                                 >
-                                    <DesignPreview design={design} />
+                                    <OrbPreview design={design} size={76} />
                                     <Text style={[styles.designName, selected && styles.designNameSelected]} numberOfLines={1}>
                                         {designLabels[design]}
                                     </Text>
@@ -241,100 +146,6 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
     );
 }
 
-const p = StyleSheet.create({
-    base: {
-        width: PREVIEW,
-        height: PREVIEW,
-        borderRadius: PREVIEW / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    round: {
-        overflow: 'hidden',
-    },
-    particles: {
-        borderWidth: 2.5,
-        borderStyle: 'dotted',
-        borderColor: '#7DD3FC',
-    },
-    ring: {
-        borderWidth: 6,
-        borderColor: '#EC4899',
-        shadowColor: '#D946EF',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 10,
-    },
-    glass: {
-        borderWidth: 1,
-        borderColor: 'rgba(233,213,255,0.5)',
-    },
-    glassSwirl: {
-        position: 'absolute',
-        width: PREVIEW * 0.72,
-        height: PREVIEW * 0.72,
-        borderRadius: PREVIEW * 0.36,
-        borderWidth: 3,
-        borderColor: 'rgba(216,180,254,0.75)',
-        borderLeftColor: 'transparent',
-        transform: [{ rotate: '35deg' }],
-    },
-    glassSheen: {
-        position: 'absolute',
-        top: PREVIEW * 0.12,
-        left: PREVIEW * 0.18,
-        width: PREVIEW * 0.22,
-        height: PREVIEW * 0.10,
-        borderRadius: PREVIEW * 0.06,
-        backgroundColor: 'rgba(255,255,255,0.65)',
-        transform: [{ rotate: '-25deg' }],
-    },
-    blobBody: {
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-    },
-    blobEyes: {
-        flexDirection: 'row',
-        gap: PREVIEW * 0.18,
-        marginTop: -PREVIEW * 0.06,
-    },
-    blobEye: {
-        width: PREVIEW * 0.09,
-        height: PREVIEW * 0.14,
-        borderRadius: PREVIEW * 0.05,
-        backgroundColor: '#1E2A78',
-    },
-    petals: {
-        position: 'relative',
-    },
-    petalDot: {
-        position: 'absolute',
-        width: PREVIEW * 0.24,
-        height: PREVIEW * 0.16,
-        borderRadius: PREVIEW * 0.08,
-    },
-    robot: {
-        backgroundColor: '#F3F4F6',
-    },
-    visor: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        width: PREVIEW * 0.58,
-        height: PREVIEW * 0.30,
-        borderRadius: PREVIEW * 0.15,
-        backgroundColor: '#0B0B10',
-        borderWidth: 2,
-        borderColor: '#EC4899',
-    },
-    eye: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#FFFFFF',
-    },
-});
 
 const styles = StyleSheet.create({
     backdrop: {

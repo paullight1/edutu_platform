@@ -231,7 +231,12 @@
     "notInterestedTitle": "不感兴趣？",
     "notInterestedMessage": "我们会减少向你展示此类机会。",
     "notInterestedConfirm": "不感兴趣",
-    "percentMatch": "匹配度 {{percent}}%"
+    "percentMatch": "匹配度 {{percent}}%",
+    "shareLabel": "分享此机会",
+    "bookmarkAddLabel": "保存机会",
+    "bookmarkRemoveLabel": "从收藏中移除",
+    "moreOptionsLabel": "更多选项",
+    "moreOptionsHint": "将此机会标记为不感兴趣"
   },
   "creditPack": {
     "title": "购买积分",

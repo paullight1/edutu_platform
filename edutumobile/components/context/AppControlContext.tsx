@@ -10,12 +10,17 @@ import React, {
 import { AppState, type AppStateStatus } from 'react-native';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
 import {
+    getFeatureFlag,
     getModuleAccess,
     readCachedAppControl,
     writeCachedAppControl,
     type AppControlConfig,
     type ModuleAccess,
 } from '../../lib/appControl';
+import {
+    customFeaturesForPlacement,
+    type CustomFeature,
+} from '../../lib/homeBlocks';
 
 // Fetches the remote app-control config once at launch (hydrating instantly
 // from the last-known cached copy so gates apply offline), re-checks whenever
@@ -98,4 +103,19 @@ export function useAppControl(): AppControlContextValue {
 export function useModuleAccess(moduleKey: string): ModuleAccess {
     const { appControl } = useAppControl();
     return getModuleAccess(appControl, moduleKey);
+}
+
+/**
+ * Remote on/off state for a reveal flag. Pass the feature's built-in default as
+ * `fallback` so a config miss never hides an already-shipped feature.
+ */
+export function useFeatureFlag(key: string, fallback = false): boolean {
+    const { appControl } = useAppControl();
+    return getFeatureFlag(appControl, key, fallback);
+}
+
+/** Admin-defined web-backed features for a given surface ('home' | 'tools'). */
+export function useCustomFeatures(surface: 'home' | 'tools'): CustomFeature[] {
+    const { appControl } = useAppControl();
+    return customFeaturesForPlacement(appControl?.customFeatures, surface);
 }

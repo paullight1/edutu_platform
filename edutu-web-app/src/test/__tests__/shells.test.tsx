@@ -43,6 +43,18 @@ vi.mock("../../hooks/useNotifications", () => ({
   useNotifications: () => ({ unreadCount: 0 }),
 }));
 
+vi.mock("../../hooks/usePaywall", () => ({
+  usePaywall: () => ({
+    isPro: false,
+    billing: null,
+    billingLoading: false,
+    openPaywall: vi.fn(),
+    closePaywall: vi.fn(),
+    refreshBilling: vi.fn(),
+    handleUpgradeError: vi.fn().mockReturnValue(false),
+  }),
+}));
+
 beforeEach(() => {
   clerkMocks.isSignedIn = false;
   clerkMocks.user = null;

@@ -347,7 +347,8 @@
         "wallet": "Wallet",
         "creator": "Creator",
         "logOut": "Log out",
-        "signingOut": "Signing out..."
+        "signingOut": "Signing out...",
+        "upgradeToPro": "Upgrade to Pro"
     },
     "saved": {
         "title": "Saved Opportunities",

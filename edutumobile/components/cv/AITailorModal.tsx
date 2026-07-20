@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator, TextInput } from 'react-native';
-import { X, Sparkles, Target, Search } from 'lucide-react-native';
+import { X, Wand2, Target, Search } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../components/context/ThemeContext';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
@@ -46,7 +46,7 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
                     </TouchableOpacity>
 
                     <View style={styles.modalIcon}>
-                        <Sparkles size={48} color={colors.primary} />
+                        <Wand2 size={48} color={colors.primary} />
                     </View>
 
                     <Text style={[styles.modalTitle, { color: colors.foreground }]}>

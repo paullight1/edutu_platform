@@ -342,7 +342,13 @@
       "continueBrowsing": "متابعة التصفح",
       "failedTitle": "فشل التسجيل",
       "failed": "فشل التسجيل",
-      "failedMessage": "تعذّر التسجيل."
+      "failedMessage": "تعذّر التسجيل.",
+      "offlineTitle": "أنت غير متصل",
+      "offlineMessage": "تعذّر الوصول إلى Edutu. تحقق من اتصالك وحاول مرة أخرى.",
+      "retry": "إعادة المحاولة",
+      "cancel": "إلغاء",
+      "signInTitle": "انتهت الجلسة",
+      "signInMessage": "يرجى تسجيل الدخول مرة أخرى لبدء هذه الخارطة."
     },
     "intent": {
       "title": "ساعدنا في العثور على خارطة طريقك المثالية",

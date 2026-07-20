@@ -51,6 +51,12 @@ export interface ImageCard {
 export interface CoachToolContext {
   userId: string;
   supabase: SupabaseClient;
+  /**
+   * Id of the chat turn that invoked this tool. Stamped on the metadata of any
+   * LLM call a tool makes so every row of one turn can be joined in
+   * ai_usage_logs when diagnosing a bad answer.
+   */
+  turnId?: string;
   collectOpportunities(rows: Array<Record<string, any>>): void;
   collectDeviceActions(actions: DeviceAction[]): void;
   collectActionButtons(buttons: ActionButton[]): void;

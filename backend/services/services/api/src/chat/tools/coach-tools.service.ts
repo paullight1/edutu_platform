@@ -21,6 +21,7 @@ import {
   CoachToolContext,
   DocumentCard,
 } from "./coach-tool.types";
+import { wrapUntrusted } from "../../common/untrusted-text";
 
 const MAX_MEMORIES_PER_USER = 60;
 
@@ -73,6 +74,7 @@ export class CoachToolsService {
       this.getUpcomingDeadlines(),
       this.createGoals(),
       this.createRoadmap(),
+      this.offerRoadmap(),
       this.listDocuments(),
       this.draftCv(),
       this.draftSop(),
@@ -733,6 +735,39 @@ export class CoachToolsService {
     };
   }
 
+  /**
+   * Pure signal, no side effects: the model tells us the turn is about building
+   * an application plan BEFORE anything is created, so the app can offer its
+   * "Build roadmap" affordance.
+   *
+   * This exists because the alternative was the client (or the server) matching
+   * English keywords against the message, which silently hid the affordance in
+   * the app's 8 non-English locales. The model already understands every locale
+   * it answers in, so asking it to raise the flag is both cheaper and correct.
+   * It costs no credits and does nothing else.
+   */
+  private offerRoadmap(): CoachTool<{ opportunity_id?: string }> {
+    return {
+      name: "offer_roadmap",
+      description:
+        "Signal that a step-by-step application roadmap would help with what you are discussing, when you have NOT built one yet. Free and instant: it only makes the app show a 'Build roadmap' button under your reply. Call it (alongside your other tools, in any language the user writes in) whenever the user is planning, preparing or timing an application and a plan is the natural next step. Skip it only once create_roadmap has already SUCCEEDED this turn — the app already shows an 'Open my roadmap' button then, and re-offering to build one would risk a second, needless charge. If create_roadmap FAILED (e.g. insufficient credits), call this too so the user still gets a Build roadmap button to retry. Never mention this tool or the button.",
+      parameters: {
+        type: "object",
+        properties: {
+          opportunity_id: {
+            type: "string",
+            description: "The opportunity the plan would be for, if known",
+          },
+        },
+      },
+      schema: z.object({ opportunity_id: z.string().optional() }),
+      execute: async () => ({
+        ok: true,
+        note: "Noted. Keep answering the user normally — do not mention this tool or any button.",
+      }),
+    };
+  }
+
   // ─── Documents studio tools (P3) ─────────────────────────────────────────
 
   private documentToCard(document: {
@@ -1125,7 +1160,12 @@ export class CoachToolsService {
           return {
             source: "upload",
             file_name: upload.fileName,
-            text: upload.text.slice(0, 6000),
+            // Framed, not filtered: an uploaded CV is untrusted text reaching
+            // an agent that holds mutating, credit-spending tools.
+            text: wrapUntrusted(
+              "UNTRUSTED_DOCUMENT",
+              upload.text.slice(0, 6000),
+            ),
           };
         }
         const document = await this.documentsService.get(
@@ -1136,7 +1176,10 @@ export class CoachToolsService {
         return {
           source: "ai_document",
           title: document.title,
-          text: JSON.stringify(document.content).slice(0, 6000),
+          text: wrapUntrusted(
+            "UNTRUSTED_DOCUMENT",
+            JSON.stringify(document.content).slice(0, 6000),
+          ),
         };
       },
     };
@@ -1291,11 +1334,17 @@ export class CoachToolsService {
               `OPPORTUNITY: ${JSON.stringify(opportunity)}`,
               `USER PROFILE: ${profile ? JSON.stringify(profile) : "Unknown"}`,
               uploadText
-                ? `USER DOCUMENT (their real CV/essay):\n${uploadText}`
+                ? `USER DOCUMENT (their real CV/essay):\n${wrapUntrusted(
+                    "UNTRUSTED_DOCUMENT",
+                    uploadText,
+                  )}`
                 : "USER DOCUMENT: none provided.",
               'Return JSON: {"verdict":"one-line honest summary","strengths":["..."],"gaps":["..."],"nextActions":["concrete step",...]} — at most 4 items per list.',
             ].join("\n\n"),
-            metadata: { source: "analyze-fit" },
+            metadata: {
+              source: "analyze-fit",
+              ...(ctx.turnId ? { turnId: ctx.turnId } : {}),
+            },
           });
 
           return {

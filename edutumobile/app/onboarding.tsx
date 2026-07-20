@@ -33,7 +33,7 @@ import {
     ArrowRight,
     ChevronDown,
     Search,
-    Sparkles,
+    Rocket,
     Check,
     X,
     User,
@@ -89,7 +89,7 @@ const STEPS = [
     { id: 'profile', title: 'onboarding.steps.profile', icon: User },
     { id: 'education', title: 'onboarding.steps.education', icon: Building },
     { id: 'interests', title: 'onboarding.steps.interests', icon: Target },
-    { id: 'welcome', title: 'onboarding.steps.welcome', icon: Sparkles },
+    { id: 'welcome', title: 'onboarding.steps.welcome', icon: Rocket },
 ]
 
 type FormData = {
@@ -572,7 +572,7 @@ function WelcomeStep({ formData }: { formData: FormData }) {
     const recapTags = [...formData.selectedInterests, ...ambitionLabels]
 
     const features = [
-        { icon: Sparkles, tint: styles._accent.color, text: t('onboarding.welcome.featureMatches') },
+        { icon: Target, tint: styles._accent.color, text: t('onboarding.welcome.featureMatches') },
         { icon: Award, tint: styles._success.color, text: t('onboarding.welcome.featurePrograms') },
         { icon: Target, tint: styles._info.color, text: t('onboarding.welcome.featureCareer') },
     ]
@@ -585,7 +585,7 @@ function WelcomeStep({ formData }: { formData: FormData }) {
                         colors={[styles._accentSoft.color, 'transparent']}
                         style={StyleSheet.absoluteFill}
                     />
-                    <Sparkles color={styles._accent.color} size={44} />
+                    <Rocket color={styles._accent.color} size={44} />
                 </View>
                 <Text style={styles.welcomeTitle}>
                     {hasProfile ? t('onboarding.welcome.titleNamed', { name: formData.fullName.trim().split(' ')[0] }) : t('onboarding.welcome.title')}
@@ -947,7 +947,7 @@ export default function OnboardingScreen() {
                                                 {isLastStep ? t('onboarding.getStarted') : t('common:actions.continue')}
                                             </Text>
                                             {isLastStep ? (
-                                                <Sparkles color="#FFFFFF" size={20} />
+                                                <Rocket color="#FFFFFF" size={20} />
                                             ) : (
                                                 <ArrowRight color="#FFFFFF" size={20} />
                                             )}

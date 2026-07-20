@@ -28,7 +28,6 @@ import {
     Calendar,
     TrendingUp,
     Zap,
-    Sparkles,
     ChevronRight,
     Star,
     Trophy,
@@ -172,7 +171,7 @@ export default function MyListScreen() {
                                 </Text>
                             </View>
                             <View style={styles.heroIconContainer}>
-                                <Sparkles size={24} color="#FFFFFF" />
+                                <Target size={24} color="#FFFFFF" />
                             </View>
                         </View>
                     </LinearGradient>

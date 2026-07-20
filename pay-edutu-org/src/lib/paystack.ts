@@ -11,6 +11,9 @@ export interface InitTransactionInput {
   callbackUrl: string;
   metadata: Record<string, unknown>;
   planCode?: string;
+  /** Paystack channels to offer. Omit to let Paystack pick every channel valid
+   *  for the currency (NGN → card/transfer/ussd, GHS/KES → card/mobile_money). */
+  channels?: string[];
 }
 
 export interface InitTransactionResult {
@@ -32,6 +35,10 @@ export async function initTransaction(input: InitTransactionInput): Promise<Init
   // Passing a plan turns this into a recurring subscription (Paystack ignores
   // `amount` and uses the plan's amount). Omit for one-time charges.
   if (input.planCode) body.plan = input.planCode;
+  // Explicitly surface mobile money / bank transfer / USSD alongside cards —
+  // most of our GH/NG users don't pay by card. Paystack silently drops any
+  // channel not valid for the transaction currency.
+  if (input.channels && input.channels.length) body.channels = input.channels;
 
   const res = await fetch(`${PAYSTACK_API}/transaction/initialize`, {
     method: 'POST',

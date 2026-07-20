@@ -119,6 +119,7 @@ async function bootstrap() {
       "X-Edutu-Quota-Remaining",
       "X-Edutu-Quota-Reset",
       "X-Edutu-Credits-Remaining",
+      "X-Edutu-Ai-Remaining",
       "X-RateLimit-Limit",
       "X-RateLimit-Remaining",
       "X-RateLimit-Reset",

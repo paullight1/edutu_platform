@@ -8,8 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Sparkles, X } from 'lucide-react-native';
+import { Crown, MessageSquare, RefreshCw, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
+import { withAlpha } from '../ui/BottomScrim';
+import { AiOrbBadge } from '../ui/AiOrbBadge';
 import { haptics } from '../../lib/haptics';
 import type { WinCoachIntent } from '@edutu/core/src/services/chat';
 
@@ -20,10 +23,39 @@ export type AiAction = {
   message: string;
 };
 
+/**
+ * A win-coach reply plus the conversation it landed in, so the sheet can offer
+ * a way back to it instead of the advice evaporating when the sheet closes.
+ */
+export type AiActionResult = {
+  text: string;
+  threadId: string | null;
+};
+
+/**
+ * Failure kind carried structurally rather than sniffed out of a (translated)
+ * message — the UI has to pick between "Retry" and "Upgrade" in 9 languages.
+ */
+export type AiActionErrorKind = 'billing' | 'generic';
+
+export class AiActionError extends Error {
+  readonly kind: AiActionErrorKind;
+
+  constructor(message: string, kind: AiActionErrorKind = 'generic') {
+    super(message);
+    this.name = 'AiActionError';
+    this.kind = kind;
+  }
+}
+
 type AiActionBarProps = {
   actions: AiAction[];
-  /** Runs the action and resolves the assistant's reply text. */
-  onRun: (action: AiAction) => Promise<string>;
+  /** Runs the action and resolves the assistant's reply + its thread. */
+  onRun: (action: AiAction) => Promise<AiActionResult>;
+  /** Opens the conversation the reply lives in. Omit to hide the affordance. */
+  onOpenInChat?: (threadId: string) => void;
+  /** Sends the user to the paywall when the failure is a billing limit. */
+  onUpgrade?: () => void;
 };
 
 /**
@@ -32,30 +64,52 @@ type AiActionBarProps = {
  * lightweight sheet — presentational, so screens supply onRun (wired to the
  * chat service with their context).
  */
-export function AiActionBar({ actions, onRun }: AiActionBarProps) {
+export function AiActionBar({
+  actions,
+  onRun,
+  onOpenInChat,
+  onUpgrade,
+}: AiActionBarProps) {
+  const { t } = useTranslation('chat');
   const { colors } = useTheme();
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    kind: AiActionErrorKind;
+  } | null>(null);
+  const [lastAction, setLastAction] = useState<AiAction | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const handlePress = async (action: AiAction) => {
     if (running) return;
     haptics.light();
     setRunning(action.intent);
+    setLastAction(action);
     setError(null);
     setResult(null);
+    // Clear the previous run's thread too. `useAiAction` reuses one thread for
+    // the whole session, so in practice every successful run reports the same
+    // id back and this rarely changes anything — but clearing it here means
+    // the "Open in chat" affordance can never point at a stale thread from an
+    // earlier run if a future caller supplies a per-action thread (or a run
+    // simply fails before a threadId comes back).
+    setThreadId(null);
     setSheetOpen(true);
     try {
       const reply = await onRun(action);
-      setResult(reply);
+      setResult(reply.text);
+      if (reply.threadId) setThreadId(reply.threadId);
       haptics.success();
     } catch (err) {
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'Something went wrong. Please try again.',
-      );
+      setError({
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : t('common:errors.generic'),
+        kind: err instanceof AiActionError ? err.kind : 'generic',
+      });
       haptics.error();
     } finally {
       setRunning(null);
@@ -76,8 +130,11 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
             style={({ pressed }) => [
               styles.pill,
               {
-                backgroundColor: colors.accentLight,
-                borderColor: colors.border,
+                // A soft tint of the accent — not `accentLight`, which is a
+                // fully-saturated indigo in the light palette and rendered
+                // primary-on-primary text invisible.
+                backgroundColor: withAlpha(colors.primary, 0.1),
+                borderColor: withAlpha(colors.primary, 0.22),
                 opacity: pressed || (running && !isRunning) ? 0.6 : 1,
               },
             ]}
@@ -85,7 +142,7 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
             {isRunning ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Sparkles size={15} color={colors.primary} />
+              <AiOrbBadge size={18} />
             )}
             <Text style={[styles.pillLabel, { color: colors.primary }]} numberOfLines={1}>
               {action.label}
@@ -104,14 +161,14 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
           <View style={[styles.sheet, { backgroundColor: colors.card }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetTitleWrap}>
-                <Sparkles size={16} color={colors.primary} />
+                <AiOrbBadge size={20} />
                 <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
-                  Edutu Coach
+                  {t('winCoach.sheetTitle')}
                 </Text>
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Close"
+                accessibilityLabel={t('common:actions.close')}
                 onPress={() => setSheetOpen(false)}
                 hitSlop={10}
               >
@@ -123,15 +180,101 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
                 <View style={styles.centered}>
                   <ActivityIndicator color={colors.primary} />
                   <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-                    Thinking through this for you…
+                    {t('winCoach.thinking')}
                   </Text>
                 </View>
               ) : error ? (
-                <Text style={[styles.body, { color: colors.error }]}>{error}</Text>
+                <View style={styles.stateBlock}>
+                  <Text style={[styles.body, { color: colors.error }]}>
+                    {error.message}
+                  </Text>
+                  <View style={styles.sheetActions}>
+                    {error.kind === 'billing' && onUpgrade ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('limit.upgradeCta')}
+                        onPress={() => {
+                          setSheetOpen(false);
+                          onUpgrade();
+                        }}
+                        style={({ pressed }) => [
+                          styles.sheetAction,
+                          {
+                            backgroundColor: colors.primary,
+                            opacity: pressed ? 0.8 : 1,
+                          },
+                        ]}
+                      >
+                        <Crown size={14} color={colors.card} />
+                        <Text
+                          style={[styles.sheetActionText, { color: colors.card }]}
+                        >
+                          {t('limit.upgradeCta')}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('limit.retryCta')}
+                      onPress={() => {
+                        if (lastAction) void handlePress(lastAction);
+                      }}
+                      style={({ pressed }) => [
+                        styles.sheetAction,
+                        {
+                          backgroundColor: withAlpha(colors.primary, 0.1),
+                          borderColor: withAlpha(colors.primary, 0.22),
+                          borderWidth: StyleSheet.hairlineWidth,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <RefreshCw size={14} color={colors.primary} />
+                      <Text
+                        style={[styles.sheetActionText, { color: colors.primary }]}
+                      >
+                        {t('limit.retryCta')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
               ) : (
-                <Text style={[styles.body, { color: colors.foreground }]}>
-                  {result}
-                </Text>
+                <View style={styles.stateBlock}>
+                  <Text style={[styles.body, { color: colors.foreground }]}>
+                    {result}
+                  </Text>
+                  {threadId && onOpenInChat ? (
+                    <View style={styles.sheetActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('winCoach.openInChat')}
+                        onPress={() => {
+                          setSheetOpen(false);
+                          onOpenInChat(threadId);
+                        }}
+                        style={({ pressed }) => [
+                          styles.sheetAction,
+                          {
+                            backgroundColor: withAlpha(colors.primary, 0.1),
+                            borderColor: withAlpha(colors.primary, 0.22),
+                            borderWidth: StyleSheet.hairlineWidth,
+                            opacity: pressed ? 0.8 : 1,
+                          },
+                        ]}
+                      >
+                        <MessageSquare size={14} color={colors.primary} />
+                        <Text
+                          style={[
+                            styles.sheetActionText,
+                            { color: colors.primary },
+                          ]}
+                        >
+                          {t('winCoach.openInChat')}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
               )}
             </ScrollView>
           </View>
@@ -205,5 +348,25 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  stateBlock: {
+    gap: 16,
+  },
+  sheetActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sheetAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+  },
+  sheetActionText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

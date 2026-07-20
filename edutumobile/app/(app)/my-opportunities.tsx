@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Bookmark, Clock, Trash2, ExternalLink, Sparkles, Target, AlertCircle, Briefcase, Calendar } from "lucide-react-native";
+import { Bookmark, Clock, Trash2, ExternalLink, Inbox, Target, AlertCircle, Briefcase, Calendar } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { supabase } from "../../lib/supabase";
 import { fetchSavedOpportunities, unsaveOpportunity } from "../../packages/core/src/services/bookmarks";
@@ -239,7 +239,7 @@ export default function MyOpportunitiesScreen() {
                                     </View>
                                     <View style={styles.summaryDivider} />
                                     <View style={styles.summaryItem}>
-                                        <Sparkles size={20} color="#FFFFFF" />
+                                        <Target size={20} color="#FFFFFF" />
                                         <Text style={styles.summaryValue}>
                                             {myOpps.reduce((sum, o) => sum + o.match, 0) / (myOpps.length || 1) | 0}%
                                         </Text>
@@ -252,7 +252,7 @@ export default function MyOpportunitiesScreen() {
                         {/* Opportunities List */}
                         {filteredOpps.length === 0 ? (
                             <View style={styles.emptyFilterState}>
-                                <Sparkles size={32} color={isDark ? '#64748B' : '#94A3B8'} />
+                                <Inbox size={32} color={isDark ? '#64748B' : '#94A3B8'} />
                                 <Text style={[styles.emptyFilterText, { color: colors.foreground }]}>{t(`filters.none.${filter}`)}</Text>
                             </View>
                         ) : (
@@ -281,7 +281,7 @@ export default function MyOpportunitiesScreen() {
                                                         <Text style={[styles.oppTitle, { color: colors.foreground }]} numberOfLines={2}>{opp.title}</Text>
                                                         {opp.match > 0 && (
                                                             <View style={styles.matchBadge}>
-                                                                <Sparkles size={10} color="#FFFFFF" />
+                                                                <Target size={10} color="#FFFFFF" />
                                                                 <Text style={styles.matchText}>{opp.match}%</Text>
                                                             </View>
                                                         )}

@@ -231,7 +231,12 @@
     "notInterestedTitle": "रुचि नहीं है?",
     "notInterestedMessage": "हम आपको इस जैसे अवसर कम दिखाएँगे।",
     "notInterestedConfirm": "रुचि नहीं है",
-    "percentMatch": "{{percent}}% मैच"
+    "percentMatch": "{{percent}}% मैच",
+    "shareLabel": "इस अवसर को साझा करें",
+    "bookmarkAddLabel": "अवसर सहेजें",
+    "bookmarkRemoveLabel": "सहेजे गए से हटाएं",
+    "moreOptionsLabel": "अधिक विकल्प",
+    "moreOptionsHint": "इस अवसर को 'रुचि नहीं' के रूप में चिह्नित करें"
   },
   "creditPack": {
     "title": "क्रेडिट खरीदें",

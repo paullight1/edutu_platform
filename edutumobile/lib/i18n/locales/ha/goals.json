@@ -282,7 +282,13 @@
       "continueBrowsing": "Ci gaba da Bincike",
       "failedTitle": "Shiga Ya Kasa",
       "failed": "Shiga ya kasa",
-      "failedMessage": "Ba a iya shiga ba."
+      "failedMessage": "Ba a iya shiga ba.",
+      "offlineTitle": "Baka kan layi ba",
+      "offlineMessage": "Ba mu iya isa Edutu ba. Duba haɗin ka sannan ka sake gwadawa.",
+      "retry": "Sake gwadawa",
+      "cancel": "Soke",
+      "signInTitle": "Zaman ya ƙare",
+      "signInMessage": "Da fatan za a sake shiga don fara wannan taswira."
     },
     "intent": {
       "title": "Taimaka Mana Mu Samo Maka Cikakkiyar Taswirar Hanya",

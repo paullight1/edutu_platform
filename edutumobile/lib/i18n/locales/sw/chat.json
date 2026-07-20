@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "Kocha wa AI"
+    "title": "Kocha wa AI",
+    "historyButtonLabel": "Historia ya mazungumzo"
   },
   "loading": {
     "conversation": "Inapakia mazungumzo..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "Mbali (Remote)"
   },
-  "answers": {
-    "checkingOpportunities": "Ninakuangalilia fursa za Edutu.",
-    "matchesFound": "Nimepata fursa {{count}} zinazokufaa kutoka Edutu.\nTelezesha kadi au bana utafutaji.",
-    "roadmapChecking": "Ninaangalia fursa zako.\nKisha nitaunda ramani ya njia.",
-    "roadmapMatchFound": "Nimepata fursa inayoweza kufaa.\nGusa Unda ili kutengeneza malengo na vikumbusho.",
-    "roadmapWhichOpportunity": "Hii ni kwa fursa ipi?\nTuma jina au vinjari Fursa."
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "Tafuta ufadhili wa masomo",
-      "subtitle": "Unaopatikana mwezi huu"
+      "subtitle": "Unaopatikana mwezi huu",
+      "message": "Tafuta ufadhili wa masomo ninaoweza kuomba mwezi huu"
     },
     "mastercard": {
       "title": "Fursa za Mastercard",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "Unda ramani ya njia",
-      "subtitle": "Panga ombi langu lijalo"
+      "subtitle": "Panga ombi langu lijalo",
+      "message": "Unda ramani ya njia kwa ombi langu lijalo"
     },
     "internships": {
       "title": "Tarehe za mwisho za mafunzo kazini",
@@ -73,20 +69,25 @@
     "narrowBy": "Bana kwa:",
     "view": "Tazama",
     "categoryFallback": "Fursa",
-    "typing": "Edutu inaangalia fursa"
+    "typing": "Edutu anafikiri…",
+    "aiThinkingAnnouncement": "Edutu anafikiri",
+    "aiRepliedAnnouncement": "Edutu amejibu",
+    "stoppedNotice": "Ulisimamisha jibu hili — huenda halijakamilika.",
+    "stoppedEarlyNotice": "Ulisimamisha kabla Edutu hajajibu.",
+    "interruptedNotice": "Muunganisho ulikatika, kwa hivyo jibu hili halijakamilika. Uliza tena upate jibu kamili.",
+    "truncatedNotice": "Jibu hili ni sehemu tu — Edutu hakuwa na nafasi ya kulimaliza."
   },
   "followUp": {
     "country": "Nchi",
     "deadline": "Tarehe ya mwisho",
-    "funding": "Ufadhili"
+    "funding": "Ufadhili",
+    "narrowByCountry": "Chuja hizi kwa nchi",
+    "narrowByDeadline": "Chuja hizi kwa tarehe ya mwisho",
+    "narrowByFunding": "Chuja hizi kwa ufadhili"
   },
   "roadmapPanel": {
     "title": "Unda ramani ya njia",
     "subtitle": "Malengo, tarehe za mwisho, vikumbusho",
-    "searching": "Inatafuta fursa...",
-    "matchMeta": "{{category}} · mwisho {{deadline}}",
-    "daysLeft": "Zimebaki siku {{count}}",
-    "dailySteps": "Hatua {{count}} za kila siku",
     "build": "Unda"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "Andikia Edutu...",
-    "send": "Tuma"
+    "send": "Tuma",
+    "stopLabel": "Simamisha kuandika",
+    "sending": "Inatuma…"
   },
   "threads": {
     "modalTitle": "Mazungumzo",
@@ -106,7 +109,9 @@
       "yesterday": "Jana",
       "thisWeek": "Wiki Hii",
       "older": "Ya Zamani"
-    }
+    },
+    "itemA11yLabel": "Mazungumzo: {{title}}, {{date}}",
+    "closeButtonLabel": "Funga historia ya mazungumzo"
   },
   "voice": {
     "titleTranscript": "Ujumbe wa Sauti",
@@ -158,5 +163,43 @@
     "voiceNigerian": "Kiingereza cha Nigeria",
     "voiceAll": "Sauti zaidi",
     "voiceHint": "Kwa sauti safi na za asili zaidi, pakua sauti zilizoboreshwa kwenye mipangilio ya simu — iOS: Mipangilio → Ufikivu → Maudhui Yanayosemwa → Sauti; Android: sakinisha sauti za Google Text-to-Speech."
+  },
+  "winCoach": {
+    "sheetTitle": "Kocha wa Edutu",
+    "thinking": "Ninalifikiria hili kwa ajili yako…",
+    "signInRequired": "Ingia ili kutumia Kocha wa Edutu.",
+    "noReplyFallback": "Sikuweza kutengeneza jibu kwa sasa — tafadhali jaribu tena.",
+    "billingLimitReached": "Hii inatumia mikopo ya AI na imeisha. Boresha kuwa Edutu Pro au ongeza salio ili kuendelea.",
+    "documentUpload": {
+      "defaultLabel": "Pakia hati",
+      "cvLabel": "Pakia CV yako upate tathmini sahihi zaidi",
+      "uploading": "Inapakia…",
+      "processing": "Inachakatwa…",
+      "ready": "{{name}} — tayari",
+      "readFailed": "Imeshindwa kusoma faili hilo. Jaribu faili la PDF, DOCX, au maandishi.",
+      "uploadFailed": "Kupakia kumeshindikana. Tafadhali jaribu tena."
+    },
+    "openInChat": "Fungua kwenye gumzo",
+    "actions": {
+      "fitCheck": "Je, ninafaa?",
+      "nextMove": "Hatua inayofuata",
+      "whatsMissing": "Ninakosa nini?",
+      "nextWinMove": "Hatua yangu ijayo ya ushindi"
+    }
+  },
+  "limit": {
+    "title": "Umefikia kikomo chako cha AI",
+    "body": "Umetumia ujumbe wako wa bure wa AI wa Edutu kwa sasa. Boresha hadi Pro upate ukocha usio na kikomo, ramani za njia, na mapendekezo yaliyokulenga.",
+    "upgradeCta": "Boresha hadi Pro",
+    "errorTitle": "Ujumbe haukutumwa",
+    "errorBody": "Muunganisho ulikatizwa. Gusa jaribu tena ili kuutuma tena.",
+    "retryCta": "Jaribu tena",
+    "dismissCta": "Sio sasa",
+    "savedTitle": "Ujumbe wako umehifadhiwa",
+    "savedBody": "Tumehifadhi ulichoandika: “{{message}}”. Tuma wakati wowote ukiwa tayari.",
+    "resendCta": "Tuma sasa"
+  },
+  "actions": {
+    "createRoadmapPrompt": "Ndiyo, niundie ramani hiyo ya njia."
   }
 }

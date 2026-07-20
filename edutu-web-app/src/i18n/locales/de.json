@@ -177,7 +177,8 @@
         "applied": "Beworben",
         "deadlines": "Fristen",
         "wallet": "Wallet",
-        "creator": "Ersteller"
+        "creator": "Ersteller",
+        "upgradeToPro": "Auf Pro upgraden"
     },
     "saved": {
         "title": "Gespeicherte Möglichkeiten",

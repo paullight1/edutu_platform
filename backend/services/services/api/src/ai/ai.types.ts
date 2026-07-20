@@ -114,6 +114,25 @@ export interface AiChatResult {
   };
 }
 
+export interface AiChatStreamOptions extends AiChatOptions {
+  /**
+   * Invoked with each content delta as it arrives. Every agent round streams,
+   * including tools-enabled ones: the model's `tool_calls` deltas are
+   * reassembled separately and never reach this sink, so a delta is always
+   * user-facing prose. A round that decides to call tools typically emits none.
+   */
+  onToken: (delta: string) => void;
+}
+
+export interface AiChatStreamResult extends AiChatResult {
+  /**
+   * True when the stream ended before the provider signalled completion
+   * (`[DONE]` / a finish_reason). `text` still holds everything that was
+   * received and already handed to `onToken`.
+   */
+  truncated?: boolean;
+}
+
 export interface AiEmbedOptions {
   feature: AiFeature;
   /** One text or a batch; result order matches input order. */
@@ -157,4 +176,13 @@ export interface AiProviderAdapter {
     config: AiRouteConfig,
     options: AiChatOptions,
   ): Promise<AiChatResult>;
+  /**
+   * Optional: token-streaming variant of generateChat for the final answer.
+   * AiService.generateChatStream() falls back to the buffered generateChat when
+   * the routed adapter lacks this (or when the stream fails to establish).
+   */
+  generateChatStream?(
+    config: AiRouteConfig,
+    options: AiChatStreamOptions,
+  ): Promise<AiChatStreamResult>;
 }

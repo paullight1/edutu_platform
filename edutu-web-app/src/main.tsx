@@ -15,6 +15,7 @@ import { SkipLink } from './lib/accessibility';
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './hooks/useAuth';
+import { PaywallProvider } from './hooks/usePaywall';
 import { PersonalizationProvider } from './hooks/usePersonalization';
 import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
@@ -68,15 +69,17 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
-                  <PersonalizationProvider>
-                    <AnalyticsProvider>
-                      <NotificationsProvider>
-                        <GoalsProvider>
-                          <App />
-                        </GoalsProvider>
-                      </NotificationsProvider>
-                    </AnalyticsProvider>
-                  </PersonalizationProvider>
+                  <PaywallProvider>
+                    <PersonalizationProvider>
+                      <AnalyticsProvider>
+                        <NotificationsProvider>
+                          <GoalsProvider>
+                            <App />
+                          </GoalsProvider>
+                        </NotificationsProvider>
+                      </AnalyticsProvider>
+                    </PersonalizationProvider>
+                  </PaywallProvider>
                 </AuthProvider>
               </ThemeProvider>
             </ToastProvider>

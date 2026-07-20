@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowRight, BriefcaseBusiness, Check, GraduationCap, Landmark, Plane, Sparkles, type LucideIcon } from 'lucide-react-native';
+import { ArrowRight, BriefcaseBusiness, Check, GraduationCap, Landmark, Plane, Rocket, type LucideIcon } from 'lucide-react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -176,7 +176,7 @@ export default function OnboardingWelcome() {
         <OrbitalHero />
 
         <View style={styles.copy}>
-          <Text style={[styles.title, { color: primaryTextColor }]}>{t('welcome.title')}</Text>
+          <Text style={[styles.title, { color: primaryTextColor, fontWeight: isDark ? '800' : '700' }]}>{t('welcome.title')}</Text>
           <Text style={[styles.helperLine, { color: mutedTextColor }]}>
             {t('welcome.subtitle')}
           </Text>
@@ -225,7 +225,7 @@ export default function OnboardingWelcome() {
                 end={{ x: 1, y: 1 }}
                 style={styles.sheetIcon}
               >
-                <Sparkles color="#FFFFFF" size={32} fill="#FFFFFF" />
+                <Rocket color="#FFFFFF" size={32} fill="#FFFFFF" />
               </LinearGradient>
             </View>
 

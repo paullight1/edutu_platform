@@ -13,6 +13,7 @@ import {
   X,
   Check,
   CalendarPlus,
+  Lock,
 } from "lucide-react";
 import {
   fetchRoadmaps,
@@ -21,6 +22,8 @@ import {
 } from "../services/roadmapApi";
 import { downloadRoadmapCalendar } from "../lib/calendarDownload";
 import { useGoals } from "../hooks/useGoals";
+import { usePaywall } from "../hooks/usePaywall";
+import { useProFeature } from "./ProGate";
 import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import Button from "./ui/Button";
@@ -54,6 +57,8 @@ export default function RoadmapsPage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
   const { refreshGoals } = useGoals();
+  const { handleUpgradeError } = usePaywall();
+  const calendarExport = useProFeature("roadmap calendar export");
 
   const [roadmaps, setRoadmaps] = useState<BackendRoadmap[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +128,10 @@ export default function RoadmapsPage() {
           console.warn("Could not refresh goals after adopt", refreshError);
         });
       } catch (enrollError) {
+        // A metered-limit / 402 (UpgradeRequiredError) opens the paywall
+        // instead of surfacing a generic alert. Non-upgrade errors fall
+        // through to the existing alert unchanged.
+        if (handleUpgradeError(enrollError)) return;
         console.error("Failed to enroll in roadmap", enrollError);
         window.alert(
           enrollError instanceof Error
@@ -133,11 +142,13 @@ export default function RoadmapsPage() {
         setEnrollingId(null);
       }
     },
-    [getToken, refreshGoals],
+    [getToken, refreshGoals, handleUpgradeError],
   );
 
   const addToCalendar = useCallback(
     async (enrollmentId: string) => {
+      // Calendar export is a Pro feature — non-Pro users get the paywall.
+      if (!calendarExport.requirePro()) return;
       setAddingCalendar(true);
       try {
         const token = await getToken().catch(() => null);
@@ -149,7 +160,7 @@ export default function RoadmapsPage() {
         setAddingCalendar(false);
       }
     },
-    [getToken],
+    [getToken, calendarExport],
   );
 
   return (
@@ -280,6 +291,7 @@ export default function RoadmapsPage() {
           enrolling={enrollingId === selected.id}
           adoption={adoptions[selected.id]}
           addingCalendar={addingCalendar}
+          calendarLocked={calendarExport.locked}
           onEnroll={() => void enroll(selected)}
           onAddCalendar={(enrollmentId) => void addToCalendar(enrollmentId)}
           onViewGoals={() => navigate("/goals")}
@@ -379,6 +391,7 @@ function RoadmapDetailModal({
   enrolling,
   adoption,
   addingCalendar,
+  calendarLocked,
   onEnroll,
   onAddCalendar,
   onViewGoals,
@@ -388,6 +401,7 @@ function RoadmapDetailModal({
   enrolling: boolean;
   adoption?: AdoptionInfo;
   addingCalendar: boolean;
+  calendarLocked: boolean;
   onEnroll: () => void;
   onAddCalendar: (enrollmentId: string) => void;
   onViewGoals: () => void;
@@ -513,10 +527,17 @@ function RoadmapDetailModal({
                 >
                   {addingCalendar ? (
                     <Loader2 size={15} className="animate-spin" />
+                  ) : calendarLocked ? (
+                    <Lock size={15} />
                   ) : (
                     <CalendarPlus size={15} />
                   )}
                   Add to calendar
+                  {calendarLocked ? (
+                    <span className="ml-1 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                      Pro
+                    </span>
+                  ) : null}
                 </Button>
                 <Button size="sm" onClick={onViewGoals}>
                   View goals

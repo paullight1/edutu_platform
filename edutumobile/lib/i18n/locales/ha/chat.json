@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "Kocin AI"
+    "title": "Kocin AI",
+    "historyButtonLabel": "Tarihin hirarraki"
   },
   "loading": {
     "conversation": "Ana loda hira..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "Daga nesa"
   },
-  "answers": {
-    "checkingOpportunities": "Ina duba damammakin Edutu dominka.",
-    "matchesFound": "Na samo damammaki {{count}} da suka dace daga Edutu.\nZame katunan ko taƙaita binciken.",
-    "roadmapChecking": "Ina duba damammakinka.\nSai kuma in gina taswirar hanya.",
-    "roadmapMatchFound": "Na samo wata dama mai yiwuwar dacewa.\nDanna Gina don ƙirƙirar manufofi da tunatarwa.",
-    "roadmapWhichOpportunity": "Wace dama ce wannan?\nAiko da sunan ko ka binciko Damammaki."
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "Nemo tallafin karatu",
-      "subtitle": "Masu samuwa wannan watan"
+      "subtitle": "Masu samuwa wannan watan",
+      "message": "Nemo tallafin karatu da zan iya nema wannan watan"
     },
     "mastercard": {
       "title": "Damammakin Mastercard",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "Gina taswirar hanya",
-      "subtitle": "Shirya buƙatata ta gaba"
+      "subtitle": "Shirya buƙatata ta gaba",
+      "message": "Gina taswirar hanya don buƙatata ta gaba"
     },
     "internships": {
       "title": "Wa'adodin horon aiki",
@@ -73,20 +69,25 @@
     "narrowBy": "Taƙaita da:",
     "view": "Duba",
     "categoryFallback": "Dama",
-    "typing": "Edutu yana duba damammaki"
+    "typing": "Edutu yana tunani…",
+    "aiThinkingAnnouncement": "Edutu yana tunani",
+    "aiRepliedAnnouncement": "Edutu ya amsa",
+    "stoppedNotice": "Ka tsayar da wannan amsa — mai yiwuwa ba ta cika ba.",
+    "stoppedEarlyNotice": "Ka tsayar da wannan kafin Edutu ya amsa.",
+    "interruptedNotice": "Haɗin ya yanke, don haka wannan amsa ba ta cika ba. Sake tambaya don samun cikakkiyar amsa.",
+    "truncatedNotice": "Wannan amsa ba ta cika ba — Edutu bai sami wuri ya gama ta ba."
   },
   "followUp": {
     "country": "Ƙasa",
     "deadline": "Wa'adi",
-    "funding": "Kuɗaɗe"
+    "funding": "Kuɗaɗe",
+    "narrowByCountry": "Taƙaita waɗannan ta ƙasa",
+    "narrowByDeadline": "Taƙaita waɗannan ta wa'adi",
+    "narrowByFunding": "Taƙaita waɗannan ta kuɗaɗe"
   },
   "roadmapPanel": {
     "title": "Gina taswirar hanya",
     "subtitle": "Manufofi, wa'adodi, tunatarwa",
-    "searching": "Ana bincika damammaki...",
-    "matchMeta": "{{category}} · wa'adi {{deadline}}",
-    "daysLeft": "Sauran kwanaki {{count}}",
-    "dailySteps": "Matakan yau da kullum {{count}}",
     "build": "Gina"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "Rubuta wa Edutu saƙo...",
-    "send": "Aika"
+    "send": "Aika",
+    "stopLabel": "Tsayar da rubutu",
+    "sending": "Ana aikawa…"
   },
   "threads": {
     "modalTitle": "Hirarraki",
@@ -106,7 +109,9 @@
       "yesterday": "Jiya",
       "thisWeek": "Wannan Makon",
       "older": "Tsofaffi"
-    }
+    },
+    "itemA11yLabel": "Hira: {{title}}, {{date}}",
+    "closeButtonLabel": "Rufe tarihin hirarraki"
   },
   "voice": {
     "titleTranscript": "Saƙon Murya",
@@ -158,5 +163,43 @@
     "voiceNigerian": "Turancin Najeriya",
     "voiceAll": "Karin muryoyi",
     "voiceHint": "Don samun muryoyi masu tsafta da na halitta, sauke ingantattun muryoyi a saitunan wayarka — iOS: Saituna → Accessibility → Spoken Content → Voices; Android: shigar da muryoyin Google Text-to-Speech."
+  },
+  "winCoach": {
+    "sheetTitle": "Kocin Edutu",
+    "thinking": "Ina tunanin wannan dominka…",
+    "signInRequired": "Shiga don amfani da Kocin Edutu.",
+    "noReplyFallback": "Ban iya samar da amsa a yanzu ba — don Allah a sake gwadawa.",
+    "billingLimitReached": "Wannan yana amfani da kuɗaɗen AI kuma sun ƙare a wurinka. Haɓaka zuwa Edutu Pro ko sake caji don ci gaba.",
+    "documentUpload": {
+      "defaultLabel": "Loda takarda",
+      "cvLabel": "Ɗora CV ɗinka don ƙarin ingantaccen dubawa",
+      "uploading": "Ana lodawa…",
+      "processing": "Ana sarrafawa…",
+      "ready": "{{name}} — a shirye",
+      "readFailed": "Ba a iya karanta wannan fayil ba. Gwada fayil na PDF, DOCX, ko rubutu.",
+      "uploadFailed": "Lodawa ta kasa. Don Allah a sake gwadawa."
+    },
+    "openInChat": "Buɗe a hira",
+    "actions": {
+      "fitCheck": "Na dace da wannan?",
+      "nextMove": "Mataki na gaba",
+      "whatsMissing": "Me ya rage mini?",
+      "nextWinMove": "Matakina na gaba na nasara"
+    }
+  },
+  "limit": {
+    "title": "Ka kai iyakar AI",
+    "body": "Ka yi amfani da saƙonnin AI na Edutu kyauta na yanzu. Haɓaka zuwa Pro don samun koyarwa mara iyaka, taswirorin hanya, da dacewa ta musamman.",
+    "upgradeCta": "Haɓaka zuwa Pro",
+    "errorTitle": "Saƙon bai tafi ba",
+    "errorBody": "Wani abu ya katse haɗin. Danna sake gwadawa don aika shi kuma.",
+    "retryCta": "Sake gwadawa",
+    "dismissCta": "Ba yanzu ba",
+    "savedTitle": "An adana saƙonka",
+    "savedBody": "Mun adana abin da ka rubuta: “{{message}}”. Aika shi duk lokacin da ka shirya.",
+    "resendCta": "Aika yanzu"
+  },
+  "actions": {
+    "createRoadmapPrompt": "Eh, ka gina min wannan taswirar hanya."
   }
 }

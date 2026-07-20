@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, Sparkles, Target, TrendingUp, Award, FileText, Bell, X } from 'lucide-react-native';
+import { ChevronRight, Target, TrendingUp, Award, FileText, Bell, X } from 'lucide-react-native';
 import Animated, {
     FadeInDown,
     useAnimatedStyle,
@@ -35,7 +35,7 @@ export const BANNER_PRESETS: Record<string, BannerConfig> = {
         get title() { return i18n.t('common:adBanner.completeProfile.title'); },
         get subtitle() { return i18n.t('common:adBanner.completeProfile.subtitle'); },
         gradient: ['#F97316', '#EA580C'],
-        icon: Sparkles,
+        icon: Target,
         get actionLabel() { return i18n.t('common:adBanner.completeProfile.actionLabel'); },
         route: '/onboarding',
     },

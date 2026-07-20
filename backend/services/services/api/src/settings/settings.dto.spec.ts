@@ -69,3 +69,141 @@ describe("mergeAdminSettings — mobileApp app control", () => {
     expect(() => AdminSettingsSchema.parse(legacyShape)).not.toThrow();
   });
 });
+
+describe("mergeAdminSettings — safety crisis contact", () => {
+  it("fills the default crisis contact when the safety group is absent (old stored row)", () => {
+    // A row stored before the safety group existed: omitting it must NOT
+    // invalidate the parse or reset any other group.
+    const merged = mergeAdminSettings({
+      platform: {
+        ...DEFAULT_ADMIN_SETTINGS.platform,
+        siteName: "Edutu Legacy",
+      },
+      // no `safety` key at all
+    });
+
+    expect(merged.safety.crisisContactPhone).toBe("+2348169400427");
+    // Other settings still resolve from the stored value, not reset to default.
+    expect(merged.platform.siteName).toBe("Edutu Legacy");
+  });
+
+  it("preserves an admin-set crisis contact through a group-level merge", () => {
+    const current = mergeAdminSettings({
+      safety: { crisisContactPhone: "+15551230000" },
+    });
+    expect(current.safety.crisisContactPhone).toBe("+15551230000");
+
+    // A later legacy payload (no safety group) must not wipe the set number.
+    const next = mergeAdminSettings({
+      ...current,
+      platform: { ...DEFAULT_ADMIN_SETTINGS.platform, siteName: "Edutu 3" },
+    });
+    expect(next.safety.crisisContactPhone).toBe("+15551230000");
+    expect(next.platform.siteName).toBe("Edutu 3");
+  });
+
+  it("rejects a blank crisis contact number", () => {
+    expect(() =>
+      mergeAdminSettings({ safety: { crisisContactPhone: "" } }),
+    ).toThrow();
+  });
+});
+
+describe("mergeAdminSettings — server-driven home + custom features", () => {
+  it("defaults the new mobileApp keys for legacy stored settings", () => {
+    const merged = mergeAdminSettings({
+      mobileApp: {
+        forceUpdate: DEFAULT_ADMIN_SETTINGS.mobileApp.forceUpdate,
+        maintenance: DEFAULT_ADMIN_SETTINGS.mobileApp.maintenance,
+        moduleLocks: {},
+        // featureFlags / homeLayout / customFeatures omitted — legacy shape.
+      },
+    });
+
+    expect(merged.mobileApp.featureFlags).toEqual({});
+    expect(merged.mobileApp.homeLayout).toEqual({
+      draft: [],
+      published: [],
+      lastPublished: [],
+    });
+    expect(merged.mobileApp.customFeatures).toEqual([]);
+  });
+
+  it("preserves published layout when a save only touches the draft", () => {
+    const current = mergeAdminSettings({
+      mobileApp: {
+        ...DEFAULT_ADMIN_SETTINGS.mobileApp,
+        homeLayout: {
+          draft: [],
+          published: [
+            { id: "b1", type: "announcement", props: { title: "Hi" }, enabled: true },
+          ],
+          lastPublished: [],
+        },
+      },
+    });
+
+    // A later write that carries only a draft edit must not wipe published.
+    const next = mergeAdminSettings({
+      ...current,
+      mobileApp: {
+        ...current.mobileApp,
+        homeLayout: {
+          ...current.mobileApp.homeLayout,
+          draft: [
+            { id: "b2", type: "info_card", props: {}, enabled: true },
+          ],
+        },
+      },
+    });
+
+    expect(next.mobileApp.homeLayout.published).toHaveLength(1);
+    expect(next.mobileApp.homeLayout.published[0].id).toBe("b1");
+    expect(next.mobileApp.homeLayout.draft[0].id).toBe("b2");
+  });
+
+  it("defaults optional block/feature fields and fills props", () => {
+    const merged = mergeAdminSettings({
+      mobileApp: {
+        ...DEFAULT_ADMIN_SETTINGS.mobileApp,
+        homeLayout: {
+          draft: [],
+          published: [{ id: "b1", type: "categories" }],
+          lastPublished: [],
+        },
+        customFeatures: [
+          { id: "f1", title: "Community", url: "https://edutu.org/community" },
+        ],
+      },
+    });
+
+    expect(merged.mobileApp.homeLayout.published[0].props).toEqual({});
+    expect(merged.mobileApp.homeLayout.published[0].enabled).toBe(true);
+    const feature = merged.mobileApp.customFeatures[0];
+    expect(feature.openMode).toBe("webview");
+    expect(feature.placement).toBe("tools");
+    expect(feature.enabled).toBe(true);
+  });
+
+  it("rejects a custom feature with no url and an invalid openMode", () => {
+    expect(() =>
+      mergeAdminSettings({
+        mobileApp: {
+          ...DEFAULT_ADMIN_SETTINGS.mobileApp,
+          customFeatures: [{ id: "f1", title: "Bad", url: "" }],
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      mergeAdminSettings({
+        mobileApp: {
+          ...DEFAULT_ADMIN_SETTINGS.mobileApp,
+          customFeatures: [
+            { id: "f1", title: "Bad", url: "https://x.io", openMode: "iframe" },
+          ],
+        },
+      }),
+    ).toThrow();
+  });
+});

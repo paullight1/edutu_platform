@@ -1556,6 +1556,14 @@ export const aiUsageEvents = pgTable(
     completionTokens: integer("completion_tokens"),
     totalTokens: integer("total_tokens"),
     estimatedCostUsd: numeric("estimated_cost_usd"),
+    /**
+     * How prompt/completion tokens were obtained. NULL (the overwhelming
+     * majority) means the provider reported them; "estimated" means they were
+     * derived from character length because the provider sent no usage frame,
+     * so the cost on this row is an approximation. Spend queries that must be
+     * exact should filter `token_source is null`.
+     */
+    tokenSource: text("token_source"),
     latencyMs: integer("latency_ms"),
     success: boolean("success").notNull().default(true),
     error: text("error"),

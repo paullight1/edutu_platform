@@ -282,7 +282,13 @@
             "continueBrowsing": "Seguir explorando",
             "failedTitle": "Inscripción fallida",
             "failed": "La inscripción falló",
-            "failedMessage": "No se pudo completar la inscripción."
+            "failedMessage": "No se pudo completar la inscripción.",
+            "offlineTitle": "Estás sin conexión",
+            "offlineMessage": "No pudimos conectar con Edutu. Revisa tu conexión e inténtalo de nuevo.",
+            "retry": "Reintentar",
+            "cancel": "Cancelar",
+            "signInTitle": "Sesión caducada",
+            "signInMessage": "Vuelve a iniciar sesión para comenzar esta ruta."
         },
         "intent": {
             "title": "Ayúdanos a encontrar tu ruta perfecta",

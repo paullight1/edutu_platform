@@ -282,7 +282,13 @@
             "continueBrowsing": "Continue Browsing",
             "failedTitle": "Enrollment Failed",
             "failed": "Enrollment failed",
-            "failedMessage": "Could not enroll."
+            "failedMessage": "Could not enroll.",
+            "offlineTitle": "You're offline",
+            "offlineMessage": "We couldn't reach Edutu. Check your connection and try again.",
+            "retry": "Retry",
+            "cancel": "Cancel",
+            "signInTitle": "Session expired",
+            "signInMessage": "Please sign in again to start this roadmap."
         },
         "intent": {
             "title": "Help Us Find Your Perfect Roadmap",

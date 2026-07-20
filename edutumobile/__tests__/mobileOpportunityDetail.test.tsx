@@ -20,6 +20,9 @@ const mockGenerateRoadmap = jest.fn();
 
 let mockOpportunity: any = null;
 let mockUserState: { user: { id: string } | null };
+let mockIsSignedIn = false;
+let mockIsGuest = false;
+const mockPromptAuth = jest.fn();
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'opp-1' }),
@@ -27,8 +30,16 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('@clerk/clerk-expo', () => ({
-  useAuth: () => ({ getToken: mockGetToken }),
+  useAuth: () => ({ getToken: mockGetToken, isSignedIn: mockIsSignedIn }),
   useUser: () => mockUserState,
+}));
+
+jest.mock('../lib/guestModeStore', () => ({
+  useGuestMode: () => ({ hydrated: true, isGuest: mockIsGuest }),
+}));
+
+jest.mock('../components/context/AuthWallContext', () => ({
+  useAuthWall: () => ({ promptAuth: mockPromptAuth, hide: jest.fn() }),
 }));
 
 jest.mock('../components/context/ThemeContext', () => ({
@@ -40,6 +51,9 @@ jest.mock('../components/context/ThemeContext', () => ({
       card: '#FFFFFF',
       border: '#E5E7EB',
       accent: '#2563EB',
+      primary: '#4331C9',
+      mutedForeground: '#6B7280',
+      error: '#DC2626',
     },
     isDark: false,
   }),
@@ -298,6 +312,9 @@ describe('mobile opportunity detail route', () => {
     openUrlSpy.mockClear();
     shareSpy.mockClear();
     mockUserState = { user: { id: 'user-1' } };
+    mockIsSignedIn = false;
+    mockIsGuest = false;
+    mockPromptAuth.mockClear();
     mockOpportunity = null;
     mockGetOpportunity.mockResolvedValue(mockOpportunity);
     mockIsOpportunitySaved.mockResolvedValue(false);
@@ -316,6 +333,105 @@ describe('mobile opportunity detail route', () => {
     await waitFor(() => expect(getByText('Opportunity not found')).toBeTruthy());
     fireEvent.press(getByText('Go Back'));
     expect(mockBack).toHaveBeenCalled();
+  });
+
+  it('sends the user to chat with the question prefilled, never auto-sent', async () => {
+    mockIsSignedIn = true;
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    fireEvent.press(getByText('Ask Edutu more…'));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: '/chat',
+        params: expect.objectContaining({
+          prefill: expect.stringContaining('Global Fellowship'),
+        }),
+      }),
+    );
+    // `voiceMsg` auto-sends and would spend a credit without the user ever
+    // tapping send. It must never come back on this screen — in EITHER the
+    // object-params form or a regression written as a raw query string
+    // (e.g. `router.push('/chat?voiceMsg=…')`, the form _layout.tsx uses).
+    const params = mockPush.mock.calls
+      .map(([arg]) => (typeof arg === 'object' && arg ? arg.params : undefined))
+      .filter(Boolean);
+    params.forEach((p: Record<string, unknown>) => {
+      expect(p.voiceMsg).toBeUndefined();
+    });
+    mockPush.mock.calls.forEach(([arg]) => {
+      if (typeof arg === 'string') {
+        expect(arg).not.toMatch(/voiceMsg/);
+      }
+    });
+  });
+
+  it('shows the "Ask Edutu more…" chip to guests and raises the auth wall instead of navigating', async () => {
+    mockIsSignedIn = false;
+    mockIsGuest = true;
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    // The chip renders for guests too — this is the whole point of the fix:
+    // it used to be nested inside an `isSignedIn &&` block and disappeared.
+    const chip = getByText('Ask Edutu more…');
+    expect(chip).toBeTruthy();
+
+    fireEvent.press(chip);
+
+    // Guests get the auth wall, never a navigation to chat — the previously
+    // unreachable guest branch in `askEdutuMore` is now live.
+    expect(mockPromptAuth).toHaveBeenCalledWith('ai');
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: '/chat' }),
+    );
+  });
+
+  it('keeps a single AI affordance system — the old Ask-AI chip card is gone', async () => {
+    mockIsSignedIn = true;
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText, queryByText } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    expect(queryByText('Ask Edutu AI about this opportunity')).toBeNull();
+    expect(queryByText('Check eligibility')).toBeNull();
+    expect(queryByText('Explain fit')).toBeNull();
+    expect(queryByText('Tailor CV')).toBeNull();
+    expect(queryByText('Plan prep')).toBeNull();
+    // The win-coach pills stay: they answer in place.
+    expect(getByText('Am I a fit?')).toBeTruthy();
+    expect(getByText('Next move')).toBeTruthy();
+    expect(getByText('Upload your CV for a sharper fit check')).toBeTruthy();
+  });
+
+  it('never invents an applicant count when the data is missing', async () => {
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText, queryByText } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    expect(queryByText('500+ applied')).toBeNull();
+    expect(queryByText(/applied$/)).toBeNull();
+  });
+
+  it('shows the applicant count only when it is real', async () => {
+    mockOpportunity = { ...makeOpportunity(), applicants: 42 };
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    expect(getByText('42 applied')).toBeTruthy();
   });
 
   it('renders a loaded opportunity and supports save/apply actions', async () => {

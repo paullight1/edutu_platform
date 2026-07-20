@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    Search, BookOpen, Star, Users, Sparkles,
+    Search, BookOpen, Star, Users, Rocket, Wand2,
     X, Clock, ChevronRight, CalendarDays,
     ShieldCheck, CheckCircle, Zap, GraduationCap,
     ThumbsUp, Pencil, Plus
@@ -60,6 +60,21 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response | nu
         if (markApiUnavailable(error)) return null;
         throw error;
     }
+}
+
+// Pull the human-readable reason out of a failed API response. NestJS error
+// bodies are { message: string | string[] }; fall back to the status text so
+// the user never sees a bare, duplicated "Enrollment failed".
+async function extractErrorMessage(res: Response): Promise<string> {
+    try {
+        const body = await res.clone().json();
+        const raw = body?.message ?? body?.error;
+        const message = Array.isArray(raw) ? raw.filter(Boolean).join('\n') : raw;
+        if (typeof message === 'string' && message.trim()) return message.trim();
+    } catch {
+        // Not JSON (HTML error page, empty body) — fall through to status text.
+    }
+    return res.statusText ? `${res.status} ${res.statusText}` : `HTTP ${res.status}`;
 }
 
 interface RoadmapStep {
@@ -519,11 +534,42 @@ export default function RoadmapsScreen() {
 
     const handleEnroll = async () => {
         if (!selectedItem || !user) return;
+        const target = selectedItem;
         setEnrolling(true);
         try {
             const token = await getAuthToken();
-            const res = await postEnrollment(token, selectedItem);
-            if (!res?.ok) throw new Error(t('roadmaps.enroll.failed'));
+            // A missing token means the session lapsed — sending an empty
+            // bearer just earns a 401 the user can't read. Say so plainly.
+            if (!token) {
+                Alert.alert(t('roadmaps.enroll.signInTitle'), t('roadmaps.enroll.signInMessage'));
+                return;
+            }
+
+            const res = await postEnrollment(token, target);
+
+            // apiFetch returns null only when the network/API is unreachable —
+            // that's an offline state, not an enrollment failure. Keep the
+            // sheet open so a single Retry finishes the job once back online.
+            if (res === null) {
+                Alert.alert(t('roadmaps.enroll.offlineTitle'), t('roadmaps.enroll.offlineMessage'), [
+                    { text: t('roadmaps.enroll.cancel'), style: 'cancel' },
+                    { text: t('roadmaps.enroll.retry'), onPress: () => { void handleEnroll(); } },
+                ]);
+                return;
+            }
+
+            if (!res.ok) {
+                // Surface the server's own reason (NestJS sends { message }) and
+                // the status, so "Enrollment failed" becomes something the user —
+                // and we — can actually act on.
+                const reason = await extractErrorMessage(res);
+                Alert.alert(t('roadmaps.enroll.failedTitle'), reason, [
+                    { text: t('roadmaps.enroll.cancel'), style: 'cancel' },
+                    { text: t('roadmaps.enroll.retry'), onPress: () => { void handleEnroll(); } },
+                ]);
+                return;
+            }
+
             let adoption: RoadmapAdoptionResponse | null = null;
             try {
                 adoption = await res.json();
@@ -543,8 +589,12 @@ export default function RoadmapsScreen() {
                 { text: t('roadmaps.enroll.continueBrowsing') },
             ]);
             fetchRoadmaps();
-        } catch (err: any) {
-            Alert.alert(t('roadmaps.enroll.failedTitle'), err.message || t('roadmaps.enroll.failedMessage'));
+        } catch {
+            // fetch() rejected despite apiFetch's guard (rare) — treat as offline.
+            Alert.alert(t('roadmaps.enroll.offlineTitle'), t('roadmaps.enroll.offlineMessage'), [
+                { text: t('roadmaps.enroll.cancel'), style: 'cancel' },
+                { text: t('roadmaps.enroll.retry'), onPress: () => { void handleEnroll(); } },
+            ]);
         } finally {
             setEnrolling(false);
         }
@@ -936,7 +986,7 @@ export default function RoadmapsScreen() {
                                             <ActivityIndicator color="white" size="small" />
                                         ) : (
                                             <>
-                                                <Sparkles size={18} color="white" />
+                                                <Rocket size={18} color="white" />
                                                 <Text style={styles.enrollBtnText}>{t('roadmaps.startButton')}</Text>
                                             </>
                                         )}
@@ -961,7 +1011,7 @@ export default function RoadmapsScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={[styles.intentSheet, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor }]}>
                         <View style={styles.intentHeader}>
-                            <Sparkles color="#3b82f6" size={24} />
+                            <Wand2 color="#3b82f6" size={24} />
                             <Text style={[styles.intentTitle, { color: textPrimary }]}>{t('roadmaps.intent.title')}</Text>
                             <Text style={[styles.intentSubtitle, { color: textSecondary }]}>{t('roadmaps.intent.subtitle')}</Text>
                         </View>
@@ -1010,7 +1060,7 @@ export default function RoadmapsScreen() {
                                     <ActivityIndicator color="white" size="small" />
                                 ) : (
                                     <>
-                                        <Sparkles size={16} color="white" />
+                                        <Wand2 size={16} color="white" />
                                         <Text style={styles.intentSubmitText}>{t('roadmaps.intent.submit')}</Text>
                                     </>
                                 )}

@@ -31,22 +31,76 @@ function getApiRows(payload: any): any[] | null {
 }
 
 function normaliseApiBookmark(row: any): SavedOpportunity {
-  const opportunity = row.opportunity || row.opportunities || row;
-  const opportunityId = row.opportunityId || row.opportunity_id || opportunity.id;
+  // Only the nested row is a real opportunity. Never fall back to `row` itself:
+  // a bookmark row has no title/organization, so doing so yields silent
+  // `undefined`s that render as "Opportunity"/"Unknown" placeholders instead of
+  // signalling that hydration failed. Leaving these undefined lets
+  // hydrateMissingDetails() below repair them from Supabase.
+  const opportunity = row.opportunity || row.opportunities || null;
+  const opportunityId =
+    row.opportunityId || row.opportunity_id || opportunity?.id;
 
   return {
     id: row.bookmarkId || row.bookmark_id || row.id || opportunityId,
     opportunity_id: opportunityId,
     user_id: row.userId || row.user_id || '',
     created_at: row.createdAt || row.created_at || new Date().toISOString(),
-    title: opportunity.title,
-    organization: opportunity.organization,
-    deadline: opportunity.deadline || opportunity.close_date,
-    category: opportunity.category,
-    location: opportunity.location,
-    image: opportunity.imageUrl || opportunity.image_url || opportunity.image,
-    match_score: opportunity.matchScore || opportunity.match_score,
+    title: opportunity?.title,
+    organization: opportunity?.organization,
+    deadline: opportunity?.deadline || opportunity?.close_date,
+    category: opportunity?.category,
+    location: opportunity?.location,
+    image:
+      opportunity?.imageUrl || opportunity?.image_url || opportunity?.image,
+    match_score:
+      opportunity?.matchScore ??
+      opportunity?.match_score ??
+      opportunity?.quality_score,
   };
+}
+
+/**
+ * Fill in details for bookmarks the API returned without a hydrated
+ * opportunity. The API stays the source of truth for *which* opportunities are
+ * saved; this only repairs missing display fields. Uses select('*') so a
+ * missing/renamed column can never error the whole query.
+ */
+async function hydrateMissingDetails(
+  supabase: SupabaseClient,
+  bookmarks: SavedOpportunity[],
+): Promise<SavedOpportunity[]> {
+  const missingIds = bookmarks
+    .filter((bookmark) => !bookmark.title)
+    .map((bookmark) => bookmark.opportunity_id)
+    .filter(Boolean);
+
+  if (missingIds.length === 0) return bookmarks;
+
+  const { data } = await supabase
+    .from('opportunities')
+    .select('*')
+    .in('id', missingIds);
+
+  if (!data?.length) return bookmarks;
+
+  const byId = new Map(data.map((opp: any) => [opp.id, opp]));
+
+  return bookmarks.map((bookmark) => {
+    if (bookmark.title) return bookmark;
+    const opp = byId.get(bookmark.opportunity_id);
+    if (!opp) return bookmark;
+
+    return {
+      ...bookmark,
+      title: opp.title,
+      organization: opp.organization,
+      deadline: opp.deadline || opp.close_date,
+      category: opp.category,
+      location: opp.location,
+      image: opp.image_url || opp.image,
+      match_score: opp.match_score ?? opp.quality_score,
+    };
+  });
 }
 
 async function fetchSavedOpportunitiesFromApi(
@@ -66,7 +120,10 @@ export async function fetchSavedOpportunities(
 ): Promise<SavedOpportunity[]> {
   const apiBookmarks = await fetchSavedOpportunitiesFromApi(getAuthToken);
   if (apiBookmarks) {
-    return apiBookmarks;
+    // Don't blindly trust the API's hydration — if it returned bookmarks with
+    // no opportunity details, repair them locally rather than rendering a
+    // screen full of "Opportunity"/"Unknown" placeholders.
+    return hydrateMissingDetails(supabase, apiBookmarks);
   }
 
   const lookupIds = getUserLookupIds(userId);
@@ -109,7 +166,7 @@ export async function fetchSavedOpportunities(
       category: opp?.category,
       location: opp?.location,
       image: opp?.image_url || opp?.image,
-      match_score: opp?.match_score,
+      match_score: opp?.match_score ?? opp?.quality_score,
     };
   });
 }

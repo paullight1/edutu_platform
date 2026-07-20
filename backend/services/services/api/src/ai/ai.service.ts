@@ -9,8 +9,11 @@ import {
 } from "../db/schema";
 import { AiEncryptionService } from "./ai-encryption.service";
 import {
+  AiChatMessage,
   AiChatOptions,
   AiChatResult,
+  AiChatStreamOptions,
+  AiChatStreamResult,
   AiEmbedOptions,
   AiEmbedResult,
   AiGenerateOptions,
@@ -18,11 +21,16 @@ import {
   AiProvider,
   AiProviderAdapter,
   AiRouteConfig,
+  AiToolDefinition,
 } from "./ai.types";
 import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
 import { createHash } from "crypto";
 import { TtlCache } from "../common/cache/ttl-cache";
+
+/** An adapter proven (by resolveChatRoute) to implement generateChat. */
+type ChatCapableAdapter = AiProviderAdapter &
+  Required<Pick<AiProviderAdapter, "generateChat">>;
 
 function aiNumberEnv(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -72,12 +80,99 @@ function estimateCostUsd(
   return (input * price.input + output * price.output) / 1_000_000;
 }
 
+/**
+ * Character-length token estimate for a streamed call whose provider never sent
+ * a usage frame. ~4 characters per token is the standard rough figure for
+ * OpenAI-dialect BPE tokenisers — good enough to keep spend visible, and always
+ * paired with a `tokenUsage: "estimated"` marker on the row so it is never
+ * mistaken for a provider-reported count.
+ */
+const CHARS_PER_TOKEN_ESTIMATE = 4;
+
+/**
+ * Metadata key that marks a log/cost row whose token counts were estimated.
+ * Set by generateChatStream on `logOptions.metadata`; logUsage lifts it onto
+ * `ai_usage_events.token_source` so the cost table itself carries the marker
+ * (request_metadata lives only on ai_usage_logs, which finance does not query).
+ */
+export const ESTIMATED_TOKENS_MARKER = "estimated";
+
+function estimateChatUsage(
+  messages: AiChatMessage[],
+  tools: AiToolDefinition[] | undefined,
+  result: AiChatResult,
+): { promptTokens: number; completionTokens: number; totalTokens: number } {
+  const promptChars =
+    messages.reduce((sum, message) => sum + (message.content?.length ?? 0), 0) +
+    (tools?.length ? JSON.stringify(tools).length : 0);
+  const completionChars =
+    result.text.length +
+    result.toolCalls.reduce(
+      (sum, call) => sum + call.name.length + call.arguments.length,
+      0,
+    );
+  const promptTokens = Math.ceil(promptChars / CHARS_PER_TOKEN_ESTIMATE);
+  const completionTokens = Math.ceil(
+    completionChars / CHARS_PER_TOKEN_ESTIMATE,
+  );
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+  };
+}
+
+/**
+ * Secondary provider for every chat / JSON route. DeepSeek is the primary for
+ * all of them, so a DeepSeek outage would otherwise take down the coach, the
+ * scraper's extraction and every JSON feature at once. OpenRouter is the only
+ * other chat-capable adapter registered here (Gemini is pinned to embeddings),
+ * and it is already the second candidate in both existing reroute paths.
+ *
+ * Admins can still override per feature via ai_routes.fallback_provider.
+ */
+const CHAT_FALLBACK_PROVIDER = "openrouter";
+
+/**
+ * Flattens a chat request into readable text for content sampling. Chat calls
+ * log `[chat:N messages]` as their prompt, which is useless for diagnosing an
+ * answer; this keeps role labels so the system prompt, history and the user's
+ * actual question stay distinguishable in the sampled excerpt.
+ */
+function serializeChatPrompt(messages: AiChatMessage[]): string {
+  return messages
+    .map((message) => `${message.role}: ${message.content ?? ""}`)
+    .join("\n");
+}
+
+/**
+ * Default share of calls whose content is sampled into ai_usage_logs: ZERO.
+ *
+ * Sampling is opt-in in CODE, not merely at deploy time, because the safe state
+ * must not depend on anyone remembering to set an env var. `ai_usage_logs` has
+ * no purge job, the sampler fires on `cv.draft` and `docs.sop` (verbatim CV
+ * text) as well as chat, and every row is joined to `user_id` — so any non-zero
+ * default silently accrues personal data forever. Set AI_CONTENT_SAMPLE_RATE
+ * (e.g. 0.01) temporarily while debugging a live incident, then unset it.
+ */
+const DEFAULT_CONTENT_SAMPLE_RATE = 0;
+
+/** Hard cap on each sampled prompt/response excerpt. */
+const CONTENT_SAMPLE_MAX_CHARS = 2000;
+
+/**
+ * Model used when failing over to OpenRouter, whose ids are namespaced
+ * ("vendor/model") and therefore never match a DeepSeek-native model name.
+ */
+const OPENROUTER_DEFAULT_MODEL = "deepseek/deepseek-chat";
+
 const DEFAULT_ROUTES: Record<
   string,
   Omit<AiRouteConfig, "feature" | "apiKey">
 > = {
   "chat.coach": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     isEnabled: true,
@@ -86,6 +181,7 @@ const DEFAULT_ROUTES: Record<
   // token cap covers tool-call JSON plus the final reply.
   "chat.agent": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.6,
     maxOutputTokens: 1024,
@@ -94,6 +190,7 @@ const DEFAULT_ROUTES: Record<
   // Documents studio: SOP drafting wants some voice; edits must be surgical.
   "docs.sop": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.5,
     maxOutputTokens: 2048,
@@ -102,6 +199,7 @@ const DEFAULT_ROUTES: Record<
   },
   "docs.edit": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     maxOutputTokens: 4096,
@@ -111,6 +209,7 @@ const DEFAULT_ROUTES: Record<
   // One-line jovial push copy for proactive coach alerts.
   "coach.pulse": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.7,
     maxOutputTokens: 160,
@@ -120,6 +219,7 @@ const DEFAULT_ROUTES: Record<
   // Post-turn distillation of durable user facts — cheap and deterministic.
   "memory.extract": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.1,
     maxOutputTokens: 512,
@@ -128,12 +228,14 @@ const DEFAULT_ROUTES: Record<
   },
   "chat.transcribe": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     isEnabled: true,
   },
   "scraper.extract": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.05,
     maxOutputTokens: 4096,
@@ -142,18 +244,21 @@ const DEFAULT_ROUTES: Record<
   },
   "opportunities.enhance": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     responseMimeType: "application/json",
     isEnabled: true,
   },
   "opportunities.extract": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     responseMimeType: "application/json",
     isEnabled: true,
   },
   "opportunities.rerank": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     responseMimeType: "application/json",
@@ -161,6 +266,7 @@ const DEFAULT_ROUTES: Record<
   },
   "cv.draft": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     responseMimeType: "application/json",
@@ -168,6 +274,7 @@ const DEFAULT_ROUTES: Record<
   },
   "cv.tailor": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     responseMimeType: "application/json",
@@ -175,6 +282,7 @@ const DEFAULT_ROUTES: Record<
   },
   "roadmaps.questions": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.3,
     responseMimeType: "application/json",
@@ -182,6 +290,7 @@ const DEFAULT_ROUTES: Record<
   },
   "roadmaps.intent_tags": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     responseMimeType: "application/json",
@@ -189,6 +298,7 @@ const DEFAULT_ROUTES: Record<
   },
   "roadmaps.match": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.2,
     responseMimeType: "application/json",
@@ -196,6 +306,7 @@ const DEFAULT_ROUTES: Record<
   },
   "roadmaps.opportunity_plan": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.4,
     responseMimeType: "application/json",
@@ -203,12 +314,14 @@ const DEFAULT_ROUTES: Record<
   },
   "quiz.generate": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     responseMimeType: "application/json",
     isEnabled: true,
   },
   "copilot.kit": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.3,
     responseMimeType: "application/json",
@@ -216,6 +329,7 @@ const DEFAULT_ROUTES: Record<
   },
   "copilot.outline": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.4,
     responseMimeType: "application/json",
@@ -223,6 +337,7 @@ const DEFAULT_ROUTES: Record<
   },
   "copilot.feedback": {
     provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
     model: "deepseek-chat",
     temperature: 0.3,
     responseMimeType: "application/json",
@@ -342,15 +457,19 @@ export class AiService {
    * a chat-capable adapter when the routed provider lacks generateChat, and
    * never response-caches (conversations are not deterministic).
    */
-  async generateChat(options: AiChatOptions): Promise<AiChatResult> {
-    const startedAt = Date.now();
-    let route = await this.resolveRoute({
-      feature: options.feature,
-      prompt: "",
-    });
+  /**
+   * Resolves the route + adapter for a chat feature, hopping to a chat-capable
+   * provider when the routed one can't run a tool-calling conversation.
+   * Shared by generateChat and generateChatStream so both see the same route,
+   * decrypted key and usage attribution.
+   */
+  private async resolveChatRoute(
+    feature: AiChatOptions["feature"],
+  ): Promise<{ route: AiRouteConfig; adapter: ChatCapableAdapter }> {
+    let route = await this.resolveRoute({ feature, prompt: "" });
 
     if (!route.isEnabled) {
-      throw new Error(`AI feature ${options.feature} is disabled`);
+      throw new Error(`AI feature ${feature} is disabled`);
     }
 
     let adapter = this.adapters.get(route.provider);
@@ -373,10 +492,15 @@ export class AiService {
       }
     }
     if (!adapter?.generateChat) {
-      throw new Error(
-        `No chat-capable AI provider available for ${options.feature}`,
-      );
+      throw new Error(`No chat-capable AI provider available for ${feature}`);
     }
+
+    return { route, adapter: adapter as ChatCapableAdapter };
+  }
+
+  async generateChat(options: AiChatOptions): Promise<AiChatResult> {
+    const startedAt = Date.now();
+    const { route, adapter } = await this.resolveChatRoute(options.feature);
 
     const logOptions: AiGenerateOptions = {
       feature: options.feature,
@@ -384,6 +508,10 @@ export class AiService {
       prompt: `[chat:${options.messages.length} messages, ${options.tools?.length ?? 0} tools]`,
       metadata: options.metadata,
     };
+    // The prompt above is a placeholder summary, so hand the real conversation
+    // to the sampler separately — lazily: the thunk only runs if this call is
+    // actually sampled, which is never unless AI_CONTENT_SAMPLE_RATE is set.
+    const conversation = () => serializeChatPrompt(options.messages);
 
     try {
       const result = await adapter.generateChat(route, options);
@@ -397,6 +525,8 @@ export class AiService {
           usage: result.usage,
         },
         Date.now() - startedAt,
+        undefined,
+        { prompt: conversation, response: result.text },
       );
       return result;
     } catch (error) {
@@ -406,6 +536,7 @@ export class AiService {
         null,
         Date.now() - startedAt,
         error,
+        { prompt: conversation },
       );
 
       const fallbackRoute = await this.resolveFallbackRoute(route);
@@ -432,6 +563,8 @@ export class AiService {
               usage: result.usage,
             },
             Date.now() - fallbackStartedAt,
+            undefined,
+            { prompt: conversation, response: result.text },
           );
           return result;
         } catch (fallbackError) {
@@ -446,6 +579,107 @@ export class AiService {
       }
 
       throw error;
+    }
+  }
+
+  /**
+   * Token-streaming variant of generateChat, used only for the final (tool-
+   * free) round of an agent turn so the user sees prose while it is produced.
+   *
+   * Contract:
+   * - Deltas reach `options.onToken` as they arrive; the resolved result still
+   *   carries the COMPLETE text, so non-streaming callers are unaffected.
+   * - If the stream never delivers a token (adapter can't stream, HTTP error,
+   *   empty stream) this transparently falls back to the buffered generateChat
+   *   for the same round — no text has been shown, so nothing is duplicated.
+   * - Once a token HAS been delivered there is no retry and no failover: the
+   *   partial answer is returned with `truncated: true` rather than replayed.
+   * - Streamed responses are logged to ai_usage_logs / ai_usage_events like any
+   *   other call, using the token counts from the stream's final usage frame.
+   */
+  async generateChatStream(
+    options: AiChatStreamOptions,
+  ): Promise<AiChatStreamResult> {
+    const startedAt = Date.now();
+    const { route, adapter } = await this.resolveChatRoute(options.feature);
+
+    if (!adapter.generateChatStream) {
+      return this.generateChat(options);
+    }
+
+    let delivered = false;
+    const streamOptions: AiChatStreamOptions = {
+      ...options,
+      onToken: (delta) => {
+        delivered = true;
+        options.onToken(delta);
+      },
+    };
+
+    const logOptions: AiGenerateOptions = {
+      feature: options.feature,
+      userId: options.userId,
+      prompt: `[chat-stream:${options.messages.length} messages, ${options.tools?.length ?? 0} tools]`,
+      metadata: options.metadata,
+    };
+
+    try {
+      const result = await adapter.generateChatStream(route, streamOptions);
+      // A provider that drops the final usage frame (the OpenRouter risk, since
+      // stream_options is sent unconditionally) would otherwise log null tokens
+      // and $0.00000000 for the largest-context call of the turn. Estimate from
+      // character length instead, and mark the row so an estimate can never be
+      // mistaken for a provider-reported figure.
+      const reported = this.hasTokenCounts(result.usage);
+      void this.logUsage(
+        reported
+          ? logOptions
+          : {
+              ...logOptions,
+              metadata: {
+                ...logOptions.metadata,
+                tokenUsage: ESTIMATED_TOKENS_MARKER,
+              },
+            },
+        route,
+        {
+          text: result.text,
+          provider: result.provider,
+          model: result.model,
+          usage: reported
+            ? result.usage
+            : estimateChatUsage(options.messages, options.tools, result),
+        },
+        Date.now() - startedAt,
+        result.truncated ? new Error("stream truncated") : undefined,
+        {
+          prompt: () => serializeChatPrompt(options.messages),
+          response: result.text,
+        },
+      );
+      return result;
+    } catch (error) {
+      void this.logUsage(
+        logOptions,
+        route,
+        null,
+        Date.now() - startedAt,
+        error,
+        { prompt: () => serializeChatPrompt(options.messages) },
+      );
+
+      if (delivered) {
+        // Tokens are already on the wire — re-running the round would show the
+        // user a second, different answer. Surface the failure instead.
+        throw error;
+      }
+
+      this.logger.warn(
+        `AI chat stream for ${options.feature} failed to establish on ${route.provider}; using the buffered call: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return this.generateChat(options);
     }
   }
 
@@ -707,6 +941,7 @@ export class AiService {
 
     const fallback = DEFAULT_ROUTES[options.feature] || {
       provider: "deepseek",
+      fallbackProvider: CHAT_FALLBACK_PROVIDER,
       model: "deepseek-chat",
       isEnabled: true,
     };
@@ -776,10 +1011,20 @@ export class AiService {
         storedRoute?.responseMimeType ||
         fallback.responseMimeType ||
         null,
-      fallbackProvider: storedRoute?.fallbackProvider
-        ? this.normalizeProvider(storedRoute.fallbackProvider)
-        : null,
-      fallbackModel: storedRoute?.fallbackModel || null,
+      // The stored row is an override, not the only source: without the
+      // DEFAULT_ROUTES fallback below, a feature with no ai_routes row (or a
+      // row an admin never gave a fallback) would have no failover at all.
+      fallbackProvider: (() => {
+        const configured =
+          storedRoute?.fallbackProvider || fallback.fallbackProvider;
+        if (!configured) return null;
+        const normalized = this.normalizeProvider(configured);
+        // A default fallback must never point back at the provider actually
+        // in use (e.g. an admin already routed this feature to OpenRouter).
+        return normalized && normalized !== provider ? normalized : null;
+      })(),
+      fallbackModel:
+        storedRoute?.fallbackModel || fallback.fallbackModel || null,
       isEnabled: storedRoute?.isEnabled ?? fallback.isEnabled,
     };
   }
@@ -870,6 +1115,10 @@ export class AiService {
 
     if (normalizedProvider === "deepseek") return "deepseek-chat";
     if (normalizedProvider === "gemini") return "gemini-2.0-flash";
+    // OpenRouter ids are namespaced; without this the failover (and the
+    // key-missing reroute) would send a DeepSeek-native model name it rejects.
+    if (normalizedProvider === "openrouter")
+      return process.env.OPENROUTER_MODEL || OPENROUTER_DEFAULT_MODEL;
     return null;
   }
 
@@ -904,13 +1153,86 @@ export class AiService {
     return typeof value === "string" && value ? value.slice(0, 128) : null;
   }
 
+  /** True when the provider actually reported at least one token count. */
+  private hasTokenCounts(usage: AiChatResult["usage"]): boolean {
+    return (
+      typeof usage?.promptTokens === "number" ||
+      typeof usage?.completionTokens === "number" ||
+      typeof usage?.totalTokens === "number"
+    );
+  }
+
+  /**
+   * Fraction of calls whose prompt and response are persisted for debugging.
+   * Prompts contain user personal data, so this defaults to 0 (off) and must
+   * stay a small percentage when switched on via AI_CONTENT_SAMPLE_RATE.
+   */
+  private contentSampleRate(): number {
+    const raw = process.env.AI_CONTENT_SAMPLE_RATE;
+    if (raw === undefined || raw === "") return DEFAULT_CONTENT_SAMPLE_RATE;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_CONTENT_SAMPLE_RATE;
+    return Math.max(0, Math.min(1, parsed));
+  }
+
+  /**
+   * Token counts alone cannot answer "why did the AI say that". A small,
+   * hard-truncated sample of the real prompt/response lands in the existing
+   * jsonb ai_usage_logs.requestMetadata (no new table, no new retention story)
+   * alongside the turn id, so one bad answer can be reconstructed end to end.
+   */
+  /**
+   * The sample decision, taken BEFORE any content is materialised. Chat calls
+   * would otherwise concatenate the whole conversation into a string on every
+   * single request only to discard it — 100% of the time now that sampling
+   * defaults off.
+   */
+  private shouldSampleContent(): boolean {
+    const rate = this.contentSampleRate();
+    return rate > 0 && Math.random() < rate;
+  }
+
+  private sampledContent(
+    prompt: string,
+    response: string | null,
+  ): Record<string, unknown> {
+    const truncated =
+      prompt.length > CONTENT_SAMPLE_MAX_CHARS ||
+      (response?.length ?? 0) > CONTENT_SAMPLE_MAX_CHARS;
+    return {
+      sampledContent: {
+        prompt: prompt.slice(0, CONTENT_SAMPLE_MAX_CHARS),
+        response: (response ?? "").slice(0, CONTENT_SAMPLE_MAX_CHARS),
+        ...(truncated ? { truncated: true } : {}),
+      },
+    };
+  }
+
   private async logUsage(
     options: AiGenerateOptions,
     route: AiRouteConfig,
     result: AiGenerateResult | null,
     latencyMs: number,
     error?: unknown,
+    /**
+     * Real content for sampling, when `options.prompt`/`result.text` are not
+     * it — chat calls log a `[chat:N messages]` placeholder as their prompt.
+     * `prompt` may be a thunk: it is only invoked once this call has already
+     * been picked for sampling, so the common (unsampled) path never pays to
+     * serialize a whole conversation.
+     */
+    content?: { prompt?: string | (() => string); response?: string | null },
   ) {
+    const sample = this.shouldSampleContent()
+      ? this.sampledContent(
+          (typeof content?.prompt === "function"
+            ? content.prompt()
+            : content?.prompt) ??
+            options.prompt ??
+            "",
+          content?.response ?? result?.text ?? null,
+        )
+      : null;
     try {
       await db.insert(aiUsageLogs).values({
         feature: options.feature,
@@ -924,7 +1246,7 @@ export class AiService {
         totalTokens: result?.usage?.totalTokens ?? null,
         errorMessage:
           error instanceof Error ? error.message.slice(0, 1000) : null,
-        requestMetadata: options.metadata || {},
+        requestMetadata: { ...(options.metadata || {}), ...(sample || {}) },
       });
     } catch (logError) {
       this.logger.warn(
@@ -939,11 +1261,28 @@ export class AiService {
       const promptTokens = result?.usage?.promptTokens ?? null;
       const completionTokens = result?.usage?.completionTokens ?? null;
       const totalTokens = result?.usage?.totalTokens ?? null;
+      // Chosen over encoding the marker in `route` (e.g. "chat.agent:estimated"):
+      // `route` is indexed and grouped on by every spend query, so mutating it
+      // would silently split per-route aggregates and under-report the real
+      // route. A nullable column is invisible to existing queries once it
+      // exists — but the migration adding `token_source` is a HARD DEPLOY
+      // PREREQUISITE, not an optional companion. Drizzle's insert builder
+      // derives its column list from the `aiUsageEvents` schema, not from the
+      // values object passed here: every insert names every schema column
+      // (`sql\`default\`` fills the ones absent from `.values()`), so on an
+      // un-migrated database *every* insert into `ai_usage_events` — not just
+      // estimated ones — fails with `42703 column "token_source" does not
+      // exist`. That failure is swallowed by the catch below (a warn only),
+      // so it is silent total data loss for the table's whole window, not a
+      // partial degradation. Apply the migration before deploying this code.
+      const estimated =
+        options.metadata?.tokenUsage === ESTIMATED_TOKENS_MARKER;
       await db.insert(aiUsageEvents).values({
         userId: this.usageUserId(options),
         provider: route.provider,
         model: route.model,
         route: options.feature,
+        ...(estimated ? { tokenSource: ESTIMATED_TOKENS_MARKER } : {}),
         promptTokens,
         completionTokens,
         totalTokens,

@@ -26,6 +26,7 @@ export * from './services/signalQueue';
 export * from './services/copilot';
 export * from './services/savedSearches';
 export * from './services/opportunitySubmissions';
+export * from './services/referrals';
 
 export * from './hooks/useChat';
 export * from './hooks/useOpportunities';
@@ -37,6 +38,7 @@ export * from './hooks/useProStatus';
 export * from './hooks/useCredits';
 export * from './hooks/useCreatorAccess';
 export * from './hooks/useFeatureFlags';
+export * from './hooks/useReferral';
 export * from './utils/auth';
 export * from './utils/deadline';
 export * from './utils/feedAnchor';

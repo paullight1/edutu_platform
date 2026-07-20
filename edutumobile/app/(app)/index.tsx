@@ -34,7 +34,7 @@ import { haptics } from "../../lib/haptics";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { useProfileCompleteness } from "@edutu/core/src/hooks/useProfileCompleteness";
-import { Opportunity } from "@edutu/core/src/types/opportunity";
+import { Opportunity, type MatchReasonKind } from "@edutu/core/src/types/opportunity";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
@@ -1189,6 +1189,24 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
 const BEST_SHOT_MIN_MATCH = 60;
 const BEST_SHOT_CARD_WIDTH = Math.min(Math.round(width * 0.72), 290);
 
+// Reason kinds that only establish *eligibility* (you're allowed to apply)
+// rather than genuine fit. A best shot should be winnable for a substantive
+// reason, not merely because your country/region is on the list.
+const ELIGIBILITY_ONLY_REASON_KINDS = new Set<MatchReasonKind>([
+    'location',
+    'remote',
+]);
+
+// A best shot must have at least one substantive (non-eligibility) reason.
+// We can only judge this from reason *kinds* (labels are translated across 9
+// languages, so string-matching them is unreliable); when no kind data is
+// present we can't classify, so we don't over-filter and keep the item.
+function hasSubstantiveMatch(o: Opportunity): boolean {
+    const details = o.matchReasonDetails;
+    if (!details || details.length === 0) return true;
+    return details.some((d) => !ELIGIBILITY_ONLY_REASON_KINDS.has(d.kind));
+}
+
 function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index = 0 }: {
     item: Opportunity;
     isDark: boolean;
@@ -1208,6 +1226,10 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     // a strong bottom scrim, white text pinned to the bottom. Guarantees
     // legibility over any photo and reads more premium than tinting the image.
     const hasImage = !!item.image;
+    // The generated share card already renders the title into the artwork, so
+    // overlaying our own title on top of it would show the title twice. Drop
+    // the overlay title in that case (a11y label below keeps it announced).
+    const artHasTitle = hasImage && !!item.imageIsShareCard;
     const titleColor = hasImage ? '#FFFFFF' : textPrimary;
     const reasonColor = hasImage ? 'rgba(255,255,255,0.82)' : textSecondary;
     const deadlineTextColor = hasImage
@@ -1217,10 +1239,14 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     return (
         <AnimatedPressable
             onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.title}, ${matchPct}% match`}
             style={[
                 styles.bestShotCard,
                 hasImage
-                    ? { backgroundColor: '#0D0D16', borderColor: 'transparent', minHeight: 152 }
+                    // Netflix-style poster: no border/frame, art bleeds edge to
+                    // edge (padding lives on the inner content, not the card).
+                    ? { backgroundColor: '#0D0D16', borderWidth: 0, minHeight: 152 }
                     : {
                         backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
                         borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.25)',
@@ -1233,8 +1259,10 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
             {/* Artwork fills the card (bled past the border, no white frame); a
                 bottom-weighted scrim darkens where the text sits. */}
             {hasImage ? (
-                <View pointerEvents="none" style={styles.bestShotImageLayer}>
-                    <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                    {/* `hasImage` guards this branch, but it's a plain boolean so
+                        TS can't narrow item.image — coerce null away for the type. */}
+                    <Image source={{ uri: item.image ?? undefined }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                     <LinearGradient
                         colors={['rgba(9,9,14,0.10)', 'rgba(9,9,14,0.58)', 'rgba(9,9,14,0.95)']}
                         locations={[0, 0.5, 1]}
@@ -1256,7 +1284,9 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
                     </View>
                 </View>
                 <View>
-                    <Text style={[styles.bestShotTitle, { color: titleColor }]} numberOfLines={2}>{item.title}</Text>
+                    {artHasTitle ? null : (
+                        <Text style={[styles.bestShotTitle, { color: titleColor }]} numberOfLines={2}>{item.title}</Text>
+                    )}
                     {topReason ? (
                         <Text style={[styles.bestShotReason, { color: reasonColor }]} numberOfLines={2}>
                             {topReason}
@@ -1493,7 +1523,11 @@ export default function Dashboard() {
     // these exact ids and the same card never shows up twice on the home screen.
     const bestShots = useMemo(
         () => opportunities
-            .filter((o) => Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH)
+            .filter(
+                (o) =>
+                    Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH &&
+                    hasSubstantiveMatch(o),
+            )
             .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
             .slice(0, 3),
         [opportunities],
@@ -1647,17 +1681,22 @@ export default function Dashboard() {
                             <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                                 {t('home.featuredOpportunities', { defaultValue: 'Featured Opportunities' })}
                             </Text>
-                            <AnimatedPressable
-                                onPress={() => router.push('/opportunities/featured')}
-                                style={styles.viewMorePill}
-                                hapticFeedback="light"
-                                scaleTo={0.9}
-                                accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
-                            >
-                                <View style={styles.viewMorePillInner}>
-                                    <ChevronRight size={18} color="#6366F1" />
-                                </View>
-                            </AnimatedPressable>
+                            {/* "View more" only when the section is actually populated
+                                (2+). In the empty state the card carries its own
+                                arrow, so a header arrow would be a redundant second one. */}
+                            {featuredOpportunities.length >= 2 && (
+                                <AnimatedPressable
+                                    onPress={() => router.push('/opportunities/featured')}
+                                    style={styles.viewMorePill}
+                                    hapticFeedback="light"
+                                    scaleTo={0.9}
+                                    accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
+                                >
+                                    <View style={styles.viewMorePillInner}>
+                                        <ChevronRight size={18} color="#6366F1" />
+                                    </View>
+                                </AnimatedPressable>
+                            )}
                         </View>
                         {featuredOpportunities.length > 0 ? (
                             <FeaturedCarousel
@@ -2736,20 +2775,13 @@ const styles = StyleSheet.create({
         width: BEST_SHOT_CARD_WIDTH,
         borderRadius: 16,
         borderWidth: 1.5,
-        padding: 14,
         overflow: 'hidden',
     },
-    // Bleeds a couple px past the card's border box so the artwork reaches the
-    // rounded edge with no background/border seam (fixes the white edges).
-    bestShotImageLayer: {
-        position: 'absolute',
-        top: -2,
-        left: -2,
-        right: -2,
-        bottom: -2,
-    },
+    // Padding lives here (not on the card) so the artwork can bleed to the
+    // card's rounded edge with no frame — Netflix-style poster.
     bestShotContent: {
         flex: 1,
+        padding: 14,
     },
     // Poster layout: badges at top, text pushed to the bottom over the scrim.
     bestShotContentPoster: {

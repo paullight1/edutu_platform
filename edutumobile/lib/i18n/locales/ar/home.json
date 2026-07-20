@@ -243,7 +243,12 @@
     "notInterestedTitle": "غير مهتم؟",
     "notInterestedMessage": "سنعرض لك عددًا أقل من الفرص المشابهة لهذه.",
     "notInterestedConfirm": "غير مهتم",
-    "percentMatch": "تطابق {{percent}}%"
+    "percentMatch": "تطابق {{percent}}%",
+    "shareLabel": "مشاركة هذه الفرصة",
+    "bookmarkAddLabel": "حفظ الفرصة",
+    "bookmarkRemoveLabel": "إزالة من المحفوظات",
+    "moreOptionsLabel": "خيارات إضافية",
+    "moreOptionsHint": "وضع علامة على هذه الفرصة كغير مهمة"
   },
   "creditPack": {
     "title": "شراء نقاط",

@@ -33,6 +33,13 @@ export interface Opportunity {
   benefits: string[];
   applicationProcess: string[];
   image?: string | null;
+  /**
+   * True when `image` is the generated branded share card (which renders the
+   * opportunity title into the artwork) rather than a real scraped/source
+   * image. Consumers that overlay their own title should suppress it in this
+   * case to avoid the title appearing twice.
+   */
+  imageIsShareCard?: boolean;
   match: number;
   difficulty?: OpportunityDifficulty | null;
   applicants?: string;

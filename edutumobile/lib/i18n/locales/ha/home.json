@@ -231,7 +231,12 @@
     "notInterestedTitle": "Ba ka da sha'awa?",
     "notInterestedMessage": "Za mu rage nuna maka damammaki irin wannan.",
     "notInterestedConfirm": "Ba ni da sha'awa",
-    "percentMatch": "Dacewa {{percent}}%"
+    "percentMatch": "Dacewa {{percent}}%",
+    "shareLabel": "Raba wannan damar",
+    "bookmarkAddLabel": "Ajiye dama",
+    "bookmarkRemoveLabel": "Cire daga adana",
+    "moreOptionsLabel": "Ƙarin zaɓuka",
+    "moreOptionsHint": "Yi alama wannan dama a matsayin wanda ba a sha'awa da shi ba"
   },
   "creditPack": {
     "title": "Sayi Kirediti",

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { verifyClerkRequest } from "../_shared/clerk-auth.ts";
+import { detectSelfHarmIntent, selfHarmSupportText } from "../_shared/crisis-support.ts";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_AUDIO_BASE64_BYTES = 6 * 1024 * 1024;
@@ -40,12 +41,18 @@ const SECURITY_HEADERS = {
  * free unlimited AI. Delegates to the Nest /monetization/meter endpoint — the
  * single source of truth for Pro fair-use caps, the free-tier daily allowance,
  * and credit debiting — forwarding the caller's Clerk token so it charges the
- * right user. Returns null when the action is allowed; otherwise returns a
- * Response (402 insufficient_credits / 429 limit / 503 billing_unavailable)
- * that the handler must return as-is. Fails CLOSED: any metering error denies
- * the action rather than serving it free.
+ * right user. Returns the charge's ledgerId (string) when the action is
+ * allowed and something was debited, or null when it was allowed for free
+ * (nothing to refund later); otherwise returns a Response (402
+ * insufficient_credits / 429 limit / 503 billing_unavailable) that the
+ * handler must return as-is. Fails CLOSED: any metering error denies the
+ * action rather than serving it free.
+ *
+ * Callers whose paid work fails AFTER a successful charge should pass the
+ * returned ledgerId to refundMeterCharge so a transient provider failure
+ * doesn't leave the user's credits gone with nothing to show for it.
  */
-async function enforceMeter(req: Request, action: string): Promise<Response | null> {
+async function enforceMeter(req: Request, action: string): Promise<Response | string | null> {
   const apiUrl = Deno.env.get("EDUTU_API_URL");
   const authHeader = req.headers.get("authorization") || "";
   const deny = (status: number, body: Record<string, unknown>) =>
@@ -65,7 +72,10 @@ async function enforceMeter(req: Request, action: string): Promise<Response | nu
       headers: { "Content-Type": "application/json", Authorization: authHeader },
       body: JSON.stringify({ action }),
     });
-    if (res.ok) return null;
+    if (res.ok) {
+      const body = (await res.json().catch(() => null)) as { ledgerId?: string | null } | null;
+      return body?.ledgerId ?? null;
+    }
 
     // Forward the backend's status + typed body so the client sees the same
     // 402/429 upgrade signals it would get from the primary /chat path.
@@ -83,6 +93,47 @@ async function enforceMeter(req: Request, action: string): Promise<Response | nu
   } catch (error) {
     console.error("Meter enforcement failed:", error);
     return deny(503, { code: "billing_unavailable", error: "AI is temporarily unavailable." });
+  }
+}
+
+/**
+ * Hand back a charge taken by enforceMeter whose paid work then failed —
+ * mirrors the refund the in-pipeline @AiMetered interceptor performs
+ * automatically for the primary /chat path, so voice (5 credits/minute)
+ * doesn't lose that guarantee just because it runs outside Nest.
+ *
+ * Never throws into the response path: the caller here is already building
+ * an error response for the user, and a refund failure must not replace
+ * that real error with a different one — so failures are logged and
+ * swallowed. No-op when ledgerId is null/absent (free-tier charges have
+ * nothing to refund). Idempotent on the backend, so a retried call here is
+ * also safe.
+ */
+async function refundMeterCharge(req: Request, ledgerId: string | null | undefined): Promise<void> {
+  if (!ledgerId) return;
+
+  const apiUrl = Deno.env.get("EDUTU_API_URL");
+  if (!apiUrl) {
+    // enforceMeter would already have denied (and thus never charged) if
+    // this were unset, so this branch is defensive rather than reachable.
+    console.error("EDUTU_API_URL not configured — cannot refund meter charge", { ledgerId });
+    return;
+  }
+
+  try {
+    const res = await fetch(`${apiUrl.replace(/\/$/, "")}/monetization/meter/refund`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: req.headers.get("authorization") || "",
+      },
+      body: JSON.stringify({ ledgerId }),
+    });
+    if (!res.ok) {
+      console.error("Meter refund failed:", res.status, await res.text().catch(() => ""));
+    }
+  } catch (error) {
+    console.error("Meter refund request failed:", error);
   }
 }
 
@@ -597,16 +648,20 @@ function isEdutuRelevant(message: string) {
 const SAFETY_REFUSAL =
   "I can't help with that.\nI'm here for education, scholarships, applications, CVs, and career growth — ask me about any of those.";
 
-const SELF_HARM_SUPPORT =
-  "I'm really sorry you're going through this — you don't have to face it alone.\n- Please reach out to someone you trust or a local crisis helpline right now.\n- I'm here whenever you want help with school, opportunities, or your next step.";
-
 // Lightweight server-side moderation ahead of the LLM call. Patterns are kept
 // narrow on purpose: a false positive silently blocks a legitimate student
 // question, so only clearly disallowed requests match.
+//
+// Self-harm detection is delegated to the shared multilingual crisis module
+// (detectSelfHarmIntent), which runs every locale's patterns against the raw
+// message — so a Swahili/Arabic/Hausa/… user in crisis is caught here too, not
+// just English speakers. The support REPLY is localized separately at the
+// usage site via selfHarmSupportText(locale). The "blocked" path below is
+// unchanged.
 function moderateUserMessage(message: string): "blocked" | "selfharm" | null {
   const normalized = message.toLowerCase();
 
-  if (/\b(kill(ing)? myself|end my (own )?life|commit suicide|suicidal|self[- ]harm|hurt(ing)? myself|want to die)\b/.test(normalized)) {
+  if (detectSelfHarmIntent(message)) {
     return "selfharm";
   }
 
@@ -744,9 +799,15 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Set once the chat-fallback path's chatMessage charge succeeds, so the
+  // outer catch below can refund it if anything after the charge throws
+  // (e.g. thread creation / message save failures). Voice's own charges are
+  // refunded locally in their own catch blocks and never reach this one.
+  let chatChargeLedgerId: string | null = null;
+
   try {
     const claims = await verifyClerkRequest(req);
-    const { message, threadId, userId, mode, audio, language, text, voice, channel, durationSeconds } = await req.json();
+    const { message, threadId, userId, mode, audio, language, text, voice, channel, durationSeconds, locale } = await req.json();
     const authenticatedUserId = claims.sub;
 
     if (userId && userId !== authenticatedUserId) {
@@ -868,8 +929,9 @@ serve(async (req: Request) => {
       }
 
       // Meter after cheap validation, before the paid OpenAI call.
-      const sttMeterBlock = await enforceMeter(req, "voicePerMinute");
-      if (sttMeterBlock) return sttMeterBlock;
+      const sttMeterResult = await enforceMeter(req, "voicePerMinute");
+      if (sttMeterResult instanceof Response) return sttMeterResult;
+      const sttLedgerId = sttMeterResult;
 
       try {
         const transcript = await transcribeAudio(openaiKey, audio as AudioPayload, language);
@@ -892,6 +954,9 @@ serve(async (req: Request) => {
         });
       } catch (error) {
         console.error("OpenAI transcription failed:", error);
+        // The charge already succeeded above; the paid call then failed, so
+        // hand the credits back before returning the user's error.
+        await refundMeterCharge(req, sttLedgerId);
         return new Response(
           JSON.stringify({
             error:
@@ -925,8 +990,9 @@ serve(async (req: Request) => {
       }
 
       // Meter after cheap validation, before the paid OpenAI call.
-      const ttsMeterBlock = await enforceMeter(req, "voicePerMinute");
-      if (ttsMeterBlock) return ttsMeterBlock;
+      const ttsMeterResult = await enforceMeter(req, "voicePerMinute");
+      if (ttsMeterResult instanceof Response) return ttsMeterResult;
+      const ttsLedgerId = ttsMeterResult;
 
       try {
         const speech = await synthesizeSpeech(openaiKey, speakText, typeof voice === "string" ? voice : undefined);
@@ -947,6 +1013,9 @@ serve(async (req: Request) => {
         });
       } catch (error) {
         console.error("OpenAI speech failed:", error);
+        // The charge already succeeded above; the paid call then failed, so
+        // hand the credits back before returning the user's error.
+        await refundMeterCharge(req, ttsLedgerId);
         return new Response(
           JSON.stringify({ error: error instanceof Error ? error.message : "Speech is unavailable" }),
           { status: 502, headers: { ...corsHeaders, ...SECURITY_HEADERS } },
@@ -957,8 +1026,11 @@ serve(async (req: Request) => {
     // Chat completion is the default (non-mode) path. Meter it as a chatMessage
     // before any LLM/ranking work so the fallback here can't bypass the backend
     // meter that the primary /chat/messages route enforces.
-    const chatMeterBlock = await enforceMeter(req, "chatMessage");
-    if (chatMeterBlock) return chatMeterBlock;
+    const chatMeterResult = await enforceMeter(req, "chatMessage");
+    if (chatMeterResult instanceof Response) return chatMeterResult;
+    // Recorded so the outer catch can refund it if anything below throws
+    // (e.g. thread-creation or message-save failures) after the charge.
+    chatChargeLedgerId = chatMeterResult;
 
     const { data: existingProfile } = await supabase
       .from("profiles")
@@ -1116,7 +1188,7 @@ ${JSON.stringify(opportunities, null, 2)}`);
         userId: safeUserId,
         verdict: moderationVerdict,
       });
-      finalAnswer = moderationVerdict === "selfharm" ? SELF_HARM_SUPPORT : SAFETY_REFUSAL;
+      finalAnswer = moderationVerdict === "selfharm" ? selfHarmSupportText(locale) : SAFETY_REFUSAL;
     } else if (!isRelevantRequest) {
       finalAnswer = EDUTU_TOPIC_REDIRECT;
     } else if (deepseekKey) {
@@ -1151,7 +1223,16 @@ ${JSON.stringify(opportunities, null, 2)}`);
       }
     }
 
-    finalAnswer = isVoice ? sanitizeVoiceMessage(finalAnswer) : sanitizeCoachMessage(finalAnswer);
+    if (moderationVerdict === "selfharm") {
+      // Deliver the localized crisis message intact. sanitizeCoachMessage keeps
+      // only the first 3 paragraphs, which would silently drop the Edutu
+      // contact line and closing reassurance of the multilingual support text.
+      // Voice still flows through its content-preserving sanitizer (it joins
+      // lines and strips markup without dropping the contact/directory).
+      finalAnswer = isVoice ? sanitizeVoiceMessage(finalAnswer) : finalAnswer;
+    } else {
+      finalAnswer = isVoice ? sanitizeVoiceMessage(finalAnswer) : sanitizeCoachMessage(finalAnswer);
+    }
 
     const opportunityCards = toOpportunityCards(topMatches);
     const shouldAttachCards = wantsOpportunities && opportunityCards.length > 0;
@@ -1201,6 +1282,12 @@ ${JSON.stringify(opportunities, null, 2)}`);
     });
   } catch (error) {
     console.error("Error in chat-proxy:", error);
+    // The chatMessage charge (if any) already succeeded before this throw —
+    // e.g. thread creation or message-save failing after enforceMeter — so
+    // hand the credits back before returning the user's error. Voice's own
+    // charges are already refunded in their own catch blocks above and never
+    // reach this one.
+    await refundMeterCharge(req, chatChargeLedgerId);
     const message = error instanceof Error ? error.message : String(error);
     const status = message.includes("bearer") || message.includes("token") ? 401 : 500;
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {

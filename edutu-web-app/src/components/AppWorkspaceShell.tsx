@@ -13,6 +13,7 @@ import {
   Menu,
   Send,
   Settings,
+  Sparkles,
   UserCheck,
   X,
   type LucideIcon,
@@ -20,6 +21,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
+import { usePaywall } from "../hooks/usePaywall";
 import { cn } from "../lib/cn";
 import AppFooter from "./AppFooter";
 import OfflineBanner from "./OfflineBanner";
@@ -111,6 +113,10 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { unreadCount } = useNotifications();
+  const { isPro, billingLoading } = usePaywall();
+  // Only surface the upgrade CTA once we positively know the user isn't Pro,
+  // so a paying subscriber never sees an "Upgrade" flash during the billing fetch.
+  const showUpgradeCta = !isPro && !billingLoading;
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(
@@ -256,7 +262,15 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </div>
             {isSidebarOpen ? (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{displayName}</p>
+                <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                  <span className="truncate">{displayName}</span>
+                  {isPro ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                      <Sparkles size={9} aria-hidden="true" />
+                      Pro
+                    </span>
+                  ) : null}
+                </p>
                 <p className={cn("truncate text-xs leading-5 text-text-muted")}>
                   {displayEmail}
                 </p>
@@ -357,6 +371,26 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
           </div>
 
           <div className={cn("mt-auto border-t border-subtle pt-4")}>
+            {showUpgradeCta ? (
+              isSidebarOpen ? (
+                <NavLink
+                  to="/upgrade"
+                  className="mb-2 flex h-10 w-full items-center gap-3 rounded-xl bg-brand-500/10 px-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-500/20"
+                >
+                  <Sparkles size={17} className="shrink-0" />
+                  <span className="truncate">{t("navigation.upgradeToPro")}</span>
+                </NavLink>
+              ) : (
+                <NavLink
+                  to="/upgrade"
+                  title={t("navigation.upgradeToPro")}
+                  aria-label={t("navigation.upgradeToPro")}
+                  className="mb-2 flex h-10 w-full items-center justify-center rounded-xl bg-brand-500/10 text-brand-700 transition-colors hover:bg-brand-500/20"
+                >
+                  <Sparkles size={17} className="shrink-0" />
+                </NavLink>
+              )
+            ) : null}
             {isSidebarOpen ? (
               <button
                 type="button"

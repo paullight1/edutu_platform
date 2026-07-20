@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "Coach de IA"
+    "title": "Coach de IA",
+    "historyButtonLabel": "Historial de conversaciones"
   },
   "loading": {
     "conversation": "Cargando conversación..."
@@ -12,17 +13,11 @@
   "location": {
     "remote": "Remoto"
   },
-  "answers": {
-    "checkingOpportunities": "Revisando las oportunidades de Edutu para ti.",
-    "matchesFound": "Encontré {{count}} coincidencias en Edutu.\nDesliza las tarjetas o afina la búsqueda.",
-    "roadmapChecking": "Estoy revisando tus oportunidades.\nLuego construiré la ruta.",
-    "roadmapMatchFound": "Encontré una posible coincidencia.\nToca Construir para crear metas y recordatorios.",
-    "roadmapWhichOpportunity": "¿Para qué oportunidad es esto?\nEnvía el nombre o explora Oportunidades."
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "Buscar becas",
-      "subtitle": "Disponibles este mes"
+      "subtitle": "Disponibles este mes",
+      "message": "Busca becas a las que pueda postular este mes"
     },
     "mastercard": {
       "title": "Coincidencias Mastercard",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "Construir ruta",
-      "subtitle": "Planear mi próxima postulación"
+      "subtitle": "Planear mi próxima postulación",
+      "message": "Crea una ruta para mi próxima postulación"
     },
     "internships": {
       "title": "Fechas de pasantías",
@@ -73,20 +69,25 @@
     "narrowBy": "Filtrar por:",
     "view": "Ver",
     "categoryFallback": "Oportunidad",
-    "typing": "Edutu está revisando oportunidades"
+    "typing": "Edutu está pensando…",
+    "aiThinkingAnnouncement": "Edutu está pensando",
+    "aiRepliedAnnouncement": "Edutu respondió",
+    "stoppedNotice": "Detuviste esta respuesta — puede estar incompleta.",
+    "stoppedEarlyNotice": "Lo detuviste antes de que Edutu respondiera.",
+    "interruptedNotice": "Se cortó la conexión, así que esta respuesta está incompleta. Vuelve a preguntar para obtener la respuesta completa.",
+    "truncatedNotice": "Esta respuesta es parcial — Edutu se quedó sin espacio para terminarla."
   },
   "followUp": {
     "country": "País",
     "deadline": "Fecha límite",
-    "funding": "Financiamiento"
+    "funding": "Financiamiento",
+    "narrowByCountry": "Filtra estos por país",
+    "narrowByDeadline": "Filtra estos por fecha límite",
+    "narrowByFunding": "Filtra estos por financiamiento"
   },
   "roadmapPanel": {
     "title": "Construir ruta",
     "subtitle": "Metas, fechas límite, recordatorios",
-    "searching": "Buscando oportunidades...",
-    "matchMeta": "{{category}} · vence {{deadline}}",
-    "daysLeft": "Quedan {{count}} días",
-    "dailySteps": "{{count}} pasos diarios",
     "build": "Construir"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "Escríbele a Edutu...",
-    "send": "Enviar"
+    "send": "Enviar",
+    "stopLabel": "Detener la generación",
+    "sending": "Enviando…"
   },
   "threads": {
     "modalTitle": "Conversaciones",
@@ -106,7 +109,9 @@
       "yesterday": "Ayer",
       "thisWeek": "Esta semana",
       "older": "Anteriores"
-    }
+    },
+    "itemA11yLabel": "Conversación: {{title}}, {{date}}",
+    "closeButtonLabel": "Cerrar historial de conversaciones"
   },
   "voice": {
     "titleTranscript": "Mensaje de voz",
@@ -158,5 +163,43 @@
     "voiceNigerian": "Inglés nigeriano",
     "voiceAll": "Más voces",
     "voiceHint": "Para voces más naturales, descarga voces mejoradas en los ajustes del teléfono — iOS: Ajustes → Accesibilidad → Contenido leído → Voces; Android: instala las voces de Síntesis de voz de Google."
+  },
+  "winCoach": {
+    "sheetTitle": "Coach de Edutu",
+    "thinking": "Pensando en esto por ti…",
+    "signInRequired": "Inicia sesión para usar el Coach de Edutu.",
+    "noReplyFallback": "No pude generar una respuesta justo ahora — inténtalo de nuevo.",
+    "billingLimitReached": "Esto usa créditos de IA y ya se te acabaron. Mejora a Edutu Pro o recarga para continuar.",
+    "documentUpload": {
+      "defaultLabel": "Subir un documento",
+      "cvLabel": "Sube tu CV para un análisis más preciso",
+      "uploading": "Subiendo…",
+      "processing": "Procesando…",
+      "ready": "{{name}} — listo",
+      "readFailed": "No se pudo leer ese archivo. Prueba con un PDF, DOCX o archivo de texto.",
+      "uploadFailed": "Error al subir. Inténtalo de nuevo."
+    },
+    "openInChat": "Abrir en el chat",
+    "actions": {
+      "fitCheck": "¿Encajo aquí?",
+      "nextMove": "Siguiente paso",
+      "whatsMissing": "¿Qué me falta?",
+      "nextWinMove": "Mi próximo paso ganador"
+    }
+  },
+  "limit": {
+    "title": "Has alcanzado tu límite de IA",
+    "body": "Has usado tus mensajes gratuitos de IA de Edutu por ahora. Mejora a Pro para coaching ilimitado, rutas y coincidencias personalizadas.",
+    "upgradeCta": "Mejorar a Pro",
+    "errorTitle": "El mensaje no se envió",
+    "errorBody": "Algo interrumpió la conexión. Toca reintentar para enviarlo de nuevo.",
+    "retryCta": "Reintentar",
+    "dismissCta": "Ahora no",
+    "savedTitle": "Tu mensaje está guardado",
+    "savedBody": "Guardamos lo que escribiste: «{{message}}». Envíalo cuando quieras.",
+    "resendCta": "Enviar ahora"
+  },
+  "actions": {
+    "createRoadmapPrompt": "Sí, constrúyeme esa ruta."
   }
 }

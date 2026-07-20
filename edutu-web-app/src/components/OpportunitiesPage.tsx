@@ -17,6 +17,7 @@ import {
   EyeOff,
   GraduationCap,
   MapPin,
+  Lock,
   Plus,
   RefreshCw,
   Rocket,
@@ -26,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useProFeature } from "./ProGate";
 import { ImpressionTracker } from "./opportunity/ImpressionTracker";
 import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
 import {
@@ -708,6 +710,10 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     usePersonalization();
   const { success, error: showError } = useToast();
   const { isSignedIn, userId, getToken } = useClerkAuth();
+  // Browsing, search and sorting stay free; only revealing *closed* (expired)
+  // opportunities is a Pro feature — turning it ON requires Pro, turning it
+  // back OFF is always free.
+  const closedFilter = useProFeature("closed opportunities");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
@@ -1163,10 +1169,25 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               type="button"
               role="switch"
               aria-checked={showClosed}
-              onClick={() => setShowClosed((value) => !value)}
+              onClick={() => {
+                // Turning OFF is always free; turning ON is Pro-gated.
+                if (showClosed) {
+                  setShowClosed(false);
+                } else if (closedFilter.requirePro()) {
+                  setShowClosed(true);
+                }
+              }}
               className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-sm text-text-primary transition hover:bg-surface-layer"
             >
-              Show closed
+              <span className="flex items-center gap-1.5">
+                Show closed
+                {closedFilter.locked ? (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                    <Lock size={8} aria-hidden="true" />
+                    Pro
+                  </span>
+                ) : null}
+              </span>
               <span
                 className={`relative h-6 w-10 shrink-0 rounded-full transition ${
                   showClosed
@@ -1359,9 +1380,15 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               {!showClosed ? (
                 <button
                   type="button"
-                  onClick={() => setShowClosed(true)}
+                  onClick={() => {
+                    // Same Pro gate as the filter-panel toggle.
+                    if (closedFilter.requirePro()) setShowClosed(true);
+                  }}
                   className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary"
                 >
+                  {closedFilter.locked ? (
+                    <Lock size={14} aria-hidden="true" />
+                  ) : null}
                   {t("opportunities.showClosed")}
                 </button>
               ) : null}

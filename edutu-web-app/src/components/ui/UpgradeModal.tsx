@@ -3,13 +3,11 @@ import { Loader2, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
 import { createCheckout } from '../../services/billing';
-import { fetchMobileControlConfig, type RemotePricing } from '../../services/mobileControl';
+import { type RemotePricing } from '../../services/mobileControl';
+import { effectivePrice, formatMoney, loadRemotePricing } from '../../lib/proPricing';
 
-// Display prices come from the admin-configured pricing group on the public
-// /mobile-control/config (same source as the mobile paywall + pay.edutu.org),
-// so an admin price change shows up here without a redeploy. These hardcoded
-// values are only the fallback while the config loads or if it's unreachable.
-// Actual charge amounts are resolved server-side at checkout.
+// Modal-specific display labels; amounts/currency come from admin config (see
+// ../../lib/proPricing). These strings only show while that config loads.
 const FALLBACK_PLANS: Array<{ plan: 'weekly' | 'monthly' | 'yearly'; label: string; price: string; note?: string }> = [
   { plan: 'weekly', label: 'Pro Weekly', price: '₦2,000' },
   { plan: 'monthly', label: 'Pro Monthly', price: '₦6,500', note: 'Most popular' },
@@ -21,51 +19,6 @@ const FALLBACK_PACKS: Array<{ credits: number; price: string }> = [
   { credits: 250, price: '₦3,000' },
   { credits: 700, price: '₦7,000' },
 ];
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  NGN: '₦', USD: '$', GHS: '₵', KES: 'KSh', ZAR: 'R',
-  GBP: '£', EUR: '€', UGX: 'USh', TZS: 'TSh', RWF: 'FRw',
-};
-
-function formatMoney(amount: number, currency: string): string {
-  const code = (currency || 'NGN').toUpperCase();
-  const symbol = CURRENCY_SYMBOLS[code] || `${code} `;
-  const formatted = Number.isInteger(amount)
-    ? amount.toLocaleString('en-US')
-    : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${symbol}${formatted}`;
-}
-
-/** The price actually charged for a plan (active promo override wins). */
-function effectivePrice(pricing: RemotePricing, plan: 'weekly' | 'monthly' | 'yearly'): number {
-  const regular =
-    plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
-  if (!pricing.promo?.active) return regular;
-  const override =
-    plan === 'weekly'
-      ? pricing.promo.weeklyPrice
-      : plan === 'monthly'
-        ? pricing.promo.monthlyPrice
-        : pricing.promo.yearlyPrice;
-  return typeof override === 'number' && override >= 0 ? override : regular;
-}
-
-// One fetch per page load — the modal can open repeatedly.
-let pricingPromise: Promise<RemotePricing | null> | null = null;
-function loadRemotePricing(): Promise<RemotePricing | null> {
-  if (!pricingPromise) {
-    pricingPromise = fetchMobileControlConfig()
-      .then((config) => {
-        const pricing = config?.pricing;
-        return pricing && typeof pricing.monthlyPrice === 'number' ? pricing : null;
-      })
-      .catch(() => {
-        pricingPromise = null; // retry on the next open
-        return null;
-      });
-  }
-  return pricingPromise;
-}
 
 export interface UpgradeModalProps {
   open: boolean;
@@ -140,14 +93,14 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent ariaLabel="Upgrade to keep using AI features" className="max-w-lg">
+      <DialogContent ariaLabel="Upgrade to Edutu Pro" className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-brand" aria-hidden="true" />
             Upgrade to keep going
           </DialogTitle>
           <DialogDescription>
-            {reason || 'You have used up your free AI allowance. Go Pro for unlimited access, or top up credits.'}
+            {reason || 'That is a Pro feature. Go Pro to unlock it, or top up credits.'}
           </DialogDescription>
         </DialogHeader>
 

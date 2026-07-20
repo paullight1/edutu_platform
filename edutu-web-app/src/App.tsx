@@ -51,6 +51,7 @@ const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
 const ImpactPage = lazy(() => import("./components/ImpactPage"));
+const UpgradePage = lazy(() => import("./components/UpgradePage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
@@ -544,6 +545,8 @@ function App() {
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/impact" element={<ImpactPage />} />
+      <Route path="/upgrade" element={<UpgradePage />} />
+      <Route path="/pro" element={<Navigate to="/upgrade" replace />} />
       <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
       <Route
         path="/beliefs"

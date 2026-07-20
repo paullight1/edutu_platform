@@ -108,14 +108,6 @@ jest.mock('../components/ui/AnimatedPressable', () => {
   };
 });
 
-jest.mock('react-native-svg', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-  return {
-    SvgXml: () => <Text>SvgXml</Text>,
-  };
-});
-
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

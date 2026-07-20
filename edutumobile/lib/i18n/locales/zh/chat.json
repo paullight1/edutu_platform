@@ -1,6 +1,7 @@
 {
   "header": {
-    "title": "AI 教练"
+    "title": "AI 教练",
+    "historyButtonLabel": "对话历史"
   },
   "loading": {
     "conversation": "正在加载对话…"
@@ -12,17 +13,11 @@
   "location": {
     "remote": "远程"
   },
-  "answers": {
-    "checkingOpportunities": "正在为你查找 Edutu 上的机会。",
-    "matchesFound": "我在 Edutu 上找到了 {{count}} 个匹配。\n滑动卡片查看，或缩小搜索范围。",
-    "roadmapChecking": "我正在查看你的机会，\n接着就为你搭建路线图。",
-    "roadmapMatchFound": "我找到了一个可能的匹配。\n点击「搭建」即可创建目标和提醒。",
-    "roadmapWhichOpportunity": "这是为哪个机会准备的？\n发送名称，或去「机会」里逛逛。"
-  },
   "quickPrompts": {
     "findScholarships": {
       "title": "找奖学金",
-      "subtitle": "本月开放中"
+      "subtitle": "本月开放中",
+      "message": "帮我找找这个月可以申请的奖学金"
     },
     "mastercard": {
       "title": "Mastercard 匹配",
@@ -30,7 +25,8 @@
     },
     "buildRoadmap": {
       "title": "搭建路线图",
-      "subtitle": "规划我的下一份申请"
+      "subtitle": "规划我的下一份申请",
+      "message": "为我的下一次申请制定一份路线图"
     },
     "internships": {
       "title": "实习截止日期",
@@ -73,20 +69,25 @@
     "narrowBy": "按条件筛选：",
     "view": "查看",
     "categoryFallback": "机会",
-    "typing": "Edutu 正在查找机会"
+    "typing": "Edutu 正在思考…",
+    "aiThinkingAnnouncement": "Edutu 正在思考",
+    "aiRepliedAnnouncement": "Edutu 已回复",
+    "stoppedNotice": "你停止了这条回复——内容可能不完整。",
+    "stoppedEarlyNotice": "在 Edutu 回复之前你就停止了。",
+    "interruptedNotice": "连接中断，因此这条回复不完整。再问一次即可获得完整答案。",
+    "truncatedNotice": "这个回答不完整——Edutu 没有足够空间写完。"
   },
   "followUp": {
     "country": "国家/地区",
     "deadline": "截止日期",
-    "funding": "资助"
+    "funding": "资助",
+    "narrowByCountry": "按国家/地区筛选这些结果",
+    "narrowByDeadline": "按截止日期筛选这些结果",
+    "narrowByFunding": "按资助筛选这些结果"
   },
   "roadmapPanel": {
     "title": "搭建路线图",
     "subtitle": "目标、截止日期、提醒",
-    "searching": "正在搜索机会…",
-    "matchMeta": "{{category}} · {{deadline}} 截止",
-    "daysLeft": "还剩 {{count}} 天",
-    "dailySteps": "{{count}} 个每日步骤",
     "build": "搭建"
   },
   "empty": {
@@ -95,7 +96,9 @@
   },
   "input": {
     "placeholder": "给 Edutu 发消息…",
-    "send": "发送"
+    "send": "发送",
+    "stopLabel": "停止生成",
+    "sending": "发送中…"
   },
   "threads": {
     "modalTitle": "对话",
@@ -106,7 +109,9 @@
       "yesterday": "昨天",
       "thisWeek": "本周",
       "older": "更早"
-    }
+    },
+    "itemA11yLabel": "对话：{{title}}，{{date}}",
+    "closeButtonLabel": "关闭对话历史"
   },
   "voice": {
     "titleTranscript": "语音消息",
@@ -158,5 +163,43 @@
     "voiceNigerian": "尼日利亚英语",
     "voiceAll": "更多声音",
     "voiceHint": "想要更自然清晰的声音，请在手机设置中下载增强语音 — iOS：设置 → 辅助功能 → 朗读内容 → 声音；Android：安装 Google 文字转语音的语音包。"
+  },
+  "winCoach": {
+    "sheetTitle": "Edutu 教练",
+    "thinking": "我正在为你仔细思考…",
+    "signInRequired": "请登录以使用 Edutu 教练。",
+    "noReplyFallback": "我现在暂时无法生成回复——请再试一次。",
+    "billingLimitReached": "此操作会消耗 AI 额度，你的额度已用完。升级到 Edutu Pro 或充值以继续。",
+    "documentUpload": {
+      "defaultLabel": "上传一份文件",
+      "cvLabel": "上传简历，获得更精准的匹配分析",
+      "uploading": "正在上传…",
+      "processing": "正在处理…",
+      "ready": "{{name}} — 已就绪",
+      "readFailed": "无法读取该文件。请尝试使用 PDF、DOCX 或文本文件。",
+      "uploadFailed": "上传失败。请再试一次。"
+    },
+    "openInChat": "在聊天中打开",
+    "actions": {
+      "fitCheck": "我适合吗？",
+      "nextMove": "下一步",
+      "whatsMissing": "还缺什么？",
+      "nextWinMove": "我的下一个制胜行动"
+    }
+  },
+  "limit": {
+    "title": "你已达到 AI 使用上限",
+    "body": "你目前的 Edutu 免费 AI 消息额度已用完。升级到 Pro，畅享无限教练指导、路线图和专属匹配。",
+    "upgradeCta": "升级 Pro",
+    "errorTitle": "消息未发送",
+    "errorBody": "连接中断了。点击重试以重新发送。",
+    "retryCta": "重试",
+    "dismissCta": "暂不",
+    "savedTitle": "你的消息已保存",
+    "savedBody": "我们保留了你输入的内容：“{{message}}”。准备好随时发送。",
+    "resendCta": "立即发送"
+  },
+  "actions": {
+    "createRoadmapPrompt": "好的，帮我搭建这个路线图。"
   }
 }

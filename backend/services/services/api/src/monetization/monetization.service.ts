@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
@@ -22,6 +23,45 @@ export interface MeterCharge {
   // Credits actually debited (0 for Pro users and free-tier allowance).
   charged: number;
   ledgerId: string | null;
+  /**
+   * True when this action incremented today's chat-message counter, so a
+   * failed turn can hand it back. It cannot ride the credit refund: an
+   * in-allowance chat has charged: 0 / ledgerId: null and refund() returns
+   * early for those.
+   */
+  chatCounted: boolean;
+  /**
+   * Action credits this action added to today's Pro fair-use counter, so a
+   * failed turn can hand them back the same way `chatCounted` hands back a
+   * chat message. Only the Pro path bumps `action_credits` (a non-Pro user
+   * pays with real credits instead, compensated by the ledger refund below),
+   * so this is 0 everywhere else. Without it a Pro user whose cvAi/copilotKit
+   * turn failed kept the bump forever and walked into the daily cap early.
+   */
+  actionCredited?: number;
+  /**
+   * Chat messages left in today's allowance (free tier or Pro fair use) after
+   * this one, or null when the action isn't counted against a daily allowance
+   * (non-chat actions, or chat already paid for with credits). Surfaced to
+   * clients so they can warn at "1 left" instead of being cut off at 0.
+   *
+   * SEMANTICS CLIENTS MUST NOT GET WRONG: `remaining: 0` means "no FREE
+   * allowance left", NOT "this user cannot chat". A free user past the
+   * allowance who paid for this turn with credits also reports 0, and can keep
+   * going for as long as their credit balance holds. Treat 0 as "show the
+   * upgrade/top-up nudge", never as a hard client-side block — the server is
+   * the only thing allowed to refuse a turn (402/429).
+   */
+  remaining: number | null;
+  /**
+   * The usage day (YYYY-MM-DD) the counter was incremented on, carried so a
+   * rollback hits the row it actually bumped. A turn that starts at 23:59:58
+   * and fails at 00:00:01 would otherwise decrement the NEW day's counter,
+   * gifting the user a message. Null/absent when nothing was counted, or when
+   * the driver did not return it — the rollback then falls back to current_date
+   * exactly as it behaved before.
+   */
+  day?: string | null;
 }
 
 // A flat credit fee taken for a non-AI feature (e.g. the opportunity
@@ -115,6 +155,16 @@ export class MonetizationService {
       const overActions =
         !isChat && usage.actionCredits > pricing.proFairUse.dailyActionCredits;
       if (overChat || overActions) {
+        // The bump above already landed, and this request is being REFUSED —
+        // leaving it would let rejected traffic inflate the counter further
+        // past the cap, so a user who hits the wall stays walled for the rest
+        // of the day even as earlier turns expire. Release what we just took.
+        await this.releaseDailyUsage(
+          userId,
+          usage.day,
+          isChat ? 1 : 0,
+          isChat ? 0 : cost,
+        );
         throw new HttpException(
           {
             code: "limit",
@@ -125,27 +175,109 @@ export class MonetizationService {
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
-      return { userId, action, charged: 0, ledgerId: null };
+      return {
+        userId,
+        action,
+        charged: 0,
+        ledgerId: null,
+        chatCounted: isChat,
+        actionCredited: isChat ? 0 : cost,
+        remaining: isChat
+          ? Math.max(
+              0,
+              pricing.proFairUse.dailyChatMessages - usage.chatMessages,
+            )
+          : null,
+        day: usage.day,
+      };
     }
 
+    // A chat message consumed from the daily allowance is counted up front, so
+    // remember it: if the turn then fails, refund() hands the message back
+    // instead of burning one of a free user's handful.
+    let chatCounted = false;
+    let chatDay: string | null = null;
     if (isChat) {
       const usage = await this.bumpDailyUsage(userId, 1, 0);
+      chatCounted = true;
+      chatDay = usage.day;
       if (usage.chatMessages <= pricing.freeTier.dailyChatMessages) {
-        return { userId, action, charged: 0, ledgerId: null };
+        return {
+          userId,
+          action,
+          charged: 0,
+          ledgerId: null,
+          chatCounted,
+          remaining: Math.max(
+            0,
+            pricing.freeTier.dailyChatMessages - usage.chatMessages,
+          ),
+          day: chatDay,
+        };
       }
       // Past the free allowance: chat costs credits like any other action.
     }
 
     if (cost === 0) {
-      return { userId, action, charged: 0, ledgerId: null };
+      return {
+        userId,
+        action,
+        charged: 0,
+        ledgerId: null,
+        chatCounted,
+        remaining: chatCounted ? 0 : null,
+        day: chatDay,
+      };
     }
 
-    const ledgerId = await this.debitCredits(userId, cost, action, isChat);
-    return { userId, action, charged: cost, ledgerId };
+    let ledgerId: string;
+    try {
+      ledgerId = await this.debitCredits(userId, cost, action, isChat);
+    } catch (error) {
+      // The counter was bumped before we knew the user could pay. A REFUSED
+      // request must not consume allowance, so hand it back — but ONLY for a
+      // refusal (402/429). A 503 billing outage is deliberately left alone:
+      // fail-closed means an outage stays visible as an outage, and a silent
+      // rollback there could mask a billing failure.
+      if (chatCounted && isRefusal(error)) {
+        await this.releaseDailyUsage(userId, chatDay, 1, 0);
+      }
+      throw error;
+    }
+    return {
+      userId,
+      action,
+      charged: cost,
+      ledgerId,
+      chatCounted,
+      remaining: chatCounted ? 0 : null,
+      day: chatDay,
+    };
   }
 
   /** Best-effort compensation when the AI call fails after a debit. */
   async refund(charge: MeterCharge): Promise<void> {
+    // Independent of the credit refund below: a free-tier turn charges no
+    // credits at all, and a Pro turn charges none either — the daily counter
+    // IS the currency for both, so this is the only compensation they get.
+    // `chatCounted` covers a chat message; `actionCredited` covers the Pro
+    // action-credit bump (cvAi/copilotKit/…), which previously stuck forever.
+    const chatDelta = charge.chatCounted ? 1 : 0;
+    const creditDelta = Math.max(0, Math.round(charge.actionCredited ?? 0));
+    if (chatDelta > 0 || creditDelta > 0) {
+      // Exactly-once: clear the markers SYNCHRONOUSLY (before any await) so a
+      // second refund() of the same charge — retries, or two callers racing on
+      // one failure — cannot release the same bump twice. A successful action
+      // never reaches refund() at all.
+      charge.chatCounted = false;
+      charge.actionCredited = 0;
+      await this.releaseDailyUsage(
+        charge.userId,
+        charge.day ?? null,
+        chatDelta,
+        creditDelta,
+      );
+    }
     if (!charge.charged || !charge.ledgerId) return;
     try {
       await db.transaction(async (tx) => {
@@ -174,6 +306,124 @@ export class MonetizationService {
         `Failed to refund ${charge.charged} credits to ${charge.userId}: ${
           error instanceof Error ? error.message : "unknown"
         }`,
+      );
+    }
+  }
+
+  /**
+   * Compensate an out-of-pipeline charge (POST /monetization/meter) whose work
+   * failed after the debit, addressed by the `ledgerId` that charge returned.
+   *
+   * NOT forgeable, and not a token subsystem: the handle is only a lookup key.
+   * Two checks stand between it and a credit:
+   *   1. OWNERSHIP — the `ai_action` spend row must exist AND its `user_id`
+   *      must match the authenticated caller (dual-keyed like every other
+   *      profile read). A randomUUID belonging to someone else, or to nobody,
+   *      finds no row and 404s; guessing one is a 122-bit search that only
+   *      ever yields *your own* already-refunded charge.
+   *   2. UNIQUENESS — the compensation is written as `${ledgerId}:refund`,
+   *      which the `credit_transactions_ai_action_idem` unique index makes
+   *      insertable exactly once. The profile credit only moves when that
+   *      insert actually inserts, so replaying the same handle is a no-op
+   *      rather than an income stream.
+   *
+   * Idempotent by design: a repeat returns `{ refunded: false }` with 200
+   * instead of an error, so a client retrying a flaky network call does not
+   * fall into a retry storm against an endpoint that already did its job.
+   */
+  async refundMeterCharge(
+    userId: string,
+    ledgerId: string,
+  ): Promise<{ refunded: boolean; credits: number }> {
+    if (!userId) {
+      throw new UnauthorizedException("Sign in to continue");
+    }
+
+    let charged = 0;
+    try {
+      const result = await db.execute(sql`
+        select amount
+        from credit_transactions
+        where related_id = ${ledgerId}
+          and related_type = 'ai_action'
+          and ${matchUserIdRef("user_id", userId)}
+        limit 1
+      `);
+      const rows =
+        (result as unknown as { rows?: Array<{ amount: number | string }> })
+          .rows ?? [];
+      if (rows.length === 0) {
+        throw new UnknownChargeError();
+      }
+      charged = Math.abs(Math.round(Number(rows[0]?.amount ?? 0)));
+    } catch (error) {
+      if (error instanceof UnknownChargeError) {
+        // Same answer for "no such charge" and "not yours": never confirm that
+        // another user's ledger id exists.
+        throw new NotFoundException("Unknown charge");
+      }
+      this.logger.error(
+        `Refund lookup failed for ${userId}/${ledgerId}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+      throw new HttpException(
+        {
+          code: "billing_unavailable",
+          message: "Billing is temporarily unavailable. Please try again.",
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    if (charged <= 0) {
+      // A free-tier / in-allowance charge cost nothing; nothing to hand back.
+      return { refunded: false, credits: 0 };
+    }
+
+    try {
+      let inserted = false;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
+        const written = await tx.execute(sql`
+          insert into credit_transactions
+            (user_id, amount, type, description, related_id, related_type)
+          values
+            (${userId}, ${charged}, 'refund',
+             ${"Refund: metered action failed"},
+             ${`${ledgerId}:refund`}, 'ai_action_refund')
+          on conflict do nothing
+          returning id
+        `);
+        inserted = ((written as { rows?: unknown[] }).rows ?? []).length > 0;
+        // Only move credits when the ledger row was actually written — the
+        // unique index is what makes a replayed handle a no-op.
+        if (!inserted) return;
+        await tx.execute(sql`
+          update profiles
+          set credits = credits + ${charged}, updated_at = now()
+          where ctid = (
+            select ctid from profiles
+            where ${matchUserIdRef("user_id", userId)}
+            order by coalesce(credits, 0) desc
+            limit 1
+          )
+        `);
+      });
+      return { refunded: inserted, credits: inserted ? charged : 0 };
+    } catch (error) {
+      this.logger.error(
+        `Failed to refund ${charged} credits for ${userId}/${ledgerId}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+      // Surface the failure so the caller can retry — the retry is safe.
+      throw new HttpException(
+        {
+          code: "billing_unavailable",
+          message: "Billing is temporarily unavailable. Please try again.",
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
   }
@@ -387,11 +637,47 @@ export class MonetizationService {
     }
   }
 
+  /**
+   * Hands back a daily-usage increment after a failed or REFUSED action.
+   * Best-effort (never throws): a lost rollback costs the user one message,
+   * while a throw here would mask the real error. Never inserts a row and
+   * never goes below zero. Targets the day the bump landed on (`day`) rather
+   * than current_date, so a turn spanning midnight cannot credit the new day.
+   */
+  private async releaseDailyUsage(
+    userId: string,
+    day: string | null,
+    chatDelta: number,
+    creditDelta: number,
+  ): Promise<void> {
+    if (chatDelta <= 0 && creditDelta <= 0) return;
+    try {
+      const dayRef = day ? sql`${day}::date` : sql`current_date`;
+      await db.execute(sql`
+        update user_ai_usage_daily
+        set chat_messages = greatest(chat_messages - ${chatDelta}, 0),
+            action_credits = greatest(action_credits - ${creditDelta}, 0),
+            updated_at = now()
+        where user_id = ${userId} and day = ${dayRef}
+      `);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to release daily usage for ${userId}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+    }
+  }
+
   private async bumpDailyUsage(
     userId: string,
     chatDelta: number,
     creditDelta: number,
-  ): Promise<{ chatMessages: number; actionCredits: number }> {
+  ): Promise<{
+    chatMessages: number;
+    actionCredits: number;
+    day: string | null;
+  }> {
     const result = await db.execute(sql`
       insert into user_ai_usage_daily (user_id, day, chat_messages, action_credits)
       values (${userId}, current_date, ${chatDelta}, ${creditDelta})
@@ -399,19 +685,47 @@ export class MonetizationService {
         chat_messages = user_ai_usage_daily.chat_messages + ${chatDelta},
         action_credits = user_ai_usage_daily.action_credits + ${creditDelta},
         updated_at = now()
-      returning chat_messages, action_credits
+      returning day, chat_messages, action_credits
     `);
     const rows =
       (
         result as unknown as {
-          rows?: Array<{ chat_messages: number; action_credits: number }>;
+          rows?: Array<{
+            day?: unknown;
+            chat_messages: number;
+            action_credits: number;
+          }>;
         }
       ).rows ?? [];
     return {
       chatMessages: Number(rows[0]?.chat_messages ?? 0),
       actionCredits: Number(rows[0]?.action_credits ?? 0),
+      day: normalizeUsageDay(rows[0]?.day),
     };
   }
 }
 
 class InsufficientCreditsError extends Error {}
+/** No `ai_action` ledger row with that id belongs to the caller. */
+class UnknownChargeError extends Error {}
+
+/** `day` comes back as a Date or a "YYYY-MM-DD" string depending on the driver. */
+function normalizeUsageDay(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "string" && value) return value.slice(0, 10);
+  return null;
+}
+
+/**
+ * True when the error is the metering path REFUSING the request (402/429) as
+ * opposed to a billing outage (503). Only a refusal earns a counter rollback:
+ * fail-closed requires an outage to stay an outage.
+ */
+function isRefusal(error: unknown): boolean {
+  if (!(error instanceof HttpException)) return false;
+  const status = error.getStatus();
+  return (
+    status === (HttpStatus.PAYMENT_REQUIRED as number) ||
+    status === (HttpStatus.TOO_MANY_REQUESTS as number)
+  );
+}

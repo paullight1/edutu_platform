@@ -2,10 +2,10 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { X, Crown, Check, Zap, Sparkles, Shield, Star } from 'lucide-react-native';
+import { X, Crown, Check, Zap, Route, Shield, Star } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 interface Props {
     visible: boolean;
@@ -15,11 +15,22 @@ interface Props {
     onTrialActivated: () => Promise<void>;
 }
 
-function PulsingCrown() {
+function PulsingCrown({ reducedMotion }: { reducedMotion: boolean }) {
     const scale = useSharedValue(1);
     const opacity = useSharedValue(0.6);
 
     React.useEffect(() => {
+        // Static, fully-opaque crown when the user has reduced motion on —
+        // mirrors chat.tsx's TypingDot gating pattern rather than an
+        // unconditional infinite pulse.
+        if (reducedMotion) {
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+            scale.value = 1;
+            opacity.value = 1;
+            return;
+        }
+
         scale.value = withRepeat(
             withSequence(
                 withTiming(1.1, { duration: 1500 }),
@@ -36,9 +47,13 @@ function PulsingCrown() {
             -1,
             true
         );
+        return () => {
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+        };
         // SharedValues have stable identity, so these deps never re-fire the
         // effect — they only satisfy the compiler's dependency contract.
-    }, [opacity, scale]);
+    }, [opacity, scale, reducedMotion]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -54,12 +69,12 @@ function PulsingCrown() {
 
 export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialActivated }: Props) {
     const { t } = useTranslation('cv');
-    const { isDark } = useTheme();
+    const { isDark, reducedMotion } = useTheme();
     const router = useRouter();
     const muted = isDark ? '#94A3B8' : '#64748B';
 
     const features = [
-        { icon: Sparkles, label: t('proUpgrade.features.roadmaps') },
+        { icon: Route, label: t('proUpgrade.features.roadmaps') },
         { icon: Check, label: t('proUpgrade.features.templates') },
         { icon: Zap, label: t('proUpgrade.features.tailoring') },
         { icon: Star, label: t('proUpgrade.features.creatorListing') },
@@ -89,7 +104,7 @@ export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialA
 
                     <View style={styles.crownContainer}>
                         <View style={styles.crownGlow} />
-                        <PulsingCrown />
+                        <PulsingCrown reducedMotion={reducedMotion} />
                     </View>
 
                     <Text style={styles.modalTitle}>

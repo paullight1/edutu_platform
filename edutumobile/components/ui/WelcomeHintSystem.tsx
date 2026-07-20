@@ -13,6 +13,8 @@ import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Compass, Home, MessageCircle, ShoppingBag, UserCircle } from 'lucide-react-native';
+import { useWelcomeModalActive } from '../../lib/welcomeModalStore';
+import { useTheme } from '../context/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const STORAGE_PREFIX = 'edutu:welcome-hints:v1';
@@ -143,6 +145,7 @@ function getFocusStyle(focus: HintFocus, bottomInset: number) {
 
 export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: WelcomeHintSystemProps) {
   const { t } = useTranslation('common');
+  const { colors, reducedMotion } = useTheme();
   const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -152,6 +155,10 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
   const iconPulse = useAnimatedValue(1);
 
   const storageKey = useMemo(() => `${STORAGE_PREFIX}:${userId || 'anonymous'}`, [userId]);
+  // Hold the coach-marks while the first-run WelcomeModal greeting is on screen;
+  // they resume automatically once it's dismissed.
+  const welcomeActive = useWelcomeModalActive();
+  const effectiveEnabled = enabled && !welcomeActive;
   const step = STEPS[index];
   const Icon = step.icon;
   const focusStyle = getFocusStyle(step.focus, insets.bottom);
@@ -161,7 +168,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
     let mounted = true;
 
     async function loadState() {
-      if (!enabled || !userId) {
+      if (!effectiveEnabled || !userId) {
         if (mounted) {
           setVisible(false);
           setReady(true);
@@ -187,7 +194,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
     return () => {
       mounted = false;
     };
-  }, [enabled, storageKey, userId]);
+  }, [effectiveEnabled, storageKey, userId]);
 
   useEffect(() => {
     if (!visible) {
@@ -212,7 +219,9 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
   }, [cardY, opacity, visible]);
 
   useEffect(() => {
-    if (!visible) {
+    // Static icon (no pulse) when the user has reduced motion on — mirrors
+    // chat.tsx's TypingDot gating pattern.
+    if (!visible || reducedMotion) {
       iconPulse.setValue(1);
       return;
     }
@@ -236,7 +245,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
 
     pulse.start();
     return () => pulse.stop();
-  }, [iconPulse, index, visible]);
+  }, [iconPulse, index, visible, reducedMotion]);
 
   const close = async () => {
     setVisible(false);
@@ -272,7 +281,14 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
         />
         <View style={styles.scrim} />
       </Pressable>
-      <View style={[styles.focusRing, focusStyle]} pointerEvents="none" />
+      <View
+        style={[
+          styles.focusRing,
+          focusStyle,
+          { borderColor: colors.accent, shadowColor: colors.accent, backgroundColor: colors.accent + '1F' },
+        ]}
+        pointerEvents="none"
+      />
 
       <Animated.View
         style={[
@@ -290,12 +306,12 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
             style={[
               styles.iconWrap,
               {
-                backgroundColor: isDark ? 'rgba(129,140,248,0.18)' : '#EEF2FF',
+                backgroundColor: isDark ? colors.accent + '26' : colors.accent + '1A',
                 transform: [{ scale: iconPulse }],
               },
             ]}
           >
-            <Icon size={22} color={isDark ? '#A5B4FC' : '#4F46E5'} strokeWidth={2.3} />
+            <Icon size={22} color={isDark ? colors.accentLight : colors.accent} strokeWidth={2.3} />
           </Animated.View>
           <View style={styles.progressWrap}>
             {STEPS.map((item, itemIndex) => (
@@ -304,7 +320,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
                 style={[
                   styles.progressDot,
                   {
-                    backgroundColor: itemIndex <= index ? '#6366F1' : isDark ? '#334155' : '#CBD5E1',
+                    backgroundColor: itemIndex <= index ? colors.accent : isDark ? '#334155' : '#CBD5E1',
                     width: itemIndex === index ? 18 : 6,
                   },
                 ]}
@@ -329,7 +345,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
 
           <Pressable
             onPress={next}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.accent }, pressed && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={isLast ? t('hints.finishHint') : t('hints.nextHint')}
           >
@@ -354,9 +370,6 @@ const styles = StyleSheet.create({
   focusRing: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: '#A5B4FC',
-    backgroundColor: 'rgba(99,102,241,0.12)',
-    shadowColor: '#A5B4FC',
     shadowOpacity: 0.9,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 0 },
@@ -432,7 +445,6 @@ const styles = StyleSheet.create({
     minWidth: 104,
     paddingHorizontal: 18,
     borderRadius: 13,
-    backgroundColor: '#6366F1',
     alignItems: 'center',
     justifyContent: 'center',
   },

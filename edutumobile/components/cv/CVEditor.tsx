@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { Check, Download, Sparkles, Target, ChevronRight, Plus, Trash2, Flag } from 'lucide-react-native';
+import { Check, Download, Wand2, Target, ChevronRight, Plus, Trash2, Flag } from 'lucide-react-native';
 import { CVHeader, UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useReportAIContent } from '../../lib/reportAiContent';
@@ -230,7 +230,7 @@ export function CVEditor({
                         {isImprovingSummary ? (
                             <ActivityIndicator color="#FFFFFF" size="small" />
                         ) : (
-                            <Sparkles size={16} color="#FFFFFF" />
+                            <Wand2 size={16} color="#FFFFFF" />
                         )}
                         <Text style={styles.aiGenerateText}>
                             {isImprovingSummary ? t('editor.improving') : isPro ? t('editor.improveWithAi') : t('editor.unlockAiAssist')}

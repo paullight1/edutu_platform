@@ -11,7 +11,7 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { X, Check, Download, Sparkles, Pencil } from 'lucide-react-native';
+import { X, Check, Download, Wand2, Pencil } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -91,7 +91,7 @@ export function CVTailorResultModal({
                         </TouchableOpacity>
 
                         <View style={styles.headerTitleRow}>
-                            <Sparkles size={18} color="#FFFFFF" />
+                            <Wand2 size={18} color="#FFFFFF" />
                             <Text style={styles.headerTitle}>{t('tailorResult.title')}</Text>
                         </View>
 

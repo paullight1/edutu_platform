@@ -2,13 +2,19 @@ import { Injectable } from "@nestjs/common";
 import {
   AiChatOptions,
   AiChatResult,
+  AiChatStreamOptions,
+  AiChatStreamResult,
   AiGenerateOptions,
   AiGenerateResult,
   AiProviderAdapter,
   AiRouteConfig,
 } from "../ai.types";
 import { aiFetch } from "./ai-http";
-import { buildOpenAiChatBody, parseOpenAiChatResponse } from "./openai-compat";
+import {
+  buildOpenAiChatBody,
+  parseOpenAiChatResponse,
+  requestOpenAiChatStream,
+} from "./openai-compat";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -117,5 +123,28 @@ export class OpenRouterAdapter implements AiProviderAdapter {
       this.provider,
       config.model,
     );
+  }
+
+  async generateChatStream(
+    config: AiRouteConfig,
+    options: AiChatStreamOptions,
+  ): Promise<AiChatStreamResult> {
+    if (!config.apiKey) {
+      throw new Error("OpenRouter API key is not configured");
+    }
+
+    return requestOpenAiChatStream({
+      url: OPENROUTER_URL,
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "HTTP-Referer": process.env.OPENROUTER_REFERRER || "https://edutu.app",
+        "X-Title": process.env.OPENROUTER_TITLE || "Edutu AI",
+      },
+      config,
+      options,
+      provider: this.provider,
+      model: config.model,
+      label: "OpenRouter",
+    });
   }
 }

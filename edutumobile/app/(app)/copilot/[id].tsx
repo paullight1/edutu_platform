@@ -31,7 +31,7 @@ import {
   Share2,
   RefreshCw,
   Flag,
-  Sparkles,
+  Wand2,
   Target,
   X,
 } from "lucide-react-native";
@@ -728,7 +728,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         generating ? (
           <View style={styles.generateWrap}>
             <View style={[styles.generateIcon, { backgroundColor: `${colors.accent}15` }]}>
-              <Sparkles size={30} color={colors.accent} />
+              <Wand2 size={30} color={colors.accent} />
             </View>
             <Text style={[styles.generateTitle, { color: colors.foreground }]}>
               Building your kit
@@ -846,7 +846,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                 end={{ x: 1, y: 0 }}
                 style={styles.generateCTAGradient}
               >
-                <Sparkles size={18} color="#FFFFFF" />
+                <Wand2 size={18} color="#FFFFFF" />
                 <Text style={styles.generateCTAText}>
                   {isPro
                     ? "Generate my application kit"
@@ -1196,7 +1196,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                 {outlineLoading ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Sparkles size={16} color={colors.accent} />
+                  <Wand2 size={16} color={colors.accent} />
                 )}
                 <Text style={{ color: colors.accent, fontSize: 14, fontWeight: "700" }}>
                   {outline ? "Regenerate outline" : "Generate personalized outline"}
@@ -1289,7 +1289,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                   {feedbackLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Sparkles size={17} color="#FFFFFF" />
+                    <Wand2 size={17} color="#FFFFFF" />
                   )}
                   <Text style={styles.generateCTAText}>
                     {feedbackLoading ? "Reviewing like a committee..." : "Get reviewer feedback"}

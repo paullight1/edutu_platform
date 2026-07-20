@@ -5,6 +5,7 @@ import { sendChatMessage } from '@edutu/core/src/services/chat';
 import { saveOpportunity } from '@edutu/core/src/services/bookmarks';
 import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySignals';
 import { supabase } from './supabase';
+import { getCurrentLanguage } from './i18n';
 import { tokenCache } from '../cache';
 import {
   ACTION_ASK,
@@ -85,6 +86,9 @@ async function handleAsk(
       message,
       userId: session.userId,
       authToken: token,
+      // A user's typed notification reply is free text, same as the composer —
+      // it deserves the same crisis-support reply language.
+      locale: getCurrentLanguage(),
     });
 
     const answer = result?.assistantMessage?.content?.trim();

@@ -29,6 +29,46 @@ const PRO_FEATURES = [
   "creator_tools",
 ] as const;
 
+// Admin revenue mixes currencies: web/Paystack charges NGN, but mobile IAP goes
+// through RevenueCat and lands in USD (the App/Play store product price). To
+// report one comparable figure we normalise everything to NGN at a FIXED
+// display rate — this is a reporting constant for the admin dashboard, NOT a
+// live FX quote. $1 → ₦1000 (so $6.99 ≈ ₦6,990). Change here if the rate moves.
+const USD_TO_NGN = 1000;
+
+// Revenue lives in two tables with DIFFERENT unit conventions:
+//   • billing_transactions.amount  → MAJOR units (₦6,500 stored as 6500)
+//   • payment_transactions.amount  → MINOR units ($6.99 stored as 699 cents)
+// Both CTEs below emit NGN MAJOR units so sums and formatMoney line up, and both
+// drop test money: Paystack test-mode rows (metadata.domain = 'test') and
+// RevenueCat sandbox rows (metadata.environment = 'SANDBOX'). A normalised
+// `env` column is exposed so callers can filter or label without re-deriving it.
+const NORMALISED_REVENUE_CTE = sql`
+  normalised_tx as (
+    -- Web / Paystack — amount already in major NGN units.
+    select
+      id, user_id, provider, provider_reference, type,
+      round(
+        amount * (case when upper(coalesce(currency, 'NGN')) = 'USD' then ${USD_TO_NGN} else 1 end)
+      )::bigint as amount,
+      'NGN' as currency, status, metadata, created_at,
+      lower(coalesce(metadata->>'domain', 'live')) as env
+    from billing_transactions
+    where lower(coalesce(metadata->>'domain', 'live')) <> 'test'
+    union all
+    -- Mobile / RevenueCat — amount in minor units (cents); /100 to major, then FX.
+    select
+      id, user_id, store as provider, transaction_id as provider_reference, type,
+      round(
+        amount / 100.0 * (case when upper(coalesce(currency, 'USD')) = 'USD' then ${USD_TO_NGN} else 1 end)
+      )::bigint as amount,
+      'NGN' as currency, status, metadata, created_at,
+      lower(coalesce(metadata->>'environment', 'production')) as env
+    from payment_transactions
+    where upper(coalesce(metadata->>'environment', 'PRODUCTION')) <> 'SANDBOX'
+  )
+`;
+
 // Static per-plan metadata only. AMOUNTS come from admin_settings.pricing
 // (single source of truth, editable in the admin monetization screen) so
 // what the paywall shows is exactly what Paystack charges.
@@ -456,12 +496,13 @@ export class BillingService {
     const [revenue, subs, credits, topSpenders, aiUsage, recent] =
       await Promise.all([
         db.execute(sql`
+          with ${NORMALISED_REVENUE_CTE}
           select
             coalesce(sum(amount) filter (where created_at >= date_trunc('month', now())), 0) as month_revenue,
             coalesce(sum(amount) filter (where created_at >= now() - interval '30 days'), 0) as last_30d_revenue,
             coalesce(sum(amount), 0) as total_revenue,
             count(*) filter (where created_at >= now() - interval '30 days') as last_30d_count
-          from billing_transactions
+          from normalised_tx
           where status = 'completed'
         `),
         db.execute(sql`
@@ -496,9 +537,10 @@ export class BillingService {
           where day = current_date
         `),
         db.execute(sql`
+          with ${NORMALISED_REVENUE_CTE}
           select id, user_id, provider, provider_reference, type, amount,
                  currency, status, metadata, created_at
-          from billing_transactions
+          from normalised_tx
           order by created_at desc
           limit 20
         `),
@@ -521,9 +563,10 @@ export class BillingService {
     const capped = Math.min(Math.max(Number(limit) || 50, 1), 200);
     const skip = Math.max(Number(offset) || 0, 0);
     const result = await db.execute(sql`
+      with ${NORMALISED_REVENUE_CTE}
       select id, user_id, provider, provider_reference, type, amount,
              currency, status, metadata, created_at
-      from billing_transactions
+      from normalised_tx
       order by created_at desc
       limit ${capped} offset ${skip}
     `);

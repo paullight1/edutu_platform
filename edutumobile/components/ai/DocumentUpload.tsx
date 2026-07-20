@@ -9,11 +9,13 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { Upload, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { useAuth } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import {
   uploadDocument,
   type UploadKind,
 } from '@edutu/core/src/services/uploads';
 import { useTheme } from '../context/ThemeContext';
+import { withAlpha } from '../ui/BottomScrim';
 import { haptics } from '../../lib/haptics';
 
 const ACCEPTED = [
@@ -41,13 +43,15 @@ type DocumentUploadProps = {
 export function DocumentUpload({
   kind = 'other',
   opportunityId,
-  label = 'Upload a document',
+  label,
   onUploaded,
 }: DocumentUploadProps) {
+  const { t } = useTranslation('chat');
   const { colors } = useTheme();
   const { getToken } = useAuth();
   const [state, setState] = useState<UploadState>('idle');
   const [message, setMessage] = useState<string | null>(null);
+  const resolvedLabel = label ?? t('winCoach.documentUpload.defaultLabel');
 
   const pickAndUpload = async () => {
     if (state === 'uploading' || state === 'parsing') return;
@@ -75,21 +79,21 @@ export function DocumentUpload({
 
       if (result.parseStatus === 'done') {
         setState('done');
-        setMessage(`${asset.name} — ready`);
+        setMessage(t('winCoach.documentUpload.ready', { name: asset.name }));
         haptics.success();
         onUploaded?.(result.uploadId);
       } else if (result.parseStatus === 'failed') {
         setState('error');
-        setMessage("Couldn't read that file. Try a PDF, DOCX, or text file.");
+        setMessage(t('winCoach.documentUpload.readFailed'));
         haptics.error();
       } else {
         setState('parsing');
-        setMessage('Processing…');
+        setMessage(t('winCoach.documentUpload.processing'));
         onUploaded?.(result.uploadId);
       }
     } catch {
       setState('error');
-      setMessage('Upload failed. Please try again.');
+      setMessage(t('winCoach.documentUpload.uploadFailed'));
       haptics.error();
     }
   };
@@ -100,14 +104,16 @@ export function DocumentUpload({
     <View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={label}
+        accessibilityLabel={resolvedLabel}
         disabled={busy}
         onPress={pickAndUpload}
         style={({ pressed }) => [
           styles.button,
           {
-            backgroundColor: colors.accentLight,
-            borderColor: colors.border,
+            // Soft accent tint (not `accentLight`, a saturated indigo that hid
+            // the primary-colored label/icon in light mode).
+            backgroundColor: withAlpha(colors.primary, 0.1),
+            borderColor: withAlpha(colors.primary, 0.22),
             opacity: pressed ? 0.7 : 1,
           },
         ]}
@@ -122,7 +128,7 @@ export function DocumentUpload({
           <Upload size={18} color={colors.primary} />
         )}
         <Text style={[styles.label, { color: colors.primary }]} numberOfLines={1}>
-          {busy ? 'Uploading…' : label}
+          {busy ? t('winCoach.documentUpload.uploading') : resolvedLabel}
         </Text>
       </Pressable>
       {message ? (

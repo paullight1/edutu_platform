@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Target,
     Search,
-    Sparkles,
     Filter,
     Award,
     Map,
@@ -582,7 +581,7 @@ export default function GoalsDashboard() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
-                                <Sparkles size={18} color={colors.accent} />
+                                <Target size={18} color={colors.accent} />
                                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('sections.personalGoals')}</Text>
                                 {personalGoals.length > 0 && (
                                     <View style={[styles.sectionCount, { backgroundColor: `${colors.accent}15` }]}>

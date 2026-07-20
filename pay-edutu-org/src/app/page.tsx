@@ -50,11 +50,11 @@ export default function HomePage() {
       <div className="list">
         <div className="row">
           <span className="icn green"><CardIcon /></span>
-          <span>Payments processed end-to-end by <strong>Paystack</strong></span>
+          <span>Pay with <strong>card, mobile money, or bank transfer</strong> — processed by Paystack</span>
         </div>
         <div className="row">
           <span className="icn"><EyeOffIcon /></span>
-          <span>Card details never touch Edutu&apos;s servers</span>
+          <span>Your payment details never touch Edutu&apos;s servers</span>
         </div>
         <div className="row">
           <span className="icn"><BoltIcon /></span>

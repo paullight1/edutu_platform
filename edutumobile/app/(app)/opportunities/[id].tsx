@@ -28,7 +28,7 @@ import {
   Award,
   Globe,
   TrendingUp,
-  Sparkles,
+  Star,
   Target,
   CheckCircle2,
   Building2,
@@ -73,7 +73,6 @@ import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunit
 import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
-import { CHAT_CONTEXT_SENTINEL } from "@edutu/core/src/types/chat";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
@@ -101,9 +100,14 @@ import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
 import { notificationService } from "../../../lib/notifications";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
+import { AiOrbBadge } from "../../../components/ui/AiOrbBadge";
 import { AiActionBar } from "../../../components/ai/AiActionBar";
+import type { AiAction, AiActionResult } from "../../../components/ai/AiActionBar";
 import { DocumentUpload } from "../../../components/ai/DocumentUpload";
 import { useAiAction } from "../../../hooks/useAiAction";
+// The chat screen consumes this on mount to open a specific thread; it is the
+// only hand-off channel it exposes (named for its first caller, voice mode).
+import { setVoiceModeThread as setPendingChatThread } from "../../../lib/voiceModeStore";
 import Reanimated, {
   FadeInDown,
   Easing,
@@ -468,6 +472,9 @@ export default function OpportunityDetailScreen() {
   const [winCoachUploadId, setWinCoachUploadId] = useState<string | undefined>(
     undefined,
   );
+  // Thread the win-coach replies landed in, so the user can open them in chat
+  // instead of losing the advice when the sheet closes.
+  const [winCoachThreadId, setWinCoachThreadId] = useState<string | null>(null);
   const runWinCoach = useAiAction({
     surface: "opportunity_detail",
     opportunityId: id,
@@ -813,33 +820,47 @@ export default function OpportunityDetailScreen() {
     }
   }, [isGuestBrowsing, authWall, getToken, id, opportunity, userId]);
 
-  const askAI = useCallback(
-    (intent: string) => {
-      if (isGuestBrowsing) {
-        authWall?.promptAuth('ai');
-        return;
-      }
-      if (!opportunity) return;
-
-      const prompt = t("detail.aiPromptTemplate", {
-        intent,
-        title: opportunity.title,
-        organization: opportunity.organization || t("shared.unknown"),
-        category: opportunity.category || t("shared.opportunity"),
-        deadline: opportunity.deadline || t("detail.rolling"),
-        description:
-          opportunity.aiSummary || opportunity.description || t("detail.noDescription"),
-      });
-
-      // The template is "{{intent}}\n\n<context>". Swap the first blank line for the
-      // invisible sentinel so the chat sends the full context to Edutu but only shows
-      // the short intent to the user instead of the whole templated dump.
-      const message = prompt.replace(/\n\n/, `${CHAT_CONTEXT_SENTINEL}\n`);
-
-      router.push({ pathname: "/chat", params: { voiceMsg: message } } as never);
+  const handleWinCoachRun = useCallback(
+    async (action: AiAction): Promise<AiActionResult> => {
+      const result = await runWinCoach(action);
+      if (result.threadId) setWinCoachThreadId(result.threadId);
+      return result;
     },
-    [isGuestBrowsing, authWall, opportunity, router, t],
+    [runWinCoach],
   );
+
+  const openWinCoachThread = useCallback(
+    (threadId: string) => {
+      setPendingChatThread(threadId);
+      router.push("/chat" as never);
+    },
+    [router],
+  );
+
+  const goToPaywall = useCallback(() => {
+    router.push("/paywall" as never);
+  }, [router]);
+
+  // Continues the win-coach conversation in full chat. It seeds the composer
+  // via `prefill` — the same param the coach pushes use — which NEVER
+  // auto-sends: opening a screen must not spend the user's AI credits. When a
+  // win-coach action already ran here, the same thread is carried over so the
+  // follow-up lands in that conversation instead of a fresh orphan.
+  const askEdutuMore = useCallback(() => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('ai');
+      return;
+    }
+    if (!opportunity) return;
+
+    if (winCoachThreadId) setPendingChatThread(winCoachThreadId);
+    router.push({
+      pathname: "/chat",
+      params: {
+        prefill: t("detail.askMorePrefill", { title: opportunity.title }),
+      },
+    } as never);
+  }, [isGuestBrowsing, authWall, opportunity, router, t, winCoachThreadId]);
 
   const handleShare = useCallback(async () => {
     if (!opportunity) return;
@@ -1502,7 +1523,7 @@ export default function OpportunityDetailScreen() {
                   { backgroundColor: categoryColor },
                 ]}
               >
-                <Sparkles size={12} color="white" />
+                <Star size={12} color="white" />
                 <Text style={styles.featuredText}>{t("detail.featured")}</Text>
               </View>
             )}
@@ -1589,17 +1610,21 @@ export default function OpportunityDetailScreen() {
                 {opportunity.location || t("shared.remote")}
               </Text>
             </View>
-            <View
-              style={[
-                styles.statCard,
-                { backgroundColor: cardBg, borderColor },
-              ]}
-            >
-              <Users size={16} color={textSecondary} />
-              <Text style={[styles.statText, { color: textSecondary }]}>
-                {t("detail.applied", { value: opportunity.applicants || "500+" })}
-              </Text>
-            </View>
+            {/* Only shown when we actually know the count — inventing social
+                proof ("500+") is not something a credibility product does. */}
+            {opportunity.applicants ? (
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: cardBg, borderColor },
+                ]}
+              >
+                <Users size={16} color={textSecondary} />
+                <Text style={[styles.statText, { color: textSecondary }]}>
+                  {t("detail.applied", { value: opportunity.applicants })}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Deadline Card */}
@@ -1735,65 +1760,6 @@ export default function OpportunityDetailScreen() {
             </>
           )}
 
-          <View
-            style={[
-              styles.aiDecisionCard,
-              {
-                backgroundColor: `${colors.accent}08`,
-                borderColor: `${colors.accent}20`,
-              },
-            ]}
-          >
-            <View style={styles.aiDecisionHeader}>
-              <Sparkles size={16} color={colors.accent} />
-              <Text style={[styles.aiDecisionTitle, { color: textPrimary }]}>
-                {t("detail.askAI")}
-              </Text>
-            </View>
-            <View style={styles.aiDecisionActions}>
-              {[
-                [
-                  t("detail.aiChips.eligibility"),
-                  t("detail.aiChips.eligibilityPrompt"),
-                ],
-                [
-                  t("detail.aiChips.fit"),
-                  t("detail.aiChips.fitPrompt"),
-                ],
-                [
-                  t("detail.aiChips.cv"),
-                  t("detail.aiChips.cvPrompt"),
-                ],
-                [
-                  t("detail.aiChips.prep"),
-                  t("detail.aiChips.prepPrompt"),
-                ],
-              ].map(([label, prompt]) => (
-                <TouchableOpacity
-                  key={label}
-                  onPress={() => askAI(prompt)}
-                  style={[
-                    styles.aiDecisionChip,
-                    {
-                      borderColor: `${colors.accent}30`,
-                      backgroundColor: cardBg,
-                    },
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.aiDecisionChipText,
-                      { color: colors.accent },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           {/* AI Tags */}
           {opportunity.aiTags && opportunity.aiTags.length > 0 && (
             <View
@@ -1828,28 +1794,59 @@ export default function OpportunityDetailScreen() {
             </View>
           )}
 
-          {/* Win-coach: fit + next move for this opportunity */}
+          {/* Win-coach: fit + next move for this opportunity. Signed-in only —
+              this was true before B3 and is unchanged. */}
           {isSignedIn && (
-            <View style={{ marginBottom: 20, gap: 10 }}>
+            <View style={{ marginBottom: 10, gap: 10 }}>
               <AiActionBar
                 actions={[
                   {
-                    label: "Am I a fit?",
+                    label: t("chat:winCoach.actions.fitCheck"),
                     intent: "fit_check",
                     message: `Am I a good fit for "${opportunity.title}"? Give me an honest assessment.`,
                   },
                   {
-                    label: "Next move",
+                    label: t("chat:winCoach.actions.nextMove"),
                     intent: "next_move",
                     message: `What's my single most important next move to win "${opportunity.title}"?`,
                   },
                 ]}
-                onRun={runWinCoach}
+                onRun={handleWinCoachRun}
+                onOpenInChat={openWinCoachThread}
+                onUpgrade={goToPaywall}
               />
+            </View>
+          )}
+          {/* The one way out to full chat: prefills the composer, never sends.
+              Rendered for EVERY visitor — including guests — like every other
+              gated action on this screen (save/track/apply/roadmap/co-pilot).
+              askEdutuMore raises the auth wall itself for guests instead of
+              navigating. */}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("detail.askMore")}
+            onPress={askEdutuMore}
+            activeOpacity={0.8}
+            style={[
+              styles.askMoreChip,
+              {
+                borderColor: `${colors.accent}30`,
+                backgroundColor: cardBg,
+                marginBottom: isSignedIn ? 10 : 20,
+              },
+            ]}
+          >
+            <AiOrbBadge size={18} />
+            <Text style={[styles.askMoreChipText, { color: colors.accent }]}>
+              {t("detail.askMore")}
+            </Text>
+          </TouchableOpacity>
+          {isSignedIn && (
+            <View style={{ marginBottom: 20 }}>
               <DocumentUpload
                 kind="cv"
                 opportunityId={id}
-                label="Upload your CV for a sharper fit check"
+                label={t("chat:winCoach.documentUpload.cvLabel")}
                 onUploaded={setWinCoachUploadId}
               />
             </View>
@@ -1880,7 +1877,7 @@ export default function OpportunityDetailScreen() {
                     gap: 6,
                   }}
                 >
-                  <Sparkles size={14} color={categoryColor} />
+                  <Target size={14} color={categoryColor} />
                   <Text
                     style={{
                       color: categoryColor,
@@ -2475,7 +2472,7 @@ export default function OpportunityDetailScreen() {
                         },
                       ]}
                     >
-                      <Sparkles size={24} color={colors.accent} />
+                      <AiOrbBadge size={30} />
                       <Text
                         style={[styles.overcardTitle, { color: textPrimary }]}
                       >
@@ -2488,7 +2485,7 @@ export default function OpportunityDetailScreen() {
                             { backgroundColor: `${colors.accent}18` },
                           ]}
                         >
-                          <Sparkles size={11} color={colors.accent} />
+                          <AiOrbBadge size={14} />
                           <Text
                             style={[styles.aiBadgeText, { color: colors.accent }]}
                           >
@@ -3655,27 +3652,17 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   listText: { fontSize: 13, lineHeight: 19, flex: 1 },
-  aiDecisionCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 20,
-  },
-  aiDecisionHeader: {
+  askMoreChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  aiDecisionTitle: { fontSize: 14, fontWeight: "700", flex: 1 },
-  aiDecisionActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  aiDecisionChip: {
+    alignSelf: "flex-start",
+    gap: 6,
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  aiDecisionChipText: { fontSize: 12, fontWeight: "700" },
+  askMoreChipText: { fontSize: 13, fontWeight: "700" },
   actionButtonsRow: { flexDirection: "row", gap: 12, marginBottom: 40 },
   aiFab: {
     position: "absolute",

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Dimensions } from "react-native";
-import { ChevronRight, BookmarkPlus, Share2, Sparkles, MoreVertical } from "lucide-react-native";
+import { ChevronRight, BookmarkPlus, Share2, Target, MoreVertical } from "lucide-react-native";
 import { FadeInDown } from "react-native-reanimated";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
@@ -17,6 +17,9 @@ export interface OpportunityCardProps {
     textPrimary: string;
     textSecondary: string;
     accent: string;
+    /** Theme border token (`colors.border`); falls back to the default-pack
+     *  border colors if a caller doesn't pass one. */
+    border?: string;
     /** Stable id-based handlers so React.memo can skip re-renders. */
     onPress?: (id: string) => void;
     onBookmark?: (id: string) => void;
@@ -34,6 +37,7 @@ function OpportunityCardBase({
     textPrimary,
     textSecondary,
     accent,
+    border,
     onPress,
     onBookmark,
     onShare,
@@ -90,6 +94,7 @@ function OpportunityCardBase({
             onLongPress={onNotInterested ? promptNotInterested : undefined}
             style={[styles.opportunityCard, {
                 backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF",
+                borderColor: border ?? (isDark ? "#1E293B" : "#E2E8F0"),
             }]}
             entering={FadeInDown.delay(index * 60).duration(350).springify()}
         >
@@ -104,8 +109,8 @@ function OpportunityCardBase({
             <View style={styles.oppCardContent}>
                 <View style={styles.oppCardTop}>
                     {showOrg ? (
-                        <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
-                            <Text style={styles.oppOrgText} numberOfLines={1}>{orgLabel}</Text>
+                        <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? accent + "26" : accent + "1A" }]}>
+                            <Text style={[styles.oppOrgText, { color: accent }]} numberOfLines={1}>{orgLabel}</Text>
                         </View>
                     ) : (
                         <View style={{ flex: 1 }} />
@@ -119,6 +124,8 @@ function OpportunityCardBase({
                                 }}
                                 hitSlop={6}
                                 style={styles.bookmarkBtn}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('opportunityCard.shareLabel')}
                             >
                                 <Share2 size={15} color={textSecondary} />
                             </TouchableOpacity>
@@ -131,8 +138,11 @@ function OpportunityCardBase({
                                 }}
                                 hitSlop={6}
                                 style={styles.bookmarkBtn}
+                                accessibilityRole="button"
+                                accessibilityLabel={bookmarked ? t('opportunityCard.bookmarkRemoveLabel') : t('opportunityCard.bookmarkAddLabel')}
+                                accessibilityState={{ selected: bookmarked }}
                             >
-                                <BookmarkPlus size={16} color={bookmarked ? "#6366F1" : textSecondary} fill={bookmarked ? "#6366F1" : "transparent"} />
+                                <BookmarkPlus size={16} color={bookmarked ? accent : textSecondary} fill={bookmarked ? accent : "transparent"} />
                             </TouchableOpacity>
                         )}
                         {onNotInterested && (
@@ -143,6 +153,9 @@ function OpportunityCardBase({
                                 }}
                                 hitSlop={6}
                                 style={styles.bookmarkBtn}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('opportunityCard.moreOptionsLabel')}
+                                accessibilityHint={t('opportunityCard.moreOptionsHint')}
                             >
                                 <MoreVertical size={16} color={textSecondary} />
                             </TouchableOpacity>
@@ -150,8 +163,8 @@ function OpportunityCardBase({
                     </View>
                 </View>
                 {showMatch && (
-                    <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
-                        <Sparkles size={9} color={accent} />
+                    <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? accent + "26" : accent + "1A" }]}>
+                        <Target size={9} color={accent} strokeWidth={2.6} />
                         <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
                     </View>
                 )}
@@ -166,7 +179,7 @@ function OpportunityCardBase({
                             {deadlineText}
                         </Text>
                     </View>
-                    <View style={styles.oppArrowBtn}>
+                    <View style={[styles.oppArrowBtn, { backgroundColor: accent }]}>
                         <ChevronRight size={14} color="#FFFFFF" />
                     </View>
                 </View>
@@ -187,7 +200,6 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         marginBottom: 10,
         borderWidth: 1,
-        borderColor: "rgba(99,102,241,0.1)",
         overflow: "hidden",
     },
     oppCardImage: {
@@ -221,7 +233,6 @@ const styles = StyleSheet.create({
     oppOrgText: {
         fontSize: 9,
         fontWeight: "600",
-        color: "#6366F1",
     },
     oppMatchBadge: {
         alignSelf: "flex-start",
@@ -273,7 +284,6 @@ const styles = StyleSheet.create({
         fontWeight: "500",
     },
     oppArrowBtn: {
-        backgroundColor: "#6366F1",
         width: 26,
         height: 26,
         borderRadius: 13,

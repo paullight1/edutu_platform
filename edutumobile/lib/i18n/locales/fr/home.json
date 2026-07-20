@@ -231,7 +231,12 @@
     "notInterestedTitle": "Pas intéressé ?",
     "notInterestedMessage": "Nous vous montrerons moins d'opportunités de ce type.",
     "notInterestedConfirm": "Pas intéressé",
-    "percentMatch": "{{percent}} % de correspondance"
+    "percentMatch": "{{percent}} % de correspondance",
+    "shareLabel": "Partager cette opportunité",
+    "bookmarkAddLabel": "Enregistrer l'opportunité",
+    "bookmarkRemoveLabel": "Retirer des enregistrées",
+    "moreOptionsLabel": "Plus d'options",
+    "moreOptionsHint": "Marquer cette opportunité comme non intéressante"
   },
   "creditPack": {
     "title": "Acheter des Crédits",

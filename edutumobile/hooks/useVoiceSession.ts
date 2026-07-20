@@ -244,6 +244,9 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         // Voice channel: the AI answers in speakable prose (no bullets/emoji/UI
         // references) and leans harder on profile personalization.
         channel: 'voice',
+        // A spoken crisis disclosure deserves a reply in the user's own
+        // language just as much as a typed one.
+        locale: i18n.language?.split('-')[0] || 'en',
       });
       if (!activeRef.current) return;
 

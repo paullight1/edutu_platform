@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
 import {
     ChevronLeft, CheckCircle2 as CheckCircle, Star,
-    Send, Info, Sparkles, Briefcase, ChevronRight,
+    Send, Info, HandHeart, Briefcase, ChevronRight,
     Camera, ExternalLink, Heart, Target, Globe,
     BookOpen, GraduationCap, Trophy, User, FileText, Check, Award, Zap
 } from 'lucide-react-native';
@@ -37,7 +37,7 @@ const OPPORTUNITY_TYPES = [
 const MOTIVATION_OPTIONS = [
     { id: 'help_others', textKey: 'creatorApply.motivations.helpOthers', icon: Heart },
     { id: 'mentor', textKey: 'creatorApply.motivations.mentor', icon: User },
-    { id: 'give_back', textKey: 'creatorApply.motivations.giveBack', icon: Sparkles },
+    { id: 'give_back', textKey: 'creatorApply.motivations.giveBack', icon: HandHeart },
     { id: 'document', textKey: 'creatorApply.motivations.document', icon: FileText },
     { id: 'pay_forward', textKey: 'creatorApply.motivations.payForward', icon: Zap },
 ];
@@ -272,7 +272,7 @@ export default function CreatorApply() {
                         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
                             <View style={styles.heroSection}>
                                 <View style={[styles.heroIcon, { backgroundColor: `${colors.accent}12` }]}>
-                                    <Sparkles color={colors.accent} size={32} />
+                                    <Star color={colors.accent} size={32} />
                                 </View>
                                 <Text style={[styles.heroTitle, { color: textPrimary }]}>{t('creatorApply.intro.heroTitle')}</Text>
                                 <Text style={[styles.heroSubtitle, { color: textSecondary }]}>

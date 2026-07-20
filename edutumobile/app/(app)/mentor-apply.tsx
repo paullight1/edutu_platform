@@ -9,7 +9,7 @@ import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
 import {
-    ChevronLeft, CheckCircle2, Sparkles, Users, Award, Star,
+    ChevronLeft, CheckCircle2, HandHeart, Users, Award, Star,
     Heart, BookOpen, Zap, ArrowRight, Check, Globe
 } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -25,7 +25,7 @@ type MentorStep = typeof MENTOR_STEPS[number];
 const MOTIVATION_OPTIONS = [
     { id: 'help_others', textKey: 'mentorApply.motivations.helpOthers', icon: Heart },
     { id: 'mentor', textKey: 'mentorApply.motivations.mentor', icon: Users },
-    { id: 'give_back', textKey: 'mentorApply.motivations.giveBack', icon: Sparkles },
+    { id: 'give_back', textKey: 'mentorApply.motivations.giveBack', icon: HandHeart },
     { id: 'document', textKey: 'mentorApply.motivations.document', icon: BookOpen },
     { id: 'pay_forward', textKey: 'mentorApply.motivations.payForward', icon: Zap },
 ];
@@ -186,7 +186,7 @@ export default function MentorApply() {
                     {currentStep === 'intro' && (
                         <View>
                             <View style={styles.badge}>
-                                <Sparkles size={12} color="#146ef5" />
+                                <Award size={12} color="#146ef5" />
                                 <Text style={styles.badgeText}>{t('mentorApply.title')}</Text>
                             </View>
                             <Text style={[styles.heroTitle, { color: textPrimary }]}>

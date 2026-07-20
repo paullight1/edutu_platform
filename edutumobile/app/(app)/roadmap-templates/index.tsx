@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { ChevronRight, Clock3, Compass, Sparkles, Star, Users } from 'lucide-react-native';
+import { ChevronRight, Clock3, Compass, Star, Users } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -227,7 +227,7 @@ export default function RoadmapTemplatesScreen() {
                                 <View style={styles.heroTopRow}>
                                     {renderCategoryPill(hero)}
                                     <View style={styles.featuredBadge}>
-                                        <Sparkles size={11} color="#FDE68A" />
+                                        <Star size={11} color="#FDE68A" />
                                         <Text style={styles.featuredBadgeText}>{t('templates.featured')}</Text>
                                     </View>
                                 </View>

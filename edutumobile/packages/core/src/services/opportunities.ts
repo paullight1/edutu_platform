@@ -166,6 +166,11 @@ function normaliseOpportunity(row: any): Opportunity {
   const matchReasonDetails = toReasonDetails(
     Array.isArray(rawReasonDetails) ? rawReasonDetails : rawReasons,
   );
+  // Split the image sources so we can tell a real scraped image apart from the
+  // generated share-card fallback (see `imageIsShareCard` below).
+  const scrapedImage = row.image_url || row.imageUrl || null;
+  const shareCardUrl =
+    row.share_image_url || row.shareImageUrl || shareCard.url || null;
   return {
     id: row.id,
     title: row.title,
@@ -176,21 +181,18 @@ function normaliseOpportunity(row: any): Opportunity {
     description: row.description || 'No description provided.',
     deadline: row.close_date || row.deadline || null,
     // No scraped image → fall back to the generated branded share card so
-    // feed cards never render imageless.
-    image:
-      row.image_url ||
-      row.imageUrl ||
-      row.share_image_url ||
-      row.shareImageUrl ||
-      shareCard.url ||
-      null,
+    // feed cards never render imageless. We remember which branch won
+    // (`imageIsShareCard`) because the share card bakes the title into the art,
+    // and title-overlaying consumers need to suppress their own title then.
+    image: scrapedImage || shareCardUrl,
+    imageIsShareCard: !scrapedImage && !!shareCardUrl,
     requirements: row.requirements?.length
       ? row.requirements
       : (meta.requirements ?? (row.eligibilityCriteria ? [row.eligibilityCriteria] : [])),
     benefits: row.benefits?.length ? row.benefits : (meta.benefits ?? []),
     applicationProcess: row.application_process?.length ? row.application_process : (meta.application_process ?? []),
     applyUrl: row.application_url || row.external_url || row.applyUrl || null,
-    shareImageUrl: row.share_image_url || row.shareImageUrl || shareCard.url || null,
+    shareImageUrl: shareCardUrl,
     lastUpdated: row.updated_at,
     match: row.match || 0,
     difficulty: (row.difficulty as OpportunityDifficulty) || 'Medium',

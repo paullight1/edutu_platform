@@ -53,6 +53,26 @@ export interface WidgetFeed {
 
 export type ModuleAccess = "free" | "pro" | "disabled";
 
+// One admin-composed home block, as delivered to the app (published only).
+export interface HomeBlockConfig {
+  id: string;
+  type: string;
+  props: JsonRecord;
+  enabled: boolean;
+}
+
+// One admin-defined web-backed feature, as delivered to the app (enabled only).
+export interface CustomFeatureConfig {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  url: string;
+  openMode: "webview" | "external";
+  placement: "home" | "tools" | "both";
+  enabled: boolean;
+}
+
 // Admin-controlled app gating, sourced from admin_settings.mobileApp and
 // mirrored into the public config payload the app polls at launch.
 export interface AppControlConfig {
@@ -71,6 +91,12 @@ export interface AppControlConfig {
     message: string;
   };
   moduleLocks: Record<string, ModuleAccess>;
+  // Simple on/off reveal flags for dark-shipped features.
+  featureFlags: Record<string, boolean>;
+  // Published home layout only — the admin's draft never leaves the server.
+  homeLayout: HomeBlockConfig[];
+  // Enabled custom features only.
+  customFeatures: CustomFeatureConfig[];
 }
 
 // Admin-controlled subscription pricing (admin_settings.pricing), served

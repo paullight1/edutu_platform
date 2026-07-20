@@ -1,6 +1,6 @@
 import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Sparkles, Check } from "lucide-react-native";
+import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Target, Check } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { haptics } from "../../lib/haptics";
@@ -23,6 +23,9 @@ import type { Opportunity } from "../../packages/core/src/types/opportunity";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { AiActionBar } from "../../components/ai/AiActionBar";
 import { useAiAction } from "../../hooks/useAiAction";
+// Chat consumes this on mount to open a specific thread (named for its first
+// caller, voice mode) — it is the only thread hand-off channel chat exposes.
+import { setVoiceModeThread as setPendingChatThread } from "../../lib/voiceModeStore";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 
@@ -186,7 +189,7 @@ function RejectionSupportCard({
       {nextBestShot ? (
         <View style={[styles.nextShotBox, { borderColor: `${accentColor}35`, backgroundColor: `${accentColor}0D` }]}>
           <View style={styles.rejectionHeader}>
-            <Sparkles size={13} color={accentColor} />
+            <Target size={13} color={accentColor} />
             <Text style={[styles.nextShotLabel, { color: accentColor }]}>YOUR NEXT BEST SHOT</Text>
           </View>
           <Text style={[styles.nextShotTitle, { color: textPrimary }]} numberOfLines={2}>
@@ -228,6 +231,18 @@ export default function AppliedPage() {
   // Win-coach across all tracked applications — the agent uses list_applications
   // to find the most urgent gaps.
   const runWinCoach = useAiAction({ surface: "application_tracker" });
+  // Lets the coach sheet hand the user back the conversation its advice lives
+  // in, and route a billing failure to the paywall.
+  const openWinCoachThread = useCallback(
+    (threadId: string) => {
+      setPendingChatThread(threadId);
+      router.push('/chat' as never);
+    },
+    [router],
+  );
+  const goToPaywall = useCallback(() => {
+    router.push('/paywall' as never);
+  }, [router]);
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
   const [rawLoading, setLoading] = useState(true);
   // Signed-out users have nothing to load — derive instead of synchronously
@@ -509,19 +524,21 @@ export default function AppliedPage() {
         <AiActionBar
           actions={[
             {
-              label: "What's missing?",
+              label: t("chat:winCoach.actions.whatsMissing"),
               intent: "whats_missing",
               message:
                 "Across my applications, which are missing required documents and closest to their deadline? What should I finish first?",
             },
             {
-              label: "My next win move",
+              label: t("chat:winCoach.actions.nextWinMove"),
               intent: "next_move",
               message:
                 "Looking at everything I've applied to, what's my single most important next move right now?",
             },
           ]}
           onRun={runWinCoach}
+          onOpenInChat={openWinCoachThread}
+          onUpgrade={goToPaywall}
         />
       </View>
       <ScrollView
