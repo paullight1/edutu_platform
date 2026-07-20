@@ -24,7 +24,9 @@ import {
     Plus,
     History,
     X,
-    Sparkles,
+    Compass,
+    Crown,
+    GraduationCap,
     ChevronRight,
     Volume2,
     Pause,
@@ -67,7 +69,7 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 import { getDeadlineBadge } from '@edutu/core/src/utils/deadline';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
@@ -345,7 +347,7 @@ export default function ChatScreen() {
             text: 'Find scholarships I can apply for this month',
             title: t('quickPrompts.findScholarships.title'),
             subtitle: t('quickPrompts.findScholarships.subtitle'),
-            icon: Sparkles,
+            icon: GraduationCap,
             topic: 'Scholarships',
         },
         {
@@ -481,7 +483,7 @@ export default function ChatScreen() {
             if (deviceActions?.length) void runDeviceActions(deviceActions);
             // A spin result gets a celebratory buzz as the card pinwheels in.
             if (result?.assistantMessage?.metadata?.actionButtons?.some(b => b.kind === 'spin_again')) {
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                void haptics.success();
             }
         } catch (err) {
             console.error('Failed to send message:', err);
@@ -1039,7 +1041,7 @@ export default function ChatScreen() {
                                                     <Image source={{ uri: opportunity.imageUrl }} style={styles.opportunityImage} />
                                                 ) : (
                                                     <View style={[styles.opportunityImage, styles.opportunityImageFallback, { backgroundColor: accentTint }]}>
-                                                        <Sparkles size={24} color={accentColor} />
+                                                        <Compass size={24} color={accentColor} />
                                                     </View>
                                                 )}
                                                 {isTopPick ? (
@@ -1479,7 +1481,7 @@ export default function ChatScreen() {
                         >
                             <View style={[styles.sendErrorIcon, { backgroundColor: sendError.type === 'limit' ? accentColor + '22' : 'rgba(239,68,68,0.15)' }]}>
                                 {sendError.type === 'limit'
-                                    ? <Sparkles size={18} color={accentColor} />
+                                    ? <Crown size={18} color={accentColor} />
                                     : <AlertCircle size={18} color="#EF4444" />}
                             </View>
                             <View style={styles.sendErrorCopy}>
@@ -1496,7 +1498,7 @@ export default function ChatScreen() {
                                             onPress={() => { setSendError(null); router.push('/paywall'); }}
                                             activeOpacity={0.85}
                                         >
-                                            <Sparkles size={14} color="#FFFFFF" />
+                                            <Crown size={14} color="#FFFFFF" />
                                             <Text style={styles.sendErrorPrimaryText}>{t('limit.upgradeCta')}</Text>
                                         </TouchableOpacity>
                                     ) : (

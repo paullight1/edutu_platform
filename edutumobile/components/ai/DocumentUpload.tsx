@@ -14,6 +14,7 @@ import {
   type UploadKind,
 } from '@edutu/core/src/services/uploads';
 import { useTheme } from '../context/ThemeContext';
+import { haptics } from '../../lib/haptics';
 
 const ACCEPTED = [
   'application/pdf',
@@ -50,6 +51,7 @@ export function DocumentUpload({
 
   const pickAndUpload = async () => {
     if (state === 'uploading' || state === 'parsing') return;
+    haptics.light();
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ACCEPTED,
@@ -74,10 +76,12 @@ export function DocumentUpload({
       if (result.parseStatus === 'done') {
         setState('done');
         setMessage(`${asset.name} — ready`);
+        haptics.success();
         onUploaded?.(result.uploadId);
       } else if (result.parseStatus === 'failed') {
         setState('error');
         setMessage("Couldn't read that file. Try a PDF, DOCX, or text file.");
+        haptics.error();
       } else {
         setState('parsing');
         setMessage('Processing…');
@@ -86,6 +90,7 @@ export function DocumentUpload({
     } catch {
       setState('error');
       setMessage('Upload failed. Please try again.');
+      haptics.error();
     }
   };
 

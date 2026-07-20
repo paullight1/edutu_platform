@@ -28,15 +28,22 @@ import ReAnimated, {
     interpolate,
     Extrapolation,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../lib/haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
 import { UpgradeSheetProvider } from "../../components/context/UpgradeSheetContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
+import {
+    redeemReferral,
+    isTerminalRedeemStatus,
+    PENDING_REFERRAL_KEY,
+} from "@edutu/core/src/services/referrals";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { FeatureMenu } from "../../components/ui/FeatureMenu";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
 import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
+import { WelcomeModal } from "../../components/ui/WelcomeModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
@@ -371,7 +378,7 @@ function MorphingNavCircle({
             if (!finished) return;
             setShown(latestAction.current);
             slide.setValue(-14);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            haptics.light();
             Animated.parallel([
                 Animated.spring(morph, { toValue: 1, friction: 6, tension: 140, useNativeDriver: true }),
                 Animated.spring(slide, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
@@ -437,7 +444,7 @@ function MorphingNavCircle({
             <TouchableOpacity
                 onPress={() => onPress(latestAction.current)}
                 onLongPress={isAI ? () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    haptics.medium();
                     openVoiceMode('voice');
                 } : undefined}
                 delayLongPress={280}
@@ -487,7 +494,7 @@ function BarActionItem({
         <TouchableOpacity
             onPress={() => onPress(action)}
             onLongPress={isAI ? () => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                haptics.medium();
                 openVoiceMode('voice');
             } : undefined}
             delayLongPress={280}
@@ -538,7 +545,7 @@ function CreateSpeedDial({
 
     useEffect(() => {
         if (open) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            haptics.light();
             Animated.spring(dial, { toValue: 1, friction: 7, tension: 120, useNativeDriver: true }).start();
         } else {
             Animated.timing(dial, { toValue: 0, duration: 150, useNativeDriver: true }).start(({ finished }) => {
@@ -587,7 +594,7 @@ function CreateSpeedDial({
                         >
                             <TouchableOpacity
                                 onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                    haptics.light();
                                     onSelect(option.target);
                                 }}
                                 activeOpacity={0.85}
@@ -908,6 +915,49 @@ function DailyLoginRewards() {
     return null;
 }
 
+// ─── Referral Redemption ────────────────────────────────────────────────────
+// Redeems a referral code captured before the account existed (deep link or
+// the signup field, stashed in AsyncStorage). Runs once per signed-in user;
+// clears the stash on any terminal response so it never retries a bad code.
+// The reward itself settles server-side when the user completes their profile.
+function ReferralRedemption() {
+    const { isSignedIn, userId } = useAuth();
+    const { show } = useToast();
+    const { t } = useTranslation('home');
+    const redeemedForUserRef = React.useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!isSignedIn || !userId || redeemedForUserRef.current === userId) {
+            return;
+        }
+        redeemedForUserRef.current = userId;
+        void (async () => {
+            try {
+                const code = await AsyncStorage.getItem(PENDING_REFERRAL_KEY);
+                if (!code) return;
+                const status = await redeemReferral(supabase, code);
+                if (isTerminalRedeemStatus(status)) {
+                    await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
+                }
+                if (status === 'pending') {
+                    show({
+                        emoji: '🎁',
+                        variant: 'success',
+                        message: t('referral.redeemed', {
+                            defaultValue:
+                                "Referral applied! Finish your profile and you'll both earn credits.",
+                        }),
+                    });
+                }
+            } catch (err) {
+                console.warn('Referral redemption failed:', err);
+            }
+        })();
+    }, [isSignedIn, userId, show, t]);
+
+    return null;
+}
+
 // ─── Root Layout ──────────────────────────────────────────────────────────────
 export default function AppLayout() {
     const { t } = useTranslation('home');
@@ -1132,6 +1182,7 @@ export default function AppLayout() {
         <UpgradeSheetProvider>
         <View style={styles.appContainer}>
             <DailyLoginRewards />
+            <ReferralRedemption />
             {!hideSharedHeader && (
                 <AppHeader
                     isDark={isDark}
@@ -1232,6 +1283,10 @@ export default function AppLayout() {
             {/* Admin module locks (pro/disabled) — covers whatever route is
                 active, including deep links, without per-screen wiring. */}
             <ModuleLockOverlay />
+
+            {/* First-run greeting — once ever per audience (new / returning /
+                guest). Holds the coach-marks and promo until it's dismissed. */}
+            <WelcomeModal />
 
             {/* Login-time promo interstitial — once per day for free users.
                 Skipped for guests: they have no account to upgrade yet. */}

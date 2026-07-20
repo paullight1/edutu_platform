@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 import { useAuth } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import { Check, Lock, Sparkles } from 'lucide-react-native';
@@ -149,7 +149,7 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
     // user hears the difference before committing.
     const previewVoice = (voiceId: string) => {
         setTtsVoice(voiceId);
-        Haptics.selectionAsync().catch(() => {});
+        haptics.selection();
         void edutuSpeak(t('voiceMode.voiceSample'), {
             voice: voiceId,
             getAuthToken: getToken,
@@ -187,7 +187,7 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
                                     key={design}
                                     onPress={() => {
                                         setOrbDesign(design);
-                                        Haptics.selectionAsync().catch(() => {});
+                                        haptics.selection();
                                     }}
                                     activeOpacity={0.8}
                                     style={[styles.designCard, selected && styles.designCardSelected]}

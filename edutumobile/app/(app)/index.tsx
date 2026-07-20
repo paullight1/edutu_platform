@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import {
-    Sparkles,
+    Star,
     ChevronRight,
     Target,
     FileText,
@@ -30,7 +30,7 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../lib/haptics";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { useProfileCompleteness } from "@edutu/core/src/hooks/useProfileCompleteness";
@@ -59,6 +59,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from "../../lib/discoveryTileGlyphs";
 import { useHomeCategories } from "../../lib/homeCategoriesStore";
+import { HomeBlocks } from "../../components/home/HomeBlocks";
 import { useTranslation } from "react-i18next";
 
 const { width } = Dimensions.get('window');
@@ -525,7 +526,7 @@ function HomeCategoriesEditor({
     const handleDragStart = useCallback((id: DiscoveryCategoryId) => {
         anchorRef.current = layoutRef.current.rects.get(id) ?? null;
         setDraggingId(id);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        void haptics.medium();
     }, []);
 
     // Live reorder: whenever the held tile's centre enters another tile's
@@ -556,7 +557,7 @@ function HomeCategoriesEditor({
         }
         if (target === fromIndex) return;
         lastReorderAtRef.current = now;
-        void Haptics.selectionAsync();
+        void haptics.selection();
         setDraft((prev) => {
             const from = prev.findIndex((entry) => entry.id === id);
             if (from < 0) return prev;
@@ -574,12 +575,12 @@ function HomeCategoriesEditor({
 
     const handleResizeStart = useCallback((id: DiscoveryCategoryId) => {
         setResizingId(id);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        void haptics.light();
     }, []);
 
     // Fired each time the edge drag snaps to a new size step.
     const handleResize = useCallback((id: DiscoveryCategoryId, size: DiscoveryTileSize) => {
-        void Haptics.selectionAsync();
+        void haptics.selection();
         setDraft((prev) => prev.map((entry) => (
             entry.id === id ? { ...entry, size } : entry
         )));
@@ -821,7 +822,7 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
                 <View style={styles.oppCardTop}>
                     {showMatch ? (
                         <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
-                            <Sparkles size={9} color={accent} />
+                            <Target size={9} color={accent} strokeWidth={2.6} />
                             <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
                         </View>
                     ) : showOrg ? (
@@ -965,7 +966,7 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
             <View style={[styles.posterBottom, hero && styles.posterBottomHero]}>
                 {matchPct >= 40 && (
                     <View style={styles.posterMatchBadge}>
-                        <Sparkles size={8} color="#C7D2FE" />
+                        <Target size={8} color="#C7D2FE" strokeWidth={2.6} />
                         <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
                     </View>
                 )}
@@ -1034,22 +1035,34 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
             hapticFeedback="light"
             scaleTo={0.98}
         >
-            <View style={[styles.posterFillerIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
-                <Sparkles size={20} color="#6366F1" />
-            </View>
-            <View style={{ flex: 1 }}>
-                <Text style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
-                    {t('featured.emptyTitle', { defaultValue: 'Featured picks are on the way' })}
-                </Text>
-                <Text style={[styles.featuredEmptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>
-                    {t('featured.emptyDescription', { defaultValue: 'Our team hand-picks standout opportunities. Until then, explore everything.' })}
-                </Text>
-            </View>
-            <View style={[styles.featuredEmptyCta, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)' }]}>
-                <Text style={styles.featuredEmptyCtaText} maxFontSizeMultiplier={1.2}>
-                    {t('featured.emptyCta', { defaultValue: 'Explore' })}
-                </Text>
-                <ChevronRight size={14} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+            {/* Layout MUST live on this inner row: AnimatedPressable puts the
+                card `style` on its outer wrapper but nests children in flex:1
+                column views, so flexDirection on the card style is ignored. */}
+            <View style={styles.featuredEmptyRow}>
+                <View style={[styles.featuredEmptyIllus, { backgroundColor: isDark ? 'rgba(99,102,241,0.16)' : 'rgba(99,102,241,0.12)' }]}>
+                    <Star size={22} color="#6366F1" strokeWidth={2.2} fill="#6366F1" />
+                </View>
+                <View style={styles.featuredEmptyBody}>
+                    <Text
+                        style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.3}
+                    >
+                        {t('featured.emptyTitle', { defaultValue: 'Featured picks coming soon' })}
+                    </Text>
+                    <Text
+                        style={[styles.featuredEmptyHint, { color: isDark ? '#94A3B8' : '#64748B' }]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.3}
+                    >
+                        {t('featured.emptyHint', { defaultValue: 'Explore all opportunities' })}
+                    </Text>
+                </View>
+                {/* Chevron affordance only — the whole card is the tap target, so a
+                    labelled "Explore" button would be a redundant second action. */}
+                <View style={[styles.featuredEmptyChevron, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.10)' }]}>
+                    <ChevronRight size={18} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+                </View>
             </View>
         </AnimatedPressable>
     );
@@ -1191,39 +1204,67 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     const matchPct = Math.round(item.match ?? 0);
     const topReason = item.matchReasons?.[0];
 
+    // With artwork the card becomes a dark "poster" in BOTH themes: art up top,
+    // a strong bottom scrim, white text pinned to the bottom. Guarantees
+    // legibility over any photo and reads more premium than tinting the image.
+    const hasImage = !!item.image;
+    const titleColor = hasImage ? '#FFFFFF' : textPrimary;
+    const reasonColor = hasImage ? 'rgba(255,255,255,0.82)' : textSecondary;
+    const deadlineTextColor = hasImage
+        ? (deadlineBadge.level === 'none' ? 'rgba(255,255,255,0.92)' : urgencyColor(deadlineBadge.level))
+        : deadlineColor;
+
     return (
         <AnimatedPressable
             onPress={onPress}
-            style={[styles.bestShotCard, {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
-                borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.25)',
-            }]}
+            style={[
+                styles.bestShotCard,
+                hasImage
+                    ? { backgroundColor: '#0D0D16', borderColor: 'transparent', minHeight: 152 }
+                    : {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
+                        borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.25)',
+                    },
+            ]}
             entering={FadeInDown.delay(index * 80).duration(360).springify()}
             hapticFeedback="medium"
             scaleTo={0.97}
         >
-            <View style={styles.bestShotTopRow}>
-                <View style={styles.bestShotMatchBadge}>
-                    <Sparkles size={10} color="#FFFFFF" />
-                    <Text style={styles.bestShotMatchText}>{matchPct}% match</Text>
+            {/* Artwork fills the card (bled past the border, no white frame); a
+                bottom-weighted scrim darkens where the text sits. */}
+            {hasImage ? (
+                <View pointerEvents="none" style={styles.bestShotImageLayer}>
+                    <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    <LinearGradient
+                        colors={['rgba(9,9,14,0.10)', 'rgba(9,9,14,0.58)', 'rgba(9,9,14,0.95)']}
+                        locations={[0, 0.5, 1]}
+                        style={StyleSheet.absoluteFill}
+                    />
                 </View>
-                <View style={styles.deadlineRow}>
-                    <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
-                    <Text style={[styles.bestShotDeadline, { color: deadlineColor }]}>
-                        {deadlineBadge.shortLabel}
-                    </Text>
-                </View>
-            </View>
-            <Text style={[styles.bestShotTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
-            {topReason ? (
-                <Text style={[styles.bestShotReason, { color: textSecondary }]} numberOfLines={2}>
-                    {topReason}
-                </Text>
             ) : null}
-            <View style={styles.bestShotFooter}>
-                <Text style={styles.bestShotCta}>Start here</Text>
-                <ChevronRight size={14} color="#6366F1" />
+            <View style={[styles.bestShotContent, hasImage && styles.bestShotContentPoster]}>
+                <View style={styles.bestShotTopRow}>
+                    <View style={styles.bestShotMatchBadge}>
+                        <Target size={10} color="#FFFFFF" strokeWidth={2.6} />
+                        <Text style={styles.bestShotMatchText}>{matchPct}% match</Text>
+                    </View>
+                    <View style={[styles.deadlineRow, hasImage && styles.bestShotDeadlineChip]}>
+                        <View style={[styles.deadlineDot, { backgroundColor: deadlineTextColor }]} />
+                        <Text style={[styles.bestShotDeadline, { color: deadlineTextColor }]}>
+                            {deadlineBadge.shortLabel}
+                        </Text>
+                    </View>
+                </View>
+                <View>
+                    <Text style={[styles.bestShotTitle, { color: titleColor }]} numberOfLines={2}>{item.title}</Text>
+                    {topReason ? (
+                        <Text style={[styles.bestShotReason, { color: reasonColor }]} numberOfLines={2}>
+                            {topReason}
+                        </Text>
+                    ) : null}
+                </View>
             </View>
+            {/* No "Start here" link — the whole card is the tap target. */}
         </AnimatedPressable>
     );
 }
@@ -1317,7 +1358,7 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
             <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleGroup}>
                     <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
-                        <Sparkles size={16} color="#6366F1" />
+                        <Target size={16} color="#6366F1" strokeWidth={2.4} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
@@ -1563,6 +1604,11 @@ export default function Dashboard() {
                 {/* Header Spacer - accounts for AppHeader height + safe area */}
                 <View style={{ height: insets.top + 60 }} />
 
+                {/* Admin-composed home blocks (announcements, promos, curated
+                    rails, custom features). Renders nothing when no layout is
+                    published, so the built-in sections below are unaffected. */}
+                <HomeBlocks opportunities={opportunities ?? []} />
+
                 <Animated.View entering={FadeInDown.duration(400).delay(50)}>
                     <View style={styles.sectionHeader}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.exploreOpportunities')}</Text>
@@ -1596,7 +1642,7 @@ export default function Dashboard() {
                     <Animated.View entering={FadeInDown.duration(400).delay(50)} style={[styles.sectionSpacing, { marginBottom: 18 }]}>
                         <View style={styles.sectionHeader}>
                             <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
-                                <Sparkles size={16} color={colors.accent} />
+                                <Star size={16} color={colors.accent} fill={colors.accent} />
                             </View>
                             <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                                 {t('home.featuredOpportunities', { defaultValue: 'Featured Opportunities' })}
@@ -2510,35 +2556,42 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     featuredEmptyCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
         borderWidth: 1,
         borderRadius: 16,
         padding: 14,
     },
-    featuredEmptyTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginBottom: 3,
-    },
-    featuredEmptyDesc: {
-        fontSize: 12,
-        lineHeight: 16,
-    },
-    featuredEmptyCta: {
+    featuredEmptyRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 2,
-        paddingLeft: 12,
-        paddingRight: 8,
-        minHeight: 32,
-        borderRadius: 999,
+        gap: 12,
     },
-    featuredEmptyCtaText: {
-        fontSize: 12,
+    featuredEmptyIllus: {
+        width: 46,
+        height: 46,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    featuredEmptyBody: {
+        flex: 1,
+        gap: 2,
+    },
+    featuredEmptyChevron: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    featuredEmptyTitle: {
+        fontSize: 14.5,
         fontWeight: '700',
-        color: '#818CF8',
+        lineHeight: 19,
+    },
+    featuredEmptyHint: {
+        fontSize: 12,
+        fontWeight: '500',
+        lineHeight: 16,
     },
     posterDotsRow: {
         flexDirection: 'row',
@@ -2684,6 +2737,30 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1.5,
         padding: 14,
+        overflow: 'hidden',
+    },
+    // Bleeds a couple px past the card's border box so the artwork reaches the
+    // rounded edge with no background/border seam (fixes the white edges).
+    bestShotImageLayer: {
+        position: 'absolute',
+        top: -2,
+        left: -2,
+        right: -2,
+        bottom: -2,
+    },
+    bestShotContent: {
+        flex: 1,
+    },
+    // Poster layout: badges at top, text pushed to the bottom over the scrim.
+    bestShotContentPoster: {
+        justifyContent: 'space-between',
+    },
+    // Legibility chip behind the deadline when it sits over artwork.
+    bestShotDeadlineChip: {
+        backgroundColor: 'rgba(0,0,0,0.38)',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
     },
     bestShotTopRow: {
         flexDirection: 'row',
@@ -2719,17 +2796,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 17,
         marginTop: 5,
-    },
-    bestShotFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-        marginTop: 10,
-    },
-    bestShotCta: {
-        color: '#6366F1',
-        fontSize: 12,
-        fontWeight: '800',
     },
     bestShotEmptyCard: {
         // Keep row/center here even though the visible row is the inner View:

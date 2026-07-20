@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Sparkles, X } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { haptics } from '../../lib/haptics';
 import type { WinCoachIntent } from '@edutu/core/src/services/chat';
 
 export type AiAction = {
@@ -40,6 +41,7 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
 
   const handlePress = async (action: AiAction) => {
     if (running) return;
+    haptics.light();
     setRunning(action.intent);
     setError(null);
     setResult(null);
@@ -47,12 +49,14 @@ export function AiActionBar({ actions, onRun }: AiActionBarProps) {
     try {
       const reply = await onRun(action);
       setResult(reply);
+      haptics.success();
     } catch (err) {
       setError(
         err instanceof Error && err.message
           ? err.message
           : 'Something went wrong. Please try again.',
       );
+      haptics.error();
     } finally {
       setRunning(null);
     }

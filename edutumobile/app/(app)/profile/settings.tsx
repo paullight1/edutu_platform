@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import * as Haptics from 'expo-haptics';
+import { haptics, setHapticsEnabled } from '../../../lib/haptics';
 import {
     Moon,
     Shield,
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
 
     const haptic = useCallback(() => {
         if (notifSettings.hapticsEnabled) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+            haptics.light();
         }
     }, [notifSettings.hapticsEnabled]);
 
@@ -609,7 +609,7 @@ export default function SettingsScreen() {
                             icon={<Vibrate size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
                             label={t('notifications.haptics')} desc={t('notifications.hapticsDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
-                            right={<Switch value={notifSettings.hapticsEnabled} onValueChange={async (v) => { await commitNotifSettings({ hapticsEnabled: v }); if (v) await notificationService.triggerHaptic('light'); }} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                            right={<Switch value={notifSettings.hapticsEnabled} onValueChange={async (v) => { setHapticsEnabled(v); await commitNotifSettings({ hapticsEnabled: v }); if (v) haptics.light(); }} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
                         />
                         <SettingRow
                             icon={<MoonStar size={20} color="#8b5cf6" />} iconBg="rgba(139,92,246,0.12)"

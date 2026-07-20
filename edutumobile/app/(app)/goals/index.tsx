@@ -46,7 +46,7 @@ import type { GoalStatusFilter } from '../../../components/goals';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 import { AdBanner, BannerConfig } from '../../../components/ui/AdBanner';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../../lib/haptics';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -290,7 +290,7 @@ export default function GoalsDashboard() {
         await updateGoal(id, { status: 'completed', progress: 100 });
         // Celebrate + narrate progress — milestones should feel witnessed,
         // not just silently re-rendered.
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void haptics.success();
         const total = goals.length;
         const done = goals.filter((g) => g.status === 'completed' || g.id === id).length;
         if (total > 0) {
