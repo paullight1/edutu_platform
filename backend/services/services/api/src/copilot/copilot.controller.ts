@@ -8,7 +8,6 @@ import {
   Post,
 } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator";
-import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { CopilotService } from "./copilot.service";
 import {
@@ -41,10 +40,14 @@ export class CopilotController {
     return this.copilotService.getKit(userId, opportunityId);
   }
 
+  // Metering for these three routes lives INSIDE the service (not @AiMetered):
+  // a cached kit makes no AI call and must be free, and the heuristic fallback
+  // must refund. authId (raw Clerk id) is threaded so the profile read hits the
+  // canonical row instead of an empty derived-uuid orphan.
   @Post("kits/:opportunityId/generate")
-  @AiMetered("copilotKit")
   generateKit(
     @CurrentUser("id") userId: string,
+    @CurrentUser("authId") authId: string,
     @Param("opportunityId") opportunityId: string,
     @Body(new ZodValidationPipe(GenerateKitDtoSchema)) dto: GenerateKitDto,
   ) {
@@ -52,22 +55,27 @@ export class CopilotController {
       userId,
       opportunityId,
       dto?.refresh ?? false,
+      authId,
     );
   }
 
   @Post("kits/:opportunityId/outline")
-  @AiMetered("copilotAssist")
   generateOutline(
     @CurrentUser("id") userId: string,
+    @CurrentUser("authId") authId: string,
     @Param("opportunityId") opportunityId: string,
     @Body(new ZodValidationPipe(GenerateOutlineDtoSchema))
     dto: GenerateOutlineDto,
   ) {
-    return this.copilotService.generateOutline(userId, opportunityId, dto);
+    return this.copilotService.generateOutline(
+      userId,
+      opportunityId,
+      dto,
+      authId,
+    );
   }
 
   @Post("kits/:opportunityId/feedback")
-  @AiMetered("copilotAssist")
   essayFeedback(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,

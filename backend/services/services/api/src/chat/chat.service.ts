@@ -324,6 +324,12 @@ export class ChatService {
       context?: ScreenContext;
       intent?: WinCoachIntent;
       /**
+       * Raw auth subject (Clerk id). Profiles are canonically keyed by it, but
+       * `userId` here is the derived DB uuid — so profile reads must resolve by
+       * both, preferring the raw-keyed row, or the agent sees an empty orphan.
+       */
+      authId?: string;
+      /**
        * The user's UI language ("fr", "pt-BR", an Accept-Language list…).
        * Optional and backward-compatible: absent or unrecognised → English,
        * exactly what this endpoint has always answered in.
@@ -412,6 +418,11 @@ export class ChatService {
         .limit(8);
       history = ((priorMessages as typeof history) || []).reverse();
     }
+    // Profiles are canonically keyed by the raw Clerk id (authId); `userId` is
+    // the derived DB uuid, which for many users points at an empty orphan row.
+    // Read by the raw id so the agent grounds on the real profile instead of
+    // announcing "your profile is basically empty".
+    const profileKey = body.authId || userId;
     const [
       { data: profile },
       { data: goals },
@@ -423,7 +434,7 @@ export class ChatService {
         .select(
           "country, major, school, degree, interests, skills, interested_countries, age",
         )
-        .eq("user_id", userId)
+        .eq("user_id", profileKey)
         .maybeSingle(),
       supabase
         .from("goals")
@@ -501,6 +512,7 @@ export class ChatService {
         agentTurn = await this.runAgentTurn({
           supabase,
           userId,
+          profileUserId: body.authId || userId,
           turnId,
           message,
           history,
@@ -1106,6 +1118,8 @@ ${input.message}`;
   private async runAgentTurn(input: {
     supabase: SupabaseClient;
     userId: string;
+    /** Canonical (raw Clerk id) key for profile reads/writes; see sendMessage. */
+    profileUserId?: string;
     /** Correlates every LLM call this turn makes in ai_usage_logs. */
     turnId?: string;
     message: string;
@@ -1132,6 +1146,7 @@ ${input.message}`;
     const images: ImageCard[] = [];
     const ctx: CoachToolContext = {
       userId: input.userId,
+      profileUserId: input.profileUserId,
       supabase: input.supabase,
       turnId: input.turnId,
       collectOpportunities: (rows) => {

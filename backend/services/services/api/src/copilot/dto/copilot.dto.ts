@@ -60,11 +60,21 @@ export const EssayPromptSchema = z.object({
   suggestedAngle: z.string().optional(),
 });
 
+export const EligibilityFlagSchema = z.object({
+  flag: z.string(),
+  severity: z.enum(["blocker", "warning"]).catch("warning"),
+});
+
 export const KitContentSchema = z.object({
   fitNote: z.string().default(""),
   strategy: z.array(z.string()).default([]),
   checklist: z.array(ChecklistItemSchema).default([]),
   essayPrompts: z.array(EssayPromptSchema).default([]),
+  // Honest fit: real eligibility conflicts (blocker/warning) and the biggest
+  // competitive gaps, so the kit stops being pure cheerleading. Default [] keeps
+  // old cached kits parsing unchanged (no migration needed).
+  eligibilityFlags: z.array(EligibilityFlagSchema).default([]),
+  gaps: z.array(z.string()).default([]),
 });
 export type KitContent = z.infer<typeof KitContentSchema>;
 

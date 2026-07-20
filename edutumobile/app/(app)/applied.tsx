@@ -1,6 +1,6 @@
 import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Target, Check } from "lucide-react-native";
+import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Target, Check, Wand2 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { haptics } from "../../lib/haptics";
@@ -17,6 +17,7 @@ import {
   getNextApplicationStage,
   updateTrackedApplicationStatus,
 } from "../../packages/core/src/services/applications";
+import { fetchApplicationKits } from "../../packages/core/src/services/copilot";
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
 import type { Opportunity } from "../../packages/core/src/types/opportunity";
@@ -261,6 +262,9 @@ export default function AppliedPage() {
   // plus stored one-line reflections keyed by application id.
   const [rejectionCardId, setRejectionCardId] = useState<string | null>(null);
   const [reflections, setReflections] = useState<Record<string, string>>({});
+  // Opportunity ids that already have a co-pilot kit — used to offer an "Open
+  // co-pilot kit" affordance on those rows (makes the kit list endpoint useful).
+  const [kitOpportunityIds, setKitOpportunityIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     AsyncStorage.getItem(REJECTION_REFLECTIONS_KEY)
@@ -269,6 +273,22 @@ export default function AppliedPage() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    void fetchApplicationKits(getToken)
+      .then((kits) => {
+        if (cancelled) return;
+        setKitOpportunityIds(
+          new Set(kits.map((kit) => kit.opportunityId).filter(Boolean)),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, getToken]);
 
   const saveReflection = useCallback((applicationId: string, text: string) => {
     setReflections((current) => {
@@ -497,6 +517,20 @@ export default function AppliedPage() {
             </TouchableOpacity>
           ) : null}
         </View>
+        {kitOpportunityIds.has(item.opportunity_id) ? (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`/copilot/${item.opportunity_id}` as never);
+            }}
+            style={[styles.copilotKitBtn, { borderColor: `${accentColor}40`, backgroundColor: `${accentColor}0D` }]}
+            activeOpacity={0.8}
+          >
+            <Wand2 size={13} color={accentColor} />
+            <Text style={[styles.copilotKitText, { color: accentColor }]}>Open co-pilot kit</Text>
+            <ArrowRight size={12} color={accentColor} />
+          </TouchableOpacity>
+        ) : null}
       </View>
       <ChevronRight size={18} color={textSecondary} />
     </TouchableOpacity>
@@ -514,7 +548,7 @@ export default function AppliedPage() {
       />
     ) : null}
     </View>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, kitOpportunityIds]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -750,6 +784,21 @@ const styles = StyleSheet.create({
   },
   advanceText: {
     fontSize: 10,
+    fontWeight: '700',
+  },
+  copilotKitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  copilotKitText: {
+    fontSize: 11,
     fontWeight: '700',
   },
   filterEmpty: {

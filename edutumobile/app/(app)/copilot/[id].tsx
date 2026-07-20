@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -14,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -77,14 +79,21 @@ import {
   type KitEssayPrompt,
 } from "@edutu/core/src/services/copilot";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { trackOpportunityApplication } from "@edutu/core/src/services/applications";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { isAiBillingError } from "@edutu/core/src/services/productApi";
 import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
+import { fetchMobileControlConfig } from "../../../lib/mobileControl";
 
-const KIT_CREDIT_COST = 15;
+// Fallback when the mobile-control config (admin OTA pricing) is unreachable;
+// the effective price is read from `config.aiCosts.copilotKit` at runtime.
+const DEFAULT_KIT_CREDIT_COST = 15;
+
+// Per-kit record of the "Did you submit?" answer so the prompt never nags twice.
+const APPLY_CONFIRM_PREFIX = "@edutu_copilot_apply_confirmed:";
 
 const GENERATION_PHASES = [
   "Reading the opportunity like a reviewer",
@@ -222,6 +231,9 @@ export default function ApplicationCopilotScreen() {
   const [kit, setKit] = useState<ApplicationKit | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  // Effective kit price from admin OTA pricing; falls back to the default when
+  // the mobile-control config is slow/unreachable.
+  const [kitCreditCost, setKitCreditCost] = useState(DEFAULT_KIT_CREDIT_COST);
   const [generationPhase, setGenerationPhase] = useState(0);
   // Drives the animated "opening the application…" launch overlay.
   const [openingUrl, setOpeningUrl] = useState<string | null>(null);
@@ -259,6 +271,25 @@ export default function ApplicationCopilotScreen() {
     // React discards must not leave its getToken behind in the ref.
     getTokenRef.current = getToken;
   });
+
+  // Set true when we hand off to the external apply URL; on the next return to
+  // foreground we ask whether the user actually submitted (P1.3).
+  const awaitingApplyConfirmRef = useRef(false);
+
+  // Read the effective kit price (admin OTA pricing) once; best-effort.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMobileControlConfig()
+      .then((config) => {
+        if (!cancelled) {
+          setKitCreditCost(config.aiCosts?.copilotKit ?? DEFAULT_KIT_CREDIT_COST);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const textSecondary = isDark ? "#94A3B8" : "#64748B";
 
@@ -327,11 +358,14 @@ export default function ApplicationCopilotScreen() {
     return () => clearInterval(timer);
   }, [generating]);
 
-  const opportunityDeadline = opportunity?.deadline;
+  // Prefer the live deadline the backend joins onto the kit over the
+  // opportunity row (which may be stale) or the AI text baked into the kit.
+  const opportunityDeadline = kit?.opportunity?.deadline ?? opportunity?.deadline;
   const deadlineBadge = useMemo(
     () => (opportunityDeadline ? getDeadlineBadge(opportunityDeadline) : null),
     [opportunityDeadline],
   );
+  const deadlinePassed = deadlineBadge?.level === "expired";
 
   const checklist = kit?.kit.checklist ?? [];
   const kitChecklistState = kit?.checklistState;
@@ -386,10 +420,10 @@ export default function ApplicationCopilotScreen() {
 
       // Pre-flight UX check only — the server is the source of truth and
       // debits credits itself (402/429 below is the real gate).
-      if (!refresh && !isPro && credits < KIT_CREDIT_COST) {
+      if (!refresh && !isPro && credits < kitCreditCost) {
         Alert.alert(
           "Insufficient Credits",
-          `The Application Co-pilot kit requires ${KIT_CREDIT_COST} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
+          `The Application Co-pilot kit requires ${kitCreditCost} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
           [
             { text: "Cancel", style: "cancel" },
             { text: "Buy Credits", onPress: () => router.push("/wallet" as never) },
@@ -413,6 +447,17 @@ export default function ApplicationCopilotScreen() {
             "You're offline or the AI is busy, so this is a starter kit. Regenerate later for the fully personalized version.",
           );
         }
+        // Close the loop into the applied pipeline: a first-time generation
+        // creates a tracked (draft/in-progress) application so the applied
+        // dashboard and the win-coach see it immediately.
+        if (!refresh && user?.id) {
+          void trackOpportunityApplication(
+            supabase,
+            user.id,
+            { opportunityId: opportunity.id, status: "draft" },
+            getToken,
+          ).catch(() => undefined);
+        }
         void recordOpportunitySignal(
           {
             opportunityId: opportunity.id,
@@ -425,12 +470,18 @@ export default function ApplicationCopilotScreen() {
           getToken,
         );
       } catch (error) {
-        if (!showBillingAlert(error)) throw error;
+        if (!showBillingAlert(error)) {
+          console.error("Failed to generate application kit:", error);
+          Alert.alert(
+            "Something went wrong",
+            "We couldn't build your kit right now. Please try again in a moment.",
+          );
+        }
       } finally {
         setGenerating(false);
       }
     },
-    [opportunity, isPro, credits, getToken, router, showBillingAlert],
+    [opportunity, isPro, credits, kitCreditCost, getToken, router, showBillingAlert, user],
   );
 
   const confirmRefresh = useCallback(() => {
@@ -569,7 +620,13 @@ export default function ApplicationCopilotScreen() {
       setOutline(generated);
       syncEssayEntry(activePrompt.id, activePrompt.prompt, { outline: generated });
     } catch (error) {
-      if (!showBillingAlert(error)) throw error;
+      if (!showBillingAlert(error)) {
+        console.error("Failed to generate essay outline:", error);
+        Alert.alert(
+          "Something went wrong",
+          "We couldn't build that outline right now. Please try again in a moment.",
+        );
+      }
     } finally {
       setOutlineLoading(false);
     }
@@ -599,7 +656,13 @@ export default function ApplicationCopilotScreen() {
         feedback: result,
       });
     } catch (error) {
-      if (!showBillingAlert(error)) throw error;
+      if (!showBillingAlert(error)) {
+        console.error("Failed to review essay draft:", error);
+        Alert.alert(
+          "Something went wrong",
+          "We couldn't review your draft right now. Please try again in a moment.",
+        );
+      }
     } finally {
       setFeedbackLoading(false);
     }
@@ -643,6 +706,8 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
   const openApply = useCallback(() => {
     const url = opportunity?.applyUrl;
     if (!url) return;
+    // Arm the "did you submit?" prompt for when we return to the foreground.
+    awaitingApplyConfirmRef.current = true;
     // Show a branded launch animation, then hand off to the browser. Feels
     // intentional instead of the app abruptly disappearing.
     setOpeningUrl(url);
@@ -652,6 +717,73 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         .finally(() => setOpeningUrl(null));
     }, 850);
   }, [opportunity?.applyUrl]);
+
+  // The kit closed a dead end: after handing off to the apply URL, confirm on
+  // return whether the user submitted, then reflect it in the applied pipeline.
+  // The answer is persisted per kit so we never nag twice (P1.3).
+  const maybeAskApplyConfirm = useCallback(async () => {
+    if (!id || !opportunity) return;
+    const key = `${APPLY_CONFIRM_PREFIX}${id}`;
+    try {
+      const prior = await AsyncStorage.getItem(key);
+      if (prior) return;
+    } catch {
+      // Best-effort — if storage is unreadable, still show the prompt once.
+    }
+    const opportunityId = opportunity.id;
+    Alert.alert(
+      "Did you submit your application?",
+      "Marking it as submitted moves it into your applied pipeline so Edutu can keep coaching you toward the finish.",
+      [
+        {
+          text: "Not yet",
+          style: "cancel",
+          onPress: () => {
+            void AsyncStorage.setItem(key, "not_yet").catch(() => undefined);
+            if (user?.id) {
+              void trackOpportunityApplication(
+                supabase,
+                user.id,
+                { opportunityId, status: "draft" },
+                getToken,
+              ).catch(() => undefined);
+            }
+          },
+        },
+        {
+          text: "Yes, submitted",
+          onPress: () => {
+            void AsyncStorage.setItem(key, "submitted").catch(() => undefined);
+            if (user?.id) {
+              void trackOpportunityApplication(
+                supabase,
+                user.id,
+                { opportunityId, status: "submitted" },
+                getToken,
+              ).catch(() => undefined);
+            }
+            router.push("/applied" as never);
+          },
+        },
+      ],
+    );
+  }, [id, opportunity, user, getToken, router]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && awaitingApplyConfirmRef.current) {
+        awaitingApplyConfirmRef.current = false;
+        void maybeAskApplyConfirm();
+      }
+    });
+    return () => subscription.remove();
+  }, [maybeAskApplyConfirm]);
+
+  // Closed opportunity: send the user to the detail screen's "similar" section.
+  const findSimilar = useCallback(() => {
+    if (!id) return;
+    router.push(`/opportunities/${id}` as never);
+  }, [id, router]);
 
   // -------------------------------------------------------------------------
   // Render
@@ -850,7 +982,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                 <Text style={styles.generateCTAText}>
                   {isPro
                     ? "Generate my application kit"
-                    : `Generate my kit — ${KIT_CREDIT_COST} credits`}
+                    : `Generate my kit — ${kitCreditCost} credits`}
                 </Text>
               </LinearGradient>
             </AnimatedPressable>
@@ -864,6 +996,29 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         )
       ) : (
         <ScrollView contentContainerStyle={styles.kitScroll}>
+          {/* Live deadline pill — kept fresh from the opportunity the backend
+              joins onto the kit, so a moved/closed deadline shows here. */}
+          {deadlineBadge && deadlineBadge.level !== "none" && (
+            <View style={styles.deadlineHeaderRow}>
+              <View
+                style={[
+                  styles.deadlineHeaderPill,
+                  { backgroundColor: `${urgencyColor(deadlineBadge.level)}1F` },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: urgencyColor(deadlineBadge.level),
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  {deadlineBadge.label}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Fit note */}
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
@@ -883,6 +1038,82 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               {kit.kit.fitNote}
             </Text>
           </View>
+
+          {/* Empty-profile nudge: the server flagged that it generated this kit
+              with little/no profile to match against. */}
+          {kit.profileGrounded === false && (
+            <TouchableOpacity
+              onPress={() => router.push("/profile/edit")}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: `${colors.accent}12`,
+                  borderColor: `${colors.accent}44`,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                },
+              ]}
+            >
+              <Target size={18} color={colors.accent} />
+              <Text style={[styles.bodyText, { color: colors.foreground, flex: 1 }]}>
+                Complete your profile for a kit matched to you — right now it is mostly generic.
+              </Text>
+              <ChevronRight size={18} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+
+          {/* Honest fit: eligibility conflicts before the user invests time */}
+          {kit.kit.eligibilityFlags.length > 0 && (
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: colors.card, borderColor: `${colors.warning}55` },
+              ]}
+            >
+              <View style={styles.cardHeader}>
+                <Flag size={16} color={colors.warning} />
+                <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+                  Before you invest time
+                </Text>
+              </View>
+              {kit.kit.eligibilityFlags.map((item, index) => {
+                const isBlocker = item.severity === "blocker";
+                const tone = isBlocker ? colors.error : colors.warning;
+                return (
+                  <View key={index} style={styles.bulletRow}>
+                    <View style={[styles.bulletDot, { backgroundColor: tone }]} />
+                    <Text style={[styles.bodyText, { color: colors.foreground, flex: 1 }]}>
+                      <Text style={{ color: tone, fontWeight: "700" }}>
+                        {isBlocker ? "Blocker: " : "Check: "}
+                      </Text>
+                      {item.flag}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Honest fit: the biggest competitive gaps to close */}
+          {kit.kit.gaps.length > 0 && (
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <Target size={16} color={colors.accent} />
+                <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+                  Close these gaps
+                </Text>
+              </View>
+              {kit.kit.gaps.map((gap, index) => (
+                <View key={index} style={styles.bulletRow}>
+                  <View style={[styles.bulletDot, { backgroundColor: colors.accent }]} />
+                  <Text style={[styles.bodyText, { color: colors.foreground, flex: 1 }]}>
+                    {gap}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Strategy */}
           {kit.kit.strategy.length > 0 && (
@@ -1115,7 +1346,35 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               <Text style={[styles.ctaBtnText, { color: colors.foreground }]}>Ask Edutu</Text>
             </TouchableOpacity>
           </View>
-          {opportunity.applyUrl ? (
+          {deadlinePassed ? (
+            <View style={{ marginTop: 10 }}>
+              <View
+                style={[
+                  styles.deadlinePassedCard,
+                  { backgroundColor: `${colors.error}10`, borderColor: `${colors.error}40` },
+                ]}
+              >
+                <Text style={{ color: colors.error, fontSize: 14, fontWeight: "800" }}>
+                  Deadline passed
+                </Text>
+                <Text style={{ color: textSecondary, fontSize: 13, lineHeight: 19, marginTop: 4 }}>
+                  This opportunity has closed and is no longer accepting applications. Here are live
+                  ones that fit your profile.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={findSimilar} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={[colors.accent, `${colors.accent}CC`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.applyBtn}
+                >
+                  <Target size={18} color="#FFFFFF" />
+                  <Text style={styles.generateCTAText}>Find similar opportunities</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          ) : opportunity.applyUrl ? (
             <TouchableOpacity onPress={openApply} activeOpacity={0.85} style={{ marginTop: 10 }}>
               <LinearGradient
                 colors={
@@ -1581,6 +1840,14 @@ const styles = StyleSheet.create({
   },
   generateCTAText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
   kitScroll: { padding: 16, paddingBottom: 48 },
+  deadlineHeaderRow: { flexDirection: "row", marginBottom: 14 },
+  deadlineHeaderPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  deadlinePassedCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 10 },
   card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   cardTitle: { fontSize: 15, fontWeight: "800", flex: 1 },

@@ -43,6 +43,7 @@ export class ChatController {
   @AiMetered("chatMessage")
   sendMessage(
     @CurrentUser("id") userId: string,
+    @CurrentUser("authId") authId: string,
     @Body()
     body: {
       threadId?: string | null;
@@ -58,6 +59,9 @@ export class ChatController {
   ) {
     return this.chatService.sendMessage(userId, {
       ...body,
+      // Raw auth subject — profiles are canonically keyed by it, so the agent
+      // reads the populated row instead of a derived-uuid orphan.
+      authId,
       locale: body.locale ?? acceptLanguage ?? null,
     });
   }
@@ -91,6 +95,7 @@ export class ChatController {
   @AiMetered("chatMessage")
   async sendMessageStream(
     @CurrentUser("id") userId: string,
+    @CurrentUser("authId") authId: string,
     @Body()
     body: {
       threadId?: string | null;
@@ -119,7 +124,7 @@ export class ChatController {
     try {
       const result = await this.chatService.sendMessage(
         userId,
-        { ...body, locale: body.locale ?? acceptLanguage ?? null },
+        { ...body, authId, locale: body.locale ?? acceptLanguage ?? null },
         {
           emit,
           onToken: (content) => emit("token", { type: "token", content }),

@@ -70,6 +70,10 @@ export async function requestProductApi<T>(
   path: string,
   options: RequestInit = {},
   getAuthToken?: GetAuthToken,
+  // Slow AI generations (a full co-pilot kit from the routed LLM) routinely
+  // exceed the 12s default; callers pass a longer budget so the client doesn't
+  // abort a request the server is about to complete (and charge for).
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<T | null> {
   const apiBaseUrl = getApiBaseUrl();
 
@@ -82,14 +86,14 @@ export async function requestProductApi<T>(
     // refresh the session over the network) — cap it so callers never hang.
     const token = await Promise.race([
       getAuthToken(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), DEFAULT_TIMEOUT_MS)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);
     if (!token) {
       return null;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const hasBody = options.body !== undefined && options.body !== null;
     const headers = {

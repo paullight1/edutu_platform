@@ -356,13 +356,10 @@ export class CoachToolsService {
       parameters: { type: "object", properties: {} },
       schema: z.object({}).passthrough(),
       execute: async (ctx) => {
-        const { data } = await ctx.supabase
-          .from("profiles")
-          .select(
-            "full_name, country, school, major, degree, age, interests, skills, interested_countries",
-          )
-          .eq("user_id", ctx.userId)
-          .maybeSingle();
+        const data = await this.resolveProfileRow(
+          ctx,
+          "full_name, country, school, major, degree, age, interests, skills, interested_countries",
+        );
         const profile = (data ?? {}) as Record<string, unknown>;
         const missing = [
           !profile.country && "country",
@@ -1267,6 +1264,24 @@ export class CoachToolsService {
     };
   }
 
+  /**
+   * Resolve the user's canonical profile row. Profiles are keyed by the raw
+   * Clerk id (ctx.profileUserId); ctx.userId is the derived DB uuid, which for
+   * many users points at an empty orphan row. Query by both and prefer the
+   * raw-keyed row so the agent grounds on real data.
+   */
+  private async resolveProfileRow(
+    ctx: CoachToolContext,
+    columns: string,
+  ): Promise<Record<string, unknown> | null> {
+    const { data } = await ctx.supabase
+      .from("profiles")
+      .select(columns)
+      .eq("user_id", ctx.profileUserId || ctx.userId)
+      .maybeSingle();
+    return (data ?? null) as Record<string, unknown> | null;
+  }
+
   private analyzeFit(): CoachTool<{
     opportunity_id: string;
     upload_id?: string;
@@ -1306,11 +1321,10 @@ export class CoachToolsService {
             .maybeSingle();
           if (!opportunity) return { error: "Opportunity not found" };
 
-          const { data: profile } = await ctx.supabase
-            .from("profiles")
-            .select("country, major, degree, interests, skills, age")
-            .eq("user_id", ctx.userId)
-            .maybeSingle();
+          const profile = await this.resolveProfileRow(
+            ctx,
+            "country, major, degree, interests, skills, age",
+          );
 
           let uploadText = "";
           if (args.upload_id) {

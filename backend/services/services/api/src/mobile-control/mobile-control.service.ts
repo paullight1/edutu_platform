@@ -6,6 +6,7 @@ import {
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SettingsService } from "../settings/settings.service";
 import type {
+  AiCostsConfig,
   AppControlConfig,
   CampaignEventDto,
   JsonRecord,
@@ -74,12 +75,17 @@ export class MobileControlService {
         this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
           () => [] as WidgetFeed[],
         ),
-        // appControl, pricing + paywall come from the same admin_settings row —
-        // read it once and derive all three (fail-open / defaults on error).
+        // appControl, pricing, paywall + aiCosts come from the same
+        // admin_settings row — read it once and derive all of them
+        // (fail-open / defaults on error).
         this.getAdminGroups().catch(() => ({
           appControl: OPEN_APP_CONTROL,
           pricing: DEFAULT_ADMIN_SETTINGS.pricing,
           paywall: DEFAULT_ADMIN_SETTINGS.paywall,
+          aiCosts: {
+            copilotKit: DEFAULT_ADMIN_SETTINGS.pricing.aiCosts.copilotKit,
+            copilotAssist: DEFAULT_ADMIN_SETTINGS.pricing.aiCosts.copilotAssist,
+          },
         })),
       ]);
 
@@ -92,6 +98,7 @@ export class MobileControlService {
       appControl: adminGroups.appControl,
       pricing: adminGroups.pricing,
       paywall: adminGroups.paywall,
+      aiCosts: adminGroups.aiCosts,
       serverTime: new Date().toISOString(),
     };
   }
@@ -100,6 +107,7 @@ export class MobileControlService {
     appControl: AppControlConfig;
     pricing: PricingConfig;
     paywall: PaywallContentConfig;
+    aiCosts: AiCostsConfig;
   }> {
     const { settings } = await this.settingsService.getSettings();
     const mobileApp = settings.mobileApp;
@@ -141,7 +149,20 @@ export class MobileControlService {
       ...(settings.paywall ?? {}),
     };
 
-    return { appControl, pricing, paywall };
+    // Effective AI credit costs the metering charges (admin override else
+    // default) — same source MonetizationService.meter reads via getPricing,
+    // exposed so clients stop hardcoding the co-pilot price.
+    const settingsAiCosts = settings.pricing?.aiCosts;
+    const aiCosts: AiCostsConfig = {
+      copilotKit:
+        settingsAiCosts?.copilotKit ??
+        DEFAULT_ADMIN_SETTINGS.pricing.aiCosts.copilotKit,
+      copilotAssist:
+        settingsAiCosts?.copilotAssist ??
+        DEFAULT_ADMIN_SETTINGS.pricing.aiCosts.copilotAssist,
+    };
+
+    return { appControl, pricing, paywall, aiCosts };
   }
 
   async listAdmin<T extends ControlRow>(table: ControlTable): Promise<T[]> {

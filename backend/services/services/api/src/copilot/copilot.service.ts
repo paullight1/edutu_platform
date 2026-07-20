@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { desc, eq, and } from "drizzle-orm";
 import { AiService } from "../ai";
+import { MonetizationService } from "../monetization/monetization.service";
 import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { db } from "../db";
 import {
@@ -65,6 +66,9 @@ type OpportunityContext = {
   targetRegion: string | null;
   imageUrl: string | null;
   applyUrl: string | null;
+  location: string | null;
+  type: string | null;
+  eligibility: Record<string, unknown> | null;
   requirements: string[];
   benefits: string[];
   applicationProcess: string[];
@@ -76,8 +80,12 @@ type ProfileContext = {
   school?: string;
   major?: string;
   degree?: string;
+  age?: number;
+  cgpa?: string;
+  gradYear?: number;
   interests?: string[];
   skills?: string[];
+  interestedCountries?: string[];
   goals?: Array<{ title: string; description?: string }>;
 };
 
@@ -85,7 +93,10 @@ type ProfileContext = {
 export class CopilotService {
   private readonly logger = new Logger(CopilotService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly monetizationService: MonetizationService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Kit CRUD
@@ -162,17 +173,47 @@ export class CopilotService {
   // AI: application kit generation
   // -------------------------------------------------------------------------
 
-  async generateKit(userId: string, opportunityId: string, refresh = false) {
+  async generateKit(
+    userId: string,
+    opportunityId: string,
+    refresh = false,
+    authId?: string,
+  ) {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
 
+    // A cached kit makes no AI call — return it for FREE (metering used to run
+    // in the interceptor before the handler, charging 15 credits for this).
     if (!refresh) {
       const existing = await this.findKit(userId, opportunityId);
       if (existing && Object.keys(existing.kit || {}).length) return existing;
     }
 
-    const opportunity = await this.loadOpportunity(opportunityId);
-    const profile = await this.loadProfile(dbUserId);
+    // P2.3: on refresh the checklist is regenerated, but the user's ticks live
+    // in `checklistState` keyed by item id (and are preserved by the upsert
+    // below). The AI mints fresh ids each time, which would orphan those ticks —
+    // so capture the previous checklist now and re-map matching labels back onto
+    // their old ids after generation, keeping preserved ticks aligned.
+    let previousChecklist: KitContent["checklist"] = [];
+    if (refresh) {
+      const previous = await this.findKit(userId, opportunityId);
+      previousChecklist =
+        ((previous?.kit ?? {}) as Partial<KitContent>).checklist ?? [];
+    }
+
+    // Charge here (after the cache check), and refund below if we can't produce
+    // a real AI kit — so the heuristic fallback template costs nothing.
+    const charge = await this.monetizationService.meter(dbUserId, "copilotKit");
+
+    let opportunity: OpportunityContext;
+    let profile: ProfileContext;
+    try {
+      opportunity = await this.loadOpportunity(opportunityId);
+      profile = await this.loadProfile(dbUserId, authId);
+    } catch (error) {
+      void this.monetizationService.refund(charge);
+      throw error;
+    }
 
     let content: KitContent | null = null;
     let generatedBy: "ai" | "fallback" = "ai";
@@ -192,12 +233,33 @@ export class CopilotService {
       );
     }
 
+    // P2.2 concurrent-generation guard: the AI call above can be slow, so a
+    // second generate for the same kit may have finished and written content
+    // while we waited. Don't double-charge or clobber the winner (the upsert
+    // below would otherwise overwrite it, and a retry-happy client would be
+    // billed twice) — refund our charge and return the kit that already landed.
+    if (!refresh) {
+      const concurrent = await this.findKit(userId, opportunityId);
+      if (concurrent && Object.keys(concurrent.kit || {}).length) {
+        void this.monetizationService.refund(charge);
+        return {
+          ...this.withOpportunity(concurrent, opportunity),
+          profileGrounded: this.isProfileGrounded(profile),
+        };
+      }
+    }
+
     if (!content) {
       content = this.buildFallbackKit(opportunity, profile);
       generatedBy = "fallback";
+      // No real AI output was produced — hand the credits back.
+      void this.monetizationService.refund(charge);
     }
 
     this.ensureStableIds(content);
+    // P2.3: re-map regenerated checklist ids onto matching previous labels so
+    // preserved `checklistState` ticks still line up after a refresh.
+    this.carryOverChecklistIds(content, previousChecklist);
 
     // Preserve the user's working state (essays, checklist ticks) on refresh.
     const [saved] = await db
@@ -219,7 +281,22 @@ export class CopilotService {
       })
       .returning();
 
-    return this.withOpportunity(saved, opportunity);
+    // Lets the client show "Complete your profile for a sharper kit" instead of
+    // pretending an empty-profile kit is personalized (P0.1).
+    const profileGrounded = this.isProfileGrounded(profile);
+    return { ...this.withOpportunity(saved, opportunity), profileGrounded };
+  }
+
+  /** True when the profile has any signal worth grounding the kit on. */
+  private isProfileGrounded(profile: ProfileContext): boolean {
+    return Boolean(
+      profile.country ||
+        profile.major ||
+        profile.degree ||
+        profile.school ||
+        profile.interests?.length ||
+        profile.skills?.length,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -230,14 +307,28 @@ export class CopilotService {
     userId: string,
     opportunityId: string,
     dto: GenerateOutlineDto,
+    authId?: string,
   ) {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
 
-    const opportunity = await this.loadOpportunity(opportunityId);
-    const profile = await this.loadProfile(dbUserId);
+    // Metered here (was @AiMetered) so the heuristic fallback can be refunded.
+    const charge = await this.monetizationService.meter(
+      dbUserId,
+      "copilotAssist",
+    );
+
+    let opportunity: OpportunityContext;
+    let profile: ProfileContext;
+    try {
+      opportunity = await this.loadOpportunity(opportunityId);
+      profile = await this.loadProfile(dbUserId, authId);
+    } catch (error) {
+      void this.monetizationService.refund(charge);
+      throw error;
+    }
 
     let outline: EssayOutline | null = null;
     let source: "ai" | "fallback" = "ai";
@@ -265,6 +356,7 @@ export class CopilotService {
     if (!outline) {
       outline = this.buildFallbackOutline(opportunity, promptText);
       source = "fallback";
+      void this.monetizationService.refund(charge);
     }
 
     await this.upsertEssayEntry(
@@ -294,7 +386,19 @@ export class CopilotService {
     const kitRow = await this.requireKit(dbUserId, opportunityId);
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
 
-    const opportunity = await this.loadOpportunity(opportunityId);
+    // Metered here (was @AiMetered) so the heuristic fallback can be refunded.
+    const charge = await this.monetizationService.meter(
+      dbUserId,
+      "copilotAssist",
+    );
+
+    let opportunity: OpportunityContext;
+    try {
+      opportunity = await this.loadOpportunity(opportunityId);
+    } catch (error) {
+      void this.monetizationService.refund(charge);
+      throw error;
+    }
 
     let feedback: EssayFeedback | null = null;
     let source: "ai" | "fallback" = "ai";
@@ -317,6 +421,7 @@ export class CopilotService {
     if (!feedback) {
       feedback = this.buildFallbackFeedback(dto.draft);
       source = "fallback";
+      void this.monetizationService.refund(charge);
     }
 
     await this.upsertEssayEntry(
@@ -393,9 +498,13 @@ export class CopilotService {
   "fitNote": "2-3 sentences on why THIS applicant is a credible candidate and what to emphasize. Address the applicant as 'you'. Be specific to their profile, never generic.",
   "strategy": ["3-5 sharp, specific strategy tips for winning THIS opportunity"],
   "checklist": [{ "id": "kebab-slug", "label": "short imperative item", "detail": "optional 1-sentence explanation", "category": "documents|eligibility|preparation|submission" }],
-  "essayPrompts": [{ "id": "kebab-slug", "prompt": "a likely essay/statement question for this application", "guidance": "1-2 sentences on what reviewers want here", "suggestedAngle": "1 sentence: the strongest angle for THIS applicant" }]
+  "essayPrompts": [{ "id": "kebab-slug", "prompt": "a likely essay/statement question for this application", "guidance": "1-2 sentences on what reviewers want here", "suggestedAngle": "1 sentence: the strongest angle for THIS applicant" }],
+  "eligibilityFlags": [{ "flag": "a real eligibility conflict for THIS applicant, in plain language", "severity": "blocker|warning" }],
+  "gaps": ["the 2-3 biggest competitive gaps this applicant should close to be a strong candidate"]
 }`,
       "Rules:",
+      "- eligibilityFlags: compare the applicant's country / education level / field / age / graduation year against the opportunity's stated eligibility. List only REAL conflicts. Use severity 'blocker' ONLY when the eligibility text explicitly rules them out (e.g. wrong country, wrong degree level); use 'warning' when it's a likely-but-unstated concern. If eligibility is unknown or the applicant clearly qualifies, return an empty array — never invent a rule.",
+      "- gaps: 2-3 honest, specific competitive gaps (missing experience, skills, or credentials this opportunity rewards). Be candid, not discouraging. Empty array only if the applicant is already exceptionally strong.",
       "- checklist: 6-10 items covering required documents, eligibility proofs, preparation steps and submission steps. Derive from the opportunity's requirements/application process where given. Where the listing is silent, only include universal staples (CV, transcripts, referees, deadline buffer) and phrase them as 'confirm on the official page' — never present a guessed requirement as fact.",
       "- essayPrompts: 2-4 prompts. If the opportunity text mentions specific essay/statement questions, use those verbatim. Otherwise mark predicted prompts clearly in the guidance as 'predicted — the official form may differ'.",
       "- Never invent eligibility rules, deadlines, fees, or award amounts that are not in the OPPORTUNITY text. When something material is unknown, the checklist item should be to verify it at the source.",
@@ -471,14 +580,19 @@ export class CopilotService {
         ? `Organization: ${opportunity.organization}`
         : "",
       `Category: ${opportunity.category || "unknown"}`,
+      opportunity.type ? `Type: ${opportunity.type}` : "",
       `Deadline: ${deadline}`,
+      opportunity.location ? `Location: ${opportunity.location}` : "",
       opportunity.fundingType ? `Funding: ${opportunity.fundingType}` : "",
       opportunity.targetRegion
         ? `Target region: ${opportunity.targetRegion}`
         : "",
       opportunity.summary ? `Summary: ${opportunity.summary}` : "",
       opportunity.eligibilityCriteria
-        ? `Eligibility: ${opportunity.eligibilityCriteria}`
+        ? `Eligibility (text): ${opportunity.eligibilityCriteria}`
+        : "",
+      opportunity.eligibility && Object.keys(opportunity.eligibility).length
+        ? `Eligibility (structured): ${JSON.stringify(opportunity.eligibility)}`
         : "",
       opportunity.requirements.length
         ? `Requirements: ${opportunity.requirements.join("; ")}`
@@ -503,12 +617,24 @@ export class CopilotService {
       profile.school ? `Institution: ${profile.school}` : "",
       profile.major ? `Field of study: ${profile.major}` : "",
       profile.degree ? `Education level: ${profile.degree}` : "",
+      profile.cgpa ? `CGPA/GPA: ${profile.cgpa}` : "",
+      profile.gradYear ? `Graduation year: ${profile.gradYear}` : "",
+      typeof profile.age === "number" ? `Age: ${profile.age}` : "",
+      profile.interestedCountries?.length
+        ? `Interested in studying/working in: ${profile.interestedCountries.join(", ")}`
+        : "",
       profile.interests?.length
         ? `Interests: ${profile.interests.join(", ")}`
         : "",
       profile.skills?.length ? `Skills: ${profile.skills.join(", ")}` : "",
       profile.goals?.length
-        ? `Goals: ${profile.goals.map((goal) => goal.title).join("; ")}`
+        ? `Goals: ${profile.goals
+            .map((goal) =>
+              goal.description
+                ? `${goal.title} — ${goal.description}`
+                : goal.title,
+            )
+            .join("; ")}`
         : "",
     ].filter(Boolean);
     return lines.length ? lines.join("\n") : "No profile details available.";
@@ -595,6 +721,10 @@ export class CopilotService {
             "Pick a challenge that connects naturally to this program's mission.",
         },
       ],
+      // The heuristic fallback can't reason about eligibility/gaps honestly, so
+      // it stays silent rather than guessing (both default to [] in the schema).
+      eligibilityFlags: [],
+      gaps: [],
     };
   }
 
@@ -762,28 +892,50 @@ export class CopilotService {
       targetRegion: row.targetRegion ?? null,
       imageUrl: row.imageUrl ?? null,
       applyUrl: row.applyUrl ?? row.applicationUrl ?? row.sourceUrl ?? null,
+      location: row.location ?? null,
+      type: row.type ?? null,
+      eligibility:
+        row.eligibility && typeof row.eligibility === "object"
+          ? (row.eligibility as Record<string, unknown>)
+          : null,
       requirements: list(metadata.requirements),
       benefits: list(metadata.benefits),
       applicationProcess: list(metadata.application_process),
     };
   }
 
-  private async loadProfile(dbUserId: string): Promise<ProfileContext> {
+  private async loadProfile(
+    dbUserId: string,
+    authId?: string,
+  ): Promise<ProfileContext> {
     try {
-      const [profileRows, goalRows] = await Promise.all([
-        db
+      // Profiles are canonically keyed by the raw Clerk id (authId); dbUserId is
+      // the derived uuid, which `matchProfileUserId` also matches — so when a
+      // user has BOTH a populated raw row and an empty derived-uuid orphan,
+      // Postgres could return the empty one. Read the raw row first; only fall
+      // back to the dual-key match for legacy derived-only profiles.
+      const goalRows = await db
+        .select()
+        .from(goalsTable)
+        .where(eq(goalsTable.userId, dbUserId))
+        .limit(3)
+        .execute();
+      let profileRows = authId
+        ? await db
+            .select()
+            .from(profiles)
+            .where(eq(profiles.userId, authId))
+            .limit(1)
+            .execute()
+        : [];
+      if (!profileRows.length) {
+        profileRows = await db
           .select()
           .from(profiles)
           .where(matchProfileUserId(profiles.userId, dbUserId))
           .limit(1)
-          .execute(),
-        db
-          .select()
-          .from(goalsTable)
-          .where(eq(goalsTable.userId, dbUserId))
-          .limit(3)
-          .execute(),
-      ]);
+          .execute();
+      }
       const row = profileRows[0];
       return {
         fullName: row?.fullName ?? undefined,
@@ -791,8 +943,12 @@ export class CopilotService {
         school: row?.school ?? undefined,
         major: row?.major ?? undefined,
         degree: row?.degree ?? undefined,
+        age: row?.age ?? undefined,
+        cgpa: row?.cgpa ?? undefined,
+        gradYear: row?.gradYear ?? undefined,
         interests: row?.interests ?? undefined,
         skills: row?.skills ?? undefined,
+        interestedCountries: row?.interestedCountries ?? undefined,
         goals: goalRows.map((goal) => ({
           title: goal.title,
           description: goal.description ?? undefined,
@@ -914,6 +1070,35 @@ export class CopilotService {
     content.essayPrompts.forEach((item, index) => {
       if (!item.id) item.id = `prompt-${index}`;
     });
+  }
+
+  /**
+   * P2.3: on refresh, carry the previous kit's checklist item ids onto
+   * regenerated items whose (case-insensitive, trimmed) label matches, so
+   * preserved `checklistState` ticks keyed by those ids still line up. Each
+   * previous id is reused at most once to avoid minting duplicate ids.
+   */
+  private carryOverChecklistIds(
+    content: KitContent,
+    previous: KitContent["checklist"],
+  ) {
+    if (!previous.length) return;
+    const normalize = (label: string) => label.trim().toLowerCase();
+    const previousIdByLabel = new Map<string, string>();
+    for (const item of previous) {
+      const key = normalize(item.label);
+      if (item.id && !previousIdByLabel.has(key)) {
+        previousIdByLabel.set(key, item.id);
+      }
+    }
+    const used = new Set<string>();
+    for (const item of content.checklist) {
+      const previousId = previousIdByLabel.get(normalize(item.label));
+      if (previousId && !used.has(previousId)) {
+        item.id = previousId;
+        used.add(previousId);
+      }
+    }
   }
 
   private requireUserId(userId: string): string {

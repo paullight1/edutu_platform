@@ -121,6 +121,15 @@ export interface PricingConfig {
 // release. Empty fields mean "use the app's built-in copy".
 export type PaywallContentConfig = PaywallSettings;
 
+// Effective per-action AI credit costs the metering enforces
+// (admin_settings.pricing.aiCosts), surfaced so the app can price the
+// Application Co-pilot preflight + CTA copy from one source of truth instead
+// of hardcoding it. Public — these are the same numbers the paywall shows.
+export interface AiCostsConfig {
+  copilotKit: number;
+  copilotAssist: number;
+}
+
 export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: MobileFeatureFlag[];
@@ -128,6 +137,7 @@ export interface MobileControlConfig {
   appControl: AppControlConfig;
   pricing: PricingConfig;
   paywall: PaywallContentConfig;
+  aiCosts: AiCostsConfig;
   serverTime: string;
 }
 

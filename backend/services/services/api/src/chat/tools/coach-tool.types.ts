@@ -50,6 +50,12 @@ export interface ImageCard {
  */
 export interface CoachToolContext {
   userId: string;
+  /**
+   * Canonical profile key — the raw Clerk id. `userId` is the derived DB uuid,
+   * which for many users points at an empty orphan profile row; profile
+   * reads/writes must prefer this. Falls back to `userId` when absent.
+   */
+  profileUserId?: string;
   supabase: SupabaseClient;
   /**
    * Id of the chat turn that invoked this tool. Stamped on the metadata of any

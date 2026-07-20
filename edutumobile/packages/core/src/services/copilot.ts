@@ -21,11 +21,20 @@ export interface KitEssayPrompt {
   suggestedAngle?: string;
 }
 
+export interface KitEligibilityFlag {
+  flag: string;
+  severity: 'blocker' | 'warning';
+}
+
 export interface KitContent {
   fitNote: string;
   strategy: string[];
   checklist: KitChecklistItem[];
   essayPrompts: KitEssayPrompt[];
+  /** Real eligibility conflicts for this applicant (honest fit). */
+  eligibilityFlags: KitEligibilityFlag[];
+  /** The biggest competitive gaps to close. */
+  gaps: string[];
 }
 
 export interface EssayOutline {
@@ -62,6 +71,12 @@ export interface ApplicationKit {
   essays: EssayWorkspaceEntry[];
   checklistState: Record<string, boolean>;
   generatedBy: 'ai' | 'fallback' | 'local';
+  /**
+   * False when the server generated the kit against an empty profile — the
+   * client shows a "complete your profile for a sharper kit" nudge instead of
+   * pretending the kit is personalized. Absent on cached/local kits.
+   */
+  profileGrounded?: boolean;
   createdAt?: string;
   updatedAt?: string;
   opportunity?: {
@@ -113,9 +128,22 @@ export async function generateApplicationKit(
     `/copilot/kits/${opportunity.id}/generate`,
     { method: 'POST', body: JSON.stringify({ refresh: options.refresh ?? false }) },
     getAuthToken,
+    // Kit generation runs several LLM sections; the 12s default aborts it while
+    // the server keeps going, charges, and persists — showing the user a local
+    // template they think they paid for. Give it a real budget.
+    60000,
   );
   if (response?.kit) {
     return { kit: normalizeKit(response), source: 'ai' };
+  }
+  // The POST may have aborted client-side while the server finished and saved
+  // the real kit. Poll the GET before falling back to a local template.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const recovered = await fetchApplicationKit(opportunity.id, getAuthToken);
+    if (recovered?.kit && Object.keys(recovered.kit).length > 0) {
+      return { kit: normalizeKit(recovered), source: 'ai' };
+    }
   }
   return { kit: buildLocalKit(opportunity), source: 'local' };
 }
@@ -129,6 +157,7 @@ export async function generateEssayOutline(
     `/copilot/kits/${opportunityId}/outline`,
     { method: 'POST', body: JSON.stringify(params) },
     getAuthToken,
+    60000,
   );
   if (response?.outline) {
     return { outline: response.outline, source: 'ai' };
@@ -145,6 +174,7 @@ export async function requestEssayFeedback(
     `/copilot/kits/${opportunityId}/feedback`,
     { method: 'POST', body: JSON.stringify(params) },
     getAuthToken,
+    60000,
   );
   if (response?.feedback) {
     return { feedback: response.feedback, source: 'ai' };
@@ -254,6 +284,8 @@ function normalizeKit(kit: ApplicationKit): ApplicationKit {
       strategy: kit.kit?.strategy || [],
       checklist: kit.kit?.checklist || [],
       essayPrompts: kit.kit?.essayPrompts || [],
+      eligibilityFlags: Array.isArray(kit.kit?.eligibilityFlags) ? kit.kit.eligibilityFlags : [],
+      gaps: Array.isArray(kit.kit?.gaps) ? kit.kit.gaps : [],
     },
     essays: Array.isArray(kit.essays) ? kit.essays : [],
     checklistState: kit.checklistState || {},
@@ -317,6 +349,8 @@ export function buildLocalKit(opportunity: Opportunity): ApplicationKit {
             'Show change over time: situation, what you did, and how it shapes your goals.',
         },
       ],
+      eligibilityFlags: [],
+      gaps: [],
     },
     essays: [],
     checklistState: {},

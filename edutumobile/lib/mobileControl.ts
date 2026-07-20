@@ -51,6 +51,18 @@ export interface MobileFeatureFlag {
   sort_order: number;
 }
 
+/**
+ * Effective per-feature AI credit prices, surfaced from admin OTA pricing via
+ * `/mobile-control/config`. Mobile screens read these instead of hardcoding a
+ * price, so admin repricing is instantly correct in-app.
+ */
+export interface AiCostsConfig {
+  copilotKit: number;
+  copilotAssist: number;
+}
+
+export const DEFAULT_AI_COSTS: AiCostsConfig = { copilotKit: 15, copilotAssist: 5 };
+
 export interface WidgetFeed {
   id: string;
   key: string;
@@ -72,6 +84,8 @@ export interface MobileControlConfig {
   appControl: AppControlConfig;
   pricing: PricingConfig;
   paywall: PaywallContent;
+  /** Effective AI credit prices (optional — falls back to DEFAULT_AI_COSTS). */
+  aiCosts?: AiCostsConfig;
   serverTime: string;
 }
 
@@ -88,6 +102,7 @@ const EMPTY_MOBILE_CONTROL_CONFIG: MobileControlConfig = {
   appControl: OPEN_APP_CONTROL,
   pricing: DEFAULT_PRICING,
   paywall: DEFAULT_PAYWALL_CONTENT,
+  aiCosts: DEFAULT_AI_COSTS,
   serverTime: new Date(0).toISOString(),
 };
 let hasLoggedMobileControlNetworkError = false;
@@ -181,7 +196,20 @@ function normaliseMobileControlConfig(payload: unknown): MobileControlConfig {
     appControl: normaliseAppControl(record.appControl),
     pricing: normalisePricing((record as any).pricing),
     paywall: normalisePaywallContent((record as any).paywall),
+    aiCosts: normaliseAiCosts((record as any).aiCosts),
     serverTime: typeof record.serverTime === 'string' ? record.serverTime : new Date().toISOString(),
+  };
+}
+
+function normaliseAiCosts(value: unknown): AiCostsConfig {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const positiveNumber = (candidate: unknown, fallback: number): number => {
+    const numeric = typeof candidate === 'number' ? candidate : Number(candidate);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
+  };
+  return {
+    copilotKit: positiveNumber(record.copilotKit, DEFAULT_AI_COSTS.copilotKit),
+    copilotAssist: positiveNumber(record.copilotAssist, DEFAULT_AI_COSTS.copilotAssist),
   };
 }
 
