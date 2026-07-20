@@ -102,6 +102,8 @@
     "daysRemaining_one": "Imebaki siku {{count}}",
     "daysRemaining_other": "Zimebaki siku {{count}}",
     "stipendFunding": "Posho / Ufadhili",
+    "freeToApply": "Kutuma maombi ni bure",
+    "applicationFee": "Ada ya maombi: {{fee}}",
     "whyMatches": "Kwa Nini Inakufaa",
     "thingsToCheck": "Mambo ya Kuangalia",
     "askAI": "Uliza Edutu AI kuhusu fursa hii",

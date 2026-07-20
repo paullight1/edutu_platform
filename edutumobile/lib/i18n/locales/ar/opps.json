@@ -110,6 +110,8 @@
     "daysRemaining_many": "متبقٍّ {{count}} يومًا",
     "daysRemaining_other": "متبقٍّ {{count}} يوم",
     "stipendFunding": "الراتب / التمويل",
+    "freeToApply": "التقديم مجاني",
+    "applicationFee": "رسوم التقديم: {{fee}}",
     "whyMatches": "لماذا تناسبك هذه الفرصة",
     "thingsToCheck": "أمور يجب التحقق منها",
     "askAI": "اسأل Edutu AI عن هذه الفرصة",

@@ -102,6 +102,8 @@
     "daysRemaining_one": "{{count}} dia restante",
     "daysRemaining_other": "{{count}} dias restantes",
     "stipendFunding": "Bolsa / Financiamento",
+    "freeToApply": "Inscrição gratuita",
+    "applicationFee": "Taxa de inscrição: {{fee}}",
     "whyMatches": "Por que combina com você",
     "thingsToCheck": "O que verificar",
     "askAI": "Pergunte à IA do Edutu sobre esta oportunidade",

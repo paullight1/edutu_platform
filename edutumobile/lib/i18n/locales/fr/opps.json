@@ -102,6 +102,8 @@
     "daysRemaining_one": "{{count}} jour restant",
     "daysRemaining_other": "{{count}} jours restants",
     "stipendFunding": "Allocation / Financement",
+    "freeToApply": "Candidature gratuite",
+    "applicationFee": "Frais de candidature : {{fee}}",
     "whyMatches": "Pourquoi cela vous correspond",
     "thingsToCheck": "Points à vérifier",
     "askAI": "Interrogez Edutu AI sur cette opportunité",

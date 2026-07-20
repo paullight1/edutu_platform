@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
+  CheckCircle2,
   ExternalLink,
   Gauge,
   Heart,
@@ -309,6 +310,20 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const requirements = normaliseVisibleList(opportunity.requirements);
   const benefits = normaliseVisibleList(opportunity.benefits);
   const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
+  // Only surface fee info the data states explicitly: an explicit "free" flag, or
+  // a known fee amount. When the fee is unknown we render nothing — never guess.
+  const applicationFeeCopy = ((): { free: boolean; label: string } | null => {
+    const fee = opportunity.applicationFee;
+    if (!fee) return null;
+    if (fee.isFree === true) return { free: true, label: "Free to apply" };
+    if (typeof fee.amount === "number" && fee.amount > 0) {
+      return {
+        free: false,
+        label: `Application fee: ${`${fee.currency ?? ""} ${fee.amount}`.trim()}`,
+      };
+    }
+    return null;
+  })();
   const expired = isOpportunityExpired(opportunity);
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
   const canonicalUrl = toAbsoluteUrl(canonicalPath);
@@ -890,6 +905,19 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 reasons={matchInsight.reasons}
                 risks={matchInsight.risks}
               />
+            ) : null}
+
+            {applicationFeeCopy ? (
+              applicationFeeCopy.free ? (
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-sm font-semibold text-success">
+                  <CheckCircle2 size={16} />
+                  Free to apply
+                </div>
+              ) : (
+                <p className="text-sm font-medium text-text-secondary">
+                  {applicationFeeCopy.label}
+                </p>
+              )
             ) : null}
 
             {requirements.length > 0 ? (

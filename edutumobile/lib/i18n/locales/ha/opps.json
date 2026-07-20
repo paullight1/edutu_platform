@@ -102,6 +102,8 @@
     "daysRemaining_one": "Saura kwana {{count}}",
     "daysRemaining_other": "Saura kwanaki {{count}}",
     "stipendFunding": "Alawus / Kuɗaɗe",
+    "freeToApply": "Neman aiki kyauta ne",
+    "applicationFee": "Kudin neman: {{fee}}",
     "whyMatches": "Dalilin da Ya Sa Wannan Ta Dace da Kai",
     "thingsToCheck": "Abubuwan da Za a Duba",
     "askAI": "Tambayi Edutu AI game da wannan damar",
