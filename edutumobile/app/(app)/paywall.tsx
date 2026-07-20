@@ -149,6 +149,21 @@ export default function PaywallScreen() {
   // otherwise fall back to the web checkout so the button is never a dead end.
   const iapActive = USE_NATIVE_IAP && Boolean(selectedPackage);
 
+  // One-off Season Pass. Native: only surfaced when a `season_pass` RC product
+  // actually exists in the fetched offerings (guard on the lookup) — if the
+  // dashboard product hasn't been created it stays hidden. Web build: gated on
+  // the admin config flag, and only when signed in (an empty uid must never
+  // reach the hosted checkout).
+  const seasonPackage = iapPackages.find(
+    (pkg) => pkg.product?.identifier === 'season_pass' || pkg.identifier.toLowerCase().includes('season'),
+  );
+  const seasonForSale = USE_NATIVE_IAP
+    ? Boolean(seasonPackage)
+    : pricing.seasonPass.enabled && Boolean(userId);
+  const seasonPriceText = USE_NATIVE_IAP
+    ? seasonPackage?.product?.priceString ?? formatMoney(pricing.seasonPass.price, pricing.currency)
+    : formatMoney(pricing.seasonPass.price, pricing.currency);
+
   // Admin-controlled prices/currency/promo + paywall design/copy (mobile-
   // control config). Falls back to defaults if the feed is unreachable, so the
   // paywall always works.
@@ -247,6 +262,42 @@ export default function PaywallScreen() {
       setPurchasing(false);
     }
   }, [selectedPackage, refreshStatus, router, t]);
+
+  // Season Pass purchase — native buys the RC product; web hands off to the
+  // pay.edutu.org one-off checkout (`plan=season`).
+  const purchaseSeasonIap = useCallback(async () => {
+    if (!seasonPackage) return;
+    setPurchasing(true);
+    try {
+      const result = await purchasePackage(seasonPackage);
+      if (result.success) {
+        await refreshStatus();
+        Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
+        router.back();
+      } else if (result.error && result.error !== 'User cancelled') {
+        Alert.alert(t('common:states.error'), result.error);
+      }
+    } catch (error: any) {
+      Alert.alert(t('common:states.error'), error?.message || t('paywall.purchaseFailed'));
+    } finally {
+      setPurchasing(false);
+    }
+  }, [seasonPackage, refreshStatus, router, t]);
+
+  const redirectSeasonCheckout = useCallback(async () => {
+    if (!userId) return;
+    setRedirecting(true);
+    const url = buildCheckoutUrl(pricing, {
+      uid: userId,
+      email: userEmail,
+      plan: 'season',
+      platform: Platform.OS,
+    });
+    await openExternal(url);
+    setTimeout(() => setRedirecting(false), 800);
+  }, [userId, userEmail, pricing, openExternal]);
+
+  const handleSeason = USE_NATIVE_IAP ? purchaseSeasonIap : redirectSeasonCheckout;
 
   // On device ALWAYS go through native IAP (never the external web checkout —
   // store policy). Only the web build uses the hosted pay.edutu.org checkout.
@@ -544,6 +595,35 @@ export default function PaywallScreen() {
               )}
             </TouchableOpacity>
 
+            {/* One-off Season Pass — a single charge that grants Pro for a
+                fixed run of days. Hidden unless it's actually for sale on this
+                platform (admin flag on web; a real RC product on device). */}
+            {seasonForSale && (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                disabled={redirecting || purchasing}
+                onPress={handleSeason}
+                style={[styles.seasonButton, { borderColor: accent }]}
+                accessibilityRole="button"
+                accessibilityLabel={pricing.seasonPass.label}
+              >
+                <View style={styles.seasonTextWrap}>
+                  <Text style={styles.seasonTitle} numberOfLines={1}>
+                    {pricing.seasonPass.label}
+                  </Text>
+                  <Text style={styles.seasonSub} numberOfLines={1}>
+                    {t('paywall.seasonDuration', {
+                      count: pricing.seasonPass.durationDays,
+                      defaultValue: '{{count}}-day Pro access',
+                    })}
+                  </Text>
+                </View>
+                <Text style={[styles.seasonPrice, { color: accent }]} numberOfLines={1}>
+                  {seasonPriceText}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {/* On device we only sell via the store. If products can't load we
                 say so rather than dead-ending — never an external checkout. */}
             {USE_NATIVE_IAP && !iapLoading && iapUnavailable && (
@@ -749,6 +829,22 @@ const styles = StyleSheet.create({
   },
   ctaButtonDisabled: { opacity: 0.5 },
   ctaText: { color: CANVAS, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  seasonButton: {
+    marginTop: 10,
+    minHeight: 54,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    backgroundColor: CARD_BG,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  seasonTextWrap: { flex: 1, paddingRight: 12 },
+  seasonTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  seasonSub: { color: TEXT_DIM, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  seasonPrice: { fontSize: 15, fontWeight: '800' },
   secureNote: {
     color: TEXT_DIM,
     fontSize: 11,

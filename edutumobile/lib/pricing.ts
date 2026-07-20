@@ -21,6 +21,19 @@ export interface CreditPack {
   label?: string;
 }
 
+/**
+ * One-off "Season Pass": a single purchase that grants Pro for a fixed number of
+ * days (matching a seasonal application cycle). Admin-configured; `enabled` is
+ * false until the admin turns it on AND sets a positive price, so an absent /
+ * partial config always reads as "not for sale".
+ */
+export interface SeasonPass {
+  enabled: boolean;
+  price: number;
+  durationDays: number;
+  label: string;
+}
+
 export interface PricingConfig {
   /** ISO-4217 code, e.g. 'NGN', 'USD', 'GHS'. */
   currency: string;
@@ -34,6 +47,8 @@ export interface PricingConfig {
   promo: PricingPromo;
   /** Optional credit top-up packs (admin-configured). */
   creditPacks?: CreditPack[];
+  /** One-off Pro pass; disabled until the admin turns it on. */
+  seasonPass: SeasonPass;
 }
 
 export const DEFAULT_PRICING: PricingConfig = {
@@ -44,6 +59,7 @@ export const DEFAULT_PRICING: PricingConfig = {
   checkoutBaseUrl: 'https://pay.edutu.org',
   manageUrl: 'https://pay.edutu.org/account',
   promo: { active: false, label: '', weeklyPrice: null, monthlyPrice: null, yearlyPrice: null },
+  seasonPass: { enabled: false, price: 15000, durationDays: 90, label: 'Season Pass' },
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -78,6 +94,7 @@ export function normalisePricing(payload: unknown): PricingConfig {
   const monthly = toFiniteNumber(r.monthlyPrice);
   const yearly = toFiniteNumber(r.yearlyPrice);
   const promo = r.promo && typeof r.promo === 'object' ? r.promo : {};
+  const season = r.seasonPass && typeof r.seasonPass === 'object' ? r.seasonPass : {};
 
   // The admin payload may also carry creditPacks, aiCosts, freeTier and
   // proFairUse — creditPacks is normalised below; the rest are server-side
@@ -136,10 +153,27 @@ export function normalisePricing(payload: unknown): PricingConfig {
       yearlyPrice: toFiniteNumber(promo.yearlyPrice),
     },
     creditPacks,
+    seasonPass: {
+      // Only sellable when the admin explicitly enabled it AND set a positive
+      // price — mirrors pay.edutu.org's fetchPricing so both surfaces agree.
+      enabled: season.enabled === true && (toFiniteNumber(season.price) ?? 0) > 0,
+      price: toFiniteNumber(season.price) ?? DEFAULT_PRICING.seasonPass.price,
+      durationDays: (() => {
+        const days = toFiniteNumber(season.durationDays);
+        return days != null && Number.isInteger(days) && days >= 1 ? days : DEFAULT_PRICING.seasonPass.durationDays;
+      })(),
+      label:
+        typeof season.label === 'string' && season.label.trim()
+          ? season.label.trim()
+          : DEFAULT_PRICING.seasonPass.label,
+    },
   };
 }
 
 export type BillingPlan = 'weekly' | 'monthly' | 'yearly';
+
+/** A checkout target: a recurring plan or the one-off season pass. */
+export type CheckoutPlan = BillingPlan | 'season';
 
 // ─── Admin-controlled paywall design + copy ──────────────────────────────────
 // Served alongside pricing in GET /mobile-control/config (admin_settings.
@@ -252,18 +286,23 @@ export function hasPromoDiscount(pricing: PricingConfig, plan: BillingPlan): boo
  */
 export function buildCheckoutUrl(
   pricing: PricingConfig,
-  params: { uid: string; email?: string | null; plan: BillingPlan; platform?: string; ref?: string },
+  params: { uid: string; email?: string | null; plan: CheckoutPlan; platform?: string; ref?: string },
 ): string {
+  // The season pass is a ONE-OFF charge at its own admin-set price; promos never
+  // apply to it. Every other plan is the recurring price (promo override wins).
+  const amount =
+    params.plan === 'season' ? pricing.seasonPass.price : effectivePrice(pricing, params.plan);
+  const isSeason = params.plan === 'season';
   const q = new URLSearchParams({
     uid: params.uid,
     plan: params.plan,
     currency: pricing.currency,
-    amount: String(effectivePrice(pricing, params.plan)),
+    amount: String(amount),
     ref: params.ref || 'edutu-mobile',
   });
   if (params.email) q.set('email', params.email);
   if (params.platform) q.set('platform', params.platform);
-  if (pricing.promo.active) q.set('promo', pricing.promo.label || 'promo');
+  if (!isSeason && pricing.promo.active) q.set('promo', pricing.promo.label || 'promo');
   return `${pricing.checkoutBaseUrl}/checkout?${q.toString()}`;
 }
 
