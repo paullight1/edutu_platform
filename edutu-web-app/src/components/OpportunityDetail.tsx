@@ -38,6 +38,7 @@ import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
+import { getDeadlineBadge } from "../services/deadlineUrgency";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
@@ -308,6 +309,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     .filter(Boolean);
   const eligibilityItems = buildEligibilityItems(opportunity.eligibility);
   const requirements = normaliseVisibleList(opportunity.requirements);
+  // Feasibility framing: when a deadline is urgent AND we actually know the
+  // requirements, reassure rather than only alarm. Never invent effort when
+  // requirements are unknown/empty.
+  const deadlineIsUrgent = getDeadlineBadge(opportunity.deadline).isUrgent;
+  const showFeasibility = deadlineIsUrgent && requirements.length > 0;
   const benefits = normaliseVisibleList(opportunity.benefits);
   const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
   // Only surface fee info the data states explicitly: an explicit "free" flag, or
@@ -925,6 +931,12 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                   Requirements
                 </h2>
+                {showFeasibility ? (
+                  <p className="text-sm text-text-secondary">
+                    {requirements.length} requirements — still doable. Start with
+                    the first one.
+                  </p>
+                ) : null}
                 <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {requirements.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">

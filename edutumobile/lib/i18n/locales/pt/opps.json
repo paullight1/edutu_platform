@@ -101,6 +101,7 @@
     "applicationEnded": "O período de candidatura terminou",
     "daysRemaining_one": "{{count}} dia restante",
     "daysRemaining_other": "{{count}} dias restantes",
+    "feasibility": "{{count}} requisitos — ainda dá tempo. Comece pelo primeiro.",
     "stipendFunding": "Bolsa / Financiamento",
     "freeToApply": "Inscrição gratuita",
     "applicationFee": "Taxa de inscrição: {{fee}}",

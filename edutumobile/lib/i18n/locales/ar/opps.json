@@ -109,6 +109,7 @@
     "daysRemaining_few": "متبقٍّ {{count}} أيام",
     "daysRemaining_many": "متبقٍّ {{count}} يومًا",
     "daysRemaining_other": "متبقٍّ {{count}} يوم",
+    "feasibility": "{{count}} متطلبات — لا يزال ممكنًا. ابدأ بالأول.",
     "stipendFunding": "الراتب / التمويل",
     "freeToApply": "التقديم مجاني",
     "applicationFee": "رسوم التقديم: {{fee}}",

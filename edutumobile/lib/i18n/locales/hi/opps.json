@@ -101,6 +101,7 @@
     "applicationEnded": "आवेदन की अवधि समाप्त हो गई है",
     "daysRemaining_one": "{{count}} दिन शेष",
     "daysRemaining_other": "{{count}} दिन शेष",
+    "feasibility": "{{count}} आवश्यकताएँ — अभी भी संभव है। पहले से शुरू करें।",
     "stipendFunding": "स्टाइपेंड / फ़ंडिंग",
     "freeToApply": "आवेदन निःशुल्क",
     "applicationFee": "आवेदन शुल्क: {{fee}}",

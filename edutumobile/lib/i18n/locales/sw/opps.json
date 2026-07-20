@@ -101,6 +101,7 @@
     "applicationEnded": "Kipindi cha maombi kimekwisha",
     "daysRemaining_one": "Imebaki siku {{count}}",
     "daysRemaining_other": "Zimebaki siku {{count}}",
+    "feasibility": "Mahitaji {{count}} — bado inawezekana. Anza na la kwanza.",
     "stipendFunding": "Posho / Ufadhili",
     "freeToApply": "Kutuma maombi ni bure",
     "applicationFee": "Ada ya maombi: {{fee}}",

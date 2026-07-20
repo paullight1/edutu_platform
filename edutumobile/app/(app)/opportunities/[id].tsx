@@ -1636,6 +1636,20 @@ export default function OpportunityDetailScreen() {
                       { month: "long", day: "numeric", year: "numeric" },
                     )}
                   </Text>
+                  {/* Feasibility framing: urgent + known requirements → reassure,
+                      don't just alarm. Nothing when requirements are unknown. */}
+                  {isUrgent &&
+                  !isClosed &&
+                  Array.isArray(opportunity.requirements) &&
+                  opportunity.requirements.length > 0 ? (
+                    <Text
+                      style={[styles.deadlineFeasibility, { color: textSecondary }]}
+                    >
+                      {t("detail.feasibility", {
+                        count: opportunity.requirements.length,
+                      })}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -3637,6 +3651,7 @@ const styles = StyleSheet.create({
   deadlineLabel: { fontSize: 10, fontWeight: "500" },
   deadlineValue: { fontSize: 14, fontWeight: "600" },
   deadlineDate: { fontSize: 11, marginTop: 2 },
+  deadlineFeasibility: { fontSize: 11, marginTop: 4, lineHeight: 15 },
   stipendCard: {
     flexDirection: "row",
     alignItems: "center",

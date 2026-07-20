@@ -127,6 +127,7 @@
     "applicationEnded": "Application period has ended",
     "daysRemaining_one": "{{count}} day remaining",
     "daysRemaining_other": "{{count}} days remaining",
+    "feasibility": "{{count}} requirements — still doable. Start with the first one.",
     "stipendFunding": "Stipend / Funding",
     "freeToApply": "Free to apply",
     "applicationFee": "Application fee: {{fee}}",
