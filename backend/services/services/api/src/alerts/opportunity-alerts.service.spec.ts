@@ -12,6 +12,11 @@ describe("OpportunityAlertsService", () => {
       concurrency: number,
       worker: (item: T) => Promise<void>,
     ): Promise<void>;
+    describeMissingDocs(
+      missing: string[],
+      daysLeft: number,
+      title: string,
+    ): { title: string; body: string };
   };
 
   describe("daysPhrase", () => {
@@ -42,6 +47,23 @@ describe("OpportunityAlertsService", () => {
 
       expect(seen.sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
       expect(peak).toBeLessThanOrEqual(3);
+    });
+  });
+
+  describe("describeMissingDocs", () => {
+    it("names a single missing document and the urgency", () => {
+      const copy = service.describeMissingDocs(["sop"], 5, "Chevening");
+      expect(copy.title).toContain("Chevening");
+      expect(copy.body).toContain("SOP");
+      expect(copy.body).toContain("in 5 days");
+      expect(copy.body).toContain("is still a draft");
+    });
+
+    it("pluralizes when several documents are missing", () => {
+      const copy = service.describeMissingDocs(["cv", "sop"], 1, "Rhodes");
+      expect(copy.body).toContain("CV and SOP");
+      expect(copy.body).toContain("are still a draft");
+      expect(copy.body).toContain("tomorrow");
     });
   });
 });

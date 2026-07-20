@@ -48,6 +48,17 @@ interface DeadlinePair {
   timezone: string | null;
 }
 
+interface DocNudge {
+  userId: string;
+  applicationId: string;
+  opportunityId: string;
+  title: string;
+  daysLeft: number;
+  missing: string[]; // required roles still absent: 'cv' | 'sop'
+  quietHours: QuietHours;
+  timezone: string | null;
+}
+
 // Tunables (env-overridable). Conservative by default: the fastest way to get
 // push notifications disabled is to send too many of them.
 const MIN_SCORE = Number(process.env.ALERTS_MIN_SCORE || 62);
@@ -625,6 +636,205 @@ export class OpportunityAlertsService {
       opportunityId: row.opportunity_id,
       title: row.title,
       daysLeft: Number(row.days_left),
+      quietHours: row.quiet_hours,
+      timezone: row.timezone,
+    }));
+  }
+
+  // ─── Win-coach: incomplete-application nudges ─────────────────────────────
+
+  // After deadline reminders (07:45). Nudges users whose in-flight applications
+  // are missing a required document (CV / SOP) as the deadline nears.
+  @Cron("30 8 * * *")
+  async runApplicationDocNudgesCron() {
+    if (process.env.AI_WINCOACH_ENABLED === "false") return;
+    try {
+      const result = await this.scanApplicationCompleteness();
+      this.logger.log(
+        `win-coach doc nudges: ${result.notified}/${result.candidates} sent`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `win-coach doc nudges failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * One nudge per application whose deadline is 7/3/1 days out and that is still
+   * missing a required document. Deduped through opportunity_alert_ledger (kind
+   * docs_Nd), quiet-hours deferred, keyed on the same app user id the deadline
+   * reminders use.
+   */
+  async scanApplicationCompleteness(): Promise<{
+    candidates: number;
+    notified: number;
+  }> {
+    const nudges = await this.getIncompleteApplicationNudges();
+    if (!nudges.length) return { candidates: 0, notified: 0 };
+
+    let notified = 0;
+    await this.forEachWithConcurrency(
+      nudges,
+      USER_CONCURRENCY,
+      async (nudge) => {
+        try {
+          notified += await this.sendDocNudge(nudge);
+        } catch (error) {
+          this.logger.warn(
+            `doc nudge failed for ${nudge.userId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      },
+    );
+    return { candidates: nudges.length, notified };
+  }
+
+  private async sendDocNudge(nudge: DocNudge): Promise<number> {
+    const kind = `docs_${nudge.daysLeft}d`;
+    // Reserve the ledger slot first; only push if this is the first time we've
+    // nudged this application at this offset (race-safe dedup).
+    const inserted = await db
+      .insert(opportunityAlertLedger)
+      .values({
+        userId: nudge.userId,
+        opportunityId: nudge.opportunityId,
+        kind,
+      })
+      .onConflictDoNothing()
+      .returning({ userId: opportunityAlertLedger.userId });
+    if (!inserted.length) return 0;
+
+    const copy = this.describeMissingDocs(
+      nudge.missing,
+      nudge.daysLeft,
+      nudge.title,
+    );
+    const prompt = `Help me finish my ${nudge.missing
+      .map((role) => role.toUpperCase())
+      .join(" and ")} for "${nudge.title}" before the deadline.`;
+
+    await this.notificationsService.broadcast(nudge.userId, {
+      title: copy.title,
+      body: copy.body,
+      kind: "deadline-reminder",
+      severity: nudge.daysLeft <= 1 ? "critical" : "warning",
+      audience: "specific",
+      targetUserIds: [nudge.userId],
+      channels: { inApp: true, push: true, email: false },
+      dedupeKey: `docs:${nudge.userId}:${nudge.opportunityId}:${nudge.daysLeft}d`,
+      scheduledFor: deferForQuietHours(nudge.quietHours, nudge.timezone),
+      metadata: {
+        opportunityId: nudge.opportunityId,
+        applicationId: nudge.applicationId,
+        // Lands in chat ready to finish the missing document with the coach.
+        url: `/chat?prefill=${encodeURIComponent(prompt)}`,
+        opportunityUrl: `/opportunities/${nudge.opportunityId}`,
+        androidChannelId: "deadlines",
+        daysLeft: nudge.daysLeft,
+        source: "win-coach-doc-nudges",
+      },
+    });
+    return 1;
+  }
+
+  /** Push copy for a missing-document nudge (pure — unit tested). */
+  private describeMissingDocs(
+    missing: string[],
+    daysLeft: number,
+    title: string,
+  ): { title: string; body: string } {
+    const label =
+      missing
+        .map((role) => (role === "cv" ? "CV" : role === "sop" ? "SOP" : role))
+        .join(" and ") || "documents";
+    const verb = missing.length > 1 ? "are" : "is";
+    return {
+      title: `📝 Finish before "${title}" closes`,
+      body: `"${title}" closes ${this.daysPhrase(daysLeft)} and your ${label} ${verb} still a draft. Want me to help you finish?`,
+    };
+  }
+
+  private async getIncompleteApplicationNudges(): Promise<DocNudge[]> {
+    const result = await db.execute(sql`
+      select a.user_id as user_id,
+             a.id as application_id,
+             o.id as opportunity_id,
+             o.title as title,
+             (o.deadline::date - current_date) as days_left,
+             p.quiet_hours as quiet_hours,
+             pr.timezone as timezone,
+             not exists (
+               select 1 from application_documents d
+               where d.application_id = a.id and d.role = 'cv' and d.status <> 'missing'
+             ) as cv_missing,
+             not exists (
+               select 1 from application_documents d
+               where d.application_id = a.id and d.role = 'sop' and d.status <> 'missing'
+             ) as sop_missing
+      from opportunity_applications a
+      join opportunities o on o.id = a.opportunity_id
+      left join notification_preferences p on p.user_id::text = a.user_id
+      left join profiles pr on pr.user_id::text = a.user_id
+      where a.status <> 'submitted'
+        and o.status = 'active'
+        and o.deadline is not null
+        and (o.deadline::date - current_date) in (${sql.join(
+          DEADLINE_OFFSETS.map((d) => sql`${d}`),
+          sql`, `,
+        )})
+        and coalesce(p.push_notifications, true)
+        and coalesce(p.deadline_reminders, true)
+        and (
+          not exists (
+            select 1 from application_documents d
+            where d.application_id = a.id and d.role = 'cv' and d.status <> 'missing'
+          )
+          or not exists (
+            select 1 from application_documents d
+            where d.application_id = a.id and d.role = 'sop' and d.status <> 'missing'
+          )
+        )
+        and not exists (
+          select 1 from opportunity_alert_ledger l
+          where l.user_id::text = a.user_id
+            and l.opportunity_id = o.id
+            and l.kind = 'docs_' || (o.deadline::date - current_date) || 'd'
+        )
+      limit 2000
+    `);
+
+    const rows =
+      (
+        result as unknown as {
+          rows?: Array<{
+            user_id: string;
+            application_id: string;
+            opportunity_id: string;
+            title: string;
+            days_left: number;
+            quiet_hours: QuietHours;
+            timezone: string | null;
+            cv_missing: boolean;
+            sop_missing: boolean;
+          }>;
+        }
+      ).rows ?? [];
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      applicationId: row.application_id,
+      opportunityId: row.opportunity_id,
+      title: row.title,
+      daysLeft: Number(row.days_left),
+      missing: [
+        ...(row.cv_missing ? ["cv"] : []),
+        ...(row.sop_missing ? ["sop"] : []),
+      ],
       quietHours: row.quiet_hours,
       timezone: row.timezone,
     }));
