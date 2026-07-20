@@ -95,6 +95,14 @@ interface RawItem {
   application_process?: string[];
   summary?: string;
   eligibility?: Record<string, unknown>;
+  /** Whether applying costs money (screening input for the scam gate). */
+  application_fee?: {
+    is_free: boolean | null;
+    amount: number | null;
+    currency: string | null;
+  } | null;
+  /** Scam/legitimacy warning phrases surfaced by the LLM pass. */
+  red_flags?: string[];
   funding_type?: string;
   target_region?: string;
   enrichment_confidence?: number;
@@ -116,21 +124,42 @@ const boundedString = (max: number) =>
       .transform((value) => value || undefined),
   );
 
-const DeepSeekExtractionSchema = z.object({
+export const DeepSeekExtractionSchema = z.object({
   summary: boundedString(320),
   description: boundedString(1800),
   requirements: z.array(z.string().trim().min(2)).optional().default([]),
   benefits: z.array(z.string().trim().min(2)).optional().default([]),
   deadline: z.string().nullable().optional(),
   application_process: z.array(z.string().trim().min(2)).optional().default([]),
-  eligibility: z.record(z.string(), z.unknown()).optional().default({}),
+  // Structured eligibility superset (consumed by the ranking eligibility gate)
+  // while `.passthrough()` keeps legacy free-form keys (level/nationality/field).
+  eligibility: z
+    .object({
+      countries: z.array(z.string()).nullable().optional(),
+      age_min: z.number().nullable().optional(),
+      age_max: z.number().nullable().optional(),
+      degree_levels: z.array(z.string()).nullable().optional(),
+      gender: z.string().nullable().optional(),
+    })
+    .passthrough()
+    .nullable()
+    .optional(),
+  application_fee: z
+    .object({
+      is_free: z.boolean().nullable(),
+      amount: z.number().nullable(),
+      currency: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  red_flags: z.array(z.string()).default([]),
   funding_type: boundedString(120),
   target_region: boundedString(120),
   confidence: z.number().min(0).max(1).optional().default(0),
   notes: z.array(z.string().trim().min(2)).optional().default([]),
 });
 
-type DeepSeekExtraction = z.infer<typeof DeepSeekExtractionSchema>;
+export type DeepSeekExtraction = z.infer<typeof DeepSeekExtractionSchema>;
 
 interface SourceResult {
   name: string;
@@ -2365,6 +2394,13 @@ export class ScraperService implements OnModuleInit {
             (existing?.eligibility as Record<string, unknown> | undefined) ??
             cached.eligibility ??
             item.eligibility,
+          application_fee:
+            (cached.application_fee as RawItem["application_fee"]) ??
+            item.application_fee ??
+            null,
+          red_flags: Array.isArray(cached.red_flags)
+            ? (cached.red_flags as string[])
+            : (item.red_flags ?? []),
           funding_type:
             (existing?.funding_type as string | undefined) ??
             cached.funding_type ??
@@ -2497,6 +2533,8 @@ export class ScraperService implements OnModuleInit {
             : (item.application_process ?? []),
         ),
         eligibility: ai.eligibility ?? item.eligibility,
+        application_fee: ai.application_fee ?? item.application_fee ?? null,
+        red_flags: ai.red_flags ?? item.red_flags ?? [],
         funding_type: ai.funding_type ?? item.funding_type,
         target_region: ai.target_region ?? item.target_region,
         enrichment_confidence: ai.confidence,
@@ -2784,6 +2822,8 @@ export class ScraperService implements OnModuleInit {
       benefits: [],
       application_process: [],
       eligibility: {},
+      application_fee: null,
+      red_flags: [],
       funding_type: undefined,
       target_region: undefined,
       confidence: 0,
@@ -2802,10 +2842,14 @@ Return ONLY valid JSON matching this schema exactly:
   "deadline": "YYYY-MM-DD or short readable date, or null",
   "application_process": ["step"],
   "eligibility": {
-    "level": "string if stated",
-    "nationality": "string if stated",
-    "field": "string if stated"
+    "countries": ["full country name"] or null,
+    "age_min": integer or null,
+    "age_max": integer or null,
+    "degree_levels": ["high school|undergraduate|graduate|doctoral|professional"] or null,
+    "gender": "string if restricted, else null"
   },
+  "application_fee": { "is_free": true/false/null, "amount": number or null, "currency": "string or null" },
+  "red_flags": ["string"],
   "funding_type": "string if stated",
   "target_region": "string if stated",
   "confidence": 0.0,
@@ -2813,6 +2857,9 @@ Return ONLY valid JSON matching this schema exactly:
 }
 Rules:
 - Do not invent amounts, deadlines, eligibility, or links.
+- eligibility.countries: full country names; use null if open to all ("international"/"worldwide"/"global" ⇒ null). age_min/age_max: integers or null. degree_levels: only from high school|undergraduate|graduate|doctoral|professional. gender: only if the opportunity is restricted to one, else null.
+- application_fee: whether applying costs money (is_free true/false/null, amount+currency if stated).
+- red_flags: list any of — fee required to apply or claim a prize; guaranteed selection/win language; contact only via free email or messaging apps; requests bank details or ID documents before selection; unrealistic benefit for no criteria. Empty list if none.
 - Rewrite scraped article text into clean opportunity information. Do not copy bylines, author names, dates, category labels, social/share text, navigation text, comments, or aggregator wording.
 - Never mention scraper/source/aggregator names or domains, including DixcoverHubX, Opportunities Circle, OYA Opportunities, Scholars4Dev, Global Scholar Desk, Scholarship Portal, jobs.smartyacad.com, "By Admin", or "scraped".
 - The public description should name the actual opportunity/program and, if stated, the real organizer. It must not say the opportunity is "through" or "from" an aggregator website.
@@ -2837,7 +2884,31 @@ ${text}`;
             benefits: { type: "array", items: { type: "string" } },
             deadline: { type: ["string", "null"] },
             application_process: { type: "array", items: { type: "string" } },
-            eligibility: { type: "object" },
+            eligibility: {
+              type: ["object", "null"],
+              properties: {
+                countries: {
+                  type: ["array", "null"],
+                  items: { type: "string" },
+                },
+                age_min: { type: ["integer", "null"] },
+                age_max: { type: ["integer", "null"] },
+                degree_levels: {
+                  type: ["array", "null"],
+                  items: { type: "string" },
+                },
+                gender: { type: ["string", "null"] },
+              },
+            },
+            application_fee: {
+              type: ["object", "null"],
+              properties: {
+                is_free: { type: ["boolean", "null"] },
+                amount: { type: ["number", "null"] },
+                currency: { type: ["string", "null"] },
+              },
+            },
+            red_flags: { type: "array", items: { type: "string" } },
             funding_type: { type: ["string", "null"] },
             target_region: { type: ["string", "null"] },
             confidence: { type: "number" },
@@ -2851,6 +2922,8 @@ ${text}`;
             "deadline",
             "application_process",
             "eligibility",
+            "application_fee",
+            "red_flags",
             "funding_type",
             "target_region",
             "confidence",
@@ -3683,6 +3756,8 @@ ${text}`;
           item.application_process ?? [],
         ),
         eligibility: item.eligibility ?? {},
+        application_fee: item.application_fee ?? null,
+        red_flags: item.red_flags ?? [],
         funding_type: item.funding_type ?? null,
         target_region: item.target_region ?? null,
       },
