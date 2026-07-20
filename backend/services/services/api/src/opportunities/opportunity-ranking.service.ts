@@ -44,10 +44,16 @@ import {
   matchedGoals,
   mergePreferencePatch,
 } from "./profile-fit.util";
+import { checkEligibility } from "./eligibility.util";
 
 // Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
 // (legacy behavior only). Lets the new engine ship dark and flip via env.
 const RECS_ENGINE = (process.env.RECS_ENGINE || "hybrid").toLowerCase();
+// Hard eligibility gate on the feed. Default ON — the scraper-persisted
+// structured eligibility hides opportunities the member cannot enter. Set
+// exactly "false" to disable (feed reverts to no eligibility filtering).
+const RECS_ELIGIBILITY_GATE =
+  (process.env.RECS_ELIGIBILITY_GATE || "true").toLowerCase() !== "false";
 const RECS_ANN_CANDIDATES = (() => {
   const parsed = Number(process.env.RECS_ANN_CANDIDATES);
   return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1000) : 300;
@@ -400,8 +406,18 @@ export class OpportunityRankingService {
     // O(1) membership instead of Array.includes per candidate (was O(n·m)).
     const dismissedIdSet = new Set(dismissedIds);
 
+    const eligibilityProfile = this.toEligibilityProfile(profile);
+
     let ranked = rows
       .filter((row) => !dismissedIdSet.has(row.id))
+      // Hard eligibility gate: drop opportunities the member cannot enter.
+      // Defensive — checkEligibility never throws and fails open on any
+      // malformed/legacy/absent eligibility jsonb.
+      .filter(
+        (row) =>
+          !RECS_ELIGIBILITY_GATE ||
+          checkEligibility(row.eligibility, eligibilityProfile).eligible,
+      )
       .map((row) =>
         this.rankCandidate(row, {
           profile,
@@ -490,6 +506,7 @@ export class OpportunityRankingService {
     ]);
 
     const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
+    const eligibilityProfile = this.toEligibilityProfile(profile);
     const scores = rows.map((row) => {
       const ranked = this.rankCandidate(row, {
         profile,
@@ -500,11 +517,23 @@ export class OpportunityRankingService {
         categoryAffinities,
         useBlender: Boolean(profileEmbedding),
       });
+      // Detail path never hides ineligible items — it surfaces the reason as
+      // a risk so the client's "Worth checking" list explains the mismatch.
+      const { eligible, blockers } = checkEligibility(
+        row.eligibility,
+        eligibilityProfile,
+      );
+      const matchRisks = eligible
+        ? ranked.matchRisks
+        : [
+            ...blockers.map((blocker) => `Eligibility: ${blocker}`),
+            ...ranked.matchRisks,
+          ];
       return {
         id: row.id,
         match_score: ranked.match,
         match_reasons: ranked.matchReasons,
-        match_risks: ranked.matchRisks,
+        match_risks: matchRisks,
         match_reason_details: this.toReasonDetails(ranked),
         match_components: ranked.matchComponents ?? null,
         engine,
@@ -941,6 +970,26 @@ export class OpportunityRankingService {
     }
 
     return scores;
+  }
+
+  /**
+   * Maps either profile shape the pipeline sees — the inline
+   * RecommendationQueryDto profile or a raw `profiles` DB row — onto the flat
+   * shape `checkEligibility` expects. Accepts both camelCase (`dateOfBirth`)
+   * and snake_case (`date_of_birth`) DOB keys.
+   */
+  private toEligibilityProfile(
+    profile: RecommendationQueryDto["profile"] | Record<string, unknown> | null,
+  ) {
+    const p = (profile ?? {}) as Record<string, unknown>;
+    const age = typeof p.age === "number" ? p.age : null;
+    const dob = p.dateOfBirth ?? p.date_of_birth ?? null;
+    return {
+      country: typeof p.country === "string" ? p.country : null,
+      age,
+      dateOfBirth: typeof dob === "string" ? dob : null,
+      degree: typeof p.degree === "string" ? p.degree : null,
+    };
   }
 
   private async getUserProfile(userId: string) {
