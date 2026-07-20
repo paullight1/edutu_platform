@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, Modal, ScrollView, StyleSheet, Platform } from 'react-native';
 import { Check, ChevronDown, Globe, X } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 import { useTheme } from '../context/ThemeContext';
 import {
     SUPPORTED_LANGUAGES,
@@ -39,7 +39,7 @@ export function LanguageSelector() {
         setOpen(false);
         if (code === currentLang) return;
 
-        Haptics.selectionAsync().catch(() => {});
+        haptics.selection();
         setCurrentLang(code);
         const { needsRestart } = await setAppLanguage(code);
         if (needsRestart) {
@@ -60,7 +60,7 @@ export function LanguageSelector() {
         <>
             <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => { Haptics.selectionAsync().catch(() => {}); setOpen(true); }}
+                onPress={() => { haptics.selection(); setOpen(true); }}
                 style={styles.row}
                 accessibilityRole="button"
                 accessibilityLabel={t('language.label')}

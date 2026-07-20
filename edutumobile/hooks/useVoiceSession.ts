@@ -6,7 +6,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../lib/haptics';
 import { sendChatMessage, ChatRateLimitError } from '@edutu/core/src/services/chat';
 import { supabase } from '../lib/supabase';
 import { getConfig } from '../lib/config';
@@ -144,7 +144,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       lastVoiceAtRef.current = Date.now();
       setErrorCode(null);
       updateStatus('listening');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      haptics.light();
     } catch {
       setErrorCode('network');
       updateStatus('error');
@@ -216,7 +216,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     processingRef.current = true;
     updateStatus('transcribing');
     setLevel(0);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    haptics.medium();
 
     try {
       await stopRecorderQuietly();
@@ -266,7 +266,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
       setErrorCode(isLimit ? 'limit' : 'network');
       updateStatus('error');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      haptics.error();
     }
   }, [getAuthToken, recorder, resumeAfterTurn, speakReply, stopRecorderQuietly, transcribe, updateStatus, userId]);
 
@@ -341,7 +341,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     } else if (statusRef.current === 'idle' && modeRef.current === 'live') {
       void startListening();
     }
-    Haptics.selectionAsync().catch(() => {});
+    haptics.selection();
   }, [startListening, stopRecorderQuietly, updateStatus]);
 
   const begin = useCallback(() => {

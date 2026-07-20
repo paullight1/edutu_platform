@@ -30,7 +30,7 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../lib/haptics";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { useProfileCompleteness } from "@edutu/core/src/hooks/useProfileCompleteness";
@@ -525,7 +525,7 @@ function HomeCategoriesEditor({
     const handleDragStart = useCallback((id: DiscoveryCategoryId) => {
         anchorRef.current = layoutRef.current.rects.get(id) ?? null;
         setDraggingId(id);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        void haptics.medium();
     }, []);
 
     // Live reorder: whenever the held tile's centre enters another tile's
@@ -556,7 +556,7 @@ function HomeCategoriesEditor({
         }
         if (target === fromIndex) return;
         lastReorderAtRef.current = now;
-        void Haptics.selectionAsync();
+        void haptics.selection();
         setDraft((prev) => {
             const from = prev.findIndex((entry) => entry.id === id);
             if (from < 0) return prev;
@@ -574,12 +574,12 @@ function HomeCategoriesEditor({
 
     const handleResizeStart = useCallback((id: DiscoveryCategoryId) => {
         setResizingId(id);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        void haptics.light();
     }, []);
 
     // Fired each time the edge drag snaps to a new size step.
     const handleResize = useCallback((id: DiscoveryCategoryId, size: DiscoveryTileSize) => {
-        void Haptics.selectionAsync();
+        void haptics.selection();
         setDraft((prev) => prev.map((entry) => (
             entry.id === id ? { ...entry, size } : entry
         )));

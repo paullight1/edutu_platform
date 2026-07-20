@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Sparkles, Check } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Haptics from "expo-haptics";
+import { haptics } from "../../lib/haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
@@ -134,7 +134,7 @@ function RejectionSupportCard({
   const [saved, setSaved] = useState(Boolean(initialReflection));
 
   const handleSave = () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void haptics.light();
     onSaveReflection(reflection.trim());
     setSaved(true);
   };

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudioPlayer } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
+import { haptics } from '../../lib/haptics';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
@@ -127,7 +127,7 @@ function VoiceSessionScreen({
     // arms. The chime plays before allowsRecording flips so iOS routes it to
     // the main speaker.
     useEffect(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        haptics.medium();
         try {
             startPlayer.seekTo(0);
             startPlayer.play();
