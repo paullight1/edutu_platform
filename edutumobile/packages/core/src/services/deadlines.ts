@@ -29,7 +29,7 @@ function fallbackAbortSignal(): AbortSignal {
 }
 
 // Terminal application states carry no actionable deadline.
-const INACTIVE_APPLICATION_STATUSES = new Set(['withdrawn', 'rejected']);
+const INACTIVE_APPLICATION_STATUSES = new Set(['withdrawn', 'rejected', 'no_response']);
 
 function getDaysRemaining(deadline?: string | null): number {
   return deadline
