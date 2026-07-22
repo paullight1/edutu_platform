@@ -1,5 +1,5 @@
 import { Slot } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { StatusBar, setStatusBarStyle } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ClerkProvider, ClerkLoaded , useAuth } from "@clerk/clerk-expo";
@@ -133,6 +133,30 @@ function RootLayoutContent() {
         void registerWidgetBackgroundRefresh();
     }, []);
 
+    // Keep the latest theme readable inside the AppState listener below without
+    // re-subscribing it every time the theme toggles.
+    const isDarkRef = useRef(isDark);
+    useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+
+    // ── Status bar indicator color ───────────────────────────────────────────
+    // The <StatusBar> below sets the iOS clock/signal/battery color, but
+    // expo-status-bar drives it imperatively and globally (the project runs with
+    // UIViewControllerBasedStatusBarAppearance=NO, as RCTStatusBarManager
+    // requires). iOS re-resolves the bar to the Info.plist static default during
+    // the initial appearance transition and on resume — and since the native
+    // UIUserInterfaceStyle is pinned to Dark while our JS theme is independent,
+    // the one-shot declarative style got reverted, leaving DARK indicators on the
+    // dark header. Re-assert imperatively after paint whenever the theme flips so
+    // the indicators always contrast the chrome (light on dark, dark on light).
+    useEffect(() => {
+        const style = isDark ? "light" : "dark";
+        setStatusBarStyle(style);
+        // On a cold launch iOS's appearance transition can fire just after this
+        // effect and revert the bar; a deferred re-assert lands after it.
+        const t = setTimeout(() => setStatusBarStyle(style), 350);
+        return () => clearTimeout(t);
+    }, [isDark]);
+
     // Re-sync the home-screen widget every time the app returns to the
     // foreground. Widget snapshots store pre-formatted deadline strings
     // ("Closes today", "3 days left"); without this they'd freeze until the
@@ -147,6 +171,9 @@ function RootLayoutContent() {
                     appState.current.match(/inactive|background/) &&
                     nextState === "active"
                 ) {
+                    // Returning to the foreground re-runs iOS's appearance pass,
+                    // which can revert the bar to the static default — re-assert.
+                    setStatusBarStyle(isDarkRef.current ? "light" : "dark");
                     void syncWidgetSuite({
                         userId: userId || undefined,
                         getToken,

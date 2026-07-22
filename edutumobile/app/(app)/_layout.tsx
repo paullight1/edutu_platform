@@ -52,6 +52,7 @@ import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
 import { useNavFabState } from "../../lib/navFabStore";
 import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
+import { setStatusBarStyle } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
@@ -1138,6 +1139,15 @@ export default function AppLayout() {
     useEffect(() => {
         if (guestBlocked) authWall?.promptAuth('browse');
     }, [guestBlocked, authWall]);
+
+    // Re-assert the status bar indicator color on every in-app navigation. iOS
+    // drives it globally/imperatively (VC-based appearance is off) and can revert
+    // it to the Info.plist default mid-transition, which left the clock/battery
+    // dark on our dark chrome. Runs after paint, so it wins over that revert. See
+    // the fuller rationale in app/_layout.tsx.
+    useEffect(() => {
+        setStatusBarStyle(isDark ? "light" : "dark");
+    }, [isDark, pathname]);
 
     useEffect(() => {
         if (!isSignedIn || !userId || registeredPushUserRef.current === userId) {

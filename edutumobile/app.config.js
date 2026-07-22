@@ -79,6 +79,14 @@ export default {
         usesNonExemptEncryption: false
       },
       infoPlist: {
+        // Dark-first static default so the clock/signal/battery are light
+        // (visible) on our dark chrome before JS asserts the style — and after
+        // iOS reverts to this default on appearance transitions / resume. The
+        // JS layer (expo-status-bar) flips it to dark content at runtime in the
+        // light theme. UIViewControllerBasedStatusBarAppearance MUST stay false:
+        // RCTStatusBarManager requires it, and true crashes on launch.
+        UIStatusBarStyle: "UIStatusBarStyleLightContent",
+        UIViewControllerBasedStatusBarAppearance: false,
         UIBackgroundModes: ["fetch", "remote-notification", "processing"],
         BGTaskSchedulerPermittedIdentifiers: [
           "com.expo.modules.backgroundtask.processing"
