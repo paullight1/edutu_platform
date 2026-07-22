@@ -151,6 +151,8 @@ export default function WalletScreen() {
 
                 {/* Quick Actions */}
                 <View style={styles.quickActions}>
+                    {/* Pro users already have unlimited features — don't pitch Pro to them. */}
+                    {!isPro && (
                     <TouchableOpacity
                         style={[styles.quickActionBtn, { backgroundColor: `${colors.accent}10`, borderColor: `${colors.accent}20` }]}
                         onPress={handleUpgradePro}
@@ -160,6 +162,7 @@ export default function WalletScreen() {
                         <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>{t('wallet.upgradeToPro')}</Text>
                         <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>{t('wallet.unlimitedPremiumFeatures')}</Text>
                     </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity
                         style={[styles.quickActionBtn, { backgroundColor: 'rgba(16, 185, 129, 0.10)', borderColor: 'rgba(16, 185, 129, 0.20)' }]}

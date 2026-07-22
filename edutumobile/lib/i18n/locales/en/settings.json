@@ -23,6 +23,7 @@
   },
   "display": {
     "appearance": "Appearance",
+    "themeMode": "Mode",
     "modeLight": "Light",
     "modeDark": "Dark",
     "modeSystem": "System",

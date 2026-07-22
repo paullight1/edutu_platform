@@ -1487,7 +1487,13 @@ export default function OpportunityDetailScreen() {
         }
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        // Clear the floating AI orb so it never overlaps the Apply Now / Saved
+        // CTAs when scrolled to the bottom.
+        contentContainerStyle={{ paddingBottom: 96 }}
+      >
         {/* Hero Image */}
         <View style={styles.heroImage}>
           {opportunity.image ? (

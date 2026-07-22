@@ -480,7 +480,7 @@ export default function SettingsScreen() {
                     <SectionLabel color={sectionText}>{t('sections.display')}</SectionLabel>
 
                     {/* Mode segmented control */}
-                    <Text style={[styles.subTitle, { color: textSecondary }]}>{t('display.appearance')}</Text>
+                    <Text style={[styles.subTitle, { color: textSecondary }]}>{t('display.themeMode')}</Text>
                     <View style={[styles.segmented, { backgroundColor: colors.muted, borderColor }]}>
                         {APPEARANCE_MODES.map((m) => {
                             const active = mode === m.id;

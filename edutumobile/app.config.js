@@ -94,7 +94,12 @@ export default {
         NSPhotoLibraryUsageDescription: "Allow Edutu to access your photos to update your profile and create content.",
         NSCameraUsageDescription: "Allow Edutu to access your camera to take photos for your profile.",
         NSMicrophoneUsageDescription: "Allow Edutu to record audio when you use voice chat features.",
-        NSPhotoLibraryAddUsageDescription: "Allow Edutu to save images to your photo library."
+        NSPhotoLibraryAddUsageDescription: "Allow Edutu to save images to your photo library.",
+        // Hide the expo-dev-menu floating action button: on the iOS Simulator it
+        // intermittently swallows touches ("touch freeze"), blocking taps/gestures.
+        // Dev-only key (no dev menu in Release), so this is a no-op in production.
+        // Open the dev menu with a shake / Cmd+D instead.
+        EXDevMenuShowFloatingActionButton: false
       }
     },
     android: {

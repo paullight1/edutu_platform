@@ -216,7 +216,7 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
                             <View style={styles.iconTileBox}>
                                 <DiscoveryTileFace item={category} size="icon" title={title} />
                             </View>
-                            <Text style={[styles.iconTileLabel, { color: textPrimary }]} numberOfLines={1}>{title}</Text>
+                            <Text style={[styles.iconTileLabel, { color: textPrimary }]} numberOfLines={2}>{title}</Text>
                         </AnimatedPressable>
                     );
                 }
