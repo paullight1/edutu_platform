@@ -617,7 +617,8 @@ function isEdutuRelevant(message: string) {
     "deadline",
     "grant",
     "fellowship",
-    "internship",
+    // "intern" (not just "internship") so "NYSC Intern", "intern role", etc. match.
+    "intern",
     "job",
     "career",
     "program",
@@ -642,6 +643,32 @@ function isEdutuRelevant(message: string) {
     "education",
     "admission",
     "learn",
+    // Fit / eligibility / decision intent — the exact shape of "Am I a good fit
+    // for X?", "should I apply?", "do I qualify?" that the tighter list missed
+    // and wrongly redirected as off-topic.
+    "good fit",
+    "am i a fit",
+    "my chances",
+    "should i apply",
+    "eligib",
+    "qualif",
+    "requirement",
+    "assessment",
+    // Common opportunity shapes.
+    "cohort",
+    "bootcamp",
+    "hackathon",
+    "phd",
+    "masters",
+    "undergrad",
+    "graduate",
+    "stipend",
+    "tuition",
+    "bursary",
+    "traineeship",
+    "apprentice",
+    "placement",
+    "financial aid",
   ].some((term) => normalized.includes(term));
 }
 
