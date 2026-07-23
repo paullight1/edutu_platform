@@ -1,30 +1,17 @@
 import { useState, useEffect } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { signOutAdmin } from "../lib/auth";
 import BackendHealthChip from "./BackendHealthChip";
+import { NAV, type NavEntry, groupForPath } from "./nav-items";
 import {
-  LayoutDashboard,
-  Target,
-  Users,
-  Settings,
   LogOut,
-  ShieldCheck,
-  BookOpen,
   Sun,
   Moon,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
-  User,
-  FileText,
-  Smartphone,
-  CalendarDays,
-  Inbox,
-  Banknote,
-  SlidersHorizontal,
-  BellRing,
 } from "lucide-react";
 
 interface User {
@@ -48,6 +35,23 @@ const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const location = useLocation();
+  // Manual flyout override, scoped to the path it was made on. While the user
+  // stays on that exact path, `group` wins; once they navigate, we fall back to
+  // the route's own group so the flyout follows context without an effect.
+  const [override, setOverride] = useState<{
+    path: string;
+    group: string | null;
+  }>({ path: "", group: null });
+  // Which groups are expanded in the mobile drawer accordion.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const routeGroup = groupForPath(location.pathname);
+  const openGroup =
+    override.path === location.pathname ? override.group : routeGroup;
+  const setFlyout = (group: string | null) =>
+    setOverride({ path: location.pathname, group });
 
   useEffect(() => {
     // Get current user
@@ -116,27 +120,21 @@ const Layout = () => {
     return name.charAt(0).toUpperCase();
   };
 
-  const navItems = [
-    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/opportunities", icon: Target, label: "Opportunities" },
-    { to: "/submissions", icon: Inbox, label: "Submissions" },
-    { to: "/events", icon: CalendarDays, label: "Events" },
-    { to: "/users", icon: Users, label: "Users" },
-    { to: "/creators", icon: ShieldCheck, label: "Creators" },
-    { to: "/roadmaps", icon: BookOpen, label: "Roadmaps" },
-    { to: "/blog", icon: FileText, label: "Blog" },
-    { to: "/mobile-control", icon: Smartphone, label: "App Content" },
-    { to: "/monetization", icon: Banknote, label: "Monetization" },
-    { to: "/notifications", icon: BellRing, label: "Notifications" },
-    { to: "/edutu-engine", icon: Settings, label: "Edutu Engine" },
-    { to: "/settings", icon: SlidersHorizontal, label: "Settings" },
-  ];
+  const activeGroup = NAV.find(
+    (e) => e.kind === "group" && e.id === openGroup,
+  ) as Extract<NavEntry, { kind: "group" }> | undefined;
+  const railMode = openGroup !== null;
+
+  const closeAfterNav = () => {
+    setIsMobileMenuOpen(false);
+    if (window.innerWidth <= 768) setIsSidebarCollapsed(true);
+  };
 
   return (
     <div className="app-container">
       {/* Sidebar */}
       <aside
-        className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}
+        className={`sidebar ${isSidebarCollapsed || railMode ? "collapsed" : ""} ${railMode ? "rail" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}
       >
         {/* Sidebar Header with Logo and Collapse Toggle */}
         <div className="sidebar-header">
@@ -158,24 +156,81 @@ const Layout = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `nav-link ${isActive ? "active" : ""}`
-              }
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                if (window.innerWidth <= 768) setIsSidebarCollapsed(true);
-              }}
-              title={item.label}
-            >
-              <item.icon size={18} strokeWidth={1.5} />
-              <span className="nav-label">{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="sidebar-nav" aria-label="Primary">
+          {NAV.map((entry) => {
+            if (entry.kind === "leaf") {
+              return (
+                <NavLink
+                  key={entry.to}
+                  to={entry.to}
+                  end={entry.to === "/"}
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? "active" : ""}`
+                  }
+                  onClick={() => {
+                    setFlyout(null);
+                    closeAfterNav();
+                  }}
+                  title={entry.label}
+                >
+                  <entry.icon size={18} strokeWidth={1.5} />
+                  <span className="nav-label">{entry.label}</span>
+                </NavLink>
+              );
+            }
+            const isOpen = openGroup === entry.id;
+            const isExpanded = expanded.has(entry.id);
+            const groupActive = groupForPath(location.pathname) === entry.id;
+            return (
+              <div key={entry.id} className="nav-group">
+                <button
+                  type="button"
+                  className={`nav-link nav-parent ${isOpen || groupActive ? "active-parent" : ""}`}
+                  title={entry.label}
+                  aria-expanded={isOpen || isExpanded}
+                  onClick={() => {
+                    if (window.innerWidth <= 768) {
+                      setExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(entry.id)) next.delete(entry.id);
+                        else next.add(entry.id);
+                        return next;
+                      });
+                    } else {
+                      setFlyout(openGroup === entry.id ? null : entry.id);
+                    }
+                  }}
+                >
+                  <entry.icon size={18} strokeWidth={1.5} />
+                  <span className="nav-label">{entry.label}</span>
+                  <ChevronRight size={15} className="nav-caret" />
+                </button>
+                {/* Mobile accordion children */}
+                {isExpanded && (
+                  <div className="nav-accordion">
+                    {entry.children.map((c) => (
+                      <NavLink
+                        key={c.to}
+                        to={c.to}
+                        end={c.to === "/engine" || c.to === "/monetization"}
+                        className={({ isActive }) =>
+                          `nav-link nav-child ${isActive ? "active" : ""}`
+                        }
+                        onClick={closeAfterNav}
+                      >
+                        {c.icon ? (
+                          <c.icon size={16} strokeWidth={1.5} />
+                        ) : (
+                          <span className="nav-dot" />
+                        )}
+                        <span className="nav-label">{c.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Bottom Section - Profile & Sign Out */}
@@ -258,6 +313,43 @@ const Layout = () => {
           </button>
         </div>
       </aside>
+
+      {/* Desktop flyout — children of the open group, flush to the icon rail */}
+      {railMode && activeGroup && (
+        <div className="nav-flyout" role="menu" aria-label={activeGroup.label}>
+          <div className="nav-flyout-head">
+            <button
+              type="button"
+              className="nav-flyout-back"
+              onClick={() => setFlyout(null)}
+              title="Close section"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span>{activeGroup.label}</span>
+          </div>
+          <div className="nav-flyout-list">
+            {activeGroup.children.map((c) => (
+              <NavLink
+                key={c.to}
+                to={c.to}
+                end={c.to === "/engine" || c.to === "/monetization"}
+                className={({ isActive }) =>
+                  `nav-flyout-link ${isActive ? "active" : ""}`
+                }
+                onClick={closeAfterNav}
+              >
+                {c.icon ? (
+                  <c.icon size={16} strokeWidth={1.5} />
+                ) : (
+                  <span className="nav-dot" />
+                )}
+                <span>{c.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Content — no top header; content gets the full height */}
       <div className="main-content">
@@ -609,6 +701,199 @@ const Layout = () => {
         @media (max-width: 480px) {
           .logo-text {
             display: none;
+          }
+        }
+
+        /* ─── Nested nav ─── */
+        .nav-group {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .nav-parent {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        .nav-parent .nav-caret {
+          margin-left: auto;
+          opacity: 0.55;
+          transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .sidebar.collapsed .nav-parent .nav-caret {
+          opacity: 0;
+          width: 0;
+        }
+
+        .nav-parent.active-parent {
+          color: var(--text-primary);
+          background: var(--bg-tertiary);
+        }
+
+        .nav-parent.active-parent .nav-caret {
+          transform: rotate(90deg);
+          opacity: 0.9;
+        }
+
+        .nav-accordion {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          margin: 2px 0 4px 0;
+        }
+
+        .nav-child {
+          padding-left: 34px;
+          font-size: 13px;
+        }
+
+        .nav-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--text-tertiary);
+          flex-shrink: 0;
+          margin: 0 5px;
+        }
+
+        /* Desktop flyout sitting flush to the 72px rail */
+        .nav-flyout {
+          position: fixed;
+          top: 0;
+          left: 72px;
+          height: 100vh;
+          width: 220px;
+          z-index: 49;
+          background: var(--bg-secondary);
+          border-right: 1px solid var(--border-light);
+          box-shadow: 8px 0 24px rgba(0, 0, 0, 0.06);
+          display: flex;
+          flex-direction: column;
+          padding: 12px;
+          animation: flyoutIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] .nav-flyout {
+          box-shadow: 8px 0 24px rgba(0, 0, 0, 0.4);
+        }
+
+        @keyframes flyoutIn {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .nav-flyout-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 8px 12px;
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: var(--text-tertiary);
+          border-bottom: 1px solid var(--border-light);
+          margin-bottom: 8px;
+        }
+
+        .nav-flyout-back {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          border: none;
+          background: transparent;
+          color: var(--text-secondary);
+          border-radius: 8px;
+          cursor: pointer;
+        }
+
+        .nav-flyout-back:hover {
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
+        }
+
+        .nav-flyout-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow-y: auto;
+        }
+
+        .nav-flyout-link {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 12px;
+          border-radius: 10px;
+          color: var(--text-secondary);
+          text-decoration: none;
+          font-size: 14px;
+          font-weight: 500;
+          white-space: nowrap;
+          animation: flyoutChild 0.28s both;
+        }
+
+        .nav-flyout-link:hover {
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
+        }
+
+        .nav-flyout-link.active {
+          background: var(--apple-blue);
+          color: #fff;
+        }
+
+        .nav-flyout-link:nth-child(1) { animation-delay: 0.02s; }
+        .nav-flyout-link:nth-child(2) { animation-delay: 0.05s; }
+        .nav-flyout-link:nth-child(3) { animation-delay: 0.08s; }
+        .nav-flyout-link:nth-child(4) { animation-delay: 0.11s; }
+        .nav-flyout-link:nth-child(5) { animation-delay: 0.14s; }
+        .nav-flyout-link:nth-child(6) { animation-delay: 0.17s; }
+
+        @keyframes flyoutChild {
+          from {
+            opacity: 0;
+            transform: translateX(-6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        /* When the flyout is open, push main content past rail + flyout */
+        .sidebar.rail ~ .main-content {
+          margin-left: 292px;
+        }
+
+        @media (max-width: 768px) {
+          /* On mobile there is no rail/flyout — the drawer stays full width
+             and groups expand inline as an accordion. */
+          .nav-flyout {
+            display: none;
+          }
+          .sidebar.rail ~ .main-content {
+            margin-left: 0;
+          }
+          .sidebar.rail {
+            width: 280px;
+          }
+          .sidebar.rail .nav-label {
+            opacity: 1;
+            width: auto;
+          }
+          .sidebar.rail .nav-parent .nav-caret {
+            opacity: 0.55;
+            width: auto;
           }
         }
       `}</style>
