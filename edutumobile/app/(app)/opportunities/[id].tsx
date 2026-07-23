@@ -29,6 +29,7 @@ import {
   Globe,
   TrendingUp,
   Star,
+  DollarSign,
   Target,
   CheckCircle2,
   Building2,
@@ -77,6 +78,7 @@ import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { LinearGradient } from "expo-linear-gradient";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -1576,7 +1578,7 @@ export default function OpportunityDetailScreen() {
                 style={[styles.matchBadge, { backgroundColor: "#10B98115" }]}
               >
                 <Text style={[styles.matchText, { color: "#10B981" }]}>
-                  {t("detail.matchPercent", { match: opportunity.match })}
+                  {t("detail." + MATCH_TIER_KEY[getMatchTier(opportunity.match ?? 0)])}
                 </Text>
               </View>
             )}
@@ -1678,6 +1680,20 @@ export default function OpportunityDetailScreen() {
                       { month: "long", day: "numeric", year: "numeric" },
                     )}
                   </Text>
+                  {/* Feasibility framing: urgent + known requirements → reassure,
+                      don't just alarm. Nothing when requirements are unknown. */}
+                  {isUrgent &&
+                  !isClosed &&
+                  Array.isArray(opportunity.requirements) &&
+                  opportunity.requirements.length > 0 ? (
+                    <Text
+                      style={[styles.deadlineFeasibility, { color: textSecondary }]}
+                    >
+                      {t("detail.feasibility", {
+                        count: opportunity.requirements.length,
+                      })}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -1707,6 +1723,46 @@ export default function OpportunityDetailScreen() {
               </View>
             </View>
           )}
+
+          {/* Application Fee — only when the data explicitly states it */}
+          {opportunity.applicationFee?.isFree === true ? (
+            <View
+              style={[
+                styles.stipendCard,
+                { backgroundColor: "#10B98108", borderColor: "#10B98130" },
+              ]}
+            >
+              <View style={styles.stipendLeft}>
+                <CheckCircle2 size={20} color="#10B981" />
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={[styles.deadlineValue, { color: "#10B981" }]}>
+                    {t("detail.freeToApply")}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : typeof opportunity.applicationFee?.amount === "number" &&
+            opportunity.applicationFee.amount > 0 ? (
+            <View
+              style={[
+                styles.stipendCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <View style={styles.stipendLeft}>
+                <DollarSign size={20} color={textSecondary} />
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={[styles.deadlineValue, { color: textPrimary }]}>
+                    {t("detail.applicationFee", {
+                      fee: `${opportunity.applicationFee.currency ?? ""} ${
+                        opportunity.applicationFee.amount
+                      }`.trim(),
+                    })}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
 
           {/* Match Reasons */}
           {opportunity.matchReasons && opportunity.matchReasons.length > 0 && (
@@ -3638,6 +3694,7 @@ const styles = StyleSheet.create({
   deadlineLabel: { fontSize: 10, fontWeight: "500" },
   deadlineValue: { fontSize: 14, fontWeight: "600" },
   deadlineDate: { fontSize: 11, marginTop: 2 },
+  deadlineFeasibility: { fontSize: 11, marginTop: 4, lineHeight: 15 },
   stipendCard: {
     flexDirection: "row",
     alignItems: "center",

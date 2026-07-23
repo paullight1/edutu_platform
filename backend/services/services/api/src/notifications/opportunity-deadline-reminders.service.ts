@@ -109,7 +109,7 @@ export class OpportunityDeadlineRemindersService {
         union
         select user_id, opportunity_id
         from public.opportunity_applications
-        where status not in ('submitted', 'offer', 'rejected', 'withdrawn')
+        where status not in ('submitted', 'offer', 'rejected', 'withdrawn', 'no_response')
       ) tracked
       join public.opportunities opportunity
         on opportunity.id = tracked.opportunity_id

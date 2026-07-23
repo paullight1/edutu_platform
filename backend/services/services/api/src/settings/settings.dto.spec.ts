@@ -202,6 +202,58 @@ describe("mergeAdminSettings — server-driven home + custom features", () => {
           customFeatures: [
             { id: "f1", title: "Bad", url: "https://x.io", openMode: "iframe" },
           ],
+describe("mergeAdminSettings — pricing season pass (Zod-safe)", () => {
+  it("does not fall back to defaults for stored settings saved BEFORE seasonPass existed", () => {
+    // Fixture: a settings object persisted before the seasonPass field shipped,
+    // carrying a custom weeklyPrice. The whole point of the defaulted schema is
+    // that this parses cleanly instead of throwing and blanking every setting.
+    const legacyStored = structuredClone(DEFAULT_ADMIN_SETTINGS);
+    legacyStored.pricing.weeklyPrice = 4321;
+    delete (legacyStored.pricing as { seasonPass?: unknown }).seasonPass;
+
+    const merged = mergeAdminSettings(legacyStored);
+
+    // (a) The custom value survives — no wholesale fallback to defaults.
+    expect(merged.pricing.weeklyPrice).toBe(4321);
+    // (b) seasonPass comes back filled with its defaults.
+    expect(merged.pricing.seasonPass).toEqual({
+      enabled: false,
+      price: 15000,
+      durationDays: 90,
+      label: "Season Pass",
+    });
+  });
+
+  it("fills the rest of seasonPass from a partial ({ enabled: true } only)", () => {
+    const merged = mergeAdminSettings({
+      pricing: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing,
+        seasonPass: { enabled: true },
+      },
+    });
+
+    expect(merged.pricing.seasonPass).toEqual({
+      enabled: true,
+      price: 15000,
+      durationDays: 90,
+      label: "Season Pass",
+    });
+  });
+
+  it("throws on an out-of-range seasonPass (durationDays 400), matching other pricing violations", () => {
+    // Documented behavior: like any pricing-field violation, this throws inside
+    // AdminSettingsSchema.parse; the caller (SettingsService) then falls back to
+    // defaults. We pin the throw here.
+    expect(() =>
+      mergeAdminSettings({
+        pricing: {
+          ...DEFAULT_ADMIN_SETTINGS.pricing,
+          seasonPass: {
+            enabled: true,
+            price: 15000,
+            durationDays: 400,
+            label: "Season Pass",
+          },
         },
       }),
     ).toThrow();

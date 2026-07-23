@@ -2,6 +2,7 @@ import { config } from '@/lib/env';
 import { verifyTransaction } from '@/lib/paystack';
 import { grantPro, recordPayment } from '@/lib/entitlements';
 import { isBillingPlan } from '@/lib/money';
+import { fetchPricing } from '@/lib/pricing';
 import { ReturnRedirect } from './ReturnRedirect';
 
 export const runtime = 'nodejs';
@@ -62,7 +63,8 @@ export default async function ReturnPage({ searchParams }: { searchParams: Searc
       const verified = await verifyTransaction(reference);
       if (verified && verified.status === 'success') {
         const uid = verified.metadata?.uid as string | undefined;
-        const plan = isBillingPlan(verified.metadata?.plan) ? verified.metadata.plan : 'monthly';
+        const isSeason = verified.reference.startsWith('edutu_season_');
+        const plan = isBillingPlan(verified.metadata?.plan) ? verified.metadata.plan : isSeason ? 'season' : 'monthly';
         if (uid) {
           const isNew = await recordPayment({
             userId: uid,
@@ -74,8 +76,25 @@ export default async function ReturnPage({ searchParams }: { searchParams: Searc
             status: 'success',
             raw: verified,
           });
+          // recordPayment dedupes by reference, so only the FIRST of the
+          // /return-page and webhook races runs grantPro — no double grant.
           if (isNew) {
-            await grantPro({ userId: uid, plan, source: 'paystack', reference: verified.reference, email: verified.email });
+            if (isSeason) {
+              // One-off pass → EXTENDS from remaining Pro time by the admin-configured
+              // duration (identical to the webhook path; fallback 90 if config
+              // unavailable). Omitting `expiresAt` engages grantPro's extend logic.
+              const durationDays = (await fetchPricing()).seasonPass.durationDays;
+              await grantPro({
+                userId: uid,
+                plan: 'season',
+                source: 'season_pass',
+                reference: verified.reference,
+                email: verified.email,
+                durationDays,
+              });
+            } else {
+              await grantPro({ userId: uid, plan, source: 'paystack', reference: verified.reference, email: verified.email });
+            }
           }
           outcome = 'success';
         } else {

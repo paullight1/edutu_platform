@@ -139,7 +139,8 @@
       "interview": "Entrevista",
       "offer": "Oferta",
       "rejected": "Rechazada",
-      "withdrawn": "Retirada"
+      "withdrawn": "Retirada",
+      "no_response": "Sin respuesta"
     },
     "filters": {
       "total": "Total",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Las oportunidades a las que postules aparecerán aquí.",
     "emptyFilter": "No hay postulaciones en esta etapa.",
     "browseOpportunities": "Explorar oportunidades",
-    "loading": "Cargando postulaciones..."
+    "loading": "Cargando postulaciones...",
+    "answerBankLine": "Tu banco de respuestas tiene {{count}} respuestas reutilizables."
   },
   "paywall": {
     "title": "Premium",
@@ -206,7 +208,8 @@
       "cta": "Continuar",
       "footnote": "Cancela cuando quieras — sin compromisos",
       "close": "Cerrar oferta"
-    }
+    },
+    "seasonDuration": "Acceso Pro de {{count}} días"
   },
   "wallet": {
     "title": "Billetera",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "Guardar oportunidad",
     "bookmarkRemoveLabel": "Quitar de guardados",
     "moreOptionsLabel": "Más opciones",
-    "moreOptionsHint": "Marcar esta oportunidad como no interesante"
+    "moreOptionsHint": "Marcar esta oportunidad como no interesante",
+    "fitExcellent": "Encaje excelente",
+    "fitStrong": "Encaje fuerte",
+    "fitGood": "Buen encaje",
+    "fitWorthALook": "Vale la pena mirar"
   },
   "creditPack": {
     "title": "Comprar créditos",

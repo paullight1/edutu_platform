@@ -19,7 +19,9 @@ import type {
 /**
  * Shared visual language for AI match scoring across the feed cards and the
  * opportunity detail page. Keeping the score tiers + reason chips in one place
- * means "72% match" looks and reads the same everywhere.
+ * means the fit label (e.g. "Excellent fit") reads the same everywhere. We show
+ * fit tiers, never a raw percentage, so users don't misread a score as their
+ * odds of winning.
  */
 
 export type MatchTier = "excellent" | "strong" | "good" | "fair";
@@ -34,13 +36,13 @@ export function getMatchTier(score: number): MatchTier {
 export function getMatchLabel(score: number): string {
   switch (getMatchTier(score)) {
     case "excellent":
-      return "Excellent match";
+      return "Excellent fit";
     case "strong":
-      return "Strong match";
+      return "Strong fit";
     case "good":
-      return "Good match";
+      return "Good fit";
     default:
-      return "Match";
+      return "Worth a look";
   }
 }
 
@@ -63,7 +65,8 @@ const reasonIcon: Record<MatchReasonKind, typeof Sparkles> = {
 };
 
 /**
- * The "72% match" pill. Colour and label scale with the score tier.
+ * The fit-tier pill (e.g. "Excellent fit"). Colour and label scale with the
+ * score tier; the raw score is never shown to the user.
  * `minScore` hides the badge below a threshold (feed cards pass 40).
  */
 export function MatchScoreBadge({
@@ -84,15 +87,14 @@ export function MatchScoreBadge({
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${tierClasses[tier]} ${className}`}
-      title={`${getMatchLabel(score)} — ${score}% match with your profile`}
+      title="How well this fits your profile and interests — not your odds of winning."
     >
       <Sparkles size={12} />
-      {score}% match
       {showLabel ? (
-        <span className="hidden font-medium opacity-80 sm:inline">
-          · {getMatchLabel(score)}
-        </span>
-      ) : null}
+        <span className="font-medium">{getMatchLabel(score)}</span>
+      ) : (
+        getMatchLabel(score)
+      )}
     </span>
   );
 }
@@ -144,7 +146,7 @@ export function WhyThisMatches({
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${tierClasses[tier]}`}
         >
-          {score}% · {getMatchLabel(score)}
+          {getMatchLabel(score)}
         </span>
       </div>
 

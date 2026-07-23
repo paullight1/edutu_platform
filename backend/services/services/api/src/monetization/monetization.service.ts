@@ -77,6 +77,20 @@ export interface CreditCharge {
 
 const PRICING_CACHE_MS = 60_000;
 
+// New users get their first N days of AI chat unmetered so the habit forms
+// before the meter bites. Env-tunable (ops can flip without a redeploy);
+// `0` disables the grace entirely; malformed → the 7-day default.
+const DEFAULT_FREE_CHAT_GRACE_DAYS = 7;
+
+function freeChatGraceDays(): number {
+  const raw = process.env.FREE_CHAT_GRACE_DAYS;
+  if (raw === undefined || raw === "") return DEFAULT_FREE_CHAT_GRACE_DAYS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0
+    ? Math.floor(parsed)
+    : DEFAULT_FREE_CHAT_GRACE_DAYS;
+}
+
 @Injectable()
 export class MonetizationService {
   private readonly logger = new Logger(MonetizationService.name);
@@ -97,35 +111,88 @@ export class MonetizationService {
 
   /** Active Pro = profiles.is_pro (unexpired) OR an active pro entitlement. */
   async isPro(userId: string): Promise<boolean> {
+    return (await this.loadBilling(userId)).isPro;
+  }
+
+  /**
+   * Single profile+entitlement read backing metering decisions: whether the
+   * user is Pro, plus the earliest profile `created_at` (for the new-user chat
+   * grace). One query rather than two — the isPro lookup already scans
+   * profiles, so it also carries created_at. A split-profile user takes the
+   * OLDEST created_at (min) so grace can't be revived by a fresh duplicate row.
+   * Fails CLOSED on any DB error: non-Pro AND no grace (a metering outage must
+   * never mint free unlimited chat).
+   */
+  private async loadBilling(
+    userId: string,
+  ): Promise<{ isPro: boolean; createdAt: Date | null }> {
     try {
       // profiles/billing_entitlements user_id may hold the raw auth subject
       // or the derived uuid — match both (see matchUserIdRef).
       const result = await db.execute(sql`
-        select 1
-        from profiles p
-        where ${matchUserIdRef("p.user_id", userId)}
-          and p.is_pro = true
-          and (p.pro_expires_at is null or p.pro_expires_at > now())
-        union all
-        select 1
-        from billing_entitlements e
-        where ${matchUserIdRef("e.user_id", userId)}
-          and e.feature_key = 'pro'
-          and e.status = 'active'
-          and (e.expires_at is null or e.expires_at > now())
-        limit 1
+        select
+          bool_or(is_pro_active) as is_pro,
+          min(created_at) as created_at
+        from (
+          select
+            (p.is_pro = true
+              and (p.pro_expires_at is null or p.pro_expires_at > now()))
+              as is_pro_active,
+            p.created_at as created_at
+          from profiles p
+          where ${matchUserIdRef("p.user_id", userId)}
+          union all
+          select
+            (e.feature_key = 'pro'
+              and e.status = 'active'
+              and (e.expires_at is null or e.expires_at > now()))
+              as is_pro_active,
+            null::timestamptz as created_at
+          from billing_entitlements e
+          where ${matchUserIdRef("e.user_id", userId)}
+        ) t
       `);
-      return ((result as { rows?: unknown[] }).rows ?? []).length > 0;
+      const rows =
+        (
+          result as unknown as {
+            rows?: Array<{
+              is_pro: boolean | null;
+              created_at: string | Date | null;
+            }>;
+          }
+        ).rows ?? [];
+      const row = rows[0];
+      const createdRaw = row?.created_at ?? null;
+      const createdAt = createdRaw ? new Date(createdRaw) : null;
+      return {
+        isPro: row?.is_pro === true,
+        createdAt:
+          createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
+      };
     } catch (error) {
-      // Fail CLOSED for billing purposes: treat as non-Pro so the credit path
-      // (which has its own hard checks) decides.
+      // Fail CLOSED for billing purposes: treat as non-Pro (the credit path has
+      // its own hard checks) AND no grace (missing created_at ⇒ metering).
       this.logger.warn(
-        `Pro lookup failed for ${userId}: ${
+        `Billing lookup failed for ${userId}: ${
           error instanceof Error ? error.message : "unknown"
         }`,
       );
-      return false;
+      return { isPro: false, createdAt: null };
     }
+  }
+
+  /**
+   * True when a free user's first-N-days chat grace is still open. Guards
+   * against a missing/null created_at (no grace) and clock skew (a future
+   * created_at never grants grace), both consistent with failing toward the
+   * meter.
+   */
+  private withinChatGrace(createdAt: Date | null): boolean {
+    const days = freeChatGraceDays();
+    if (days <= 0 || !createdAt) return false;
+    const ageMs = Date.now() - createdAt.getTime();
+    if (ageMs < 0) return false;
+    return ageMs <= days * 24 * 60 * 60 * 1000;
   }
 
   /**
@@ -141,7 +208,7 @@ export class MonetizationService {
 
     const pricing = await this.getPricing();
     const cost = Math.max(0, Math.round(pricing.aiCosts[action] ?? 0));
-    const pro = await this.isPro(userId);
+    const { isPro: pro, createdAt } = await this.loadBilling(userId);
     const isChat = action === "chatMessage";
 
     if (pro) {
@@ -201,6 +268,20 @@ export class MonetizationService {
       const usage = await this.bumpDailyUsage(userId, 1, 0);
       chatCounted = true;
       chatDay = usage.day;
+      // New-user grace: unmetered chat for the first N days so the habit forms
+      // before the meter. Usage is still recorded above (observable) — we just
+      // charge nothing, even past the daily free allowance. chatCounted/day
+      // still travel so a failed graced turn refunds the counter like any other.
+      if (this.withinChatGrace(createdAt)) {
+        return {
+          userId,
+          action,
+          charged: 0,
+          ledgerId: null,
+          chatCounted,
+          day: chatDay,
+        };
+      }
       if (usage.chatMessages <= pricing.freeTier.dailyChatMessages) {
         return {
           userId,

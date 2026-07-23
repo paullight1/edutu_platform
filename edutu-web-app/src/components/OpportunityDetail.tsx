@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
+  CheckCircle2,
   ExternalLink,
   Gauge,
   Heart,
@@ -37,10 +38,11 @@ import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
+import { getDeadlineBadge } from "../services/deadlineUrgency";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
-import { WhyThisMatches } from "./opportunity/MatchInsights";
+import { getMatchLabel, WhyThisMatches } from "./opportunity/MatchInsights";
 import { recordOpportunitySignal } from "../services/opportunitySignals";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
@@ -307,8 +309,27 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     .filter(Boolean);
   const eligibilityItems = buildEligibilityItems(opportunity.eligibility);
   const requirements = normaliseVisibleList(opportunity.requirements);
+  // Feasibility framing: when a deadline is urgent AND we actually know the
+  // requirements, reassure rather than only alarm. Never invent effort when
+  // requirements are unknown/empty.
+  const deadlineIsUrgent = getDeadlineBadge(opportunity.deadline).isUrgent;
+  const showFeasibility = deadlineIsUrgent && requirements.length > 0;
   const benefits = normaliseVisibleList(opportunity.benefits);
   const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
+  // Only surface fee info the data states explicitly: an explicit "free" flag, or
+  // a known fee amount. When the fee is unknown we render nothing — never guess.
+  const applicationFeeCopy = ((): { free: boolean; label: string } | null => {
+    const fee = opportunity.applicationFee;
+    if (!fee) return null;
+    if (fee.isFree === true) return { free: true, label: "Free to apply" };
+    if (typeof fee.amount === "number" && fee.amount > 0) {
+      return {
+        free: false,
+        label: `Application fee: ${`${fee.currency ?? ""} ${fee.amount}`.trim()}`,
+      };
+    }
+    return null;
+  })();
   const expired = isOpportunityExpired(opportunity);
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
   const canonicalUrl = toAbsoluteUrl(canonicalPath);
@@ -734,8 +755,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const factItems = [
     {
-      label: "Match",
-      value: `${matchPercentage}%`,
+      label: "Fit",
+      value: getMatchLabel(matchPercentage),
       icon: Target,
     },
     {
@@ -892,11 +913,31 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               />
             ) : null}
 
+            {applicationFeeCopy ? (
+              applicationFeeCopy.free ? (
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-sm font-semibold text-success">
+                  <CheckCircle2 size={16} />
+                  Free to apply
+                </div>
+              ) : (
+                <p className="text-sm font-medium text-text-secondary">
+                  {applicationFeeCopy.label}
+                </p>
+              )
+            ) : null}
+
             {requirements.length > 0 ? (
               <section className="space-y-3">
                 <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                   Requirements
                 </h2>
+                {showFeasibility ? (
+                  <p className="text-sm text-text-secondary">
+                    {requirements.length}{" "}
+                    {requirements.length === 1 ? "requirement" : "requirements"}{" "}
+                    — still doable. Start with the first one.
+                  </p>
+                ) : null}
                 <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {requirements.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">

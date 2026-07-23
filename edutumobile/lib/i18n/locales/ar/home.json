@@ -146,7 +146,8 @@
       "interview": "مقابلة",
       "offer": "عرض",
       "rejected": "مرفوض",
-      "withdrawn": "منسحب"
+      "withdrawn": "منسحب",
+      "no_response": "بدون رد"
     },
     "filters": {
       "total": "الإجمالي",
@@ -166,7 +167,8 @@
     "emptySubtitle": "ستظهر هنا الفرص التي تقدّم عليها.",
     "emptyFilter": "لا توجد طلبات في هذه المرحلة.",
     "browseOpportunities": "تصفح الفرص",
-    "loading": "جارٍ تحميل الطلبات..."
+    "loading": "جارٍ تحميل الطلبات...",
+    "answerBankLine": "بنك إجاباتك يحتوي على {{count}} إجابة يمكن إعادة استخدامها."
   },
   "paywall": {
     "title": "بريميوم",
@@ -215,7 +217,8 @@
       "cta": "متابعة",
       "footnote": "ألغِ في أي وقت — بدون التزامات",
       "close": "إغلاق العرض"
-    }
+    },
+    "seasonDuration": "وصول برو لمدة {{count}} يومًا"
   },
   "wallet": {
     "title": "المحفظة",
@@ -248,7 +251,11 @@
     "bookmarkAddLabel": "حفظ الفرصة",
     "bookmarkRemoveLabel": "إزالة من المحفوظات",
     "moreOptionsLabel": "خيارات إضافية",
-    "moreOptionsHint": "وضع علامة على هذه الفرصة كغير مهمة"
+    "moreOptionsHint": "وضع علامة على هذه الفرصة كغير مهمة",
+    "fitExcellent": "ملاءمة ممتازة",
+    "fitStrong": "ملاءمة قوية",
+    "fitGood": "ملاءمة جيدة",
+    "fitWorthALook": "يستحق النظرة"
   },
   "creditPack": {
     "title": "شراء نقاط",

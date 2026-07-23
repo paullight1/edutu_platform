@@ -234,6 +234,7 @@ export class MeService {
       offer: "outcome_offer",
       rejected: "outcome_rejected",
       withdrawn: "outcome_withdrawn",
+      no_response: "outcome_ghosted",
     };
     const signalType = signalByStatus[status];
     if (!signalType || !opportunityId) return;

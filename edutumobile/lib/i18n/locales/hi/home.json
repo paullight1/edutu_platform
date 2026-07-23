@@ -139,7 +139,8 @@
       "interview": "इंटरव्यू",
       "offer": "ऑफ़र",
       "rejected": "अस्वीकृत",
-      "withdrawn": "वापस लिया"
+      "withdrawn": "वापस लिया",
+      "no_response": "कोई जवाब नहीं"
     },
     "filters": {
       "total": "कुल",
@@ -157,7 +158,8 @@
     "emptySubtitle": "आप जिन अवसरों पर अप्लाई करेंगे, वे यहाँ दिखेंगे।",
     "emptyFilter": "इस चरण में कोई आवेदन नहीं है।",
     "browseOpportunities": "अवसर ब्राउज़ करें",
-    "loading": "आवेदन लोड हो रहे हैं..."
+    "loading": "आवेदन लोड हो रहे हैं...",
+    "answerBankLine": "आपके उत्तर बैंक में {{count}} पुनः उपयोगी उत्तर हैं।"
   },
   "paywall": {
     "title": "प्रीमियम",
@@ -206,7 +208,8 @@
       "cta": "जारी रखें",
       "footnote": "कभी भी रद्द करें — कोई बाध्यता नहीं",
       "close": "ऑफ़र बंद करें"
-    }
+    },
+    "seasonDuration": "{{count}} दिनों की प्रो पहुँच"
   },
   "wallet": {
     "title": "वॉलेट",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "अवसर सहेजें",
     "bookmarkRemoveLabel": "सहेजे गए से हटाएं",
     "moreOptionsLabel": "अधिक विकल्प",
-    "moreOptionsHint": "इस अवसर को 'रुचि नहीं' के रूप में चिह्नित करें"
+    "moreOptionsHint": "इस अवसर को 'रुचि नहीं' के रूप में चिह्नित करें",
+    "fitExcellent": "बेहतरीन मेल",
+    "fitStrong": "मज़बूत मेल",
+    "fitGood": "अच्छा मेल",
+    "fitWorthALook": "देखने लायक"
   },
   "creditPack": {
     "title": "क्रेडिट खरीदें",

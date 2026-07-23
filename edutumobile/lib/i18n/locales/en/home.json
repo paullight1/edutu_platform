@@ -1,359 +1,366 @@
 {
-    "tabs": {
-        "home": "Home",
-        "discover": "Discover",
-        "plan": "Plan",
-        "me": "Me",
-        "openEdutuAi": "Open Edutu AI",
-        "badgeOverflow": "99+",
-        "holdForVoice": "Hold for voice mode",
-        "createPrompt": "What do you want to create?",
-        "createGoal": "Goal",
-        "createRoadmap": "Roadmap",
-        "createNew": "Create goal or roadmap",
-        "closeCreateMenu": "Close create menu",
-        "editProfile": "Edit profile",
-        "aiShort": "Edutu AI",
-        "createShort": "Create",
-        "editShort": "Edit"
-    },
-    "rewards": {
-        "creditsEarned_one": "+{{count}} credit · {{label}}",
-        "creditsEarned_other": "+{{count}} credits · {{label}}"
-    },
-    "referral": {
-        "title": "Invite friends",
-        "heroTitle": "Give 10, get 10",
-        "heroSub": "Share your code. When a friend signs up and completes their profile, you get {{rewardReferrer}} credits and they get {{rewardReferee}}.",
-        "yourCode": "YOUR CODE",
-        "shareCta": "Share invite",
-        "redeemed": "Referral applied! Finish your profile and you'll both earn credits.",
-        "fineprint": "Pending invites become credits once your friend finishes their profile.",
-        "stats": {
-            "joined": "Joined",
-            "pending": "Pending",
-            "earned": "Credits"
-        }
-    },
-    "home": {
-        "exploreOpportunities": "Explore opportunities",
-        "featuredOpportunities": "Featured Opportunities",
-        "quickActionsTitle": "Quick Actions",
-        "recommendedOpportunities": "Recommended Opportunities",
-        "viewMore": "View More",
-        "emptyTitle": "No Recommendations Yet",
-        "emptyDescription": "Explore opportunities and save the ones you want to track.",
-        "emptyCta": "Explore Opportunities",
-        "quickActions": {
-            "roadmaps": "Roadmaps",
-            "goals": "Goals",
-            "cvBuilder": "CV Builder",
-            "saved": "Saved"
-        },
-        "discovery": {
-            "scholarships": {
-                "title": "Scholarships",
-                "description": "Tuition funding & awards"
-            },
-            "internships": {
-                "title": "Internships",
-                "description": "Hands-on early-career roles"
-            },
-            "programs": {
-                "title": "Programs",
-                "description": "Funded programs & exchanges"
-            },
-            "fellowships": {
-                "title": "Fellowships",
-                "description": "Fellowships & leadership tracks"
-            },
-            "grants": {
-                "title": "Grants",
-                "description": "Seed funding & project grants"
-            },
-            "graduatePrograms": {
-                "title": "Graduate Programs",
-                "description": "Masters, PhD & postgraduate study"
-            },
-            "bootcamps": {
-                "title": "Bootcamps",
-                "description": "Intensive skills & accelerators"
-            },
-            "events": {
-                "title": "Events",
-                "description": "Summits, conferences & workshops"
-            }
-        },
-        "discoveryEditor": {
-            "title": "Customize categories",
-            "subtitle": "Hold and drag to arrange. Drag a tile’s edge to resize, − to remove.",
-            "save": "Save",
-            "more": "More categories",
-            "remove": "Remove {{title}}",
-            "resize": "Drag to resize {{title}}",
-            "add": "Add {{title}}"
-        }
-    },
-    "notifications": {
-        "title": "Notifications",
-        "passwordPromptTitle": "Add a password to your account",
-        "passwordPromptBody": "You signed in with Google or Apple. Add a password so you can also sign in with email if you forget which option you used.",
-        "setPassword": "Set password",
-        "filterAll": "All",
-        "filterUnread_one": "Unread ({{count}})",
-        "filterUnread_other": "Unread ({{count}})",
-        "loading": "Loading notifications...",
-        "emptyTitle": "No Notifications",
-        "emptySubtitle": "You're all caught up!"
-    },
-    "help": {
-        "title": "Help & Support",
-        "headerTitle": "How can we help?",
-        "headerSubtitle": "Find answers to common questions or reach out.",
-        "faqSectionTitle": "Frequently Asked Questions",
-        "directSupport": "Direct Support",
-        "emailSupport": "Email Support",
-        "visitWebsite": "Visit Website",
-        "footer": "Edutu Help Center",
-        "faqs": {
-            "ai": {
-                "question": "How do I use Edutu AI?",
-                "answer": "You can access Edutu AI from the center button on your navigation bar. Simply type your question about courses, career guidance, or skills, and it will assist you instantly."
-            },
-            "enroll": {
-                "question": "How do I enroll in a course?",
-                "answer": "Navigate to the 'Market' tab, find a course you're interested in, and click 'Access Now'. Some courses require Credits, while others are free."
-            },
-            "credits": {
-                "question": "How do I earn Credits?",
-                "answer": "You can earn Credits by participating in featured opportunities, completing quests, or contributing as a creator. Check your wallet for more details."
-            },
-            "security": {
-                "question": "Is my data secure?",
-                "answer": "Yes, we use industry-standard encryption and Clerk for authentication to ensure your personal information and academic progress are always protected."
-            }
-        }
-    },
-    "privacy": {
-        "title": "Privacy Policy",
-        "headerTitle": "Your Privacy Matters",
-        "lastUpdated": "Last updated: April 2026",
-        "notice": "By using Edutu, you agree to our terms of service and this privacy policy. We never sell your personal data to third parties.",
-        "footer": "Edutu Legal",
-        "sections": {
-            "dataWeCollect": {
-                "title": "Data We Collect",
-                "desc": "We collect your name, email, and academic progress to personalize your learning experience and track your goals."
-            },
-            "howWeUseIt": {
-                "title": "How We Use It",
-                "desc": "Your data helps us recommend courses, provide AI guidance, and ensure you earn Credits for your achievements."
-            },
-            "dataProtection": {
-                "title": "Data Protection",
-                "desc": "All personal information is encrypted. We use industry-standard security protocols to keep your data safe from unauthorized access."
-            },
-            "yourRights": {
-                "title": "Your Rights",
-                "desc": "You can request to delete your account or download your data at any time through our help center or by contacting support."
-            }
-        }
-    },
-    "deadlines": {
-        "title": "Deadlines",
-        "subtitle": "{{total}} total • {{urgent}} urgent",
-        "loading": "Loading your deadlines...",
-        "emptyTitle": "No Deadlines Yet",
-        "emptyDescription": "Apply to opportunities or bookmark them to track application deadlines.",
-        "browseOpportunities": "Browse Opportunities",
-        "thisWeek": "This Week",
-        "nextWeek": "Next Week",
-        "thisMonth": "This Month",
-        "later": "Later",
-        "pastDue": "Past Due",
-        "daysLeft_one": "{{count}} day",
-        "daysLeft_other": "{{count}} days",
-        "applied": "Applied",
-        "bookmarked": "Bookmarked"
-    },
-    "applied": {
-        "title": "My Applications",
-        "status": {
-            "draft": "Draft",
-            "submitted": "Submitted",
-            "interview": "Interview",
-            "offer": "Offer",
-            "rejected": "Rejected",
-            "withdrawn": "Withdrawn"
-        },
-        "filters": {
-            "total": "Total",
-            "closed": "Closed"
-        },
-        "recently": "Recently",
-        "statusNotUpdatedTitle": "Status not updated",
-        "statusNotUpdatedMessage": "Please try again in a moment.",
-        "updateStatusTitle": "Update application status",
-        "appliedCount_one": "{{count}} applied",
-        "appliedCount_other": "{{count}} applied",
-        "appliedOn": "Applied {{date}}",
-        "advanceTo": "Advance to {{stage}}",
-        "emptyTitle": "No applications yet",
-        "emptySubtitle": "Opportunities you apply for will appear here.",
-        "emptyFilter": "No applications in this stage.",
-        "browseOpportunities": "Browse Opportunities",
-        "loading": "Loading applications..."
-    },
-    "paywall": {
-        "title": "Premium",
-        "loading": "Loading premium...",
-        "subscriptionActive": "Your subscription is active",
-        "simpleAccess": "Simple subscription access",
-        "premiumIsActive": "Premium is active",
-        "unlockPremium": "Unlock premium",
-        "heroActive": "You already have access to premium tools and templates.",
-        "heroUpsell": "One scholarship can change everything. Get unlimited AI help, standout CVs, and early access to the opportunities that fit you.",
-        "weekly": "Weekly",
-        "monthly": "Monthly",
-        "yearly": "Yearly",
-        "save": "Save",
-        "billedWeekly": "Billed weekly",
-        "billedMonthly": "Billed monthly",
-        "perMonthBilledYearly": "{{price}} per month, billed yearly",
-        "features": {
-            "unlimitedAi": "Unlimited AI help with essays and applications",
-            "premiumTemplates": "Standout CV templates that get you noticed",
-            "aiTailoring": "AI tailors every application to each opportunity",
-            "priorityTools": "See matched deadlines before everyone else",
-            "pdfExport": "Send a polished, ready-to-submit CV to any employer",
-            "advancedFilters": "Filter opportunities to exactly what fits you"
-        },
-        "comingSoonTitle": "Coming Soon",
-        "comingSoonMessage": "Subscriptions will be available once App Store products are configured.",
-        "premiumActiveTitle": "Premium Active",
-        "premiumActiveMessage": "Your premium subscription is now active.",
-        "purchaseFailed": "Purchase failed",
-        "restoredTitle": "Restored",
-        "restoredMessage": "Your purchases have been restored.",
-        "restoreFailed": "Failed to restore purchases",
-        "backToApp": "Back to app",
-        "subscribe": "Subscribe to premium",
-        "renewalNote": "Subscription renews automatically and can be managed in your device settings.",
-        "continueCheckout": "Continue to secure checkout",
-        "secureNote": "Pay securely on pay.edutu.org with card, mobile money, or bank transfer. Your Pro access unlocks automatically the moment payment is confirmed.",
-        "notNow": "Not now",
-        "manageSubscription": "Manage subscription",
-        "checkoutFailed": "Payment didn't go through — and no money left your account. Tap to try again, or use a different payment method.",
-        "promoDefault": "Limited-time offer",
-        "restore": "Restore purchases",
-        "proBadge": "PRO",
-        "savePct": "Save {{pct}}%",
-        "heroLine1": "Your next opportunity",
-        "heroLine2": "is worth it",
-        "badgeMostTaken": "Most taken",
-        "badgePopular": "Popular",
-        "badgeBestDeal": "Best deal",
-        "perWeek": "{{price}}/week",
-        "promoOff": "{{pct}}% OFF",
-        "terms": "Terms of Service",
-        "privacy": "Privacy Policy",
-        "upgradeSheet": {
-            "badge": "EDUTU PRO",
-            "title": "Upgrade to Pro",
-            "priceLine": "{{monthly}}/mo · {{weekly}}/wk",
-            "cta": "UPGRADE",
-            "cancelAnytime": "Cancel anytime"
-        },
-        "loginOffer": {
-            "title": "Special Offer",
-            "subtitle": "For a limited time only — offer ends soon",
-            "genericTitle": "Go Premium",
-            "genericSubtitle": "Unlock everything Edutu has to offer",
-            "off": "OFF",
-            "premium": "PREMIUM",
-            "was": "Was {{price}}/month",
-            "total": "Total {{price}}/month",
-            "tagline": "Unlimited AI coaching, premium templates & a verified badge",
-            "viewAllPlans": "View All Plans",
-            "cta": "Continue",
-            "footnote": "Cancel anytime — no commitments",
-            "close": "Close offer"
-        }
-    },
-    "wallet": {
-        "title": "Wallet",
-        "balanceTitle": "Credits Balance",
-        "creditsUnit": "Credits",
-        "proMember": "Pro Member",
-        "upgradeToPro": "Upgrade to Pro",
-        "buyCredits": "Buy Credits",
-        "history": "History",
-        "dayStreak_one": "{{count}}-day streak",
-        "dayStreak_other": "{{count}}-day streak",
-        "streakBonusUnlocked": "Bonus unlocked! Keep it going.",
-        "streakBonusHint": "Day 7 earns a credit bonus",
-        "unlimitedPremiumFeatures": "Unlimited premium features",
-        "payPerUse": "Pay-per-use for AI features",
-        "recentTransactions": "Recent Transactions",
-        "noTransactions": "No transactions yet",
-        "noTransactionsHint": "Buy credits or earn from your content to see activity here.",
-        "txAmount": "{{sign}}{{amount}} cr"
-    },
-    "opportunityCard": {
-        "notInterestedTitle": "Not interested?",
-        "notInterestedMessage": "We'll show you fewer opportunities like this one.",
-        "notInterestedConfirm": "Not interested",
-        "percentMatch": "{{percent}}% match",
-        "remote": "Remote",
-        "shareLabel": "Share this opportunity",
-        "bookmarkAddLabel": "Save opportunity",
-        "bookmarkRemoveLabel": "Remove from saved",
-        "moreOptionsLabel": "More options",
-        "moreOptionsHint": "Mark this opportunity as not interested"
-    },
-    "creditPack": {
-        "title": "Buy Credits",
-        "subtitle": "Credits power AI features. Pick a pack — you only pay for what you use.",
-        "packs": {
-            "starter": "Starter",
-            "popular": "Popular",
-            "pro": "Pro",
-            "megaValue": "Mega Value"
-        },
-        "creditsUnit": "credits",
-        "bestValue": "Best value",
-        "comingSoonTitle": "Coming Soon",
-        "comingSoonMessage": "Credit packs will be available once store products are configured.",
-        "purchaseCompleteTitle": "Purchase Complete",
-        "purchaseCompleteMessage_one": "{{count}} credit is on the way. Your balance will update shortly.",
-        "purchaseCompleteMessage_other": "{{count}} credits are on the way. Your balance will update shortly.",
-        "purchaseFailedTitle": "Purchase Failed",
-        "somethingWentWrong": "Something went wrong.",
-        "autoAddNote": "Credits are added automatically after purchase."
-    },
-    "header": {
-        "upgrade": "Upgrade",
-        "verified": "Verified account",
-        "menu": "Open menu"
-    },
-    "welcomeModal": {
-        "new": {
-            "title": "Welcome to Edutu{{suffix}}",
-            "body": "Your feed of scholarships, schools, grants and jobs is ready. Let's find your first opportunity.",
-            "primary": "Explore opportunities",
-            "secondary": "Maybe later"
-        },
-        "returning": {
-            "title": "Welcome back{{suffix}}",
-            "body": "Fresh scholarships, grants and roles have landed since your last visit — picked for you.",
-            "primary": "Jump back in",
-            "secondary": "Dismiss"
-        },
-        "guest": {
-            "title": "Welcome to Edutu",
-            "body": "Browse scholarships, schools, grants and jobs freely. Create a free account whenever you want to save and personalize your feed.",
-            "primary": "Start exploring",
-            "secondary": "Create free account"
-        }
+  "tabs": {
+    "home": "Home",
+    "discover": "Discover",
+    "plan": "Plan",
+    "me": "Me",
+    "openEdutuAi": "Open Edutu AI",
+    "badgeOverflow": "99+",
+    "holdForVoice": "Hold for voice mode",
+    "createPrompt": "What do you want to create?",
+    "createGoal": "Goal",
+    "createRoadmap": "Roadmap",
+    "createNew": "Create goal or roadmap",
+    "closeCreateMenu": "Close create menu",
+    "editProfile": "Edit profile",
+    "aiShort": "Edutu AI",
+    "createShort": "Create",
+    "editShort": "Edit"
+  },
+  "rewards": {
+    "creditsEarned_one": "+{{count}} credit · {{label}}",
+    "creditsEarned_other": "+{{count}} credits · {{label}}"
+  },
+  "referral": {
+    "title": "Invite friends",
+    "heroTitle": "Give 10, get 10",
+    "heroSub": "Share your code. When a friend signs up and completes their profile, you get {{rewardReferrer}} credits and they get {{rewardReferee}}.",
+    "yourCode": "YOUR CODE",
+    "shareCta": "Share invite",
+    "redeemed": "Referral applied! Finish your profile and you'll both earn credits.",
+    "fineprint": "Pending invites become credits once your friend finishes their profile.",
+    "stats": {
+      "joined": "Joined",
+      "pending": "Pending",
+      "earned": "Credits"
     }
+  },
+  "home": {
+    "exploreOpportunities": "Explore opportunities",
+    "featuredOpportunities": "Featured Opportunities",
+    "quickActionsTitle": "Quick Actions",
+    "recommendedOpportunities": "Recommended Opportunities",
+    "viewMore": "View More",
+    "emptyTitle": "No Recommendations Yet",
+    "emptyDescription": "Explore opportunities and save the ones you want to track.",
+    "emptyCta": "Explore Opportunities",
+    "quickActions": {
+      "roadmaps": "Roadmaps",
+      "goals": "Goals",
+      "cvBuilder": "CV Builder",
+      "saved": "Saved"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "Scholarships",
+        "description": "Tuition funding & awards"
+      },
+      "internships": {
+        "title": "Internships",
+        "description": "Hands-on early-career roles"
+      },
+      "programs": {
+        "title": "Programs",
+        "description": "Funded programs & exchanges"
+      },
+      "fellowships": {
+        "title": "Fellowships",
+        "description": "Fellowships & leadership tracks"
+      },
+      "grants": {
+        "title": "Grants",
+        "description": "Seed funding & project grants"
+      },
+      "graduatePrograms": {
+        "title": "Graduate Programs",
+        "description": "Masters, PhD & postgraduate study"
+      },
+      "bootcamps": {
+        "title": "Bootcamps",
+        "description": "Intensive skills & accelerators"
+      },
+      "events": {
+        "title": "Events",
+        "description": "Summits, conferences & workshops"
+      }
+    },
+    "discoveryEditor": {
+      "title": "Customize categories",
+      "subtitle": "Hold and drag to arrange. Drag a tile’s edge to resize, − to remove.",
+      "save": "Save",
+      "more": "More categories",
+      "remove": "Remove {{title}}",
+      "resize": "Drag to resize {{title}}",
+      "add": "Add {{title}}"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "passwordPromptTitle": "Add a password to your account",
+    "passwordPromptBody": "You signed in with Google or Apple. Add a password so you can also sign in with email if you forget which option you used.",
+    "setPassword": "Set password",
+    "filterAll": "All",
+    "filterUnread_one": "Unread ({{count}})",
+    "filterUnread_other": "Unread ({{count}})",
+    "loading": "Loading notifications...",
+    "emptyTitle": "No Notifications",
+    "emptySubtitle": "You're all caught up!"
+  },
+  "help": {
+    "title": "Help & Support",
+    "headerTitle": "How can we help?",
+    "headerSubtitle": "Find answers to common questions or reach out.",
+    "faqSectionTitle": "Frequently Asked Questions",
+    "directSupport": "Direct Support",
+    "emailSupport": "Email Support",
+    "visitWebsite": "Visit Website",
+    "footer": "Edutu Help Center",
+    "faqs": {
+      "ai": {
+        "question": "How do I use Edutu AI?",
+        "answer": "You can access Edutu AI from the center button on your navigation bar. Simply type your question about courses, career guidance, or skills, and it will assist you instantly."
+      },
+      "enroll": {
+        "question": "How do I enroll in a course?",
+        "answer": "Navigate to the 'Market' tab, find a course you're interested in, and click 'Access Now'. Some courses require Credits, while others are free."
+      },
+      "credits": {
+        "question": "How do I earn Credits?",
+        "answer": "You can earn Credits by participating in featured opportunities, completing quests, or contributing as a creator. Check your wallet for more details."
+      },
+      "security": {
+        "question": "Is my data secure?",
+        "answer": "Yes, we use industry-standard encryption and Clerk for authentication to ensure your personal information and academic progress are always protected."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "headerTitle": "Your Privacy Matters",
+    "lastUpdated": "Last updated: April 2026",
+    "notice": "By using Edutu, you agree to our terms of service and this privacy policy. We never sell your personal data to third parties.",
+    "footer": "Edutu Legal",
+    "sections": {
+      "dataWeCollect": {
+        "title": "Data We Collect",
+        "desc": "We collect your name, email, and academic progress to personalize your learning experience and track your goals."
+      },
+      "howWeUseIt": {
+        "title": "How We Use It",
+        "desc": "Your data helps us recommend courses, provide AI guidance, and ensure you earn Credits for your achievements."
+      },
+      "dataProtection": {
+        "title": "Data Protection",
+        "desc": "All personal information is encrypted. We use industry-standard security protocols to keep your data safe from unauthorized access."
+      },
+      "yourRights": {
+        "title": "Your Rights",
+        "desc": "You can request to delete your account or download your data at any time through our help center or by contacting support."
+      }
+    }
+  },
+  "deadlines": {
+    "title": "Deadlines",
+    "subtitle": "{{total}} total • {{urgent}} urgent",
+    "loading": "Loading your deadlines...",
+    "emptyTitle": "No Deadlines Yet",
+    "emptyDescription": "Apply to opportunities or bookmark them to track application deadlines.",
+    "browseOpportunities": "Browse Opportunities",
+    "thisWeek": "This Week",
+    "nextWeek": "Next Week",
+    "thisMonth": "This Month",
+    "later": "Later",
+    "pastDue": "Past Due",
+    "daysLeft_one": "{{count}} day",
+    "daysLeft_other": "{{count}} days",
+    "applied": "Applied",
+    "bookmarked": "Bookmarked"
+  },
+  "applied": {
+    "title": "My Applications",
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "interview": "Interview",
+      "offer": "Offer",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn",
+      "no_response": "No response"
+    },
+    "filters": {
+      "total": "Total",
+      "closed": "Closed"
+    },
+    "recently": "Recently",
+    "statusNotUpdatedTitle": "Status not updated",
+    "statusNotUpdatedMessage": "Please try again in a moment.",
+    "updateStatusTitle": "Update application status",
+    "appliedCount_one": "{{count}} applied",
+    "appliedCount_other": "{{count}} applied",
+    "appliedOn": "Applied {{date}}",
+    "advanceTo": "Advance to {{stage}}",
+    "emptyTitle": "No applications yet",
+    "emptySubtitle": "Opportunities you apply for will appear here.",
+    "emptyFilter": "No applications in this stage.",
+    "browseOpportunities": "Browse Opportunities",
+    "loading": "Loading applications...",
+    "answerBankLine": "Your answer bank holds {{count}} reusable answers."
+  },
+  "paywall": {
+    "title": "Premium",
+    "loading": "Loading premium...",
+    "subscriptionActive": "Your subscription is active",
+    "simpleAccess": "Simple subscription access",
+    "premiumIsActive": "Premium is active",
+    "unlockPremium": "Unlock premium",
+    "heroActive": "You already have access to premium tools and templates.",
+    "heroUpsell": "One scholarship can change everything. Get unlimited AI help, standout CVs, and early access to the opportunities that fit you.",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "save": "Save",
+    "billedWeekly": "Billed weekly",
+    "billedMonthly": "Billed monthly",
+    "perMonthBilledYearly": "{{price}} per month, billed yearly",
+    "features": {
+      "unlimitedAi": "Unlimited AI help with essays and applications",
+      "premiumTemplates": "Standout CV templates that get you noticed",
+      "aiTailoring": "AI tailors every application to each opportunity",
+      "priorityTools": "See matched deadlines before everyone else",
+      "pdfExport": "Send a polished, ready-to-submit CV to any employer",
+      "advancedFilters": "Filter opportunities to exactly what fits you"
+    },
+    "comingSoonTitle": "Coming Soon",
+    "comingSoonMessage": "Subscriptions will be available once App Store products are configured.",
+    "premiumActiveTitle": "Premium Active",
+    "premiumActiveMessage": "Your premium subscription is now active.",
+    "purchaseFailed": "Purchase failed",
+    "restoredTitle": "Restored",
+    "restoredMessage": "Your purchases have been restored.",
+    "restoreFailed": "Failed to restore purchases",
+    "backToApp": "Back to app",
+    "subscribe": "Subscribe to premium",
+    "renewalNote": "Subscription renews automatically and can be managed in your device settings.",
+    "continueCheckout": "Continue to secure checkout",
+    "secureNote": "Pay securely on pay.edutu.org with card, mobile money, or bank transfer. Your Pro access unlocks automatically the moment payment is confirmed.",
+    "notNow": "Not now",
+    "manageSubscription": "Manage subscription",
+    "checkoutFailed": "Payment didn't go through — and no money left your account. Tap to try again, or use a different payment method.",
+    "promoDefault": "Limited-time offer",
+    "restore": "Restore purchases",
+    "proBadge": "PRO",
+    "savePct": "Save {{pct}}%",
+    "heroLine1": "Your next opportunity",
+    "heroLine2": "is worth it",
+    "badgeMostTaken": "Most taken",
+    "badgePopular": "Popular",
+    "badgeBestDeal": "Best deal",
+    "perWeek": "{{price}}/week",
+    "promoOff": "{{pct}}% OFF",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "upgradeSheet": {
+      "badge": "EDUTU PRO",
+      "title": "Upgrade to Pro",
+      "priceLine": "{{monthly}}/mo · {{weekly}}/wk",
+      "cta": "UPGRADE",
+      "cancelAnytime": "Cancel anytime"
+    },
+    "loginOffer": {
+      "title": "Special Offer",
+      "subtitle": "For a limited time only — offer ends soon",
+      "genericTitle": "Go Premium",
+      "genericSubtitle": "Unlock everything Edutu has to offer",
+      "off": "OFF",
+      "premium": "PREMIUM",
+      "was": "Was {{price}}/month",
+      "total": "Total {{price}}/month",
+      "tagline": "Unlimited AI coaching, premium templates & a verified badge",
+      "viewAllPlans": "View All Plans",
+      "cta": "Continue",
+      "footnote": "Cancel anytime — no commitments",
+      "close": "Close offer"
+    },
+    "seasonDuration": "{{count}}-day Pro access"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "balanceTitle": "Credits Balance",
+    "creditsUnit": "Credits",
+    "proMember": "Pro Member",
+    "upgradeToPro": "Upgrade to Pro",
+    "buyCredits": "Buy Credits",
+    "history": "History",
+    "dayStreak_one": "{{count}}-day streak",
+    "dayStreak_other": "{{count}}-day streak",
+    "streakBonusUnlocked": "Bonus unlocked! Keep it going.",
+    "streakBonusHint": "Day 7 earns a credit bonus",
+    "unlimitedPremiumFeatures": "Unlimited premium features",
+    "payPerUse": "Pay-per-use for AI features",
+    "recentTransactions": "Recent Transactions",
+    "noTransactions": "No transactions yet",
+    "noTransactionsHint": "Buy credits or earn from your content to see activity here.",
+    "txAmount": "{{sign}}{{amount}} cr"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "Not interested?",
+    "notInterestedMessage": "We'll show you fewer opportunities like this one.",
+    "notInterestedConfirm": "Not interested",
+    "percentMatch": "{{percent}}% match",
+    "remote": "Remote",
+    "shareLabel": "Share this opportunity",
+    "bookmarkAddLabel": "Save opportunity",
+    "bookmarkRemoveLabel": "Remove from saved",
+    "moreOptionsLabel": "More options",
+    "moreOptionsHint": "Mark this opportunity as not interested",
+    "fitExcellent": "Excellent fit",
+    "fitStrong": "Strong fit",
+    "fitGood": "Good fit",
+    "fitWorthALook": "Worth a look"
+  },
+  "creditPack": {
+    "title": "Buy Credits",
+    "subtitle": "Credits power AI features. Pick a pack — you only pay for what you use.",
+    "packs": {
+      "starter": "Starter",
+      "popular": "Popular",
+      "pro": "Pro",
+      "megaValue": "Mega Value"
+    },
+    "creditsUnit": "credits",
+    "bestValue": "Best value",
+    "comingSoonTitle": "Coming Soon",
+    "comingSoonMessage": "Credit packs will be available once store products are configured.",
+    "purchaseCompleteTitle": "Purchase Complete",
+    "purchaseCompleteMessage_one": "{{count}} credit is on the way. Your balance will update shortly.",
+    "purchaseCompleteMessage_other": "{{count}} credits are on the way. Your balance will update shortly.",
+    "purchaseFailedTitle": "Purchase Failed",
+    "somethingWentWrong": "Something went wrong.",
+    "autoAddNote": "Credits are added automatically after purchase."
+  },
+  "header": {
+    "upgrade": "Upgrade",
+    "verified": "Verified account",
+    "menu": "Open menu"
+  },
+  "welcomeModal": {
+    "new": {
+      "title": "Welcome to Edutu{{suffix}}",
+      "body": "Your feed of scholarships, schools, grants and jobs is ready. Let's find your first opportunity.",
+      "primary": "Explore opportunities",
+      "secondary": "Maybe later"
+    },
+    "returning": {
+      "title": "Welcome back{{suffix}}",
+      "body": "Fresh scholarships, grants and roles have landed since your last visit — picked for you.",
+      "primary": "Jump back in",
+      "secondary": "Dismiss"
+    },
+    "guest": {
+      "title": "Welcome to Edutu",
+      "body": "Browse scholarships, schools, grants and jobs freely. Create a free account whenever you want to save and personalize your feed.",
+      "primary": "Start exploring",
+      "secondary": "Create free account"
+    }
+  }
 }

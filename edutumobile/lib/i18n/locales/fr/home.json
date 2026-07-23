@@ -139,7 +139,8 @@
       "interview": "Entretien",
       "offer": "Offre",
       "rejected": "Refusée",
-      "withdrawn": "Retirée"
+      "withdrawn": "Retirée",
+      "no_response": "Sans réponse"
     },
     "filters": {
       "total": "Total",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Les opportunités auxquelles vous postulez apparaîtront ici.",
     "emptyFilter": "Aucune candidature à cette étape.",
     "browseOpportunities": "Parcourir les opportunités",
-    "loading": "Chargement des candidatures..."
+    "loading": "Chargement des candidatures...",
+    "answerBankLine": "Ta banque de réponses contient {{count}} réponses réutilisables."
   },
   "paywall": {
     "title": "Premium",
@@ -206,7 +208,8 @@
       "cta": "Continuer",
       "footnote": "Annulez à tout moment — sans engagement",
       "close": "Fermer l'offre"
-    }
+    },
+    "seasonDuration": "Accès Pro de {{count}} jours"
   },
   "wallet": {
     "title": "Portefeuille",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "Enregistrer l'opportunité",
     "bookmarkRemoveLabel": "Retirer des enregistrées",
     "moreOptionsLabel": "Plus d'options",
-    "moreOptionsHint": "Marquer cette opportunité comme non intéressante"
+    "moreOptionsHint": "Marquer cette opportunité comme non intéressante",
+    "fitExcellent": "Excellente adéquation",
+    "fitStrong": "Forte adéquation",
+    "fitGood": "Bonne adéquation",
+    "fitWorthALook": "À découvrir"
   },
   "creditPack": {
     "title": "Acheter des Crédits",

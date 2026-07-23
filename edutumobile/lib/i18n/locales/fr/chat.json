@@ -75,7 +75,11 @@
     "stoppedNotice": "Vous avez arrêté cette réponse — elle peut être incomplète.",
     "stoppedEarlyNotice": "Vous avez arrêté avant qu'Edutu ne réponde.",
     "interruptedNotice": "La connexion a été interrompue, cette réponse est donc incomplète. Redemandez pour obtenir la réponse complète.",
-    "truncatedNotice": "Cette réponse est partielle — Edutu n’a pas eu la place de la terminer."
+    "truncatedNotice": "Cette réponse est partielle — Edutu n’a pas eu la place de la terminer.",
+    "fitExcellent": "Excellente adéquation",
+    "fitStrong": "Forte adéquation",
+    "fitGood": "Bonne adéquation",
+    "fitWorthALook": "À découvrir"
   },
   "followUp": {
     "country": "Pays",

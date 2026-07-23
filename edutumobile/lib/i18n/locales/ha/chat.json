@@ -75,7 +75,11 @@
     "stoppedNotice": "Ka tsayar da wannan amsa — mai yiwuwa ba ta cika ba.",
     "stoppedEarlyNotice": "Ka tsayar da wannan kafin Edutu ya amsa.",
     "interruptedNotice": "Haɗin ya yanke, don haka wannan amsa ba ta cika ba. Sake tambaya don samun cikakkiyar amsa.",
-    "truncatedNotice": "Wannan amsa ba ta cika ba — Edutu bai sami wuri ya gama ta ba."
+    "truncatedNotice": "Wannan amsa ba ta cika ba — Edutu bai sami wuri ya gama ta ba.",
+    "fitExcellent": "Ya dace sosai",
+    "fitStrong": "Ya dace da kyau",
+    "fitGood": "Ya dace",
+    "fitWorthALook": "Ya cancanci dubawa"
   },
   "followUp": {
     "country": "Ƙasa",

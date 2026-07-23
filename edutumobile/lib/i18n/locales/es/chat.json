@@ -75,7 +75,11 @@
     "stoppedNotice": "Detuviste esta respuesta — puede estar incompleta.",
     "stoppedEarlyNotice": "Lo detuviste antes de que Edutu respondiera.",
     "interruptedNotice": "Se cortó la conexión, así que esta respuesta está incompleta. Vuelve a preguntar para obtener la respuesta completa.",
-    "truncatedNotice": "Esta respuesta es parcial — Edutu se quedó sin espacio para terminarla."
+    "truncatedNotice": "Esta respuesta es parcial — Edutu se quedó sin espacio para terminarla.",
+    "fitExcellent": "Encaje excelente",
+    "fitStrong": "Encaje fuerte",
+    "fitGood": "Buen encaje",
+    "fitWorthALook": "Vale la pena mirar"
   },
   "followUp": {
     "country": "País",

@@ -230,6 +230,32 @@ function pickOptionalNumber(...values: unknown[]): number | undefined {
   return undefined;
 }
 
+// Application fee is persisted as `metadata.application_fee` (snake_case). We
+// only ever surface what the data explicitly says: `is_free` when it is a real
+// boolean, `amount` when it is a real number. Anything else stays null so the UI
+// renders nothing rather than guessing that an opportunity is free (or not).
+function pickApplicationFee(
+  value: unknown,
+): Opportunity["applicationFee"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const fee = value as Record<string, unknown>;
+  const isFree = typeof fee.is_free === "boolean" ? fee.is_free : null;
+  const amount =
+    typeof fee.amount === "number" && Number.isFinite(fee.amount)
+      ? fee.amount
+      : null;
+  const currency =
+    typeof fee.currency === "string" && fee.currency.trim()
+      ? fee.currency.trim()
+      : null;
+  if (isFree === null && amount === null) {
+    return null;
+  }
+  return { isFree, amount, currency };
+}
+
 function pickRecord(...values: unknown[]): Record<string, unknown> | undefined {
   for (const value of values) {
     if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -568,6 +594,9 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     featured: pickOptionalBoolean(row.is_featured, row.featured),
     stipend: pickOptionalNumber(row.stipend),
     currency: pickOptionalString(row.currency),
+    applicationFee: pickApplicationFee(
+      metadata.application_fee ?? metadata.applicationFee,
+    ),
     eligibility: pickRecord(row.eligibility, metadata.eligibility),
     openDate: pickNullableString(row.open_date, row.openDate),
     createdAt: pickOptionalString(row.created_at, row.createdAt),

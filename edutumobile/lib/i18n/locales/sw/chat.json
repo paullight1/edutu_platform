@@ -75,7 +75,11 @@
     "stoppedNotice": "Ulisimamisha jibu hili — huenda halijakamilika.",
     "stoppedEarlyNotice": "Ulisimamisha kabla Edutu hajajibu.",
     "interruptedNotice": "Muunganisho ulikatika, kwa hivyo jibu hili halijakamilika. Uliza tena upate jibu kamili.",
-    "truncatedNotice": "Jibu hili ni sehemu tu — Edutu hakuwa na nafasi ya kulimaliza."
+    "truncatedNotice": "Jibu hili ni sehemu tu — Edutu hakuwa na nafasi ya kulimaliza.",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
   },
   "followUp": {
     "country": "Nchi",

@@ -75,7 +75,11 @@
     "stoppedNotice": "你停止了这条回复——内容可能不完整。",
     "stoppedEarlyNotice": "在 Edutu 回复之前你就停止了。",
     "interruptedNotice": "连接中断，因此这条回复不完整。再问一次即可获得完整答案。",
-    "truncatedNotice": "这个回答不完整——Edutu 没有足够空间写完。"
+    "truncatedNotice": "这个回答不完整——Edutu 没有足够空间写完。",
+    "fitExcellent": "非常匹配",
+    "fitStrong": "高度匹配",
+    "fitGood": "较匹配",
+    "fitWorthALook": "值得一看"
   },
   "followUp": {
     "country": "国家/地区",

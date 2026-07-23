@@ -33,6 +33,93 @@ import {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Minimum trimmed draft length for an essay to count as a reusable answer. */
+const ANSWER_MIN_DRAFT_LENGTH = 80;
+
+/** Row shape the answer-bank extraction consumes (subset of an application_kits join). */
+export interface AnswerBankKitRow {
+  opportunityId: string;
+  opportunityTitle: string | null;
+  essays: unknown;
+  updatedAt: Date | string | null;
+}
+
+export interface AnswerBankEntry {
+  kitOpportunityId: string;
+  opportunityTitle: string | null;
+  promptId: string;
+  prompt: string;
+  draft: string;
+  updatedAt: string | null;
+}
+
+export interface AnswerBankResult {
+  answers: AnswerBankEntry[];
+  count: number;
+}
+
+function toIsoString(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === "string") return value;
+  return null;
+}
+
+/**
+ * Pure extraction: flatten every kit's `essays` jsonb into reusable answers.
+ * An entry qualifies when its `draft` (trimmed) is at least
+ * {@link ANSWER_MIN_DRAFT_LENGTH} chars. Tolerates malformed jsonb (null,
+ * non-array, non-object members) without throwing. Sorted by updatedAt desc,
+ * nulls last; an entry's own `updatedAt` wins, else the kit row's timestamp.
+ */
+export function extractAnswerBank(rows: AnswerBankKitRow[]): AnswerBankResult {
+  const answers: AnswerBankEntry[] = [];
+
+  for (const row of rows ?? []) {
+    const essays = row?.essays;
+    if (!Array.isArray(essays)) continue;
+
+    const kitUpdatedAt = toIsoString(row.updatedAt);
+
+    for (const entry of essays) {
+      if (!entry || typeof entry !== "object") continue;
+      const record = entry as Record<string, unknown>;
+      const draft = record.draft;
+      if (
+        typeof draft !== "string" ||
+        draft.trim().length < ANSWER_MIN_DRAFT_LENGTH
+      ) {
+        continue;
+      }
+      const promptId =
+        typeof record.promptId === "string" ? record.promptId : "";
+      const prompt = typeof record.prompt === "string" ? record.prompt : "";
+      const entryUpdatedAt =
+        typeof record.updatedAt === "string" ? record.updatedAt : null;
+
+      answers.push({
+        kitOpportunityId: row.opportunityId,
+        opportunityTitle: row.opportunityTitle ?? null,
+        promptId,
+        prompt,
+        draft,
+        updatedAt: entryUpdatedAt ?? kitUpdatedAt,
+      });
+    }
+  }
+
+  answers.sort((a, b) => {
+    if (a.updatedAt === b.updatedAt) return 0;
+    if (a.updatedAt === null) return 1;
+    if (b.updatedAt === null) return -1;
+    return a.updatedAt < b.updatedAt ? 1 : -1;
+  });
+
+  return { answers, count: answers.length };
+}
+
 /**
  * LLMs regularly emit `null` for fields they have no value for, which Zod's
  * `.optional()` rejects. Drop nulls recursively before validating.
@@ -147,6 +234,30 @@ export class CopilotService {
         category: row.opportunityCategory,
       },
     }));
+  }
+
+  /**
+   * Answer bank: every reusable essay draft the user has written across all
+   * their application kits, so rejection/next-step UX can point at what
+   * survived. One query on application_kits + title join (no N+1).
+   */
+  async listAnswers(userId: string): Promise<AnswerBankResult> {
+    const dbUserId = this.requireUserId(userId);
+    const rows = await db
+      .select({
+        opportunityId: applicationKits.opportunityId,
+        opportunityTitle: opportunities.title,
+        essays: applicationKits.essays,
+        updatedAt: applicationKits.updatedAt,
+      })
+      .from(applicationKits)
+      .leftJoin(
+        opportunities,
+        eq(applicationKits.opportunityId, opportunities.id),
+      )
+      .where(eq(applicationKits.userId, dbUserId));
+
+    return extractAnswerBank(rows);
   }
 
   async getKit(userId: string, opportunityId: string) {

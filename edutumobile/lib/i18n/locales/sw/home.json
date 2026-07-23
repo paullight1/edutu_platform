@@ -139,7 +139,8 @@
       "interview": "Usaili",
       "offer": "Ofa",
       "rejected": "Limekataliwa",
-      "withdrawn": "Limeondolewa"
+      "withdrawn": "Limeondolewa",
+      "no_response": "Hakuna jibu"
     },
     "filters": {
       "total": "Jumla",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Fursa unazoomba zitaonekana hapa.",
     "emptyFilter": "Hakuna maombi katika hatua hii.",
     "browseOpportunities": "Vinjari Fursa",
-    "loading": "Inapakia maombi..."
+    "loading": "Inapakia maombi...",
+    "answerBankLine": "Benki yako ya majibu ina majibu {{count}} yanayoweza kutumika tena."
   },
   "paywall": {
     "title": "Premium",
@@ -206,7 +208,8 @@
       "cta": "Endelea",
       "footnote": "Ghairi wakati wowote — bila masharti",
       "close": "Funga ofa"
-    }
+    },
+    "seasonDuration": "Ufikiaji wa Pro wa siku {{count}}"
   },
   "wallet": {
     "title": "Pochi",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "Hifadhi fursa",
     "bookmarkRemoveLabel": "Ondoa kwenye zilizohifadhiwa",
     "moreOptionsLabel": "Chaguo zaidi",
-    "moreOptionsHint": "Weka alama fursa hii kama hupendezwi nayo"
+    "moreOptionsHint": "Weka alama fursa hii kama hupendezwi nayo",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
   },
   "creditPack": {
     "title": "Nunua Krediti",

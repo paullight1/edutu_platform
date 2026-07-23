@@ -573,7 +573,9 @@ export class BillingService {
   async listAdminTransactions(limit = 50, offset = 0) {
     const capped = Math.min(Math.max(Number(limit) || 50, 1), 200);
     const skip = Math.max(Number(offset) || 0, 0);
-    const revenueCte = normalisedRevenueCte(this.usdToNgnRate(await this.getPricing()));
+    const revenueCte = normalisedRevenueCte(
+      this.usdToNgnRate(await this.getPricing()),
+    );
     const result = await db.execute(sql`
       with ${revenueCte}
       select id, user_id, provider, provider_reference, type, amount,

@@ -168,8 +168,9 @@ export class DocumentsService {
         feature: "docs.sop",
         userId,
         prompt: [
-          "Write a compelling Statement of Purpose following best practice: a vivid personal hook; academic/professional background with concrete evidence; motivation and fit for THIS specific program; short- and long-term goals; why this program uniquely enables them; a confident closing.",
-          "Rules: first person, specific over generic, no clichés ('ever since I was a child'), no fabricated facts — only use what's provided; 500-750 words total.",
+          "Write a compelling Statement of Purpose following best practice: a specific personal hook drawn from the applicant's own notes; academic/professional background with concrete evidence; motivation and fit for THIS specific program; short- and long-term goals; why this program uniquely enables them; a confident closing.",
+          "GROUNDING (critical): Use ONLY the applicant's notes and profile below for biography, motivations and events. Never invent experiences, names, places, achievements, dates or numbers. Where material is missing, leave a bracketed [ask: …] placeholder describing what the applicant should add — do not fabricate it.",
+          "Style: first person, specific over generic, no clichés ('ever since I was a child'); 500-750 words total.",
           `APPLICANT PROFILE: ${JSON.stringify(profile ?? {})}`,
           `TARGET OPPORTUNITY: ${JSON.stringify(opportunity ?? { note: "generic program" })}`,
           input.notes

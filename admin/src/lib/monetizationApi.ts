@@ -35,6 +35,8 @@ export interface PromoConfig {
 
 export interface PricingSettings {
   currency: string;
+  /** Fixed USD→NGN rate for folding mobile-store (USD) revenue into NGN stats. */
+  usdToNgnRate: number;
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
@@ -85,6 +87,7 @@ export interface BillingOverview {
 
 export const DEFAULT_PRICING: PricingSettings = {
   currency: 'NGN',
+  usdToNgnRate: 1000,
   weeklyPrice: 0,
   monthlyPrice: 0,
   yearlyPrice: 0,

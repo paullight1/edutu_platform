@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { GetAuthToken, requestProductApi } from './productApi';
 import { toSafeUUID } from '../utils/auth';
 
-export type ApplicationStatus = 'draft' | 'submitted' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+export type ApplicationStatus = 'draft' | 'submitted' | 'interview' | 'offer' | 'rejected' | 'withdrawn' | 'no_response';
 
 /** The active forward stages of an application, in order. Terminal states
  * (rejected/withdrawn) are intentionally excluded. Used to render the pipeline
@@ -44,11 +44,15 @@ function getUserLookupIds(userId: string): string[] {
 }
 
 export function normalizeApplicationStatus(value?: string | null): ApplicationStatus {
-  if (value === 'draft' || value === 'submitted' || value === 'interview' || value === 'offer' || value === 'rejected' || value === 'withdrawn') {
+  if (value === 'draft' || value === 'submitted' || value === 'interview' || value === 'offer' || value === 'rejected' || value === 'withdrawn' || value === 'no_response') {
     return value;
   }
   if (value === 'interested' || value === 'preparing' || value === 'archived') {
     return 'draft';
+  }
+  // Legacy alias for the terminal "org never replied" state.
+  if (value === 'ghosted') {
+    return 'no_response';
   }
   if (value === 'applied') {
     return 'submitted';

@@ -30,6 +30,7 @@ import type { MatchResult } from '../services/personalizedRecommendations';
 import type { Opportunity } from '../types/opportunity';
 import {
   APPLICATION_PIPELINE,
+  fetchAnswerBankCount,
   getApplications,
   removeApplication,
   updateApplicationStatus,
@@ -46,6 +47,7 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   offer: 'Offer',
   rejected: 'Rejected',
   withdrawn: 'Withdrawn',
+  no_response: 'No response',
 };
 
 const STATUS_OPTIONS: ApplicationStatus[] = [
@@ -55,7 +57,15 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
   'offer',
   'rejected',
   'withdrawn',
+  'no_response',
 ];
+
+/** Terminal statuses — closed out, never part of the active pipeline. */
+const TERMINAL_STATUSES: ApplicationStatus[] = ['rejected', 'withdrawn', 'no_response'];
+
+function isTerminalStatus(status: ApplicationStatus): boolean {
+  return TERMINAL_STATUSES.includes(status);
+}
 
 /**
  * Per-stage celebration copy for forward moves through the pipeline.
@@ -73,6 +83,22 @@ const CELEBRATION_COPY: Partial<Record<ApplicationStatus, { title: string; descr
   offer: {
     title: 'An offer. Huge congratulations!',
     description: 'You put in the work and it paid off — take a moment to enjoy this.',
+  },
+};
+
+/**
+ * Header copy for the supportive closure panel. Rejection is reframed as data;
+ * no_response is reframed as closure the user owns — never a celebration,
+ * never the user's fault.
+ */
+const CLOSURE_COPY: Record<'rejected' | 'no_response', { title: string; body: string }> = {
+  rejected: {
+    title: "This one said no. That's data, not a verdict.",
+    body: "Every application sharpens the next one. If you want, note what you'd try differently — future you will thank you.",
+  },
+  no_response: {
+    title: "No response counts as closed — that's on them, not you.",
+    body: "Your work is saved for the next one. If anything stood out about this one, note it — future you will use it.",
   },
 };
 
@@ -120,6 +146,9 @@ function statusTone(status: ApplicationStatus) {
       return 'bg-danger/10 text-danger';
     case 'withdrawn':
       return 'bg-danger/10 text-danger';
+    case 'no_response':
+      // Neutral, not red — the silence is on them, not a failure on the user.
+      return 'bg-surface-elevated text-text-muted';
     case 'interview':
       return 'bg-warning/10 text-warning';
     case 'submitted':
@@ -132,7 +161,7 @@ function statusTone(status: ApplicationStatus) {
 /** Compact draft→submitted→interview→offer progress bar for a single card. */
 function PipelineStepper({ status }: { status: ApplicationStatus }) {
   const currentIndex = pipelineIndex(status);
-  const terminalRejected = status === 'rejected' || status === 'withdrawn';
+  const terminalRejected = isTerminalStatus(status);
 
   return (
     <div className="flex items-center gap-1.5" aria-hidden="true">
@@ -183,6 +212,9 @@ export default function ApplicationsPage() {
     match: MatchResult;
   } | null>(null);
   const [nextShotLoading, setNextShotLoading] = useState(false);
+  // How many reusable essay drafts the user has banked — surfaced in the
+  // closure panel so a rejection visibly deposits a surviving asset.
+  const [answerBankCount, setAnswerBankCount] = useState(0);
   // Celebration burst is reserved for the biggest moment: an offer.
   const [celebrating, setCelebrating] = useState(false);
 
@@ -249,6 +281,21 @@ export default function ApplicationsPage() {
     void loadApplications();
   }, [loadApplications]);
 
+  // Lazily count the answer bank only once a closure panel actually opens —
+  // never on page load. Failures resolve to 0 and simply hide the line.
+  useEffect(() => {
+    if (!rejectionPanelId) return;
+    let cancelled = false;
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      const count = await fetchAnswerBankCount(token);
+      if (!cancelled) setAnswerBankCount(count);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectionPanelId, getToken]);
+
   const visibleApplications = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return applications.filter((application) => {
@@ -281,8 +328,9 @@ export default function ApplicationsPage() {
         current.map((item) => (item.id === application.id ? { ...item, ...updated } : item)),
       );
 
-      if (status === 'rejected') {
-        // Never a dead-end: open the supportive panel and line up the next shot.
+      if (status === 'rejected' || status === 'no_response') {
+        // Never a dead-end: open the supportive/closure panel and line up the
+        // next shot. no_response is closure, not a rejection — copy differs.
         setRejectionPanelId(application.id);
         void loadNextBestShot();
       } else {
@@ -564,17 +612,22 @@ export default function ApplicationsPage() {
                     </div>
                   </div>
 
-                  {application.status === 'rejected' && rejectionPanelId === application.id ? (
+                  {(application.status === 'rejected' || application.status === 'no_response') &&
+                  rejectionPanelId === application.id ? (
                     <div className="mt-4 rounded-2xl border border-subtle bg-surface-elevated p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-text-primary">
-                            This one said no. That&apos;s data, not a verdict.
+                            {CLOSURE_COPY[application.status === 'no_response' ? 'no_response' : 'rejected'].title}
                           </p>
                           <p className="mt-1 text-xs leading-5 text-text-muted">
-                            Every application sharpens the next one. If you want, note what
-                            you&apos;d try differently — future you will thank you.
+                            {CLOSURE_COPY[application.status === 'no_response' ? 'no_response' : 'rejected'].body}
                           </p>
+                          {answerBankCount > 0 ? (
+                            <p className="mt-2 text-xs font-semibold text-brand">
+                              Your answer bank now holds {answerBankCount} answers you can reuse.
+                            </p>
+                          ) : null}
                         </div>
                         <button
                           type="button"

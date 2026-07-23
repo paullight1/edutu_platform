@@ -19,6 +19,9 @@ export const ApplicationStatusSchema = z.enum([
   "offer",
   "rejected",
   "withdrawn",
+  // Terminal: the org never replied and the user is closing the loop on their
+  // own terms. Records an `outcome_ghosted` signal, never celebrated.
+  "no_response",
 ]);
 
 const applicationMetadataSchema = z.record(z.string(), z.unknown());

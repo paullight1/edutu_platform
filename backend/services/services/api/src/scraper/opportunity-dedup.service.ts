@@ -137,6 +137,55 @@ export function isDomainTrustGateEnabled(
   return !["false", "0", "off", "no", "disabled"].includes(raw);
 }
 
+export function isScamGateEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const raw = (env.SCRAPER_SCAM_GATE ?? "").trim().toLowerCase();
+  // Default ON; only explicit opt-out disables it.
+  return !["false", "0", "off", "no", "disabled"].includes(raw);
+}
+
+/**
+ * Safely pull the LLM-written scam signals off a record's metadata. Tolerates
+ * missing metadata, a missing/malformed `red_flags` (non-array), and non-string
+ * or blank entries — always returns a clean, trimmed list; never throws.
+ */
+export function extractRedFlags(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== "object") return [];
+  const raw = (metadata as Record<string, unknown>).red_flags;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is string => typeof f === "string" && f.trim().length > 0)
+    .map((f) => f.trim());
+}
+
+/** Two or more scam signals holds the listing (caps 'active' → review). */
+export const SCAM_GATE_CAP_THRESHOLD = 2;
+
+/**
+ * Scam-gate decision (pure). Mirrors {@link decideDomainTrust}: annotate-only,
+ * never promotes.
+ *   0 flags / gate off   → untouched.
+ *   >=1 flag             → needs review (status preserved).
+ *   >=cap threshold      → additionally cap an 'active' row at 'pending_review'
+ *                          (an already pending_review/rejected row is left as-is
+ *                          — capping never demotes a held row upward).
+ */
+export function decideScamGate(
+  currentStatus: string,
+  flagCount: number,
+  gateEnabled: boolean,
+  capThreshold = SCAM_GATE_CAP_THRESHOLD,
+): { status: string; capped: boolean; needsReview: boolean } {
+  if (!gateEnabled || flagCount < 1) {
+    return { status: currentStatus, capped: false, needsReview: false };
+  }
+  if (flagCount >= capThreshold && currentStatus === "active") {
+    return { status: "pending_review", capped: true, needsReview: true };
+  }
+  return { status: currentStatus, capped: false, needsReview: true };
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const TITLE_SIMILARITY_THRESHOLD = 0.85;
@@ -422,5 +471,53 @@ export class OpportunityDedupService {
       );
     }
     return { capped };
+  }
+
+  /**
+   * Scam gate: hold listings the extractor flagged with scam signals
+   * (`metadata.red_flags`: fee-to-apply, guaranteed-win language, etc.) for
+   * admin review. Annotate-only and purely in-memory — no DB round-trip:
+   *   1 flag   → `metadata.needs_review = true` + `metadata.scam_risk`, status kept.
+   *   >=2 flags → additionally cap an 'active' row at 'pending_review'.
+   * Existing rows (in `skipCanonicalUrls`) keep their admin-pinned status and
+   * are left untouched, exactly like the trust gate. Toggle with
+   * SCRAPER_SCAM_GATE (default ON). Fails safe: malformed metadata is ignored.
+   */
+  applyScamGate(
+    records: Record<string, any>[],
+    skipCanonicalUrls?: Set<string>,
+  ): { flagged: number; capped: number } {
+    if (!isScamGateEnabled()) return { flagged: 0, capped: 0 };
+
+    let flagged = 0;
+    let capped = 0;
+    for (const rec of records) {
+      // Re-scrapes: an admin-pinned existing row is off-limits to the gate.
+      if (skipCanonicalUrls?.has(rec.canonical_url as string)) continue;
+
+      const flags = extractRedFlags(rec.metadata);
+      const decision = decideScamGate(rec.status as string, flags.length, true);
+      if (!decision.needsReview) continue;
+
+      // Merge, never clobber: dedup/trust_gate keys written earlier survive.
+      const metadata = (rec.metadata ?? {}) as Record<string, unknown>;
+      metadata.scam_risk = { flags, count: flags.length };
+      metadata.needs_review = true;
+      rec.metadata = metadata;
+      flagged++;
+
+      if (decision.capped) {
+        rec.status = decision.status;
+        capped++;
+      }
+    }
+
+    if (flagged > 0) {
+      this.logger.log(
+        `Scam gate: flagged ${flagged} record(s) with scam signals for review ` +
+          `(${capped} capped to pending_review).`,
+      );
+    }
+    return { flagged, capped };
   }
 }

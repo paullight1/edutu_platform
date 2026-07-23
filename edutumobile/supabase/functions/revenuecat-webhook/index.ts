@@ -14,6 +14,34 @@ const SECURITY_HEADERS = {
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Fallback pass length when the admin config can't be read — mirrors the backend
+// PricingSettingsSchema default (durationDays 90) so grants stay sane offline.
+const SEASON_FALLBACK_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The season-pass duration is admin-configured (pricing.seasonPass.durationDays,
+ * served on GET /mobile-control/config). Read it when an API base URL is exposed
+ * to the function; otherwise fall back to 90 days.
+ */
+async function resolveSeasonDurationDays(): Promise<number> {
+  const apiBase = Deno.env.get('EDUTU_API_URL') || Deno.env.get('EDUTU_CONFIG_URL');
+  if (!apiBase) {
+    // TODO: set EDUTU_API_URL on this edge function to source the real duration
+    // from the admin config instead of the 90-day fallback.
+    return SEASON_FALLBACK_DAYS;
+  }
+  try {
+    const res = await fetch(`${apiBase.replace(/\/$/, '')}/mobile-control/config`);
+    if (!res.ok) return SEASON_FALLBACK_DAYS;
+    const json = await res.json();
+    const d = json?.pricing?.seasonPass?.durationDays;
+    return typeof d === 'number' && Number.isInteger(d) && d >= 1 && d <= 366 ? d : SEASON_FALLBACK_DAYS;
+  } catch {
+    return SEASON_FALLBACK_DAYS;
+  }
+}
+
 // Constant-time string comparison via HMAC digests, so the secret check
 // doesn't leak match length through timing.
 async function timingSafeEqual(a: string, b: string): Promise<boolean> {
@@ -364,6 +392,13 @@ async function handleOneTimePurchase(
   userId: string,
   data: RevenueCatEvent['event']['data']
 ) {
+  // One-off Season Pass → grants Pro for a fixed run of days, STACKING on any
+  // remaining paid time (same semantics as the pay.edutu.org season checkout).
+  if (data.product_id === 'season_pass' || data.product_id.includes('season')) {
+    await handleSeasonPass(userId, data);
+    return;
+  }
+
   // Check if this is a credit purchase
   const isCreditPurchase = data.product_id.includes('credit');
 
@@ -437,4 +472,94 @@ async function handleOneTimePurchase(
 
     console.log(`Added ${credits} credits to user ${userId}`);
   }
+}
+
+async function handleSeasonPass(
+  userId: string,
+  data: RevenueCatEvent['event']['data']
+) {
+  const durationDays = await resolveSeasonDurationDays();
+
+  // Record the purchase FIRST for transaction-level idempotency. The outer
+  // handler already dedupes by event id, but a retry that fails AFTER the
+  // stacking grant (below) would double-extend the expiry on redelivery. The
+  // unique (provider, provider_reference) index makes a duplicate transaction
+  // fail here BEFORE any grant runs — mirrors the credit-purchase guard above.
+  const { error: ledgerError } = await supabaseAdmin.from('billing_transactions').insert({
+    user_id: userId,
+    provider: 'revenuecat',
+    provider_reference: data.transaction_id,
+    type: 'season_pass_purchase',
+    amount: data.price * 100, // minor units
+    currency: data.currency,
+    status: 'completed',
+    metadata: { ...data, durationDays },
+  });
+
+  if (ledgerError) {
+    if (ledgerError.code === '23505') {
+      console.log(`Season pass already recorded, skipping grant: ${data.transaction_id}`);
+      return;
+    }
+    throw new Error(`Failed to record season pass for ${userId}: ${ledgerError.message}`);
+  }
+
+  // Extend from whatever paid time is still left — never from "now" — so buying
+  // a pass mid-period never burns remaining days.
+  const now = new Date();
+  const { data: existing } = await supabaseAdmin
+    .from('billing_entitlements')
+    .select('status, expires_at')
+    .eq('user_id', userId)
+    .eq('feature_key', 'pro')
+    .maybeSingle();
+  const currentExpiry =
+    existing?.status === 'active' && existing.expires_at ? new Date(existing.expires_at) : null;
+  const base = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
+  const expiresAt = new Date(base.getTime() + durationDays * DAY_MS);
+
+  // Authoritative entitlement the app reads.
+  const { error: entError } = await supabaseAdmin.from('billing_entitlements').upsert({
+    user_id: userId,
+    feature_key: 'pro',
+    status: 'active',
+    source: 'revenuecat',
+    expires_at: expiresAt.toISOString(),
+    metadata: { ...data, durationDays, kind: 'season_pass' },
+  }, {
+    onConflict: 'user_id,feature_key',
+  });
+  if (entError) {
+    throw new Error(`Failed to grant season-pass entitlement for ${userId}: ${entError.message}`);
+  }
+
+  // Best-effort profiles mirror (billing_entitlements is authoritative). Call
+  // the sync RPC for is_pro, then set the exact expiry ourselves so the stacked
+  // date wins.
+  await supabaseAdmin.rpc('sync_subscription_status', {
+    p_user_id: userId,
+    p_is_pro: true,
+    p_pro_since: now.toISOString(),
+    p_subscription_id: data.transaction_id,
+  });
+  await supabaseAdmin
+    .from('profiles')
+    .update({ is_pro: true, pro_expires_at: expiresAt.toISOString() })
+    .eq('user_id', userId);
+
+  // Ledger row for the admin dashboard.
+  await supabaseAdmin.from('payment_transactions').insert({
+    user_id: userId,
+    type: 'season_pass_purchase',
+    amount: data.price,
+    currency: data.currency,
+    transaction_id: data.transaction_id,
+    product_id: data.product_id,
+    store: data.store,
+    status: 'completed',
+    description: `Season pass (${durationDays} days)`,
+    metadata: { ...data, durationDays },
+  });
+
+  console.log(`Season pass granted to ${userId}: +${durationDays} days, expires ${expiresAt.toISOString()}`);
 }

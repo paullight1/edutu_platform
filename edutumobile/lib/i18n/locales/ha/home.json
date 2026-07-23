@@ -139,7 +139,8 @@
       "interview": "Hira",
       "offer": "Tayin",
       "rejected": "An ƙi",
-      "withdrawn": "An janye"
+      "withdrawn": "An janye",
+      "no_response": "Babu amsa"
     },
     "filters": {
       "total": "Jimla",
@@ -157,7 +158,8 @@
     "emptySubtitle": "Damammakin da ka nema za su bayyana a nan.",
     "emptyFilter": "Babu buƙatar nema a wannan matakin.",
     "browseOpportunities": "Binciko Damammaki",
-    "loading": "Ana loda buƙatun nema..."
+    "loading": "Ana loda buƙatun nema...",
+    "answerBankLine": "Bankin amsoshinka yana da amsoshi {{count}} da za a sake amfani da su."
   },
   "paywall": {
     "title": "Premium",
@@ -206,7 +208,8 @@
       "cta": "Ci gaba",
       "footnote": "Soke a kowane lokaci — babu wajibi",
       "close": "Rufe tayin"
-    }
+    },
+    "seasonDuration": "Damar Pro na kwanaki {{count}}"
   },
   "wallet": {
     "title": "Walat",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "Ajiye dama",
     "bookmarkRemoveLabel": "Cire daga adana",
     "moreOptionsLabel": "Ƙarin zaɓuka",
-    "moreOptionsHint": "Yi alama wannan dama a matsayin wanda ba a sha'awa da shi ba"
+    "moreOptionsHint": "Yi alama wannan dama a matsayin wanda ba a sha'awa da shi ba",
+    "fitExcellent": "Ya dace sosai",
+    "fitStrong": "Ya dace da kyau",
+    "fitGood": "Ya dace",
+    "fitWorthALook": "Ya cancanci dubawa"
   },
   "creditPack": {
     "title": "Sayi Kirediti",

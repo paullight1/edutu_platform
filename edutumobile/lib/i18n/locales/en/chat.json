@@ -75,7 +75,11 @@
     "stoppedNotice": "You stopped this reply — it may be incomplete.",
     "stoppedEarlyNotice": "You stopped this before Edutu replied.",
     "interruptedNotice": "The connection dropped, so this reply is incomplete. Ask again to get the full answer.",
-    "truncatedNotice": "This answer is partial — Edutu ran out of room to finish it."
+    "truncatedNotice": "This answer is partial — Edutu ran out of room to finish it.",
+    "fitExcellent": "Excellent fit",
+    "fitStrong": "Strong fit",
+    "fitGood": "Good fit",
+    "fitWorthALook": "Worth a look"
   },
   "followUp": {
     "country": "Country",

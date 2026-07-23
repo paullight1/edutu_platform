@@ -44,10 +44,22 @@ import {
   matchedGoals,
   mergePreferencePatch,
 } from "./profile-fit.util";
+import { checkEligibility } from "./eligibility.util";
+import {
+  HIDDEN_GEM_KIND,
+  HIDDEN_GEM_REASON,
+  annotateHiddenGems,
+  resolveHiddenGemOptions,
+} from "./hidden-gems";
 
 // Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
 // (legacy behavior only). Lets the new engine ship dark and flip via env.
 const RECS_ENGINE = (process.env.RECS_ENGINE || "hybrid").toLowerCase();
+// Hard eligibility gate on the feed. Default ON — the scraper-persisted
+// structured eligibility hides opportunities the member cannot enter. Set
+// exactly "false" to disable (feed reverts to no eligibility filtering).
+const RECS_ELIGIBILITY_GATE =
+  (process.env.RECS_ELIGIBILITY_GATE || "true").toLowerCase() !== "false";
 const RECS_ANN_CANDIDATES = (() => {
   const parsed = Number(process.env.RECS_ANN_CANDIDATES);
   return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1000) : 300;
@@ -65,6 +77,15 @@ const RECS_SIGNAL_HALF_LIFE_DAYS = (() => {
 // getting suppressed (impression fatigue) — the user has already said no
 // by ignoring it.
 const IMPRESSION_FATIGUE_MIN = 5;
+
+// Hidden-gem surfacing config, resolved once from env at boot (strong-fit +
+// low global-engagement listings get boosted so members aren't all funneled at
+// the same famous opportunities). See ./hidden-gems for the semantics.
+const HIDDEN_GEM_OPTIONS = resolveHiddenGemOptions();
+// The global engagement aggregate is cross-user and changes slowly; a 10-min
+// in-memory TTL keeps it off the per-request path (mirrors the response cache).
+const GLOBAL_ENGAGEMENT_TTL_MS = 10 * 60 * 1000;
+const GLOBAL_ENGAGEMENT_CACHE_KEY = "global";
 
 type OpportunityRow = typeof opportunities.$inferSelect;
 type PreferenceRow = typeof userOpportunityPreferences.$inferSelect;
@@ -137,6 +158,12 @@ export class OpportunityRankingService {
     300,
   );
   private readonly responseCacheKeysByUser = new Map<string, Set<string>>();
+  // Cross-user per-opportunity engagement aggregate (30-day window), cached for
+  // GLOBAL_ENGAGEMENT_TTL_MS. Single shared key — the map is not user-specific.
+  private readonly globalEngagementCache = new TtlCache<Map<string, number>>(
+    GLOBAL_ENGAGEMENT_TTL_MS,
+    1,
+  );
 
   constructor(
     private readonly aiService: AiService,
@@ -379,7 +406,7 @@ export class OpportunityRankingService {
         : await this.resolveQueryEmbedding(profile, preferences);
     }
 
-    const [rows, dismissedIds, signalScores, categoryAffinities] =
+    const [rows, dismissedIds, signalScores, categoryAffinities, engagement] =
       await Promise.all([
         profileEmbedding
           ? this.fetchCandidatesSemantic(profileEmbedding, excludeIds)
@@ -393,6 +420,11 @@ export class OpportunityRankingService {
         request.userId
           ? this.getUserCategoryAffinities(request.userId)
           : Promise.resolve(new Map<string, number>()),
+        // Cross-user engagement for hidden-gem detection. Skipped (empty map)
+        // when the feature is off so no query runs on the disabled path.
+        HIDDEN_GEM_OPTIONS.enabled
+          ? this.getGlobalEngagement()
+          : Promise.resolve(new Map<string, number>()),
       ]);
 
     const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
@@ -400,8 +432,18 @@ export class OpportunityRankingService {
     // O(1) membership instead of Array.includes per candidate (was O(n·m)).
     const dismissedIdSet = new Set(dismissedIds);
 
-    let ranked = rows
+    const eligibilityProfile = this.toEligibilityProfile(profile);
+
+    const scored = rows
       .filter((row) => !dismissedIdSet.has(row.id))
+      // Hard eligibility gate: drop opportunities the member cannot enter.
+      // Defensive — checkEligibility never throws and fails open on any
+      // malformed/legacy/absent eligibility jsonb.
+      .filter(
+        (row) =>
+          !RECS_ELIGIBILITY_GATE ||
+          checkEligibility(row.eligibility, eligibilityProfile).eligible,
+      )
       .map((row) =>
         this.rankCandidate(row, {
           profile,
@@ -412,7 +454,12 @@ export class OpportunityRankingService {
           categoryAffinities,
           useBlender: Boolean(profileEmbedding),
         }),
-      )
+      );
+
+    // Hidden-gem pass: annotate + boost strong-fit, low-competition listings
+    // BEFORE the sort so gems actually rise. No-op when disabled or when the
+    // engagement map is empty (query degraded) — the feed is never broken.
+    let ranked = annotateHiddenGems(scored, engagement, HIDDEN_GEM_OPTIONS)
       .filter((row) => row.match >= minMatchScore)
       .sort((a, b) => b.match - a.match)
       .slice(0, limit * 2);
@@ -490,6 +537,7 @@ export class OpportunityRankingService {
     ]);
 
     const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
+    const eligibilityProfile = this.toEligibilityProfile(profile);
     const scores = rows.map((row) => {
       const ranked = this.rankCandidate(row, {
         profile,
@@ -500,11 +548,23 @@ export class OpportunityRankingService {
         categoryAffinities,
         useBlender: Boolean(profileEmbedding),
       });
+      // Detail path never hides ineligible items — it surfaces the reason as
+      // a risk so the client's "Worth checking" list explains the mismatch.
+      const { eligible, blockers } = checkEligibility(
+        row.eligibility,
+        eligibilityProfile,
+      );
+      const matchRisks = eligible
+        ? ranked.matchRisks
+        : [
+            ...blockers.map((blocker) => `Eligibility: ${blocker}`),
+            ...ranked.matchRisks,
+          ];
       return {
         id: row.id,
         match_score: ranked.match,
         match_reasons: ranked.matchReasons,
-        match_risks: ranked.matchRisks,
+        match_risks: matchRisks,
         match_reason_details: this.toReasonDetails(ranked),
         match_components: ranked.matchComponents ?? null,
         engine,
@@ -712,6 +772,52 @@ export class OpportunityRankingService {
     } catch (error) {
       this.logger.warn(
         `Category affinity query failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return new Map();
+    }
+  }
+
+  /**
+   * Cross-user engagement aggregate per opportunity over a 30-day window: a
+   * single weighted number (apply=5, save=3, click/view=1) counting how much
+   * the WHOLE user base has engaged. Powers hidden-gem detection — a strong
+   * personal fit with a low global number is an opportunity few people have
+   * discovered yet. Cached (10-min TTL) so it never runs per request, and
+   * degrades to an empty map on any DB error rather than breaking the feed.
+   */
+  private async getGlobalEngagement(): Promise<Map<string, number>> {
+    const cached = this.globalEngagementCache.get(GLOBAL_ENGAGEMENT_CACHE_KEY);
+    if (cached) return cached;
+
+    try {
+      const result = await db.execute(sql`
+        select opportunity_id,
+               sum(case signal_type when 'apply' then 5 when 'save' then 3
+                   when 'click' then 1 when 'view' then 1 else 0 end)::int as engagement
+        from user_opportunity_signals
+        where opportunity_id is not null and created_at > now() - interval '30 days'
+        group by opportunity_id
+      `);
+
+      const rows =
+        (
+          result as unknown as {
+            rows?: Array<{ opportunity_id: string; engagement: unknown }>;
+          }
+        ).rows ?? [];
+
+      const engagement = new Map<string, number>();
+      for (const row of rows) {
+        if (!row.opportunity_id) continue;
+        engagement.set(row.opportunity_id, Number(row.engagement) || 0);
+      }
+      this.globalEngagementCache.set(GLOBAL_ENGAGEMENT_CACHE_KEY, engagement);
+      return engagement;
+    } catch (error) {
+      this.logger.warn(
+        `Global engagement query failed, hidden-gem boost degraded to none: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -943,6 +1049,26 @@ export class OpportunityRankingService {
     return scores;
   }
 
+  /**
+   * Maps either profile shape the pipeline sees — the inline
+   * RecommendationQueryDto profile or a raw `profiles` DB row — onto the flat
+   * shape `checkEligibility` expects. Accepts both camelCase (`dateOfBirth`)
+   * and snake_case (`date_of_birth`) DOB keys.
+   */
+  private toEligibilityProfile(
+    profile: RecommendationQueryDto["profile"] | Record<string, unknown> | null,
+  ) {
+    const p = (profile ?? {}) as Record<string, unknown>;
+    const age = typeof p.age === "number" ? p.age : null;
+    const dob = p.dateOfBirth ?? p.date_of_birth ?? null;
+    return {
+      country: typeof p.country === "string" ? p.country : null,
+      age,
+      dateOfBirth: typeof dob === "string" ? dob : null,
+      degree: typeof p.degree === "string" ? p.degree : null,
+    };
+  }
+
   private async getUserProfile(userId: string) {
     const [profile] = await db
       .select()
@@ -1120,6 +1246,9 @@ export class OpportunityRankingService {
    * overlap (e.g. "Relevant to field of study" vs "Relevant to <country>").
    */
   private classifyReasonKind(label: string): string {
+    if (label === HIDDEN_GEM_REASON) {
+      return HIDDEN_GEM_KIND;
+    }
     if (label.startsWith("Strong fit") || label.startsWith("Good overall")) {
       return "semantic";
     }

@@ -42,3 +42,4 @@ export * from './hooks/useReferral';
 export * from './utils/auth';
 export * from './utils/deadline';
 export * from './utils/feedAnchor';
+export * from './utils/matchTier';

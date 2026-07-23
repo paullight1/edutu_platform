@@ -75,7 +75,11 @@
     "stoppedNotice": "आपने यह जवाब रोक दिया — यह अधूरा हो सकता है।",
     "stoppedEarlyNotice": "Edutu के जवाब देने से पहले आपने इसे रोक दिया।",
     "interruptedNotice": "कनेक्शन टूट गया, इसलिए यह जवाब अधूरा है। पूरा जवाब पाने के लिए फिर से पूछें।",
-    "truncatedNotice": "यह जवाब अधूरा है — Edutu के पास इसे पूरा करने की जगह नहीं बची।"
+    "truncatedNotice": "यह जवाब अधूरा है — Edutu के पास इसे पूरा करने की जगह नहीं बची।",
+    "fitExcellent": "बेहतरीन मेल",
+    "fitStrong": "मज़बूत मेल",
+    "fitGood": "अच्छा मेल",
+    "fitWorthALook": "देखने लायक"
   },
   "followUp": {
     "country": "देश",

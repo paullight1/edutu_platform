@@ -45,6 +45,7 @@ import { DismissReasonSheet } from "../../components/opportunity/DismissReasonSh
 import { ImpressionView } from "../../components/opportunity/ImpressionView";
 import { runImpressionChecks } from "../../lib/impressions";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
+import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
@@ -823,7 +824,7 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
                     {showMatch ? (
                         <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
                             <Target size={9} color={accent} strokeWidth={2.6} />
-                            <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                            <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
                         </View>
                     ) : showOrg ? (
                         <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
@@ -967,7 +968,7 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
                 {matchPct >= 40 && (
                     <View style={styles.posterMatchBadge}>
                         <Target size={8} color="#C7D2FE" strokeWidth={2.6} />
-                        <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                        <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
                     </View>
                 )}
                 <Text style={hero ? styles.posterTitleHero : styles.posterTitle} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.title}</Text>
@@ -1219,6 +1220,7 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     const deadlineColor = deadlineBadge.level === 'none'
         ? textSecondary
         : urgencyColor(deadlineBadge.level);
+    const { t } = useTranslation('home');
     const matchPct = Math.round(item.match ?? 0);
     const topReason = item.matchReasons?.[0];
 
@@ -1274,7 +1276,7 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
                 <View style={styles.bestShotTopRow}>
                     <View style={styles.bestShotMatchBadge}>
                         <Target size={10} color="#FFFFFF" strokeWidth={2.6} />
-                        <Text style={styles.bestShotMatchText}>{matchPct}% match</Text>
+                        <Text style={styles.bestShotMatchText}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
                     </View>
                     <View style={[styles.deadlineRow, hasImage && styles.bestShotDeadlineChip]}>
                         <View style={[styles.deadlineDot, { backgroundColor: deadlineTextColor }]} />

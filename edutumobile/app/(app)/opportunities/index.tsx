@@ -54,6 +54,7 @@ import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySig
 import { markImpression } from '../../../lib/impressions';
 import { createSavedSearch } from '@edutu/core/src/services/savedSearches';
 import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
+import { getMatchTier, MATCH_TIER_KEY } from '@edutu/core/src/utils/matchTier';
 import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
@@ -456,7 +457,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
         {item.match >= FOR_YOU_THRESHOLD && (
           <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
             <Target size={10} color="white" />
-            <Text style={styles.detailMatchText}>{item.match}%</Text>
+            <Text style={styles.detailMatchText}>{t('detail.' + MATCH_TIER_KEY[getMatchTier(item.match ?? 0)])}</Text>
           </View>
         )}
         {deadline.days !== null && deadline.days <= 7 && deadline.days >= 0 && (
@@ -559,7 +560,7 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
         {item.match >= FOR_YOU_THRESHOLD && (
           <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
             <Target size={10} color="white" />
-            <Text style={styles.detailMatchText}>{item.match}%</Text>
+            <Text style={styles.detailMatchText}>{t('detail.' + MATCH_TIER_KEY[getMatchTier(item.match ?? 0)])}</Text>
           </View>
         )}
         {item.category ? (

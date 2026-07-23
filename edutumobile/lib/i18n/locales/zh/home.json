@@ -139,7 +139,8 @@
       "interview": "面试",
       "offer": "录取",
       "rejected": "未通过",
-      "withdrawn": "已撤回"
+      "withdrawn": "已撤回",
+      "no_response": "无回应"
     },
     "filters": {
       "total": "全部",
@@ -157,7 +158,8 @@
     "emptySubtitle": "你申请的机会会出现在这里。",
     "emptyFilter": "该阶段暂无申请。",
     "browseOpportunities": "浏览机会",
-    "loading": "正在加载申请记录…"
+    "loading": "正在加载申请记录…",
+    "answerBankLine": "你的答案库中有 {{count}} 条可复用的答案。"
   },
   "paywall": {
     "title": "高级版",
@@ -206,7 +208,8 @@
       "cta": "继续",
       "footnote": "随时取消 — 无任何约束",
       "close": "关闭优惠"
-    }
+    },
+    "seasonDuration": "{{count}} 天 Pro 权益"
   },
   "wallet": {
     "title": "钱包",
@@ -236,7 +239,11 @@
     "bookmarkAddLabel": "保存机会",
     "bookmarkRemoveLabel": "从收藏中移除",
     "moreOptionsLabel": "更多选项",
-    "moreOptionsHint": "将此机会标记为不感兴趣"
+    "moreOptionsHint": "将此机会标记为不感兴趣",
+    "fitExcellent": "非常匹配",
+    "fitStrong": "高度匹配",
+    "fitGood": "较匹配",
+    "fitWorthALook": "值得一看"
   },
   "creditPack": {
     "title": "购买积分",

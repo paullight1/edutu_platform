@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Sparkles, Zap } from 'lucide-react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
 import { createCheckout } from '../../services/billing';
 import { type RemotePricing } from '../../services/mobileControl';
@@ -31,6 +31,7 @@ export interface UpgradeModalProps {
 
 const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, returnTo }) => {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pricing, setPricing] = useState<RemotePricing | null>(null);
@@ -64,6 +65,21 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
       price: formatMoney(pack.price, pricing.currency),
     }));
   }, [pricing]);
+
+  // One-off Season Pass — admin-configured and only offered when signed in (an
+  // empty uid must never reach the hosted checkout). Unlike the recurring plans
+  // (which go through the backend billing checkout), the season pass is a direct
+  // pay.edutu.org one-off link (`plan=season`), the only surface that mints it.
+  const seasonPass = pricing?.seasonPass?.enabled && user?.id ? pricing.seasonPass : null;
+
+  const openSeasonCheckout = () => {
+    if (!seasonPass || !user?.id || pendingKey) return;
+    const base = (pricing?.checkoutBaseUrl || 'https://pay.edutu.org').replace(/\/$/, '');
+    const params = new URLSearchParams({ uid: user.id, plan: 'season', ref: 'edutu-web', platform: 'web' });
+    const email = user.primaryEmailAddress?.emailAddress;
+    if (email) params.set('email', email);
+    window.location.assign(`${base}/checkout?${params.toString()}`);
+  };
 
   const startCheckout = async (
     key: string,
@@ -125,6 +141,27 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
               ))}
             </div>
           </section>
+
+          {seasonPass ? (
+            <section>
+              <button
+                type="button"
+                disabled={pendingKey !== null}
+                onClick={openSeasonCheckout}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-brand/40 bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-text-primary">{seasonPass.label}</span>
+                  <span className="text-xs text-text-secondary">
+                    {seasonPass.durationDays}-day Pro access · one-off
+                  </span>
+                </span>
+                <span className="text-base font-semibold text-brand">
+                  {formatMoney(seasonPass.price, pricing?.currency ?? 'NGN')}
+                </span>
+              </button>
+            </section>
+          ) : null}
 
           <section>
             <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">

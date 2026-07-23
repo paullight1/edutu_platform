@@ -277,6 +277,23 @@ const PricingSettingsSchema = z.object({
   checkoutBaseUrl: z.string().trim().url().max(300),
   manageUrl: z.string().trim().url().max(300),
   promo: PricingPromoSchema,
+  // One-off "Season Pass": a single purchase that grants Pro until a date,
+  // matching seasonal application cycles. Every field is defaulted and the
+  // object itself defaults, so settings stored before this field existed still
+  // parse cleanly (a parse throw would blank ALL admin settings in prod).
+  seasonPass: z
+    .object({
+      enabled: z.boolean().default(false),
+      price: z.number().min(0).max(10_000_000).default(15000),
+      durationDays: z.number().int().min(7).max(366).default(90),
+      label: z.string().max(60).default("Season Pass"),
+    })
+    .default({
+      enabled: false,
+      price: 15000,
+      durationDays: 90,
+      label: "Season Pass",
+    }),
 });
 
 export const AdminSettingsSchema = z.object({
@@ -416,6 +433,12 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
       weeklyPrice: null,
       monthlyPrice: null,
       yearlyPrice: null,
+    },
+    seasonPass: {
+      enabled: false,
+      price: 15000,
+      durationDays: 90,
+      label: "Season Pass",
     },
   },
   // Empty everywhere = the app renders its own built-in translated copy.

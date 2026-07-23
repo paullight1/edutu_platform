@@ -70,6 +70,24 @@ export function matchEducationLevel(
   return null;
 }
 
+/**
+ * Bucket a required-level string an opportunity uses (e.g. "graduate",
+ * "PhD", "undergraduate") into its canonical label, or null when the text
+ * matches no known level. Complements {@link matchEducationLevel} for the
+ * eligibility gate: it decides whether a structured `degree_levels` entry is
+ * even interpretable before deciding if a member qualifies.
+ */
+export function opportunityEducationLevel(
+  text: string | null | undefined,
+): string | null {
+  const normalized = text?.toLowerCase().trim();
+  if (!normalized) return null;
+  for (const level of EDUCATION_LEVELS) {
+    if (level.opportunity.test(normalized)) return level.label;
+  }
+  return null;
+}
+
 // Filler words in goal titles like "Win a scholarship" / "Land my first job";
 // without them every goal would "match" via its connectives.
 const GOAL_TERM_STOPWORDS = new Set([

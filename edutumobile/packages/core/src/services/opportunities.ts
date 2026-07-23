@@ -155,6 +155,29 @@ function toReasonDetails(value: any): MatchReason[] {
     }));
 }
 
+// Application fee is persisted as `metadata.application_fee` (snake_case). Only
+// surface what the data explicitly states — `is_free` when a real boolean,
+// `amount` when a real number — otherwise null so the UI renders nothing rather
+// than guessing whether an opportunity is free.
+function toApplicationFee(value: any): Opportunity['applicationFee'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const isFree = typeof value.is_free === 'boolean' ? value.is_free : null;
+  const amount =
+    typeof value.amount === 'number' && Number.isFinite(value.amount)
+      ? value.amount
+      : null;
+  const currency =
+    typeof value.currency === 'string' && value.currency.trim()
+      ? value.currency.trim()
+      : null;
+  if (isFree === null && amount === null) {
+    return null;
+  }
+  return { isFree, amount, currency };
+}
+
 function normaliseOpportunity(row: any): Opportunity {
   const meta = row.metadata || {};
   const shareCard = meta.share_card || {};
@@ -204,6 +227,7 @@ function normaliseOpportunity(row: any): Opportunity {
     aiTags: row.aiTags || row.ai_tags || row.tags || [],
     stipend: row.stipend || null,
     currency: row.currency || null,
+    applicationFee: toApplicationFee(meta.application_fee ?? meta.applicationFee),
     eligibility: row.eligibility || {},
     roadmap: row.roadmap || meta.roadmap || [],
     tags: row.tags || [],
