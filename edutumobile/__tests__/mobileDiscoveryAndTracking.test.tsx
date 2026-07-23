@@ -55,8 +55,18 @@ jest.mock('../components/context/ThemeContext', () => ({
 
 jest.mock('react-native-svg', () => {
   const React = require('react');
-  const { Text } = require('react-native');
+  const { Text, View } = require('react-native');
+  const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   return {
+    __esModule: true,
+    default: Passthrough,
+    Svg: Passthrough,
+    Path: () => null,
+    Circle: () => null,
+    Rect: () => null,
+    Defs: Passthrough,
+    LinearGradient: Passthrough,
+    Stop: () => null,
     SvgXml: ({ xml }: { xml?: string }) => <Text>{xml ? 'SvgXml' : 'SvgXmlEmpty'}</Text>,
   };
 });

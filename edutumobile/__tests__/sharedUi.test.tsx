@@ -19,6 +19,8 @@ jest.mock('lucide-react-native', () => {
   const icon = (name: string) => () => <Text>{name}</Text>;
   return {
     AlertCircle: icon('AlertCircle'),
+    ArrowRight: icon('ArrowRight'),
+    Bell: icon('Bell'),
     Bookmark: icon('Bookmark'),
     Compass: icon('Compass'),
     FileText: icon('FileText'),

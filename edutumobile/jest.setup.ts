@@ -101,6 +101,7 @@ jest.mock('react-native-worklets', () => ({
 
 jest.mock('expo-status-bar', () => ({
   StatusBar: () => null,
+  setStatusBarStyle: jest.fn(),
 }));
 
 jest.mock('expo-glass-effect', () => {

@@ -582,11 +582,12 @@ describe('mobile engagement routes', () => {
 
     const { getByText } = render(<PaywallScreen />);
 
-    await waitFor(() => expect(getByText('Unlock every opportunity')).toBeTruthy());
+    await waitFor(() => expect(getByText('Your next opportunity')).toBeTruthy());
     // Offerings fail to load in this environment: once IAP loading settles the
     // CTA renders (disabled) and the unavailable note appears — never an
-    // external checkout fallback.
-    await waitFor(() => expect(getByText('Subscribe to premium')).toBeTruthy());
+    // external checkout fallback. The CTA copy is now plan-based
+    // ("Start {plan} — {price}") rather than a generic subscribe label.
+    await waitFor(() => expect(getByText(/^Start /)).toBeTruthy());
     expect(
       getByText('Subscriptions are temporarily unavailable. Please try again in a moment.'),
     ).toBeTruthy();

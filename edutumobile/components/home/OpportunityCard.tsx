@@ -163,9 +163,9 @@ function OpportunityCardBase({
                         )}
                     </View>
                 </View>
+                {/* Tier language, not raw % — match-% reads as win-odds
+                    (user-trust masterplan); accent-tinted bg stays theme-aware. */}
                 {showMatch && (
-                    {/* Tier language, not raw % — match-% reads as win-odds
-                        (user-trust masterplan); accent-tinted bg stays theme-aware. */}
                     <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? accent + "26" : accent + "1A" }]}>
                         <Target size={9} color={accent} strokeWidth={2.6} />
                         <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
