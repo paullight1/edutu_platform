@@ -886,8 +886,8 @@ const Layout = () => {
             margin-left: 0;
           }
           /* The open drawer is always full width with labels, even when the
-             route forces `collapsed`/`rail` — otherwise the accordion is
-             unusable in a 72px strip. */
+             route forces the collapsed/rail classes — otherwise the accordion
+             would be unusable in a 72px strip. */
           .sidebar.mobile-open,
           .sidebar.rail,
           .sidebar.collapsed.mobile-open {
