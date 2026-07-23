@@ -1,6 +1,5 @@
 import { UnsupportedMediaTypeException } from "@nestjs/common";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -23,6 +22,13 @@ export async function extractText(
   mimeType: string,
 ): Promise<string> {
   if (mimeType === "application/pdf") {
+    // Lazy import: pdf-parse bundles pdfjs, whose module-eval touches newer
+    // Node built-ins (process.getBuiltinModule, Node >= 20.16) and crashes the
+    // whole app AT BOOT on older runtimes when imported top-level — this exact
+    // import took down the 2026-07-23 Render deploy on Node 20.11. Loading it
+    // only when a PDF is actually parsed keeps startup Node-version-independent
+    // (same pattern as linkedin-import.service.ts).
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try {
       const result = await parser.getText();
