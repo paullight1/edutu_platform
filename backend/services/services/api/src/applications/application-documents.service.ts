@@ -1,5 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+// DI token for the test-only client override below. Never provided in any
+// module — @Optional() resolves it to undefined at boot. Without the explicit
+// token Nest reads the SupabaseClient paramtype as an unresolvable class
+// dependency and the whole app fails to start (2026-07-23 deploy outage).
+export const APPLICATION_DOCS_SUPABASE_OVERRIDE = Symbol("APPLICATION_DOCS_SUPABASE_OVERRIDE");
 
 /** Roles a competitive application is expected to carry before submission. */
 export const REQUIRED_ROLES = ["cv", "sop"] as const;
@@ -57,7 +63,9 @@ export class ApplicationDocumentsService {
 
   // clientOverride lets specs inject a mock; production builds the service-role
   // client from env exactly like ChatService does.
-  constructor(clientOverride?: SupabaseClient) {
+  constructor(
+    @Optional() @Inject(APPLICATION_DOCS_SUPABASE_OVERRIDE) clientOverride?: SupabaseClient,
+  ) {
     this.supabase =
       clientOverride ??
       createClient(

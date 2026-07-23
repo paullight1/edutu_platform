@@ -1,13 +1,21 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { extractText, SUPPORTED_UPLOAD_MIME_TYPES } from "./extract-text";
+
+// DI token for the test-only client override below. Never provided in any
+// module — @Optional() resolves it to undefined at boot. Without the explicit
+// token Nest reads the SupabaseClient paramtype as an unresolvable class
+// dependency and the whole app fails to start (2026-07-23 deploy outage).
+export const UPLOADS_SUPABASE_OVERRIDE = Symbol("UPLOADS_SUPABASE_OVERRIDE");
 
 const BUCKET = "cv-files";
 const MAX_EXTRACTED_CHARS = 40_000;
@@ -25,7 +33,9 @@ export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
   private readonly supabase: SupabaseClient;
 
-  constructor(clientOverride?: SupabaseClient) {
+  constructor(
+    @Optional() @Inject(UPLOADS_SUPABASE_OVERRIDE) clientOverride?: SupabaseClient,
+  ) {
     this.supabase =
       clientOverride ??
       createClient(
