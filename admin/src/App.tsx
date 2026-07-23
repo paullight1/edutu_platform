@@ -385,9 +385,36 @@ const AppRoutes: FC = () => {
           <Route path="roadmaps" element={<Roadmaps />} />
           <Route path="blog" element={<Blog />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="edutu-engine" element={<Scraper />} />
-          <Route path="mobile-control" element={<MobileControl />} />
+
+          {/* Engine (was /edutu-engine) — one component, section by path */}
+          <Route path="engine" element={<Scraper />} />
+          <Route path="engine/runs" element={<Scraper />} />
+          <Route path="engine/status" element={<Scraper />} />
+          <Route
+            path="edutu-engine"
+            element={<Navigate to="/engine" replace />}
+          />
+
+          {/* App & Engagement (was /mobile-control) */}
+          <Route path="app/home" element={<MobileControl />} />
+          <Route path="app/campaigns" element={<MobileControl />} />
+          <Route path="app/flags" element={<MobileControl />} />
+          <Route path="app/widgets" element={<MobileControl />} />
+          <Route path="app/control" element={<MobileControl />} />
+          <Route
+            path="mobile-control"
+            element={<Navigate to="/app/home" replace />}
+          />
+
+          {/* Monetization — one component, section by path */}
           <Route path="monetization" element={<Monetization />} />
+          <Route path="monetization/pricing" element={<Monetization />} />
+          <Route
+            path="monetization/transactions"
+            element={<Monetization />}
+          />
+          <Route path="monetization/usage" element={<Monetization />} />
+
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
         </Route>
