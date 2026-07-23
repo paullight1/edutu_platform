@@ -111,7 +111,11 @@ function RootLayoutContent() {
     useEffect(() => {
         setSupabaseAccessTokenGetter(async () => {
             const supabaseToken = await getToken({ template: 'supabase' }).catch(() => null);
-            return supabaseToken || await getToken().catch(() => null);
+            const token = supabaseToken || await getToken().catch(() => null);
+            // A null here silently downgrades every Supabase request to anon
+            // (RLS empty reads, 42501 on jwt-scoped RPCs) — surface it in dev.
+            if (__DEV__ && !token) console.warn('[supabase-auth] token getter returned null');
+            return token;
         });
 
         return () => setSupabaseAccessTokenGetter(null);

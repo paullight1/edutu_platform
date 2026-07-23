@@ -96,7 +96,10 @@ export default function AddGoalScreen() {
                 },
                 { text: t('common:actions.done'), onPress: () => router.push('/goals') }
             ]);
-        } catch {
+        } catch (error) {
+            // Log the underlying cause (RLS code, network, schema) — a silent
+            // catch here previously made create-failures undiagnosable.
+            console.error('[goals/add] create failed:', error);
             Alert.alert(t('common:states.error'), t('add.alerts.createFailed'));
         } finally {
             setLoading(false);

@@ -266,7 +266,13 @@
     },
     "save": "Save CV",
     "preparing": "Preparing…",
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "empty": {
+      "experience": "No experience added yet — tap Add to include a role.",
+      "education": "No education added yet — tap Add to include a school or degree.",
+      "projects": "No projects added yet — tap Add to showcase your work.",
+      "achievements": "No achievements added yet — tap Add to highlight awards or wins."
+    }
   },
   "preview": {
     "backToEdit": "Back to Edit",

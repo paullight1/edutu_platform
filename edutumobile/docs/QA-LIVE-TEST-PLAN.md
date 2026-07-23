@@ -246,3 +246,18 @@ Splash→Home routing · Home (all sections, real card images — no hydration b
 
 ### Tooling fix applied (not an app bug)
 Dev-menu FAB touch-freeze on iOS sim → `EXDevMenuShowFloatingActionButton: false` in app.config.js infoPlist (dev-only, no-op in prod).
+
+---
+
+## Run 2 — 2026-07-23 (deep-dive: Goals, CV, Saved, Creator, Invite friends, Wallet)
+
+| ID | Flow | Severity | Type | Description | Status |
+|----|------|----------|------|-------------|--------|
+| F12 | Goals | P1 | Bug | **Goal creation failed 100%.** Four stacked causes: (1) `goals` table missing `roadmap_id`/`opportunity_title` columns that `useGoals` sends (postgrest-js lists every payload key in `?columns=` → PGRST204); (2) stale PostgREST schema cache; (3) analytics helper fns deployed taking `uuid` while all user ids are text Clerk ids → 42883 from goal triggers; (4) `goal_daily_metrics` has SELECT-only RLS and trigger fns weren't SECURITY DEFINER → 42501. Plus pooled-connection stale plans re-broke it until a DDL touch invalidated them. FIXED via live migrations `add_goals_roadmap_opportunity_columns`, `fix_analytics_fn_user_id_text`, `analytics_triggers_security_definer`. Verified: goal created, dashboard counts update. **Note for analytics owner:** backend `supabase/schema.sql` still declares these fns with `uuid` params — reconcile to `text` + SECURITY DEFINER. | ✅ fixed (3 live migrations) |
+| F9b | Referrals + credits | P1 | Bug | Root cause of F9: **supabase-js `.rpc()` requests leave with the ANON KEY as bearer** (builder header precedence beats the `accessToken` hook) while `.from()` correctly carries the Clerk JWT → every jwt-scoped RPC (referral code/stats, `claim_daily_credit`, redeem) failed 42501/"Not authenticated". FIXED in `packages/core/src/services/supabase.ts`: innermost fetch wrapper swaps an anon bearer for the user token on /rest/v1/ requests; plus EXECUTE grants on the 3 referral RPCs to `anon` role (matches this schema's Clerk-jwt-over-anon model, migration `grant_referral_rpcs_to_anon_role`). Verified: referral code renders + Share enabled; credits 0→11; streak day-1 lit. | ✅ fixed (client + grants) |
+| F13 | CV Builder | P2 | UI | Raw i18n keys rendered for empty sections (`editor.empty.experience` …) — keys never existed in `en/cv.json`. Added all 4 (other locales fall back to en). | ✅ fixed |
+| F11 | Goals | P2 | Bug | "My Opportunities: 0 saved" vs Saved's 4 — likely the same anon-request class as F9b (jwt-scoped read silently empty). Re-verify after the auth fix. | needs re-verify |
+| — | Creator Studio | P3 | UX | `/roadmaps/mine` 429 (rate limit) → graceful "couldn't be refreshed / Tap to retry" banner, no crash. Could hint "try again in a minute". | note |
+
+### Run 2 verified passing
+Goal create end-to-end (min-title + past-deadline validation, live preview, "39 days from now" hint) · CV editor prefilled from profile + "CV saved successfully!" · Saved unsave (4→3, filter counts update) · Creator wizard steps 1–2 (Victory Story intro, motivation select) · Creator Studio (stats, verified-creator banner, graceful 429) · Invite friends (code 4394462C, Share enabled, stats) · Wallet (11 credits, Pro Member badge, 1-day streak lit, Buy Credits sheet with packs safely "Coming soon") · F8 re-verified: no "Upgrade to Pro" card for Pro users.
