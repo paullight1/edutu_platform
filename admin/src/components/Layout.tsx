@@ -881,17 +881,24 @@ const Layout = () => {
           .nav-flyout {
             display: none;
           }
-          .sidebar.rail ~ .main-content {
+          .sidebar.rail ~ .main-content,
+          .sidebar.collapsed ~ .main-content {
             margin-left: 0;
           }
-          .sidebar.rail {
+          /* The open drawer is always full width with labels, even when the
+             route forces `collapsed`/`rail` — otherwise the accordion is
+             unusable in a 72px strip. */
+          .sidebar.mobile-open,
+          .sidebar.rail,
+          .sidebar.collapsed.mobile-open {
             width: 280px;
           }
+          .sidebar.mobile-open .nav-label,
           .sidebar.rail .nav-label {
             opacity: 1;
             width: auto;
           }
-          .sidebar.rail .nav-parent .nav-caret {
+          .sidebar.mobile-open .nav-parent .nav-caret {
             opacity: 0.55;
             width: auto;
           }
