@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Banknote,
   Bot,
@@ -93,6 +94,17 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function Monetization() {
+  const location = useLocation();
+  // Which section the route asks for. Base /monetization = overview.
+  const section: 'overview' | 'pricing' | 'transactions' | 'usage' =
+    location.pathname.endsWith('/pricing')
+      ? 'pricing'
+      : location.pathname.endsWith('/transactions')
+        ? 'transactions'
+        : location.pathname.endsWith('/usage')
+          ? 'usage'
+          : 'overview';
+
   const [overview, setOverview] = useState<BillingOverview | null>(null);
   const [voiceUsage, setVoiceUsage] = useState<VoiceUsageSummary | null>(null);
   const [settings, setSettings] = useState<AdminSettings | null>(null);
@@ -386,7 +398,7 @@ export default function Monetization() {
 
       {error && <div className="mz-alert">{error}</div>}
 
-      {overview && (
+      {section === 'overview' && overview && (
         <>
           <div className="mz-hero-grid">
             {mainStats.map((stat, index) => (
@@ -475,8 +487,12 @@ export default function Monetization() {
             </div>
           </div>
 
-          {/* ── Usage: global voice AI minutes + estimated provider cost ── */}
-          <section className="card mz-section" style={{ marginBottom: 14 }}>
+        </>
+      )}
+
+      {/* ── Usage: global voice AI minutes + estimated provider cost ── */}
+      {section === 'usage' && overview && (
+        <section className="card mz-section" style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 16 }}>Usage — Voice AI</h2>
@@ -568,9 +584,11 @@ export default function Monetization() {
                 )}
               </>
             )}
-          </section>
+        </section>
+      )}
 
-          <div className="mz-columns">
+      {section === 'transactions' && overview && (
+        <div className="mz-columns">
             <section className="card mz-section">
               <div className="mz-section-head">
                 <h2>
@@ -715,10 +733,9 @@ export default function Monetization() {
               </div>
             </section>
           </div>
-        </>
       )}
 
-      {pricing && (
+      {section === 'pricing' && pricing && (
         <>
           <div className="mz-section-head" style={{ margin: '26px 0 14px' }}>
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 19, margin: 0 }}>
@@ -791,6 +808,11 @@ export default function Monetization() {
                 <NumField label="Weekly price" value={pricing.weeklyPrice} onChange={(weeklyPrice) => updatePricing({ weeklyPrice })} />
                 <NumField label="Monthly price" value={pricing.monthlyPrice} onChange={(monthlyPrice) => updatePricing({ monthlyPrice })} />
                 <NumField label="Yearly price" value={pricing.yearlyPrice} onChange={(yearlyPrice) => updatePricing({ yearlyPrice })} />
+                <NumField
+                  label="USD → NGN rate (stats)"
+                  value={pricing.usdToNgnRate}
+                  onChange={(usdToNgnRate) => updatePricing({ usdToNgnRate })}
+                />
               </div>
               {pricing.monthlyPrice > 0 && pricing.yearlyPrice > 0 && (
                 <p className="mz-hint">
@@ -798,6 +820,11 @@ export default function Monetization() {
                   {Math.max(0, Math.round((1 - pricing.yearlyPrice / (pricing.monthlyPrice * 12)) * 100))}% off monthly).
                 </p>
               )}
+              <p className="mz-hint">
+                Mobile-store (Apple/Google) revenue is charged in USD; the revenue dashboard folds it into
+                ₦ at this rate (e.g. $6.99 × {pricing.usdToNgnRate || 1000} = {formatMoney((pricing.usdToNgnRate || 1000) * 6.99, currency)}).
+                A reporting rate, not a live FX quote.
+              </p>
             </EditorCard>
 
             <EditorCard
