@@ -1,19 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   Archive,
-  Bell,
   CheckCircle2,
   ChevronDown,
-  Flag,
-  LayoutTemplate,
   Loader2,
-  Megaphone,
   Pencil,
   Pin,
   RefreshCw,
   Save,
-  ShieldAlert,
   Trash2,
   X,
 } from 'lucide-react';
@@ -65,29 +61,6 @@ const widgetTemplate: WidgetFeed = {
   priority: 0,
   items: [],
   audience: {},
-};
-
-const TAB_META: Record<Tab, { label: string; hint: string }> = {
-  campaigns: {
-    label: 'Messages',
-    hint: 'Popups, banners, and announcements shown inside the app — banners support an advert image.',
-  },
-  flags: {
-    label: 'Feature Switches',
-    hint: 'Turn app features on or off remotely — no app-store release needed.',
-  },
-  widgets: {
-    label: 'Widget Feeds',
-    hint: 'Content for the home-screen and lock-screen widgets on users’ phones.',
-  },
-  serverUi: {
-    label: 'Home & Features',
-    hint: 'Compose the mobile home screen, add web-backed features, and reveal dark-shipped features — all live on next app open, no store release.',
-  },
-  appControl: {
-    label: 'App Control',
-    hint: 'The emergency levers: force an update, put the app in maintenance, or lock features to Pro / off.',
-  },
 };
 
 function slugify(value: string) {
@@ -172,7 +145,18 @@ function JsonField({
 }
 
 export default function MobileControl() {
-  const [activeTab, setActiveTab] = useState<Tab>('campaigns');
+  const location = useLocation();
+  // The active section is driven entirely by the route (the sidebar submenu
+  // owns switching now); default to Home Blocks for the base /app path.
+  const activeTab: Tab = location.pathname.endsWith('/campaigns')
+    ? 'campaigns'
+    : location.pathname.endsWith('/flags')
+      ? 'flags'
+      : location.pathname.endsWith('/widgets')
+        ? 'widgets'
+        : location.pathname.endsWith('/control')
+          ? 'appControl'
+          : 'serverUi';
   const [campaigns, setCampaigns] = useState<MobileCampaign[]>([]);
   const [flags, setFlags] = useState<MobileFeatureFlag[]>([]);
   const [widgets, setWidgets] = useState<WidgetFeed[]>([]);
@@ -185,18 +169,6 @@ export default function MobileControl() {
   const [jsonValid, setJsonValid] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const stats = useMemo(() => ({
-    activeCampaigns: campaigns.filter((item) => item.status === 'active').length,
-    enabledFlags: flags.filter((item) => item.enabled).length,
-    activeWidgets: widgets.filter((item) => item.status === 'active').length,
-    activeGates:
-      (appControl.forceUpdate.enabled ? 1 : 0) +
-      (appControl.maintenance.enabled ? 1 : 0) +
-      LOCKABLE_MODULES.filter(({ key }) => (appControl.moduleLocks[key] ?? 'free') !== 'free').length,
-    totalGates: 2 + LOCKABLE_MODULES.length,
-    liveHomeBlocks: appControl.homeLayout?.published.length ?? 0,
-  }), [campaigns, flags, widgets, appControl]);
 
   useEffect(() => {
     if (!notice) return;
@@ -337,14 +309,6 @@ export default function MobileControl() {
         </button>
       </header>
 
-      <nav className="mc-tabs" aria-label="App content sections">
-        <TabButton icon={<Megaphone size={16} />} active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} label={TAB_META.campaigns.label} count={stats.activeCampaigns} total={campaigns.length} />
-        <TabButton icon={<Flag size={16} />} active={activeTab === 'flags'} onClick={() => setActiveTab('flags')} label={TAB_META.flags.label} count={stats.enabledFlags} total={flags.length} />
-        <TabButton icon={<Bell size={16} />} active={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} label={TAB_META.widgets.label} count={stats.activeWidgets} total={widgets.length} />
-        <TabButton icon={<LayoutTemplate size={16} />} active={activeTab === 'serverUi'} onClick={() => setActiveTab('serverUi')} label={TAB_META.serverUi.label} count={stats.liveHomeBlocks} total={stats.liveHomeBlocks} />
-        <TabButton icon={<ShieldAlert size={16} />} active={activeTab === 'appControl'} onClick={() => setActiveTab('appControl')} label={TAB_META.appControl.label} count={stats.activeGates} total={stats.totalGates} alert={stats.activeGates > 0} />
-      </nav>
-      <p className="mc-tab-hint">{TAB_META[activeTab].hint}</p>
 
       {error && (
         <div className="mc-alert" role="alert">
@@ -422,19 +386,6 @@ function upsert<T extends { id?: string }>(items: T[], item: T): T[] {
   return item.id && items.some((existing) => existing.id === item.id)
     ? items.map((existing) => existing.id === item.id ? item : existing)
     : [item, ...items];
-}
-
-function TabButton({ icon, label, count, total, active, alert, onClick }: {
-  icon: React.ReactNode; label: string; count?: number; total?: number; active: boolean; alert?: boolean; onClick: () => void;
-}) {
-  return (
-    <button className={`${active ? 'active' : ''} ${alert ? 'mc-tab-alert' : ''}`} onClick={onClick} aria-pressed={active}>
-      {icon} {label}
-      {typeof count === 'number' && typeof total === 'number' && (
-        <span className="mc-tab-count" title={`${count} live of ${total}`}>{count}/{total}</span>
-      )}
-    </button>
-  );
 }
 
 function FormShell({ title, editing, children, onSave, onCancel, saving, canSave, saveLabel }: {
