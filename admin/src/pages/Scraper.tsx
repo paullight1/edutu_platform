@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { backendFetchJson, getAdminAuthHeaders, getBackendBaseUrl } from '../lib/backend';
 import { isLocalAdminBypassEnabled } from '../lib/localAdmin';
@@ -223,6 +224,16 @@ const getCategoryColor = (category?: string) =>
     ?? { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)', border: 'var(--border-medium)' };
 
 export default function ScraperDashboard() {
+    const location = useLocation();
+    const navigate = useNavigate();
+    // Which engine view the route asks for. Base /engine = sources.
+    const engineSection: 'sources' | 'runs' | 'status' =
+        location.pathname.endsWith('/runs')
+            ? 'runs'
+            : location.pathname.endsWith('/status')
+                ? 'status'
+                : 'sources';
+
     const [sources, setSources] = useState<ScrapeSource[]>([]);
     // Harvested opportunities grouped by originating site. Keyed on URL host,
     // not scraping_sources.id — deleting a source orphans its opportunities, so
@@ -1928,6 +1939,38 @@ export default function ScraperDashboard() {
                 </div>
             </div>
 
+            {/* Sub-nav: Sources / Live Runs / Status */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid var(--border-light)' }}>
+                {([
+                    { key: 'sources', label: 'Sources', to: '/engine' },
+                    { key: 'runs', label: 'Live Runs', to: '/engine/runs' },
+                    { key: 'status', label: 'Status', to: '/engine/status' },
+                ] as const).map((t) => {
+                    const active = engineSection === t.key;
+                    return (
+                        <button
+                            key={t.key}
+                            onClick={() => navigate(t.to)}
+                            style={{
+                                padding: '8px 16px',
+                                border: 'none',
+                                background: 'transparent',
+                                color: active ? 'var(--apple-blue)' : 'var(--text-secondary)',
+                                fontSize: 14,
+                                fontWeight: active ? 600 : 500,
+                                cursor: 'pointer',
+                                borderBottom: active ? '2px solid var(--apple-blue)' : '2px solid transparent',
+                                marginBottom: -1,
+                            }}
+                        >
+                            {t.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {engineSection === 'sources' && (
+              <>
             {/* Scrape Result */}
             {scrapeResult && (
                 <div style={{
@@ -2384,6 +2427,11 @@ export default function ScraperDashboard() {
                 )}
             </div>
 
+              </>
+            )}
+
+            {engineSection === 'status' && (
+              <>
             {/* Automation Settings */}
             <div style={{
                 background: 'var(--bg-secondary)',
@@ -2614,6 +2662,11 @@ export default function ScraperDashboard() {
                 </div>
             </div>
 
+              </>
+            )}
+
+            {engineSection === 'runs' && (
+              <>
             {/* Recent Jobs */}
             <div style={{
                 background: 'var(--bg-secondary)',
@@ -3054,6 +3107,9 @@ export default function ScraperDashboard() {
                     </div>
                 )
             }
+
+              </>
+            )}
 
             {/* Run-all review panel: see the group's websites + edit pages before starting */}
             {runGroupConfirm && (() => {
