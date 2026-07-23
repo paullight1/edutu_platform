@@ -78,7 +78,8 @@ describe("MonetizationService — meter() releases the counter on refusal", () =
   it("hands back the Pro fair-use bump when the request is refused with 429", async () => {
     const service = buildService();
     handlers().execute = (text: string) => {
-      if (text.includes("billing_entitlements")) return { rows: [{}] };
+      if (text.includes("billing_entitlements"))
+        return { rows: [{ is_pro: true, created_at: null }] };
       if (text.includes("insert into user_ai_usage_daily")) {
         return {
           rows: [
@@ -104,7 +105,8 @@ describe("MonetizationService — meter() releases the counter on refusal", () =
   it("hands back the Pro action-credit bump when the request is refused", async () => {
     const service = buildService();
     handlers().execute = (text: string) => {
-      if (text.includes("billing_entitlements")) return { rows: [{}] };
+      if (text.includes("billing_entitlements"))
+        return { rows: [{ is_pro: true, created_at: null }] };
       if (text.includes("insert into user_ai_usage_daily")) {
         return {
           rows: [
@@ -219,7 +221,8 @@ describe("MonetizationService — meter() releases the counter on refusal", () =
 // chat message.
 describe("MonetizationService — refund() releases the Pro action-credit bump", () => {
   const proUsage = (actionCredits: number) => (text: string) => {
-    if (text.includes("billing_entitlements")) return { rows: [{}] };
+    if (text.includes("billing_entitlements"))
+      return { rows: [{ is_pro: true, created_at: null }] };
     if (text.includes("insert into user_ai_usage_daily")) {
       return {
         rows: [

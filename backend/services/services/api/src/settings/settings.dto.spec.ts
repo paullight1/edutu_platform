@@ -136,7 +136,12 @@ describe("mergeAdminSettings — server-driven home + custom features", () => {
         homeLayout: {
           draft: [],
           published: [
-            { id: "b1", type: "announcement", props: { title: "Hi" }, enabled: true },
+            {
+              id: "b1",
+              type: "announcement",
+              props: { title: "Hi" },
+              enabled: true,
+            },
           ],
           lastPublished: [],
         },
@@ -150,9 +155,7 @@ describe("mergeAdminSettings — server-driven home + custom features", () => {
         ...current.mobileApp,
         homeLayout: {
           ...current.mobileApp.homeLayout,
-          draft: [
-            { id: "b2", type: "info_card", props: {}, enabled: true },
-          ],
+          draft: [{ id: "b2", type: "info_card", props: {}, enabled: true }],
         },
       },
     });
@@ -202,6 +205,12 @@ describe("mergeAdminSettings — server-driven home + custom features", () => {
           customFeatures: [
             { id: "f1", title: "Bad", url: "https://x.io", openMode: "iframe" },
           ],
+        },
+      }),
+    ).toThrow();
+  });
+});
+
 describe("mergeAdminSettings — pricing season pass (Zod-safe)", () => {
   it("does not fall back to defaults for stored settings saved BEFORE seasonPass existed", () => {
     // Fixture: a settings object persisted before the seasonPass field shipped,

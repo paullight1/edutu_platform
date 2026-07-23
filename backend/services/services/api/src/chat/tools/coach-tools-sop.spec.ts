@@ -30,6 +30,9 @@ describe("CoachToolsService draft_sop — interview-first", () => {
       documentsService,
       stub, // cvService
       stub, // shareCardService
+      stub, // applicationDocs
+      stub, // uploads
+      stub, // aiService
     );
 
     collectDocuments = jest.fn();

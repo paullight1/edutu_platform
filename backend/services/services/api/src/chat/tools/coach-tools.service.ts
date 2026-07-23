@@ -383,7 +383,7 @@ export class CoachToolsService {
           ctx,
           "full_name, country, school, major, degree, age, interests, skills, interested_countries",
         );
-        const profile = (data ?? {}) as Record<string, unknown>;
+        const profile = data ?? {};
         const missing = [
           !profile.country && "country",
           !(profile.interests as string[] | null)?.length && "interests",

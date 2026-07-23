@@ -402,11 +402,11 @@ export class CopilotService {
   private isProfileGrounded(profile: ProfileContext): boolean {
     return Boolean(
       profile.country ||
-        profile.major ||
-        profile.degree ||
-        profile.school ||
-        profile.interests?.length ||
-        profile.skills?.length,
+      profile.major ||
+      profile.degree ||
+      profile.school ||
+      profile.interests?.length ||
+      profile.skills?.length,
     );
   }
 
@@ -1007,7 +1007,7 @@ export class CopilotService {
       type: row.type ?? null,
       eligibility:
         row.eligibility && typeof row.eligibility === "object"
-          ? (row.eligibility as Record<string, unknown>)
+          ? row.eligibility
           : null,
       requirements: list(metadata.requirements),
       benefits: list(metadata.benefits),
@@ -1110,7 +1110,7 @@ export class CopilotService {
     return row;
   }
 
-  private async withOpportunity(
+  private withOpportunity(
     kitRow: ApplicationKit,
     opportunity: OpportunityContext,
   ) {

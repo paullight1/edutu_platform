@@ -279,6 +279,10 @@ export class MonetizationService {
           charged: 0,
           ledgerId: null,
           chatCounted,
+          remaining: Math.max(
+            0,
+            pricing.freeTier.dailyChatMessages - usage.chatMessages,
+          ),
           day: chatDay,
         };
       }

@@ -209,7 +209,12 @@ describe("CopilotService.generateKit", () => {
     };
     routeSelects({ [APP_KITS]: () => [cached] });
 
-    const result = await service.generateKit(RAW_USER_ID, OPP_ID, false, AUTH_ID);
+    const result = await service.generateKit(
+      RAW_USER_ID,
+      OPP_ID,
+      false,
+      AUTH_ID,
+    );
 
     expect(result).toBe(cached);
     expect(monetization.meter).not.toHaveBeenCalled();
@@ -221,7 +226,9 @@ describe("CopilotService.generateKit", () => {
   // hands the credits back — the fallback template must cost nothing.
   it("falls back to a heuristic kit and refunds the charge when the AI fails", async () => {
     const { service, ai, monetization, charge } = makeService();
-    (ai.generateJson as jest.Mock).mockRejectedValue(new Error("provider down"));
+    (ai.generateJson as jest.Mock).mockRejectedValue(
+      new Error("provider down"),
+    );
     routeSelects({
       [APP_KITS]: () => [], // no cached kit, no concurrent winner
       [OPPORTUNITIES]: () => [opportunityRow()],
@@ -265,7 +272,13 @@ describe("CopilotService.generateKit", () => {
       [PROFILES]: (whereText: string) =>
         whereText.includes("clerk_id_to_uuid")
           ? [{ country: "Nowhere" }]
-          : [{ fullName: "Amara", country: "Kenya", major: "Computer Science" }],
+          : [
+              {
+                fullName: "Amara",
+                country: "Kenya",
+                major: "Computer Science",
+              },
+            ],
     });
 
     await service.generateKit(RAW_USER_ID, OPP_ID, false, AUTH_ID);
@@ -316,9 +329,8 @@ describe("CopilotService.generateKit", () => {
 
     await service.generateKit(RAW_USER_ID, OPP_ID, false, AUTH_ID);
 
-    const kit = dbState().inserts.find(
-      (row: any) => row.tableName === APP_KITS,
-    )?.values.kit;
+    const kit = dbState().inserts.find((row: any) => row.tableName === APP_KITS)
+      ?.values.kit;
     expect(kit.strategy).toEqual(["Lead with results", "Quantify impact"]);
     expect(kit.checklist).toHaveLength(1);
     expect(kit.checklist[0]).toMatchObject({
@@ -348,7 +360,11 @@ describe("CopilotService.generateKit", () => {
         fitNote: "old",
         checklist: [
           { id: "old-cv", label: "Prepare CV", category: "documents" },
-          { id: "old-ref", label: "Request references", category: "preparation" },
+          {
+            id: "old-ref",
+            label: "Request references",
+            category: "preparation",
+          },
         ],
       },
       essays: [],
@@ -377,9 +393,8 @@ describe("CopilotService.generateKit", () => {
 
     await service.generateKit(RAW_USER_ID, OPP_ID, true, AUTH_ID);
 
-    const kit = dbState().inserts.find(
-      (row: any) => row.tableName === APP_KITS,
-    )?.values.kit;
+    const kit = dbState().inserts.find((row: any) => row.tableName === APP_KITS)
+      ?.values.kit;
     expect(kit.checklist[0].id).toBe("old-cv");
     expect(kit.checklist[1].id).toBe("new-2");
   });
