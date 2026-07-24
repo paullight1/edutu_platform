@@ -51,6 +51,7 @@ import {
   annotateHiddenGems,
   resolveHiddenGemOptions,
 } from "./hidden-gems";
+import { deadlineSlaPenalty } from "./deadline-sla";
 
 // Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
 // (legacy behavior only). Lets the new engine ship dark and flip via env.
@@ -444,8 +445,8 @@ export class OpportunityRankingService {
           !RECS_ELIGIBILITY_GATE ||
           checkEligibility(row.eligibility, eligibilityProfile).eligible,
       )
-      .map((row) =>
-        this.rankCandidate(row, {
+      .map((row) => {
+        const ranked = this.rankCandidate(row, {
           profile,
           preferences,
           goals,
@@ -453,8 +454,32 @@ export class OpportunityRankingService {
           signalScore: signalScores.get(row.id),
           categoryAffinities,
           useBlender: Boolean(profileEmbedding),
-        }),
-      );
+        });
+        // Deadline SLA: deprioritize (never drop) active rows with no date and
+        // no explicit rolling classification once past the grace window, so the
+        // top rails favor opportunities whose deadline we can actually stand behind.
+        const rowAny = row as Record<string, unknown>;
+        const metadata = (rowAny.metadata ?? null) as Record<
+          string,
+          unknown
+        > | null;
+        const penalty = deadlineSlaPenalty({
+          hasDate: Boolean(row.deadline || rowAny.close_date),
+          confidence: metadata?.deadline_confidence as string | undefined,
+          firstSeenAt: (rowAny.first_seen_at ?? rowAny.firstSeenAt) as
+            | string
+            | Date
+            | null
+            | undefined,
+        });
+        if (penalty > 0) {
+          ranked.match = Math.max(0, ranked.match - penalty);
+          if (!ranked.matchRisks.includes("Deadline unconfirmed")) {
+            ranked.matchRisks = [...ranked.matchRisks, "Deadline unconfirmed"];
+          }
+        }
+        return ranked;
+      });
 
     // Hidden-gem pass: annotate + boost strong-fit, low-competition listings
     // BEFORE the sort so gems actually rise. No-op when disabled or when the
