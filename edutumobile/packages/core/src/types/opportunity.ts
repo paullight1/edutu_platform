@@ -1,5 +1,16 @@
 export type OpportunityDifficulty = 'Easy' | 'Medium' | 'Hard';
 export type OpportunitySource = 'admin' | 'n8n' | 'manual' | 'import';
+export type DeadlineConfidence = 'explicit' | 'inferred' | 'rolling' | 'unknown';
+
+/**
+ * Curated trust signals shown to learners: whether the opportunity was
+ * verified, when it was last checked, and how confident we are in the deadline.
+ */
+export interface OpportunityTrust {
+  verified: boolean;
+  lastVerifiedAt: string | null;
+  deadlineConfidence: DeadlineConfidence;
+}
 export type OpportunityCanonicalCategory = 'scholarships' | 'careers' | 'leadership' | 'global_programs' | 'training_conferences' | 'other';
 
 export type MatchReasonKind =
@@ -84,6 +95,9 @@ export interface Opportunity {
 
   // Roadmap / preparation steps
   roadmap?: Array<{ id?: string; title: string; description?: string }>;
+
+  /** Curated verification/freshness/deadline-confidence signals. */
+  trust?: OpportunityTrust | null;
 }
 
 export interface OpportunityFilters {

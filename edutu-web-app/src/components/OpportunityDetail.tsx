@@ -43,6 +43,7 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
 import { getMatchLabel, WhyThisMatches } from "./opportunity/MatchInsights";
+import TrustSignal from "./opportunity/TrustSignal";
 import { recordOpportunitySignal } from "../services/opportunitySignals";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
@@ -868,6 +869,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   {opportunity.organization}
                 </p>
               ) : null}
+              <TrustSignal trust={opportunity.trust} className="max-w-3xl" />
               <div className="max-w-3xl space-y-3 break-words text-base leading-7 text-text-secondary [overflow-wrap:anywhere]">
                 {descriptionParagraphs.length > 0 ? (
                   descriptionParagraphs.map((paragraph, index) => (

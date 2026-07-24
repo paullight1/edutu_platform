@@ -84,7 +84,38 @@ export function stripInternalOpportunityFields(
   ) {
     cleaned.share_image_url = shareCardUrl;
   }
+
+  // Curated trust block. Credibility is the product's moat, yet learners saw
+  // none of the verification work — verification_status/last_verified_at and the
+  // deadline confidence were all stripped. This hoists a SAFE subset (a boolean,
+  // a timestamp, a confidence label) so the UI can show "Verified · checked 2h
+  // ago" and mark estimated/rolling deadlines, without exposing the paid DTO or
+  // anything harvestable.
+  cleaned.trust = {
+    verified:
+      row.verification_status === "verified" && row.status === "active",
+    lastVerifiedAt:
+      typeof row.last_verified_at === "string" ? row.last_verified_at : null,
+    deadlineConfidence: normalizeDeadlineConfidence(
+      metadata?.deadline_confidence,
+    ),
+  };
   return cleaned;
+}
+
+type PublicDeadlineConfidence =
+  | "explicit"
+  | "inferred"
+  | "rolling"
+  | "unknown";
+
+function normalizeDeadlineConfidence(value: unknown): PublicDeadlineConfidence {
+  return value === "explicit" ||
+    value === "inferred" ||
+    value === "rolling" ||
+    value === "unknown"
+    ? value
+    : "unknown";
 }
 
 export function stripInternalOpportunityFieldsBatch(
