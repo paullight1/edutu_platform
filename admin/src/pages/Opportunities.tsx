@@ -496,6 +496,16 @@ function buildAdminOpportunityShareText(
   ].join("\n");
 }
 
+/** True when the caption already carries this link (tolerating www./trailing-
+ * slash variants), so the share never renders the same link twice. */
+function shareTextIncludesUrl(text: string, url: string) {
+  const key = url
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/+$/, "");
+  return key.length > 0 && text.includes(key);
+}
+
 function downloadShareBlob(blob: Blob, fileName: string) {
   const href = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -1946,10 +1956,14 @@ export default function Opportunities() {
         imageChoice === "meta"
           ? await buildMetaImageFile(opportunity)
           : await buildShareImageFile(opportunity, sharePayload?.shareCard);
+      // The caption already embeds the link ("Click the link below to apply");
+      // passing `url` too makes most targets render the link twice.
       const shareData = {
         title: normalizeText(opportunity.title, "Edutu opportunity"),
         text: shareText,
-        url: finalShareUrl,
+        ...(shareTextIncludesUrl(shareText, finalShareUrl)
+          ? {}
+          : { url: finalShareUrl }),
       };
 
       if (

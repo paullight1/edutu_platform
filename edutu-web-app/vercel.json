@@ -13,14 +13,11 @@
     },
     {
       "source": "/opportunity/:id",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|WhatsApp|Slack|Embedly|Pinterest|Flipboard|Tumblr|Mastodon|vkShare|W3C_Validator|SkypeUriPreview|Google-InspectionTool|Applebot|bot|Bot|crawler|Crawler|spider|Spider).*"
-        }
-      ],
       "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
+    },
+    {
+      "source": "/share/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
     },
     {
       "source": "/opportunities",
