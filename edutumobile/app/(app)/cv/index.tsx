@@ -42,7 +42,7 @@ import * as cvService from '@edutu/core/src/services/cv';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { isAiBillingError } from '@edutu/core/src/services/productApi';
 import { useUpgradeSheet } from '../../../components/context/UpgradeSheetContext';
-import { exportCVAsPdf } from '../../../lib/exportCv';
+import { buildExportName, exportCVAsPdf } from '../../../lib/exportCv';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
 
@@ -54,6 +54,7 @@ import { CVPreview } from '../../../components/cv/CVPreview';
 import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
 import { CVTailorResultModal, TailorResult } from '../../../components/cv/CVTailorResultModal';
+import { CoverLetterSheet } from '../../../components/cv/CoverLetterSheet';
 import { CvToast } from '../../../components/cv/CvToast';
 import { CvModalBackdrop } from '../../../components/cv/CvModalBackdrop';
 import { haptics } from '../../../lib/haptics';
@@ -214,6 +215,13 @@ export default function CVBuilderScreen() {
     const [showAIModal, setShowAIModal] = useState(false);
     const [tailorResult, setTailorResult] = useState<TailorResult | null>(null);
     const [tailorTargetTitle, setTailorTargetTitle] = useState<string | undefined>(undefined);
+    // Org (falls back to title) of the last tailored opportunity — used for
+    // professional export names like "Amara Okafor - CV - Acme Health.pdf".
+    const [tailorTargetOrg, setTailorTargetOrg] = useState<string | undefined>(undefined);
+    // Cover letter sheet state (generated for the tailored opportunity).
+    const [coverLetter, setCoverLetter] = useState('');
+    const [coverLetterVisible, setCoverLetterVisible] = useState(false);
+    const [isCoverLetterLoading, setIsCoverLetterLoading] = useState(false);
     const [showLinkedInModal, setShowLinkedInModal] = useState(false);
     const [previewTemplate, setPreviewTemplate] = useState<CVTemplate | null>(null);
     const [linkedInUrl, setLinkedInUrl] = useState('');
@@ -228,7 +236,6 @@ export default function CVBuilderScreen() {
     const [summaryUndo, setSummaryUndo] = useState<string | null>(null);
     // "Consider adding" chips already inserted into skills from the tailor sheet.
     const [addedKeywords, setAddedKeywords] = useState<string[]>([]);
-
     const hideToast = useCallback(() => setToast(null), []);
 
     // Identity from the signed-in user — used to name the CV after the user and
@@ -413,6 +420,92 @@ export default function CVBuilderScreen() {
         );
     };
 
+    // One-tap fix from the ATS checklist's title_match row: mirror the
+    // opportunity's exact title as the CV's title.
+    const handleUseProposedTitle = (title: string) => {
+        const next = title.trim();
+        if (!next) return;
+        setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, name: next }));
+    };
+
+    // "Make it measurable": append the user's number to the bullet the AI asked
+    // about. Only mutates when the target text matches exactly (summary, an
+    // experience description, or a highlight); otherwise the question stays
+    // guidance-only in the sheet.
+    const handleQuantify = (target: string, answer: string): boolean => {
+        const trimmedTarget = target.trim();
+        const trimmedAnswer = answer.trim();
+        if (!trimmedTarget || !trimmedAnswer) return false;
+
+        const data = currentCV.data_json;
+        if (!data) return false;
+        const appended = `${trimmedTarget} — ${trimmedAnswer}`;
+        let applied = false;
+
+        let summary = data.summary;
+        if (summary?.trim() === trimmedTarget) {
+            summary = appended;
+            applied = true;
+        }
+        const experience = (data.experience || []).map((item) => {
+            let next = item;
+            if (item.description?.trim() === trimmedTarget) {
+                next = { ...next, description: appended };
+                applied = true;
+            }
+            if ((item.highlights || []).some((h) => h.trim() === trimmedTarget)) {
+                next = {
+                    ...next,
+                    highlights: (item.highlights || []).map((h) =>
+                        h.trim() === trimmedTarget ? appended : h,
+                    ),
+                };
+                applied = true;
+            }
+            return next;
+        });
+        const projects = (data.projects || []).map((item) => {
+            if (item.description?.trim() === trimmedTarget) {
+                applied = true;
+                return { ...item, description: appended };
+            }
+            return item;
+        });
+
+        if (!applied) return false;
+        setCurrentCV((prev: Partial<UserCV>) => ({
+            ...prev,
+            data_json: { ...prev.data_json, summary, experience, projects },
+        }));
+        return true;
+    };
+
+    // Cover letter for the opportunity the CV was last tailored to.
+    const handleCoverLetter = async () => {
+        const opportunityId = currentCV.target_opportunity_id;
+        if (!user || !opportunityId || isCoverLetterLoading) return;
+        setCoverLetter('');
+        setCoverLetterVisible(true);
+        setIsCoverLetterLoading(true);
+        try {
+            const letter = await cvService.generateCoverLetterWithAI({
+                opportunityId,
+                currentCVData: currentCV.data_json || {},
+                cvId: currentCV.id,
+                getToken,
+            });
+            setCoverLetter(letter);
+        } catch (error) {
+            console.error('Error generating cover letter:', error);
+            setCoverLetterVisible(false);
+            if (!showBillingAlert(error)) {
+                Alert.alert(t('common:states.error'), t('coverLetter.failed'));
+            }
+        } finally {
+            setIsCoverLetterLoading(false);
+        }
+    };
+
     // Promise-chain style (not async/await) so every setState lives in an
     // async callback — the set-state-in-effect rule treats awaited sets in a
     // named async callee as synchronous. `isLoading` starts true, so the mount
@@ -593,7 +686,11 @@ export default function CVBuilderScreen() {
         if (isExporting) return;
         setIsExporting(true);
         try {
-            const mode = await exportCVAsPdf(currentCV);
+            // "{Full Name} - CV - {Org}" naming when the CV was tailored to an
+            // opportunity this session; plain "{Full Name} - CV" otherwise.
+            const mode = await exportCVAsPdf(currentCV, {
+                tailoredTo: currentCV.target_opportunity_id ? tailorTargetOrg : undefined,
+            });
             if (mode === 'text') {
                 Alert.alert(t('alerts.sharedAsTextTitle'), t('alerts.sharedAsTextMessage'));
             }
@@ -635,13 +732,18 @@ export default function CVBuilderScreen() {
             setActiveSection('editor');
             // Surface a designed outcome sheet (with a direct PDF export) instead
             // of a raw system alert.
-            setTailorTargetTitle(opportunities.find((o) => o.id === opportunityId)?.title);
+            const targetOpportunity = opportunities.find((o) => o.id === opportunityId);
+            setTailorTargetTitle(targetOpportunity?.title);
+            setTailorTargetOrg(targetOpportunity?.organization || targetOpportunity?.title);
             setAddedKeywords([]);
             setTailorResult({
                 match_score: result.match_score,
                 improvements: result.improvements || [],
                 matched_keywords: result.matched_keywords || [],
                 missing_keywords: result.missing_keywords || [],
+                atsChecklist: result.atsChecklist,
+                proposedTitle: result.proposedTitle,
+                quantifyQuestions: result.quantifyQuestions,
             });
         } catch (error) {
             console.error('Error tailoring CV:', error);
@@ -881,6 +983,23 @@ export default function CVBuilderScreen() {
                 onViewCv={() => setTailorResult(null)}
                 onAddKeyword={handleAddMissingKeyword}
                 addedKeywords={addedKeywords}
+                onUseProposedTitle={handleUseProposedTitle}
+                onQuantify={handleQuantify}
+                onCoverLetter={currentCV.target_opportunity_id ? handleCoverLetter : undefined}
+                isCoverLetterLoading={isCoverLetterLoading}
+            />
+
+            <CoverLetterSheet
+                visible={coverLetterVisible}
+                onClose={() => setCoverLetterVisible(false)}
+                letter={coverLetter}
+                isLoading={isCoverLetterLoading}
+                opportunityTitle={tailorTargetTitle}
+                shareTitle={buildExportName({
+                    fullName: currentCV.data_json?.header?.full_name,
+                    kind: 'Cover Letter',
+                    context: tailorTargetOrg,
+                })}
             />
 
             {/* Tailoring in progress — the picker closes on select, so give the

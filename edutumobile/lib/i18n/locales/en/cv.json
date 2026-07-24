@@ -76,7 +76,24 @@
     "exporting": "Preparing PDF…",
     "scoreLow": "Room to grow",
     "scoreMedium": "Solid fit",
-    "scoreHigh": "Strong match"
+    "scoreHigh": "Strong match",
+    "checklistTitle": "ATS checklist",
+    "useTitle": "Use \"{{title}}\"",
+    "titleApplied": "Title updated",
+    "measurableTitle": "Make it measurable",
+    "measurableHint": "Strong bullets carry a number. Answer honestly — we never invent figures for you.",
+    "measurablePlaceholder": "e.g. 6 hours a week, 200 records",
+    "measurableApplied": "Added to your CV",
+    "measurableGuidance": "That bullet changed since tailoring — weave the number in yourself in the editor.",
+    "coverLetter": "Cover letter",
+    "coverLetterLoading": "Writing…"
+  },
+  "coverLetter": {
+    "title": "Cover letter",
+    "loadingPhase1": "Reading the opportunity…",
+    "loadingPhase2": "Writing like a human…",
+    "copy": "Copy / Share",
+    "failed": "We couldn't write the cover letter. Please try again."
   },
   "upgrade": {
     "templateFeature": "{{name}} template"

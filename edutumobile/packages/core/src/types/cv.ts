@@ -175,10 +175,34 @@ export interface AITailorRequest {
   targetRole?: string;
 }
 
+export type AtsChecklistStatus = 'pass' | 'fix' | 'n/a';
+
+export interface AtsChecklistItem {
+  id: string;
+  label: string;
+  status: AtsChecklistStatus;
+  /** Specific to this CV/opportunity pair — which bullets/phrases to act on. */
+  detail?: string;
+  /** One educational sentence on why this item matters. */
+  why?: string;
+}
+
+export interface QuantifyQuestion {
+  /** Exact bullet/summary text the question is about. */
+  target: string;
+  question: string;
+}
+
 export interface AITailorResponse {
   tailored_cv: CVData;
   match_score: number;
   improvements: string[];
   matched_keywords: string[];
   missing_keywords: string[];
+  /** ATS-grade audit — absent on old cached results. */
+  atsChecklist?: AtsChecklistItem[];
+  /** Honest role-title mirror suggestion; null/absent when it would inflate. */
+  proposedTitle?: string | null;
+  /** Short concrete questions for bullets that lack a number (max 4). */
+  quantifyQuestions?: QuantifyQuestion[];
 }

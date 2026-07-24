@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
+    TextInput,
     TouchableOpacity,
     StyleSheet,
     Modal,
@@ -17,7 +18,22 @@ import Animated, {
     Easing,
 } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { X, Check, Download, Wand2, Pencil, Plus } from 'lucide-react-native';
+import {
+    X,
+    Check,
+    Download,
+    Wand2,
+    Pencil,
+    Plus,
+    CheckCircle2,
+    AlertCircle,
+    MinusCircle,
+    ChevronDown,
+    Ruler,
+    ArrowUp,
+    FileText,
+} from 'lucide-react-native';
+import type { AtsChecklistItem, QuantifyQuestion } from '@edutu/core/src/types/cv';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../components/context/ThemeContext';
 import AnimatedCounter from '../ui/AnimatedCounter';
@@ -31,6 +47,10 @@ export interface TailorResult {
     improvements: string[];
     matched_keywords: string[];
     missing_keywords: string[];
+    /** New ATS-grade fields — absent on old cached results. */
+    atsChecklist?: AtsChecklistItem[];
+    proposedTitle?: string | null;
+    quantifyQuestions?: QuantifyQuestion[];
 }
 
 interface Props {
@@ -45,6 +65,16 @@ interface Props {
     onAddKeyword?: (keyword: string) => void;
     /** Keywords already inserted via onAddKeyword — rendered as covered. */
     addedKeywords?: string[];
+    /** One-tap fix for the title_match item: apply the proposed CV title. */
+    onUseProposedTitle?: (title: string) => void;
+    /**
+     * "Make it measurable": append the answer to the target bullet. Returns
+     * true when the target was found and updated; false → guidance-only hint.
+     */
+    onQuantify?: (target: string, answer: string) => boolean;
+    /** Generate a cover letter for the tailored opportunity. */
+    onCoverLetter?: () => void;
+    isCoverLetterLoading?: boolean;
 }
 
 const RING_SIZE = 132;
@@ -73,6 +103,10 @@ export function CVTailorResultModal({
     onViewCv,
     onAddKeyword,
     addedKeywords = [],
+    onUseProposedTitle,
+    onQuantify,
+    onCoverLetter,
+    isCoverLetterLoading,
 }: Props) {
     const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
@@ -82,13 +116,32 @@ export function CVTailorResultModal({
 
     const score = Math.max(0, Math.min(100, Math.round(result?.match_score || 0)));
 
+    // ATS checklist expand/collapse + one-tap-fix state.
+    const [expandedIds, setExpandedIds] = useState<string[]>([]);
+    const [titleApplied, setTitleApplied] = useState(false);
+    // Per-question answer drafts and outcomes for "Make it measurable".
+    const [answers, setAnswers] = useState<Record<number, string>>({});
+    const [outcomes, setOutcomes] = useState<Record<number, 'applied' | 'guidance'>>({});
+    // Adjust-during-render reset (not an effect — avoids cascading renders):
+    // each fresh open starts with collapsed rows and blank answers.
+    const [prevVisible, setPrevVisible] = useState(visible);
+    if (visible !== prevVisible) {
+        setPrevVisible(visible);
+        if (visible) {
+            setExpandedIds([]);
+            setTitleApplied(false);
+            setAnswers({});
+            setOutcomes({});
+        }
+    }
+
     // Mount animation: the progress arc sweeps from 0 to the score.
     const ringProgress = useSharedValue(0);
     useEffect(() => {
         if (visible) {
-             
+
             ringProgress.value = 0;
-             
+
             ringProgress.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
         }
     }, [visible, score, ringProgress]);
@@ -105,6 +158,32 @@ export function CVTailorResultModal({
     const improvements = (result.improvements || []).filter(Boolean).slice(0, 5);
     const matched = (result.matched_keywords || []).filter(Boolean).slice(0, 10);
     const missing = (result.missing_keywords || []).filter(Boolean).slice(0, 10);
+    // Graceful when the new fields are absent (old cached results).
+    const checklist = (result.atsChecklist || []).filter((item) => item?.id && item?.label);
+    const quantifyQuestions = (result.quantifyQuestions || [])
+        .filter((q) => q?.question)
+        .slice(0, 4);
+
+    const toggleExpanded = (id: string) => {
+        haptics.light();
+        setExpandedIds((prev) =>
+            prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+        );
+    };
+
+    const statusIcon = (status: AtsChecklistItem['status']) => {
+        if (status === 'pass') return <CheckCircle2 size={18} color="#16A34A" />;
+        if (status === 'fix') return <AlertCircle size={18} color="#D97706" />;
+        return <MinusCircle size={18} color={muted} />;
+    };
+
+    const submitAnswer = (index: number, question: QuantifyQuestion) => {
+        const answer = (answers[index] || '').trim();
+        if (!answer || !onQuantify || outcomes[index] === 'applied') return;
+        const applied = onQuantify(question.target, answer);
+        haptics.success();
+        setOutcomes((prev) => ({ ...prev, [index]: applied ? 'applied' : 'guidance' }));
+    };
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -249,10 +328,255 @@ export function CVTailorResultModal({
                                 <Text style={[styles.missingHint, { color: muted }]}>{t('tailorResult.missingHint')}</Text>
                             </View>
                         )}
+
+                        {checklist.length > 0 && (
+                            <View style={styles.section}>
+                                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                                    {t('tailorResult.checklistTitle')}
+                                </Text>
+                                <View
+                                    style={[
+                                        styles.checklistCard,
+                                        {
+                                            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+                                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+                                        },
+                                    ]}
+                                >
+                                    {checklist.map((item, i) => {
+                                        const expanded = expandedIds.includes(item.id);
+                                        const isNa = item.status === 'n/a';
+                                        const showTitleChip =
+                                            item.id === 'title_match' &&
+                                            !!result.proposedTitle &&
+                                            !!onUseProposedTitle;
+                                        return (
+                                            <View
+                                                key={item.id}
+                                                style={[
+                                                    styles.checklistRow,
+                                                    i > 0 && {
+                                                        borderTopWidth: 1,
+                                                        borderTopColor: isDark
+                                                            ? 'rgba(255,255,255,0.06)'
+                                                            : '#E2E8F0',
+                                                    },
+                                                ]}
+                                            >
+                                                <TouchableOpacity
+                                                    style={styles.checklistHead}
+                                                    activeOpacity={0.7}
+                                                    onPress={() => toggleExpanded(item.id)}
+                                                >
+                                                    {statusIcon(item.status)}
+                                                    <Text
+                                                        style={[
+                                                            styles.checklistLabel,
+                                                            { color: isNa ? muted : colors.foreground },
+                                                        ]}
+                                                        numberOfLines={2}
+                                                    >
+                                                        {item.label}
+                                                    </Text>
+                                                    <ChevronDown
+                                                        size={16}
+                                                        color={muted}
+                                                        style={expanded ? styles.chevronOpen : undefined}
+                                                    />
+                                                </TouchableOpacity>
+                                                {expanded && (
+                                                    <View style={styles.checklistBody}>
+                                                        {!!item.detail && (
+                                                            <Text
+                                                                style={[
+                                                                    styles.checklistDetail,
+                                                                    { color: isDark ? '#E2E8F0' : '#334155' },
+                                                                ]}
+                                                            >
+                                                                {item.detail}
+                                                            </Text>
+                                                        )}
+                                                        {!!item.why && (
+                                                            <Text style={[styles.checklistWhy, { color: muted }]}>
+                                                                {item.why}
+                                                            </Text>
+                                                        )}
+                                                        {showTitleChip && (
+                                                            <TouchableOpacity
+                                                                style={[
+                                                                    styles.titleChip,
+                                                                    {
+                                                                        backgroundColor: titleApplied
+                                                                            ? 'rgba(34,197,94,0.12)'
+                                                                            : chipBg,
+                                                                    },
+                                                                ]}
+                                                                disabled={titleApplied}
+                                                                activeOpacity={0.7}
+                                                                onPress={() => {
+                                                                    haptics.success();
+                                                                    onUseProposedTitle?.(result.proposedTitle!);
+                                                                    setTitleApplied(true);
+                                                                }}
+                                                            >
+                                                                {titleApplied ? (
+                                                                    <Check size={13} color="#16A34A" strokeWidth={3} />
+                                                                ) : (
+                                                                    <Plus size={13} color={colors.primary} strokeWidth={3} />
+                                                                )}
+                                                                <Text
+                                                                    style={[
+                                                                        styles.titleChipText,
+                                                                        {
+                                                                            color: titleApplied
+                                                                                ? isDark
+                                                                                    ? '#86EFAC'
+                                                                                    : '#15803D'
+                                                                                : colors.primary,
+                                                                        },
+                                                                    ]}
+                                                                    numberOfLines={1}
+                                                                >
+                                                                    {titleApplied
+                                                                        ? t('tailorResult.titleApplied')
+                                                                        : t('tailorResult.useTitle', {
+                                                                              title: result.proposedTitle,
+                                                                          })}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        )}
+
+                        {quantifyQuestions.length > 0 && (
+                            <View style={styles.section}>
+                                <View style={styles.measureHeader}>
+                                    <Ruler size={15} color={colors.primary} />
+                                    <Text style={[styles.sectionTitle, styles.measureTitle, { color: colors.foreground }]}>
+                                        {t('tailorResult.measurableTitle')}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.measureHint, { color: muted }]}>
+                                    {t('tailorResult.measurableHint')}
+                                </Text>
+                                {quantifyQuestions.map((question, i) => {
+                                    const outcome = outcomes[i];
+                                    return (
+                                        <View
+                                            key={`q-${i}`}
+                                            style={[
+                                                styles.measureCard,
+                                                {
+                                                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+                                                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+                                                },
+                                            ]}
+                                        >
+                                            <Text style={[styles.measureQuestion, { color: colors.foreground }]}>
+                                                {question.question}
+                                            </Text>
+                                            {!!question.target && (
+                                                <Text style={[styles.measureTarget, { color: muted }]} numberOfLines={2}>
+                                                    “{question.target}”
+                                                </Text>
+                                            )}
+                                            {outcome === 'applied' ? (
+                                                <View style={styles.measureDoneRow}>
+                                                    <Check size={13} color="#16A34A" strokeWidth={3} />
+                                                    <Text style={[styles.measureDoneText, { color: isDark ? '#86EFAC' : '#15803D' }]}>
+                                                        {t('tailorResult.measurableApplied')}
+                                                    </Text>
+                                                </View>
+                                            ) : (
+                                                <>
+                                                    <View style={styles.measureInputRow}>
+                                                        <TextInput
+                                                            style={[
+                                                                styles.measureInput,
+                                                                {
+                                                                    color: colors.foreground,
+                                                                    borderColor: isDark
+                                                                        ? 'rgba(255,255,255,0.14)'
+                                                                        : '#E2E8F0',
+                                                                },
+                                                            ]}
+                                                            value={answers[i] || ''}
+                                                            onChangeText={(text) =>
+                                                                setAnswers((prev) => ({ ...prev, [i]: text }))
+                                                            }
+                                                            placeholder={t('tailorResult.measurablePlaceholder')}
+                                                            placeholderTextColor={muted}
+                                                            returnKeyType="done"
+                                                            onSubmitEditing={() => submitAnswer(i, question)}
+                                                        />
+                                                        <TouchableOpacity
+                                                            style={[
+                                                                styles.measureSubmit,
+                                                                {
+                                                                    backgroundColor: (answers[i] || '').trim()
+                                                                        ? colors.primary
+                                                                        : chipBg,
+                                                                },
+                                                            ]}
+                                                            disabled={!(answers[i] || '').trim()}
+                                                            onPress={() => submitAnswer(i, question)}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <ArrowUp
+                                                                size={15}
+                                                                color={(answers[i] || '').trim() ? '#FFFFFF' : muted}
+                                                                strokeWidth={3}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    {outcome === 'guidance' && (
+                                                        <Text style={[styles.measureGuidance, { color: muted }]}>
+                                                            {t('tailorResult.measurableGuidance')}
+                                                        </Text>
+                                                    )}
+                                                </>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        )}
                     </ScrollView>
 
                     {/* Actions */}
-                    <View style={[styles.actions, { borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0' }]}>
+                    <View style={[styles.actionsWrap, { borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0' }]}>
+                        {onCoverLetter && (
+                            <TouchableOpacity
+                                style={[
+                                    styles.coverLetterBtn,
+                                    {
+                                        borderColor: isDark ? 'rgba(255,255,255,0.14)' : '#E2E8F0',
+                                        opacity: isCoverLetterLoading ? 0.7 : 1,
+                                    },
+                                ]}
+                                onPress={onCoverLetter}
+                                disabled={isCoverLetterLoading}
+                                activeOpacity={0.85}
+                            >
+                                {isCoverLetterLoading ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <FileText size={16} color={colors.primary} />
+                                )}
+                                <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
+                                    {isCoverLetterLoading
+                                        ? t('tailorResult.coverLetterLoading')
+                                        : t('tailorResult.coverLetter')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        <View style={styles.actions}>
                         <TouchableOpacity
                             style={[styles.secondaryBtn, { borderColor: isDark ? 'rgba(255,255,255,0.14)' : '#E2E8F0' }]}
                             onPress={onViewCv}
@@ -276,6 +600,7 @@ export function CVTailorResultModal({
                                 {isExporting ? t('tailorResult.exporting') : t('tailorResult.exportPdf')}
                             </Text>
                         </TouchableOpacity>
+                        </View>
                     </View>
                 </Animated.View>
             </View>
@@ -434,11 +759,143 @@ const styles = StyleSheet.create({
         marginTop: 10,
         fontStyle: 'italic',
     },
+    checklistCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+    },
+    checklistRow: {
+        paddingHorizontal: 14,
+    },
+    checklistHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 12,
+    },
+    checklistLabel: {
+        flex: 1,
+        fontSize: 13.5,
+        fontWeight: '700',
+    },
+    chevronOpen: {
+        transform: [{ rotate: '180deg' }],
+    },
+    checklistBody: {
+        paddingBottom: 12,
+        paddingLeft: 28,
+        gap: 6,
+    },
+    checklistDetail: {
+        fontSize: 13,
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+    checklistWhy: {
+        fontSize: 12.5,
+        lineHeight: 18,
+        fontStyle: 'italic',
+    },
+    titleChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        marginTop: 4,
+        maxWidth: '100%',
+    },
+    titleChipText: {
+        fontSize: 12.5,
+        fontWeight: '700',
+        flexShrink: 1,
+    },
+    measureHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: 4,
+    },
+    measureTitle: {
+        marginBottom: 0,
+    },
+    measureHint: {
+        fontSize: 12.5,
+        lineHeight: 18,
+        marginBottom: 10,
+    },
+    measureCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 12,
+        marginBottom: 10,
+        gap: 6,
+    },
+    measureQuestion: {
+        fontSize: 13.5,
+        lineHeight: 19,
+        fontWeight: '700',
+    },
+    measureTarget: {
+        fontSize: 12,
+        lineHeight: 17,
+        fontStyle: 'italic',
+    },
+    measureInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 2,
+    },
+    measureInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        fontSize: 13.5,
+    },
+    measureSubmit: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    measureGuidance: {
+        fontSize: 12,
+        lineHeight: 17,
+        fontStyle: 'italic',
+    },
+    measureDoneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 2,
+    },
+    measureDoneText: {
+        fontSize: 12.5,
+        fontWeight: '700',
+    },
+    actionsWrap: {
+        padding: 16,
+        gap: 10,
+        borderTopWidth: 1,
+    },
+    coverLetterBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 7,
+        paddingVertical: 12,
+        borderRadius: 16,
+        borderWidth: 1.5,
+    },
     actions: {
         flexDirection: 'row',
         gap: 12,
-        padding: 16,
-        borderTopWidth: 1,
     },
     secondaryBtn: {
         flex: 1,
