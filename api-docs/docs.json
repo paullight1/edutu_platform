@@ -45,7 +45,9 @@
         "authentication",
         "rate-limits",
         "errors",
-        "pagination"
+        "pagination",
+        "versioning",
+        "changelog"
       ]
     },
     {

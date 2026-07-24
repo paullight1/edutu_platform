@@ -1,0 +1,55 @@
+---
+title: "Versioning & Stability"
+description: "How the Edutu Scholarship API versions its surface and what stability you can rely on."
+---
+
+The Edutu Scholarship API is versioned in the URL path (`/v1`). This page is the
+contract for what may change without notice and what will not.
+
+## Stability guarantees
+
+Within a major version (`/v1`), we treat the following as **additive-only**:
+
+- **Response envelope** — every response is `{ object, data, meta }`. We will
+  not remove or repurpose an existing field.
+- **Opportunity fields** — existing fields keep their name, type, and meaning.
+  New fields may be **added** at any time.
+- **Error shape** — `{ error: { message, status, code, details }, requestId }`.
+  New `code` values may be introduced; existing ones keep their meaning.
+- **Pagination** — cursor semantics (`meta.cursor` / `meta.nextCursor`) are
+  stable. Always paginate with the returned cursor rather than constructing one.
+
+Because new fields can appear at any time, **your integration must ignore
+unknown fields** rather than fail on them.
+
+## What can change without a major bump
+
+- Adding a new endpoint, field, `code`, or optional query parameter.
+- Adding a new `object` type in `data`.
+- Tightening validation on clearly-invalid input that was never documented.
+- Performance, ordering of equally-ranked results, and non-contractual defaults.
+
+## What triggers a new major version
+
+A change that could break a well-behaved client — removing/renaming a field,
+changing a type or the meaning of a value, or changing the envelope — ships
+under a new path (`/v2`). `/v1` continues to serve during the deprecation window.
+
+## Deprecation policy
+
+When an endpoint or field is scheduled for removal in a future major version:
+
+1. It is marked deprecated in the OpenAPI spec and this changelog.
+2. Responses include a `Deprecation` header (RFC 8594) and, where a replacement
+   exists, a `Link: <…>; rel="successor-version"` header.
+3. The old behavior keeps working for **at least 90 days** after the
+   announcement before the major version it belongs to is retired.
+
+## Caching
+
+Documentation endpoints (`/v1`, `/v1/openapi.json`, `/v1/llms.txt`) are safe to
+cache and send `Cache-Control: public, max-age=3600`. Catalog responses are
+per-consumer (they carry your live quota in `meta`) and must not be shared
+across API keys.
+
+See the [changelog](/changelog) for the dated history of changes.
