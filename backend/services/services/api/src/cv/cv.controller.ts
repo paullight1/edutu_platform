@@ -13,7 +13,11 @@ import { memoryStorage } from "multer";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AiMetered } from "../monetization/ai-metered.decorator";
 import { CvService } from "./cv.service";
-import type { GenerateCVDraftDto, TailorCVDto } from "./dto/cv-ai.dto";
+import type {
+  GenerateCVDraftDto,
+  GenerateCoverLetterDto,
+  TailorCVDto,
+} from "./dto/cv-ai.dto";
 import type { SaveCVRecordDto } from "./dto/cv-record.dto";
 import type { ExportUploadFile } from "./linkedin-import.service";
 
@@ -57,6 +61,19 @@ export class CvController {
   @AiMetered("cvAi")
   tailor(@CurrentUser("id") userId: string, @Body() dto: TailorCVDto) {
     return this.cvService.tailor(userId, dto);
+  }
+
+  /**
+   * 5-paragraph, <400-word cover letter in a human tone, grounded in the CV
+   * and the opportunity record. Same metering as the other CV AI endpoints.
+   */
+  @Post("ai/cover-letter")
+  @AiMetered("cvAi")
+  coverLetter(
+    @CurrentUser("id") userId: string,
+    @Body() dto: GenerateCoverLetterDto,
+  ) {
+    return this.cvService.generateCoverLetter(userId, dto);
   }
 
   /**

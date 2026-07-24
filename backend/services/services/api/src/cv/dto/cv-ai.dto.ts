@@ -104,3 +104,39 @@ export interface TailorCVDto {
   opportunity: CVOpportunityContextDto;
   userNotes?: string;
 }
+
+export type AtsChecklistStatus = "pass" | "fix" | "n/a";
+
+export type AtsChecklistId =
+  | "title_match"
+  | "verbatim_keywords"
+  | "structure_mirror"
+  | "quantified_bullets"
+  | "ats_format"
+  | "values_alignment"
+  | "specific_interest"
+  | "terminology"
+  | "completeness"
+  | "apply_fast";
+
+export interface AtsChecklistItemDto {
+  id: AtsChecklistId;
+  label: string;
+  status: AtsChecklistStatus;
+  detail: string;
+  why: string;
+}
+
+export interface QuantifyQuestionDto {
+  /** The exact bullet/summary text the question is about. */
+  target: string;
+  question: string;
+}
+
+export interface GenerateCoverLetterDto {
+  /** Saved CV id (user_cvs or cv_records); optional when currentCV is sent. */
+  cvId?: string;
+  opportunityId: string;
+  /** Inline CV data — preferred, avoids a lookup for local-only CVs. */
+  currentCV?: CVDataDto;
+}
