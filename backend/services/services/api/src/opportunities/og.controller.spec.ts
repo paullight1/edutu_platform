@@ -95,7 +95,7 @@ describe("OgController shell-injected Open Graph", () => {
     }) as any;
   }
 
-  it("serves the SPA shell with the opportunity's source image injected", async () => {
+  it("serves the SPA shell preferring the hosted (Supabase) image copy", async () => {
     mockShellFetch();
     const controller = makeController(OPPORTUNITY);
     const res = makeRes();
@@ -107,9 +107,12 @@ describe("OgController shell-injected Open Graph", () => {
 
     // Still the real app shell…
     expect(html).toContain('<script type="module" src="/assets/index-abc.js">');
-    // …but with the opportunity's own meta.
+    // …but with the opportunity's own meta. The hosted copy (image_url, the
+    // Supabase-proxied flyer) beats the original third-party source URL —
+    // source sites can take images down or block hotlinking.
     expect(html).toContain("Mandela Rhodes Scholarship 2027 | Edutu");
-    expect(html).toContain("https://source.example.org/poster.png");
+    expect(html).toContain("https://cdn.example.org/flyer.jpg");
+    expect(html).not.toContain("https://source.example.org/poster.png");
     expect(html).not.toContain("icons/icon-512x512.png\"\n    />");
     expect(html).toMatch(
       /<meta property="og:url" content="https:\/\/www\.edutu\.org\/opportunity\/opp-1"/,
@@ -122,17 +125,28 @@ describe("OgController shell-injected Open Graph", () => {
     const html = await controller.shareOpportunity("opp-1", makeRes());
 
     expect(html).toContain("https://www.edutu.org/share/opportunity/opp-1");
-    expect(html).toContain("https://source.example.org/poster.png");
+    expect(html).toContain("https://cdn.example.org/flyer.jpg");
   });
 
-  it("falls back to opportunity image_url when there is no source flyer", async () => {
+  it("falls back to the source flyer when there is no hosted image copy", async () => {
     mockShellFetch();
     const controller = makeController({
       ...OPPORTUNITY,
-      metadata: {},
+      image_url: null,
     });
     const html = await controller.opportunity("opp-1", makeRes());
-    expect(html).toContain("https://cdn.example.org/flyer.jpg");
+    expect(html).toContain("https://source.example.org/poster.png");
+  });
+
+  it("does not let a generated share-card fallback in image_url outrank the source flyer", async () => {
+    mockShellFetch();
+    const controller = makeController({
+      ...OPPORTUNITY,
+      image_url:
+        "https://x.supabase.co/storage/v1/object/public/opportunity-share-cards/opp-1.svg",
+    });
+    const html = await controller.opportunity("opp-1", makeRes());
+    expect(html).toContain("https://source.example.org/poster.png");
   });
 
   it("falls back to the self-contained OG page when the shell fetch fails", async () => {
@@ -142,7 +156,7 @@ describe("OgController shell-injected Open Graph", () => {
     const html = await controller.opportunity("opp-1", res);
 
     // No shell → the mini page still carries the real meta for crawlers.
-    expect(html).toContain("https://source.example.org/poster.png");
+    expect(html).toContain("https://cdn.example.org/flyer.jpg");
     expect(html).toContain("Mandela Rhodes Scholarship 2027 | Edutu");
     expect(html).not.toContain("/assets/index-abc.js");
   });

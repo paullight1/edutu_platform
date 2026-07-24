@@ -390,15 +390,24 @@ export class OgController {
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
 
-    // Image priority: scraped source flyer → opportunity image → cached branded
-    // card → generic Edutu icon.
+    // Image priority: hosted flyer copy → original source flyer → share image
+    // → branded card → generic Edutu icon. `image_url` is the scraper's
+    // Supabase-proxied copy of the source flyer, so it leads: source sites
+    // take images down or block hotlinking, and a dead og:image kills the
+    // unfurl. Rows whose image_url is a generated share-card fallback
+    // (opportunity-share-cards bucket) are demoted to branded-card tier so a
+    // real flyer still wins.
+    const hostedImage = clean(opp.image_url || opp.imageUrl);
+    const hostedIsShareCard = hostedImage.includes("opportunity-share-cards");
     const sourceImage =
       clean(metadata.source_image_url) ||
       clean(opp.source_image_url || opp.sourceImageUrl);
-    const brandedCard = clean(asRecord(metadata.share_card).url);
+    const brandedCard =
+      clean(asRecord(metadata.share_card).url) ||
+      (hostedIsShareCard ? hostedImage : "");
     const image =
+      (hostedIsShareCard ? "" : hostedImage) ||
       sourceImage ||
-      clean(opp.image_url || opp.imageUrl) ||
       clean(opp.share_image_url || opp.shareImageUrl) ||
       brandedCard ||
       this.defaultImage;
