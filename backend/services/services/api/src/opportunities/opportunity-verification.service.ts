@@ -9,7 +9,17 @@ import {
   pageSaysClosed,
   DeadlineConfidence,
 } from "./deadline.util";
+import {
+  classifyHttpStatus,
+  isInconclusive,
+  decideHealthOutcome,
+} from "./verification-classify";
 import { AiService } from "../ai";
+
+// Reuse the scraper's relay convention so both crawler and verifier defeat the
+// same Cloudflare/anti-bot blocks. r.jina.ai returns the rendered page as text.
+const VERIFIER_FETCH_RELAY_URL =
+  process.env.SCRAPER_FETCH_RELAY_URL ?? "https://r.jina.ai/{url}";
 
 export interface VerificationRunOptions {
   limit?: number;
@@ -50,6 +60,12 @@ type VerificationOutcome = {
    */
   newCloseDate?: string | null;
   newDeadlineConfidence?: DeadlineConfidence;
+  /**
+   * Explicit broken-link counter to persist. When set, it overrides the
+   * status-derived CASE logic so a WAF block never accumulates toward the
+   * pending_review demotion threshold. Only genuine dead pages (404/410) count.
+   */
+  newBrokenLinkCount?: number;
 };
 
 @Injectable()
@@ -404,8 +420,13 @@ export class OpportunityVerificationService {
     const page = await this.fetchPageText(url);
     base.httpStatus = page.httpStatus;
 
-    if (page.error && page.httpStatus === null) {
-      // Transient network failure — don't close on missing evidence.
+    const cls = classifyHttpStatus(page.httpStatus);
+
+    // Inconclusive fetch (WAF block, 5xx, or network failure) — even after the
+    // relay attempt inside fetchPageText. We have NO evidence the opportunity
+    // closed, so we must not close it: keep the current status and retry in 12h.
+    // This is the fix for legit annual programs behind Cloudflare being killed.
+    if (isInconclusive(cls)) {
       return {
         ...base,
         status: "stale",
@@ -414,13 +435,15 @@ export class OpportunityVerificationService {
         nextCheckAt: this.hoursFromNow(12),
       };
     }
-    if (page.httpStatus === 404 || page.httpStatus === 410) {
+    if (cls === "dead") {
       return { ...base, status: "broken_link", error: page.error };
     }
     if (!page.text || pageSaysClosed(page.text)) {
       return base;
     }
 
+    // Regex first (free, deterministic): a future date on the live page means
+    // the stored one was stale/misparsed — reopen with the corrected date.
     const refreshed = this.parsePageDeadline(candidate, page.text);
     if (refreshed?.date && refreshed.date >= this.isoToday()) {
       // The live page shows a future deadline — the stored one was stale or
@@ -432,6 +455,31 @@ export class OpportunityVerificationService {
         newCloseDate: refreshed.date,
         newDeadlineConfidence: refreshed.confidence,
         nextCheckAt: this.hoursFromNow(24),
+      };
+    }
+
+    // Regex found nothing usable on a live page. Ask the LLM before closing —
+    // this recovers annual programs that state the next cycle only in prose.
+    const aiRefreshed = await this.extractDeadlineWithAi(candidate, page.text);
+    if (aiRefreshed?.date && aiRefreshed.date >= this.isoToday()) {
+      return {
+        ...base,
+        status: "verified",
+        opportunityStatus: "active",
+        newCloseDate: aiRefreshed.date,
+        newDeadlineConfidence: aiRefreshed.confidence,
+        nextCheckAt: this.hoursFromNow(24),
+      };
+    }
+    if (aiRefreshed?.confidence === "rolling") {
+      // Rolling/ongoing program — it never expired; the stored date was wrong.
+      return {
+        ...base,
+        status: "verified",
+        opportunityStatus: "active",
+        newCloseDate: null,
+        newDeadlineConfidence: "rolling",
+        nextCheckAt: this.hoursFromNow(24 * 7),
       };
     }
 
@@ -559,7 +607,45 @@ export class OpportunityVerificationService {
     return new Date().toISOString().split("T")[0];
   }
 
+  private relayEnabled(): boolean {
+    return (
+      process.env.OPPORTUNITY_VERIFICATION_RELAY !== "false" &&
+      Boolean(VERIFIER_FETCH_RELAY_URL)
+    );
+  }
+
+  private buildRelayUrl(url: string): string {
+    const encoded = encodeURIComponent(url);
+    return VERIFIER_FETCH_RELAY_URL.includes("{url}")
+      ? VERIFIER_FETCH_RELAY_URL.replace("{url}", encoded)
+      : `${VERIFIER_FETCH_RELAY_URL}${encoded}`;
+  }
+
+  /**
+   * Fetch page text, escalating to the r.jina.ai relay when the origin blocks
+   * us (403/429/5xx/network). This is what lets the verifier see the same live
+   * pages the scraper already reaches, instead of mistaking a WAF block for a
+   * dead opportunity.
+   */
   private async fetchPageText(url: string): Promise<{
+    httpStatus: number | null;
+    text: string | null;
+    error: string | null;
+  }> {
+    const direct = await this.rawFetchText(url);
+    if (
+      this.relayEnabled() &&
+      isInconclusive(classifyHttpStatus(direct.httpStatus))
+    ) {
+      const relayed = await this.rawFetchText(this.buildRelayUrl(url));
+      if (relayed.text && classifyHttpStatus(relayed.httpStatus) === "ok") {
+        return relayed;
+      }
+    }
+    return direct;
+  }
+
+  private async rawFetchText(url: string): Promise<{
     httpStatus: number | null;
     text: string | null;
     error: string | null;
@@ -596,35 +682,30 @@ export class OpportunityVerificationService {
     url: string,
     check: { httpStatus: number | null; ok: boolean; error: string | null },
   ): VerificationOutcome {
-    if (check.ok) {
-      return {
-        opportunityId: candidate.id,
-        title: candidate.title,
-        url,
-        status: "verified",
-        opportunityStatus: "active",
-        httpStatus: check.httpStatus,
-        error: null,
-        nextCheckAt: this.nextHealthyCheck(candidate),
-      };
-    }
+    const cls = classifyHttpStatus(check.httpStatus);
+    const decision = decideHealthOutcome({
+      cls,
+      currentStatus: candidate.status,
+      currentBrokenCount: candidate.broken_link_count,
+    });
 
-    const hardBroken =
-      check.httpStatus === 404 ||
-      check.httpStatus === 410 ||
-      Number(candidate.broken_link_count ?? 0) >= 1;
+    // A healthy page uses the deadline-aware recheck cadence; everything else
+    // uses the decision's retry window.
+    const nextCheckAt =
+      decision.verificationStatus === "verified"
+        ? this.nextHealthyCheck(candidate)
+        : this.hoursFromNow(decision.recheckHours);
 
     return {
       opportunityId: candidate.id,
       title: candidate.title,
       url,
-      status: hardBroken ? "broken_link" : "stale",
-      opportunityStatus: hardBroken
-        ? "pending_review"
-        : candidate.status || "active",
+      status: decision.verificationStatus,
+      opportunityStatus: decision.opportunityStatus,
       httpStatus: check.httpStatus,
-      error: check.error,
-      nextCheckAt: this.hoursFromNow(hardBroken ? 24 * 7 : 12),
+      error: decision.verificationStatus === "verified" ? null : check.error,
+      nextCheckAt,
+      newBrokenLinkCount: decision.brokenLinkCount,
     };
   }
 
@@ -663,6 +744,11 @@ export class OpportunityVerificationService {
         last_verified_at = now(),
         last_http_status = ${outcome.httpStatus},
         broken_link_count = case
+          -- When the decision layer computed an explicit counter, trust it: a
+          -- WAF block must NOT accumulate toward the pending_review demotion,
+          -- only a genuinely dead page (404/410) does.
+          when ${outcome.newBrokenLinkCount ?? null}::int is not null
+            then ${outcome.newBrokenLinkCount ?? null}::int
           when ${outcome.status} = 'verified' then 0
           when ${outcome.status} in ('broken_link', 'stale', 'needs_review')
             then coalesce(broken_link_count, 0) + 1
@@ -673,29 +759,49 @@ export class OpportunityVerificationService {
     `);
   }
 
-  private async checkUrl(url: string) {
+  private async checkUrl(url: string): Promise<{
+    httpStatus: number | null;
+    ok: boolean;
+    error: string | null;
+  }> {
+    // HEAD first (cheap). Many origins reject HEAD or gate it behind a WAF, so
+    // any block escalates to GET, then to the relay — the same order the
+    // scraper uses — before we ever conclude a link is unreachable.
+    let status = await this.headOrGetStatus(url);
+
+    if (isInconclusive(classifyHttpStatus(status)) && this.relayEnabled()) {
+      const relayed = await this.rawFetchText(this.buildRelayUrl(url));
+      if (classifyHttpStatus(relayed.httpStatus) === "ok" && relayed.text) {
+        status = relayed.httpStatus;
+      }
+    }
+
+    return {
+      httpStatus: status,
+      ok: classifyHttpStatus(status) === "ok",
+      error:
+        classifyHttpStatus(status) === "ok"
+          ? null
+          : `HTTP ${status ?? "error"}`,
+    };
+  }
+
+  private async headOrGetStatus(url: string): Promise<number | null> {
     try {
       const head = await this.fetchWithTimeout(url, "HEAD", 12000);
-      if (head.status === 405 || head.status === 403) {
-        const get = await this.fetchWithTimeout(url, "GET", 12000);
-        return {
-          httpStatus: get.status,
-          ok: get.status >= 200 && get.status < 400,
-          error: get.status >= 400 ? `HTTP ${get.status}` : null,
-        };
+      // A blocked HEAD (403/405/429/…) is worth a GET: some origins only reject
+      // the HEAD method, not the resource.
+      if (isInconclusive(classifyHttpStatus(head.status))) {
+        try {
+          const get = await this.fetchWithTimeout(url, "GET", 12000);
+          return get.status;
+        } catch {
+          return head.status;
+        }
       }
-
-      return {
-        httpStatus: head.status,
-        ok: head.status >= 200 && head.status < 400,
-        error: head.status >= 400 ? `HTTP ${head.status}` : null,
-      };
-    } catch (error) {
-      return {
-        httpStatus: null,
-        ok: false,
-        error: error instanceof Error ? error.message : "URL check failed",
-      };
+      return head.status;
+    } catch {
+      return null;
     }
   }
 

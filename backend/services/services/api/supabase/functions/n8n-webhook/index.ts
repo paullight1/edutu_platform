@@ -54,16 +54,24 @@ serve(async (req) => {
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // Validate API key
+        // Validate API key. This endpoint runs with the service role and can
+        // insert/update/delete the entire opportunities catalog, so a missing
+        // or invalid key MUST be rejected — never skipped. (Previously an absent
+        // x-api-key header bypassed validation entirely: an unauthenticated
+        // mass-delete of the catalog. See CLAUDE-SECURITY finding F1.)
         const apiKey = req.headers.get('x-api-key');
-        if (apiKey) {
-            const isValid = await validateApiKey(supabase, apiKey);
-            if (!isValid) {
-                return new Response(
-                    JSON.stringify({ error: 'Invalid API key' }),
-                    { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                );
-            }
+        if (!apiKey) {
+            return new Response(
+                JSON.stringify({ error: 'Missing API key' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+        const isValid = await validateApiKey(supabase, apiKey);
+        if (!isValid) {
+            return new Response(
+                JSON.stringify({ error: 'Invalid API key' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
         }
 
         const payload: N8nOpportunityPayload = await req.json();

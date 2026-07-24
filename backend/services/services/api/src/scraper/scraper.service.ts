@@ -1636,6 +1636,8 @@ export class ScraperService implements OnModuleInit {
   }> {
     const allResults: RawItem[] = [];
     const sourceResults: SourceResult[] = [];
+    // Aggregate outcome across per-source persists (see the finally block below).
+    let runOutcome: RunOutcome | null = null;
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
 
     for (const source of sources) {
@@ -1650,6 +1652,12 @@ export class ScraperService implements OnModuleInit {
       let urlsDiscovered = 0;
       const sourceWarnings: string[] = [];
       const retriedPages = new Set<number>();
+      // Resumability: accumulate this source's items separately so we can
+      // persist them the moment the source finishes, before moving on. A
+      // process restart mid-run (Render redeploy) then loses at most the
+      // in-flight source instead of the entire crawl.
+      const sourceItems: RawItem[] = [];
+      let thisSourceResult: SourceResult | null = null;
 
       onEvent?.({ type: "source-start", name: source.name });
 
@@ -1764,6 +1772,7 @@ export class ScraperService implements OnModuleInit {
               source.config?.content_selectors,
             );
             allResults.push(...enrichedItems);
+            sourceItems.push(...enrichedItems);
             itemsFound += enrichedItems.length;
             // Stream each enriched opportunity to any live listener (SSE).
             for (const item of enrichedItems) {
@@ -1817,7 +1826,7 @@ export class ScraperService implements OnModuleInit {
           sourceFailed ? sourceWarnings[0] : undefined,
         );
         const duration = Math.round((Date.now() - sourceStartTime) / 1000);
-        sourceResults.push({
+        thisSourceResult = {
           name: source.name,
           url: source.url,
           status: sourceFailed ? "failed" : "success",
@@ -1827,7 +1836,8 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           duration,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
-        });
+        };
+        sourceResults.push(thisSourceResult);
         onEvent?.({
           type: "source-done",
           name: source.name,
@@ -1849,7 +1859,7 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           error.message,
         );
-        sourceResults.push({
+        thisSourceResult = {
           name: source.name,
           url: source.url,
           status: "failed",
@@ -1859,20 +1869,57 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           error: error.message,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
-        });
+        };
+        sourceResults.push(thisSourceResult);
+      } finally {
+        // Persist this source's completed work now — even if it later threw,
+        // the pages that succeeded before the error are saved and their URLs
+        // marked processed, so the next run resumes instead of re-scraping.
+        if (sourceItems.length > 0) {
+          try {
+            const sourceOutcome = await this.persistOpportunities(
+              sourceItems,
+              thisSourceResult ? [thisSourceResult] : [],
+              jobLogId,
+            );
+            runOutcome = this.mergeRunOutcomes(runOutcome, sourceOutcome);
+          } catch (persistError: any) {
+            this.logger.error(
+              `Failed to persist items for "${source.name}": ${persistError.message}`,
+            );
+          }
+        }
       }
     }
 
-    let outcome: RunOutcome | null = null;
-    if (allResults.length > 0) {
-      outcome = await this.persistOpportunities(
-        allResults,
-        sourceResults,
-        jobLogId,
-      );
-    }
+    return { results: allResults, sourceResults, outcome: runOutcome };
+  }
 
-    return { results: allResults, sourceResults, outcome };
+  /** Fold a per-source RunOutcome into the running per-crawl aggregate. */
+  private mergeRunOutcomes(
+    acc: RunOutcome | null,
+    next: RunOutcome | null,
+  ): RunOutcome | null {
+    if (!next) return acc;
+    if (!acc) return next;
+    const missingFieldCounts: Record<string, number> = {
+      ...acc.missingFieldCounts,
+    };
+    for (const [field, count] of Object.entries(next.missingFieldCounts)) {
+      missingFieldCounts[field] = (missingFieldCounts[field] ?? 0) + count;
+    }
+    return {
+      saved: acc.saved + next.saved,
+      published: acc.published + next.published,
+      needsReview: acc.needsReview + next.needsReview,
+      withDeadline: acc.withDeadline + next.withDeadline,
+      withImage: acc.withImage + next.withImage,
+      withOrganization: acc.withOrganization + next.withOrganization,
+      withDirectApplyLink: acc.withDirectApplyLink + next.withDirectApplyLink,
+      duplicateImagesStripped:
+        acc.duplicateImagesStripped + next.duplicateImagesStripped,
+      missingFieldCounts,
+    };
   }
 
   private async recordDiscoveredUrls(
