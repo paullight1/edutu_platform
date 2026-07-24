@@ -25,6 +25,7 @@ import {
     Crown,
     Users,
     Wrench,
+    FolderOpen,
     Megaphone,
     Zap,
     Tag,
@@ -149,6 +150,7 @@ export default function ProfileScreen() {
             items: [
                 { id: 'creator', title: t('view.menu.creatorStudio'), desc: t('view.menu.creatorStudioDesc'), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
                 { id: 'cv', title: t('view.menu.cvBuilder'), desc: t('view.menu.cvBuilderDesc'), icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+                { id: 'documents', title: t('view.menu.myDocuments'), desc: t('view.menu.myDocumentsDesc'), icon: FolderOpen, route: '/profile/documents', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
                 { id: 'chat', title: t('view.menu.aiCoach'), desc: t('view.menu.aiCoachDesc'), icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
                 { id: 'referrals', title: t('view.menu.inviteFriends', { defaultValue: 'Invite friends' }), desc: t('view.menu.inviteFriendsDesc', { defaultValue: 'Earn 10 credits per friend' }), icon: Gift, route: '/referrals', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
             ]
