@@ -104,6 +104,8 @@
     "unlock": "Unlock Template",
     "use": "Use Template",
     "tapToPreview": "Tap to preview sample",
+    "tapToPreviewOwn": "Tap to preview with your CV",
+    "sampleFallback": "Sample data — build a CV to preview your own",
     "samples": {
       "academic": {
         "name": "Amara Okafor",
