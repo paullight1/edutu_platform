@@ -246,6 +246,49 @@ describe("ScraperService", () => {
     });
   });
 
+  describe("extractApplyLink", () => {
+    // The aggregator we're scraping; a real apply link points OFF this host.
+    const sourceHost = "jobs.smartyacad.com";
+    const baseUrl = "https://jobs.smartyacad.com/rhodes-scholarship/";
+
+    it("does not pick an external listing/taxonomy page as the apply link", () => {
+      const html = `
+        <html><body>
+          <a href="https://opportunitiesforafricans.com/category/botswana/" class="apply-button">Apply Now</a>
+        </body></html>`;
+      const result = (service as any).extractApplyLink(
+        html,
+        sourceHost,
+        baseUrl,
+      );
+      // A /category/ page lists many opportunities — it is never one item's
+      // application URL, even when it is external and the text says "Apply".
+      expect(result).toBeNull();
+    });
+
+    it("rejects an external /tag/ and /page/ listing too", () => {
+      for (const path of ["/tag/scholarships/", "/opportunities/page/2/"]) {
+        const html = `<a href="https://example.org${path}" class="apply-button">Apply Now</a>`;
+        expect(
+          (service as any).extractApplyLink(html, sourceHost, baseUrl),
+        ).toBeNull();
+      }
+    });
+
+    it("still returns a genuine external application URL", () => {
+      const html = `
+        <html><body>
+          <a href="https://rhodeshouse.ox.ac.uk/apply/" class="apply-button">Apply Now</a>
+        </body></html>`;
+      const result = (service as any).extractApplyLink(
+        html,
+        sourceHost,
+        baseUrl,
+      );
+      expect(result).toBe("https://rhodeshouse.ox.ac.uk/apply/");
+    });
+  });
+
   describe("categorize", () => {
     it("should categorize computer science opportunities", () => {
       const result = (service as any).categorize(
