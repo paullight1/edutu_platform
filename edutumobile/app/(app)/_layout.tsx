@@ -21,6 +21,7 @@ import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { BottomScrimView } from "../../components/ui/BottomScrim";
 import ReAnimated, {
+    type SharedValue,
     useSharedValue,
     useAnimatedStyle,
     withSpring,
@@ -31,6 +32,7 @@ import ReAnimated, {
     Extrapolation,
 } from "react-native-reanimated";
 import { haptics } from "../../lib/haptics";
+import { useNavCompact, setNavCompact } from "../../lib/navScrollStore";
 import { AiSparkGlyph } from "../../components/ui/AiSparkGlyph";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -73,6 +75,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
 // Height of the pill and the detached circle; also sizes the scrim behind them.
 const NAV_PILL_HEIGHT = 66;
+// Icons-only height while scroll-compacted (Instagram-style shrink).
+const NAV_PILL_COMPACT_HEIGHT = 48;
 
 // Content height of the full-width bar styles, above the safe-area padding.
 const NAV_BAR_HEIGHT = 58;
@@ -131,6 +135,7 @@ function TabItem({
     badge,
     onPress,
     isDark,
+    compact,
 }: {
     icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
     label: string;
@@ -140,7 +145,20 @@ function TabItem({
     badge?: number | "!";
     onPress: () => void;
     isDark: boolean;
+    /** 0→1 pill-compaction progress (Instagram-style shrink); labels fade+collapse. */
+    compact?: SharedValue<number>;
 }) {
+    // Label melts away as the pill compacts: fades first, then gives up its
+    // height so the icon re-centers in the shorter pill.
+    const labelStyle = useAnimatedStyle(() => {
+        const p = compact?.value ?? 0;
+        return {
+            opacity: interpolate(p, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+            height: interpolate(p, [0, 1], [14, 0], Extrapolation.CLAMP),
+            marginTop: interpolate(p, [0, 1], [4, 0], Extrapolation.CLAMP),
+        };
+    });
+
     return (
         <TouchableOpacity
             onPress={onPress}
@@ -160,12 +178,14 @@ function TabItem({
                 <Icon size={24} color={color} strokeWidth={isActive ? 2.4 : 1.9} />
                 <Badge count={badge} isDark={isDark} />
             </View>
-            <Text
-                style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
-                numberOfLines={1}
-            >
-                {label}
-            </Text>
+            <ReAnimated.View style={labelStyle}>
+                <Text
+                    style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
+                    numberOfLines={1}
+                >
+                    {label}
+                </Text>
+            </ReAnimated.View>
         </TouchableOpacity>
     );
 }
@@ -854,9 +874,25 @@ export function BottomNav({
         });
     }, [isCollapsed, collapse]);
 
+    // Instagram-style scroll compaction: scrolling down shrinks the pill to a
+    // slim icons-only bar (labels fade+collapse in TabItem); scrolling up or
+    // reaching the top restores it. Driven by whichever screen feeds
+    // navScrollStore; rides its own spring so it can overlap the collapse one.
+    const navCompact = useNavCompact();
+    const compactV = useSharedValue(0);
+    useEffect(() => {
+        compactV.value = withSpring(navCompact ? 1 : 0, {
+            damping: 20,
+            stiffness: 210,
+            mass: 0.9,
+        });
+    }, [navCompact, compactV]);
+
     const pillStyle = useAnimatedStyle(() => ({
         width: interpolate(collapse.value, [0, 1], [NAV_PILL_WIDTH, 0], Extrapolation.CLAMP),
         opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
+        height: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT, NAV_PILL_COMPACT_HEIGHT], Extrapolation.CLAMP),
+        borderRadius: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT / 2, NAV_PILL_COMPACT_HEIGHT / 2], Extrapolation.CLAMP),
     }));
 
     // The scrim exists to keep content from colliding with the tabs, so it
@@ -876,7 +912,12 @@ export function BottomNav({
 
     const circleSwellStyle = useAnimatedStyle(() => ({
         transform: [
-            { scale: interpolate(collapse.value, [0, 0.7, 1], [1, 1.08, 1], Extrapolation.CLAMP) },
+            {
+                scale:
+                    interpolate(collapse.value, [0, 0.7, 1], [1, 1.08, 1], Extrapolation.CLAMP) *
+                    // Shrink alongside the compact pill so the pair reads as one bar.
+                    interpolate(compactV.value, [0, 1], [1, 0.86], Extrapolation.CLAMP),
+            },
         ],
     }));
 
@@ -1013,6 +1054,7 @@ export function BottomNav({
                                 badge={tab.badge}
                                 onPress={() => onTabPress(tab.key, tab.route)}
                                 isDark={isDark}
+                                compact={compactV}
                             />
                         );
                     })}
@@ -1418,6 +1460,8 @@ export default function AppLayout() {
                                 authWall?.promptAuth('browse');
                                 return;
                             }
+                            // A fresh tab starts with the full pill (labels back).
+                            setNavCompact(false);
                             router.push(route as never);
                         }}
                         circleAction={circleAction}
@@ -1601,10 +1645,9 @@ const styles = StyleSheet.create({
     },
     tabItem: {
         flex: 1,
-        height: 56,
+        alignSelf: "stretch",
         alignItems: "center",
         justifyContent: "center",
-        gap: 4,
     },
     tabActiveBubble: {
         position: "absolute",

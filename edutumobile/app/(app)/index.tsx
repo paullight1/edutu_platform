@@ -31,6 +31,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { haptics } from "../../lib/haptics";
+import { createNavScrollHandler } from "../../lib/navScrollStore";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { useProfileCompleteness } from "@edutu/core/src/hooks/useProfileCompleteness";
@@ -62,6 +63,7 @@ import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { HomeBlocks } from "../../components/home/HomeBlocks";
 import { useTranslation } from "react-i18next";
 
+const navScroll = createNavScrollHandler();
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
 const CARD_WIDTH = (width - 40 - CARD_GAP) / 2;
@@ -1624,8 +1626,11 @@ export default function Dashboard() {
                 showsVerticalScrollIndicator={false}
                 // Pumps the ImpressionView visibility checks (throttled inside)
                 // so cards scrolled into view log their impressions.
-                onScroll={() => runImpressionChecks()}
-                scrollEventThrottle={100}
+                onScroll={(event) => {
+                    navScroll(event);
+                    runImpressionChecks();
+                }}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl
                         refreshing={opportunitiesLoading}
