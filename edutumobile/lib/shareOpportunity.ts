@@ -26,6 +26,16 @@ export function buildOpportunityShareUrl(id: string): string {
   return `${EDUTU_WEB_URL}/opportunity/${encodeURIComponent(id)}`;
 }
 
+/** True when the caption already carries this link. Tolerates www./trailing-
+ * slash variants so a backend caption never gets the same link appended twice. */
+export function shareTextIncludesUrl(text: string, url: string): boolean {
+  const key = url
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/+$/, '');
+  return key.length > 0 && text.includes(key);
+}
+
 export function cleanShareText(value?: string | null, fallback: string = i18n.t('misc:share.notSpecified')): string {
   const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   return text || fallback;
@@ -166,8 +176,9 @@ export async function shareOpportunity(opportunity: Opportunity): Promise<boolea
   try {
     const payload = await getBackendSharePayload(opportunity);
     const link = payload.shareUrl || buildOpportunityShareUrl(opportunity.id);
-    // Caption always carries the summary AND the Edutu link — never a bare image.
-    const message = payload.shareText.includes(link)
+    // Caption always carries the summary AND the Edutu link — never a bare
+    // image, and never the same link twice.
+    const message = shareTextIncludesUrl(payload.shareText, link)
       ? payload.shareText
       : `${payload.shareText}\n${link}`;
 

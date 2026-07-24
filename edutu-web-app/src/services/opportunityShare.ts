@@ -250,6 +250,24 @@ export function buildOpportunityShareText(
   return lines.join("\n");
 }
 
+/**
+ * True when the caption already carries this link. Tolerates the common
+ * variants a backend-composed caption can embed (with/without `www.`, with a
+ * trailing slash) so we never append a second copy of the same link.
+ */
+export function shareTextIncludesUrl(text: string, url: string): boolean {
+  const key = url
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/+$/, "");
+  return key.length > 0 && text.includes(key);
+}
+
+/** A share caption guaranteed to contain the link exactly once. */
+export function buildShareMessage(text: string, url: string): string {
+  return shareTextIncludesUrl(text, url) ? text : `${text}\n\n${url}`;
+}
+
 export function buildWhatsAppShareUrl(message: string): string {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
@@ -447,10 +465,15 @@ export async function shareOpportunity(
       : null;
     const effectiveShareText = shareImage?.shareText || shareText;
     const effectiveShareUrl = shareImage?.shareUrl || shareUrl;
+    // The caption already ends with the link ("*Apply here:* …"); passing
+    // `url` as well makes most targets (WhatsApp, Telegram) render the link
+    // twice, so only pass it when the caption somehow lacks it.
     const shareData = {
       title: opportunity.title,
       text: effectiveShareText,
-      url: effectiveShareUrl,
+      ...(shareTextIncludesUrl(effectiveShareText, effectiveShareUrl)
+        ? {}
+        : { url: effectiveShareUrl }),
     };
 
     let imageDownloaded = false;
@@ -490,7 +513,7 @@ export async function shareOpportunity(
     }
     try {
       await navigator.clipboard.writeText(
-        `${effectiveShareText}\n\n${effectiveShareUrl}`,
+        buildShareMessage(effectiveShareText, effectiveShareUrl),
       );
       return imageDownloaded ? "downloaded" : "copied";
     } catch {

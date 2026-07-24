@@ -4,8 +4,11 @@ import {
   buildOpportunityShareFileName,
   buildOpportunityShareText,
   buildOpportunityShareUrl,
+  buildShareMessage,
   fetchOpportunityShareImageBlob,
   fetchOpportunitySharePdfBlob,
+  shareOpportunity,
+  shareTextIncludesUrl,
 } from "../../services/opportunityShare";
 
 const opportunity: Opportunity = {
@@ -115,5 +118,43 @@ describe("opportunityShare helpers", () => {
     const [url, requestInit] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/share-pdf");
     expect(requestInit).toMatchObject({ method: "GET" });
+  });
+});
+
+describe("share link dedup", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("detects the link inside a caption regardless of www/trailing-slash form", () => {
+    const caption = "*Title*\n\n*Apply here:*\n\nhttps://www.edutu.org/opportunity/opp-123";
+    expect(shareTextIncludesUrl(caption, "https://www.edutu.org/opportunity/opp-123")).toBe(true);
+    expect(shareTextIncludesUrl(caption, "https://edutu.org/opportunity/opp-123")).toBe(true);
+    expect(shareTextIncludesUrl(caption, "https://www.edutu.org/opportunity/opp-123/")).toBe(true);
+    expect(shareTextIncludesUrl(caption, "https://www.edutu.org/opportunity/other")).toBe(false);
+  });
+
+  it("never duplicates the link when composing a share message", () => {
+    const url = "https://www.edutu.org/opportunity/opp-123";
+    const withLink = `caption\n\n${url}`;
+    expect(buildShareMessage(withLink, url)).toBe(withLink);
+    expect(buildShareMessage("caption", url)).toBe(`caption\n\n${url}`);
+  });
+
+  it("omits the separate url from navigator.share when the caption already carries it", async () => {
+    const shareSpy = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      share: shareSpy,
+      clipboard: { writeText: vi.fn() },
+    });
+
+    // withImage: false → no card fetch; the local caption ends with the link.
+    const outcome = await shareOpportunity(opportunity, { withImage: false });
+
+    expect(outcome).toBe("shared-link");
+    expect(shareSpy).toHaveBeenCalledTimes(1);
+    const shared = shareSpy.mock.calls[0][0];
+    expect(shared.text).toContain("/opportunity/opp-123");
+    expect(shared.url).toBeUndefined();
   });
 });
