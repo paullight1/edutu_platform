@@ -65,6 +65,13 @@ const MOCK_TEMPLATES: CVTemplate[] = [
 
 const LOCAL_CV_KEY_PREFIX = 'edutu:user_cvs:';
 
+/**
+ * Budget for the CV AI endpoints. requestProductApi defaults to 12s, which is
+ * shorter than a routed LLM takes to rewrite a whole CV — the client aborted,
+ * fell back to a local heuristic, and the user never saw what they paid for.
+ */
+const AI_CV_TIMEOUT_MS = 60000;
+
 function getLocalKey(userId: string) {
   return `${LOCAL_CV_KEY_PREFIX}${toSafeUUID(userId)}`;
 }
@@ -744,6 +751,7 @@ export async function generateCVDraftWithAI(
           }),
         },
         options.getToken,
+        AI_CV_TIMEOUT_MS,
       );
 
       if (response?.cv) {
@@ -862,6 +870,7 @@ export async function improveCVSummaryWithAI(
           }),
         },
         getToken,
+        AI_CV_TIMEOUT_MS,
       );
       const summary = response?.cv?.summary?.trim();
       if (summary) return { summary, source: 'ai' };
@@ -1013,19 +1022,44 @@ export async function tailorCVForOpportunity(
           }),
         },
         options.getToken,
+        // A full LLM CV rewrite plus the 10-item ATS checklist routinely runs
+        // 20-45s. The 12s default aborted it client-side while the server kept
+        // going (and charged), so every live tailor silently degraded to the
+        // local heuristic below — which carries no atsChecklist, proposedTitle
+        // or quantifyQuestions, and the ATS card never rendered. Real budget.
+        AI_CV_TIMEOUT_MS,
       );
 
       if (response?.tailored_cv) {
+        const atsChecklist = Array.isArray(response.atsChecklist) ? response.atsChecklist : [];
+        if (__DEV__ && atsChecklist.length === 0) {
+          // The backend's normalizeTailorResult guarantees 10 items on both the
+          // LLM and fallback paths, so an empty checklist here means the shape
+          // changed or something stripped it. Never fail silently again.
+          console.warn(
+            '[cv] tailor response arrived without atsChecklist — the ATS card will not render.',
+            { keys: Object.keys(response) },
+          );
+        }
         return {
           ...response,
           tailored_cv: normalizeCVData(response.tailored_cv),
           improvements: Array.isArray(response.improvements) ? response.improvements : [],
           matched_keywords: Array.isArray(response.matched_keywords) ? response.matched_keywords : [],
           missing_keywords: Array.isArray(response.missing_keywords) ? response.missing_keywords : [],
+          atsChecklist,
         };
+      }
+      if (__DEV__) {
+        console.warn(
+          '[cv] /cv/ai/tailor returned no tailored_cv — falling back to the local heuristic (no ATS checklist).',
+        );
       }
     } catch (error) {
       if (isAiBillingError(error)) throw error;
+      if (__DEV__) {
+        console.warn('[cv] /cv/ai/tailor failed — falling back to the local heuristic.', error);
+      }
       // otherwise fall through to the local heuristic
     }
   }
@@ -1123,6 +1157,7 @@ export async function generateCoverLetterWithAI(options: {
       }),
     },
     options.getToken,
+    AI_CV_TIMEOUT_MS,
   );
 
   const letter = response?.coverLetter?.trim();

@@ -7,6 +7,7 @@ import { useTheme } from '../../components/context/ThemeContext';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
 import { CvModalBackdrop } from './CvModalBackdrop';
+import { decodeHtmlEntities } from '../../lib/utils';
 
 interface Props {
     visible: boolean;
@@ -14,26 +15,6 @@ interface Props {
     opportunities: Opportunity[];
     isLoading?: boolean;
     onSelectOpportunity: (opportunityId: string) => void;
-}
-
-// Scraped opportunity titles sometimes carry raw HTML entities ("LSA 1.0
-// &#8211; 2026"). Decode the common named + numeric ones for display.
-const NAMED_ENTITIES: Record<string, string> = {
-    amp: '&',
-    quot: '"',
-    apos: "'",
-    nbsp: ' ',
-    lt: '<',
-    gt: '>',
-    ndash: '–',
-    mdash: '—',
-};
-
-function decodeHtmlEntities(text: string): string {
-    return text
-        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-        .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
-        .replace(/&([a-zA-Z]+);/g, (match, name: string) => NAMED_ENTITIES[name] ?? match);
 }
 
 /**
