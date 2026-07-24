@@ -6,18 +6,21 @@ import { OpportunitiesService } from "./opportunities.service";
 import { buildOpportunityPublicShareUrl } from "./opportunity-share-text";
 
 /**
- * Crawler-time Open Graph / SEO endpoints (server-rendered).
+ * Server-rendered Open Graph / SEO endpoints for opportunity pages.
  *
- * The web app is a Vite SPA served statically on Vercel, and that project does
- * not run Vercel functions/middleware — so `vercel.json` rewrites crawler
- * requests for `/opportunity/:id` and `/opportunities` (gated on a crawler
- * `user-agent` header) to these public backend routes via an EXTERNAL rewrite
- * (the same proxy mechanism the sitemap uses). Real users never hit these — they
- * fall through to the static SPA.
+ * The web app is a Vite SPA served statically on Vercel via the experimental
+ * multi-service router, which does NOT run functions/middleware and silently
+ * ignores `has` (user-agent) conditions on rewrites — so every crawler-gated
+ * unfurl plan (Netlify edge fn, Vercel middleware, UA-gated rewrite) died on
+ * the platform. `vercel.json` therefore rewrites `/opportunity/:id` and
+ * `/share/opportunity/:id` here UNCONDITIONALLY.
  *
- * The response is a tiny self-contained HTML document carrying the real title,
- * description, canonical URL, OG/Twitter tags and JSON-LD, with the
- * opportunity's source flyer as the image, so shared links unfurl richly.
+ * Because real users hit these routes too, the response is the FULL SPA shell
+ * (fetched from the deployed site and cached in-memory) with the <head> meta
+ * rewritten per-opportunity: crawlers read the real title/summary/flyer image,
+ * while browsers boot the app exactly as before (same URL, same assets). If
+ * the shell can't be fetched, a tiny self-contained OG page is served instead
+ * so unfurls still work.
  */
 
 type OpportunityRecord = Record<string, any>;
@@ -72,6 +75,91 @@ interface PageMeta {
   ogType: "article" | "website";
   imageDims?: string;
   jsonLd?: Record<string, unknown>;
+}
+
+/** Marker stamped into every response we render, used to refuse a shell that
+ * has somehow been proxied back through this controller (rewrite loop). */
+const OG_MARKER = "<!--edutu-og-->";
+
+/** Replace the `content`/`href` value of a specific tag, tolerating the
+ * multi-line meta formatting Prettier uses in index.html. Injects the tag
+ * before </head> when it isn't present at all. */
+function setTagValue(
+  html: string,
+  matcher: RegExp,
+  fallbackTag: string,
+  value: string,
+): string {
+  const safe = attr(value);
+  if (matcher.test(html)) {
+    return html.replace(
+      matcher,
+      (_m, open: string, close: string) => `${open}${safe}${close}`,
+    );
+  }
+  return html.replace(
+    /<\/head>/i,
+    `  ${fallbackTag.replace("__VALUE__", safe)}\n</head>`,
+  );
+}
+
+function ogProperty(prop: string): RegExp {
+  return new RegExp(
+    `(<meta\\s+property="${prop}"\\s+content=")[\\s\\S]*?(")`,
+    "i",
+  );
+}
+
+function metaName(name: string): RegExp {
+  return new RegExp(`(<meta\\s+name="${name}"\\s+content=")[\\s\\S]*?(")`, "i");
+}
+
+/** Rewrite the SPA shell's <head> with per-opportunity meta. The body (and the
+ * app boot) is left untouched. */
+function injectMeta(shell: string, meta: PageMeta): string {
+  let html = shell.replace(
+    /<title>[\s\S]*?<\/title>/i,
+    `<title>${attr(meta.title)}</title>`,
+  );
+  html = setTagValue(
+    html,
+    metaName("description"),
+    `<meta name="description" content="__VALUE__" />`,
+    meta.description,
+  );
+  html = setTagValue(
+    html,
+    /(<link\s+rel="canonical"\s+href=")[\s\S]*?(")/i,
+    `<link rel="canonical" href="__VALUE__" />`,
+    meta.url,
+  );
+  html = setTagValue(
+    html,
+    metaName("robots"),
+    `<meta name="robots" content="__VALUE__" />`,
+    "index, follow, max-image-preview:large",
+  );
+
+  html = setTagValue(html, ogProperty("og:type"), `<meta property="og:type" content="__VALUE__" />`, meta.ogType);
+  html = setTagValue(html, ogProperty("og:url"), `<meta property="og:url" content="__VALUE__" />`, meta.url);
+  html = setTagValue(html, ogProperty("og:title"), `<meta property="og:title" content="__VALUE__" />`, meta.title);
+  html = setTagValue(html, ogProperty("og:description"), `<meta property="og:description" content="__VALUE__" />`, meta.description);
+  html = setTagValue(html, ogProperty("og:image"), `<meta property="og:image" content="__VALUE__" />`, meta.image);
+  html = setTagValue(html, ogProperty("og:image:alt"), `<meta property="og:image:alt" content="__VALUE__" />`, meta.imageAlt);
+
+  html = setTagValue(html, metaName("twitter:title"), `<meta name="twitter:title" content="__VALUE__" />`, meta.title);
+  html = setTagValue(html, metaName("twitter:description"), `<meta name="twitter:description" content="__VALUE__" />`, meta.description);
+  html = setTagValue(html, metaName("twitter:image"), `<meta name="twitter:image" content="__VALUE__" />`, meta.image);
+  html = setTagValue(html, metaName("twitter:image:alt"), `<meta name="twitter:image:alt" content="__VALUE__" />`, meta.imageAlt);
+
+  if (meta.imageDims) {
+    html = html.replace(/<\/head>/i, `  ${meta.imageDims}\n</head>`);
+  }
+  if (meta.jsonLd) {
+    const tag = `<script type="application/ld+json">${JSON.stringify(meta.jsonLd).replace(/</g, "\\u003c")}</script>`;
+    html = html.replace(/<\/head>/i, `  ${tag}\n</head>`);
+  }
+  return html.replace(/<\/head>/i, `${OG_MARKER}</head>`);
 }
 
 function renderPage(meta: PageMeta): string {
@@ -150,11 +238,82 @@ export class OgController {
     };
   }
 
-  private html(res: Response, body: string, cacheControl: string): string {
+  private html(
+    res: Response,
+    body: string,
+    cacheControl: string,
+    source = "backend/og",
+  ): string {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", cacheControl);
-    res.setHeader("X-Og-Source", "backend/og");
+    res.setHeader("X-Og-Source", source);
+    // This response IS the public web page (Vercel rewrites /opportunity/:id
+    // here for everyone). Helmet's API defaults — CSP `script-src 'self'`,
+    // COOP/CORP — would block the SPA's inline boot script, Google Fonts and
+    // the cross-origin API calls, so drop them for these HTML pages.
+    res.removeHeader("Content-Security-Policy");
+    res.removeHeader("Cross-Origin-Opener-Policy");
+    res.removeHeader("Cross-Origin-Resource-Policy");
+    res.removeHeader("Origin-Agent-Cluster");
     return body;
+  }
+
+  /** In-memory cache of the deployed SPA shell (index.html). A stale copy is
+   * kept forever as a fallback so one successful fetch is enough. */
+  private shellHtml: string | null = null;
+  private shellFetchedAt = 0;
+  private static readonly SHELL_TTL_MS = 5 * 60_000;
+
+  private async getSpaShell(): Promise<string | null> {
+    const now = Date.now();
+    if (
+      this.shellHtml &&
+      now - this.shellFetchedAt < OgController.SHELL_TTL_MS
+    ) {
+      return this.shellHtml;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      // The root path is never rewritten to this controller, so this cannot
+      // loop; the OG_MARKER check is a belt-and-braces guard against a future
+      // rewrite-config mistake.
+      const response = await fetch(`${this.base}/`, {
+        signal: controller.signal,
+        headers: { accept: "text/html" },
+      });
+      clearTimeout(timer);
+      if (response.ok) {
+        const text = await response.text();
+        if (/<\/head>/i.test(text) && !text.includes(OG_MARKER)) {
+          this.shellHtml = text;
+          this.shellFetchedAt = now;
+        }
+      }
+    } catch {
+      // Keep whatever shell we already have.
+    }
+    return this.shellHtml;
+  }
+
+  /** Serve the SPA shell with `meta` injected, or the self-contained OG page
+   * when no shell is available. */
+  private async renderWithShell(
+    res: Response,
+    meta: PageMeta,
+    cacheControl: string,
+  ): Promise<string> {
+    const shell = await this.getSpaShell();
+    if (shell) {
+      return this.html(
+        res,
+        injectMeta(shell, meta),
+        cacheControl,
+        "backend/og-shell",
+      );
+    }
+    return this.html(res, renderPage(meta), cacheControl, "backend/og-fallback");
   }
 
   @Public()
@@ -164,8 +323,34 @@ export class OgController {
     @Param("id") id: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<string> {
-    const pageUrl = buildOpportunityPublicShareUrl(id, this.base);
+    return this.opportunityPage(
+      id,
+      buildOpportunityPublicShareUrl(id, this.base),
+      res,
+    );
+  }
 
+  /** Same unfurl for the public share landing (`/share/opportunity/:id`) —
+   * the path admin-composed shares and the landing page link to. */
+  @Public()
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
+  @Get("share/opportunity/:id")
+  async shareOpportunity(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    return this.opportunityPage(
+      id,
+      `${this.base}/share/opportunity/${encodeURIComponent(id)}`,
+      res,
+    );
+  }
+
+  private async opportunityPage(
+    id: string,
+    pageUrl: string,
+    res: Response,
+  ): Promise<string> {
     let opp: OpportunityRecord | null = null;
     try {
       opp = await this.opportunities.findOne(id);
@@ -174,9 +359,9 @@ export class OgController {
     }
 
     if (!opp || !opp.id) {
-      return this.html(
+      return this.renderWithShell(
         res,
-        renderPage({
+        {
           title: "Opportunity on Edutu",
           description:
             "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.",
@@ -184,7 +369,7 @@ export class OgController {
           imageAlt: "Edutu",
           url: pageUrl,
           ogType: "article",
-        }),
+        },
         "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
       );
     }
@@ -249,9 +434,9 @@ export class OgController {
       },
     };
 
-    return this.html(
+    return this.renderWithShell(
       res,
-      renderPage({
+      {
         title: fullTitle,
         description,
         image,
@@ -262,7 +447,7 @@ export class OgController {
           ? `<meta property="og:image:width" content="1080">\n  <meta property="og:image:height" content="1350">`
           : undefined,
         jsonLd,
-      }),
+      },
       "public, max-age=0, s-maxage=300, stale-while-revalidate=600",
     );
   }
