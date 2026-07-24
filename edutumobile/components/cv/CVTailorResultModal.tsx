@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,11 +9,22 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+    FadeInDown,
+    useAnimatedProps,
+    useSharedValue,
+    withTiming,
+    Easing,
+} from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { X, Check, Download, Wand2, Pencil } from 'lucide-react-native';
+import { X, Check, Download, Wand2, Pencil, Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../components/context/ThemeContext';
+import AnimatedCounter from '../ui/AnimatedCounter';
+import { haptics } from '../../lib/haptics';
+import { CvModalBackdrop } from './CvModalBackdrop';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export interface TailorResult {
     match_score: number;
@@ -30,6 +41,10 @@ interface Props {
     isExporting?: boolean;
     onExport: () => void;
     onViewCv: () => void;
+    /** One-tap insert: append a "Consider adding" keyword to the CV skills. */
+    onAddKeyword?: (keyword: string) => void;
+    /** Keywords already inserted via onAddKeyword — rendered as covered. */
+    addedKeywords?: string[];
 }
 
 const RING_SIZE = 132;
@@ -56,6 +71,8 @@ export function CVTailorResultModal({
     isExporting,
     onExport,
     onViewCv,
+    onAddKeyword,
+    addedKeywords = [],
 }: Props) {
     const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
@@ -63,11 +80,25 @@ export function CVTailorResultModal({
     const cardBg = isDark ? '#1E293B' : '#FFFFFF';
     const chipBg = isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
 
+    const score = Math.max(0, Math.min(100, Math.round(result?.match_score || 0)));
+
+    // Mount animation: the progress arc sweeps from 0 to the score.
+    const ringProgress = useSharedValue(0);
+    useEffect(() => {
+        if (visible) {
+             
+            ringProgress.value = 0;
+             
+            ringProgress.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
+        }
+    }, [visible, score, ringProgress]);
+    const ringAnimatedProps = useAnimatedProps(() => ({
+        strokeDashoffset: RING_CIRCUMFERENCE * (1 - (score / 100) * ringProgress.value),
+    }));
+
     if (!result) return null;
 
-    const score = Math.max(0, Math.min(100, Math.round(result.match_score || 0)));
     const [ringFrom, ringTo] = scoreColor(score);
-    const dash = (score / 100) * RING_CIRCUMFERENCE;
     const caption =
         score >= 70 ? t('tailorResult.scoreHigh') : score >= 45 ? t('tailorResult.scoreMedium') : t('tailorResult.scoreLow');
 
@@ -78,6 +109,7 @@ export function CVTailorResultModal({
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={styles.overlay}>
+                <CvModalBackdrop onPress={onClose} />
                 <Animated.View entering={FadeInDown.springify().damping(18)} style={[styles.card, { backgroundColor: cardBg }]}>
                     {/* Gradient header */}
                     <LinearGradient
@@ -90,12 +122,13 @@ export function CVTailorResultModal({
                             <X size={20} color="#FFFFFF" />
                         </TouchableOpacity>
 
+                        {/* Row 1: title */}
                         <View style={styles.headerTitleRow}>
                             <Wand2 size={18} color="#FFFFFF" />
                             <Text style={styles.headerTitle}>{t('tailorResult.title')}</Text>
                         </View>
 
-                        {/* Match ring */}
+                        {/* Row 2: match ring with the score stacked inside it */}
                         <View style={styles.ringWrap}>
                             <Svg width={RING_SIZE} height={RING_SIZE}>
                                 <Circle
@@ -106,7 +139,7 @@ export function CVTailorResultModal({
                                     strokeWidth={RING_STROKE}
                                     fill="none"
                                 />
-                                <Circle
+                                <AnimatedCircle
                                     cx={RING_SIZE / 2}
                                     cy={RING_SIZE / 2}
                                     r={RING_RADIUS}
@@ -114,15 +147,18 @@ export function CVTailorResultModal({
                                     strokeWidth={RING_STROKE}
                                     fill="none"
                                     strokeLinecap="round"
-                                    strokeDasharray={`${dash} ${RING_CIRCUMFERENCE}`}
+                                    strokeDasharray={`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+                                    animatedProps={ringAnimatedProps}
                                     transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
                                 />
                             </Svg>
-                            <View style={styles.ringCenter}>
-                                <Text style={styles.ringScore}>{score}%</Text>
+                            <View style={styles.ringCenter} pointerEvents="none">
+                                <AnimatedCounter value={score} duration={900} suffix="%" style={styles.ringScore} />
                                 <Text style={styles.ringLabel}>{t('tailorResult.matchLabel')}</Text>
                             </View>
                         </View>
+
+                        {/* Row 3: status line on its own row below the ring */}
                         <Text style={styles.caption}>{caption}</Text>
                     </LinearGradient>
 
@@ -175,11 +211,40 @@ export function CVTailorResultModal({
                                     {t('tailorResult.missingTitle')}
                                 </Text>
                                 <View style={styles.chipRow}>
-                                    {missing.map((kw, i) => (
-                                        <View key={`x-${i}`} style={[styles.chip, { backgroundColor: chipBg }]}>
-                                            <Text style={[styles.chipText, { color: muted }]}>{kw}</Text>
-                                        </View>
-                                    ))}
+                                    {missing.map((kw, i) => {
+                                        const added = addedKeywords.some(
+                                            (a) => a.toLowerCase() === kw.toLowerCase(),
+                                        );
+                                        return (
+                                            <TouchableOpacity
+                                                key={`x-${i}`}
+                                                style={[
+                                                    styles.chip,
+                                                    { backgroundColor: added ? 'rgba(34,197,94,0.12)' : chipBg },
+                                                ]}
+                                                disabled={added || !onAddKeyword}
+                                                activeOpacity={0.7}
+                                                onPress={() => {
+                                                    haptics.success();
+                                                    onAddKeyword?.(kw);
+                                                }}
+                                            >
+                                                {added ? (
+                                                    <Check size={12} color="#16A34A" strokeWidth={3} />
+                                                ) : (
+                                                    <Plus size={12} color={muted} strokeWidth={3} />
+                                                )}
+                                                <Text
+                                                    style={[
+                                                        styles.chipText,
+                                                        { color: added ? (isDark ? '#86EFAC' : '#15803D') : muted },
+                                                    ]}
+                                                >
+                                                    {kw}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
                                 </View>
                                 <Text style={[styles.missingHint, { color: muted }]}>{t('tailorResult.missingHint')}</Text>
                             </View>
@@ -221,7 +286,6 @@ export function CVTailorResultModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 18,
@@ -260,7 +324,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 7,
-        marginBottom: 14,
+        marginBottom: 18,
     },
     headerTitle: {
         color: '#FFFFFF',
@@ -274,29 +338,38 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    // Pure-flow centering: pulled up over the Svg by exactly its own height.
+    // (An absoluteFill sibling after an <Svg> fails to overlay on the new
+    // architecture here — the labels rendered below the ring; see punch list.)
     ringCenter: {
-        ...StyleSheet.absoluteFillObject,
+        width: RING_SIZE,
+        height: RING_SIZE,
+        marginTop: -RING_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
     },
     ringScore: {
         color: '#FFFFFF',
-        fontSize: 34,
+        fontSize: 28,
         fontWeight: '900',
-        lineHeight: 38,
+        lineHeight: 32,
+        textAlign: 'center',
     },
     ringLabel: {
         color: 'rgba(255,255,255,0.9)',
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: 10,
+        fontWeight: '800',
         textTransform: 'uppercase',
-        letterSpacing: 0.6,
+        letterSpacing: 1,
+        marginTop: 2,
+        textAlign: 'center',
     },
     caption: {
         color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '700',
-        marginTop: 12,
+        marginTop: 14,
+        textAlign: 'center',
     },
     body: {
         flexGrow: 0,

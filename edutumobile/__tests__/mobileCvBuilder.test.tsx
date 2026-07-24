@@ -439,9 +439,15 @@ describe('mobile CV builder', () => {
       ),
     );
     await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
-    expect(mockAlert).toHaveBeenCalledWith(
+    // The AI-draft outcome now surfaces as a branded bottom sheet (not a
+    // system Alert) with the suggestions as individual rows.
+    await waitFor(() => expect(getByText('AI draft ready')).toBeTruthy());
+    expect(getByText('Add measurable impact')).toBeTruthy();
+    expect(getByText('Expand your education section')).toBeTruthy();
+    pressByText(getByText, 'Got it');
+    expect(mockAlert).not.toHaveBeenCalledWith(
       'AI draft ready',
-      expect.stringContaining('Your CV draft is in the editor'),
+      expect.anything(),
     );
   });
 

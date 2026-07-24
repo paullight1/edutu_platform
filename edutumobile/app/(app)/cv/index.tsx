@@ -17,7 +17,21 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, ChevronLeft, Eye, Crown, ChevronRight, FilePlus, Import, Target, Upload } from 'lucide-react-native';
+import {
+    Plus,
+    ChevronLeft,
+    Eye,
+    Crown,
+    ChevronRight,
+    FilePlus,
+    Import,
+    Target,
+    Upload,
+    Sparkles,
+    GraduationCap,
+    Code2,
+    FolderOpen,
+} from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
@@ -40,8 +54,20 @@ import { CVPreview } from '../../../components/cv/CVPreview';
 import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
 import { CVTailorResultModal, TailorResult } from '../../../components/cv/CVTailorResultModal';
+import { CvToast } from '../../../components/cv/CvToast';
+import { CvModalBackdrop } from '../../../components/cv/CvModalBackdrop';
+import { haptics } from '../../../lib/haptics';
 
 type CVSection = 'templates' | 'editor' | 'preview';
+
+/** Branded "AI draft ready" sheet content — replaces the old Alert.alert. */
+interface DraftSheetContent {
+    title: string;
+    message?: string;
+    suggestions: string[];
+}
+
+const DRAFT_SUGGESTION_ICONS = [GraduationCap, Code2, FolderOpen];
 
 // Values are i18n keys in the `cv` namespace; translate with t() at render time.
 const SAMPLE_BY_CATEGORY = {
@@ -195,6 +221,15 @@ export default function CVBuilderScreen() {
     // The one-off free CV trial grants premium access for the session so the
     // "Upgrade to Pro" nag disappears the moment the user starts it.
     const [trialActive, setTrialActive] = useState(false);
+    // Branded feedback UI replacing system Alert.alert for success paths.
+    const [toast, setToast] = useState<string | null>(null);
+    const [draftSheet, setDraftSheet] = useState<DraftSheetContent | null>(null);
+    // Pre-AI-rewrite summary stash, so the user can undo the rewrite.
+    const [summaryUndo, setSummaryUndo] = useState<string | null>(null);
+    // "Consider adding" chips already inserted into skills from the tailor sheet.
+    const [addedKeywords, setAddedKeywords] = useState<string[]>([]);
+
+    const hideToast = useCallback(() => setToast(null), []);
 
     // Identity from the signed-in user — used to name the CV after the user and
     // to seed the header even when the profile row is missing/offline.
@@ -255,13 +290,12 @@ export default function CVBuilderScreen() {
             setIsLinkedInImporting(false);
             setShowLinkedInModal(false);
             setActiveSection('editor');
-            const suggestionText = result.suggestions.slice(0, 3).map((s) => `• ${s}`).join('\n');
-            Alert.alert(
-                result.source === 'ai' ? t('alerts.aiDraftReadyTitle') : t('alerts.draftReadyOfflineTitle'),
-                suggestionText
-                    ? t('alerts.draftReadyWithSuggestions', { suggestions: suggestionText })
-                    : t('alerts.draftReadyMessage'),
-            );
+            const suggestions = result.suggestions.slice(0, 3).filter(Boolean);
+            setDraftSheet({
+                title: result.source === 'ai' ? t('alerts.aiDraftReadyTitle') : t('alerts.draftReadyOfflineTitle'),
+                message: t('alerts.draftReadyMessage'),
+                suggestions,
+            });
         } catch (error) {
             console.error('AI CV generation error:', error);
             setIsLinkedInImporting(false);
@@ -303,7 +337,11 @@ export default function CVBuilderScreen() {
             setShowLinkedInModal(false);
             setLinkedInUrl('');
             setActiveSection('editor');
-            Alert.alert(t('alerts.aiDraftReadyTitle'), t('linkedInModal.importedFromFile'));
+            setDraftSheet({
+                title: t('alerts.aiDraftReadyTitle'),
+                message: t('linkedInModal.importedFromFile'),
+                suggestions: [],
+            });
         } catch (error: any) {
             console.error('LinkedIn file import error:', error);
             Alert.alert(t('common:states.error'), error?.message || t('alerts.generateFailed'));
@@ -316,6 +354,8 @@ export default function CVBuilderScreen() {
     const handleImproveSummary = async () => {
         if (!user || isImprovingSummary) return;
         setIsImprovingSummary(true);
+        // Stash the pre-rewrite text so the user can undo the AI rewrite.
+        const previousSummary = currentCV.data_json?.summary || '';
         try {
             const result = await cvService.improveCVSummaryWithAI(
                 supabase,
@@ -327,9 +367,12 @@ export default function CVBuilderScreen() {
                 ...prev,
                 data_json: { ...prev.data_json, summary: result.summary },
             }));
-            if (result.source === 'local') {
-                Alert.alert(t('alerts.summaryUpdatedTitle'), t('alerts.summaryUpdatedOffline'));
-            }
+            setSummaryUndo(previousSummary);
+            setToast(
+                result.source === 'local'
+                    ? t('toast.summaryUpdatedOffline')
+                    : t('toast.summaryUpdated'),
+            );
         } catch (error) {
             console.error('Error improving summary:', error);
             if (!showBillingAlert(error)) {
@@ -338,6 +381,36 @@ export default function CVBuilderScreen() {
         } finally {
             setIsImprovingSummary(false);
         }
+    };
+
+    // Restore the summary text stashed before the last AI rewrite.
+    const handleUndoSummaryRewrite = () => {
+        if (summaryUndo === null) return;
+        const restore = summaryUndo;
+        haptics.light();
+        setCurrentCV((prev: Partial<UserCV>) => ({
+            ...prev,
+            data_json: { ...prev.data_json, summary: restore },
+        }));
+        setSummaryUndo(null);
+    };
+
+    // One-tap insert from the tailor sheet's "Consider adding" chips: append
+    // the keyword to skills (deduped, case-insensitive) and mark it covered.
+    const handleAddMissingKeyword = (keyword: string) => {
+        const kw = keyword.trim();
+        if (!kw) return;
+        setCurrentCV((prev: Partial<UserCV>) => {
+            const skills = prev.data_json?.skills || [];
+            if (skills.some((s: string) => s.toLowerCase() === kw.toLowerCase())) return prev;
+            return {
+                ...prev,
+                data_json: { ...prev.data_json, skills: [...skills, kw] },
+            };
+        });
+        setAddedKeywords((prev) =>
+            prev.some((a) => a.toLowerCase() === kw.toLowerCase()) ? prev : [...prev, kw],
+        );
     };
 
     // Promise-chain style (not async/await) so every setState lives in an
@@ -411,6 +484,7 @@ export default function CVBuilderScreen() {
 
     const handleCreateNewCV = () => {
         setSelectedTemplate(null);
+        setSummaryUndo(null);
         // Seed the header with the signed-in user's identity so the editor never
         // opens as a blank "John Doe" form. The rest stays empty to fill in.
         setCurrentCV({
@@ -433,6 +507,7 @@ export default function CVBuilderScreen() {
     const handleEditCV = (cv: UserCV) => {
         const template = templates.find(t => t.id === cv.template_id);
         setSelectedTemplate(template || null);
+        setSummaryUndo(null);
         setCurrentCV({
             id: cv.id,
             name: cv.name,
@@ -472,8 +547,11 @@ export default function CVBuilderScreen() {
                 const newCV = await cvService.createUserCV(supabase, user.id, cvToSave);
                 setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, id: newCV.id }));
             }
-            await reloadData();
-            Alert.alert(t('common:states.success'), t('alerts.saveSuccess'));
+            // Refresh the CV list in the background WITHOUT raising the loading
+            // screen — reloadData() flips isLoading, which swaps the whole screen
+            // to the loader and remounts the editor, resetting its scroll position.
+            await loadData();
+            setToast(t('toast.saved'));
         } catch (error) {
             console.error('Error saving CV:', error);
             Alert.alert(t('common:states.error'), t('alerts.saveFailed'));
@@ -558,6 +636,7 @@ export default function CVBuilderScreen() {
             // Surface a designed outcome sheet (with a direct PDF export) instead
             // of a raw system alert.
             setTailorTargetTitle(opportunities.find((o) => o.id === opportunityId)?.title);
+            setAddedKeywords([]);
             setTailorResult({
                 match_score: result.match_score,
                 improvements: result.improvements || [],
@@ -587,15 +666,20 @@ export default function CVBuilderScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader
-                title={t('header.title')}
-                showBack
-                right={
-                    <TouchableOpacity onPress={handleCreateNewCV}>
-                        <Plus size={24} color={colors.primary} />
-                    </TouchableOpacity>
-                }
-            />
+            {/* Single-header rule: the outer screen header only shows on the
+                landing (templates) section. The editor and preview each render
+                exactly one header row of their own — no stacked back chevrons. */}
+            {activeSection === 'templates' && (
+                <ScreenHeader
+                    title={t('header.title')}
+                    showBack
+                    right={
+                        <TouchableOpacity onPress={handleCreateNewCV}>
+                            <Plus size={24} color={colors.primary} />
+                        </TouchableOpacity>
+                    }
+                />
+            )}
 
             {/* Pro Status Banner — hidden once the user is Pro or has an active trial */}
             {!hasPro && (
@@ -710,12 +794,21 @@ export default function CVBuilderScreen() {
             )}
 
             {activeSection === 'editor' && (
-                <View style={styles.editorHeader}>
+                <View
+                    style={[
+                        styles.editorHeader,
+                        { borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+                    ]}
+                >
                     <TouchableOpacity
-                        style={styles.backBtn}
+                        style={[
+                            styles.backBtn,
+                            { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+                        ]}
                         onPress={() => setActiveSection('templates')}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <ChevronLeft size={24} color={colors.primary} />
+                        <ChevronLeft size={22} color={isDark ? '#FFFFFF' : '#1E293B'} strokeWidth={2.5} />
                     </TouchableOpacity>
                     <TextInput
                         style={[styles.cvNameInput, { color: colors.foreground }]}
@@ -747,6 +840,8 @@ export default function CVBuilderScreen() {
                         setUpgradeFeature(feature);
                         setShowUpgradeModal(true);
                     }}
+                    canUndoSummary={summaryUndo !== null}
+                    onUndoSummary={handleUndoSummaryRewrite}
                 />
             )}
 
@@ -784,6 +879,8 @@ export default function CVBuilderScreen() {
                 isExporting={isExporting}
                 onExport={handleExport}
                 onViewCv={() => setTailorResult(null)}
+                onAddKeyword={handleAddMissingKeyword}
+                addedKeywords={addedKeywords}
             />
 
             {/* Tailoring in progress — the picker closes on select, so give the
@@ -879,6 +976,9 @@ export default function CVBuilderScreen() {
                 onRequestClose={() => setShowLinkedInModal(false)}
             >
                 <View style={styles.modalOverlay}>
+                    <CvModalBackdrop
+                        onPress={isLinkedInImporting ? undefined : () => setShowLinkedInModal(false)}
+                    />
                     <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
                         <Text style={[styles.modalTitle, { color: colors.foreground }]}>{t('linkedInModal.title')}</Text>
                         <Text style={styles.modalDesc}>{t('linkedInModal.description')}</Text>
@@ -932,6 +1032,64 @@ export default function CVBuilderScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* AI draft ready — branded bottom sheet replacing Alert.alert */}
+            <Modal
+                visible={!!draftSheet}
+                animationType="fade"
+                transparent
+                onRequestClose={() => setDraftSheet(null)}
+            >
+                <View style={styles.sheetOverlay}>
+                    <CvModalBackdrop onPress={() => setDraftSheet(null)} />
+                    <Animated.View
+                        entering={FadeInUp.springify().damping(18)}
+                        style={[styles.draftSheetCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                    >
+                        <View style={[styles.draftSheetIconCircle, { backgroundColor: `${colors.primary}1F` }]}>
+                            <Sparkles size={40} color={colors.primary} strokeWidth={1.8} />
+                        </View>
+                        <Text style={[styles.draftSheetTitle, { color: colors.foreground }]}>
+                            {draftSheet?.title}
+                        </Text>
+                        {!!draftSheet?.message && (
+                            <Text style={[styles.draftSheetMessage, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                {draftSheet.message}
+                            </Text>
+                        )}
+                        {(draftSheet?.suggestions.length ?? 0) > 0 && (
+                            <View style={styles.draftSheetSteps}>
+                                <Text style={[styles.draftSheetStepsTitle, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                                    {t('draftSheet.nextSteps')}
+                                </Text>
+                                {draftSheet?.suggestions.map((suggestion, index) => {
+                                    const StepIcon = DRAFT_SUGGESTION_ICONS[index % DRAFT_SUGGESTION_ICONS.length];
+                                    return (
+                                        <View key={`step-${index}`} style={styles.draftSheetStepRow}>
+                                            <View style={[styles.draftSheetStepIcon, { backgroundColor: `${colors.primary}14` }]}>
+                                                <StepIcon size={16} color={colors.primary} />
+                                            </View>
+                                            <Text style={[styles.draftSheetStepText, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                                                {suggestion}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        )}
+                        <TouchableOpacity
+                            style={[styles.draftSheetCta, { backgroundColor: colors.primary }]}
+                            onPress={() => setDraftSheet(null)}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.draftSheetCtaText}>{t('draftSheet.gotIt')}</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
+            </Modal>
+
+            {/* Branded success toast — replaces Alert.alert for saves */}
+            <CvToast message={toast} onHide={hideToast} />
 
         </SafeAreaView>
     );
@@ -1057,10 +1215,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     backBtn: {
-        padding: 4,
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     cvNameInput: {
         flex: 1,
@@ -1070,6 +1231,85 @@ const styles = StyleSheet.create({
     },
     previewBtn: {
         padding: 8,
+    },
+    sheetOverlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+    },
+    draftSheetCard: {
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingHorizontal: 24,
+        paddingTop: 28,
+        paddingBottom: 36,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.16,
+        shadowRadius: 18,
+        elevation: 12,
+    },
+    draftSheetIconCircle: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    draftSheetTitle: {
+        fontSize: 21,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    draftSheetMessage: {
+        fontSize: 14,
+        lineHeight: 20,
+        textAlign: 'center',
+        marginBottom: 18,
+    },
+    draftSheetSteps: {
+        alignSelf: 'stretch',
+        marginBottom: 20,
+    },
+    draftSheetStepsTitle: {
+        fontSize: 13,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 10,
+    },
+    draftSheetStepRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+        marginBottom: 10,
+    },
+    draftSheetStepIcon: {
+        width: 30,
+        height: 30,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    draftSheetStepText: {
+        flex: 1,
+        fontSize: 14,
+        lineHeight: 20,
+        fontWeight: '500',
+        paddingTop: 5,
+    },
+    draftSheetCta: {
+        alignSelf: 'stretch',
+        paddingVertical: 15,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    draftSheetCtaText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800',
     },
     modalOverlay: {
         flex: 1,

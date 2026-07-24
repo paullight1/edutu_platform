@@ -53,6 +53,15 @@
     "tailoredTitle": "CV tailored — {{score}}% match",
     "tailorFailed": "Failed to tailor CV for this opportunity."
   },
+  "toast": {
+    "saved": "CV saved successfully!",
+    "summaryUpdated": "Summary updated",
+    "summaryUpdatedOffline": "Summary improved offline"
+  },
+  "draftSheet": {
+    "nextSteps": "Suggested next steps",
+    "gotIt": "Got it"
+  },
   "tailorResult": {
     "title": "CV Tailored",
     "matchLabel": "match",
@@ -176,7 +185,11 @@
       "portfolio": {
         "label": "Portfolio",
         "placeholder": "portfolio.site"
-      }
+      },
+      "phonePlaceholder": "e.g. +234 801 234 5678",
+      "locationPlaceholder": "e.g. Lagos, Nigeria",
+      "linkedinPlaceholder": "e.g. linkedin.com/in/yourname",
+      "portfolioPlaceholder": "e.g. yourname.site"
     },
     "summaryPlaceholder": "Write a concise professional summary...",
     "improving": "Improving…",
@@ -264,6 +277,7 @@
       "title": "Tailor for Opportunity",
       "subtitle": "Match this CV against opportunities in your bank"
     },
+    "undoRewrite": "Undo rewrite",
     "save": "Save CV",
     "preparing": "Preparing…",
     "downloadPdf": "Download PDF",
