@@ -547,11 +547,13 @@ describe('mobile opportunity detail route', () => {
     };
 
     try {
-      const { getByText } = render(<OpportunityDetailScreen />);
+      const { getByText, getAllByText } = render(<OpportunityDetailScreen />);
 
       await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
 
-      fireEvent.press(getByText('Share2'));
+      // Share now has two entry points — the header icon and the quiet
+      // footer action row. The header one is first in tree order.
+      fireEvent.press(getAllByText('Share2')[0]);
       await waitFor(() => expect(shareSpy).toHaveBeenCalledWith({
         title: 'Global Fellowship',
         message: expect.any(String),

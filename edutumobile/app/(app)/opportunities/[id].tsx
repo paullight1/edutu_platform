@@ -13,12 +13,13 @@ import {
   Platform,
   Modal,
   TextInput,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {
-  Clock,
   MapPin,
   Users,
   ExternalLink,
@@ -28,7 +29,6 @@ import {
   Award,
   Globe,
   TrendingUp,
-  Star,
   Target,
   CheckCircle2,
   Building2,
@@ -72,6 +72,21 @@ import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySig
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
+import { OpportunityHero } from "../../../components/opportunity/OpportunityHero";
+import { DecisionStrip } from "../../../components/opportunity/DecisionStrip";
+import { FitPanel } from "../../../components/opportunity/FitPanel";
+import { FactRows, type Fact } from "../../../components/opportunity/FactRows";
+import { CollapsibleSection } from "../../../components/opportunity/CollapsibleSection";
+import { RequirementChecklist } from "../../../components/opportunity/RequirementChecklist";
+import { StickyApplyBar } from "../../../components/opportunity/StickyApplyBar";
+import {
+  MATCH_TIER_KEY,
+  cleanLocation,
+  decodeMaybe,
+  getMatchTier,
+  previewText,
+} from "../../../lib/opportunityDisplay";
+import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
@@ -130,6 +145,9 @@ import Svg, {
 // tracks and routes to Apply — NOT the raw third-party application link.
 const EDUTU_WEB_URL = "https://www.edutu.org";
 const TUNE_DISMISS_KEY = "edutu:tunePlanDismissed";
+// Scroll depth at which the in-flow primary CTA has left the viewport and the
+// sticky bar takes over. Roughly hero + title + decision block.
+const STICKY_BAR_REVEAL_Y = 420;
 function buildOpportunityShareUrl(id: string): string {
   return `${EDUTU_WEB_URL}/opportunity/${encodeURIComponent(id)}`;
 }
@@ -499,6 +517,25 @@ export default function OpportunityDetailScreen() {
   // Mount-time clock snapshot for render-side deadline math: day-granularity
   // arithmetic doesn't need a live clock, and Date.now() during render is impure.
   const [now] = useState(() => Date.now());
+  // Scroll offset drives the hero parallax (shared value, UI thread) and the
+  // sticky action bar (React state, flipped only on threshold crossings so a
+  // 60 fps scroll doesn't re-render the screen).
+  const scrollY = useSharedValue(0);
+  const [stickyVisible, setStickyVisible] = useState(false);
+  const stickyVisibleRef = useRef(false);
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = event.nativeEvent.contentOffset.y;
+      // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+      scrollY.value = y;
+      const shouldShow = y > STICKY_BAR_REVEAL_Y;
+      if (shouldShow !== stickyVisibleRef.current) {
+        stickyVisibleRef.current = shouldShow;
+        setStickyVisible(shouldShow);
+      }
+    },
+    [scrollY],
+  );
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
   // True only when the fetch failed for network reasons AND nothing is cached —
@@ -1365,16 +1402,144 @@ export default function OpportunityDetailScreen() {
     );
   }
 
-  const daysUntilDeadline = opportunity.deadline
-    ? Math.ceil(
-        (new Date(opportunity.deadline).getTime() - now) /
-          (1000 * 60 * 60 * 24),
-      )
-    : null;
-  const isUrgent = daysUntilDeadline !== null && daysUntilDeadline <= 14;
-  const isClosed = daysUntilDeadline !== null && daysUntilDeadline <= 0;
+  // One source of truth for deadline wording, thresholds and colour — the
+  // same ramp the feed, widgets and saved list use.
+  const deadlineBadge = getDeadlineBadge(opportunity.deadline, new Date(now));
+  const daysUntilDeadline = deadlineBadge.daysLeft;
+  const isClosed = deadlineBadge.level === "expired";
+  const deadlineTone =
+    deadlineBadge.level === "none" ? textSecondary : urgencyColor(deadlineBadge.level);
+  const deadlineLabel =
+    deadlineBadge.level === "expired"
+      ? t("detail.closed")
+      : deadlineBadge.level === "rolling"
+        ? t("detail.rollingLabel")
+        : deadlineBadge.level === "none"
+          ? t("detail.deadlineUnknown")
+          : daysUntilDeadline === 0
+            ? t("detail.closesToday")
+            : t("detail.daysLeft", { count: daysUntilDeadline ?? 0 });
+  const deadlineDetail =
+    deadlineBadge.level === "expired"
+      ? t("detail.deadlineClosedDetail")
+      : deadlineBadge.level === "rolling"
+        ? t("detail.deadlineRolling")
+        : deadlineBadge.date || t("detail.deadlineUnknown");
+
+  // Scraped copy reaches us with HTML entities intact and, in the location
+  // column, with a deadline sentence appended. Clean once, here, so every
+  // consumer below (and the share card) reads the same corrected strings.
+  const title = decodeMaybe(opportunity.title);
+  const organization = decodeMaybe(opportunity.organization);
+  const description = decodeMaybe(opportunity.description);
+  const aiSummary = decodeMaybe(opportunity.aiSummary);
+  const location = cleanLocation(opportunity.location);
+  const requirements = (opportunity.requirements || [])
+    .map((item) => decodeMaybe(item).trim())
+    .filter(Boolean);
+  const benefits = (opportunity.benefits || [])
+    .map((item) => decodeMaybe(item).trim())
+    .filter(Boolean);
+  const applicationSteps = (opportunity.applicationProcess || [])
+    .map((item) => decodeMaybe(item).trim())
+    .filter(Boolean);
+  const matchReasons = (opportunity.matchReasons || [])
+    .map((item) => decodeMaybe(item).trim())
+    .filter(Boolean);
+  const matchRisks = (opportunity.matchRisks || [])
+    .map((item) => decodeMaybe(item).trim())
+    .filter(Boolean);
+
+  // Fit is a TIER, never a percentage: a "91%" reads as win-odds we cannot
+  // honestly promise. DESIGN.md §1/§4.
+  const matchTier = getMatchTier(opportunity.match);
+  const fitLabel = matchTier
+    ? t(MATCH_TIER_KEY[matchTier].label)
+    : t("detail.fit.unknown");
+  const fitBlurb = matchTier
+    ? t(MATCH_TIER_KEY[matchTier].blurb)
+    : t("detail.fit.unknownBlurb");
+  const fitColor =
+    matchTier === "strong"
+      ? "#10B981"
+      : matchTier === "solid"
+        ? colors.accent
+        : matchTier === "possible"
+          ? "#F59E0B"
+          : textSecondary;
+
+  const hasApplyUrl = Boolean(opportunity.applyUrl);
+  // ONE next action. With a week or less on the clock, preparing is a luxury —
+  // send them to the real application. With room to breathe (or no direct
+  // link at all), the co-pilot is worth more than an unprepared submission.
+  const nextActionKind: "closed" | "apply" | "copilot" = isClosed
+    ? "closed"
+    : daysUntilDeadline !== null && daysUntilDeadline <= 7 && hasApplyUrl
+      ? "apply"
+      : "copilot";
+  const nextActionLabel =
+    nextActionKind === "closed"
+      ? t("detail.closed")
+      : nextActionKind === "apply"
+        ? t("detail.applyNow")
+        : t("detail.copilotCta");
+  const runNextAction = () => {
+    if (nextActionKind === "closed") return;
+    if (nextActionKind === "apply") {
+      void handleApply();
+      return;
+    }
+    if (isGuestBrowsing) {
+      authWall?.promptAuth("ai");
+      return;
+    }
+    router.push(`/copilot/${opportunity.id}` as never);
+  };
 
   const categoryColor = getCategoryColor(opportunity.category);
+  const facts: Fact[] = [
+    organization
+      ? {
+          key: "sponsor",
+          icon: Building2,
+          label: t("detail.sponsor"),
+          value: organization,
+        }
+      : null,
+    {
+      key: "location",
+      icon: MapPin,
+      label: t("detail.locationLabel"),
+      value: location || t("shared.remote"),
+    },
+    opportunity.stipend && opportunity.stipend > 0
+      ? {
+          key: "funding",
+          icon: TrendingUp,
+          label: t("detail.fundingLabel"),
+          value: `${opportunity.currency || "$"}${opportunity.stipend.toLocaleString()}`,
+          color: "#10B981",
+        }
+      : null,
+    // Only shown when we actually know the count — inventing social proof
+    // ("500+") is not something a credibility product does.
+    opportunity.applicants
+      ? {
+          key: "applicants",
+          icon: Users,
+          label: t("detail.applicantsLabel"),
+          value: t("detail.applied", { value: opportunity.applicants }),
+        }
+      : null,
+    opportunity.difficulty
+      ? {
+          key: "effort",
+          icon: Target,
+          label: t("detail.effortLabel"),
+          value: opportunity.difficulty,
+        }
+      : null,
+  ].filter((fact): fact is Fact => fact !== null);
   const shareSummary = clampShareText(
     cleanShareText(
       opportunity.aiSummary || opportunity.description,
@@ -1490,365 +1655,173 @@ export default function OpportunityDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
-        // Clear the floating AI orb so it never overlaps the Apply Now / Saved
-        // CTAs when scrolled to the bottom.
-        contentContainerStyle={{ paddingBottom: 96 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        // Clears the sticky action bar AND the floating AI orb so the last
+        // section is never trapped behind them.
+        contentContainerStyle={{ paddingBottom: 190 }}
       >
-        {/* Hero Image */}
-        <View style={styles.heroImage}>
-          {opportunity.image ? (
-            <Image
-              source={{ uri: opportunity.image }}
-              style={{ width: "100%", height: "100%" }}
-              // Many opportunity images are portrait flyers/posters with the
-              // title and key info at the top. "cover" crops that off, so use
-              // "contain" to always show the whole graphic.
-              resizeMode="contain"
-            />
-          ) : (
-            <LinearGradient
-              colors={[categoryColor, `${categoryColor}88`]}
-              style={{ width: "100%", height: "100%" }}
-            >
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Building2 size={64} color="rgba(255,255,255,0.6)" />
-              </View>
-            </LinearGradient>
-          )}
-          <View style={styles.heroOverlay}>
-            {opportunity.featured && (
-              <View
-                style={[
-                  styles.featuredBadge,
-                  { backgroundColor: categoryColor },
-                ]}
-              >
-                <Star size={12} color="white" />
-                <Text style={styles.featuredText}>{t("detail.featured")}</Text>
-              </View>
-            )}
-            {isUrgent && !isClosed && (
-              <View
-                style={[styles.urgentBadge, { backgroundColor: "#EF4444" }]}
-              >
-                <AlertCircle size={12} color="white" />
-                <Text style={styles.urgentText}>
-                  {t("detail.daysLeft", { count: daysUntilDeadline ?? 0 })}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
+        <OpportunityHero
+          image={opportunity.image}
+          accent={categoryColor}
+          category={opportunity.category}
+          featured={opportunity.featured}
+          closed={isClosed}
+          closedLabel={t("detail.closed")}
+          featuredLabel={t("detail.featured")}
+          scrollY={scrollY}
+        />
 
         <View style={styles.content}>
-          {/* Title Section */}
-          <View style={styles.badgeRow}>
-            <View
-              style={[
-                styles.categoryBadge,
-                { backgroundColor: `${categoryColor}15` },
-              ]}
-            >
-              <Text style={[styles.categoryText, { color: categoryColor }]}>
-                {opportunity.category}
-              </Text>
-            </View>
-            {opportunity.difficulty && (
-              <View
-                style={[
-                  styles.difficultyBadge,
-                  { backgroundColor: "#F59E0B15" },
-                ]}
-              >
-                <Text style={[styles.difficultyText, { color: "#F59E0B" }]}>
-                  {opportunity.difficulty}
-                </Text>
-              </View>
-            )}
-            {opportunity.match > 0 && (
-              <View
-                style={[styles.matchBadge, { backgroundColor: "#10B98115" }]}
-              >
-                <Text style={[styles.matchText, { color: "#10B981" }]}>
-                  {t("detail.matchPercent", { match: opportunity.match })}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <Text style={[styles.title, { color: textPrimary }]}>
-            {opportunity.title}
+          {/* ── ABOVE THE FOLD ──────────────────────────────────────────────
+              Three answers, in order: what is this, can I win it / when must
+              I act, and what do I do next. Everything below is reference. */}
+          <Text style={[styles.title, { color: textPrimary }]} numberOfLines={3}>
+            {title}
           </Text>
-          {/* Sponsor Banner */}
-          <View style={[styles.sponsorBanner, { backgroundColor: cardBg, borderColor }]}>
-            <View style={styles.sponsorIconWrap}>
-              <Building2 size={20} color="#3B82F6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sponsorLabel, { color: textSecondary }]}>
-                {t("detail.sponsor")}
-              </Text>
-              <Text style={[styles.sponsorName, { color: textPrimary }]}>
-                {opportunity.organization}
-              </Text>
-            </View>
-          </View>
+          <Text style={[styles.titleMeta, { color: textSecondary }]} numberOfLines={1}>
+            {[organization, location].filter(Boolean).join("  ·  ")}
+          </Text>
 
-          {/* Stats Row */}
-          <View style={styles.statsRow}>
-            <View
-              style={[
-                styles.statCard,
-                { backgroundColor: cardBg, borderColor },
-              ]}
-            >
-              <MapPin size={16} color={textSecondary} />
-              <Text
-                style={[styles.statText, { color: textSecondary }]}
-                numberOfLines={1}
-              >
-                {opportunity.location || t("shared.remote")}
-              </Text>
-            </View>
-            {/* Only shown when we actually know the count — inventing social
-                proof ("500+") is not something a credibility product does. */}
-            {opportunity.applicants ? (
-              <View
-                style={[
-                  styles.statCard,
-                  { backgroundColor: cardBg, borderColor },
-                ]}
-              >
-                <Users size={16} color={textSecondary} />
-                <Text style={[styles.statText, { color: textSecondary }]}>
-                  {t("detail.applied", { value: opportunity.applicants })}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+          <DecisionStrip
+            fitTitle={t("detail.fit.title")}
+            fitLabel={fitLabel}
+            fitBlurb={fitBlurb}
+            fitColor={fitColor}
+            deadlineTitle={t("detail.deadline")}
+            deadlineLabel={deadlineLabel}
+            deadlineDetail={deadlineDetail}
+            deadlineColor={deadlineTone}
+          />
 
-          {/* Deadline Card */}
-          {daysUntilDeadline !== null && (
-            <View
-              style={[
-                styles.deadlineCard,
-                {
-                  backgroundColor: cardBg,
-                  borderColor: isUrgent
-                    ? "#EF444440"
-                    : isClosed
-                      ? "#64748B40"
-                      : "#10B98140",
-                  borderLeftWidth: 4,
-                  borderLeftColor: isUrgent
-                    ? "#EF4444"
-                    : isClosed
-                      ? "#64748B"
-                      : "#10B981",
-                },
-              ]}
-            >
-              <View style={styles.deadlineLeft}>
-                <Clock
-                  size={20}
-                  color={
-                    isUrgent ? "#EF4444" : isClosed ? "#64748B" : "#10B981"
-                  }
-                />
-                <View style={{ marginLeft: 12 }}>
-                  <Text
-                    style={[styles.deadlineLabel, { color: textSecondary }]}
-                  >
-                    {isClosed ? t("detail.closed") : t("detail.deadline")}
-                  </Text>
-                  <Text style={[styles.deadlineValue, { color: textPrimary }]}>
-                    {isClosed
-                      ? t("detail.applicationEnded")
-                      : t("detail.daysRemaining", { count: daysUntilDeadline ?? 0 })}
-                  </Text>
-                  <Text style={[styles.deadlineDate, { color: textSecondary }]}>
-                    {new Date(opportunity.deadline!).toLocaleDateString(
-                      "en-US",
-                      { month: "long", day: "numeric", year: "numeric" },
-                    )}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Stipend Card */}
-          {opportunity.stipend && opportunity.stipend > 0 && (
-            <View
-              style={[
-                styles.stipendCard,
-                { backgroundColor: "#10B98108", borderColor: "#10B98130" },
-              ]}
-            >
-              <View style={styles.stipendLeft}>
-                <TrendingUp size={20} color="#10B981" />
-                <View style={{ marginLeft: 12 }}>
-                  <Text
-                    style={[styles.deadlineLabel, { color: textSecondary }]}
-                  >
-                    {t("detail.stipendFunding")}
-                  </Text>
-                  <Text style={[styles.deadlineValue, { color: "#10B981" }]}>
-                    {opportunity.currency || "$"}
-                    {opportunity.stipend.toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Match Reasons */}
-          {opportunity.matchReasons && opportunity.matchReasons.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                {t("detail.whyMatches")}
-              </Text>
-              <View
-                style={[
-                  styles.listCard,
-                  { backgroundColor: "#10B98108", borderColor: "#10B98130" },
-                ]}
-              >
-                {opportunity.matchReasons.map((reason, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <CheckCircle2 size={16} color="#10B981" />
-                    <Text
-                      style={[
-                        styles.listText,
-                        { color: "#10B981", marginLeft: 12 },
-                      ]}
-                    >
-                      {reason}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* Match Risks / Eligibility Warnings */}
-          {opportunity.matchRisks && opportunity.matchRisks.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                {t("detail.thingsToCheck")}
-              </Text>
-              <View
-                style={[
-                  styles.listCard,
-                  { backgroundColor: "#F59E0B10", borderColor: "#F59E0B30" },
-                ]}
-              >
-                {opportunity.matchRisks.map((risk, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <AlertCircle size={16} color="#F59E0B" />
-                    <Text
-                      style={[
-                        styles.listText,
-                        { color: isDark ? "#FBBF24" : "#B45309", marginLeft: 12 },
-                      ]}
-                    >
-                      {risk}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* AI Tags */}
-          {opportunity.aiTags && opportunity.aiTags.length > 0 && (
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 8,
-                marginBottom: 20,
-              }}
-            >
-              {opportunity.aiTags.map((tag, index) => (
-                <View
-                  key={index}
-                  style={{
-                    backgroundColor: `${categoryColor}10`,
-                    paddingHorizontal: 9,
-                    paddingVertical: 4,
-                    borderRadius: 8,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: categoryColor,
-                      fontSize: 10,
-                      fontWeight: "500",
-                    }}
-                  >
-                    {tag}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Win-coach: fit + next move for this opportunity. Signed-in only —
-              this was true before B3 and is unchanged. */}
-          {isSignedIn && (
-            <View style={{ marginBottom: 10, gap: 10 }}>
-              <AiActionBar
-                actions={[
-                  {
-                    label: t("chat:winCoach.actions.fitCheck"),
-                    intent: "fit_check",
-                    message: `Am I a good fit for "${opportunity.title}"? Give me an honest assessment.`,
-                  },
-                  {
-                    label: t("chat:winCoach.actions.nextMove"),
-                    intent: "next_move",
-                    message: `What's my single most important next move to win "${opportunity.title}"?`,
-                  },
-                ]}
-                onRun={handleWinCoachRun}
-                onOpenInChat={openWinCoachThread}
-                onUpgrade={goToPaywall}
-              />
-            </View>
-          )}
-          {/* The one way out to full chat: prefills the composer, never sends.
-              Rendered for EVERY visitor — including guests — like every other
-              gated action on this screen (save/track/apply/roadmap/co-pilot).
-              askEdutuMore raises the auth wall itself for guests instead of
-              navigating. */}
-          <TouchableOpacity
+          {/* The one primary action. Its sibling is a quiet text link, not a
+              second button — two equal buttons is not a next step. */}
+          <AnimatedPressable
+            onPress={runNextAction}
+            disabled={nextActionKind === "closed"}
+            scaleTo={0.97}
+            hapticFeedback="medium"
             accessibilityRole="button"
-            accessibilityLabel={t("detail.askMore")}
-            onPress={askEdutuMore}
-            activeOpacity={0.8}
-            style={[
-              styles.askMoreChip,
-              {
-                borderColor: `${colors.accent}30`,
-                backgroundColor: cardBg,
-                marginBottom: isSignedIn ? 10 : 20,
-              },
-            ]}
+            accessibilityState={{ disabled: nextActionKind === "closed" }}
+            accessibilityLabel={nextActionLabel}
+            style={[styles.primaryAction, nextActionKind === "closed" && { opacity: 0.6 }]}
           >
-            <AiOrbBadge size={18} />
-            <Text style={[styles.askMoreChipText, { color: colors.accent }]}>
-              {t("detail.askMore")}
-            </Text>
-          </TouchableOpacity>
+            <LinearGradient
+              colors={
+                nextActionKind === "closed"
+                  ? ["#64748B", "#475569"]
+                  : [colors.accent, "#4331C9"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.primaryActionInner}>
+              {nextActionKind === "copilot" ? (
+                <Zap size={18} color="#FFFFFF" />
+              ) : (
+                <ExternalLink size={18} color="#FFFFFF" />
+              )}
+              <Text style={styles.primaryActionText}>{nextActionLabel}</Text>
+            </View>
+          </AnimatedPressable>
+
+          {nextActionKind === "copilot" && hasApplyUrl ? (
+            <TouchableOpacity
+              onPress={handleApply}
+              activeOpacity={0.7}
+              style={styles.secondaryLink}
+              accessibilityRole="link"
+            >
+              <Text style={[styles.secondaryLinkText, { color: textSecondary }]}>
+                {t("detail.applyNow")}
+              </Text>
+              <ChevronRight size={14} color={textSecondary} />
+            </TouchableOpacity>
+          ) : null}
+          {nextActionKind === "apply" ? (
+            <TouchableOpacity
+              onPress={() => {
+                if (isGuestBrowsing) {
+                  authWall?.promptAuth("ai");
+                  return;
+                }
+                router.push(`/copilot/${opportunity.id}` as never);
+              }}
+              activeOpacity={0.7}
+              style={styles.secondaryLink}
+              accessibilityRole="link"
+            >
+              <Text style={[styles.secondaryLinkText, { color: colors.accent }]}>
+                {t("detail.orPrepWithAi")}
+              </Text>
+              <ChevronRight size={14} color={colors.accent} />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* ── FIT ────────────────────────────────────────────────────────
+              One of the two surfaces DESIGN.md lets go Committed: this is
+              Edutu's judgement, not scraped copy, and it should not look like
+              the reference sections underneath it. */}
+          <View style={{ marginTop: 22 }}>
+            <FitPanel
+              eyebrow={t("detail.fit.eyebrow")}
+              heading={fitLabel}
+              blurb={fitBlurb}
+              reasons={matchReasons}
+              risks={matchRisks}
+              reasonsTitle={t("detail.whyMatches")}
+              risksTitle={t("detail.thingsToCheck")}
+            />
+          </View>
+
+          {/* The AI actions sit on neutral ground directly under the panel:
+              AiActionBar paints its own accent-on-surface pills, which are
+              illegible on top of the Committed field. */}
+          <View style={{ marginTop: 12, gap: 10 }}>
+            {/* Win-coach actions answer in place. Signed-in only. */}
+            {isSignedIn && (
+                <AiActionBar
+                  actions={[
+                    {
+                      label: t("chat:winCoach.actions.fitCheck"),
+                      intent: "fit_check",
+                      message: `Am I a good fit for "${title}"? Give me an honest assessment.`,
+                    },
+                    {
+                      label: t("chat:winCoach.actions.nextMove"),
+                      intent: "next_move",
+                      message: `What's my single most important next move to win "${title}"?`,
+                    },
+                  ]}
+                  onRun={handleWinCoachRun}
+                  onOpenInChat={openWinCoachThread}
+                  onUpgrade={goToPaywall}
+                />
+              )}
+              {/* The one way out to full chat: prefills the composer, never
+                  sends. Rendered for EVERY visitor — guests included — like
+                  every other gated action here; askEdutuMore raises the auth
+                  wall itself instead of navigating. */}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t("detail.askMore")}
+                onPress={askEdutuMore}
+                activeOpacity={0.8}
+                style={[
+                  styles.askMoreChip,
+                  { borderColor: `${colors.accent}30`, backgroundColor: cardBg },
+                ]}
+              >
+                <AiOrbBadge size={18} />
+                <Text style={[styles.askMoreChipText, { color: colors.accent }]}>
+                  {t("detail.askMore")}
+                </Text>
+              </TouchableOpacity>
+          </View>
+
           {isSignedIn && (
-            <View style={{ marginBottom: 20 }}>
+            <View style={{ marginTop: 12 }}>
               <DocumentUpload
                 kind="cv"
                 opportunityId={id}
@@ -1858,450 +1831,364 @@ export default function OpportunityDetailScreen() {
             </View>
           )}
 
-          {/* About Section */}
-          <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-            {t("detail.aboutTitle")}
-          </Text>
+          {/* ── FACTS ──────────────────────────────────────────────────────
+              Inline definition rows, not four more bordered tiles. */}
+          <View style={{ marginTop: 18 }}>
+            <FactRows facts={facts} />
+          </View>
 
-          {opportunity.aiSummary &&
-            opportunity.aiSummary !== opportunity.description && (
-              <View
-                style={{
-                  backgroundColor: `${categoryColor}08`,
-                  padding: 14,
-                  borderRadius: 12,
-                  marginBottom: 16,
-                  borderWidth: 1,
-                  borderColor: `${categoryColor}16`,
-                }}
-              >
+          {opportunity.aiTags && opportunity.aiTags.length > 0 && (
+            <View style={styles.tagRow}>
+              {opportunity.aiTags.map((tag, index) => (
                 <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 8,
-                    gap: 6,
-                  }}
+                  key={`${tag}-${index}`}
+                  style={[styles.tagChip, { backgroundColor: `${categoryColor}14` }]}
                 >
-                  <Target size={14} color={categoryColor} />
-                  <Text
-                    style={{
-                      color: categoryColor,
-                      fontWeight: "600",
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {t("detail.aiSummary")}
-                  </Text>
+                  <Text style={[styles.tagChipText, { color: categoryColor }]}>{tag}</Text>
                 </View>
-                <Text
-                  style={{ color: textSecondary, fontSize: 13, lineHeight: 20 }}
-                >
-                  {opportunity.aiSummary}
-                </Text>
-              </View>
-            )}
-
-          <Text style={[styles.description, { color: textSecondary }]}>
-            {opportunity.description &&
-            opportunity.description !== "No description provided."
-              ? opportunity.description
-              : t("detail.descriptionUnavailable")}
-          </Text>
-
-          {/* Requirements */}
-          {opportunity.requirements && opportunity.requirements.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                {t("detail.requirements")}
-              </Text>
-              <View
-                style={[
-                  styles.listCard,
-                  { backgroundColor: cardBg, borderColor },
-                ]}
-              >
-                {opportunity.requirements.map((req, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <View
-                      style={[
-                        styles.listDot,
-                        { backgroundColor: categoryColor },
-                      ]}
-                    />
-                    <Text style={[styles.listText, { color: textSecondary }]}>
-                      {req}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </>
+              ))}
+            </View>
           )}
 
-          {/* Benefits */}
-          {opportunity.benefits && opportunity.benefits.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                {t("detail.benefits")}
+          {/* ── REFERENCE ──────────────────────────────────────────────────
+              Progressive disclosure: the first section is open, the rest
+              preview their substance so a collapsed header still informs. */}
+          <View style={{ marginTop: 10 }}>
+            <CollapsibleSection
+              title={t("detail.aboutTitle")}
+              defaultExpanded
+              preview={previewText(aiSummary || description)}
+            >
+              {aiSummary && aiSummary !== description ? (
+                <View
+                  style={[
+                    styles.summaryBlock,
+                    { borderLeftColor: colors.accent, backgroundColor: `${colors.accent}0A` },
+                  ]}
+                >
+                  <View style={styles.summaryHead}>
+                    <Target size={13} color={colors.accent} />
+                    <Text style={[styles.summaryLabel, { color: colors.accent }]}>
+                      {t("detail.aiSummary")}
+                    </Text>
+                  </View>
+                  <Text style={[styles.summaryText, { color: textSecondary }]}>
+                    {aiSummary}
+                  </Text>
+                </View>
+              ) : null}
+              <Text style={[styles.description, { color: textSecondary }]}>
+                {description && description !== "No description provided."
+                  ? description
+                  : t("detail.descriptionUnavailable")}
               </Text>
-              <View
-                style={[
-                  styles.listCard,
-                  { backgroundColor: cardBg, borderColor },
-                ]}
+            </CollapsibleSection>
+
+            {requirements.length > 0 && (
+              <CollapsibleSection
+                title={t("detail.requirements")}
+                meta={t("detail.itemsCount", { count: requirements.length })}
+                preview={previewText(requirements.join(" · "))}
               >
-                {opportunity.benefits.map((benefit, index) => (
-                  <View key={index} style={styles.listItem}>
+                <Text style={[styles.sectionHint, { color: textSecondary }]}>
+                  {t("detail.requirementsHint")}
+                </Text>
+                <RequirementChecklist opportunityId={opportunity.id} items={requirements} />
+              </CollapsibleSection>
+            )}
+
+            {benefits.length > 0 && (
+              <CollapsibleSection
+                title={t("detail.benefits")}
+                meta={t("detail.itemsCount", { count: benefits.length })}
+                preview={previewText(benefits.join(" · "))}
+              >
+                {benefits.map((benefit, index) => (
+                  <View key={`${benefit}-${index}`} style={styles.benefitRow}>
                     <Award size={16} color="#10B981" />
-                    <Text
-                      style={[
-                        styles.listText,
-                        { color: textSecondary, marginLeft: 12 },
-                      ]}
-                    >
+                    <Text style={[styles.benefitText, { color: textSecondary }]}>
                       {benefit}
                     </Text>
                   </View>
                 ))}
-              </View>
+              </CollapsibleSection>
+            )}
+
+            {applicationSteps.length > 0 && (
+              <CollapsibleSection
+                title={t("detail.applicationSteps")}
+                meta={t("detail.itemsCount", { count: applicationSteps.length })}
+                preview={previewText(applicationSteps.join(" · "))}
+              >
+                {applicationSteps.map((step, index) => (
+                  <View key={`${step}-${index}`} style={styles.stepRow}>
+                    <View style={[styles.stepIndex, { backgroundColor: `${categoryColor}1F` }]}>
+                      <Text style={[styles.stepIndexText, { color: categoryColor }]}>
+                        {index + 1}
+                      </Text>
+                    </View>
+                    <Text style={[styles.benefitText, { color: textSecondary }]}>{step}</Text>
+                  </View>
+                ))}
+              </CollapsibleSection>
+            )}
+          </View>
+
+          {/* ── PLAN ───────────────────────────────────────────────────────
+              Everything that turns interest into an application. */}
+          {!isClosed && (
+            <>
+              <Text style={[styles.groupHeading, { color: textPrimary }]}>
+                {t("detail.planTitle")}
+              </Text>
+
+              <AnimatedPressable
+                onPress={() => {
+                  if (isGuestBrowsing) {
+                    authWall?.promptAuth("ai");
+                    return;
+                  }
+                  router.push(`/copilot/${opportunity.id}` as never);
+                }}
+                style={[
+                  styles.roadmapCTA,
+                  {
+                    backgroundColor: `${colors.accent}10`,
+                    borderColor: `${colors.accent}25`,
+                  },
+                ]}
+                hapticFeedback="medium"
+              >
+                <View style={styles.roadmapCTAContent}>
+                  <View
+                    style={[styles.roadmapCTAIcon, { backgroundColor: `${colors.accent}20` }]}
+                  >
+                    <FileText size={22} color={colors.accent} />
+                  </View>
+                  <View style={styles.roadmapCTAText}>
+                    <Text style={[styles.roadmapCTATitle, { color: textPrimary }]}>
+                      {t("detail.copilotCta")}
+                    </Text>
+                    <Text
+                      style={[styles.roadmapCTADesc, { color: textSecondary }]}
+                      numberOfLines={2}
+                    >
+                      {t("detail.copilotCtaDesc")}
+                    </Text>
+                  </View>
+                  <View style={[styles.roadmapCTAArrow, { backgroundColor: colors.accent }]}>
+                    <ChevronRight size={22} color="#FFFFFF" />
+                  </View>
+                </View>
+              </AnimatedPressable>
+
+              {/* Fit-to-my-life intake — optional, secondary. Collapsed by
+                  default and fully dismissible so it doesn't always take up
+                  space. */}
+              {!bookmarked && opportunity.deadline && !tuneDismissed && (
+                <View style={[styles.intakeCard, { backgroundColor: cardBg, borderColor }]}>
+                  <TouchableOpacity
+                    style={styles.intakeHeader}
+                    onPress={() => setTuneExpanded((v) => !v)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("detail.tunePlan")}
+                  >
+                    <View style={styles.intakeHeaderLeft}>
+                      <SlidersHorizontal size={16} color={colors.accent} />
+                      <Text style={[styles.intakeTitle, { color: textPrimary }]}>
+                        {t("detail.tunePlan")}{" "}
+                        <Text style={{ color: textSecondary }}>{t("detail.optional")}</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.intakeHeaderActions}>
+                      {tuneExpanded ? (
+                        <ChevronUp size={18} color={textSecondary} />
+                      ) : (
+                        <ChevronDown size={18} color={textSecondary} />
+                      )}
+                      <TouchableOpacity
+                        onPress={dismissTune}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("common:actions.dismiss")}
+                      >
+                        <X size={16} color={textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+
+                  {tuneExpanded && (
+                    <View style={styles.intakeBody}>
+                      <RoadmapIntake
+                        value={intake}
+                        onChange={setIntake}
+                        colors={{
+                          foreground: textPrimary,
+                          textSecondary,
+                          accent: colors.accent,
+                          border: borderColor,
+                          card: cardBg,
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {!bookmarked && opportunity.deadline && (
+                <AnimatedPressable
+                  onPress={() => {
+                    setGeneratedRoadmap(null);
+                    setShowRoadmapModal(true);
+                    generateAIPath();
+                  }}
+                  style={[
+                    styles.roadmapCTA,
+                    {
+                      backgroundColor: `${colors.accent}10`,
+                      borderColor: `${colors.accent}25`,
+                    },
+                  ]}
+                  hapticFeedback="medium"
+                >
+                  <View style={styles.roadmapCTAContent}>
+                    <View
+                      style={[styles.roadmapCTAIcon, { backgroundColor: `${colors.accent}20` }]}
+                    >
+                      <Zap size={22} color={colors.accent} />
+                    </View>
+                    <View style={styles.roadmapCTAText}>
+                      <Text style={[styles.roadmapCTATitle, { color: textPrimary }]}>
+                        {t("detail.generateRoadmapCta")}
+                      </Text>
+                      <Text
+                        style={[styles.roadmapCTADesc, { color: textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {isPro
+                          ? t("detail.roadmapProDesc")
+                          : t("detail.roadmapCreditsDesc", {
+                              cost: ROADMAP_CREDIT_COST,
+                              credits,
+                            })}
+                      </Text>
+                    </View>
+                    <View style={[styles.roadmapCTAArrow, { backgroundColor: colors.accent }]}>
+                      <ChevronRight size={22} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </AnimatedPressable>
+              )}
             </>
           )}
 
-          {/* Application Co-pilot CTA */}
-          {!isClosed && (
-            <AnimatedPressable
-              onPress={() => {
-                if (isGuestBrowsing) {
-                  authWall?.promptAuth('ai');
-                  return;
-                }
-                router.push(`/copilot/${opportunity.id}` as never);
-              }}
-              style={[
-                styles.roadmapCTA,
-                {
-                  backgroundColor: `${colors.accent}10`,
-                  borderColor: `${colors.accent}25`,
-                },
-              ]}
-              entering={FadeInDown.duration(400)}
-              hapticFeedback="medium"
-            >
-              <LinearGradient
-                colors={[`${colors.accent}06`, `${colors.accent}02`]}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.roadmapCTAContent}>
-                <View
-                  style={[
-                    styles.roadmapCTAIcon,
-                    { backgroundColor: `${colors.accent}20` },
-                  ]}
-                >
-                  <FileText size={22} color={colors.accent} />
-                </View>
-                <View style={styles.roadmapCTAText}>
-                  <Text
-                    style={[styles.roadmapCTATitle, { color: textPrimary }]}
-                  >
-                    {t("detail.copilotCta")}
-                  </Text>
-                  <Text
-                    style={[styles.roadmapCTADesc, { color: textSecondary }]}
-                    numberOfLines={2}
-                  >
-                    {t("detail.copilotCtaDesc")}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.roadmapCTAArrow,
-                    { backgroundColor: colors.accent },
-                  ]}
-                >
-                  <ChevronRight size={22} color="#FFFFFF" />
-                </View>
-              </View>
-            </AnimatedPressable>
-          )}
-
-          {/* Fit-to-my-life intake — optional, secondary. Collapsed by default
-              and fully dismissible so it doesn't always take up space. */}
-          {!bookmarked && opportunity.deadline && !isClosed && !tuneDismissed && (
-            <View
-              style={[
-                styles.intakeCard,
-                { backgroundColor: cardBg, borderColor },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.intakeHeader}
-                onPress={() => setTuneExpanded((v) => !v)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t("detail.tunePlan")}
-              >
-                <View style={styles.intakeHeaderLeft}>
-                  <SlidersHorizontal size={16} color={colors.accent} />
-                  <Text style={[styles.intakeTitle, { color: textPrimary }]}>
-                    {t("detail.tunePlan")}{" "}
-                    <Text style={{ color: textSecondary }}>
-                      {t("detail.optional")}
-                    </Text>
-                  </Text>
-                </View>
-                <View style={styles.intakeHeaderActions}>
-                  {tuneExpanded ? (
-                    <ChevronUp size={18} color={textSecondary} />
-                  ) : (
-                    <ChevronDown size={18} color={textSecondary} />
-                  )}
-                  <TouchableOpacity
-                    onPress={dismissTune}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("common:actions.dismiss")}
-                  >
-                    <X size={16} color={textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-
-              {tuneExpanded && (
-                <View style={styles.intakeBody}>
-                  <RoadmapIntake
-                    value={intake}
-                    onChange={setIntake}
-                    colors={{
-                      foreground: textPrimary,
-                      textSecondary,
-                      accent: colors.accent,
-                      border: borderColor,
-                      card: cardBg,
-                    }}
-                  />
-                </View>
+          {/* Publisher-supplied preparation steps, when there are any. */}
+          {opportunity.roadmap && opportunity.roadmap.length > 0 && !bookmarked && (
+            <CollapsibleSection
+              title={t("detail.prepRoadmap")}
+              meta={t("detail.itemsCount", { count: opportunity.roadmap.length })}
+              preview={previewText(
+                opportunity.roadmap.map((step) => step.title).join(" · "),
               )}
-            </View>
-          )}
-
-          {/* AI Roadmap CTA */}
-          {!bookmarked && opportunity.deadline && !isClosed && (
-            <AnimatedPressable
-              onPress={() => {
-                setGeneratedRoadmap(null);
-                setShowRoadmapModal(true);
-                generateAIPath();
-              }}
-              style={[
-                styles.roadmapCTA,
-                {
-                  backgroundColor: `${colors.accent}10`,
-                  borderColor: `${colors.accent}25`,
-                },
-              ]}
-              entering={FadeInDown.duration(400)}
-              hapticFeedback="medium"
             >
-              <LinearGradient
-                colors={[`${colors.accent}06`, `${colors.accent}02`]}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.roadmapCTAContent}>
-                <View
-                  style={[
-                    styles.roadmapCTAIcon,
-                    { backgroundColor: `${colors.accent}20` },
-                  ]}
-                >
-                  <Zap size={22} color={colors.accent} />
-                </View>
-                <View style={styles.roadmapCTAText}>
-                  <Text
-                    style={[styles.roadmapCTATitle, { color: textPrimary }]}
-                  >
-                    {t("detail.generateRoadmapCta")}
-                  </Text>
-                  <Text
-                    style={[styles.roadmapCTADesc, { color: textSecondary }]}
-                    numberOfLines={2}
-                  >
-                    {isPro
-                      ? t("detail.roadmapProDesc")
-                      : t("detail.roadmapCreditsDesc", { cost: ROADMAP_CREDIT_COST, credits })}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.roadmapCTAArrow,
-                    { backgroundColor: colors.accent },
-                  ]}
-                >
-                  <ChevronRight size={22} color="#FFFFFF" />
-                </View>
-              </View>
-            </AnimatedPressable>
-          )}
-
-          {/* Existing Roadmap Preview */}
-          {opportunity.roadmap &&
-            opportunity.roadmap.length > 0 &&
-            !bookmarked && (
-              <>
-                <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                  {t("detail.prepRoadmap")}
-                </Text>
-                <View
-                  style={[
-                    styles.roadmapCard,
-                    { backgroundColor: cardBg, borderColor },
-                  ]}
-                >
-                  <Text style={[styles.roadmapText, { color: textSecondary }]}>
-                    {t("detail.roadmapStepsIntro", { count: opportunity.roadmap.length })}
-                  </Text>
-                  <View style={styles.roadmapSteps}>
-                    {opportunity.roadmap.slice(0, 3).map((step, index) => (
-                      <View key={index} style={styles.roadmapStep}>
-                        <View
-                          style={[
-                            styles.stepNumber,
-                            { backgroundColor: categoryColor },
-                          ]}
-                        >
-                          <Text style={styles.stepNumberText}>{index + 1}</Text>
-                        </View>
-                        <Text
-                          style={[styles.stepTitle, { color: textPrimary }]}
-                          numberOfLines={1}
-                        >
-                          {step.title}
-                        </Text>
-                      </View>
-                    ))}
-                    {opportunity.roadmap.length > 3 && (
-                      <Text
-                        style={[styles.moreSteps, { color: textSecondary }]}
-                      >
-                        {t("detail.moreSteps", { count: opportunity.roadmap.length - 3 })}
-                      </Text>
-                    )}
+              {opportunity.roadmap.slice(0, 3).map((step, index) => (
+                <View key={`${step.title}-${index}`} style={styles.stepRow}>
+                  <View style={[styles.stepIndex, { backgroundColor: categoryColor }]}>
+                    <Text style={styles.stepNumberText}>{index + 1}</Text>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.addGoalsButton,
-                      { backgroundColor: categoryColor },
-                    ]}
-                    onPress={() => setShowRoadmapModal(true)}
-                  >
-                    <Target size={16} color="white" />
-                    <Text style={styles.addGoalsButtonText}>
-                      {t("detail.addToGoals")}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtonsRow}>
-            {/* Apply Now */}
-            <View
-              style={[
-                styles.applyButtonWrapper,
-                { flex: 1.5, opacity: isClosed ? 0.5 : 1, marginBottom: 0 },
-              ]}
-            >
-              <LinearGradient
-                colors={
-                  isClosed
-                    ? ["#64748B", "#475569"]
-                    : [colors.accent, `${colors.accent}CC`]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.applyButtonGradient}
-              >
-                <TouchableOpacity
-                  style={styles.applyButtonInner}
-                  onPress={isClosed ? undefined : handleApply}
-                  disabled={isClosed}
-                  activeOpacity={0.85}
-                >
-                  <ExternalLink size={18} color="white" />
-                  <Text style={styles.applyButtonText}>
-                    {isClosed ? t("detail.closed") : t("detail.applyNow")}
+                  <Text style={[styles.benefitText, { color: textPrimary }]} numberOfLines={2}>
+                    {step.title}
                   </Text>
-                </TouchableOpacity>
-              </LinearGradient>
-            </View>
+                </View>
+              ))}
+              {opportunity.roadmap.length > 3 && (
+                <Text style={[styles.moreSteps, { color: textSecondary }]}>
+                  {t("detail.moreSteps", { count: opportunity.roadmap.length - 3 })}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.addGoalsButton, { backgroundColor: categoryColor }]}
+                onPress={() => setShowRoadmapModal(true)}
+              >
+                <Target size={16} color="white" />
+                <Text style={styles.addGoalsButtonText}>{t("detail.addToGoals")}</Text>
+              </TouchableOpacity>
+            </CollapsibleSection>
+          )}
 
-            {/* Save Opportunity */}
+          {/* ── QUIET FOOTER ───────────────────────────────────────────── */}
+          <View style={[styles.footerActions, { borderTopColor: borderColor }]}>
             <TouchableOpacity
-              style={[
-                styles.saveButtonWrapper,
-                {
-                  flex: 1,
-                  backgroundColor: bookmarked
-                    ? `${colors.accent}15`
-                    : colors.card,
-                  borderColor: bookmarked ? colors.accent : colors.border,
-                  borderWidth: 1.5,
-                },
-              ]}
               onPress={toggleBookmark}
               disabled={bookmarkLoading}
               activeOpacity={0.7}
+              style={styles.footerAction}
+              accessibilityRole="button"
+              accessibilityState={{ selected: bookmarked, busy: bookmarkLoading }}
             >
               {bookmarkLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={bookmarked ? colors.accent : colors.foreground}
-                />
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : bookmarked ? (
+                <BookmarkCheck size={18} color={colors.accent} />
               ) : (
-                <>
-                  {bookmarked ? (
-                    <BookmarkCheck size={20} color={colors.accent} />
-                  ) : (
-                    <Bookmark size={20} color={colors.foreground} />
-                  )}
-                  <Text
-                    style={[
-                      styles.saveButtonText,
-                      { color: bookmarked ? colors.accent : colors.foreground },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
-                  </Text>
-                </>
+                <Bookmark size={18} color={textSecondary} />
               )}
+              <Text
+                style={[
+                  styles.footerActionText,
+                  { color: bookmarked ? colors.accent : textSecondary },
+                ]}
+                numberOfLines={1}
+              >
+                {bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleShare}
+              activeOpacity={0.7}
+              style={styles.footerAction}
+              accessibilityRole="button"
+            >
+              <Share2 size={18} color={textSecondary} />
+              <Text style={[styles.footerActionText, { color: textSecondary }]}>
+                {t("detail.shareAction")}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleNotInterested}
+              activeOpacity={0.6}
+              style={styles.footerAction}
+              accessibilityRole="button"
+            >
+              <EyeOff size={18} color={textSecondary} />
+              <Text style={[styles.footerActionText, { color: textSecondary }]} numberOfLines={1}>
+                {t("detail.notInterestedLink", { defaultValue: "Not interested in this" })}
+              </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Not interested — quiet escape hatch that trains recommendations */}
-          <TouchableOpacity
-            onPress={handleNotInterested}
-            activeOpacity={0.6}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              paddingVertical: 14,
-              marginTop: 4,
-            }}
-          >
-            <EyeOff size={14} color={textSecondary} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: textSecondary }}>
-              {t("detail.notInterestedLink", { defaultValue: "Not interested in this" })}
-            </Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Floating AI co-pilot button — one tap opens all AI recommendations */}
+      {/* The primary action stays a thumb-move away once it scrolls off. The
+          floating nav pill is not rendered on this route (the (app) layout
+          classes /opportunities/{id} as a subpage), so the bar owns the
+          bottom edge outright. */}
+      <StickyApplyBar
+        visible={stickyVisible}
+        label={nextActionLabel}
+        closed={nextActionKind === "closed"}
+        saved={bookmarked}
+        saveBusy={bookmarkLoading}
+        saveLabel={bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
+        onPress={runNextAction}
+        onToggleSave={toggleBookmark}
+      />
+
+      {/* Floating AI co-pilot button — one tap opens all AI recommendations.
+          Parked above the sticky bar so the two never collide. */}
       {!isClosed && opportunity ? (
         <AiCopilotFab
           label={t("detail.copilotCta", { defaultValue: "Apply with Edutu AI" })}
@@ -3577,7 +3464,93 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   urgentText: { color: "white", fontSize: 10, fontWeight: "600" },
-  content: { padding: 18 },
+  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 18 },
+
+  // ── Decision-first layout ────────────────────────────────────────────────
+  title: { fontSize: 25, fontWeight: "800", lineHeight: 32, letterSpacing: -0.4 },
+  titleMeta: { fontSize: 13, fontWeight: "600", marginTop: 6 },
+  primaryAction: {
+    height: 54,
+    borderRadius: 999,
+    borderCurve: "continuous",
+    overflow: "hidden",
+  },
+  primaryActionInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+  },
+  primaryActionText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
+  secondaryLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 12,
+  },
+  secondaryLinkText: { fontSize: 14, fontWeight: "600" },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 14 },
+  tagChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderCurve: "continuous",
+  },
+  tagChipText: { fontSize: 11, fontWeight: "600" },
+  summaryBlock: {
+    borderLeftWidth: 3,
+    paddingLeft: 12,
+    paddingVertical: 10,
+    paddingRight: 10,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    gap: 6,
+  },
+  summaryHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  summaryText: { fontSize: 14, lineHeight: 21 },
+  sectionHint: { fontSize: 13, marginBottom: 2 },
+  benefitRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  benefitText: { flex: 1, fontSize: 15, lineHeight: 21 },
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  stepIndex: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  stepIndexText: { fontSize: 12, fontWeight: "700" },
+  groupHeading: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  footerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 24,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  footerAction: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  footerActionText: { fontSize: 12, fontWeight: "600", textAlign: "center" },
+
   badgeRow: {
     flexDirection: "row",
     gap: 6,
@@ -3594,7 +3567,6 @@ const styles = StyleSheet.create({
   difficultyText: { fontSize: 10, fontWeight: "600" },
   matchBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   matchText: { fontSize: 10, fontWeight: "600" },
-  title: { fontSize: 21, fontWeight: "700", marginBottom: 6, lineHeight: 28 },
   sponsorBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -3673,7 +3645,8 @@ const styles = StyleSheet.create({
   aiFab: {
     position: "absolute",
     right: 16,
-    bottom: 108,
+    // Clears the sticky action bar (50pt control + padding + home indicator).
+    bottom: 124,
     alignItems: "center",
     justifyContent: "center",
   },
