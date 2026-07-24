@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { MatchReason, Opportunity, OpportunityDifficulty } from '../types/opportunity';
+import {
+  MatchReason,
+  Opportunity,
+  OpportunityDifficulty,
+  OpportunityTrust,
+  DeadlineConfidence,
+} from '../types/opportunity';
 import { toSafeUUID } from '../utils/auth';
 import { categorizeOpportunity } from './opportunityCategorization';
 
@@ -231,6 +237,40 @@ function normaliseOpportunity(row: any): Opportunity {
     eligibility: row.eligibility || {},
     roadmap: row.roadmap || meta.roadmap || [],
     tags: row.tags || [],
+    trust: deriveTrust(row, meta),
+  };
+}
+
+function normaliseDeadlineConfidence(value: any): DeadlineConfidence {
+  return value === 'explicit' || value === 'inferred' || value === 'rolling' || value === 'unknown'
+    ? value
+    : 'unknown';
+}
+
+/**
+ * Trust signals, from either the public API's curated `trust` block or — on the
+ * direct-Supabase read path where metadata is still present — the raw columns.
+ */
+function deriveTrust(row: any, meta: any): OpportunityTrust | null {
+  if (row.trust && typeof row.trust === 'object') {
+    return {
+      verified: row.trust.verified === true,
+      lastVerifiedAt: typeof row.trust.lastVerifiedAt === 'string' ? row.trust.lastVerifiedAt : null,
+      deadlineConfidence: normaliseDeadlineConfidence(row.trust.deadlineConfidence),
+    };
+  }
+  const verificationStatus = row.verification_status ?? row.verificationStatus;
+  const lastVerifiedAt = row.last_verified_at ?? row.lastVerifiedAt ?? null;
+  const status = row.status;
+  const confidence = meta?.deadline_confidence;
+  // Nothing to say if none of these signals are present.
+  if (verificationStatus == null && lastVerifiedAt == null && confidence == null) {
+    return null;
+  }
+  return {
+    verified: verificationStatus === 'verified' && status === 'active',
+    lastVerifiedAt: typeof lastVerifiedAt === 'string' ? lastVerifiedAt : null,
+    deadlineConfidence: normaliseDeadlineConfidence(confidence),
   };
 }
 

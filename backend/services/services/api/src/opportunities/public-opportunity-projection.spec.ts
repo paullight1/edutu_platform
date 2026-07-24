@@ -52,6 +52,44 @@ describe("public-opportunity-projection", () => {
     expect(out.source).toBeUndefined();
   });
 
+  it("exposes a minimal trust block for user-facing credibility", () => {
+    const out = stripInternalOpportunityFields({
+      ...sampleRow,
+      status: "active",
+      last_verified_at: "2026-07-24T09:00:00.000Z",
+      metadata: { deadline_confidence: "explicit" },
+    });
+    const trust = out.trust as Record<string, unknown>;
+    expect(trust).toBeDefined();
+    expect(trust.verified).toBe(true);
+    expect(trust.lastVerifiedAt).toBe("2026-07-24T09:00:00.000Z");
+    expect(trust.deadlineConfidence).toBe("explicit");
+    // The raw internal fields still must not leak — only the curated block does.
+    expect(out.verification_status).toBeUndefined();
+    expect(out.last_verified_at).toBeUndefined();
+    expect(out.metadata).toBeUndefined();
+  });
+
+  it("marks verified=false when the row is not verified+active", () => {
+    const pending = stripInternalOpportunityFields({
+      ...sampleRow,
+      status: "pending_review",
+      verification_status: "stale",
+      last_verified_at: "2026-07-24T09:00:00.000Z",
+    });
+    expect((pending.trust as Record<string, unknown>).verified).toBe(false);
+  });
+
+  it("defaults deadlineConfidence to 'unknown' when absent", () => {
+    const out = stripInternalOpportunityFields({
+      ...sampleRow,
+      metadata: {},
+    });
+    expect((out.trust as Record<string, unknown>).deadlineConfidence).toBe(
+      "unknown",
+    );
+  });
+
   it("returns the same number of public fields for a batch", () => {
     const [first, second] = stripInternalOpportunityFieldsBatch([
       sampleRow,

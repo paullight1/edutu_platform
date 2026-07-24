@@ -308,12 +308,27 @@ export class EdutuApiUsageService {
       if (error instanceof InsufficientCreditsError) {
         return { balance: 0, exhausted: true };
       }
-      // Infrastructure failure while charging: fail open rather than blocking
-      // paying consumers on a transient DB error.
+      const message = error instanceof Error ? error.message : "unknown error";
+
+      // Fail-closed opt-in: when EDUTU_API_METERING_FAIL_OPEN is not "true",
+      // block the request on an infra failure so paid usage is never served
+      // unmetered (a revenue leak). Default stays fail-open so a transient DB
+      // blip doesn't reject paying consumers — but every fail-open charge is
+      // logged as a structured, reconcilable event, not silently dropped.
+      const failOpen = process.env.EDUTU_API_METERING_FAIL_OPEN !== "false";
+      if (!failOpen) {
+        this.logger.error(
+          `API credit reservation failed (fail-closed) for owner=${ownerUserId} endpoint=${endpoint}: ${message}`,
+        );
+        return { balance: 0, exhausted: true };
+      }
+
+      // Reconciliation marker: an operator can grep unmetered_api_request to
+      // recover revenue that a DB outage let through un-charged.
       this.logger.warn(
-        `Unable to reserve API credit: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`,
+        `unmetered_api_request owner=${ownerUserId} endpoint=${endpoint} requestId=${
+          requestId ?? "none"
+        } reason="${message}"`,
       );
       return { balance: null, exhausted: false };
     }

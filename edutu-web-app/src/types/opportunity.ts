@@ -1,6 +1,24 @@
 export type OpportunityDifficulty = "Easy" | "Medium" | "Hard";
 export type OpportunitySource = "admin" | "n8n" | "manual" | "import";
 
+export type DeadlineConfidence =
+  | "explicit"
+  | "inferred"
+  | "rolling"
+  | "unknown";
+
+/**
+ * Curated trust signals surfaced to learners (from the backend public
+ * projection). Credibility is the product's moat, so the UI shows whether an
+ * opportunity was verified, when it was last checked, and how confident we are
+ * in the deadline (a read date vs an estimated one).
+ */
+export interface OpportunityTrust {
+  verified: boolean;
+  lastVerifiedAt: string | null;
+  deadlineConfidence: DeadlineConfidence;
+}
+
 export interface Opportunity {
   id: string;
   title: string;
@@ -50,6 +68,9 @@ export interface Opportunity {
   viewCount?: number;
   applyCount?: number;
   bookmarkCount?: number;
+
+  /** Curated verification/freshness/deadline-confidence signals. */
+  trust?: OpportunityTrust | null;
 }
 
 export interface OpportunityFilters {

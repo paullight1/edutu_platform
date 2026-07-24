@@ -73,6 +73,7 @@ import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySig
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
+import { TrustSignal } from "../../../components/opportunity/TrustSignal";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
@@ -1601,6 +1602,9 @@ export default function OpportunityDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Trust signals — verified / last-checked / deadline confidence */}
+          <TrustSignal trust={opportunity.trust} mutedColor={textSecondary} />
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
