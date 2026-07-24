@@ -28,6 +28,11 @@ jest.mock('lucide-react-native', () => {
     Target: icon('Target'),
     Wifi: icon('Wifi'),
     WifiOff: icon('WifiOff'),
+    // EmptyState imports these two as well; a missing entry here renders as
+    // `undefined` and fails with "Element type is invalid" rather than
+    // anything meaningful, so keep this list in sync with the component.
+    Bell: icon('Bell'),
+    ArrowRight: icon('ArrowRight'),
   };
 });
 
