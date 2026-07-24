@@ -25,6 +25,13 @@ export class UploadsController {
     return this.uploadsService.createSignedUpload(userId, body);
   }
 
+  // Signed short-lived URL so the app can download/share the original file
+  // ("My Documents"). Scoped to the caller's own uploads in the service.
+  @Get(":id/download-url")
+  downloadUrl(@CurrentUser("id") userId: string, @Param("id") id: string) {
+    return this.uploadsService.getDownloadUrl(userId, id);
+  }
+
   // Parsing an uploaded file is cheap and can fail on a bad file, so it stays
   // free — the paid AI work is analyze_fit, which is metered in the tool layer.
   @Post(":id/ingest")

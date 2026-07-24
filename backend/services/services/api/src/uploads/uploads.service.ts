@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
@@ -11,6 +13,9 @@ import { extractText, SUPPORTED_UPLOAD_MIME_TYPES } from "./extract-text";
 
 const BUCKET = "cv-files";
 const MAX_EXTRACTED_CHARS = 40_000;
+// Short-lived: the app fetches the URL right before downloading, so 5 minutes
+// is plenty and keeps leaked links useless.
+const DOWNLOAD_URL_TTL_SECONDS = 300;
 
 export type UploadRow = {
   id: string;
@@ -25,7 +30,13 @@ export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
   private readonly supabase: SupabaseClient;
 
-  constructor(clientOverride?: SupabaseClient) {
+  // @Optional keeps Nest from trying to resolve SupabaseClient (a plain
+  // library class, not a provider) at bootstrap; specs pass a mock directly.
+  constructor(
+    @Optional()
+    @Inject("SUPABASE_CLIENT")
+    clientOverride?: SupabaseClient,
+  ) {
     this.supabase =
       clientOverride ??
       createClient(
@@ -166,6 +177,51 @@ export class UploadsService {
       parseStatus: String(row.parse_status),
       createdAt: String(row.created_at),
     }));
+  }
+
+  /**
+   * Signed, short-lived download URL for one of the caller's own uploads
+   * (powers the "My Documents" screen). The `download` option makes the
+   * browser/OS save the file under its original name.
+   */
+  async getDownloadUrl(
+    userId: string,
+    uploadId: string,
+  ): Promise<{
+    url: string;
+    fileName: string;
+    mimeType: string;
+    expiresIn: number;
+  }> {
+    const { data, error } = await this.supabase
+      .from("user_uploads")
+      .select("file_name, storage_path, mime_type")
+      .eq("id", uploadId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) throw new NotFoundException("Upload not found");
+    const row = data as {
+      file_name: string;
+      storage_path: string;
+      mime_type: string;
+    };
+
+    const { data: signed, error: signedError } = await this.supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(row.storage_path, DOWNLOAD_URL_TTL_SECONDS, {
+        download: row.file_name,
+      });
+    if (signedError || !signed?.signedUrl) {
+      throw new BadRequestException(
+        `Could not create download URL: ${signedError?.message ?? "unknown"}`,
+      );
+    }
+    return {
+      url: signed.signedUrl,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      expiresIn: DOWNLOAD_URL_TTL_SECONDS,
+    };
   }
 
   /** Used by the read_document coach tool to feed the agent the parsed text. */
