@@ -11,10 +11,25 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { Check, Download, Wand2, Target, ChevronRight, Plus, Trash2, Flag } from 'lucide-react-native';
+import {
+    Check,
+    Download,
+    Wand2,
+    Target,
+    ChevronRight,
+    Plus,
+    Trash2,
+    Flag,
+    RotateCcw,
+    Briefcase,
+    GraduationCap,
+    FolderOpen,
+    Trophy,
+} from 'lucide-react-native';
 import { CVHeader, UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useReportAIContent } from '../../lib/reportAiContent';
+import { AnimatedPressable } from '../ui/AnimatedPressable';
 
 type CVData = NonNullable<UserCV['data_json']>;
 
@@ -52,6 +67,10 @@ interface Props {
     onAITailor: () => void;
     onImproveSummary?: () => void;
     onUpgradeFeature: (feature: string) => void;
+    /** True when an AI summary rewrite can be reverted this session. */
+    canUndoSummary?: boolean;
+    /** Restores the summary text stashed before the last AI rewrite. */
+    onUndoSummary?: () => void;
 }
 
 function createLocalId(prefix: string) {
@@ -70,6 +89,8 @@ export function CVEditor({
     onAITailor,
     onImproveSummary,
     onUpgradeFeature,
+    canUndoSummary,
+    onUndoSummary,
 }: Props) {
     const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
@@ -182,10 +203,10 @@ export function CVEditor({
                     {[
                         ['full_name', 'editor.personal.fullName.label', 'editor.personal.fullName.placeholder'],
                         ['email', 'editor.personal.email.label', 'editor.personal.email.placeholder'],
-                        ['phone', 'editor.personal.phone.label', 'editor.personal.phone.placeholder'],
-                        ['location', 'editor.personal.location.label', 'editor.personal.location.placeholder'],
-                        ['linkedin', 'editor.personal.linkedin.label', 'editor.personal.linkedin.placeholder'],
-                        ['portfolio', 'editor.personal.portfolio.label', 'editor.personal.portfolio.placeholder'],
+                        ['phone', 'editor.personal.phone.label', 'editor.personal.phonePlaceholder'],
+                        ['location', 'editor.personal.location.label', 'editor.personal.locationPlaceholder'],
+                        ['linkedin', 'editor.personal.linkedin.label', 'editor.personal.linkedinPlaceholder'],
+                        ['portfolio', 'editor.personal.portfolio.label', 'editor.personal.portfolioPlaceholder'],
                     ].map(([key, label, placeholder]) => (
                         <View style={styles.inputRow} key={key}>
                             <Text style={[styles.inputLabel, { color: muted }]}>{t(label)}</Text>
@@ -236,6 +257,14 @@ export function CVEditor({
                             {isImprovingSummary ? t('editor.improving') : isPro ? t('editor.improveWithAi') : t('editor.unlockAiAssist')}
                         </Text>
                     </TouchableOpacity>
+                    {canUndoSummary && onUndoSummary && (
+                        <TouchableOpacity style={styles.undoRewriteBtn} onPress={onUndoSummary} hitSlop={8}>
+                            <RotateCcw size={14} color={muted} />
+                            <Text style={[styles.undoRewriteText, { color: muted }]}>
+                                {t('editor.undoRewrite')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                     {!!currentCV.data_json?.summary && (
                         <TouchableOpacity
                             style={styles.reportAiBtn}
@@ -290,7 +319,7 @@ export function CVEditor({
                     onAdd={() => addItem('experience')}
                 />
                 {(currentCV.data_json?.experience || []).length === 0 && (
-                    <EmptyHint label={t('editor.empty.experience')} />
+                    <EmptyHint label={t('editor.empty.experience')} icon={Briefcase} onAdd={() => addItem('experience')} />
                 )}
                 {(currentCV.data_json?.experience || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -331,7 +360,7 @@ export function CVEditor({
                     onAdd={() => addItem('education')}
                 />
                 {(currentCV.data_json?.education || []).length === 0 && (
-                    <EmptyHint label={t('editor.empty.education')} />
+                    <EmptyHint label={t('editor.empty.education')} icon={GraduationCap} onAdd={() => addItem('education')} />
                 )}
                 {(currentCV.data_json?.education || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -358,7 +387,7 @@ export function CVEditor({
                     onAdd={() => addItem('projects')}
                 />
                 {(currentCV.data_json?.projects || []).length === 0 && (
-                    <EmptyHint label={t('editor.empty.projects')} />
+                    <EmptyHint label={t('editor.empty.projects')} icon={FolderOpen} onAdd={() => addItem('projects')} />
                 )}
                 {(currentCV.data_json?.projects || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -381,7 +410,7 @@ export function CVEditor({
                     onAdd={() => addItem('achievements')}
                 />
                 {(currentCV.data_json?.achievements || []).length === 0 && (
-                    <EmptyHint label={t('editor.empty.achievements')} />
+                    <EmptyHint label={t('editor.empty.achievements')} icon={Trophy} onAdd={() => addItem('achievements')} />
                 )}
                 {(currentCV.data_json?.achievements || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -491,19 +520,33 @@ function ItemHeader({ title, onDelete }: { title: string; onDelete: () => void }
     );
 }
 
-function EmptyHint({ label }: { label: string }) {
+function EmptyHint({
+    label,
+    icon: Icon,
+    onAdd,
+}: {
+    label: string;
+    icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+    onAdd: () => void;
+}) {
     const { isDark } = useTheme();
+    const hintColor = isDark ? '#64748B' : '#94A3B8';
     return (
-        <View
+        <AnimatedPressable
             style={[
                 styles.emptyHint,
                 { borderColor: isDark ? 'rgba(148,163,184,0.28)' : 'rgba(148,163,184,0.5)' },
             ]}
+            scaleTo={0.97}
+            onPress={onAdd}
         >
-            <Text style={[styles.emptyHintText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                {label}
-            </Text>
-        </View>
+            <View style={styles.emptyHintInner}>
+                <View style={styles.emptyHintIcon}>
+                    <Icon size={32} color={hintColor} strokeWidth={1.6} />
+                </View>
+                <Text style={[styles.emptyHintText, { color: hintColor }]}>{label}</Text>
+            </View>
+        </AnimatedPressable>
     );
 }
 
@@ -583,15 +626,33 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderStyle: 'dashed',
         borderRadius: 12,
-        paddingVertical: 18,
-        paddingHorizontal: 16,
         marginBottom: 12,
+    },
+    emptyHintInner: {
+        paddingVertical: 20,
+        paddingHorizontal: 16,
         alignItems: 'center',
+        gap: 10,
+    },
+    emptyHintIcon: {
+        opacity: 0.5,
     },
     emptyHintText: {
         fontSize: 13,
         fontWeight: '500',
         textAlign: 'center',
+    },
+    undoRewriteBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 10,
+        paddingVertical: 4,
+    },
+    undoRewriteText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     addBtn: {
         flexDirection: 'row',

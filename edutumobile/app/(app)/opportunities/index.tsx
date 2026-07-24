@@ -62,6 +62,7 @@ import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type Discover
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from '../../../lib/discoveryTileGlyphs';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
+import { createNavScrollHandler } from '../../../lib/navScrollStore';
 
 type SortMode = 'recommended' | 'deadline' | 'newest';
 
@@ -655,6 +656,9 @@ function ListRow({ item, onPress, onShare, colors }: { item: Opportunity; onPres
   );
 }
 
+
+const navScroll = createNavScrollHandler();
+
 export default function OpportunitiesScreen() {
   const { t } = useTranslation('opps');
   const { user } = useUser();
@@ -1125,7 +1129,7 @@ export default function OpportunitiesScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 36 }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
+          { useNativeDriver: false, listener: navScroll },
         )}
         scrollEventThrottle={16}
         columnWrapperStyle={viewMode === 'grid' ? { gap: 12 } : undefined}

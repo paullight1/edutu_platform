@@ -1,4 +1,20 @@
+import { Test } from "@nestjs/testing";
 import { UploadsService } from "./uploads.service";
+import { UploadsModule } from "./uploads.module";
+
+jest.mock("@supabase/supabase-js", () => ({
+  createClient: jest.fn(() => ({})),
+}));
+
+describe("UploadsModule", () => {
+  it("compiles without an explicit supabase client provider", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [UploadsModule],
+    }).compile();
+
+    expect(moduleRef.get(UploadsService)).toBeInstanceOf(UploadsService);
+  });
+});
 
 /** Minimal Supabase-shaped mock: one uploads row + a storage blob. */
 function makeClient(opts: {
@@ -42,6 +58,71 @@ function makeClient(opts: {
     },
   } as never;
 }
+
+/** Mock for the download-url path: select row + storage.createSignedUrl. */
+function makeDownloadClient(opts: {
+  uploadRow: Record<string, unknown> | null;
+  signedUrl?: string;
+}) {
+  const createSignedUrl = jest.fn(() =>
+    Promise.resolve(
+      opts.signedUrl
+        ? { data: { signedUrl: opts.signedUrl }, error: null }
+        : { data: null, error: { message: "sign failed" } },
+    ),
+  );
+  return {
+    client: {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({ data: opts.uploadRow, error: null }),
+            }),
+          }),
+        }),
+      }),
+      storage: { from: () => ({ createSignedUrl }) },
+    } as never,
+    createSignedUrl,
+  };
+}
+
+describe("UploadsService.getDownloadUrl", () => {
+  it("returns a signed URL with the original file name", async () => {
+    const { client, createSignedUrl } = makeDownloadClient({
+      uploadRow: {
+        file_name: "My_CV.pdf",
+        storage_path: "user_1/abc-My_CV.pdf",
+        mime_type: "application/pdf",
+      },
+      signedUrl: "https://signed.example/abc",
+    });
+    const service = new UploadsService(client);
+
+    const result = await service.getDownloadUrl("user_1", "up_1");
+
+    expect(result).toEqual({
+      url: "https://signed.example/abc",
+      fileName: "My_CV.pdf",
+      mimeType: "application/pdf",
+      expiresIn: 300,
+    });
+    expect(createSignedUrl).toHaveBeenCalledWith("user_1/abc-My_CV.pdf", 300, {
+      download: "My_CV.pdf",
+    });
+  });
+
+  it("404s when the upload does not belong to the caller", async () => {
+    const { client } = makeDownloadClient({ uploadRow: null });
+    const service = new UploadsService(client);
+
+    await expect(service.getDownloadUrl("user_2", "up_1")).rejects.toThrow(
+      "Upload not found",
+    );
+  });
+});
 
 describe("UploadsService.ingest", () => {
   it("extracts text and marks the upload done", async () => {

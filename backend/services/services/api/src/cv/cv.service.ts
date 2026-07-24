@@ -11,12 +11,17 @@ import { z } from "zod";
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
 import { db } from "../db";
-import { goals as goalsTable, profiles } from "../db/schema";
+import { goals as goalsTable, opportunities, profiles } from "../db/schema";
 import {
+  AtsChecklistId,
+  AtsChecklistItemDto,
   CVDataDto,
   CVGoalContextDto,
+  CVOpportunityContextDto,
   CVProfileContextDto,
   GenerateCVDraftDto,
+  GenerateCoverLetterDto,
+  QuantifyQuestionDto,
   TailorCVDto,
 } from "./dto/cv-ai.dto";
 import type { SaveCVRecordDto } from "./dto/cv-record.dto";
@@ -197,13 +202,134 @@ const DraftResponseSchema = z.object({
   suggestions: z.array(z.string()).default([]),
 });
 
+/**
+ * The 10-point "ATS-grade" checklist. Order matters — the client renders it as
+ * given. `why` defaults are the educational one-liners for the method the
+ * product teaches; the LLM may override `label`/`detail`/`why` per CV/JD pair
+ * but the id set is always exactly these ten.
+ */
+export const ATS_CHECKLIST_IDS = [
+  "title_match",
+  "verbatim_keywords",
+  "structure_mirror",
+  "quantified_bullets",
+  "ats_format",
+  "values_alignment",
+  "specific_interest",
+  "terminology",
+  "completeness",
+  "apply_fast",
+] as const;
+
+export const ATS_CHECKLIST_META: Record<
+  AtsChecklistId,
+  { label: string; why: string }
+> = {
+  title_match: {
+    label: "Title mirrors the role",
+    why: "ATS ranking and recruiters both key on the CV's title line matching the job's exact title — mirror it only when your real experience honestly supports it.",
+  },
+  verbatim_keywords: {
+    label: "Verbatim JD keywords",
+    why: "ATS software matches the job description's exact phrases, not synonyms — weave their wording into your summary and bullets wherever it's truthful.",
+  },
+  structure_mirror: {
+    label: "Structure mirrors the JD",
+    why: "Organizing your experience under the same headers the job description uses lets software and skimming reviewers find each requirement instantly.",
+  },
+  quantified_bullets: {
+    label: "Numbers in every bullet",
+    why: "A number in every strong bullet — %, amount, time saved, records, team size — turns claims into evidence.",
+  },
+  ats_format: {
+    label: "ATS-safe formatting",
+    why: "A simple single-column layout with standard headings keeps parsing software from scrambling your content.",
+  },
+  values_alignment: {
+    label: "Values alignment",
+    why: "When the organization lists its values, mapping each one to a real behavior of yours shows fit beyond skills.",
+  },
+  specific_interest: {
+    label: "Specific interest",
+    why: "Naming why THIS organization and role — not a generic ambition — signals genuine intent.",
+  },
+  terminology: {
+    label: "Their terminology",
+    why: "Using their exact terms for tools, methods, and domain concepts reads as an insider to both software and humans.",
+  },
+  completeness: {
+    label: "Complete essentials",
+    why: "Missing contact details, dates, or core sections get applications filtered out before anyone reads them.",
+  },
+  apply_fast: {
+    label: "Apply fast",
+    why: "Applying within hours of a posting materially raises callback odds — early applications actually get read.",
+  },
+};
+
+const AtsChecklistItemSchema = z.object({
+  id: z.enum(ATS_CHECKLIST_IDS),
+  label: z.string().optional(),
+  status: z.enum(["pass", "fix", "n/a"]).optional(),
+  detail: z.string().optional(),
+  why: z.string().optional(),
+});
+
+const QuantifyQuestionSchema = z.object({
+  target: z.string(),
+  question: z.string(),
+});
+
 const TailorResponseSchema = z.object({
   tailored_cv: CVDataSchema,
   match_score: z.coerce.number().min(0).max(100),
   improvements: z.array(z.string()).default([]),
   matched_keywords: z.array(z.string()).default([]),
   missing_keywords: z.array(z.string()).default([]),
+  atsChecklist: z.array(AtsChecklistItemSchema).default([]),
+  // stripNulls drops an explicit null before parsing, so optional here and
+  // normalized back to `string | null` in the service.
+  proposedTitle: z.string().optional(),
+  quantifyQuestions: z.array(QuantifyQuestionSchema).default([]),
 });
+
+const CoverLetterResponseSchema = z.object({
+  cover_letter: z.string(),
+});
+
+/**
+ * Scholarships/fellowships/grants are read by humans, not parsing software:
+ * keep keyword tailoring but soften ATS-specific advice and emphasize voice.
+ */
+function tailorMode(
+  opportunity: CVOpportunityContextDto | OpportunityPromptContext,
+): "ats" | "human" {
+  const raw = [
+    opportunity.category,
+    "type" in opportunity ? opportunity.type : "",
+    ...("tags" in opportunity ? opportunity.tags || [] : []),
+    opportunity.title,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /scholar|fellow|grant|bursar|award/.test(raw) ? "human" : "ats";
+}
+
+type OpportunityPromptContext = {
+  id: string;
+  title: string;
+  organization: string | null;
+  category: string | null;
+  type: string | null;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  deadline: string | null;
+  fundingType: string | null;
+  tags: string[];
+  skills: string[];
+};
 
 @Injectable()
 export class CvService {
@@ -413,17 +539,20 @@ export class CvService {
   }
 
   async tailor(userId: string, dto: TailorCVDto) {
+    const mode = tailorMode(dto.opportunity || {});
     try {
       const parsed = await this.aiService.generateJson({
         feature: "cv.tailor",
-        prompt: this.buildTailorPrompt(userId, dto),
+        prompt: this.buildTailorPrompt(userId, dto, mode),
         responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { userId, opportunityId: dto.opportunity?.id },
       });
 
       if (parsed) {
-        return TailorResponseSchema.parse(stripNulls(parsed));
+        return this.normalizeTailorResult(
+          TailorResponseSchema.parse(stripNulls(parsed)),
+        );
       }
     } catch (error) {
       this.logger.warn(
@@ -431,7 +560,153 @@ export class CvService {
       );
     }
 
-    return this.buildFallbackTailor(dto);
+    return this.buildFallbackTailor(dto, mode);
+  }
+
+  async generateCoverLetter(userId: string, dto: GenerateCoverLetterDto) {
+    if (!dto.opportunityId) {
+      throw new BadRequestException("opportunityId is required");
+    }
+    const opportunity = await this.loadOpportunityContext(dto.opportunityId);
+    const cv = await this.resolveCoverLetterCV(userId, dto);
+    const mode = tailorMode(opportunity);
+
+    try {
+      const parsed = await this.aiService.generateJson({
+        feature: "cv.coverLetter",
+        prompt: this.buildCoverLetterPrompt(cv, opportunity, mode),
+        responseMimeType: "application/json",
+        temperature: 0.5,
+        metadata: { userId, opportunityId: dto.opportunityId },
+      });
+
+      if (parsed) {
+        const { cover_letter } = CoverLetterResponseSchema.parse(
+          stripNulls(parsed),
+        );
+        const letter = cover_letter.trim();
+        if (letter) return { coverLetter: letter };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Cover letter fell back to template mode: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return { coverLetter: this.buildFallbackCoverLetter(cv, opportunity) };
+  }
+
+  /**
+   * Guarantees the checklist is exactly the 10 canonical items in canonical
+   * order, each with a label and an educational `why`, even when the model
+   * skipped or duplicated entries.
+   */
+  private normalizeTailorResult(
+    parsed: z.infer<typeof TailorResponseSchema>,
+  ): Omit<
+    z.infer<typeof TailorResponseSchema>,
+    "atsChecklist" | "proposedTitle" | "quantifyQuestions"
+  > & {
+    atsChecklist: AtsChecklistItemDto[];
+    proposedTitle: string | null;
+    quantifyQuestions: QuantifyQuestionDto[];
+  } {
+    const byId = new Map<string, (typeof parsed.atsChecklist)[number]>();
+    for (const item of parsed.atsChecklist) {
+      if (!byId.has(item.id)) byId.set(item.id, item);
+    }
+
+    const atsChecklist: AtsChecklistItemDto[] = ATS_CHECKLIST_IDS.map((id) => {
+      const item = byId.get(id);
+      const meta = ATS_CHECKLIST_META[id];
+      return {
+        id,
+        label: item?.label?.trim() || meta.label,
+        status: item?.status ?? "n/a",
+        detail: item?.detail?.trim() || "",
+        why: item?.why?.trim() || meta.why,
+      };
+    });
+
+    return {
+      ...parsed,
+      atsChecklist,
+      proposedTitle: parsed.proposedTitle?.trim() || null,
+      quantifyQuestions: parsed.quantifyQuestions
+        .filter((q) => q.target?.trim() && q.question?.trim())
+        .slice(0, 4),
+    };
+  }
+
+  private async loadOpportunityContext(
+    opportunityId: string,
+  ): Promise<OpportunityPromptContext> {
+    this.assertUuid(opportunityId, "Opportunity id");
+    const [row] = await db
+      .select()
+      .from(opportunities)
+      .where(eq(opportunities.id, opportunityId))
+      .limit(1)
+      .execute();
+
+    if (!row) throw new NotFoundException("Opportunity not found");
+
+    return {
+      id: row.id,
+      title: row.title,
+      organization: row.organization ?? null,
+      category: row.canonicalCategory ?? row.category ?? null,
+      type: row.type ?? null,
+      summary: row.summary ?? null,
+      description: row.description ? row.description.slice(0, 5000) : null,
+      location: row.location ?? null,
+      deadline: row.deadline ? new Date(row.deadline).toISOString() : null,
+      fundingType: row.fundingType ?? null,
+      tags: row.tags ?? [],
+      skills: row.skills ?? [],
+    };
+  }
+
+  /** Inline CV wins; otherwise look up user_cvs (mobile) then cv_records (web). */
+  private async resolveCoverLetterCV(
+    userId: string,
+    dto: GenerateCoverLetterDto,
+  ): Promise<CVDataDto> {
+    if (dto.currentCV && Object.keys(dto.currentCV).length) {
+      return dto.currentCV;
+    }
+    if (dto.cvId && UUID_PATTERN.test(dto.cvId) && this.supabase) {
+      const { data: userCv } = await this.supabase
+        .from("user_cvs")
+        .select("data_json,user_id")
+        .eq("id", dto.cvId)
+        .maybeSingle();
+      const parsedUserCv = userCv?.data_json
+        ? CVDataSchema.safeParse(stripNulls(userCv.data_json))
+        : null;
+      if (parsedUserCv?.success) return parsedUserCv.data;
+
+      const dbUserId = toDatabaseUserId(userId);
+      if (dbUserId) {
+        const { data: record } = await this.supabase
+          .from("cv_records")
+          .select("stats,text_content")
+          .eq("id", dto.cvId)
+          .eq("user_id", dbUserId)
+          .maybeSingle();
+        const stats = this.asRecord(record?.stats);
+        const parsedRecord = stats?.cv
+          ? CVDataSchema.safeParse(stripNulls(stats.cv))
+          : null;
+        if (parsedRecord?.success) return parsedRecord.data;
+        if (record?.text_content) {
+          return { summary: String(record.text_content).slice(0, 6000) };
+        }
+      }
+    }
+    throw new BadRequestException(
+      "Provide currentCV data or a saved cvId to generate a cover letter",
+    );
   }
 
   /**
@@ -562,12 +837,53 @@ LinkedIn URL:
 ${dto.linkedInUrl || ""}${linkedInSection}`;
   }
 
-  private buildTailorPrompt(userId: string, dto: TailorCVDto) {
-    return `You are an expert CV tailoring assistant.
+  private buildTailorPrompt(
+    userId: string,
+    dto: TailorCVDto,
+    mode: "ats" | "human",
+  ) {
+    const modeSection =
+      mode === "human"
+        ? `MODE: HUMAN REVIEWERS (scholarship/fellowship-style opportunity).
+This application is read by people, not parsing software. Keep the keyword
+tailoring (reviewers still scan for the program's own language) but soften
+ATS-specific advice: do NOT push title mirroring or formatting warnings, and
+emphasize an authentic, personal voice. Mark "title_match", "ats_format", and
+"structure_mirror" as "n/a" unless something is genuinely broken, and set
+"proposedTitle" to null.`
+        : `MODE: ATS (job/internship/graduate-programme opportunity).
+An Applicant Tracking System will keyword-match this CV VERBATIM against the
+description before any human reads it. Apply the full method below.`;
 
-Tailor the CV toward the target opportunity using only truthful reframing and prioritization.
+    return `You are Edutu's ATS-grade CV tailoring engine. A CV is a PROOF DOCUMENT
+matching one specific opportunity — not a career summary. Your job: rework the
+CV as strong evidence for THIS opportunity, and audit it against the checklist.
 
-Return exactly:
+${modeSection}
+
+THE METHOD (ground truths — encode these in everything you output):
+1. VERBATIM KEYWORDS. ATS systems match the description's EXACT phrases, never
+   synonyms. Weave the opportunity's exact phrases into the summary and
+   experience bullets — but ONLY where the user's real experience genuinely
+   supports the claim. Never fabricate; when evidence is missing, ask via
+   "quantifyQuestions" or flag it in the checklist instead.
+2. STRUCTURE MIRROR. If the description groups requirements under headers
+   (e.g. "Data Governance & Quality"), organize and label the CV's experience
+   content with those same headers.
+3. TITLE MIRROR. Propose setting the CV's title line to the opportunity's exact
+   title in "proposedTitle" when the user's actual experience reasonably
+   matches it. When it would inflate credentials, set it to null and say why in
+   the "title_match" checklist detail.
+4. QUANTIFY EVERYTHING. Every strong bullet carries a number (%, amount, time
+   saved, records processed, team size). NEVER invent a figure. For each bullet
+   that lacks one (max 4), add a "quantifyQuestions" entry: "target" is the
+   bullet's exact current text, "question" is one short concrete question like
+   "How much time did that save per week?".
+5. VALUES ALIGNMENT. If the opportunity lists organizational values, note in
+   the "values_alignment" checklist item which values to map to real behaviors.
+6. SPEED. Applying within hours of posting materially raises callback odds.
+
+Return exactly this JSON (no prose outside it):
 {
   "tailored_cv": {
     "header": {},
@@ -581,14 +897,39 @@ Return exactly:
   "match_score": 0,
   "improvements": ["", ""],
   "matched_keywords": ["", ""],
-  "missing_keywords": ["", ""]
+  "missing_keywords": ["", ""],
+  "proposedTitle": null,
+  "quantifyQuestions": [{ "target": "", "question": "" }],
+  "atsChecklist": [
+    { "id": "title_match", "status": "pass", "detail": "", "why": "" },
+    { "id": "verbatim_keywords", "status": "fix", "detail": "", "why": "" },
+    { "id": "structure_mirror", "status": "fix", "detail": "", "why": "" },
+    { "id": "quantified_bullets", "status": "fix", "detail": "", "why": "" },
+    { "id": "ats_format", "status": "pass", "detail": "", "why": "" },
+    { "id": "values_alignment", "status": "n/a", "detail": "", "why": "" },
+    { "id": "specific_interest", "status": "fix", "detail": "", "why": "" },
+    { "id": "terminology", "status": "fix", "detail": "", "why": "" },
+    { "id": "completeness", "status": "pass", "detail": "", "why": "" },
+    { "id": "apply_fast", "status": "fix", "detail": "", "why": "" }
+  ]
 }
 
-Rules:
-- Do not fabricate experience.
-- Improve summary wording and ordering of relevant details.
-- Keep the CV concise and targeted.
-- Match score must be 0-100.
+Checklist rules:
+- Include ALL 10 items above, exactly those ids, in that order.
+- "status": "pass" when the tailored CV already satisfies it, "fix" when the
+  user must act, "n/a" when it doesn't apply (e.g. ATS items in HUMAN mode, or
+  values_alignment when no values are listed).
+- "detail": specific to THIS CV/opportunity pair — name the actual bullets,
+  phrases, or headers involved (e.g. which bullets still lack numbers, which
+  exact phrases were woven in). One or two sentences.
+- "why": one sentence teaching the reasoning from THE METHOD above.
+
+Other rules:
+- Do not fabricate experience, employers, dates, numbers, or achievements.
+- match_score must be 0-100 and honest.
+- Keep the CV concise and targeted; keep every truthful detail that supports
+  this opportunity near the top.
+- improvements: short, concrete statements of what you changed and why.
 
 User id:
 ${userId}
@@ -601,6 +942,92 @@ ${JSON.stringify(dto.opportunity, null, 2)}
 
 User notes:
 ${dto.userNotes || ""}`;
+  }
+
+  private buildCoverLetterPrompt(
+    cv: CVDataDto,
+    opportunity: OpportunityPromptContext,
+    mode: "ats" | "human",
+  ) {
+    const audience =
+      mode === "human"
+        ? "This is a scholarship/fellowship-style opportunity read by human reviewers: lean into authentic voice and personal motivation while keeping their exact terminology."
+        : "This is a job/internship-style opportunity: mirror the exact terminology of the posting so both software and recruiters recognize the match.";
+
+    return `You are Edutu's cover letter writer. Write a cover letter that sounds like a
+sharp, warm human — never a template.
+
+${audience}
+
+THE FORMULA — exactly 5 paragraphs, under 400 words total:
+1. A company/organization-specific hook: something concrete about THEM (their
+   mission, product, program, or recent work drawn from the opportunity below)
+   and why it caught the candidate's attention. NEVER open with "I am writing
+   to express my interest" or any variant.
+2. Technical/skills match written in THEIR exact terminology from the
+   opportunity description.
+3. ONE quantified story from the CV — a real project or result with its
+   numbers. Do not invent figures; if the CV has none, tell the story
+   concretely without fake numbers.
+4. Why THIS role/program specifically — what the candidate wants to do and
+   learn here, tied to their real background.
+5. A short close with logistics (availability, location/timezone if relevant)
+   and a confident, friendly sign-off.
+
+Tone rules:
+- Human and direct. Use contractions (I'm, I've, that's).
+- No clichés: no "passionate self-starter", no "esteemed organization",
+  no "I am writing to express my interest".
+- Ground every claim in the CV below. Never fabricate.
+- Under 400 words. Plain text with blank lines between paragraphs.
+- Sign off with the candidate's real name from the CV header when present.
+
+Return exactly: { "cover_letter": "" }
+
+Candidate CV:
+${JSON.stringify(cv, null, 2)}
+
+Opportunity:
+${JSON.stringify(opportunity, null, 2)}`;
+  }
+
+  private buildFallbackCoverLetter(
+    cv: CVDataDto,
+    opportunity: OpportunityPromptContext,
+  ) {
+    const name = cv.header?.full_name?.trim() || "";
+    const org = opportunity.organization || "your team";
+    const title = opportunity.title || "this opportunity";
+    const topRole = (cv.experience || []).find(
+      (item) => item.role || item.company,
+    );
+    const skills = (cv.skills || []).slice(0, 3).join(", ");
+
+    const paragraphs = [
+      `${title}${opportunity.organization ? ` at ${org}` : ""} stood out to me${
+        opportunity.summary
+          ? ` because of what you're building: ${opportunity.summary.slice(0, 140).trim()}`
+          : " the moment I read the description"
+      }.`,
+      skills
+        ? `My background lines up with what you're asking for — I've worked hands-on with ${skills}, and I'm comfortable picking up whatever else the role needs.`
+        : `My background lines up with what you're asking for, and I'm comfortable picking up whatever else the role needs.`,
+      topRole
+        ? `Most recently${topRole.company ? ` at ${topRole.company}` : ""}, I ${
+            topRole.description?.trim()
+              ? topRole.description.trim().replace(/\.$/, "").toLowerCase()
+              : `worked as ${topRole.role || "part of the team"}`
+          }. That's the kind of work I'd bring here.`
+        : `I've focused on building real, verifiable results — the details are in my CV, and I'd love to walk you through them.`,
+      `This role specifically appeals to me because it's a chance to do that work where it matters most${
+        opportunity.organization ? ` — at ${org}` : ""
+      } — and to keep growing in the direction I've already started.`,
+      `I'm available to start promptly and happy to share anything else you need. Thanks for considering my application.${
+        name ? `\n\n${name}` : ""
+      }`,
+    ];
+
+    return paragraphs.join("\n\n");
   }
 
   private buildFallbackDraft(
@@ -694,7 +1121,117 @@ ${dto.userNotes || ""}`;
     };
   }
 
-  private buildFallbackTailor(dto: TailorCVDto) {
+  /** Bullets (experience descriptions + highlights + summary) with no digit. */
+  private collectUnquantifiedBullets(cv: CVDataDto): string[] {
+    const bullets: string[] = [];
+    for (const item of cv.experience || []) {
+      if (item.description) bullets.push(item.description);
+      bullets.push(...(item.highlights || []));
+    }
+    for (const project of cv.projects || []) {
+      if (project.description) bullets.push(project.description);
+    }
+    return bullets
+      .map((bullet) => bullet.trim())
+      .filter((bullet) => bullet.length > 12 && !/\d/.test(bullet));
+  }
+
+  private buildFallbackChecklist(
+    dto: TailorCVDto,
+    mode: "ats" | "human",
+    matchedKeywords: string[],
+    missingKeywords: string[],
+    unquantified: string[],
+  ): AtsChecklistItemDto[] {
+    const isHuman = mode === "human";
+    const item = (
+      id: AtsChecklistId,
+      status: AtsChecklistItemDto["status"],
+      detail: string,
+    ): AtsChecklistItemDto => ({
+      id,
+      label: ATS_CHECKLIST_META[id].label,
+      status,
+      detail,
+      why: ATS_CHECKLIST_META[id].why,
+    });
+
+    const hasContact = Boolean(
+      dto.currentCV.header?.full_name && dto.currentCV.header?.email,
+    );
+
+    return [
+      item(
+        "title_match",
+        isHuman ? "n/a" : "fix",
+        isHuman
+          ? "Reviewers read scholarship applications personally — a mirrored job title isn't expected here."
+          : `If your experience honestly supports it, set your CV title line to "${dto.opportunity.title || "the role's exact title"}".`,
+      ),
+      item(
+        "verbatim_keywords",
+        missingKeywords.length ? "fix" : "pass",
+        missingKeywords.length
+          ? `Weave these exact phrases in where truthful: ${missingKeywords.slice(0, 5).join(", ")}.`
+          : "Your CV already uses the opportunity's own wording.",
+      ),
+      item(
+        "structure_mirror",
+        isHuman ? "n/a" : "fix",
+        isHuman
+          ? "Keep your own authentic structure for a human-reviewed application."
+          : "Check the description for grouped requirement headers and label your experience content with the same headers.",
+      ),
+      item(
+        "quantified_bullets",
+        unquantified.length ? "fix" : "pass",
+        unquantified.length
+          ? `${unquantified.length} bullet${unquantified.length === 1 ? "" : "s"} still carry no number — e.g. "${unquantified[0].slice(0, 80)}".`
+          : "Every substantial bullet already carries a number.",
+      ),
+      item(
+        "ats_format",
+        isHuman ? "n/a" : "pass",
+        isHuman
+          ? "Human reviewers care about substance and voice, not parser-safe formatting."
+          : "Edutu's export uses a single-column, standard-heading layout that parses cleanly.",
+      ),
+      item(
+        "values_alignment",
+        "n/a",
+        "We couldn't detect a listed set of organizational values — if the full posting names values, add a short section mapping each to a real behavior of yours.",
+      ),
+      item(
+        "specific_interest",
+        "fix",
+        `Say why ${dto.opportunity.organization || "this organization"} specifically — reference their mission or work, not a generic ambition.`,
+      ),
+      item(
+        "terminology",
+        matchedKeywords.length ? "pass" : "fix",
+        matchedKeywords.length
+          ? `You already speak their language: ${matchedKeywords.slice(0, 4).join(", ")}.`
+          : "Mirror the exact tool, method, and domain terms the description uses.",
+      ),
+      item(
+        "completeness",
+        hasContact ? "pass" : "fix",
+        hasContact
+          ? "Name and contact details are in place."
+          : "Add your full name and email to the CV header — incomplete essentials get filtered out.",
+      ),
+      item(
+        "apply_fast",
+        "fix",
+        dto.opportunity.deadline
+          ? `Deadline: ${dto.opportunity.deadline}. Submit as soon as you can — ideally today.`
+          : "Submit as soon as you can — applying within hours of posting raises callback odds.",
+      ),
+    ];
+  }
+
+  private buildFallbackTailor(dto: TailorCVDto, mode: "ats" | "human") {
+    const unquantified = this.collectUnquantifiedBullets(dto.currentCV);
     const opportunityKeywords = this.unique([
       ...(dto.opportunity.skills || []),
       ...(dto.opportunity.requirements || []),
@@ -759,6 +1296,19 @@ ${dto.userNotes || ""}`;
       ],
       matched_keywords: matchedKeywords,
       missing_keywords: missingKeywords.slice(0, 10),
+      atsChecklist: this.buildFallbackChecklist(
+        dto,
+        mode,
+        matchedKeywords,
+        missingKeywords,
+        unquantified,
+      ),
+      proposedTitle: null,
+      quantifyQuestions: unquantified.slice(0, 4).map((target) => ({
+        target,
+        question:
+          "What's one real number for this — time saved, money, people, or output per week?",
+      })),
     };
   }
 

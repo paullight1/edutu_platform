@@ -125,6 +125,7 @@ jest.mock('../lib/supabase', () => ({
 
 jest.mock('../lib/exportCv', () => ({
   exportCVAsPdf: (...args: unknown[]) => mockExportCVAsPdf(...args),
+  buildExportName: () => 'Edutu CV',
 }));
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
@@ -143,6 +144,7 @@ jest.mock('@edutu/core/src/services/cv', () => ({
   importLinkedInFromFile: jest.fn(async () => ({ ok: true })),
   improveCVSummaryWithAI: jest.fn(async () => ({ summary: 'Improved summary.' })),
   tailorCVForOpportunity: (...args: unknown[]) => mockTailorCVForOpportunity(...args),
+  generateCoverLetterWithAI: jest.fn(async () => 'Mock cover letter.'),
   useCVTrial: (...args: unknown[]) => mockUseCVTrial(...args),
 }), { virtual: true });
 
@@ -306,6 +308,8 @@ describe('mobile CV builder', () => {
           template_id: 't-free',
           name: 'My CV',
         }),
+        // Untailored CV → no opportunity context in the export filename.
+        expect.objectContaining({ tailoredTo: undefined }),
       ),
     );
   });
@@ -439,9 +443,15 @@ describe('mobile CV builder', () => {
       ),
     );
     await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
-    expect(mockAlert).toHaveBeenCalledWith(
+    // The AI-draft outcome now surfaces as a branded bottom sheet (not a
+    // system Alert) with the suggestions as individual rows.
+    await waitFor(() => expect(getByText('AI draft ready')).toBeTruthy());
+    expect(getByText('Add measurable impact')).toBeTruthy();
+    expect(getByText('Expand your education section')).toBeTruthy();
+    pressByText(getByText, 'Got it');
+    expect(mockAlert).not.toHaveBeenCalledWith(
       'AI draft ready',
-      expect.stringContaining('Your CV draft is in the editor'),
+      expect.anything(),
     );
   });
 

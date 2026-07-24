@@ -29,6 +29,8 @@
       "creatorStudioDesc": "Build & manage your shop",
       "cvBuilder": "CV Builder",
       "cvBuilderDesc": "Professional profile builder",
+      "myDocuments": "My Documents",
+      "myDocumentsDesc": "CVs & files you've uploaded",
       "aiCoach": "AI Coach",
       "aiCoachDesc": "Get personalized guidance",
       "inviteFriends": "Invite friends",
@@ -102,5 +104,35 @@
     "saveChanges": "Save Changes",
     "saveSuccess": "Profile updated successfully!",
     "saveError": "Failed to update profile."
+  },
+  "documents": {
+    "title": "My Documents",
+    "loading": "Gathering your documents...",
+    "download": "Download",
+    "untitledCv": "Untitled CV",
+    "you": "you",
+    "cvHint": "Export as PDF",
+    "cvExportHint": "Tap a CV to open the CV Builder and export it as \"{{name}} - CV.pdf\".",
+    "sections": {
+      "cvs": "CVs",
+      "uploads": "Uploads",
+      "applicationDocuments": "Application documents"
+    },
+    "status": {
+      "done": "Ready",
+      "pending": "Processing",
+      "failed": "Couldn't process"
+    },
+    "empty": {
+      "title": "No documents yet",
+      "desc": "CVs you build and files you upload will live here.",
+      "cta": "Open CV Builder"
+    },
+    "error": {
+      "title": "We couldn't load your documents.",
+      "retry": "Try again"
+    },
+    "downloadFailedTitle": "Download failed",
+    "downloadFailedDesc": "We couldn't download this file. Please check your connection and try again."
   }
 }

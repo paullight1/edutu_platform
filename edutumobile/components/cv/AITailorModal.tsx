@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator, TextInput } from 'react-native';
-import { X, Wand2, Target, Search } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator, TextInput, Image } from 'react-native';
+import { X, Wand2, Search, Building2 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../components/context/ThemeContext';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
+import { AnimatedPressable } from '../ui/AnimatedPressable';
+import { CvModalBackdrop } from './CvModalBackdrop';
 
 interface Props {
     visible: boolean;
@@ -11,6 +14,87 @@ interface Props {
     opportunities: Opportunity[];
     isLoading?: boolean;
     onSelectOpportunity: (opportunityId: string) => void;
+}
+
+// Scraped opportunity titles sometimes carry raw HTML entities ("LSA 1.0
+// &#8211; 2026"). Decode the common named + numeric ones for display.
+const NAMED_ENTITIES: Record<string, string> = {
+    amp: '&',
+    quot: '"',
+    apos: "'",
+    nbsp: ' ',
+    lt: '<',
+    gt: '>',
+    ndash: '–',
+    mdash: '—',
+};
+
+function decodeHtmlEntities(text: string): string {
+    return text
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+        .replace(/&([a-zA-Z]+);/g, (match, name: string) => NAMED_ENTITIES[name] ?? match);
+}
+
+/**
+ * Visual-first ("poster") row for the tailoring picker: cover image with a
+ * bottom scrim, overlaid title + one meta line. Falls back to a tinted
+ * gradient with a Building2 mark when the opportunity has no usable image.
+ */
+function TailorOpportunityRow({
+    opportunity,
+    onPress,
+}: {
+    opportunity: Opportunity;
+    onPress: () => void;
+}) {
+    const [imageFailed, setImageFailed] = useState(false);
+    const hasImage = Boolean(opportunity.image) && !imageFailed;
+    const title = decodeHtmlEntities(opportunity.title || '');
+    const meta = decodeHtmlEntities(
+        [opportunity.organization, opportunity.category].filter(Boolean).join(' · '),
+    );
+
+    return (
+        <AnimatedPressable style={styles.posterRow} scaleTo={0.97} onPress={onPress}>
+            <View style={styles.posterInner}>
+                {hasImage ? (
+                    <Image
+                        source={{ uri: opportunity.image as string }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                        onError={() => setImageFailed(true)}
+                    />
+                ) : (
+                    <LinearGradient
+                        colors={['#312E81', '#1E1B4B']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[StyleSheet.absoluteFill, styles.posterFallback]}
+                    >
+                        <Building2 size={30} color="rgba(255,255,255,0.4)" />
+                    </LinearGradient>
+                )}
+                {/* Bottom scrim so the overlaid text stays readable */}
+                <LinearGradient
+                    colors={['rgba(2,6,23,0.35)', 'rgba(2,6,23,0.45)', 'rgba(2,6,23,0.85)', 'rgba(2,6,23,0.96)']}
+                    style={StyleSheet.absoluteFill}
+                />
+                {/* NOTE: absoluteFill must be passed inline — a created style
+                    with spread absoluteFillObject fails to overlay here. */}
+                <View style={[StyleSheet.absoluteFill, styles.posterBottom]}>
+                    <Text style={styles.posterTitle} numberOfLines={2}>
+                        {title}
+                    </Text>
+                    {!!meta && (
+                        <Text style={styles.posterMeta} numberOfLines={1}>
+                            {meta}
+                        </Text>
+                    )}
+                </View>
+            </View>
+        </AnimatedPressable>
+    );
 }
 
 export function AITailorModal({ visible, onClose, opportunities, isLoading, onSelectOpportunity }: Props) {
@@ -37,6 +121,7 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
+                <CvModalBackdrop onPress={onClose} />
                 <View style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
                     <TouchableOpacity
                         style={styles.modalClose}
@@ -90,29 +175,14 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
 
                             <ScrollView style={styles.opportunityList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             {filtered.map((opportunity) => (
-                                <TouchableOpacity
+                                <TailorOpportunityRow
                                     key={opportunity.id}
-                                    style={[styles.opportunityCard, { borderColor: colors.border }]}
+                                    opportunity={opportunity}
                                     onPress={() => {
                                         onClose();
                                         onSelectOpportunity(opportunity.id);
                                     }}
-                                >
-                                    <View style={styles.opportunityContent}>
-                                        <Text style={[styles.opportunityTitle, { color: colors.foreground }]}>
-                                            {opportunity.title}
-                                        </Text>
-                                        <Text style={[styles.opportunityMeta, { color: muted }]}>
-                                            {opportunity.organization} • {opportunity.category}
-                                        </Text>
-                                        {!!opportunity.matchReasons?.[0] && (
-                                            <Text style={[styles.opportunityReason, { color: colors.primary }]}>
-                                                {opportunity.matchReasons[0]}
-                                            </Text>
-                                        )}
-                                    </View>
-                                    <Target size={18} color={colors.primary} />
-                                </TouchableOpacity>
+                                />
                             ))}
                             {filtered.length === 0 && (
                                 <Text style={[styles.emptyText, { color: muted }]}>
@@ -131,7 +201,6 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -177,36 +246,44 @@ const styles = StyleSheet.create({
     },
     opportunityList: {
         width: '100%',
-        maxHeight: 280,
+        maxHeight: 340,
     },
-    opportunityCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-        borderRadius: 12,
-        borderWidth: 1,
+    posterRow: {
         width: '100%',
-        justifyContent: 'space-between',
-        gap: 8,
+        height: 114,
         marginBottom: 10,
     },
-    opportunityContent: {
+    posterInner: {
         flex: 1,
-        marginRight: 10,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#1E1B4B',
     },
-    opportunityTitle: {
-        fontSize: 14,
+    posterFallback: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    posterBottom: {
+        justifyContent: 'flex-end',
+        padding: 12,
+    },
+    posterTitle: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        lineHeight: 19,
+        fontWeight: '800',
+        textShadowColor: 'rgba(2,6,23,0.85)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    posterMeta: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 12,
         fontWeight: '600',
-    },
-    opportunityMeta: {
-        fontSize: 12,
-        marginTop: 4,
-    },
-    opportunityReason: {
-        fontSize: 12,
-        marginTop: 6,
-        fontWeight: '500',
+        marginTop: 3,
+        textShadowColor: 'rgba(2,6,23,0.85)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
     emptyText: {
         fontSize: 13,

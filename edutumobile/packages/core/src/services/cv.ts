@@ -1101,6 +1101,35 @@ export async function tailorCVForOpportunity(
   };
 }
 
+/**
+ * Generate a 5-paragraph, <400-word cover letter for an opportunity via the
+ * backend LLM. No local fallback — callers surface errors (billing errors are
+ * rethrown so the paywall CTA can appear, like the other AI flows).
+ */
+export async function generateCoverLetterWithAI(options: {
+  opportunityId: string;
+  currentCVData: CVData;
+  cvId?: string;
+  getToken: GetAuthToken;
+}): Promise<string> {
+  const response = await requestProductApi<{ coverLetter?: string }>(
+    '/cv/ai/cover-letter',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        opportunityId: options.opportunityId,
+        cvId: options.cvId,
+        currentCV: toBackendCVPayload(options.currentCVData || emptyCVData()),
+      }),
+    },
+    options.getToken,
+  );
+
+  const letter = response?.coverLetter?.trim();
+  if (!letter) throw new Error('Cover letter came back empty');
+  return letter;
+}
+
 export function buildCVText(cv: Partial<UserCV>) {
   const data = cv.data_json || emptyCVData();
   const lines: string[] = [];

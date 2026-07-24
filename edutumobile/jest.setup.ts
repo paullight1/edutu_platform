@@ -20,6 +20,10 @@ const reanimatedBuilder = {
   duration: () => reanimatedBuilder,
   delay: () => reanimatedBuilder,
   springify: () => reanimatedBuilder,
+  damping: () => reanimatedBuilder,
+  stiffness: () => reanimatedBuilder,
+  mass: () => reanimatedBuilder,
+  easing: () => reanimatedBuilder,
 };
 
 jest.mock('react-native-reanimated', () => {
@@ -77,6 +81,7 @@ jest.mock('react-native-reanimated', () => {
     FadeInUp: reanimatedBuilder,
     FadeOut: reanimatedBuilder,
     FadeOutUp: reanimatedBuilder,
+    FadeOutDown: reanimatedBuilder,
     Layout: reanimatedBuilder,
     LinearTransition: reanimatedBuilder,
     PinwheelIn: reanimatedBuilder,
