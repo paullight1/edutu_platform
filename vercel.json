@@ -10,5 +10,15 @@
       "routePrefix": "/admin",
       "framework": "vite"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
+    },
+    {
+      "source": "/share/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
+    }
+  ]
 }
