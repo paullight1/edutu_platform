@@ -31,6 +31,7 @@ import {
     GraduationCap,
     Code2,
     FolderOpen,
+    Wand2,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
@@ -53,13 +54,19 @@ import { CVEditor } from '../../../components/cv/CVEditor';
 import { CVPreview } from '../../../components/cv/CVPreview';
 import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
-import { CVTailorResultModal, TailorResult } from '../../../components/cv/CVTailorResultModal';
+import { CVTailorResult, TailorResult } from '../../../components/cv/CVTailorResult';
 import { CoverLetterSheet } from '../../../components/cv/CoverLetterSheet';
 import { CvToast } from '../../../components/cv/CvToast';
 import { CvModalBackdrop } from '../../../components/cv/CvModalBackdrop';
+import {
+    deriveCvPreviewModel,
+    getTemplateAccent,
+    TemplateResumePreview,
+} from '../../../components/cv/CVTemplateLivePreview';
+import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { haptics } from '../../../lib/haptics';
 
-type CVSection = 'templates' | 'editor' | 'preview';
+type CVSection = 'templates' | 'editor' | 'preview' | 'tailorReport';
 
 /** Branded "AI draft ready" sheet content — replaces the old Alert.alert. */
 interface DraftSheetContent {
@@ -224,6 +231,8 @@ export default function CVBuilderScreen() {
     const [isCoverLetterLoading, setIsCoverLetterLoading] = useState(false);
     const [showLinkedInModal, setShowLinkedInModal] = useState(false);
     const [previewTemplate, setPreviewTemplate] = useState<CVTemplate | null>(null);
+    // Which of the user's CVs feeds the template previews (null = most recent).
+    const [previewCvId, setPreviewCvId] = useState<string | null>(null);
     const [linkedInUrl, setLinkedInUrl] = useState('');
     const [isLinkedInImporting, setIsLinkedInImporting] = useState(false);
     // The one-off free CV trial grants premium access for the session so the
@@ -252,6 +261,16 @@ export default function CVBuilderScreen() {
     };
     const defaultCvName = () => (displayName ? `${displayName}'s CV` : t('defaults.myCv'));
     const hasPro = isPro || trialActive;
+
+    // Real-data template previews: the selected (or most recent) CV drives the
+    // gallery thumbnails and the preview modal. Falls back to the labeled
+    // sample persona only when the user has no CV content at all.
+    const previewCv =
+        userCVs.find((cv) => cv.id === previewCvId) ||
+        // Default: the most recent CV that actually has content to show.
+        userCVs.find((cv) => deriveCvPreviewModel(cv.data_json)) ||
+        null;
+    const previewModel = deriveCvPreviewModel(previewCv?.data_json);
 
     // Server-side billing refusal (402 insufficient credits / 429 fair-use
     // limit) — the backend debits credits for /cv/ai/* itself now.
@@ -729,9 +748,10 @@ export default function CVBuilderScreen() {
                 target_opportunity_id: opportunityId,
             }));
             setShowAIModal(false);
-            setActiveSection('editor');
-            // Surface a designed outcome sheet (with a direct PDF export) instead
-            // of a raw system alert.
+            // The report is a screen, not a modal: the ATS checks are a worklist
+            // the user works through, and each one-tap fix rewrites the CV that
+            // "View & edit CV" drops them back into.
+            setActiveSection('tailorReport');
             const targetOpportunity = opportunities.find((o) => o.id === opportunityId);
             setTailorTargetTitle(targetOpportunity?.title);
             setTailorTargetOrg(targetOpportunity?.organization || targetOpportunity?.title);
@@ -883,6 +903,7 @@ export default function CVBuilderScreen() {
                                     item={item}
                                     onSelect={setPreviewTemplate}
                                     isPro={hasPro}
+                                    preview={previewModel}
                                 />
                             )}
                             keyExtractor={(item) => item.id}
@@ -917,6 +938,20 @@ export default function CVBuilderScreen() {
                         value={currentCV.name}
                         onChangeText={(text) => setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, name: text }))}
                     />
+                    {/* The tailor report is content, not a one-shot alert — it
+                        stays reachable while the user edits against it. */}
+                    {!!tailorResult && (
+                        <TouchableOpacity
+                            style={[styles.reportBtn, { borderColor: colors.primary }]}
+                            onPress={() => setActiveSection('tailorReport')}
+                            accessibilityRole="button"
+                        >
+                            <Wand2 size={13} color={colors.primary} />
+                            <Text style={[styles.reportBtnText, { color: colors.primary }]}>
+                                {t('tailorResult.reopen')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                         style={styles.previewBtn}
                         onPress={() => setActiveSection('preview')}
@@ -956,6 +991,23 @@ export default function CVBuilderScreen() {
                 />
             )}
 
+            {activeSection === 'tailorReport' && (
+                <CVTailorResult
+                    result={tailorResult}
+                    onClose={() => setActiveSection('editor')}
+                    opportunityTitle={tailorTargetTitle}
+                    isExporting={isExporting}
+                    onExport={handleExport}
+                    onViewCv={() => setActiveSection('editor')}
+                    onAddKeyword={handleAddMissingKeyword}
+                    addedKeywords={addedKeywords}
+                    onUseProposedTitle={handleUseProposedTitle}
+                    onQuantify={handleQuantify}
+                    onCoverLetter={currentCV.target_opportunity_id ? handleCoverLetter : undefined}
+                    isCoverLetterLoading={isCoverLetterLoading}
+                />
+            )}
+
             {/* Modals */}
             <ProUpgradeModal
                 visible={showUpgradeModal}
@@ -971,22 +1023,6 @@ export default function CVBuilderScreen() {
                 opportunities={opportunities}
                 isLoading={isTailoring || (!opportunities.length && !opportunitiesLoaded)}
                 onSelectOpportunity={handleTailorToOpportunity}
-            />
-
-            <CVTailorResultModal
-                visible={!!tailorResult}
-                onClose={() => setTailorResult(null)}
-                result={tailorResult}
-                opportunityTitle={tailorTargetTitle}
-                isExporting={isExporting}
-                onExport={handleExport}
-                onViewCv={() => setTailorResult(null)}
-                onAddKeyword={handleAddMissingKeyword}
-                addedKeywords={addedKeywords}
-                onUseProposedTitle={handleUseProposedTitle}
-                onQuantify={handleQuantify}
-                onCoverLetter={currentCV.target_opportunity_id ? handleCoverLetter : undefined}
-                isCoverLetterLoading={isCoverLetterLoading}
             />
 
             <CoverLetterSheet
@@ -1023,6 +1059,7 @@ export default function CVBuilderScreen() {
                 onRequestClose={() => setPreviewTemplate(null)}
             >
                 <View style={styles.modalOverlay}>
+                    <CvModalBackdrop onPress={() => setPreviewTemplate(null)} />
                     <View style={[styles.sampleModalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
                         <LinearGradient
                             colors={getTemplatePreviewGradient(previewTemplate)}
@@ -1048,24 +1085,75 @@ export default function CVBuilderScreen() {
                             {previewTemplate?.description || t(getTemplateSample(previewTemplate).summary)}
                         </Text>
 
-                        <View style={[styles.resumeSample, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0' }]}>
-                            <View style={styles.resumeSampleHeader}>
-                                <View>
-                                    <Text style={[styles.resumeName, { color: colors.foreground }]}>{t(getTemplateSample(previewTemplate).name)}</Text>
-                                    <Text style={[styles.resumeHeadline, { color: '#6366F1' }]}>{t(getTemplateSample(previewTemplate).headline)}</Text>
+                        {/* Real-data preview: the user's own CV styled by this
+                            template. The sample persona only appears (labeled)
+                            when there is no CV content to show. */}
+                        {previewModel && userCVs.length > 1 && (
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.previewCvSwitcher}
+                            >
+                                {userCVs.map((cv) => {
+                                    const active = previewCv?.id === cv.id;
+                                    return (
+                                        <AnimatedPressable
+                                            key={cv.id}
+                                            onPress={() => setPreviewCvId(cv.id)}
+                                            style={[
+                                                styles.previewCvChip,
+                                                {
+                                                    backgroundColor: active
+                                                        ? colors.primary
+                                                        : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.previewCvChipText,
+                                                    { color: active ? '#FFFFFF' : colors.foreground },
+                                                ]}
+                                                numberOfLines={1}
+                                            >
+                                                {cv.name}
+                                            </Text>
+                                        </AnimatedPressable>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+                        {previewModel ? (
+                            <TemplateResumePreview
+                                model={previewModel}
+                                accent={getTemplateAccent(previewTemplate?.category)}
+                                isDark={isDark}
+                            />
+                        ) : (
+                            <>
+                                <View style={[styles.resumeSample, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0' }]}>
+                                    <View style={styles.resumeSampleHeader}>
+                                        <View>
+                                            <Text style={[styles.resumeName, { color: colors.foreground }]}>{t(getTemplateSample(previewTemplate).name)}</Text>
+                                            <Text style={[styles.resumeHeadline, { color: '#6366F1' }]}>{t(getTemplateSample(previewTemplate).headline)}</Text>
+                                        </View>
+                                        <View style={styles.resumeAvatar} />
+                                    </View>
+                                    <Text style={[styles.resumeSummary, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                                        {t(getTemplateSample(previewTemplate).summary)}
+                                    </Text>
+                                    {getTemplateSample(previewTemplate).bullets.map((bullet) => (
+                                        <View key={bullet} style={styles.resumeBulletRow}>
+                                            <View style={styles.resumeBulletDot} />
+                                            <Text style={[styles.resumeBulletText, { color: isDark ? '#E2E8F0' : '#334155' }]}>{t(bullet)}</Text>
+                                        </View>
+                                    ))}
                                 </View>
-                                <View style={styles.resumeAvatar} />
-                            </View>
-                            <Text style={[styles.resumeSummary, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                                {t(getTemplateSample(previewTemplate).summary)}
-                            </Text>
-                            {getTemplateSample(previewTemplate).bullets.map((bullet) => (
-                                <View key={bullet} style={styles.resumeBulletRow}>
-                                    <View style={styles.resumeBulletDot} />
-                                    <Text style={[styles.resumeBulletText, { color: isDark ? '#E2E8F0' : '#334155' }]}>{t(bullet)}</Text>
-                                </View>
-                            ))}
-                        </View>
+                                <Text style={[styles.sampleFallbackLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                    {t('templates.sampleFallback')}
+                                </Text>
+                            </>
+                        )}
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setPreviewTemplate(null)}>
@@ -1351,6 +1439,19 @@ const styles = StyleSheet.create({
     previewBtn: {
         padding: 8,
     },
+    reportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1.5,
+    },
+    reportBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     sheetOverlay: {
         flex: 1,
         justifyContent: 'flex-end',
@@ -1522,6 +1623,28 @@ const styles = StyleSheet.create({
     sampleDesc: {
         fontSize: 14,
         lineHeight: 20,
+        marginBottom: 14,
+    },
+    previewCvSwitcher: {
+        gap: 8,
+        paddingBottom: 12,
+    },
+    previewCvChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 999,
+        maxWidth: 180,
+    },
+    previewCvChipText: {
+        fontSize: 12.5,
+        fontWeight: '700',
+    },
+    sampleFallbackLabel: {
+        fontSize: 12,
+        lineHeight: 16,
+        textAlign: 'center',
+        fontStyle: 'italic',
+        marginTop: -8,
         marginBottom: 14,
     },
     resumeSample: {

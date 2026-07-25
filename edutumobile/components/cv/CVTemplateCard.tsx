@@ -5,6 +5,7 @@ import { Crown, Lock } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { CVTemplate } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
+import { CvPreviewModel, TemplateCardThumb } from './CVTemplateLivePreview';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,9 +37,12 @@ interface Props {
     item: CVTemplate;
     onSelect: (template: CVTemplate) => void;
     isPro: boolean;
+    /** The user's own CV content — when present the card renders a miniature
+     * live preview of it instead of anonymous skeleton bars. */
+    preview?: CvPreviewModel | null;
 }
 
-export function CVTemplateCard({ item, onSelect, isPro }: Props) {
+export function CVTemplateCard({ item, onSelect, isPro, preview }: Props) {
     const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
@@ -64,19 +68,23 @@ export function CVTemplateCard({ item, onSelect, isPro }: Props) {
                         <Text style={styles.categoryPillText}>{item.category}</Text>
                     </View>
                 </View>
-                <View style={styles.samplePaper}>
-                    <View style={[styles.sampleHeader, { backgroundColor: visual.accent }]} />
-                    <View style={styles.sampleLineWide} />
-                    <View style={styles.sampleLine} />
-                    <View style={styles.sampleBlockRow}>
-                        <View style={styles.sampleDot} />
-                        <View style={styles.sampleLineShort} />
+                {preview ? (
+                    <TemplateCardThumb model={preview} accent={visual.accent} />
+                ) : (
+                    <View style={styles.samplePaper}>
+                        <View style={[styles.sampleHeader, { backgroundColor: visual.accent }]} />
+                        <View style={styles.sampleLineWide} />
+                        <View style={styles.sampleLine} />
+                        <View style={styles.sampleBlockRow}>
+                            <View style={styles.sampleDot} />
+                            <View style={styles.sampleLineShort} />
+                        </View>
+                        <View style={styles.sampleBlockRow}>
+                            <View style={styles.sampleDot} />
+                            <View style={styles.sampleLineShortAlt} />
+                        </View>
                     </View>
-                    <View style={styles.sampleBlockRow}>
-                        <View style={styles.sampleDot} />
-                        <View style={styles.sampleLineShortAlt} />
-                    </View>
-                </View>
+                )}
             </LinearGradient>
             <View style={styles.templateInfo}>
                 <View style={styles.templateNameRow}>
@@ -90,7 +98,7 @@ export function CVTemplateCard({ item, onSelect, isPro }: Props) {
                     )}
                 </View>
                 <Text style={[styles.templateCategory, { color: muted }]}>
-                    {t('templates.tapToPreview')}
+                    {preview ? t('templates.tapToPreviewOwn') : t('templates.tapToPreview')}
                 </Text>
             </View>
             {item.is_premium && !isPro && (

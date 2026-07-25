@@ -14,6 +14,35 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
+ * Scraped opportunity copy carries raw HTML entities ("Sygnite Power &#038;
+ * Energy Solutions Limited", "LSA 1.0 &#8211; 2026"). Decode the common named
+ * and numeric ones before any opportunity-derived string is displayed.
+ */
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  lt: '<',
+  gt: '>',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  rsquo: '’',
+  lsquo: '‘',
+  ldquo: '“',
+  rdquo: '”',
+};
+
+export function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z]+);/g, (match, name: string) => NAMED_HTML_ENTITIES[name] ?? match);
+}
+
+/**
  * Format date to locale string
  */
 export function formatDate(
