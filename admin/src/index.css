@@ -4,6 +4,10 @@
 /* SF Pro Font Stack - using system fonts as fallbacks */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* Domain hue tokens. Must stay with the other @import rules: CSS requires all
+   @import statements to precede any other rule. */
+@import './styles/tokens.css';
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

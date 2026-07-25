@@ -117,7 +117,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
-      - run: npx tsc --noEmit
+      # Must be `tsc -b`, not `tsc --noEmit`. tsconfig.json is a solution file
+      # ("files": [] plus references), so --noEmit compiles zero files and the
+      # job passes on any type error. -b builds every referenced project.
+      - run: npx tsc -b
 
   admin-lint:
     name: Admin Lint

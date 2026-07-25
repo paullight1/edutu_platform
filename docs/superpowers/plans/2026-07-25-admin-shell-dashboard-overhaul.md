@@ -250,7 +250,12 @@ git commit -m "test(admin): add vitest + testing-library harness and CI job"
 **Files:**
 - Create: `admin/src/styles/tokens.css`
 - Create: `admin/src/styles/tokens.spec.ts`
+- Create: `admin/tsconfig.test.json`
 - Modify: `admin/src/index.css:5` (add the import)
+- Modify: `admin/tsconfig.json`, `admin/tsconfig.app.json`, `admin/tsconfig.node.json`
+- Modify: `.github/workflows/ci.yml`
+
+**This task also establishes how tests are typechecked**, which Task 1 did not cover because it added no spec that touched Node APIs. See Steps 6–8.
 
 **Interfaces:**
 - Consumes: nothing
@@ -262,6 +267,13 @@ git commit -m "test(admin): add vitest + testing-library harness and CI job"
 
 Create `admin/src/styles/tokens.spec.ts`:
 
+**How the stylesheet is loaded matters — three obvious approaches all fail:**
+`__dirname` does not exist (this package is `"type": "module"`); `import.meta.url`
+is not a `file://` URL under the jsdom environment; and `import css from
+"./tokens.css?raw"` returns an **empty string** because vitest stubs CSS imports
+by default, which makes every assertion fail with a confusing `-1`. Read from
+disk against `process.cwd()`, which vitest sets to the project root (`admin/`).
+
 ```ts
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -270,7 +282,11 @@ import { describe, expect, it } from "vitest";
 const HUES = ["blue", "purple", "teal", "green", "orange", "red", "neutral"];
 const SUFFIXES = ["", "-soft", "-grad", "-glow"];
 
-const css = readFileSync(join(__dirname, "tokens.css"), "utf8");
+// Read from disk rather than importing the stylesheet. `__dirname` does not
+// exist in this ESM package, `import.meta.url` is not a file:// URL under the
+// jsdom environment, and a `?raw` import comes back empty because vitest stubs
+// CSS by default. process.cwd() is vitest's root, i.e. admin/.
+const css = readFileSync(join(process.cwd(), "src/styles/tokens.css"), "utf8");
 
 function blockFor(selector: string): string {
   const start = css.indexOf(selector);
@@ -438,15 +454,101 @@ CSS requires all `@import` rules to precede other rules, so it must sit with the
 Run: `npm test -- tokens`
 Expected: PASS — `3 passed`.
 
-- [ ] **Step 6: Verify the build still succeeds**
+- [ ] **Step 6: Give tests their own TypeScript project**
 
-Run: `npm run build`
-Expected: exit 0. Confirms the `@import` resolves at bundle time.
+`npm run build` runs `tsc -b` first and will now fail with `TS2591: Cannot find name 'process'` — `tsconfig.app.json` sets `"types": ["vite/client"]`, so specs get no Node globals. Do **not** fix this by adding `"node"` to the app project; that would let browser code import Node modules and still typecheck. Follow the existing `tsconfig.node.json` pattern instead.
 
-- [ ] **Step 7: Commit**
+Create `admin/tsconfig.test.json`:
+
+```json
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    /* Tests run in Node, so they get Node globals the app deliberately lacks. */
+    "types": ["node", "vitest/globals"],
+    "skipLibCheck": true,
+
+    /* Bundler mode — mirrors tsconfig.app.json */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting — mirrors tsconfig.app.json so tests and app agree */
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "erasableSyntaxOnly": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test"
+  ]
+}
+```
+
+Add the reference in `admin/tsconfig.json`:
+
+```json
+    { "path": "./tsconfig.test.json" }
+```
+
+Exclude tests from `admin/tsconfig.app.json` (after `"include": ["src"],`):
+
+```json
+  "exclude": [
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test"
+  ]
+```
+
+And typecheck the vitest config, which no project currently covers — in `admin/tsconfig.node.json`:
+
+```json
+  "include": ["vite.config.ts", "vitest.config.ts"]
+```
+
+- [ ] **Step 7: Fix the `admin-typecheck` CI job, which checks nothing**
+
+`tsconfig.json` is a solution file (`"files": []` plus references), so `npx tsc --noEmit` compiles **zero files** and passes on any type error. Verify for yourself before and after: write a spec containing `const bad: number = "string";`, then run `npx tsc --noEmit` (exits 0 — the bug) and `npx tsc -b` (reports TS2322). Delete the probe afterwards.
+
+In `.github/workflows/ci.yml`, under `admin-typecheck`, replace `- run: npx tsc --noEmit` with:
+
+```yaml
+      # Must be `tsc -b`, not `tsc --noEmit`. tsconfig.json is a solution file
+      # ("files": [] plus references), so --noEmit compiles zero files and the
+      # job passes on any type error. -b builds every referenced project.
+      - run: npx tsc -b
+```
+
+Confirm `npx tsc -b --force` exits 0 across the tree before committing, so the newly-real job does not land red.
+
+- [ ] **Step 8: Verify the build, tests and lint**
 
 ```bash
-git add admin/src/styles/tokens.css admin/src/styles/tokens.spec.ts admin/src/index.css
+npm test
+npm run lint
+npm run build
+```
+
+Expected: `5 passed`, then two clean exits. The build confirms the `@import` resolves at bundle time.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add admin/src/styles/ admin/src/index.css admin/tsconfig.json admin/tsconfig.app.json admin/tsconfig.node.json admin/tsconfig.test.json .github/workflows/ci.yml
 git commit -m "feat(admin): add domain hue token system"
 ```
 
