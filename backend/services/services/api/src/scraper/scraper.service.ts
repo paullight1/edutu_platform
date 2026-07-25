@@ -3704,6 +3704,11 @@ ${text}`;
       item.source,
       closeDate,
     );
+    // Source-independent fingerprint (title + deadline only). The primary
+    // fingerprint keys on item.source, so the SAME opportunity harvested from
+    // two aggregators gets two different content_fingerprints and slips past
+    // Tier-1 exact dedup. This secondary key catches those cross-source dupes.
+    const titleFingerprint = this.createTitleFingerprint(item.title, closeDate);
     const classification = classifyOpportunity(
       item as unknown as Record<string, unknown>,
     );
@@ -3761,6 +3766,7 @@ ${text}`;
       source_url: detailUrl || sourceUrl || null,
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
+      title_fingerprint: titleFingerprint,
       quality_score: quality.score,
       validation_status: publishable ? "valid" : "needs_review",
       image_url: item.image_url || null,
@@ -4090,6 +4096,22 @@ ${text}`;
       .trim()
       .toLowerCase()
       .replace(/\s+/g, " ");
+  }
+
+  /**
+   * Source-independent dedup key: normalized title + deadline only. Must stay
+   * byte-for-byte reproducible in SQL for the backfill migration:
+   *   lower(regexp_replace(btrim(title), '\s+', ' ', 'g')) || '|' || coalesce(close_date::text, '')
+   */
+  private createTitleFingerprint(
+    title: string,
+    closeDate: string | null,
+  ): string {
+    const normalizedTitle = (title ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    return `${normalizedTitle}|${closeDate ?? ""}`;
   }
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
