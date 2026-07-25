@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { apiUsageEvents } from "../db/schema";
+import { CacheService } from "../common/cache/cache.service";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
 export interface QuotaReservation {
@@ -27,13 +28,7 @@ export interface CreditReservation {
   exhausted: boolean;
 }
 
-interface RateWindow {
-  windowStart: number;
-  count: number;
-}
-
-const RATE_WINDOW_MS = 60_000;
-const MAX_TRACKED_CONSUMERS = 10_000;
+const RATE_WINDOW_SECONDS = 60;
 
 // Sentinel used to roll back the credit-reservation transaction when the owner
 // has no credits left. Caught in reserveRequestCredit and mapped to null.
@@ -42,9 +37,8 @@ class InsufficientCreditsError extends Error {}
 @Injectable()
 export class EdutuApiUsageService {
   private readonly logger = new Logger(EdutuApiUsageService.name);
-  // Per-instance fixed-window limiter. Accurate per replica; for a true
-  // multi-instance deployment back this with Redis/Valkey (Phase 6).
-  private readonly rateWindows = new Map<string, RateWindow>();
+
+  constructor(private readonly cache: CacheService) {}
 
   async reserveMonthlyQuota(
     consumer: ApiConsumerContext,
@@ -124,70 +118,58 @@ export class EdutuApiUsageService {
    * the guard can emit X-RateLimit-* headers and a 429 when the window is full.
    * Consumers with no rate limit configured (null) or internal env consumers
    * are allowed through unconditionally.
+   *
+   * Backed by CacheService.incrementWindow: a shared Redis counter when
+   * REDIS_URL is set (so the limit holds across replicas instead of being
+   * multiplied by the replica count), and a per-instance window otherwise.
    */
-  reserveRateLimit(consumer: ApiConsumerContext): RateLimitReservation {
+  async reserveRateLimit(
+    consumer: ApiConsumerContext,
+  ): Promise<RateLimitReservation> {
     const limit =
       consumer.id === "env" || consumer.rateLimitPerMinute === null
         ? null
         : Math.max(Number(consumer.rateLimitPerMinute) || 0, 0);
-
-    const now = Date.now();
-    const windowResetMs = now + RATE_WINDOW_MS;
 
     if (limit === null || limit <= 0) {
       return {
         allowed: true,
         limit: 0,
         remaining: 0,
-        resetAt: new Date(windowResetMs).toISOString(),
+        resetAt: new Date(
+          Date.now() + RATE_WINDOW_SECONDS * 1000,
+        ).toISOString(),
         retryAfterSeconds: 0,
       };
     }
 
-    const key = consumer.id;
-    const window = this.rateWindows.get(key);
-    let entry: RateWindow;
+    const { count, resetMs } = await this.cache.incrementWindow(
+      `edutu:v1:ratelimit:${consumer.id}`,
+      RATE_WINDOW_SECONDS,
+    );
+    const resetAt = new Date(resetMs).toISOString();
 
-    if (!window || window.windowStart + RATE_WINDOW_MS <= now) {
-      entry = { windowStart: now, count: 1 };
-    } else {
-      entry = window;
-      if (entry.count < limit) {
-        entry.count += 1;
-      } else {
-        const retryAfterSeconds = Math.max(
-          Math.ceil((entry.windowStart + RATE_WINDOW_MS - now) / 1000),
-          1,
-        );
-        return {
-          allowed: false,
-          limit,
-          remaining: 0,
-          resetAt: new Date(entry.windowStart + RATE_WINDOW_MS).toISOString(),
-          retryAfterSeconds,
-        };
-      }
+    if (count > limit) {
+      const retryAfterSeconds = Math.max(
+        Math.ceil((resetMs - Date.now()) / 1000),
+        1,
+      );
+      return {
+        allowed: false,
+        limit,
+        remaining: 0,
+        resetAt,
+        retryAfterSeconds,
+      };
     }
-
-    this.rateWindows.set(key, entry);
-    this.pruneRateWindows(now);
 
     return {
       allowed: true,
       limit,
-      remaining: Math.max(limit - entry.count, 0),
-      resetAt: new Date(entry.windowStart + RATE_WINDOW_MS).toISOString(),
+      remaining: Math.max(limit - count, 0),
+      resetAt,
       retryAfterSeconds: 0,
     };
-  }
-
-  private pruneRateWindows(now: number) {
-    if (this.rateWindows.size < MAX_TRACKED_CONSUMERS) return;
-    for (const [key, window] of this.rateWindows) {
-      if (window.windowStart + RATE_WINDOW_MS <= now) {
-        this.rateWindows.delete(key);
-      }
-    }
   }
 
   async recordUsageEvent(input: {

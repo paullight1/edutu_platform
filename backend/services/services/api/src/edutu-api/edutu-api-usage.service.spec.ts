@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
+import { CacheService } from "../common/cache/cache.service";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
 jest.mock("../db", () => ({
@@ -25,7 +26,8 @@ describe("EdutuApiUsageService", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    service = new EdutuApiUsageService();
+    // In-memory CacheService (no REDIS_URL) exercises the fixed-window fallback.
+    service = new EdutuApiUsageService(new CacheService());
   });
 
   const billableConsumer: ApiConsumerContext = {
@@ -161,11 +163,11 @@ describe("EdutuApiUsageService", () => {
       rateLimitPerMinute: 3,
     };
 
-    it("allows requests up to the limit then denies with a retry window", () => {
-      const first = service.reserveRateLimit(consumer);
-      const second = service.reserveRateLimit(consumer);
-      const third = service.reserveRateLimit(consumer);
-      const fourth = service.reserveRateLimit(consumer);
+    it("allows requests up to the limit then denies with a retry window", async () => {
+      const first = await service.reserveRateLimit(consumer);
+      const second = await service.reserveRateLimit(consumer);
+      const third = await service.reserveRateLimit(consumer);
+      const fourth = await service.reserveRateLimit(consumer);
 
       expect(first.allowed).toBe(true);
       expect(first.remaining).toBe(2);
@@ -178,14 +180,14 @@ describe("EdutuApiUsageService", () => {
       expect(fourth.retryAfterSeconds).toBeGreaterThanOrEqual(1);
     });
 
-    it("emits X-RateLimit-Limit and a resetAt ISO timestamp", () => {
-      const result = service.reserveRateLimit(consumer);
+    it("emits X-RateLimit-Limit and a resetAt ISO timestamp", async () => {
+      const result = await service.reserveRateLimit(consumer);
       expect(result.limit).toBe(3);
       expect(new Date(result.resetAt).toISOString()).toBe(result.resetAt);
     });
 
-    it("does not rate-limit env or unlimited consumers", () => {
-      const env = service.reserveRateLimit({
+    it("does not rate-limit env or unlimited consumers", async () => {
+      const env = await service.reserveRateLimit({
         ...consumer,
         id: "env",
         rateLimitPerMinute: null,
@@ -193,7 +195,7 @@ describe("EdutuApiUsageService", () => {
       expect(env.allowed).toBe(true);
       expect(env.limit).toBe(0);
 
-      const unlimited = service.reserveRateLimit({
+      const unlimited = await service.reserveRateLimit({
         ...consumer,
         id: "consumer-unlimited",
         rateLimitPerMinute: null,
@@ -201,15 +203,21 @@ describe("EdutuApiUsageService", () => {
       expect(unlimited.allowed).toBe(true);
     });
 
-    it("resets the window after the window elapses", () => {
+    it("resets the window after the window elapses", async () => {
       jest.useFakeTimers();
       try {
-        const before = service.reserveRateLimit({ ...consumer, id: "reset-1" });
+        const before = await service.reserveRateLimit({
+          ...consumer,
+          id: "reset-1",
+        });
         expect(before.allowed).toBe(true);
 
         jest.advanceTimersByTime(61_000);
 
-        const after = service.reserveRateLimit({ ...consumer, id: "reset-1" });
+        const after = await service.reserveRateLimit({
+          ...consumer,
+          id: "reset-1",
+        });
         expect(after.allowed).toBe(true);
         expect(after.remaining).toBe(2);
       } finally {

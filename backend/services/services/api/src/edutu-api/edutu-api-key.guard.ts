@@ -60,7 +60,7 @@ export class EdutuApiKeyGuard implements CanActivate {
       throw new ForbiddenException(`API key missing scope: ${scope}`);
     }
 
-    const rateLimit = this.usageService.reserveRateLimit(consumer);
+    const rateLimit = await this.usageService.reserveRateLimit(consumer);
     this.setRateLimitHeaders(response, rateLimit);
     if (!rateLimit.allowed) {
       response.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
