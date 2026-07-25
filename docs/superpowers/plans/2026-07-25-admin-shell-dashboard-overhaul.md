@@ -88,7 +88,7 @@ The admin app has no test runner. Every later task is TDD, so this comes first. 
 **Files:**
 - Create: `admin/vitest.config.ts`
 - Create: `admin/src/test/setup.ts`
-- Create: `admin/src/lib/smoke.spec.ts` (deleted at the end of this task)
+- Create: `admin/src/test/harness.spec.ts`
 - Modify: `admin/package.json`
 - Modify: `.github/workflows/ci.yml`
 
@@ -99,10 +99,12 @@ The admin app has no test runner. Every later task is TDD, so this comes first. 
 - [ ] **Step 1: Install dev dependencies**
 
 ```bash
-npm install --save-dev vitest@^4.1.6 jsdom@^29.1.1 @testing-library/react@^16.3.2 @testing-library/jest-dom@^6.9.1 @testing-library/user-event@^14.6.1
+npm install --save-dev vitest@^4.1.6 jsdom@^29.1.1 @testing-library/react@^16.3.2 @testing-library/dom@^10.4.1 @testing-library/jest-dom@^6.9.1 @testing-library/user-event@^14.6.1
 ```
 
-Expected: `package.json` gains five `devDependencies`; `package-lock.json` updates. No `dependencies` change.
+Expected: `package.json` gains six `devDependencies`; `package-lock.json` updates. No `dependencies` change.
+
+**`@testing-library/dom` is required explicitly.** `@testing-library/react` v16 declares it as a *peer* dependency rather than bundling it (v14 bundled it). Omitting it fails every render test with `Cannot find module '@testing-library/dom'` from inside `react/dist/pure.js` — a failure that looks like a broken config rather than a missing package. Note `edutu-web-app` does not declare it and only works because it resolves transitively there; do not copy that omission.
 
 - [ ] **Step 2: Add the test scripts**
 
@@ -148,32 +150,46 @@ afterEach(() => {
 });
 ```
 
-- [ ] **Step 5: Write a smoke test that fails**
+- [ ] **Step 5: Write the harness test with one deliberately failing assertion**
 
-Create `admin/src/lib/smoke.spec.ts`:
+Create `admin/src/test/harness.spec.ts`, temporarily asserting `"nope"` so the run must fail:
 
 ```ts
 import { describe, expect, it } from "vitest";
 
+/**
+ * Guards the test harness itself. If `setupFiles` stops loading, or the jsdom
+ * environment is lost, this fails with an obvious message instead of surfacing
+ * as a confusing failure inside an unrelated suite.
+ */
 describe("test harness", () => {
-  it("runs and can assert on DOM matchers", () => {
+  it("provides a jsdom document", () => {
+    expect(typeof document).toBe("object");
+    expect(document.body).toBeTruthy();
+  });
+
+  it("loads the jest-dom matchers from setupFiles", () => {
     const el = document.createElement("div");
     el.textContent = "ready";
     document.body.appendChild(el);
+
+    // Both matchers come from @testing-library/jest-dom, not from vitest.
     expect(el).toBeInTheDocument();
     expect(el).toHaveTextContent("nope");
   });
 });
 ```
 
-- [ ] **Step 6: Run it to verify it fails**
+- [ ] **Step 6: Run it to verify it fails for the right reason**
 
 Run: `npm test`
-Expected: FAIL — `expect(element).toHaveTextContent()` reports `ready` did not match `nope`. This proves both the runner and the jest-dom matchers are wired.
+Expected: FAIL — `expect(element).toHaveTextContent()` reports `ready` did not match `nope`.
+
+The *reason* matters. `toBeInTheDocument()` must pass on the line above, which proves `setupFiles` loaded the jest-dom matchers. If you instead see `Cannot find module '@testing-library/dom'`, Step 1 was incomplete — install that package before continuing.
 
 - [ ] **Step 7: Fix the assertion**
 
-In `admin/src/lib/smoke.spec.ts` change `expect(el).toHaveTextContent("nope");` to:
+In `admin/src/test/harness.spec.ts` change `expect(el).toHaveTextContent("nope");` to:
 
 ```ts
     expect(el).toHaveTextContent("ready");
@@ -182,17 +198,11 @@ In `admin/src/lib/smoke.spec.ts` change `expect(el).toHaveTextContent("nope");` 
 - [ ] **Step 8: Run it to verify it passes**
 
 Run: `npm test`
-Expected: PASS — `1 passed`.
+Expected: PASS — `2 passed`.
 
-- [ ] **Step 9: Delete the smoke test**
+**Keep this file.** It looks like scaffolding, but `vitest run` exits **1** with `No test files found` on an empty suite, so deleting it would leave the CI job added in Step 10 red until Task 3 lands. Setting `passWithNoTests: true` instead would be worse: a future broken `include` glob would then pass CI green having run nothing.
 
-```bash
-rm src/lib/smoke.spec.ts
-```
-
-It has served its purpose; Task 3 adds the first real tests.
-
-- [ ] **Step 10: Add the CI job**
+- [ ] **Step 9: Add the CI job**
 
 In `.github/workflows/ci.yml`, insert after the `admin-lint` job (which ends with `- run: npm run lint`, before `web-typecheck:`):
 
@@ -217,15 +227,19 @@ In `.github/workflows/ci.yml`, insert after the `admin-lint` job (which ends wit
       - run: npm test
 ```
 
-- [ ] **Step 11: Verify lint still passes**
-
-Run: `npm run lint`
-Expected: no output, exit 0. (`vitest.config.ts` and `src/test/setup.ts` must not introduce warnings.)
-
-- [ ] **Step 12: Commit**
+- [ ] **Step 10: Verify lint and build still pass**
 
 ```bash
-git add admin/package.json admin/package-lock.json admin/vitest.config.ts admin/src/test/setup.ts .github/workflows/ci.yml
+npm run lint
+npm run build
+```
+
+Expected: both exit 0. (`vitest.config.ts` and `src/test/setup.ts` must not introduce lint warnings.) The build check matters because installing the test packages reshuffles the dependency tree — `npm install` reports removing packages as it dedupes — so confirm the app still bundles before committing.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add admin/package.json admin/package-lock.json admin/vitest.config.ts admin/src/test/ .github/workflows/ci.yml
 git commit -m "test(admin): add vitest + testing-library harness and CI job"
 ```
 
