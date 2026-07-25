@@ -254,6 +254,12 @@ export class OpportunitiesController {
     return this.opportunitiesService.getAdminStats();
   }
 
+  @Get("admin/quality")
+  @UseGuards(AdminGuard)
+  getQualityScorecard() {
+    return this.opportunitiesService.getQualityScorecard();
+  }
+
   @Delete("admin/purge")
   @UseGuards(AdminGuard)
   purgeAdminOpportunities(

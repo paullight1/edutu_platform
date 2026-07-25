@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { backendFetchJson, getAdminAuthHeaders, getBackendBaseUrl } from '../lib/backend';
 import { isLocalAdminBypassEnabled } from '../lib/localAdmin';
+import DataQualityScorecard from '../components/DataQualityScorecard';
 import {
     Bug,
     Play,
@@ -2094,6 +2095,8 @@ export default function ScraperDashboard() {
                     ))}
                 </div>
             )}
+
+            <DataQualityScorecard />
 
             {engineStatus?.database?.configured && !engineStatus.database.reachable && (
                 <div style={{
@@ -4740,6 +4743,53 @@ export default function ScraperDashboard() {
                         </div>
 
                         <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+                            {/* Run diagnostics — always shown so a failed/empty run explains itself. */}
+                            {(() => {
+                                const job = inspectJobDetails;
+                                const errs = (Array.isArray(job.errors) ? job.errors : []).map(stringifyLogEntry).filter(Boolean);
+                                const warns = (Array.isArray(job.warnings) ? job.warnings : []).map(stringifyLogEntry).filter(Boolean);
+                                const stat = (label: string, value: React.ReactNode, tone?: 'bad' | 'warn') => (
+                                    <div style={{ minWidth: 90 }}>
+                                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+                                        <div style={{ fontSize: 18, fontWeight: 700, color: tone === 'bad' ? 'var(--danger, #dc2626)' : tone === 'warn' ? 'var(--warning, #d97706)' : 'var(--text-primary)' }}>{value}</div>
+                                    </div>
+                                );
+                                return (
+                                    <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: '16px 20px', borderRadius: 12, border: '1px solid var(--border-light)', background: 'var(--bg-secondary)' }}>
+                                            {stat('Discovered', job.urls_discovered ?? 0)}
+                                            {stat('Scraped', job.urls_scraped ?? 0)}
+                                            {stat('Saved', job.urls_saved ?? 0)}
+                                            {stat('Failed', job.urls_failed ?? 0, (job.urls_failed ?? 0) > 0 ? 'bad' : undefined)}
+                                            {stat('Duration', `${job.duration_seconds ?? 0}s`)}
+                                        </div>
+                                        {errs.length > 0 && (
+                                            <div style={{ padding: '14px 18px', borderRadius: 12, border: '1px solid var(--danger, #dc2626)', background: 'color-mix(in srgb, var(--danger, #dc2626) 8%, transparent)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--danger, #dc2626)', marginBottom: 8 }}>
+                                                    <AlertTriangle size={16} /> {errs.length} error{errs.length > 1 ? 's' : ''}
+                                                </div>
+                                                <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    {errs.map((e, i) => (
+                                                        <li key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{e}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {warns.length > 0 && (
+                                            <div style={{ padding: '14px 18px', borderRadius: 12, border: '1px solid var(--warning, #d97706)', background: 'color-mix(in srgb, var(--warning, #d97706) 8%, transparent)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--warning, #d97706)', marginBottom: 8 }}>
+                                                    <AlertTriangle size={16} /> {warns.length} warning{warns.length > 1 ? 's' : ''}
+                                                </div>
+                                                <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    {warns.map((w, i) => (
+                                                        <li key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{w}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             {isLoadingInspect ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: 16 }}>
                                     <Loader2 size={32} className="animate-spin" style={{ color: 'var(--primary)' }} />
@@ -4750,8 +4800,18 @@ export default function ScraperDashboard() {
                                     <div style={{ display: 'inline-flex', padding: 16, background: 'var(--bg-tertiary)', borderRadius: '50%', marginBottom: 16 }}>
                                         <Database size={32} style={{ color: 'var(--text-tertiary)' }} />
                                     </div>
-                                    <h4 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>No metadata records found</h4>
-                                    <p style={{ fontSize: 14, color: 'var(--text-tertiary)', margin: 0 }}>This job might have been run before the tracking system was updated, or it didn't find any opportunities.</p>
+                                    <h4 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+                                        {inspectJobDetails.status === 'failed'
+                                            ? 'This run failed before saving any opportunities'
+                                            : (inspectJobDetails.errors?.length || inspectJobDetails.warnings?.length)
+                                                ? 'No opportunities saved from this run'
+                                                : 'No opportunities found in this run'}
+                                    </h4>
+                                    <p style={{ fontSize: 14, color: 'var(--text-tertiary)', margin: 0 }}>
+                                        {inspectJobDetails.status === 'failed' || inspectJobDetails.errors?.length
+                                            ? 'See the errors above for why. A blocked source, changed page structure, or a mid-crawl restart are the usual causes.'
+                                            : 'The source was reachable but nothing matched — the listing may be empty, or this job predates opportunity tracking.'}
+                                    </p>
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
@@ -4836,6 +4896,19 @@ const formatDate = (date: string | null) => {
         hour: '2-digit',
         minute: '2-digit',
     });
+};
+
+// Job error/warning entries arrive as either plain strings or {message} objects
+// (e.g. the "Run abandoned — process restarted mid-crawl" reaper writes objects).
+// Render both without leaking "[object Object]" at the operator.
+const stringifyLogEntry = (entry: unknown): string => {
+    if (typeof entry === 'string') return entry;
+    if (entry && typeof entry === 'object') {
+        const rec = entry as Record<string, unknown>;
+        if (typeof rec.message === 'string') return rec.message;
+        try { return JSON.stringify(entry); } catch { return String(entry); }
+    }
+    return String(entry ?? '');
 };
 
 const getStatusColor = (status: string) => {
