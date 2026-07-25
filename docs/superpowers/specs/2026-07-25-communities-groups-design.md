@@ -1,8 +1,10 @@
 # Edutu Communities — Design Spec
 
 **Date:** 2026-07-25
-**Status:** Approved design, pending implementation plans (one per slice)
+**Status:** Approved design; implementation plans written (one per slice, `docs/superpowers/plans/2026-07-25-communities-slice-*.md`)
 **Surfaces:** `edutumobile` + `edutu-web-app` (full parity), `backend/services/services/api`, `admin`
+
+> **Prerequisite — branch from `origin/main`.** This spec and all five plans were researched against the branch `feat/ai-copilot-and-fit-fixes`, which is **41 commits behind `origin/main`** and missing PR#40 (the user-trust masterplan) entirely. Confirm with `git merge-base --is-ancestor origin/main HEAD` before starting. A grep over a stale working tree is **not** evidence that something is absent from the repo — that mistake already produced one wrong conclusion here (the scam gate, §9). Anywhere a plan says "X does not exist, so create it", re-verify with `git show origin/main:<path>` after rebasing.
 
 ---
 
@@ -14,7 +16,7 @@ Ambitious African students already organise around scholarships — in WhatsApp 
 |---|---|
 | Good advice scrolls away; a week-3 joiner gets nothing | **The Brief** — an AI-maintained, cited, durable digest per group |
 | You cannot tell a winner from a guesser | **Verified outcomes** on profiles, sourced from the real applications pipeline — never self-reported |
-| Scams ("pay ₦5,000 for the application link") | The existing scam gate, applied to links posted *in chat* |
+| Scams ("pay ₦5,000 for the application link") | Two gates: the shipped scraper scam gate's stored verdict surfaced wherever a listing appears, plus a new send-time screener for chat and note text |
 | Groups outlive their deadline and rot into graveyards | Groups are **time-boxed to the deadline they serve**, then auto-archive read-only — and carry forward to next season |
 
 Fixes 2 and 4 are not replicable by a generic chat app at any price. They are the moat.
@@ -72,8 +74,9 @@ Social proof on an opportunity card reads: `4 notes · 10 applied · 20 found us
 Public profile at `@username`. **No friend requests** — view, follow, or contact.
 
 - Handle (unique, immutable-ish with a 30-day change cooldown), display name, avatar, country, one-line *what I'm chasing*
-- **Track record, verified from our own data:** `Applied 12 · Won 1`. Opt-in per tier. Derived from the live `opportunity_applications` table (`status = 'submitted'` and beyond) and the `outcome_offer` rows already written into `user_opportunity_signals` by `me.service.ts`. A `✓ Won Chevening 2024` badge cannot be faked and is the single strongest identity primitive in this market.
-  - The real status vocabulary is `draft | submitted | offer | rejected | withdrawn | no_response`. There is **no** `shortlisted` status today. Displaying an intermediate "Shortlisted" tier requires adding it to the `opportunity_applications` status CHECK constraint first — treat as an optional Slice 3 extension, not an assumption.
+- **Track record, verified from our own data:** `Applied 12 · Interviewed 3 · Won 1`. Opt-in per tier. Derived from the live `opportunity_applications` table and the `outcome_offer` rows already written into `user_opportunity_signals` by `me.service.ts`. A `✓ Won Chevening 2024` badge cannot be faked and is the single strongest identity primitive in this market. The three-tier form is deliberate: progression is more credible and more motivating than a binary applied/won, and it gives the many users who reach an interview but not an offer something real to show.
+  - The status vocabulary, **verified against the production DB** (`opportunity_applications_status_check`), is `draft | submitted | interview | offer | rejected | withdrawn | no_response`. There is no `shortlisted` status — the intermediate tier is **`interview`**, and it already exists, so no constraint change is needed.
+  - `applied` counts every non-`draft` status (including `interview`, `offer`, `rejected`, `withdrawn`, `no_response`) — otherwise applications that progressed would silently vanish from the count. `interviewed` counts `interview` and beyond. `won` counts `offer`.
 - **Follow** (asymmetric) → their group activity and wins appear in notifications
 - **Contact** → backend-relayed email through the existing Brevo `/support` path. The sender never sees the recipient's address. Satisfies "send emails" without handing PII to scammers.
 - **Mentor badge** for approved mentors — rides existing `creator_applications` (`application_kind = 'mentor'`, `profiles.mentor_status`)
@@ -115,7 +118,7 @@ New table `user_follows` — mirrors the existing `user_blocks` shape: `(id, fol
 
 | Table | Key columns |
 |---|---|
-| `opportunity_notes` | `id, opportunity_id, user_id, kind ('tip'\|'question'\|'result'), body, outcome ('applied'\|'shortlisted'\|'won'\|'rejected'\|null), reply_to_id, helpful_count, status, created_at` |
+| `opportunity_notes` | `id, opportunity_id, user_id, kind ('tip'\|'question'\|'result'), body, outcome ('applied'\|'interview'\|'offer'\|'rejected'\|null), reply_to_id, helpful_count, status, created_at` — outcomes match the live `opportunity_applications` vocabulary; a `result` note is only accepted when the author has a matching application row, which is what makes it unfakeable |
 | `opportunity_note_votes` | `note_id, user_id` — unique pair (a "found useful" vote) |
 | `opportunity_social_counts` | `opportunity_id (PK), notes_count, applied_count, useful_count, shares_count, groups_count, updated_at` |
 
@@ -160,7 +163,14 @@ The owner may then **carry forward**: a new group for the next cycle is created 
 
 ## 7. AI in group
 
-**`@edutu` mention** → an agent turn on the existing `chat.service.ts` loop with a *restricted* tool set: `searchOpportunities`, `getOpportunity`, `explainFit`, `deadlineCheck`, `draftAnswer`. Context = group name + anchored opportunity + current Brief + last N messages. Rate-limited per user per group; metered through `@AiMetered`.
+**`@edutu` mention** → an agent turn on the existing `chat.service.ts` loop with a *restricted* tool set of five: opportunity search, single-opportunity read, fit explanation, deadline check, and answer drafting. Context = group name + anchored opportunity + current Brief + last N messages. Rate-limited per user per group; metered through `@AiMetered`.
+
+> **The group tools are new implementations, not the coach's tools re-exposed.** Of the five, only opportunity search exists today; the coach's nearest equivalents are unsafe in a group and must not be reused:
+> - its fit tool accepts an `upload_id` (reads the asker's private files) and debits credits internally, which would double-charge under route-level metering;
+> - its deadline tool returns the asker's own goals and `opportunity_applications` — **in a group, that publishes their private application pipeline to every member**;
+> - its drafting tools persist a document and charge.
+>
+> Group versions take no user-identifying arguments at all, persist nothing, and read only public opportunity data plus the asking user's own profile. Every schema is a strict object so smuggled arguments fail validation before any lookup.
 
 > **Security constraint — group chat is untrusted input.** Any member can craft text to hijack the agent. Group-mode tools may read only public opportunity data and the *asking* user's own profile — never another member's account, documents, credits, or applications. Extend the existing `coach-tools.untrusted.spec.ts` with group-mode injection cases.
 
@@ -191,7 +201,9 @@ Non-negotiable and shipped in Slice 2, not later — this is what gets an app re
 1. **Report** any target (message, group, profile, note) → `community_reports` → queue in the existing admin panel under the App section
 2. **Block** a user — extend `user_blocks`; blocked users' content collapses to "Blocked message" everywhere it appears
 3. **Mod actions** — mute, kick, ban per group; platform-wide ban by staff
-4. **Send-time filters** — the existing scam gate applied to URLs posted in chat; abuse classifier; phone/WhatsApp-number harvesting detection; per-user and per-group rate limits. Borderline content **shadow-holds for review** rather than hard-blocking a real user mid-conversation
+4. **Send-time filters** — abuse classifier, phone/WhatsApp-number harvesting detection, payment-solicitation detection, per-user and per-group rate limits. Borderline content **shadow-holds for review** rather than hard-blocking a real user mid-conversation
+
+   > **Two gates, deliberately not merged.** The shipped scraper gate (`isScamGateEnabled` / `extractRedFlags` / `decideScamGate` / `SCAM_GATE_CAP_THRESHOLD = 2` in `src/scraper/opportunity-dedup.service.ts`, on `origin/main`) grades *scraper metadata that already carries LLM-extracted `red_flags`*. It reads a stored verdict and structurally cannot screen raw prose — there is no `red_flags` field on a member's chat message. So Communities adds a genuine send-time text screener (`screenMessage`) that **reuses the scraper gate's threshold and vocabulary** so the two can never disagree about what "risky" means, while the scraper gate's stored verdict is surfaced wherever a flagged listing appears: on an opportunity card shared into a group, and above the composer on the Notes surface. Always read the stored verdict, never re-run detection, or the member-facing warning and the admin review queue will drift apart.
 5. **Published 24-hour action SLA** on reports, with an in-app statement of it
 
 Images ride the existing `uploads` service. v1 image safety = report + admin queue + block + rate limit. A vision moderation pass is deferred (cost) and tracked as a follow-up; revisit if image abuse appears.
@@ -235,6 +247,8 @@ Each slice gets its own implementation plan. Slice 1 is the scope of the first p
 |---|---|
 | Supabase realtime connection limits at scale | One-channel-on-screen discipline (§8.1); monitor concurrent connections; the write path is already backend-owned, so swapping fan-out later is contained |
 | Moderation load exceeds available staff | Rate limits + unlisted-until-5-members + shadow-hold reduce inflow; admin queue is prioritised by report count |
-| Empty-room problem at launch | Seed anchored groups for the 20 live opportunities with the highest `opportunity_applications` volume, each pre-loaded with a Brief generated from that opportunity's existing Notes and description |
+| Empty-room problem at launch | Seed 20 anchored groups, each pre-loaded with a Brief. **Ranking by application volume alone does not work** — the live table holds only 43 rows across 38 opportunities, so it would be near-random. Use a composite (applications ×5, bookmarks ×3, signals ×2, tie-break soonest deadline). Exclude any opportunity the scraper's scam gate flagged |
+| **Verified outcomes have almost no data yet** — `opportunity_applications` is 43 rows total, so `Applied · Interviewed · Won` renders empty for nearly every user at launch | The empty state is the common case, not the edge case: a profile with no record must read as *not started yet*, never as *failed*. "Opted in but nothing recorded" must be distinguishable from "opted out" in the API, not inferred from zeros. The feature still compounds and cannot be faked — but it will look sparse for months, and that is expected, not a bug |
+| `citext` is **not installed** on the live DB (available, not enabled) — `username citext unique` fails as written | `create extension if not exists citext` in the migration, with a documented `text` + unique `lower(username)` index fallback if the type does not resolve under Supabase's `extensions` schema |
 | Brief hallucination damaging trust | Mandatory citations; mods can unsave any source message and force regeneration; Brief is visibly labelled AI-generated with a timestamp |
 | `@edutu/core` workspace promotion fights Metro/Vite | Timeboxed in Slice 1 with a documented shared-types-only fallback |
