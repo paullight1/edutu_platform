@@ -16,6 +16,12 @@ export class CacheService implements OnModuleDestroy {
     { value: string; expiresAt: number }
   >();
   private readonly MAX_MEM_ENTRIES = 5000;
+  // Fixed-window counters for incrementWindow()'s in-memory fallback.
+  private readonly counters = new Map<
+    string,
+    { count: number; resetAt: number }
+  >();
+  private readonly MAX_COUNTER_ENTRIES = 10000;
 
   private getRedis(): any | null {
     if (this.redisChecked) return this.redis;
@@ -136,6 +142,50 @@ export class CacheService implements OnModuleDestroy {
     }
     for (const key of Array.from(this.mem.keys())) {
       if (key.startsWith(prefix)) this.mem.delete(key);
+    }
+  }
+
+  /**
+   * Atomic fixed-window increment — the primitive for a rate limiter that holds
+   * across replicas. Uses Redis INCR (+PEXPIRE on the first hit of a window) so
+   * every instance shares one counter; falls back to a per-instance map when
+   * Redis is absent. Returns the new count and the absolute reset time (ms).
+   */
+  async incrementWindow(
+    key: string,
+    windowSeconds: number,
+  ): Promise<{ count: number; resetMs: number }> {
+    const redis = this.getRedis();
+    if (redis) {
+      try {
+        const count: number = await redis.incr(key);
+        if (count === 1) {
+          await redis.pexpire(key, windowSeconds * 1000);
+        }
+        const pttl: number = await redis.pttl(key);
+        const resetMs = Date.now() + (pttl > 0 ? pttl : windowSeconds * 1000);
+        return { count, resetMs };
+      } catch {
+        // fall through to the in-memory window on any Redis error
+      }
+    }
+
+    const now = Date.now();
+    const entry = this.counters.get(key);
+    if (!entry || entry.resetAt <= now) {
+      const resetAt = now + windowSeconds * 1000;
+      this.counters.set(key, { count: 1, resetAt });
+      this.pruneCounters(now);
+      return { count: 1, resetMs: resetAt };
+    }
+    entry.count += 1;
+    return { count: entry.count, resetMs: entry.resetAt };
+  }
+
+  private pruneCounters(now: number): void {
+    if (this.counters.size < this.MAX_COUNTER_ENTRIES) return;
+    for (const [key, entry] of this.counters) {
+      if (entry.resetAt <= now) this.counters.delete(key);
     }
   }
 
