@@ -161,6 +161,24 @@ export class BlogService {
     return updated[0];
   }
 
+  /**
+   * Read a post by slug WITHOUT incrementing its view counter.
+   *
+   * Used by the crawler-time Open Graph endpoint: social unfurl bots hit a
+   * shared link once per platform per cache window, and counting those as
+   * reads made popular-post analytics meaningless. Returns null instead of
+   * throwing so the OG route can fall back to generic blog metadata.
+   */
+  async peekBySlug(slug: string): Promise<BlogPost | null> {
+    const posts = await db
+      .select()
+      .from(blogPosts)
+      .where(eq(blogPosts.slug, slug))
+      .limit(1);
+
+    return posts[0] ?? null;
+  }
+
   async findOneBySlug(slug: string): Promise<BlogPost> {
     const posts = await db
       .select()

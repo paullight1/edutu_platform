@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/* Outfit + JetBrains Mono load from a <link> in index.html, not an @import.
+   A CSS @import is only discovered after this stylesheet parses, which costs a
+   serial round trip before either font can start downloading. */
 
 @tailwind base;
 @tailwind components;
@@ -7,9 +8,20 @@
 
 :root {
   color-scheme: light;
-  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
-  --font-body: 'Outfit', system-ui, -apple-system, sans-serif;
+  /* Display carries brand moments only (hero, page titles, wordmark). Body
+     carries every label, row, button and paragraph — a job Outfit's geometric
+     forms and low x-height did badly at 12-15px. */
+  --font-display: 'Outfit', 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Weight roles. Mirrors tailwind.config.js `fontWeight` so CSS and utility
+     classes can't drift apart. Deliberately one step lighter than the usual
+     400/500/600/700 ramp — see the config comment. */
+  --weight-body: 400;
+  --weight-label: 500;
+  --weight-emphasis: 560;
+  --weight-strong: 640;
 
   /* Brand palette (blue) */
   --color-brand-50: 239 246 255;
@@ -67,7 +79,10 @@
   /* Typography tokens */
   --text-primary: 15 23 42;
   --text-secondary: 51 65 85;
-  --text-muted: 100 116 139;
+  /* Was #64748B, which measured 4.34:1 on the elevated surface — under the
+     4.5:1 body-text floor. Meta and caption text is small text; it needs the
+     full ratio, not the large-text exemption. Now 5.03:1 at worst. */
+  --text-muted: 90 106 128;
   --text-inverse: 248 250 252;
   --text-link: 29 78 216;
 
@@ -118,7 +133,10 @@
 
   --text-primary: 241 245 249;
   --text-secondary: 148 163 184;
-  --text-muted: 100 116 139;
+  /* Dark mode had inherited light mode's muted grey verbatim, which measured
+     3.33-4.02:1 against the dark surfaces — the worst contrast in the app.
+     Now 4.68:1 at worst. */
+  --text-muted: 129 140 161;
   --text-inverse: 241 245 249;
   --text-link: 96 165 250;
 
@@ -262,23 +280,30 @@ body {
   background: rgb(var(--surface-body));
   color: rgb(var(--text-primary));
   font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: var(--weight-body);
+  line-height: 1.6;
+  /* Instrument Sans ships optical-size and proper kerning; ask for both. */
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
   min-height: 100dvh;
   overflow-x: hidden;
   text-rendering: optimizeLegibility;
   transition: background-color var(--transition-medium), color var(--transition-medium);
 }
 
-/* Light-mode page background image with a light wash overlay (reduced). */
-html:not(.dark) body {
-  background-image:
-    linear-gradient(rgba(248, 250, 252, 0.35), rgba(248, 250, 252, 0.35)),
-    url('/backgrounds/light-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+/* Light text on a dark field loses perceived weight on three axes at once.
+   Compensate on all three rather than only bumping the color. */
+.dark body {
+  letter-spacing: 0.008em;
+  line-height: 1.64;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* `letter-spacing: 0` used to be flattened across every heading level, which
+   is why 136 call sites hand-patched `tracking-tight` back on. Tracking is now
+   optical: it tightens as type grows, and never crosses the -0.04em floor. */
 h1,
 h2,
 h3,
@@ -287,23 +312,53 @@ h5,
 h6 {
   font-family: var(--font-display);
   color: rgb(var(--text-primary));
-  letter-spacing: 0;
+  font-weight: var(--weight-emphasis);
+  text-wrap: balance;
+}
+
+h1 {
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  line-height: 1.18;
+  letter-spacing: -0.024em;
+}
+
+h3 {
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+}
+
+h4 {
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+}
+
+h5,
+h6 {
+  line-height: 1.45;
+  letter-spacing: -0.006em;
 }
 
 p {
   font-size: 1rem;
   line-height: 1.6;
   color: rgb(var(--text-secondary));
+  text-wrap: pretty;
 }
 
 small {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  letter-spacing: 0.006em;
   color: rgb(var(--text-muted));
 }
 
 a {
   color: rgb(var(--text-link));
-  font-weight: 500;
+  font-weight: var(--weight-label);
   transition: color var(--transition-fast);
 }
 
@@ -661,21 +716,27 @@ button:focus-visible {
     background: rgb(var(--color-brand-500) / 0.1);
   }
 
-  /* Standardized Typography */
+  /* Standardized Typography.
+     All four steps sit at the same weight on purpose: hierarchy is carried by
+     size, tracking and leading (all baked into the scale), not by stacking on
+     ink. `tracking-tight` is gone from here because the scale already tracks
+     each step optically. Only the two display steps take a desktop step-up —
+     product-register UI below them stays at a fixed size so panel and card
+     layouts keep their spatial predictability. */
   .heading-xl {
-    @apply text-4xl md:text-5xl font-display font-bold tracking-tight;
+    @apply font-display text-3xl font-semibold sm:text-4xl md:text-5xl;
   }
 
   .heading-lg {
-    @apply text-2xl md:text-3xl font-display font-bold;
+    @apply font-display text-2xl font-semibold md:text-3xl;
   }
 
   .heading-md {
-    @apply text-xl font-display font-bold;
+    @apply font-display text-xl font-semibold;
   }
 
   .heading-sm {
-    @apply text-lg font-display font-semibold;
+    @apply font-display text-lg font-semibold;
   }
 
   @keyframes fade-in-up {
@@ -757,20 +818,46 @@ button:focus-visible {
 
 
 
+  /* Body copy runs at regular weight. `.body-lg` was `font-medium`, which is
+     why lead paragraphs read as semi-headings. Hand-set leading is gone too —
+     `leading-snug` (1.375) was squeezing 14px UI copy tighter than the 1.55
+     the scale now gives it. */
   .body-lg {
-    @apply text-lg font-medium leading-relaxed;
+    @apply text-lg font-normal;
   }
 
   .body-md {
-    @apply text-base leading-normal;
+    @apply text-base font-normal;
   }
 
   .body-sm {
-    @apply text-sm leading-snug;
+    @apply text-sm font-normal;
   }
 
   .text-caption {
-    @apply text-xs font-medium tracking-wider;
+    @apply text-xs font-medium;
+  }
+
+  /* Uppercase needs tracking that default spacing doesn't give it. One class
+     so micro-labels stop re-deriving it inline. */
+  .label-caps {
+    @apply text-2xs font-medium uppercase;
+    letter-spacing: 0.09em;
+  }
+
+  /* Prose measure. Long-form copy past ~70ch loses the line-return. */
+  .measure {
+    max-width: 68ch;
+  }
+
+  .measure-narrow {
+    max-width: 52ch;
+  }
+
+  /* Figures that sit in columns, counters, tables or anything that ticks. */
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
   }
 
   /* Standardized Spacing */
@@ -856,11 +943,16 @@ input[type="button"] {
   min-height: 44px;
 }
 
-/* Prevent zoom on input focus (iOS/Android) */
-input,
-textarea,
-select {
-  font-size: 16px !important;
+/* Prevent zoom on input focus. Mobile Safari zooms the viewport when a focused
+   field is under 16px — but that is a touch-device problem, so the override is
+   scoped to coarse pointers instead of forcing 16px on every desktop field and
+   overriding whatever size the component asked for. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 1rem !important;
+  }
 }
 
 /* Smooth scroll behavior */
@@ -955,18 +1047,28 @@ body {
   overscroll-behavior-y: auto;
 }
 
-.landing-mesh-stage {
-  background: #061120;
+/* Country-reach marquee. Lives here rather than in an injected <style> tag so
+   the keyframes aren't re-parsed on every render of the section. */
+.landing-marquee {
+  animation: landing-marquee 30s linear infinite;
 }
 
-.landing-mesh-bg {
-  background:
-    radial-gradient(circle at 16% 16%, rgba(70, 163, 255, 0.58), transparent 30%),
-    radial-gradient(circle at 78% 18%, rgba(90, 81, 224, 0.5), transparent 32%),
-    radial-gradient(circle at 60% 74%, rgba(40, 177, 205, 0.46), transparent 34%),
-    linear-gradient(135deg, #061120 0%, #0b2a58 46%, #1d3f8f 100%);
-  transform: scale(1.08);
-  animation: landing-mesh-drift 14s ease-in-out infinite alternate;
+.landing-country-fade-left {
+  background: linear-gradient(to right, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
+}
+
+.landing-country-fade-right {
+  background: linear-gradient(to left, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
+}
+
+@keyframes landing-marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .landing-grain {
@@ -1000,17 +1102,6 @@ body {
   opacity: 1;
 }
 
-/* Hero eyebrow chip — brand-tinted, legible over navy and light. */
-.landing-hero-eyebrow {
-  border: 1px solid rgb(var(--color-brand-500) / 0.28);
-  background: rgb(var(--color-brand-500) / 0.1);
-}
-
-.dark .landing-hero-eyebrow {
-  border-color: rgba(120, 170, 255, 0.28);
-  background: rgba(56, 120, 255, 0.12);
-}
-
 /* Rotating hero word — brand-coloured for emphasis against the headline. */
 .landing-hero-word-accent {
   color: rgb(var(--color-brand-600));
@@ -1024,18 +1115,6 @@ body {
 
 .dark .landing-hero-word-accent {
   color: rgb(var(--color-brand-300));
-}
-
-@keyframes landing-mesh-drift {
-  from {
-    filter: hue-rotate(0deg) saturate(1.02);
-    transform: scale(1.08) translate3d(0, 0, 0);
-  }
-
-  to {
-    filter: hue-rotate(8deg) saturate(1.08);
-    transform: scale(1.12) translate3d(-1.5%, 1%, 0);
-  }
 }
 
 @media (max-width: 640px) {
@@ -1101,9 +1180,13 @@ body {
     touch-action: pan-y;
   }
 
+  /* Stop short of a full viewport so the next section's heading peeks above
+     the fold — a full 100dvh centred hero left ~280px of dead space and read
+     as "the page ends here". The top pad clears the fixed header so the
+     content still sits optically centred in what's left. */
   .landing-hero {
-    min-height: 100dvh !important;
-    padding-top: 0 !important;
+    min-height: 80dvh !important;
+    padding-top: 5rem !important;
     padding-bottom: 0 !important;
   }
 
@@ -1138,12 +1221,15 @@ body {
   .landing-section-title {
     font-size: clamp(1.95rem, 7.4vw, 3rem) !important;
     line-height: 1.06 !important;
-    letter-spacing: -0.05em !important;
+    /* -0.04em is the tightest tracking that keeps letterforms from touching. */
+    letter-spacing: -0.04em !important;
   }
 
+  /* Matches the `text-base` step the utility now sets on mobile, so the two
+     aren't fighting over a third of a pixel. */
   .landing-section-copy {
-    font-size: 0.98rem !important;
-    line-height: 1.55 !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
   }
 }
 

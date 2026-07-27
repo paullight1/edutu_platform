@@ -1429,6 +1429,7 @@ export default function AppLayout() {
                     <Stack.Screen name="profile/settings" />
                     <Stack.Screen name="creator-dashboard" />
                     <Stack.Screen name="creator-apply" />
+                    <Stack.Screen name="mentor-apply" />
                     <Stack.Screen name="applied" />
                     <Stack.Screen name="deadlines" />
                     <Stack.Screen name="saved/index" />

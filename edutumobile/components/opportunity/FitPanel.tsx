@@ -1,10 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AlertTriangle, Check } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
+import { withAlpha } from '../ui/BottomScrim';
 import { AiOrbBadge } from '../ui/AiOrbBadge';
+import {
+  Alert02Icon,
+  ArrowRight01Icon,
+  CheckmarkCircle02Icon,
+  HugeiconsIcon,
+} from '../ui/icons';
+import { accentGradientDeep } from '../../lib/themeGradient';
 
 type FitPanelProps = {
   /** Tier headline, e.g. "Strong fit" — never a percentage. */
@@ -16,13 +23,31 @@ type FitPanelProps = {
   risks: string[];
   reasonsTitle: string;
   risksTitle: string;
+  /**
+   * False when Edutu has no ranking for this user yet. Drives the whole
+   * variant switch below — an unranked read is not a verdict and must not be
+   * dressed as one.
+   */
+  ranked: boolean;
+  /** The way out of the unranked state. Omit to render it as a plain note. */
+  onCompleteProfile?: () => void;
+  completeProfileLabel?: string;
 };
 
 /**
  * The AI/fit block — one of exactly two surfaces DESIGN.md allows a Committed
- * colour moment. A saturated accent field with light-on-dark type makes it
- * read as Edutu's judgement rather than more scraped copy, and separates it
- * from the neutral reference sections below.
+ * colour moment.
+ *
+ * That allowance is spent only when there is a verdict to show. A ranked fit
+ * gets the full field: a ramp of the *theme* accent (see `themeGradient`, which
+ * replaced the hardcoded accent→#4331C9 that read as stock AI chrome in the
+ * default theme and as a palette clash in the other eight) with light-on-dark
+ * type, so it reads as Edutu's judgement rather than more scraped copy.
+ *
+ * "Not ranked yet" is the opposite of a verdict — it is the absence of one —
+ * so it collapses to a single quiet row on the page's own surface. Shouting a
+ * non-answer in a full-bleed gradient card was the loudest thing on the screen
+ * while saying the least, and it pushed the actual content below the fold.
  */
 export function FitPanel({
   heading,
@@ -32,13 +57,72 @@ export function FitPanel({
   risks,
   reasonsTitle,
   risksTitle,
+  ranked,
+  onCompleteProfile,
+  completeProfileLabel,
 }: FitPanelProps) {
-  const { colors, reducedMotion } = useTheme();
+  const { colors, isDark, reducedMotion } = useTheme();
+
+  if (!ranked) {
+    const body = (
+      <>
+        <AiOrbBadge size={22} />
+        <View style={styles.quietText}>
+          <Text style={[styles.quietEyebrow, { color: colors.mutedForeground }]}>
+            {eyebrow}
+          </Text>
+          <Text style={[styles.quietHeading, { color: colors.foreground }]}>
+            {heading}
+          </Text>
+          <Text
+            style={[styles.quietBlurb, { color: colors.mutedForeground }]}
+            numberOfLines={2}
+          >
+            {blurb}
+          </Text>
+        </View>
+        {onCompleteProfile ? (
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            size={18}
+            color={colors.accent}
+            strokeWidth={2}
+          />
+        ) : null}
+      </>
+    );
+
+    const quietStyle = [
+      styles.quiet,
+      {
+        borderColor: colors.border,
+        backgroundColor: isDark
+          ? withAlpha(colors.foreground, 0.03)
+          : withAlpha(colors.accent, 0.04),
+      },
+    ];
+
+    // Only a Pressable when there is somewhere to go — a button that does
+    // nothing is worse than a note, and screen readers announce it as one.
+    return onCompleteProfile ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={completeProfileLabel ?? `${heading}. ${blurb}`}
+        accessibilityHint={completeProfileLabel}
+        onPress={onCompleteProfile}
+        style={({ pressed }) => [...quietStyle, { opacity: pressed ? 0.7 : 1 }]}
+      >
+        {body}
+      </Pressable>
+    ) : (
+      <View style={quietStyle}>{body}</View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
       <LinearGradient
-        colors={[colors.accent, '#4331C9']}
+        colors={accentGradientDeep(colors.accent)}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -61,9 +145,12 @@ export function FitPanel({
               }
               style={styles.line}
             >
-              <View style={styles.tick}>
-                <Check size={11} color="#FFFFFF" strokeWidth={3} />
-              </View>
+              <HugeiconsIcon
+                icon={CheckmarkCircle02Icon}
+                size={17}
+                color="#FFFFFF"
+                strokeWidth={2}
+              />
               <Text style={styles.lineText}>{reason}</Text>
             </Animated.View>
           ))}
@@ -75,9 +162,12 @@ export function FitPanel({
           <Text style={styles.groupTitle}>{risksTitle}</Text>
           {risks.map((risk, index) => (
             <View key={`${risk}-${index}`} style={styles.line}>
-              <View style={[styles.tick, styles.tickWarn]}>
-                <AlertTriangle size={11} color="#78350F" strokeWidth={2.5} />
-              </View>
+              <HugeiconsIcon
+                icon={Alert02Icon}
+                size={17}
+                color="#FCD34D"
+                strokeWidth={2}
+              />
               <Text style={styles.lineText}>{risk}</Text>
             </View>
           ))}
@@ -88,6 +178,7 @@ export function FitPanel({
 }
 
 const styles = StyleSheet.create({
+  // ── Ranked: the committed field ────────────────────────────────────────
   wrap: {
     borderRadius: 20,
     borderCurve: 'continuous',
@@ -103,7 +194,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  heading: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 4 },
+  // 22, not 24: the tier is two or three words, and at 24 it collided with the
+  // page title above it for "biggest text on screen".
+  heading: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, letterSpacing: -0.3 },
   blurb: {
     color: 'rgba(255,255,255,0.88)',
     fontSize: 14,
@@ -117,17 +210,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  tick: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    marginTop: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.24)',
-  },
-  tickWarn: { backgroundColor: '#FCD34D' },
+  // Hugeicons draw their own circle, so the rows lost the filled chip that
+  // used to sit behind a bare tick — one less shape per line.
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   lineText: {
     flex: 1,
     color: '#FFFFFF',
@@ -135,4 +220,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500',
   },
+
+  // ── Unranked: a note, not a verdict ────────────────────────────────────
+  quiet: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  quietText: { flex: 1, gap: 1 },
+  quietEyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  quietHeading: { fontSize: 15, fontWeight: '700', letterSpacing: -0.1 },
+  quietBlurb: { fontSize: 12.5, lineHeight: 17 },
 });

@@ -22,8 +22,10 @@ import { MeModule } from "./me/me.module";
 import { ChatModule } from "./chat/chat.module";
 import { SettingsModule } from "./settings/settings.module";
 import { AdminModule } from "./admin/admin.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { HealthModule } from "./health/health.module";
 import { EventsModule } from "./events/events.module";
+import { PageOgModule } from "./og/page-og.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -37,6 +39,7 @@ import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { UploadsModule } from "./uploads/uploads.module";
+import { SupportModule } from "./support/support.module";
 
 @Module({
   imports: [
@@ -72,14 +75,17 @@ import { UploadsModule } from "./uploads/uploads.module";
     SettingsModule,
     MonetizationModule,
     AdminModule,
+    AnalyticsModule,
     HealthModule,
     EventsModule,
+    PageOgModule,
     EdutuApiModule,
     DeveloperModule,
     CalendarModule,
     CopilotModule,
     SavedSearchesModule,
     AlertsModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [

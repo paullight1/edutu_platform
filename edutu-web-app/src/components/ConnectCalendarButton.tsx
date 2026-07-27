@@ -193,7 +193,7 @@ function CalendarSyncModal({
               {webcal && (
                 <a
                   href={webcal}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-bold text-white transition hover:bg-brand-700"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-700"
                 >
                   <Calendar size={13} />
                   Subscribe
@@ -245,7 +245,7 @@ function CalendarSyncModal({
                   placeholder="App-specific password"
                   className="w-full rounded-lg border border-subtle bg-surface-body px-3 py-2 text-sm outline-none focus:border-brand"
                 />
-                <p className="text-[11px] text-text-muted">
+                <p className="text-2xs text-text-muted">
                   Create one at appleid.apple.com → Sign-In &amp; Security →
                   App-Specific Passwords.
                 </p>
@@ -253,7 +253,7 @@ function CalendarSyncModal({
                   type="button"
                   onClick={() => void submitCaldav()}
                   disabled={busy === "apple_caldav"}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-bold text-white disabled:opacity-60"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-semibold text-white disabled:opacity-60"
                 >
                   {busy === "apple_caldav" ? (
                     <Loader2 size={13} className="animate-spin" />
@@ -311,7 +311,7 @@ function ProviderRow({
           type="button"
           onClick={onConnect}
           disabled={busy}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-bold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : null}
           Connect

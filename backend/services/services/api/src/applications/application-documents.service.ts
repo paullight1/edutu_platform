@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /** Roles a competitive application is expected to carry before submission. */
@@ -56,8 +56,13 @@ export class ApplicationDocumentsService {
   private readonly supabase: SupabaseClient;
 
   // clientOverride lets specs inject a mock; production builds the service-role
-  // client from env exactly like ChatService does.
-  constructor(clientOverride?: SupabaseClient) {
+  // client from env. @Optional keeps Nest from trying to resolve SupabaseClient
+  // (a plain library class, not a provider) at bootstrap.
+  constructor(
+    @Optional()
+    @Inject("SUPABASE_CLIENT")
+    clientOverride?: SupabaseClient,
+  ) {
     this.supabase =
       clientOverride ??
       createClient(

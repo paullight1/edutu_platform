@@ -4,6 +4,7 @@ import type { Response } from "express";
 import { Public } from "../auth";
 import { OpportunitiesService } from "./opportunities.service";
 import { buildOpportunityPublicShareUrl } from "./opportunity-share-text";
+import { resolveShareImage } from "./opportunity-share-image";
 
 /**
  * Crawler-time Open Graph / SEO endpoints (server-rendered).
@@ -29,21 +30,6 @@ function clean(value: unknown): string {
 function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1).trimEnd()}…`;
-}
-
-function asRecord(value: unknown): Record<string, any> {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, any>;
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-  return {};
 }
 
 /** Escape for a double-quoted HTML attribute. */
@@ -189,7 +175,6 @@ export class OgController {
       );
     }
 
-    const metadata = asRecord(opp.metadata);
     const title = clean(opp.title) || "Opportunity on Edutu";
     const fullTitle = `${title} | Edutu`;
     const description =
@@ -205,19 +190,23 @@ export class OgController {
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
 
-    // Image priority: scraped source flyer → opportunity image → cached branded
-    // card → generic Edutu icon.
-    const sourceImage =
-      clean(metadata.source_image_url) ||
-      clean(opp.source_image_url || opp.sourceImageUrl);
-    const brandedCard = clean(asRecord(metadata.share_card).url);
-    const image =
-      sourceImage ||
-      clean(opp.image_url || opp.imageUrl) ||
-      clean(opp.share_image_url || opp.shareImageUrl) ||
-      brandedCard ||
-      this.defaultImage;
-    const usingBrandedCard = Boolean(brandedCard) && image === brandedCard;
+    // A shared link must never unfurl with the generic Edutu icon. Prefer the
+    // scraped source flyer / opportunity image; otherwise ensure a branded card
+    // exists (generating it on demand for never-shared opportunities).
+    let resolved = resolveShareImage(opp, { defaultImage: this.defaultImage });
+    if (resolved.needsCard) {
+      try {
+        const ensured = await this.opportunities.ensureShareCard(id);
+        resolved = resolveShareImage(opp, {
+          cardUrl: ensured?.shareCard?.url,
+          defaultImage: this.defaultImage,
+        });
+      } catch {
+        // keep the default-icon last resort
+      }
+    }
+    const image = resolved.url;
+    const usingBrandedCard = resolved.usingBrandedCard;
 
     const deadlineRaw = clean(
       opp.deadline || opp.close_date || opp.deadline_date,

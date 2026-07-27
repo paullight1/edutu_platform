@@ -41,6 +41,15 @@ export interface Opportunity {
    */
   imageIsShareCard?: boolean;
   match: number;
+  /**
+   * Profile fit only (0-100), with no behavioral adjustment. `match` is the
+   * feed-ordering score and absorbs engagement signals — including the
+   * impression-fatigue penalty for items shown repeatedly without a tap — so
+   * it drifts for reasons that have nothing to do with how competitive the
+   * user is. Anything answering "can I actually win this?" reads matchFit.
+   * Absent on responses from servers older than this field.
+   */
+  matchFit?: number;
   difficulty?: OpportunityDifficulty | null;
   applicants?: string;
   successRate?: string;

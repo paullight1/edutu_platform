@@ -406,7 +406,7 @@ Implement:
             className="grid gap-6 lg:grid-cols-[1.06fr_0.94fr] lg:items-start"
           >
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-brand">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-brand">
                 <Sparkles size={14} />
                 Scholarship Engine
               </div>
@@ -448,7 +448,7 @@ Implement:
                 <div className="rounded-2xl border border-subtle bg-white p-4">
                   <div className="mb-2 flex items-center gap-2 text-brand">
                     <CheckCircle2 size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       One-time key reveal
                     </span>
                   </div>
@@ -459,7 +459,7 @@ Implement:
                 <div className="rounded-2xl border border-subtle bg-white p-4">
                   <div className="mb-2 flex items-center gap-2 text-brand">
                     <ShieldCheck size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Scoped access
                     </span>
                   </div>
@@ -470,7 +470,7 @@ Implement:
                 <div className="rounded-2xl border border-subtle bg-white p-4">
                   <div className="mb-2 flex items-center gap-2 text-brand">
                     <CreditCard size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Billing aware
                     </span>
                   </div>
@@ -489,7 +489,7 @@ Implement:
             >
               <div className="flex items-center justify-between gap-4 border-b border-subtle pb-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                     Quickstart
                   </p>
                   <h2 className="mt-1 text-xl font-semibold text-text-primary">
@@ -532,7 +532,7 @@ Implement:
                 <div className="rounded-2xl border border-subtle bg-white p-4">
                   <div className="flex items-center gap-2 text-brand">
                     <Database size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Billing credits
                     </span>
                   </div>
@@ -546,7 +546,7 @@ Implement:
                 <div className="rounded-2xl border border-subtle bg-white p-4">
                   <div className="flex items-center gap-2 text-brand">
                     <Terminal size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Current usage
                     </span>
                   </div>
@@ -571,7 +571,7 @@ Implement:
                 <div>
                   <div className="flex items-center gap-2 text-success">
                     <CheckCircle2 size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Key created
                     </span>
                   </div>
@@ -608,7 +608,7 @@ Implement:
                 <div key={card.label} className="rounded-2xl border border-subtle bg-white p-5">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                         {card.label}
                       </p>
                       <p className="mt-2 text-[clamp(1.8rem,2.8vw,2.4rem)] font-semibold tracking-[-0.05em] text-text-primary">
@@ -640,7 +640,7 @@ Implement:
             >
               <div className="flex items-center gap-2 text-brand">
                 <Sparkles size={15} />
-                <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                   Create project
                 </span>
               </div>
@@ -779,7 +779,7 @@ Implement:
                 <div>
                   <div className="flex items-center gap-2 text-brand">
                     <Database size={15} />
-                    <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                       Projects
                     </span>
                   </div>
@@ -879,7 +879,7 @@ Implement:
 
                         <div className="mt-4 grid gap-3 md:grid-cols-3">
                           <div className="rounded-2xl border border-subtle p-4">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                               Usage
                             </p>
                             <p className="mt-2 text-lg font-semibold text-text-primary">
@@ -891,7 +891,7 @@ Implement:
                           </div>
 
                           <div className="rounded-2xl border border-subtle p-4">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                               Quota
                             </p>
                             <p className="mt-2 text-lg font-semibold text-text-primary">
@@ -903,7 +903,7 @@ Implement:
                           </div>
 
                           <div className="rounded-2xl border border-subtle p-4">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                               Last used
                             </p>
                             <p className="mt-2 text-lg font-semibold text-text-primary">
@@ -957,7 +957,7 @@ Implement:
             <div className="rounded-3xl border border-subtle bg-white p-5 sm:p-6">
               <div className="flex items-center gap-2 text-brand">
                 <Terminal size={15} />
-                <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                   Request history
                 </span>
               </div>
@@ -1037,7 +1037,7 @@ Implement:
             <div className="rounded-3xl border border-subtle bg-white p-5 sm:p-6">
               <div className="flex items-center gap-2 text-brand">
                 <ShieldCheck size={15} />
-                <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                   Onboarding
                 </span>
               </div>
@@ -1068,7 +1068,7 @@ Implement:
               <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 p-4">
                 <div className="flex items-center gap-2 text-brand">
                   <CreditCard size={15} />
-                  <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                     Billing snapshot
                   </span>
                 </div>
@@ -1114,7 +1114,7 @@ Implement:
                 <div className="mt-5 rounded-2xl border border-subtle bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                         Invoices & payments
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
@@ -1147,7 +1147,7 @@ Implement:
                               <p className="text-sm font-semibold text-text-primary">
                                 {formatBillingAmount(transaction)}
                               </p>
-                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-brand">
+                              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand">
                                 {transaction.status}
                               </p>
                             </div>
@@ -1177,7 +1177,7 @@ Implement:
               <div>
                 <div className="flex items-center gap-2 text-brand">
                   <KeyRound size={15} />
-                  <span className="text-xs font-bold uppercase tracking-[0.22em]">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em]">
                     Docs & support
                   </span>
                 </div>

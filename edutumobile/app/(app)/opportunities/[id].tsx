@@ -117,6 +117,13 @@ import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { AiOrbBadge } from "../../../components/ui/AiOrbBadge";
 import { AiActionBar } from "../../../components/ai/AiActionBar";
+import { AiAssistRow, AiAssistTile } from "../../../components/ai/AiAssistTile";
+import {
+  BubbleChatQuestionIcon,
+  Navigation03Icon,
+  Target02Icon,
+} from "../../../components/ui/icons";
+import { accentGradient } from "../../../lib/themeGradient";
 import type { AiAction, AiActionResult } from "../../../components/ai/AiActionBar";
 import { DocumentUpload } from "../../../components/ai/DocumentUpload";
 import { useAiAction } from "../../../hooks/useAiAction";
@@ -1710,7 +1717,7 @@ export default function OpportunityDetailScreen() {
               colors={
                 nextActionKind === "closed"
                   ? ["#64748B", "#475569"]
-                  : [colors.accent, "#4331C9"]
+                  : accentGradient(colors.accent)
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}

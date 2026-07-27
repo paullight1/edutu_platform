@@ -101,7 +101,7 @@ function PhoneMockup() {
 
         <div className="space-y-3 px-4 pb-4 pt-3">
           <div>
-            <p className="text-[13px] font-bold text-slate-900">
+            <p className="text-sm font-bold text-slate-900">
               Hey, Amina 👋
             </p>
             <p className="text-[10px] font-medium text-slate-500">
@@ -143,7 +143,7 @@ function PhoneMockup() {
               <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
                 {card.org}
               </p>
-              <p className="mt-0.5 text-[12px] font-bold leading-tight text-slate-900">
+              <p className="mt-0.5 text-xs font-semibold leading-tight text-slate-900">
                 {card.title}
               </p>
               <div className="mt-2 flex items-center gap-1.5">
@@ -272,7 +272,7 @@ const DownloadPage = () => {
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
         {index + 1}
       </span>
-      <span className="pt-1 text-[15px] leading-relaxed text-text-primary">
+      <span className="pt-1 text-base leading-relaxed text-text-primary">
         {children}
       </span>
     </li>
@@ -298,7 +298,7 @@ const DownloadPage = () => {
               <h1 className="max-w-xl font-display text-[clamp(2.1rem,4.6vw,3.4rem)] font-semibold leading-[1.05] tracking-tight text-white [text-wrap:balance]">
                 Take every opportunity with you.
               </h1>
-              <p className="mt-5 max-w-lg text-[15px] leading-[1.7] text-white/85 sm:text-base">
+              <p className="mt-5 max-w-lg text-base leading-[1.7] text-white/85 sm:text-base">
                 The Edutu app is here — download it for Android today, or
                 install it straight from your browser on any device. Your
                 matches, deadlines, and AI coach, one tap from your home
@@ -337,7 +337,7 @@ const DownloadPage = () => {
                 </Link>
               </div>
 
-              <p className="mt-4 flex items-center gap-1.5 text-[13px] font-medium text-white/80">
+              <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-white/80">
                 <ShieldCheck size={14} className="shrink-0" />
                 Free · official build from the Edutu team · works offline
               </p>
@@ -365,7 +365,7 @@ const DownloadPage = () => {
                 <benefit.icon size={18} />
               </span>
               <div>
-                <h2 className="text-[15px] font-semibold text-text-primary">
+                <h2 className="text-base font-semibold text-text-primary">
                   {benefit.title}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-text-secondary">
@@ -381,7 +381,7 @@ const DownloadPage = () => {
           id="install-guide"
           className="mx-auto max-w-3xl scroll-mt-24 rounded-[2rem] border border-subtle bg-surface-layer p-6 shadow-soft sm:p-10"
         >
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px] [text-wrap:balance]">
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl [text-wrap:balance]">
             Get set up in under a minute
           </h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
@@ -582,7 +582,7 @@ const DownloadPage = () => {
           <div className="mt-5 divide-y divide-border-subtle border-y border-subtle">
             {FAQS.map((faq) => (
               <details key={faq.q} className="group py-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
                   {faq.q}
                   <ChevronDown
                     size={17}
@@ -597,7 +597,7 @@ const DownloadPage = () => {
           </div>
 
           <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-[2rem] bg-surface-brand px-6 py-6 sm:px-8">
-            <p className="max-w-md text-[15px] font-semibold leading-6 text-text-primary">
+            <p className="max-w-md text-base font-semibold leading-6 text-text-primary">
               Ready when you are — your next opportunity is one tap away.
             </p>
             {visitorPlatform === "android" ? (

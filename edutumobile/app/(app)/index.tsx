@@ -39,6 +39,7 @@ import { Opportunity, type MatchReasonKind } from "@edutu/core/src/types/opportu
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
+import { fetchFeaturedOpportunities, getCachedFeaturedOpportunities } from "@edutu/core/src/services/opportunities";
 import { shareOpportunity } from "../../lib/shareOpportunity";
 import { useGuestMode } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
@@ -1203,6 +1204,16 @@ const ELIGIBILITY_ONLY_REASON_KINDS = new Set<MatchReasonKind>([
 // We can only judge this from reason *kinds* (labels are translated across 9
 // languages, so string-matching them is unreliable); when no kind data is
 // present we can't classify, so we don't over-filter and keep the item.
+// Competitiveness, as opposed to feed rank. `match` absorbs behavioral
+// signals — notably the impression-fatigue penalty (up to -20) for cards shown
+// repeatedly without a tap — which would let the section erase itself simply
+// because the user kept opening the app. Fit only moves when the profile or
+// the opportunity does. Falls back to `match` for servers that predate the
+// field, and for the offline path where the two are the same number.
+function bestShotScore(o: Opportunity): number {
+    return Math.round(o.matchFit ?? o.match ?? 0);
+}
+
 function hasSubstantiveMatch(o: Opportunity): boolean {
     const details = o.matchReasonDetails;
     if (!details || details.length === 0) return true;
@@ -1221,7 +1232,9 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     const deadlineColor = deadlineBadge.level === 'none'
         ? textSecondary
         : urgencyColor(deadlineBadge.level);
-    const matchPct = Math.round(item.match ?? 0);
+    // Show the number this card was selected on, so the badge can never
+    // contradict the section's own "you can win this" promise.
+    const matchPct = bestShotScore(item);
     const topReason = item.matchReasons?.[0];
 
     // With artwork the card becomes a dark "poster" in BOTH themes: art up top,
@@ -1527,19 +1540,32 @@ export default function Dashboard() {
         () => opportunities
             .filter(
                 (o) =>
-                    Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH &&
+                    bestShotScore(o) >= BEST_SHOT_MIN_MATCH &&
                     hasSubstantiveMatch(o),
             )
-            .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
+            .sort((a, b) => bestShotScore(b) - bestShotScore(a))
             .slice(0, 3),
         [opportunities],
     );
     const bestShotIds = useMemo(() => new Set(bestShots.map((o) => o.id)), [bestShots]);
 
-    // Featured: swipeable auto-scrolling rail, max 10
-    const featuredOpportunities = useMemo(() => {
-        return opportunities.filter(o => o.featured).slice(0, 10);
-    }, [opportunities]);
+    // Featured: swipeable auto-scrolling rail, max 10. Fetched directly rather
+    // than filtered out of the ranked feed — a spotlight is an editorial
+    // choice, and filtering meant any featured item outside this user's
+    // candidate window silently disappeared from the rail.
+    const [featuredOpportunities, setFeaturedOpportunities] = useState<Opportunity[]>([]);
+    useEffect(() => {
+        let isActive = true;
+        void getCachedFeaturedOpportunities().then((cached) => {
+            if (isActive && cached.length > 0) setFeaturedOpportunities(cached);
+        });
+        void fetchFeaturedOpportunities(10).then((rows) => {
+            if (isActive) setFeaturedOpportunities(rows);
+        });
+        return () => {
+            isActive = false;
+        };
+    }, []);
 
     // Other Recommended: the ranked feed minus anything already surfaced as a
     // Best Shot, so the two sections never duplicate cards. Max 10.
@@ -1742,7 +1768,7 @@ export default function Dashboard() {
                         recordOpportunityOpen(item.id);
                         router.push(`/opportunities/${item.id}`);
                     }}
-                    onCompleteProfile={() => router.push('/profile')}
+                    onCompleteProfile={() => router.push('/profile/edit')}
                     onBrowse={() => router.push('/opportunities')}
                     getAuthToken={getToken}
                 />

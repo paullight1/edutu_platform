@@ -94,7 +94,7 @@ const PublicSiteMenu: React.FC = () => {
             className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(92vw,22rem)] overflow-hidden rounded-3xl border border-subtle bg-surface-layer/95 shadow-elevated backdrop-blur-xl"
           >
             <div className="p-2">
-              <div className="px-4 pb-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-text-muted">
+              <div className="px-4 pb-3 pt-2 text-2xs font-semibold uppercase tracking-[0.3em] text-text-muted">
                 Navigate
               </div>
 

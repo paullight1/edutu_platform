@@ -115,6 +115,25 @@ export class OpportunitiesController {
   }
 
   @Public()
+  // Editorial spotlight rail. Declared before @Get(":id") so "featured" is
+  // never captured as an id.
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @Get("featured")
+  async findFeatured(
+    @Res({ passthrough: true }) response: Response,
+    @Query("limit") limit?: number,
+  ) {
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=120, stale-while-revalidate=600",
+    );
+    const rows = await this.opportunitiesService.findFeatured(
+      Number(limit) || 10,
+    );
+    return stripInternalOpportunityFieldsBatch(rows);
+  }
+
+  @Public()
   // Hybrid search (FTS + trigram + optional semantic leg, RRF-fused) with a
   // graceful ILIKE fallback until the search migration lands. Declared before
   // @Get(":id") so "search" is never captured as an id.

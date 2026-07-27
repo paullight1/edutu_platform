@@ -1,10 +1,18 @@
 {
   "version": 1,
   "projectPath": "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder",
-  "updatedAt": "2026-07-20T13:45:34.585237+00:00",
+  "updatedAt": "2026-07-27T13:16:24.009805+00:00",
   "state": {
     "activeTabId": "tab_mq790wlz_d904z1ht",
     "agentContext": [
+      {
+        "body": "http://localhost:5173/",
+        "createdAt": "2026-07-22T13:12:48.591Z",
+        "id": "ctx_mrw3retr_hktac69s",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
       {
         "body": "http://localhost:5173/",
         "createdAt": "2026-07-14T08:51:37.700Z",
@@ -316,14 +324,6 @@
         "sourceId": null,
         "title": "Current browser URL",
         "type": "url"
-      },
-      {
-        "body": "http://localhost:3004/",
-        "createdAt": "2026-06-07T13:42:51.255Z",
-        "id": "ctx_mq3u0prr_va17xpon",
-        "sourceId": null,
-        "title": "Current browser URL",
-        "type": "url"
       }
     ],
     "annotations": [
@@ -366,7 +366,7 @@
     "isRecording": false,
     "mode": "browse",
     "previewMessage": null,
-    "previewRevision": 67,
+    "previewRevision": 68,
     "previewStatus": "ready",
     "recordedActions": [],
     "selectedAnnotationId": null,
@@ -381,7 +381,7 @@
         "previewMessage": null,
         "previewStatus": "ready",
         "title": "localhost",
-        "updatedAt": "2026-07-14T08:51:37.695Z",
+        "updatedAt": "2026-07-22T13:12:48.588Z",
         "url": "http://localhost:5173/"
       }
     ],

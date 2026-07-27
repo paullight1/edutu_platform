@@ -222,11 +222,11 @@ function CodeSurface({
     return (
         <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020] shadow-[0_30px_60px_-30px_rgba(2,6,23,0.7)]">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-                <span className="font-mono text-[12px] text-slate-400">{language}</span>
+                <span className="font-mono text-xs text-slate-400">{language}</span>
                 <CopyButton value={copyValue} />
             </div>
             <div className="overflow-x-auto px-4 py-4 sm:px-5">
-                <pre className="font-mono text-[12.5px] leading-[1.85] text-slate-200 sm:text-[13px]">
+                <pre className="font-mono text-xs leading-[1.85] text-slate-200 sm:text-sm">
                     {children}
                 </pre>
             </div>
@@ -241,7 +241,7 @@ function MethodBadge({ method }: { method: Method }) {
             : 'border-amber-500/25 bg-amber-500/10 text-amber-600';
     return (
         <span
-            className={`inline-flex h-6 shrink-0 items-center rounded-md border px-2 font-mono text-[11px] font-bold tracking-wide ${styles}`}
+            className={`inline-flex h-6 shrink-0 items-center rounded-md border px-2 font-mono text-2xs font-semibold tracking-wide ${styles}`}
         >
             {method}
         </span>
@@ -311,7 +311,7 @@ const DeveloperDocsPage: React.FC = () => {
                         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     >
-                        <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 font-mono text-[12.5px] text-text-secondary shadow-soft">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 font-mono text-xs text-text-secondary shadow-soft">
                             <Terminal size={14} className="text-brand" />
                             Developer API · Reference
                         </span>
@@ -319,7 +319,7 @@ const DeveloperDocsPage: React.FC = () => {
                         <h1 className="mt-6 max-w-3xl font-display text-[clamp(2.1rem,4.2vw,3.4rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-text-primary text-balance">
                             The Edutu API, end to end.
                         </h1>
-                        <p className="mt-5 max-w-2xl text-[16px] leading-[1.7] text-text-secondary sm:text-[17px]">
+                        <p className="mt-5 max-w-2xl text-base leading-[1.7] text-text-secondary sm:text-lg">
                             One normalized opportunity contract powers the web feed, the Expo mobile
                             client and the admin ingestion pipeline. Authenticate, call an endpoint,
                             and read the same shape everywhere.
@@ -328,7 +328,7 @@ const DeveloperDocsPage: React.FC = () => {
                         <div className="mt-8 flex flex-wrap items-center gap-3">
                             <Link
                                 to="/auth?mode=sign-up&redirect=/dashboard/developer"
-                                className="group inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-[15px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                                className="group inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
                             >
                                 <KeyRound size={16} />
                                 Get an API key
@@ -341,7 +341,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 href={apiSpecUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-5 py-3 text-[15px] font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
+                                className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-5 py-3 text-base font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
                             >
                                 <FileJson size={16} />
                                 OpenAPI spec
@@ -358,7 +358,7 @@ const DeveloperDocsPage: React.FC = () => {
                             <div className="sticky top-24">
                                 <div className="mb-3 flex items-center gap-2 px-3 text-text-muted">
                                     <BookOpen size={14} />
-                                    <span className="text-[11px] font-bold uppercase tracking-[0.22em]">
+                                    <span className="text-2xs font-semibold uppercase tracking-[0.22em]">
                                         On this page
                                     </span>
                                 </div>
@@ -369,7 +369,7 @@ const DeveloperDocsPage: React.FC = () => {
                                             <a
                                                 key={link.href}
                                                 href={link.href}
-                                                className={`block rounded-lg px-3 py-1.5 text-[13.5px] transition-colors ${
+                                                className={`block rounded-lg px-3 py-1.5 text-sm transition-colors ${
                                                     isActive
                                                         ? 'bg-brand/10 font-semibold text-brand'
                                                         : 'font-medium text-text-secondary hover:bg-surface-elevated hover:text-text-primary'
@@ -386,10 +386,10 @@ const DeveloperDocsPage: React.FC = () => {
                                     className="mt-6 flex items-center justify-between gap-2 rounded-xl border border-subtle bg-surface-layer px-3.5 py-3 no-underline shadow-soft transition-colors hover:border-brand/40"
                                 >
                                     <span className="min-w-0">
-                                        <span className="block text-[13px] font-semibold text-text-primary">
+                                        <span className="block text-sm font-semibold text-text-primary">
                                             Developer dashboard
                                         </span>
-                                        <span className="block text-[12px] text-text-muted">
+                                        <span className="block text-xs text-text-muted">
                                             Keys, usage &amp; billing
                                         </span>
                                     </span>
@@ -405,20 +405,20 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     Getting started
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     Every request goes to one versioned base URL and returns the same
                                     normalized envelope. Authenticate with a scoped key from the
-                                    developer dashboard, then read <code className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[13px] text-brand">data</code>{' '}
-                                    and <code className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-[13px] text-brand">meta</code> off the response.
+                                    developer dashboard, then read <code className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-sm text-brand">data</code>{' '}
+                                    and <code className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-sm text-brand">meta</code> off the response.
                                 </p>
 
                                 {/* Base URL */}
                                 <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
                                     <div className="min-w-0">
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">
+                                        <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-text-muted">
                                             Base URL
                                         </p>
-                                        <p className="mt-1 truncate font-mono text-[14px] text-text-primary">
+                                        <p className="mt-1 truncate font-mono text-sm text-text-primary">
                                             {apiBaseUrl}
                                         </p>
                                     </div>
@@ -432,7 +432,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     <div className="min-w-0">
                                         <div className="mb-3 flex items-center gap-2 text-text-primary">
                                             <KeyRound size={16} className="text-brand" />
-                                            <h3 className="text-[15px] font-semibold">Authentication</h3>
+                                            <h3 className="text-base font-semibold">Authentication</h3>
                                         </div>
                                         <CodeSurface
                                             language="cURL"
@@ -450,9 +450,9 @@ const DeveloperDocsPage: React.FC = () => {
                                                 </span>
                                             </div>
                                         </CodeSurface>
-                                        <p className="mt-2.5 text-[13.5px] leading-[1.65] text-text-muted">
+                                        <p className="mt-2.5 text-sm leading-[1.65] text-text-muted">
                                             Send your key as a bearer token, or as the{' '}
-                                            <code className="font-mono text-[12.5px] text-text-secondary">
+                                            <code className="font-mono text-xs text-text-secondary">
                                                 x-edutu-api-key
                                             </code>{' '}
                                             header. Keys are scoped per project and can be rotated any
@@ -463,7 +463,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     <div className="min-w-0">
                                         <div className="mb-3 flex items-center gap-2 text-text-primary">
                                             <FileJson size={16} className="text-brand" />
-                                            <h3 className="text-[15px] font-semibold">Response envelope</h3>
+                                            <h3 className="text-base font-semibold">Response envelope</h3>
                                         </div>
                                         <CodeSurface
                                             language="JSON"
@@ -488,13 +488,13 @@ const DeveloperDocsPage: React.FC = () => {
                                             </div>
                                             <div>{'}'}</div>
                                         </CodeSurface>
-                                        <p className="mt-2.5 text-[13.5px] leading-[1.65] text-text-muted">
+                                        <p className="mt-2.5 text-sm leading-[1.65] text-text-muted">
                                             Lists are cursor-paginated — pass{' '}
-                                            <code className="font-mono text-[12.5px] text-text-secondary">
+                                            <code className="font-mono text-xs text-text-secondary">
                                                 meta.next_cursor
                                             </code>{' '}
                                             back as{' '}
-                                            <code className="font-mono text-[12.5px] text-text-secondary">
+                                            <code className="font-mono text-xs text-text-secondary">
                                                 ?cursor=
                                             </code>{' '}
                                             for stable syncs.
@@ -508,7 +508,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     Endpoints
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     Build against the backend once, then let every surface consume the
                                     same normalized object — lists, share pages, detail pages and
                                     admin tools stay in agreement.
@@ -527,15 +527,15 @@ const DeveloperDocsPage: React.FC = () => {
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
                                                 <MethodBadge method={endpoint.method} />
-                                                <code className="min-w-0 break-all font-mono text-[13px] text-text-primary">
+                                                <code className="min-w-0 break-all font-mono text-sm text-text-primary">
                                                     {endpoint.path}
                                                 </code>
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="text-[15px] font-semibold text-text-primary">
+                                                <h3 className="text-base font-semibold text-text-primary">
                                                     {endpoint.title}
                                                 </h3>
-                                                <p className="mt-1.5 text-[14.5px] leading-[1.7] text-text-secondary">
+                                                <p className="mt-1.5 text-sm leading-[1.7] text-text-secondary">
                                                     {endpoint.description}
                                                 </p>
                                             </div>
@@ -549,7 +549,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     The opportunity object
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     Once an opportunity is normalized, the web app, the mobile app and
                                     the admin panel all read the same keys — no extra mapping layers.
                                 </p>
@@ -618,7 +618,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     <div className="min-w-0 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
                                         <div className="flex items-center gap-2 text-text-primary">
                                             <Database size={15} className="text-brand" />
-                                            <span className="text-[13px] font-semibold">
+                                            <span className="text-sm font-semibold">
                                                 All fields
                                             </span>
                                         </div>
@@ -626,7 +626,7 @@ const DeveloperDocsPage: React.FC = () => {
                                             {opportunityFields.map((field) => (
                                                 <span
                                                     key={field}
-                                                    className="rounded-md border border-subtle bg-surface-elevated px-2.5 py-1 font-mono text-[12px] text-text-secondary"
+                                                    className="rounded-md border border-subtle bg-surface-elevated px-2.5 py-1 font-mono text-xs text-text-secondary"
                                                 >
                                                     {field}
                                                 </span>
@@ -641,7 +641,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     Examples
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     Copy-paste starts for web, mobile and admin — each hits the same
                                     opportunity contract.
                                 </p>
@@ -649,7 +649,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <div className="mt-7 grid gap-4 md:grid-cols-2">
                                     {codeSamples.map((sample) => (
                                         <div key={sample.label} className="min-w-0">
-                                            <h3 className="mb-3 text-[14.5px] font-semibold text-text-primary">
+                                            <h3 className="mb-3 text-sm font-semibold text-text-primary">
                                                 {sample.title}
                                             </h3>
                                             <CodeSurface language={sample.label} copyValue={sample.code}>
@@ -665,7 +665,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     Platform setup
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     The web app, Expo mobile app and admin panel all point at the same
                                     contract. That is the simplest way to keep data, editorial pages
                                     and sync jobs in agreement.
@@ -689,11 +689,11 @@ const DeveloperDocsPage: React.FC = () => {
                                                     <card.icon size={18} className={card.accentClass} />
                                                 </span>
                                                 <div className="min-w-0">
-                                                    <div className="text-[15px] font-semibold text-text-primary">
+                                                    <div className="text-base font-semibold text-text-primary">
                                                         {card.title}
                                                     </div>
                                                     <div
-                                                        className={`text-[12.5px] font-medium ${card.accentClass}`}
+                                                        className={`text-xs font-medium ${card.accentClass}`}
                                                     >
                                                         {card.subtitle}
                                                     </div>
@@ -703,7 +703,7 @@ const DeveloperDocsPage: React.FC = () => {
                                                 {card.items.map((item) => (
                                                     <li
                                                         key={item}
-                                                        className="flex items-start gap-2.5 text-[14px] leading-[1.6] text-text-secondary"
+                                                        className="flex items-start gap-2.5 text-sm leading-[1.6] text-text-secondary"
                                                     >
                                                         <CheckCircle
                                                             size={15}
@@ -723,7 +723,7 @@ const DeveloperDocsPage: React.FC = () => {
                                 <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
                                     SEO-ready public pages
                                 </h2>
-                                <p className="mt-4 max-w-2xl text-[15.5px] leading-[1.75] text-text-secondary">
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
                                     Opportunity share pages should read like a concise article:
                                     descriptive title, plain summary, source details, deadline and a
                                     clear action. That structure helps pages rank and makes previews
@@ -734,7 +734,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
                                         <div className="flex items-center gap-2 text-text-primary">
                                             <Globe size={15} className="text-brand" />
-                                            <span className="text-[13px] font-semibold">
+                                            <span className="text-sm font-semibold">
                                                 Public routes
                                             </span>
                                         </div>
@@ -749,10 +749,10 @@ const DeveloperDocsPage: React.FC = () => {
                                                     key={item.route}
                                                     className="rounded-xl border border-subtle bg-surface-elevated px-3.5 py-3"
                                                 >
-                                                    <p className="break-all font-mono text-[12px] text-brand">
+                                                    <p className="break-all font-mono text-xs text-brand">
                                                         {item.route}
                                                     </p>
-                                                    <p className="mt-1 text-[13.5px] leading-[1.55] text-text-secondary">
+                                                    <p className="mt-1 text-sm leading-[1.55] text-text-secondary">
                                                         {item.text}
                                                     </p>
                                                 </div>
@@ -763,11 +763,11 @@ const DeveloperDocsPage: React.FC = () => {
                                     <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
                                         <div className="flex items-center gap-2 text-text-primary">
                                             <Database size={15} className="text-brand" />
-                                            <span className="text-[13px] font-semibold">
+                                            <span className="text-sm font-semibold">
                                                 Metadata tips
                                             </span>
                                         </div>
-                                        <ul className="mt-4 space-y-3 text-[14px] leading-[1.6] text-text-secondary">
+                                        <ul className="mt-4 space-y-3 text-sm leading-[1.6] text-text-secondary">
                                             <li className="flex gap-2.5">
                                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
                                                 Keep title, summary, organization and location visible
@@ -806,7 +806,7 @@ const DeveloperDocsPage: React.FC = () => {
                                         <h2 className="font-display text-[clamp(1.6rem,3vw,2.4rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-white text-balance">
                                             Build with one opportunity engine.
                                         </h2>
-                                        <p className="mt-4 max-w-xl text-[15.5px] leading-[1.7] text-slate-300">
+                                        <p className="mt-4 max-w-xl text-base leading-[1.7] text-slate-300">
                                             Wiring Edutu into a school portal, a scholarship directory
                                             or a community platform? Keep every surface pointed at the
                                             same backend and the same opportunity schema.
@@ -815,7 +815,7 @@ const DeveloperDocsPage: React.FC = () => {
                                         <div className="mt-8 flex flex-wrap gap-3">
                                             <Link
                                                 to="/scholarship-engine"
-                                                className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
+                                                className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-base font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
                                             >
                                                 Scholarship Engine
                                                 <ArrowRight
@@ -825,7 +825,7 @@ const DeveloperDocsPage: React.FC = () => {
                                             </Link>
                                             <Link
                                                 to="/dashboard/developer"
-                                                className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-6 py-3 text-[15px] font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
+                                                className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-6 py-3 text-base font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
                                             >
                                                 Open dashboard
                                             </Link>

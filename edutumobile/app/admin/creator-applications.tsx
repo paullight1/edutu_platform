@@ -15,6 +15,7 @@ import {
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { supabase } from "../../lib/supabase";
+import { clerkStatusMetadata } from "../../lib/creator-clerk-metadata";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { AdminGuard } from "../../components/auth/AdminGuard";
@@ -176,7 +177,7 @@ function AdminCreatorApplicationsContent() {
                     await supabase.functions.invoke('clerk-metadata', {
                         body: {
                             userId: data?.user_id,
-                            metadata: { creatorStatus: 'approved' },
+                            metadata: clerkStatusMetadata(selectedApp?.application_kind, 'approved'),
                         },
                     });
                 } catch (e) {
@@ -227,7 +228,7 @@ function AdminCreatorApplicationsContent() {
                 if (newStatus === 'approved') {
                     try {
                         await supabase.functions.invoke('clerk-metadata', {
-                            body: { userId: app.user_id, metadata: { creatorStatus: 'approved' } },
+                            body: { userId: app.user_id, metadata: clerkStatusMetadata(selectedApp?.application_kind, 'approved') },
                         });
                     } catch (e) {
                         console.error('Clerk metadata sync failed:', e);

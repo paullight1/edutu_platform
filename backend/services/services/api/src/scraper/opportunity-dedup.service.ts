@@ -245,24 +245,35 @@ export class OpportunityDedupService {
         }
       }
 
-      // Tier 2: same organization (case-insensitive) + near-identical title +
-      // deadline within 3 days. One OR-of-ILIKE query for the whole batch.
-      const orgs = Array.from(
-        new Set(
-          unresolved
-            .map((r) => normalizeOrganization(r.organization as string))
-            // Commas/parens/quotes break PostgREST .or() syntax — skip those
-            // orgs rather than build an unsafe filter.
-            .filter((o) => o.length >= 3 && !/[,()*%"\\]/.test(o)),
-        ),
-      );
-      if (orgs.length > 0) {
-        // Values with spaces must be double-quoted inside a PostgREST or().
-        // PostgREST uses * as the ILIKE wildcard — join tokens with * (and
-        // wrap the pattern) so orgs differing only by internal whitespace
-        // still match; normalizeOrganization below stays the real filter.
-        const orFilter = orgs
-          .map((o) => `organization.ilike."*${o.split(/\s+/).join("*")}*"`)
+      // Tier 2: near-identical title + deadline within 3 days.
+      //
+      // This used to key candidate lookup on `organization`, which made it a
+      // no-op for exactly the rows that need it: an absent organiser meant the
+      // record was skipped outright (`if (!candidates) continue`). That is now
+      // the common case — the scraper stores null rather than guessing an
+      // organiser from the title — and it is also how the legacy aggregator
+      // cohort (no fingerprint, no organiser) escaped both tiers and left
+      // visible duplicate listings.
+      //
+      // Title is the one field the publish gate guarantees, so candidates are
+      // fetched by title instead. The ILIKE is only a net to narrow the batch;
+      // the real test remains Dice similarity over year-stripped tokens plus a
+      // compatible deadline, so precision is unchanged.
+      const titleProbes = new Map<string, string>();
+      for (const rec of unresolved) {
+        const tokens = normalizeTitleTokens((rec.title as string) ?? "")
+          // Commas/parens/quotes break PostgREST .or() syntax.
+          .filter((t) => t.length >= 3 && !/[,()*%"\\]/.test(t))
+          .slice(0, 3);
+        if (tokens.length === 0) continue;
+        titleProbes.set(tokens.join("*"), tokens.join("*"));
+      }
+
+      if (titleProbes.size > 0) {
+        // Values with spaces must be double-quoted inside a PostgREST or();
+        // PostgREST uses * as the ILIKE wildcard.
+        const orFilter = Array.from(titleProbes.values())
+          .map((pattern) => `title.ilike."*${pattern}*"`)
           .join(",");
         const { data, error } = await this.supabase
           .from("opportunities")
@@ -272,19 +283,9 @@ export class OpportunityDedupService {
           .or(orFilter)
           .limit(1000);
         if (error) throw error;
-        const byOrg = new Map<string, ExistingRow[]>();
-        for (const row of (data as ExistingRow[]) ?? []) {
-          const key = normalizeOrganization(row.organization);
-          if (!key) continue;
-          const list = byOrg.get(key) ?? [];
-          list.push(row);
-          byOrg.set(key, list);
-        }
+        const candidates = (data as ExistingRow[]) ?? [];
 
         for (const rec of unresolved) {
-          const orgKey = normalizeOrganization(rec.organization as string);
-          const candidates = byOrg.get(orgKey);
-          if (!candidates) continue;
           const match = candidates.find(
             (row) =>
               row.canonical_url &&
@@ -297,7 +298,7 @@ export class OpportunityDedupService {
                 TITLE_SIMILARITY_THRESHOLD,
           );
           if (match) {
-            this.markDuplicate(rec, match.id, "title_org_deadline");
+            this.markDuplicate(rec, match.id, "title_deadline");
             summary.byTitleOrg++;
           }
         }
@@ -311,7 +312,7 @@ export class OpportunityDedupService {
     if (summary.duplicates > 0) {
       this.logger.log(
         `Dedup: flagged ${summary.duplicates}/${summary.checked} record(s) as likely duplicates ` +
-          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleOrg} by title+org).`,
+          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleOrg} by title+deadline).`,
       );
     }
     return summary;

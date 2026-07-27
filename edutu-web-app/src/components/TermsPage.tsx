@@ -52,6 +52,7 @@ const TermsPage: React.FC = () => (
         lastUpdated="July 7, 2026"
         intro="These terms set out the simple rules for using Edutu. We keep them clear so you know what to expect from us, and what we expect from you."
         sections={sections}
+        seoPath="/terms"
     />
 );
 

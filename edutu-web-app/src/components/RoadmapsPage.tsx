@@ -352,12 +352,12 @@ function RoadmapCard({
             className="h-full w-full object-cover"
           />
         )}
-        <span className="absolute left-3 top-3 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full bg-black/35 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wide text-white backdrop-blur">
           {difficultyLabel(String(roadmap.difficulty))}
         </span>
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
+        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-brand">
           {String(roadmap.category || "General")}
         </p>
         <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
@@ -489,7 +489,7 @@ function RoadmapDetailModal({
               <ol className="mt-3 space-y-3">
                 {steps.map((step, index) => (
                   <li key={step.id || index} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand">
                       {index + 1}
                     </span>
                     <div className="min-w-0">
@@ -534,7 +534,7 @@ function RoadmapDetailModal({
                   )}
                   Add to calendar
                   {calendarLocked ? (
-                    <span className="ml-1 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                    <span className="ml-1 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase leading-none tracking-wide text-brand-700">
                       Pro
                     </span>
                   ) : null}

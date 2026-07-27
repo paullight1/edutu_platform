@@ -60,6 +60,7 @@ const TermsPage = lazy(() => import("./components/TermsPage"));
 const CareersPage = lazy(() => import("./components/CareersPage"));
 const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
+const MentorDashboardPage = lazy(() => import("./components/MentorDashboardPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
 const DevelopersLandingPage = lazy(
@@ -595,6 +596,14 @@ function App() {
         element={
           <ProtectedRoute>
             <DeveloperDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mentor/dashboard"
+        element={
+          <ProtectedRoute>
+            <MentorDashboardPage />
           </ProtectedRoute>
         }
       />

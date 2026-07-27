@@ -394,7 +394,7 @@ export default function DeadlinesPage() {
       <div id={groupId} className="scroll-mt-3 lg:scroll-mt-20">
         <div className="sticky top-0 z-10 -mx-4 bg-surface-body/95 px-4 py-2 backdrop-blur lg:top-16">
           <p
-            className={`text-[11px] font-bold uppercase tracking-[0.16em] ${labelClass}`}
+            className={`text-2xs font-semibold uppercase tracking-[0.16em] ${labelClass}`}
           >
             {label}
             <span className="ml-1.5 font-semibold text-text-muted">
@@ -424,7 +424,7 @@ export default function DeadlinesPage() {
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <span
-                  className={`whitespace-nowrap text-xs font-bold ${urgencyTextClass(item.daysUntil)}`}
+                  className={`whitespace-nowrap text-xs font-semibold ${urgencyTextClass(item.daysUntil)}`}
                 >
                   {formatRelativeDeadline(item.daysUntil)}
                 </span>
@@ -534,7 +534,7 @@ export default function DeadlinesPage() {
                     }`}
                     aria-label={`${formatDate(date.toISOString())}${dayItems.length ? `, ${dayItems.length} deadline${dayItems.length === 1 ? "" : "s"}` : ""}`}
                   >
-                    <span className="text-[10px] font-bold uppercase tracking-wide">
+                    <span className="text-2xs font-semibold uppercase tracking-wide">
                       {date.toLocaleDateString(undefined, { weekday: "short" })}
                     </span>
                     <span className="text-sm font-semibold">{date.getDate()}</span>
@@ -634,7 +634,7 @@ export default function DeadlinesPage() {
                       </button>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+                    <div className="mt-4 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-[0.12em] text-text-muted">
                       {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
                         <div key={`${day}-${index}`}>{day}</div>
                       ))}

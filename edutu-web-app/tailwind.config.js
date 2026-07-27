@@ -58,11 +58,49 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Two families with a real division of labour. Outfit is a geometric
+      // display face — it was previously doing body work at 13px, where its
+      // wide circular counters and low x-height read poorly. It now only
+      // carries brand moments (hero, page titles, wordmark). Instrument Sans
+      // is the UI voice: tall x-height, slightly narrow (more characters per
+      // line on a 360px phone), designed for small sizes.
       fontFamily: {
-        display: ['"Outfit"', ...defaultTheme.fontFamily.sans],
-        body: ['"Outfit"', ...defaultTheme.fontFamily.sans],
-        sans: ['"Outfit"', ...defaultTheme.fontFamily.sans],
+        display: ['"Outfit"', '"Instrument Sans"', ...defaultTheme.fontFamily.sans],
+        body: ['"Instrument Sans"', ...defaultTheme.fontFamily.sans],
+        sans: ['"Instrument Sans"', ...defaultTheme.fontFamily.sans],
         mono: ['"JetBrains Mono"', ...defaultTheme.fontFamily.mono],
+      },
+      // Fixed rem scale (product register — no fluid body type). Each step
+      // carries its own line-height and optical tracking so hierarchy comes
+      // from the scale rather than from bolding everything. Tracking opens up
+      // as text gets smaller and tightens as it gets larger; the -0.04em floor
+      // is never crossed.
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '1.45', letterSpacing: '0.012em' }], // 11px micro-label
+        xs: ['0.75rem', { lineHeight: '1.5', letterSpacing: '0.006em' }], //  12px meta
+        sm: ['0.875rem', { lineHeight: '1.55', letterSpacing: '0.001em' }], //  14px secondary UI
+        base: ['1rem', { lineHeight: '1.6', letterSpacing: '-0.002em' }], //  16px body
+        lg: ['1.125rem', { lineHeight: '1.5', letterSpacing: '-0.009em' }], //  18px lead / row title
+        xl: ['1.25rem', { lineHeight: '1.4', letterSpacing: '-0.015em' }], //  20px card title
+        '2xl': ['1.5rem', { lineHeight: '1.3', letterSpacing: '-0.02em' }], //  24px section head
+        '3xl': ['1.875rem', { lineHeight: '1.22', letterSpacing: '-0.025em' }], //  30px page title
+        '4xl': ['2.25rem', { lineHeight: '1.14', letterSpacing: '-0.03em' }], //  36px
+        '5xl': ['3rem', { lineHeight: '1.08', letterSpacing: '-0.034em' }], //  48px
+        '6xl': ['3.75rem', { lineHeight: '1.04', letterSpacing: '-0.038em' }], //  60px
+        '7xl': ['4.5rem', { lineHeight: '1', letterSpacing: '-0.04em' }], //  72px
+      },
+      // Both families load as variable fonts, so these are real rendered
+      // weights, not snapped static instances. The scale is deliberately
+      // lighter than Tailwind's default: `semibold` was carrying 660 of the
+      // app's ~800 weight declarations at 600, which made emphasis meaningless.
+      // Roles keep their names; the ink they put down drops a step.
+      fontWeight: {
+        normal: '400',
+        medium: '500',
+        semibold: '560',
+        bold: '640',
+        extrabold: '700',
+        black: '760',
       },
       colors: {
         primary: withOpacity('--color-brand-600'),

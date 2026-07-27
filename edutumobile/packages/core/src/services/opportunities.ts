@@ -155,6 +155,11 @@ function toReasonDetails(value: any): MatchReason[] {
     }));
 }
 
+/** Numeric score or undefined — never coerces a missing field into 0. */
+function toOptionalScore(value: any): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function normaliseOpportunity(row: any): Opportunity {
   const meta = row.metadata || {};
   const shareCard = meta.share_card || {};
@@ -195,6 +200,9 @@ function normaliseOpportunity(row: any): Opportunity {
     shareImageUrl: shareCardUrl,
     lastUpdated: row.updated_at,
     match: row.match || 0,
+    // Optional by contract: undefined (not 0) when the server didn't send it,
+    // so consumers can fall back to `match` instead of reading a real zero.
+    matchFit: toOptionalScore(row.matchFit ?? row.match_fit),
     difficulty: (row.difficulty as OpportunityDifficulty) || 'Medium',
     featured: row.is_featured || row.isFeatured || false,
     aiSummary: row.aiSummary || row.ai_summary || row.refined_summary || null,
@@ -447,6 +455,27 @@ export function evaluateMatch(profile: any, opportunity: any): MatchResult {
   return { score: finalScore, reasons, risks };
 }
 
+/**
+ * Clerk hands back null while a session is still hydrating or a token is
+ * mid-refresh — a transient state, not "signed out". Retrying briefly keeps a
+ * signed-in user on the authenticated feed instead of silently demoting them
+ * to anonymous scoring on cold starts.
+ */
+const AUTH_TOKEN_RETRY_DELAYS_MS = [250, 750];
+
+async function resolveAuthToken(
+  getAuthToken: () => Promise<string | null | undefined>
+): Promise<string | null> {
+  for (let attempt = 0; attempt <= AUTH_TOKEN_RETRY_DELAYS_MS.length; attempt += 1) {
+    const token = await getAuthToken();
+    if (token) return token;
+    const delay = AUTH_TOKEN_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  return null;
+}
+
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
   const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot, excludeOpportunityIds } = options;
   const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;
@@ -494,9 +523,13 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
   const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
   const shouldSkipApi = isLocalhost && typeof window !== 'undefined' && !window.location; // Simple mobile detection fallback
 
+  /** True once we know this signed-in user has no usable token right now. */
+  let authTokenUnavailable = false;
+
   if (API_BASE_URL && !shouldSkipApi && userId && getAuthToken) {
     try {
-      const token = await getAuthToken();
+      const token = await resolveAuthToken(getAuthToken);
+      authTokenUnavailable = !token;
       if (token) {
         const response = await fetch(`${API_BASE_URL}/opportunities/recommendations`, {
           method: 'POST',
@@ -530,6 +563,19 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
       if (__DEV__) {
         console.warn('Authenticated recommendations failed, falling back to local matching:', networkError);
       }
+    }
+  }
+
+  // A signed-in user must never be scored anonymously. The public endpoint
+  // ranks without their signals, dismissals or server-side profile, so its
+  // scores sit on a different scale — swapping between the two mid-session is
+  // what made Best Shots appear on one launch and vanish on the next. Their
+  // last real feed is the stable answer; only a user with no cache at all
+  // falls through (an anonymous feed still beats an empty screen).
+  if (authTokenUnavailable) {
+    const cached = await getCachedOpportunitiesSnapshot(userId);
+    if (cached.length > 0) {
+      return cached;
     }
   }
 
@@ -594,6 +640,8 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
     const opt = normaliseOpportunity(row);
     const result = evaluateMatch(profile, row);
     opt.match = result.score;
+    // No behavioral term exists on this path, so fit == match by construction.
+    opt.matchFit = result.score;
     // Prefer server-provided reasons; only fall back to local evaluation when
     // the row didn't already carry any.
     if (!opt.matchReasons || opt.matchReasons.length === 0) {
@@ -616,6 +664,59 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
   syncExternalSnapshot(onSyncSnapshot, normalised);
 
   return normalised;
+}
+
+const FEATURED_CACHE_KEY = 'edutu_featured_opportunities_cache';
+
+/**
+ * Editorially featured opportunities.
+ *
+ * Its own endpoint on purpose. The home rail used to filter `featured` out of
+ * the personalized recommendations feed, which quietly conflated two different
+ * questions: "what did the team spotlight" and "what is this user competitive
+ * for". A featured item outside the user's ranked candidate window simply
+ * never appeared, and the section emptied with no visible cause.
+ *
+ * Never throws: an unreachable endpoint yields the last known rail, then an
+ * empty one. A missing spotlight is a non-event; a crashed home screen isn't.
+ */
+export async function fetchFeaturedOpportunities(limit = 10): Promise<Opportunity[]> {
+  if (!API_BASE_URL) return [];
+
+  try {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/opportunities/featured?limit=${limit}`,
+      8000
+    );
+    if (response.ok) {
+      const payload = await response.json();
+      const rows = Array.isArray(payload) ? payload : (payload?.opportunities ?? []);
+      const featured = rows.map((row: any) => normaliseOpportunity(row));
+      // Cached so a cold start paints the rail before the network answers —
+      // the same reason the main feed keeps a snapshot.
+      try {
+        await AsyncStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify(featured));
+      } catch {
+        // Best-effort cache.
+      }
+      return featured;
+    }
+  } catch {
+    // Fall through to the cached rail.
+  }
+
+  return getCachedFeaturedOpportunities();
+}
+
+export async function getCachedFeaturedOpportunities(): Promise<Opportunity[]> {
+  try {
+    const raw = await AsyncStorage.getItem(FEATURED_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {

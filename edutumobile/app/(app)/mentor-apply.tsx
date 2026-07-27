@@ -82,7 +82,13 @@ export default function MentorApply() {
         try {
             // Column names are snake_case (PostgREST rejected the old camelCase
             // keys). application_kind='mentor' distinguishes this from creator
-            // applications so approval routes to mentor_status, not the studio.
+            // applications for review purposes, but the backend gate is
+            // creator_status==='approved' OR mentor_status==='approved', so
+            // either grants studio access. On approval, the mobile admin's
+            // review_creator_application RPC routes by kind (mentor→mentor_status,
+            // else creator_status), matching the backend's reviewApplication;
+            // only its rare exception-fallback (set_creator_status, used if the
+            // RPC call itself errors) sets creator_status regardless of kind.
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
@@ -198,9 +204,9 @@ export default function MentorApply() {
 
                             <View style={styles.statsRow}>
                                 {[
-                                    { num: '10K+', label: t('mentorApply.intro.statLearners'), color: '#146ef5' },
-                                    { num: '500+', label: t('mentorApply.intro.statMentors'), color: '#7a3dff' },
                                     { num: '85%', label: t('mentorApply.intro.statRevenue'), color: '#00d722' },
+                                    { num: t('mentorApply.intro.freeValue', { defaultValue: 'Free' }), label: t('mentorApply.intro.statFree', { defaultValue: 'No cost to apply' }), color: '#146ef5' },
+                                    { num: t('mentorApply.intro.reviewValue', { defaultValue: '2–3 days' }), label: t('mentorApply.intro.statReview', { defaultValue: 'Application review' }), color: '#7a3dff' },
                                 ].map((stat, i) => (
                                     <View key={i} style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.statNum, { color: stat.color }]}>{stat.num}</Text>

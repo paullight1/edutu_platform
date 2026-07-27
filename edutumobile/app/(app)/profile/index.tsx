@@ -85,6 +85,7 @@ export default function ProfileScreen() {
     const profilePending = Boolean(user?.unsafeMetadata?.profilePending);
     const { isPro } = useProStatus(supabase, user?.id || null);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isApprovedMentor, setIsApprovedMentor] = useState(false);
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
@@ -133,10 +134,13 @@ export default function ProfileScreen() {
             try {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('role')
+                    .select('role, creator_status, mentor_status')
                     .eq('user_id', toSafeUUID(user.id))
                     .single();
                 setIsAdmin(data?.role === 'admin');
+                setIsApprovedMentor(
+                    data?.creator_status === 'approved' || data?.mentor_status === 'approved',
+                );
             } catch (e) {
                 console.error('Failed to check role:', e);
             }
@@ -148,7 +152,7 @@ export default function ProfileScreen() {
         {
             title: t('view.menu.tools'),
             items: [
-                { id: 'creator', title: t('view.menu.creatorStudio'), desc: t('view.menu.creatorStudioDesc'), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
+                { id: 'creator', title: t('view.menu.mentorStudio', { defaultValue: 'Mentor Studio' }), desc: t('view.menu.mentorStudioDesc', { defaultValue: 'Publish roadmaps & resources, track your impact' }), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
                 { id: 'cv', title: t('view.menu.cvBuilder'), desc: t('view.menu.cvBuilderDesc'), icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
                 { id: 'documents', title: t('view.menu.myDocuments'), desc: t('view.menu.myDocumentsDesc'), icon: FolderOpen, route: '/profile/documents', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
                 { id: 'chat', title: t('view.menu.aiCoach'), desc: t('view.menu.aiCoachDesc'), icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
@@ -277,10 +281,11 @@ export default function ProfileScreen() {
                     </Animated.View>
                 )}
 
-                {/* Become a Creator Banner */}
+                {/* Become a Mentor Banner — hidden once approved */}
+                {!isApprovedMentor && (
                 <TouchableOpacity
                     style={[styles.creatorBanner, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
-                    onPress={() => router.push('/creator-apply')}
+                    onPress={() => router.push('/mentor-apply')}
                     activeOpacity={0.8}
                 >
                     <View style={[styles.creatorIcon, { backgroundColor: colors.primary }]}>
@@ -288,14 +293,15 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.creatorContent}>
                         <Text style={[styles.creatorTitle, { color: colors.foreground }]}>
-                            {t('view.becomeCreator')}
+                            {t('view.becomeMentor', { defaultValue: 'Become a Mentor' })}
                         </Text>
                         <Text style={[styles.creatorDesc, { color: textSecondary }]}>
-                            {t('view.becomeCreatorDesc')}
+                            {t('view.becomeMentorDesc', { defaultValue: 'Share your roadmaps and earn from your expertise' })}
                         </Text>
                     </View>
                     <ChevronRight size={20} color={colors.primary} />
                 </TouchableOpacity>
+                )}
 
                 {/* Menu Groups */}
                 {menuGroups.map((group, groupIdx) => (

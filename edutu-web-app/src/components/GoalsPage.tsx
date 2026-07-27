@@ -368,7 +368,7 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
       <p className="text-lg font-display font-semibold tracking-tight tabular-nums">
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+      <p className="mt-0.5 text-2xs font-semibold uppercase tracking-[0.12em] text-text-muted">
         {label}
       </p>
     </div>
@@ -401,20 +401,20 @@ function GoalCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {goal.category && (
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
+              <span className="text-2xs font-semibold uppercase tracking-[0.14em] text-brand">
                 {goal.category}
               </span>
             )}
             {priority && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${priority.cls}`}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold ${priority.cls}`}
               >
                 <Flag size={10} />
                 {priority.label}
               </span>
             )}
             {isDone && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs font-semibold text-emerald-600">
                 <Check size={10} />
                 Done
               </span>
@@ -485,7 +485,7 @@ function GoalCard({
             type="button"
             onClick={onComplete}
             disabled={busy}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand/10 px-3 text-xs font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand/10 px-3 text-xs font-semibold text-brand transition hover:bg-brand/20 disabled:opacity-50"
           >
             {busy ? (
               <Loader2 size={13} className="animate-spin" />

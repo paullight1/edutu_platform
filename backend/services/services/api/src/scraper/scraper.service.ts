@@ -310,6 +310,15 @@ const SCRAPER_ARTIFACT_RE =
   /\b(?:by\s+admin|posted\s+by|written\s+by|on\s+[a-z]+\s+\d{1,2},\s+20\d{2}|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b/i;
 const SOURCE_BRAND_RE =
   /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
+/**
+ * Organiser strings that name nobody. "the official organizer" is the phrase
+ * `scrubPublicText` substitutes for aggregator brands — harmless inside a
+ * sentence, useless as a standalone organiser — and "Program Organizer" is a
+ * generic default the pipeline used to emit. Both must be treated as absent so
+ * the record routes to re-enrichment instead of shipping filler.
+ */
+const GENERIC_ORGANIZER_RE =
+  /^(?:the\s+)?(?:official\s+)?(?:program|programme)?\s*organi[sz]er$/i;
 const PUBLIC_TAG_BLOCKLIST = new Set([
   "scraped",
   "scraper",
@@ -1092,7 +1101,7 @@ export class ScraperService implements OnModuleInit {
       .or(
         // Generated share-card fallbacks still count as "missing an image" so
         // the backfill keeps trying to find each row a real one.
-        'image_url.is.null,image_url.like."*opportunity-share-cards*",organization.is.null,organization.eq."Program Organizer",summary.ilike."*being verified by Edutu*"',
+        'image_url.is.null,image_url.like."*opportunity-share-cards*",organization.is.null,organization.eq."Program Organizer",organization.eq."the official organizer",summary.ilike."*being verified by Edutu*"',
       )
       .order("updated_at", { ascending: true })
       .limit(cappedLimit);
@@ -1157,8 +1166,13 @@ export class ScraperService implements OnModuleInit {
               enriched,
               meta.scrape_job_id ?? null,
             );
+            // Don't carry a known-useless organiser forward as the fallback:
+            // generic filler and title slices must both lose to a null so the
+            // row keeps qualifying for re-enrichment until real data arrives.
             const previousOrganization =
-              row.organization === "Program Organizer"
+              !row.organization ||
+              GENERIC_ORGANIZER_RE.test(row.organization) ||
+              this.organizerEchoesTitle(row.organization, row.title ?? "")
                 ? null
                 : row.organization;
 
@@ -3586,11 +3600,15 @@ ${text}`;
 
     // Hard publish gate: a record may only go live when its core fields hold
     // real scraped content — a passing score alone is not enough.
+    // `organization` is deliberately NOT part of this gate. It used to be, but
+    // the organiser was inferred by slicing the title, so the check passed for
+    // essentially every record — it gated on a value the pipeline manufactured
+    // to satisfy it. Now that a missing organiser stays null, keeping it here
+    // would block publication on a field real extraction often can't supply.
     const hasCoreContent =
       !quality.missingFields.includes("title") &&
       !quality.missingFields.includes("description") &&
-      summary.length >= 60 &&
-      Boolean(organization);
+      summary.length >= 60;
     // A deadline that already passed at scrape time means a stale post or a
     // misparsed date — either way it would confuse users if published.
     const deadlinePassed = Boolean(closeDate && closeDate < now.split("T")[0]);
@@ -3878,23 +3896,62 @@ ${text}`;
     return SCRAPER_ARTIFACT_RE.test(value) || SOURCE_BRAND_RE.test(value);
   }
 
+  /**
+   * Normalised form for comparing an organiser against a title: lowercase,
+   * punctuation deleted (so "D.A.A.D." and "DAAD" agree), whitespace collapsed.
+   */
+  private normalizeForTitleCompare(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /**
+   * True when the candidate organiser is just a slice of the title and so
+   * carries no information of its own. Whole-token comparison, never a raw
+   * substring, so a short name like "AI" isn't swallowed by "Trainee".
+   */
+  private organizerEchoesTitle(candidate: string, title: string): boolean {
+    const org = this.normalizeForTitleCompare(candidate);
+    const name = this.normalizeForTitleCompare(title);
+    if (!org || !name) return false;
+    return ` ${name} `.includes(` ${org} `);
+  }
+
   private inferOrganizerName(item: RawItem): string | null {
     const title = this.scrubPublicText(item.title || "", 220);
-    const titleLead = title.match(
-      /^(.{3,90}?)\s+(?:fully\s+funded|funded|leadership|scholarships?|fellowships?|grants?|bootcamps?|programs?|programmes?|internships?|accelerators?)\b/i,
-    )?.[1];
     // NOTE: item.source (the scraping-source label, e.g. "CALL FOR
     // APPLICATIONS") is deliberately NOT a candidate — it leaks category
     // names into the user-facing organizer field. Null → re-enrichment.
+    //
+    // Nor is the title's own lead any more. It used to be inferred by cutting
+    // the title at the first "Scholarship"/"Programme"/"Internship" keyword,
+    // with a non-greedy match that took the SHORTEST prefix — which turned
+    // "Fully Funded Masters Scholarship in Canada" into the organiser "Fully".
+    // Across live data that guess produced a title slice for 147 of 215
+    // populated rows. A slice of the title is never worth storing: it tells a
+    // reader nothing the title didn't, and as JSON-LD `hiringOrganization` it
+    // is an outright false claim. Null is the honest value, and it routes the
+    // record to re-enrichment.
     const candidates = [
       item.eligibility && typeof item.eligibility === "object"
         ? item.eligibility.organization
         : null,
-      titleLead,
     ];
 
     for (const candidate of candidates) {
-      const cleaned = this.scrubPublicText(String(candidate ?? ""), 120);
+      const raw = String(candidate ?? "");
+      // Test the RAW value for aggregator brands. scrubPublicText rewrites
+      // those to "the official organizer", so testing the cleaned string (as
+      // this did before) could never match — which is how 33 live rows ended up
+      // with that phrase as their organiser.
+      if (!raw.trim() || SOURCE_BRAND_RE.test(raw)) continue;
+
+      const cleaned = this.scrubPublicText(raw, 120);
       if (!cleaned || cleaned.length < 3) continue;
       if (
         /^(unknown|admin|edutu engine|scholarship|program|opportunity)$/i.test(
@@ -3903,6 +3960,9 @@ ${text}`;
       ) {
         continue;
       }
+      // Belt and braces: reject the substitution phrase itself and the
+      // scraper's old generic default, whatever produced them.
+      if (GENERIC_ORGANIZER_RE.test(cleaned)) continue;
       if (
         /\b(call\s+for\s+applications?|applications?\s+open|category|opportunities)\b/i.test(
           cleaned,
@@ -3912,6 +3972,7 @@ ${text}`;
         continue;
       }
       if (SOURCE_BRAND_RE.test(cleaned)) continue;
+      if (this.organizerEchoesTitle(cleaned, title)) continue;
       return cleaned;
     }
 

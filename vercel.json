@@ -10,5 +10,23 @@
       "routePrefix": "/admin",
       "framework": "vite"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
+    },
+    {
+      "source": "/share/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+    },
+    {
+      "source": "/events/:slugOrId",
+      "destination": "https://edutu-platform.onrender.com/og/event/:slugOrId"
+    }
+  ]
 }

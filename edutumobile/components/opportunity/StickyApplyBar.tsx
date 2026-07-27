@@ -7,6 +7,7 @@ import { Bookmark, BookmarkCheck, ExternalLink, Lock } from 'lucide-react-native
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
+import { accentGradient } from '../../lib/themeGradient';
 
 type StickyApplyBarProps = {
   visible: boolean;
@@ -75,7 +76,11 @@ export function StickyApplyBar({
           style={[styles.primary, closed && styles.primaryClosed]}
         >
           <LinearGradient
-            colors={closed ? ['#64748B', '#475569'] : [colors.accent, '#4331C9']}
+            // Closed keeps a neutral slate ramp (the action is unavailable, so
+            // it must not wear the brand). Live uses a ramp of the user's own
+            // theme accent rather than the old accent→#4331C9, which forced
+            // every palette through the same indigo-violet.
+            colors={closed ? ['#64748B', '#475569'] : accentGradient(colors.accent)}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}

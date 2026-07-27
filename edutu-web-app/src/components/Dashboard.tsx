@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import CalendarStrip from "./CalendarStrip";
+import EventsHomeSection from "./EventsHomeSection";
 import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
@@ -61,8 +62,14 @@ import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
 import UrgencyPill from "./opportunity/UrgencyPill";
 
 import ImageWithFallback from "./ImageWithFallback";
+import {
+  createOpportunityShuffleSeed,
+  shuffleOpportunityFeed,
+} from "../lib/opportunityShuffle";
 
-const HOME_FEED_BATCH_SIZE = 8;
+// The home feed is a fixed shortlist, not an endless scroll: six randomized
+// picks per visit, with "View all" as the way deeper into the catalogue.
+const HOME_FEED_SIZE = 6;
 const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 
 
@@ -151,39 +158,6 @@ function opportunityMatchesDiscoveryCategory(
   return category.keywords.some((keyword) =>
     new RegExp(`\\b${escapeRegExp(keyword.toLowerCase())}\\b`, "i").test(text),
   );
-}
-
-function createOpportunityShuffleSeed() {
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    return crypto.getRandomValues(new Uint32Array(1))[0] || Date.now();
-  }
-
-  return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-}
-
-function seededRandom(seed: number) {
-  let value = seed % 2147483647;
-  if (value <= 0) value += 2147483646;
-
-  return () => {
-    value = (value * 16807) % 2147483647;
-    return (value - 1) / 2147483646;
-  };
-}
-
-function shuffleOpportunityFeed<T>(items: T[], seed: number): T[] {
-  const nextItems = [...items];
-  const random = seededRandom(seed);
-
-  for (let index = nextItems.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(random() * (index + 1));
-    [nextItems[index], nextItems[swapIndex]] = [
-      nextItems[swapIndex],
-      nextItems[index],
-    ];
-  }
-
-  return nextItems;
 }
 
 function getDiscoveryCategoryRoute(category: DiscoveryCategory) {
@@ -319,7 +293,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             category={opportunity.category}
           />
           {opportunity.category ? (
-            <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
+            <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-2xs font-semibold text-brand-600 backdrop-blur">
               {opportunity.category}
             </span>
           ) : null}
@@ -336,7 +310,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           {match && match.score >= 40 ? (
             <TopMatchReason reason={match.reasons[0]} />
           ) : null}
-          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-text-muted">
+          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-2xs font-semibold text-text-muted">
             {opportunity.location ? (
               <span className="truncate">{opportunity.location}</span>
             ) : (
@@ -378,13 +352,13 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           <UrgencyPill
             badge={deadlineBadge}
             compact
-            className="absolute right-1.5 top-1.5 !px-1.5 !py-0.5 text-[10px] shadow-sm backdrop-blur"
+            className="absolute right-1.5 top-1.5 !px-1.5 !py-0.5 text-2xs shadow-sm backdrop-blur"
           />
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
           <div className="mb-1 flex flex-wrap items-center gap-1">
             {opportunity.category ? (
-              <span className="block truncate text-[10px] font-bold leading-4 text-brand-600">
+              <span className="block truncate text-2xs font-semibold leading-4 text-brand-600">
                 {opportunity.category}
               </span>
             ) : null}
@@ -392,14 +366,14 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
               <MatchScoreBadge
                 score={match.score}
                 minScore={40}
-                className="!px-1.5 !py-0 !text-[10px]"
+                className="!px-1.5 !py-0 !text-2xs"
               />
             ) : null}
           </div>
-          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-semibold leading-[1.16] text-text-primary">
+          <span className="line-clamp-3 block min-w-0 break-words text-sm font-semibold leading-[1.16] text-text-primary">
             {opportunity.title}
           </span>
-          <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-text-muted">
+          <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-2xs font-semibold leading-4 text-text-muted">
             {opportunity.location ? (
               <span className="truncate">{opportunity.location}</span>
             ) : null}
@@ -436,7 +410,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
         {opportunity.category ? (
-          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-brand-600 backdrop-blur">
+          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-2xs font-semibold text-brand-600 backdrop-blur">
             {opportunity.category}
           </span>
         ) : null}
@@ -458,7 +432,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         {match && match.score >= 40 ? (
           <TopMatchReason reason={match.reasons[0]} />
         ) : null}
-        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-medium text-text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-auto flex flex-col gap-1 pt-4 text-2xs font-medium text-text-muted sm:flex-row sm:items-center sm:justify-between">
           {opportunity.location ? (
             <span className="truncate">{opportunity.location}</span>
           ) : (
@@ -659,7 +633,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         false,
       );
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
-    const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
     const [homeShuffleSeed, setHomeShuffleSeed] = useState(() =>
       createOpportunityShuffleSeed(),
     );
@@ -686,7 +659,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       ready: personalizationReady,
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
-    const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
     const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
 
     const isOppBookmarked = useCallback(
@@ -838,7 +810,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     useEffect(() => {
       setHomeShuffleSeed(createOpportunityShuffleSeed());
-      setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
     }, [user?.id]);
 
     useEffect(() => {
@@ -1068,8 +1039,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     }, [explainOpportunity, isPersonalized, normalizedOpportunityFeed, user?.id]);
 
     const visibleHomeOpportunities = useMemo(
-      () => shuffledOpportunityFeed.slice(0, homeFeedLimit),
-      [homeFeedLimit, shuffledOpportunityFeed],
+      () => shuffledOpportunityFeed.slice(0, HOME_FEED_SIZE),
+      [shuffledOpportunityFeed],
     );
 
     const opportunityEmptyTitle = selectedDiscoveryCategory
@@ -1088,14 +1059,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           onClick: onViewAllOpportunities,
         };
 
-    const mobilePersonalizedOpportunities = useMemo(
-      () => visibleHomeOpportunities.slice(0, 6),
-      [visibleHomeOpportunities],
-    );
+    const mobilePersonalizedOpportunities = visibleHomeOpportunities;
 
+    // The "More opportunities" grid reaches past the six-card shortlist so it
+    // still has something new to show below the carousel.
     const mobileExploreOpportunities = useMemo(
-      () => visibleHomeOpportunities.slice(2, Math.max(homeFeedLimit, 10)),
-      [homeFeedLimit, visibleHomeOpportunities],
+      () => shuffledOpportunityFeed.slice(HOME_FEED_SIZE, HOME_FEED_SIZE + 6),
+      [shuffledOpportunityFeed],
     );
 
     const mobileMoreOpportunityItems = useMemo(() => {
@@ -1123,38 +1093,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       }));
     }, [visibleHomeOpportunities]);
 
-    useEffect(() => {
-      setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
-    }, [activeDiscoveryCategory, shuffledOpportunityFeed.length]);
-
-    useEffect(() => {
-      const sentinel = homeFeedSentinelRef.current;
-      if (!sentinel || opportunitiesLoading) return;
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (!entry.isIntersecting) return;
-
-          setHomeFeedLimit((current) => {
-            if (current >= shuffledOpportunityFeed.length) return current;
-            return Math.min(
-              current + HOME_FEED_BATCH_SIZE,
-              shuffledOpportunityFeed.length,
-            );
-          });
-        },
-        { rootMargin: "420px 0px" },
-      );
-
-      observer.observe(sentinel);
-
-      return () => observer.disconnect();
-    }, [opportunitiesLoading, shuffledOpportunityFeed.length]);
-
     function handleShuffleOpportunities() {
       setHomeShuffleSeed(createOpportunityShuffleSeed());
-      setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
     }
 
     const showHomeScreenPrompt =
@@ -1368,7 +1308,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       {application.status || "tracked"}
                     </p>
                   </div>
-                  <span className="rounded-lg bg-success/10 px-2 py-1 text-[10px] font-semibold text-success">
+                  <span className="rounded-lg bg-success/10 px-2 py-1 text-2xs font-semibold text-success">
                     Applied
                   </span>
                 </div>
@@ -1437,7 +1377,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           {formatPanelDate(item.date)}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-lg bg-surface-elevated px-2 py-1 text-[10px] font-semibold text-text-secondary">
+                      <span className="shrink-0 rounded-lg bg-surface-elevated px-2 py-1 text-2xs font-semibold text-text-secondary">
                         {item.daysUntil < 0
                           ? "Past"
                           : item.daysUntil === 0
@@ -1509,7 +1449,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   {profileScore.missingFields.map((field) => (
                     <span
                       key={field}
-                      className="rounded-lg bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning"
+                      className="rounded-lg bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning"
                     >
                       {field}
                     </span>
@@ -1575,7 +1515,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p
-                        className={`text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted`}
+                        className={`text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted`}
                       >
                         Dashboard panel
                       </p>
@@ -1666,7 +1606,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         >
                           <Icon size={25} strokeWidth={1.7} />
                         </span>
-                        <span className="min-w-0 flex-1 text-[13px] font-semibold leading-4 text-white md:flex-none md:text-sm">
+                        <span className="min-w-0 flex-1 text-sm font-semibold leading-4 text-white md:flex-none md:text-sm">
                           {category.title}
                         </span>
                       </div>
@@ -1698,7 +1638,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <span className="truncate text-sm font-semibold text-text-primary">
                           {t("dashboard.completeProfile")}
                         </span>
-                        <span className="shrink-0 text-xs font-bold text-brand-600">
+                        <span className="shrink-0 text-xs font-semibold text-brand-600">
                           {profileScore.score}%
                         </span>
                       </span>
@@ -1824,7 +1764,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         Add app
                       </button>
                     ) : (
-                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-bold leading-5 text-brand-700">
+                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-semibold leading-5 text-brand-700">
                         Tap Share, then Add to Home Screen.
                       </div>
                     )}
@@ -2271,12 +2211,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       )}
                     </div>
                   )}
-                  <div
-                    ref={homeFeedSentinelRef}
-                    className="h-10"
-                    aria-hidden="true"
-                  />
                 </section>
+
+                {/* Upcoming events — hides itself when nothing is scheduled. */}
+                <EventsHomeSection variant="app" />
               </div>
 
             </div>

@@ -179,13 +179,13 @@ export default function CalendarStrip({
             >
               {badge ? (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${urgencyBadgeClasses(badge.level)}`}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold ${urgencyBadgeClasses(badge.level)}`}
                 >
                   <Clock size={11} />
                   {badge.label}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-subtle bg-surface-layer px-2 py-0.5 text-[10px] font-bold text-text-muted">
+                <span className="inline-flex items-center gap-1 rounded-full border border-subtle bg-surface-layer px-2 py-0.5 text-2xs font-semibold text-text-muted">
                   <Clock size={11} />
                   {formatEventDate(event.date)}
                 </span>
@@ -193,7 +193,7 @@ export default function CalendarStrip({
               <span className="line-clamp-2 block text-xs font-semibold leading-[1.15rem] text-text-primary">
                 {event.title}
               </span>
-              <span className="flex w-full items-center justify-between gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+              <span className="flex w-full items-center justify-between gap-1 text-2xs font-semibold uppercase tracking-wide text-text-muted">
                 <span className="inline-flex items-center gap-1">
                   <TypeIcon size={11} />
                   {TYPE_LABELS[event.type]}

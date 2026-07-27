@@ -214,7 +214,7 @@ const DevelopersLandingPage: React.FC = () => {
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
-              <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 text-[13px] font-medium text-text-secondary shadow-soft">
+              <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 text-sm font-medium text-text-secondary shadow-soft">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -227,7 +227,7 @@ const DevelopersLandingPage: React.FC = () => {
                 <span className="text-brand">opportunity layer</span> for Africa.
               </h1>
 
-              <p className="mt-5 max-w-xl text-[16px] leading-[1.7] text-text-secondary sm:text-[17px]">
+              <p className="mt-5 max-w-xl text-base leading-[1.7] text-text-secondary sm:text-lg">
                 One API for scholarships, AI matching and ingestion — the same platform behind
                 Edutu&rsquo;s own apps. Get a key and ship your first integration in minutes.
               </p>
@@ -235,7 +235,7 @@ const DevelopersLandingPage: React.FC = () => {
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
                   to="/auth?mode=sign-up&redirect=/dashboard/developer"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                  className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
                 >
                   Get API access
                   <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -244,7 +244,7 @@ const DevelopersLandingPage: React.FC = () => {
                   href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-[15px] font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
+                  className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-base font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
                 >
                   <BookOpen size={16} />
                   Documentation
@@ -254,8 +254,8 @@ const DevelopersLandingPage: React.FC = () => {
               <dl className="mt-9 flex flex-wrap gap-x-7 gap-y-3">
                 {trust.map((t) => (
                   <div key={t.label} className="flex items-baseline gap-1.5">
-                    <dd className="font-display text-[17px] font-semibold text-text-primary">{t.value}</dd>
-                    <dt className="text-[13.5px] text-text-muted">{t.label}</dt>
+                    <dd className="font-display text-lg font-semibold text-text-primary">{t.value}</dd>
+                    <dt className="text-sm text-text-muted">{t.label}</dt>
                   </div>
                 ))}
               </dl>
@@ -276,7 +276,7 @@ const DevelopersLandingPage: React.FC = () => {
                         key={t.label}
                         type="button"
                         onClick={() => setTab(i)}
-                        className={`shrink-0 border-b-2 px-4 py-3 font-mono text-[12.5px] transition-colors ${
+                        className={`shrink-0 border-b-2 px-4 py-3 font-mono text-xs transition-colors ${
                           tab === i
                             ? 'border-sky-400 text-slate-100'
                             : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -289,7 +289,7 @@ const DevelopersLandingPage: React.FC = () => {
                   <CopyButton value={codeTabs[tab].copy} />
                 </div>
                 <div className="overflow-x-auto px-4 py-4 sm:px-5 sm:py-5">
-                  <pre className="font-mono text-[12.5px] leading-[1.85] text-slate-200 sm:text-[13px]">
+                  <pre className="font-mono text-xs leading-[1.85] text-slate-200 sm:text-sm">
                     {codeTabs[tab].render()}
                   </pre>
                 </div>
@@ -305,7 +305,7 @@ const DevelopersLandingPage: React.FC = () => {
               <h2 className="font-display text-[clamp(1.9rem,3.4vw,2.9rem)] font-semibold leading-[1.06] tracking-tight text-text-primary">
                 Every building block, one platform
               </h2>
-              <p className="mt-4 text-[16.5px] leading-[1.7] text-text-secondary">
+              <p className="mt-4 text-base leading-[1.7] text-text-secondary">
                 The same data, matching and ingestion that power Edutu — exposed as a small,
                 predictable API you can build a whole product on.
               </p>
@@ -326,11 +326,11 @@ const DevelopersLandingPage: React.FC = () => {
                         <Icon size={18} />
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[16px] font-semibold text-text-primary">{c.title}</div>
-                        <code className="font-mono text-[12.5px] text-text-muted">{c.endpoint}</code>
+                        <div className="text-base font-semibold text-text-primary">{c.title}</div>
+                        <code className="font-mono text-xs text-text-muted">{c.endpoint}</code>
                       </div>
                     </div>
-                    <p className="text-[15px] leading-[1.7] text-text-secondary">{c.body}</p>
+                    <p className="text-base leading-[1.7] text-text-secondary">{c.body}</p>
                   </div>
                 );
               })}
@@ -366,11 +366,11 @@ const DevelopersLandingPage: React.FC = () => {
                       <span className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-brand text-white shadow-elevated ring-8 ring-surface-elevated">
                         <Icon size={20} />
                       </span>
-                      <span className="font-mono text-[13px] font-semibold text-text-muted">0{i + 1}</span>
+                      <span className="font-mono text-sm font-semibold text-text-muted">0{i + 1}</span>
                     </div>
-                    <h3 className="mt-5 font-display text-[19px] font-semibold tracking-tight text-text-primary">{s.title}</h3>
-                    <p className="mt-2 text-[14.5px] leading-[1.6] text-text-secondary">{s.body}</p>
-                    <div className="mt-4 truncate rounded-lg border border-subtle bg-surface-body px-3 py-2 font-mono text-[12.5px] text-text-secondary">
+                    <h3 className="mt-5 font-display text-lg font-semibold tracking-tight text-text-primary">{s.title}</h3>
+                    <p className="mt-2 text-sm leading-[1.6] text-text-secondary">{s.body}</p>
+                    <div className="mt-4 truncate rounded-lg border border-subtle bg-surface-body px-3 py-2 font-mono text-xs text-text-secondary">
                       {s.hint}
                     </div>
                   </motion.li>
@@ -401,7 +401,7 @@ const DevelopersLandingPage: React.FC = () => {
                       className="flex w-full items-center justify-between gap-4 py-5 text-left"
                       aria-expanded={isOpen}
                     >
-                      <span className="text-[16.5px] font-semibold text-text-primary">{faq.q}</span>
+                      <span className="text-base font-semibold text-text-primary">{faq.q}</span>
                       <motion.span
                         animate={reduceMotion ? undefined : { rotate: isOpen ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
@@ -416,7 +416,7 @@ const DevelopersLandingPage: React.FC = () => {
                       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                       className="overflow-hidden"
                     >
-                      <p className="pb-5 pr-8 text-[15.5px] leading-[1.7] text-text-secondary">{faq.a}</p>
+                      <p className="pb-5 pr-8 text-base leading-[1.7] text-text-secondary">{faq.a}</p>
                     </motion.div>
                   </div>
                 );
@@ -440,14 +440,14 @@ const DevelopersLandingPage: React.FC = () => {
               <h2 className="font-display text-[clamp(1.9rem,3.6vw,3rem)] font-semibold leading-[1.06] tracking-tight text-white text-balance">
                 Ship your first integration today
               </h2>
-              <p className="mx-auto mt-4 max-w-lg text-[16.5px] leading-[1.7] text-slate-300">
+              <p className="mx-auto mt-4 max-w-lg text-base leading-[1.7] text-slate-300">
                 Get a key, read the docs, and have opportunity data flowing into your product in
                 minutes.
               </p>
               <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   to="/auth?mode=sign-up&redirect=/dashboard/developer"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-[15px] font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
+                  className="group inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
                 >
                   Get API access
                   <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -456,7 +456,7 @@ const DevelopersLandingPage: React.FC = () => {
                   href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-7 py-3.5 text-[15px] font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-7 py-3.5 text-base font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
                 >
                   Read the docs
                 </a>

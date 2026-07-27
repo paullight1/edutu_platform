@@ -13,6 +13,8 @@ import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
+import MeetTheTeam from './MeetTheTeam';
+import { FOUNDER_IMG } from '../lib/team';
 
 /* ────────────────────────────────────────────────────────────────────────
  * Assets — one decisive photo per moment, not a stock-photo grid.
@@ -21,7 +23,6 @@ const HERO_IMG =
   'https://images.pexels.com/photos/8199562/pexels-photo-8199562.jpeg?auto=compress&cs=tinysrgb&w=1600';
 const STORY_IMG =
   'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg?auto=compress&cs=tinysrgb&w=1200';
-const FOUNDER_IMG = 'https://www.top100afl.com/team/Paul%20light.jpg.png';
 
 /* ────────────────────────────────────────────────────────────────────────
  * Content
@@ -111,7 +112,7 @@ const AboutPage: React.FC = () => {
               initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="text-[15px] font-semibold text-brand"
+              className="text-base font-semibold text-brand"
             >
               About Edutu
             </motion.p>
@@ -129,7 +130,7 @@ const AboutPage: React.FC = () => {
               initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.12 }}
-              className="mt-7 max-w-2xl text-[17px] leading-[1.7] text-text-secondary sm:text-[19px]"
+              className="mt-7 max-w-2xl text-lg leading-[1.7] text-text-secondary sm:text-lg"
             >
               Edutu helps underprivileged African learners discover scholarships, internships and
               fellowships — and actually reach them — from the phone or browser they already use.
@@ -142,14 +143,14 @@ const AboutPage: React.FC = () => {
             >
               <Link
                 to="/opportunities"
-                className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
               >
                 Explore opportunities
                 <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <Link
                 to="/what-we-believe"
-                className="inline-flex items-center gap-2 text-[15px] font-semibold text-text-primary no-underline transition-colors hover:text-brand"
+                className="inline-flex items-center gap-2 text-base font-semibold text-text-primary no-underline transition-colors hover:text-brand"
               >
                 Read what we believe <ArrowUpRight size={16} />
               </Link>
@@ -172,7 +173,7 @@ const AboutPage: React.FC = () => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" />
             <figcaption className="absolute inset-x-6 bottom-6 max-w-xl sm:inset-x-10 sm:bottom-8">
-              <p className="font-display text-[18px] font-medium leading-snug text-white sm:text-[22px]">
+              <p className="font-display text-lg font-medium leading-snug text-white sm:text-xl">
                 Edutu grew out of Top100 Africa Future Leaders — a community that proved when you
                 show young Africans the door, they walk through it.
               </p>
@@ -187,7 +188,7 @@ const AboutPage: React.FC = () => {
               <h2 className="font-display text-[clamp(1.9rem,3.4vw,2.9rem)] font-semibold leading-[1.06] tracking-tight text-text-primary">
                 Why we built Edutu
               </h2>
-              <div className="mt-6 space-y-5 text-[16.5px] leading-[1.75] text-text-secondary text-pretty">
+              <div className="mt-6 space-y-5 text-base leading-[1.75] text-text-secondary text-pretty">
                 <p>
                   Edutu came from a real problem: brilliant African students kept missing
                   life-changing opportunities because the information was scattered, the deadlines
@@ -226,7 +227,7 @@ const AboutPage: React.FC = () => {
               <h2 className="font-display text-[clamp(1.9rem,3.4vw,2.9rem)] font-semibold leading-[1.06] tracking-tight text-text-primary">
                 Three jobs, done well
               </h2>
-              <p className="mt-4 text-[16.5px] leading-[1.7] text-text-secondary">
+              <p className="mt-4 text-base leading-[1.7] text-text-secondary">
                 Everything Edutu does comes back to helping a learner move from a scattered search to
                 a submitted application.
               </p>
@@ -241,10 +242,10 @@ const AboutPage: React.FC = () => {
                 return (
                   <motion.div key={c.verb} variants={item} className="bg-surface-layer p-7 sm:p-8">
                     <Icon size={22} className="text-brand" />
-                    <h3 className="mt-5 font-display text-[26px] font-semibold tracking-tight text-text-primary">
+                    <h3 className="mt-5 font-display text-2xl font-semibold tracking-tight text-text-primary">
                       {c.verb}
                     </h3>
-                    <p className="mt-2.5 text-[15px] leading-[1.7] text-text-secondary">{c.body}</p>
+                    <p className="mt-2.5 text-base leading-[1.7] text-text-secondary">{c.body}</p>
                   </motion.div>
                 );
               })}
@@ -266,16 +267,16 @@ const AboutPage: React.FC = () => {
               <div aria-hidden="true" className="absolute left-[15px] top-3 bottom-3 w-px bg-border-subtle sm:left-[71px]" />
               {timeline.map((e) => (
                 <motion.li key={e.year} variants={item} className="relative flex gap-5 pb-11 last:pb-0 sm:gap-8">
-                  <div className="hidden w-16 shrink-0 pt-1 text-right font-display text-[17px] font-semibold text-brand sm:block">
+                  <div className="hidden w-16 shrink-0 pt-1 text-right font-display text-lg font-semibold text-brand sm:block">
                     {e.year}
                   </div>
                   <div className="relative z-10 mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand/30 bg-surface-body">
                     <span className="h-2.5 w-2.5 rounded-full bg-brand" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="font-display text-[15px] font-semibold text-brand sm:hidden">{e.year}</span>
-                    <h3 className="font-display text-[20px] font-semibold tracking-tight text-text-primary">{e.title}</h3>
-                    <p className="mt-2 text-[15.5px] leading-[1.7] text-text-secondary text-pretty">{e.body}</p>
+                    <span className="font-display text-base font-semibold text-brand sm:hidden">{e.year}</span>
+                    <h3 className="font-display text-xl font-semibold tracking-tight text-text-primary">{e.title}</h3>
+                    <p className="mt-2 text-base leading-[1.7] text-text-secondary text-pretty">{e.body}</p>
                   </div>
                 </motion.li>
               ))}
@@ -301,7 +302,7 @@ const AboutPage: React.FC = () => {
                   <dd className="font-display text-[clamp(2.2rem,4vw,3rem)] font-semibold leading-none tracking-tight text-brand">
                     {f.value}
                   </dd>
-                  <dt className="mt-2.5 text-[13.5px] font-medium leading-snug text-text-secondary">{f.label}</dt>
+                  <dt className="mt-2.5 text-sm font-medium leading-snug text-text-secondary">{f.label}</dt>
                 </motion.div>
               ))}
             </motion.dl>
@@ -330,11 +331,11 @@ const AboutPage: React.FC = () => {
               </blockquote>
               <div className="mt-7 flex items-center gap-4">
                 <div>
-                  <div className="font-display text-[18px] font-semibold text-text-primary">Nwosu Paul Light</div>
-                  <div className="text-[14px] text-text-muted">Founder &amp; CTO · Top100 Africa Future Leaders</div>
+                  <div className="font-display text-lg font-semibold text-text-primary">Nwosu Paul Light</div>
+                  <div className="text-sm text-text-muted">Founder &amp; CTO · Top100 Africa Future Leaders</div>
                 </div>
               </div>
-              <p className="mt-6 max-w-xl text-[16px] leading-[1.75] text-text-secondary text-pretty">
+              <p className="mt-6 max-w-xl text-base leading-[1.75] text-text-secondary text-pretty">
                 An AI &amp; ML systems engineer, Paul founded Top100 Africa Future Leaders to make young
                 African talent visible — then built Edutu so the opportunities that talent deserves
                 are only a search away.
@@ -342,6 +343,9 @@ const AboutPage: React.FC = () => {
             </motion.div>
           </div>
         </section>
+
+        {/* ── Team ─────────────────────────────────────────────────── */}
+        <MeetTheTeam id="team" />
 
         {/* ── Values ───────────────────────────────────────────── */}
         <section className="border-t border-subtle px-4 py-24 sm:px-6 sm:py-28">
@@ -355,8 +359,8 @@ const AboutPage: React.FC = () => {
             <motion.div {...group} className="mt-12 grid gap-x-14 gap-y-11 sm:grid-cols-2">
               {values.map((v) => (
                 <motion.div key={v.title} variants={item} className="border-t border-subtle pt-6">
-                  <h3 className="font-display text-[22px] font-semibold tracking-tight text-text-primary">{v.title}</h3>
-                  <p className="mt-2.5 max-w-md text-[16px] leading-[1.7] text-text-secondary text-pretty">{v.body}</p>
+                  <h3 className="font-display text-xl font-semibold tracking-tight text-text-primary">{v.title}</h3>
+                  <p className="mt-2.5 max-w-md text-base leading-[1.7] text-text-secondary text-pretty">{v.body}</p>
                 </motion.div>
               ))}
             </motion.div>
@@ -374,20 +378,20 @@ const AboutPage: React.FC = () => {
             <h2 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-tight text-white text-balance">
               Talent is everywhere. Help us reach it.
             </h2>
-            <p className="mx-auto mt-5 max-w-lg text-[17px] leading-[1.7] text-white/85">
+            <p className="mx-auto mt-5 max-w-lg text-base leading-[1.7] text-white/85 sm:text-lg">
               Discover the next opportunity, or help a learner find theirs.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <Link
                 to="/opportunities"
-                className="group inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-[15px] font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
+                className="group inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-brand-700 no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5"
               >
                 Browse opportunities
                 <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <Link
                 to="/mentor"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-7 py-3.5 text-[15px] font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-7 py-3.5 text-base font-semibold text-white no-underline transition-colors duration-200 hover:bg-white/10"
               >
                 Become a mentor
               </Link>

@@ -29,6 +29,7 @@ describe("OpportunitiesService public app URL", () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
     );
 
     expect(service.getPublicAppBaseUrl()).toBe("https://www.edutu.org");
@@ -38,6 +39,7 @@ describe("OpportunitiesService public app URL", () => {
     process.env.EDUTU_PUBLIC_APP_URL = "https://app.edutu.org/";
 
     const service = new OpportunitiesService(
+      {} as any,
       {} as any,
       {} as any,
       {} as any,

@@ -15,8 +15,11 @@ import {
     Mail,
     Globe,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    MessageSquare,
+    Bug
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { Card } from '../../components/ui/Card';
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -76,9 +79,10 @@ function FAQItem({ item, isDark, colors }: { item: typeof FAQS[0], isDark: boole
 export default function HelpScreen() {
     const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
+    const router = useRouter();
 
     const handleContactEmail = () => {
-        Linking.openURL('mailto:support@edutu.org');
+        Linking.openURL('mailto:my.edutu@gmail.com');
     };
 
     return (
@@ -129,7 +133,7 @@ export default function HelpScreen() {
                             </View>
                             <View style={styles.contactText}>
                                 <Text style={[styles.contactTitle, { color: colors.foreground }]}>{t('help.emailSupport')}</Text>
-                                <Text style={styles.contactSubtitle}>support@edutu.org</Text>
+                                <Text style={styles.contactSubtitle}>my.edutu@gmail.com</Text>
                             </View>
                             <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
                         </View>
@@ -149,6 +153,57 @@ export default function HelpScreen() {
                             <View style={styles.contactText}>
                                 <Text style={[styles.contactTitle, { color: colors.foreground }]}>{t('help.visitWebsite')}</Text>
                                 <Text style={[styles.contactSubtitle, { color: '#3b82f6' }]}>www.edutu.org</Text>
+                            </View>
+                            <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
+                        </View>
+                    </Card>
+                </TouchableOpacity>
+
+                {/* Contact form entry points */}
+                <Text style={[styles.sectionTitle, { color: isDark ? "#475569" : "#94A3B8", marginTop: 32 }]}>
+                    {t('help.contactUs', { defaultValue: 'Get in touch' })}
+                </Text>
+
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.push('/contact')}
+                    style={styles.contactItem}
+                >
+                    <Card variant="glass" style={[styles.contactCard, { borderColor: 'rgba(99,102,241,0.2)' }]}>
+                        <View style={styles.contactRow}>
+                            <View style={[styles.contactIcon, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+                                <MessageSquare size={22} color={colors.accent} />
+                            </View>
+                            <View style={styles.contactText}>
+                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>
+                                    {t('help.sendMessage', { defaultValue: 'Send us a message' })}
+                                </Text>
+                                <Text style={[styles.contactSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+                                    {t('help.sendMessageSub', { defaultValue: 'Ask a question and get a reply by email' })}
+                                </Text>
+                            </View>
+                            <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
+                        </View>
+                    </Card>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.push('/contact?type=bug')}
+                    style={styles.contactItem}
+                >
+                    <Card variant="glass" style={[styles.contactCard, { borderColor: 'rgba(99,102,241,0.2)' }]}>
+                        <View style={styles.contactRow}>
+                            <View style={[styles.contactIcon, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                                <Bug size={22} color="#ef4444" />
+                            </View>
+                            <View style={styles.contactText}>
+                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>
+                                    {t('help.reportBug', { defaultValue: 'Report a bug' })}
+                                </Text>
+                                <Text style={[styles.contactSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+                                    {t('help.reportBugSub', { defaultValue: 'Tell us what went wrong' })}
+                                </Text>
                             </View>
                             <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
                         </View>

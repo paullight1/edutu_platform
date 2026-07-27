@@ -77,6 +77,7 @@ const PrivacyPolicyPage: React.FC = () => (
         lastUpdated="July 7, 2026"
         intro="Your trust matters to us. This policy explains what information Edutu collects, how we use it, and the choices you have. We keep it plain so you always know where you stand."
         sections={sections}
+        seoPath="/privacy"
     />
 );
 

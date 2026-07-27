@@ -264,6 +264,14 @@ const DEFAULT_ROUTES: Record<
     responseMimeType: "application/json",
     isEnabled: true,
   },
+  "opportunities.share_enrich": {
+    provider: "deepseek",
+    fallbackProvider: CHAT_FALLBACK_PROVIDER,
+    model: "deepseek-chat",
+    temperature: 0.2,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
   "cv.draft": {
     provider: "deepseek",
     fallbackProvider: CHAT_FALLBACK_PROVIDER,

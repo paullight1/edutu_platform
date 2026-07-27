@@ -259,7 +259,7 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     // The whole card is tappable and routes to the profile screen.
     fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
-    expect(mockPush).toHaveBeenCalledWith('/profile');
+    expect(mockPush).toHaveBeenCalledWith('/profile/edit');
   });
 
   it('complete profile, no strong match: shows the "Browse opportunities" prompt, not "Complete profile"', async () => {
@@ -299,5 +299,44 @@ describe('home Best Shots — empty states and dedupe', () => {
     expect(getAllByText('Chevening Scholarship')).toHaveLength(1);
     // The sub-60 item still shows in Recommended.
     expect(getByText('Local Bootcamp')).toBeTruthy();
+  });
+
+  // Regression: impression fatigue (up to -20 on the feed score for items shown
+  // repeatedly without engagement) must not disqualify a Best Shot. Fit is what
+  // decides "can you win this"; fatigue only reorders the feed. Without this,
+  // simply opening the app five times erases the section.
+  it('gates on fit, not the fatigue-adjusted feed score', async () => {
+    mockProfileComplete = true;
+    mockOpportunitiesData = [
+      // Genuinely competitive (fit 72) but fatigued down to 52 in the feed.
+      makeOpp({ id: 'fatigued', title: 'Mandela Fellowship', match: 52, matchFit: 72 }),
+      makeOpp({ id: 'weak', title: 'Local Bootcamp', match: 40, matchFit: 40 }),
+    ];
+
+    const { getByText, getAllByText, queryByText } = render(<Dashboard />);
+
+    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    expect(getAllByText('Mandela Fellowship')).toHaveLength(1);
+    // And it reports the fit it was chosen on, not the fatigued feed score.
+    expect(getByText('72% match')).toBeTruthy();
+    expect(queryByText('52% match')).toBeNull();
+  });
+
+  // Guard the other direction: a low-fit item that only looks good because of
+  // engagement bonuses is not a "best shot".
+  it('does not promote a low-fit item lifted by engagement signals', async () => {
+    mockProfileComplete = true;
+    mockOpportunitiesData = [
+      makeOpp({ id: 'hyped', title: 'Clicked A Lot', match: 88, matchFit: 35 }),
+    ];
+
+    const { getByText, getAllByText } = render(<Dashboard />);
+
+    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    // Best Shots stays empty...
+    expect(getByText('Finding your best match')).toBeTruthy();
+    // ...while the item still rides the Recommended feed on its feed score,
+    // which is exactly what engagement signals are supposed to influence.
+    expect(getAllByText('Clicked A Lot')).toHaveLength(1);
   });
 });

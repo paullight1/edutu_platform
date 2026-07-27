@@ -56,6 +56,16 @@
             "quickActions": "إجراءات سريعة"
         }
     },
+    "opportunities": {
+        "rails": {
+            "recommended": "موصى بها لك",
+            "recommendedSubtitle": "فرص تتطابق بقوة مع ملفك الشخصي",
+            "latest": "أُضيفت حديثاً",
+            "latestSubtitle": "أحدث الفرص على Edutu",
+            "closing": "تُغلق قريباً",
+            "closingSubtitle": "المواعيد النهائية تقترب — قدّم الآن"
+        }
+    },
     "goals": {
         "title": "الأهداف",
         "createGoal": "إنشاء هدف",

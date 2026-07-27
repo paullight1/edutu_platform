@@ -216,6 +216,14 @@
         "empty": {
             "title": "No opportunities found",
             "description": "Try a broader search term or clear the current filters to see more listings."
+        },
+        "rails": {
+            "recommended": "Recommended for you",
+            "recommendedSubtitle": "Strong matches for your profile",
+            "latest": "Just added",
+            "latestSubtitle": "The newest opportunities on Edutu",
+            "closing": "Closing soon",
+            "closingSubtitle": "Deadlines around the corner — apply now"
         }
     },
     "goals": {

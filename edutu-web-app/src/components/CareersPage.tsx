@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Briefcase, Globe, Heart, Rocket, Sparkles, Users, type LucideIcon } from 'lucide-react';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 
@@ -45,6 +46,7 @@ const CareersPage: React.FC = () => {
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
+            <PageSeo path="/careers" />
             <PublicHeader />
 
             <main className="relative z-10">
@@ -53,12 +55,12 @@ const CareersPage: React.FC = () => {
                     <div className="mx-auto max-w-[820px] text-center">
                         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
                             <Sparkles size={14} className="text-brand" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">Careers</span>
+                            <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">Careers</span>
                         </div>
                         <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-text-primary sm:text-5xl md:text-6xl">
                             Help build the bridge to <span className="text-brand">global opportunity</span>
                         </h1>
-                        <p className="mx-auto mt-6 max-w-[620px] text-lg leading-relaxed text-text-secondary">
+                        <p className="mx-auto mt-6 max-w-[620px] text-base leading-relaxed text-text-secondary sm:text-lg">
                             We are a small, focused team on a mission to make global opportunities easy to reach for
                             every African learner. If that excites you, we would love to meet.
                         </p>
@@ -144,7 +146,7 @@ const CareersPage: React.FC = () => {
                         <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                             Not a role, but want to help?
                         </h2>
-                        <p className="mx-auto mt-4 max-w-[480px] text-lg leading-relaxed text-white/80">
+                        <p className="mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-white/80 sm:text-lg">
                             Learn more about the mission and the learners we serve.
                         </p>
                         <Link

@@ -9,11 +9,13 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
+  AlarmClock,
   ArrowUpRight,
   Award,
   Bookmark,
   Briefcase,
   Calendar,
+  ChevronDown,
   EyeOff,
   GraduationCap,
   MapPin,
@@ -24,6 +26,8 @@ import {
   Search,
   Share2,
   SlidersHorizontal,
+  Sparkles,
+  Target,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -67,12 +71,21 @@ import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
 import { Skeleton } from "./ui/Skeleton";
 import Pagination from "./ui/Pagination";
+import Select from "./ui/Select";
 import { EmptyOpportunities, EmptySearchResults } from "./ui/EmptyState";
 import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import OpportunityRails, {
+  type OpportunityRail,
+} from "./opportunity/OpportunityRails";
+import {
+  createOpportunityShuffleSeed,
+  shuffleOpportunityFeed,
+} from "../lib/opportunityShuffle";
+import { organizationLabel } from "../lib/organizationLabel";
 
 const categoryFilters: Record<string, { labelKey: string; keywords: string[] }> = {
   scholarships: {
@@ -130,18 +143,16 @@ function opportunityMatchesCategory(opportunity: Opportunity, category: string) 
   );
 }
 
-// Colourful "collection" cards shown at the top of the page. Each one links to
-// a filtered view (`?category=`) so tapping a card navigates to a dedicated
-// page listing just those opportunities.
+// "Collection" cards shown at the top of the page. Each one links to a filtered
+// view (`?category=`) so tapping a card navigates to a dedicated page listing
+// just those opportunities. Colour lives in the icon chip, not the card.
 type Collection = {
   key: string;
   categoryId: string;
   labelKey: string;
   desc: string;
   Icon: LucideIcon;
-  card: string;
   chip: string;
-  glow: string;
   accentText: string;
 };
 
@@ -152,9 +163,7 @@ const COLLECTIONS: Collection[] = [
     labelKey: "opportunities.categories.scholarships",
     desc: "Fund your studies worldwide",
     Icon: GraduationCap,
-    card: "border-amber-500/20 bg-amber-500/[0.07] hover:border-amber-500/50 hover:bg-amber-500/[0.12] dark:border-amber-400/20 dark:bg-amber-400/[0.08]",
     chip: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-    glow: "from-amber-500/25",
     accentText: "text-amber-600 dark:text-amber-300",
   },
   {
@@ -163,9 +172,7 @@ const COLLECTIONS: Collection[] = [
     labelKey: "opportunities.categories.internships",
     desc: "Gain hands-on experience",
     Icon: Briefcase,
-    card: "border-blue-500/20 bg-blue-500/[0.07] hover:border-blue-500/50 hover:bg-blue-500/[0.12] dark:border-blue-400/20 dark:bg-blue-400/[0.08]",
     chip: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
-    glow: "from-blue-500/25",
     accentText: "text-blue-600 dark:text-blue-300",
   },
   {
@@ -174,9 +181,7 @@ const COLLECTIONS: Collection[] = [
     labelKey: "opportunities.categories.fellowships",
     desc: "Advance research & leadership",
     Icon: Award,
-    card: "border-violet-500/20 bg-violet-500/[0.07] hover:border-violet-500/50 hover:bg-violet-500/[0.12] dark:border-violet-400/20 dark:bg-violet-400/[0.08]",
     chip: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
-    glow: "from-violet-500/25",
     accentText: "text-violet-600 dark:text-violet-300",
   },
   {
@@ -185,9 +190,7 @@ const COLLECTIONS: Collection[] = [
     labelKey: "opportunities.categories.programs",
     desc: "Accelerators, bootcamps & more",
     Icon: Rocket,
-    card: "border-emerald-500/20 bg-emerald-500/[0.07] hover:border-emerald-500/50 hover:bg-emerald-500/[0.12] dark:border-emerald-400/20 dark:bg-emerald-400/[0.08]",
     chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
-    glow: "from-emerald-500/25",
     accentText: "text-emerald-600 dark:text-emerald-300",
   },
 ];
@@ -197,45 +200,39 @@ function CollectionCard({
   label,
   desc,
   Icon,
-  card,
   chip,
-  glow,
   accentText,
 }: {
   to: string;
   label: string;
   desc: string;
   Icon: LucideIcon;
-  card: string;
   chip: string;
-  glow: string;
   accentText: string;
 }) {
   return (
     <Link
       to={to}
-      className={`group relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-3.5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:flex-row sm:items-center sm:gap-3.5 sm:p-4 ${card}`}
+      className={`group relative flex flex-row items-center gap-2.5 overflow-hidden rounded-2xl border p-2.5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-3.5 sm:p-4 ${CARD_SURFACE}`}
     >
-      {/* Soft corner glow that intensifies on hover */}
-      <div
-        className={`pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-gradient-to-br to-transparent opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${glow}`}
-      />
       <span
-        className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${chip}`}
+        className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${chip}`}
       >
-        <Icon size={20} />
+        <Icon size={16} className="sm:hidden" />
+        <Icon size={20} className="hidden sm:block" />
       </span>
       <div className="relative min-w-0 flex-1">
-        <h3 className="font-display text-sm font-semibold leading-tight tracking-tight text-text-primary sm:text-[15px]">
+        <h3 className="truncate font-display text-sm font-semibold leading-tight text-text-primary sm:text-base">
           {label}
         </h3>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-text-secondary sm:mt-0.5 sm:truncate sm:text-xs">
+        {/* Description only from sm: up — mobile keeps the card one line tall. */}
+        <p className="mt-0.5 hidden truncate text-xs leading-snug text-text-secondary sm:block">
           {desc}
         </p>
       </div>
       <ArrowUpRight
         size={16}
-        className={`absolute right-3 top-3 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:static sm:shrink-0 ${accentText}`}
+        className={`hidden shrink-0 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:block ${accentText}`}
       />
     </Link>
   );
@@ -308,7 +305,8 @@ function formatFunding(opportunity: Opportunity): string | null {
 
 type SortOption = "recommended" | "deadline" | "newest" | "funding";
 
-const PAGE_SIZE = 12;
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [12, 20, 50, 100];
 
 // Warm the detail-route chunk while the user is still deciding, so tapping a
 // card never waits on a JS download.
@@ -316,59 +314,44 @@ function prefetchOpportunityDetail() {
   void import("./OpportunityDetail").catch(() => {});
 }
 
-// Bright per-card colour system. Each opportunity card is tinted by its
-// category so the grid reads as a lively, colourful board instead of a wall of
-// grey. Class strings are written out in full (never interpolated) so Tailwind's
-// JIT keeps them in the build.
+// Per-category chip colour system. The card itself stays plain white; only the
+// category pill carries colour. Class strings are written out in full (never
+// interpolated) so Tailwind's JIT keeps them in the build.
 type CardPalette = {
-  /** Article border + gradient tint (light + dark). */
-  card: string;
   /** Category pill. */
   chip: string;
-  /** Soft blurred corner glow (gradient `from-` colour). */
-  glow: string;
 };
+
+/**
+ * Every opportunity card sits on the same plain surface — the colour lives in
+ * the category chip only, so the grid reads as a clean board of white cards.
+ */
+export const CARD_SURFACE = "border-subtle bg-white hover:border-strong";
 
 const CARD_PALETTES: CardPalette[] = [
   {
-    card: "border-amber-400/30 bg-gradient-to-b from-amber-400/[0.15] to-amber-400/[0.04] hover:border-amber-400/60 dark:border-amber-300/25 dark:from-amber-300/[0.14] dark:to-amber-300/[0.03]",
     chip: "border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-200",
-    glow: "from-amber-400/40",
   },
   {
-    card: "border-blue-400/30 bg-gradient-to-b from-blue-400/[0.15] to-blue-400/[0.04] hover:border-blue-400/60 dark:border-blue-300/25 dark:from-blue-300/[0.14] dark:to-blue-300/[0.03]",
     chip: "border border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-200",
-    glow: "from-blue-400/40",
   },
   {
-    card: "border-violet-400/30 bg-gradient-to-b from-violet-400/[0.15] to-violet-400/[0.04] hover:border-violet-400/60 dark:border-violet-300/25 dark:from-violet-300/[0.14] dark:to-violet-300/[0.03]",
     chip: "border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-200",
-    glow: "from-violet-400/40",
   },
   {
-    card: "border-emerald-400/30 bg-gradient-to-b from-emerald-400/[0.15] to-emerald-400/[0.04] hover:border-emerald-400/60 dark:border-emerald-300/25 dark:from-emerald-300/[0.14] dark:to-emerald-300/[0.03]",
     chip: "border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
-    glow: "from-emerald-400/40",
   },
   {
-    card: "border-rose-400/30 bg-gradient-to-b from-rose-400/[0.15] to-rose-400/[0.04] hover:border-rose-400/60 dark:border-rose-300/25 dark:from-rose-300/[0.14] dark:to-rose-300/[0.03]",
     chip: "border border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-200",
-    glow: "from-rose-400/40",
   },
   {
-    card: "border-cyan-400/30 bg-gradient-to-b from-cyan-400/[0.15] to-cyan-400/[0.04] hover:border-cyan-400/60 dark:border-cyan-300/25 dark:from-cyan-300/[0.14] dark:to-cyan-300/[0.03]",
     chip: "border border-cyan-500/30 bg-cyan-500/15 text-cyan-700 dark:text-cyan-200",
-    glow: "from-cyan-400/40",
   },
   {
-    card: "border-orange-400/30 bg-gradient-to-b from-orange-400/[0.15] to-orange-400/[0.04] hover:border-orange-400/60 dark:border-orange-300/25 dark:from-orange-300/[0.14] dark:to-orange-300/[0.03]",
     chip: "border border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-200",
-    glow: "from-orange-400/40",
   },
   {
-    card: "border-fuchsia-400/30 bg-gradient-to-b from-fuchsia-400/[0.15] to-fuchsia-400/[0.04] hover:border-fuchsia-400/60 dark:border-fuchsia-300/25 dark:from-fuchsia-300/[0.14] dark:to-fuchsia-300/[0.03]",
     chip: "border border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-200",
-    glow: "from-fuchsia-400/40",
   },
 ];
 
@@ -540,12 +523,8 @@ function OpportunityCard({
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated ${palette.card}`}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated ${CARD_SURFACE}`}
     >
-      {/* Soft coloured glow that warms the card and intensifies on hover. */}
-      <div
-        className={`pointer-events-none absolute -bottom-10 -right-8 h-32 w-32 rounded-full bg-gradient-to-br to-transparent opacity-70 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${palette.glow}`}
-      />
       <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
@@ -627,9 +606,9 @@ function OpportunityCard({
         <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-text-primary transition group-hover:text-brand">
           {opportunity.title}
         </h2>
-        {opportunity.organization ? (
+        {organizationLabel(opportunity.organization, opportunity.title) ? (
           <p className="mt-1 truncate text-sm text-text-muted">
-            {opportunity.organization}
+            {organizationLabel(opportunity.organization, opportunity.title)}
           </p>
         ) : null}
 
@@ -706,7 +685,7 @@ interface OpportunitiesPageProps {
 export default function OpportunitiesPage({ embedded = false }: OpportunitiesPageProps) {
   const { t } = useTranslation();
   const { data: opportunities, loading, error, refresh } = useOpportunities();
-  const { explainOpportunity, isPersonalized, trackInteraction } =
+  const { explainOpportunity, isPersonalized, personalizeFeed, trackInteraction } =
     usePersonalization();
   const { success, error: showError } = useToast();
   const { isSignedIn, userId, getToken } = useClerkAuth();
@@ -724,14 +703,51 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [refreshing, setRefreshing] = useState(false);
   const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
+  // Fresh seed each visit so the default "Recommended" order rotates between
+  // sessions but stays put while the user paginates through this one.
+  const [browseShuffleSeed, setBrowseShuffleSeed] = useState(() =>
+    createOpportunityShuffleSeed(),
+  );
 
   useEffect(() => {
     setDismissedIds(getDismissedOpportunityIds(userId));
   }, [userId]);
+
+  // Manual refresh: force a fresh fetch and show a spinner until it lands.
+  // Re-seeding makes the reshuffle visible even when the data didn't change.
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    setBrowseShuffleSeed(createOpportunityShuffleSeed());
+    refresh();
+  }, [refresh]);
+
+  // Clear the refresh spinner once new data arrives.
+  useEffect(() => {
+    setRefreshing(false);
+  }, [opportunities]);
+
+  // Always pull the freshest opportunities when the user opens this screen or
+  // returns to the tab, rather than lingering on whatever was cached earlier.
+  useEffect(() => {
+    refresh();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refresh]);
 
   const handleDismissReason = useCallback(
     (reason: DismissReason) => {
@@ -940,26 +956,126 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   }, [filteredOpportunities, isPersonalized, explainOpportunity]);
 
   const sortedOpportunities = useMemo(() => {
-    if (sortOption === "recommended" && matchInsights) {
-      return [...filteredOpportunities].sort(
-        (a, b) =>
-          (matchInsights.get(b.id)?.score ?? 0) -
-          (matchInsights.get(a.id)?.score ?? 0),
-      );
+    if (sortOption === "recommended") {
+      // Every visit reshuffles so the catalogue never looks stale: tier
+      // shuffle for personalized users (strong matches stay on top, ties
+      // rotate), full seeded shuffle otherwise.
+      if (isPersonalized) {
+        return personalizeFeed(filteredOpportunities, {
+          seed: browseShuffleSeed,
+        });
+      }
+      return shuffleOpportunityFeed(filteredOpportunities, browseShuffleSeed);
     }
     return sortOpportunities(filteredOpportunities, sortOption);
-  }, [filteredOpportunities, sortOption, matchInsights]);
+  }, [
+    filteredOpportunities,
+    sortOption,
+    isPersonalized,
+    personalizeFeed,
+    browseShuffleSeed,
+  ]);
+
+  // Discovery rails shown on the browse landing (no search, no category):
+  // horizontal strips of the freshest, most urgent and best-matched items so
+  // the page leads with what's new even before the user scrolls the grid.
+  const showRails = !selectedCategoryId && !deferredSearchTerm.trim();
+  const discoveryRails = useMemo<OpportunityRail[]>(() => {
+    if (!showRails) return [];
+
+    const latest = [...filteredOpportunities]
+      .sort(
+        (a, b) =>
+          (getOpportunityUpdatedTime(b) ?? 0) -
+          (getOpportunityUpdatedTime(a) ?? 0),
+      )
+      .slice(0, 12);
+
+    const closingSoon = filteredOpportunities
+      .map((opportunity) => ({
+        opportunity,
+        deadline: getOpportunityDeadlineTime(opportunity),
+      }))
+      .filter(
+        (item): item is { opportunity: Opportunity; deadline: number } =>
+          item.deadline !== null && item.deadline > Date.now(),
+      )
+      .sort((a, b) => a.deadline - b.deadline)
+      .slice(0, 12)
+      .map((item) => item.opportunity);
+
+    const rails: OpportunityRail[] = [];
+    if (isPersonalized) {
+      rails.push({
+        key: "recommended",
+        title: t("opportunities.rails.recommended", {
+          defaultValue: "Recommended for you",
+        }),
+        subtitle: t("opportunities.rails.recommendedSubtitle", {
+          defaultValue: "Strong matches for your profile",
+        }),
+        Icon: Target,
+        accent: "bg-brand/10 text-brand",
+        items: personalizeFeed(filteredOpportunities, {
+          seed: browseShuffleSeed,
+        }).slice(0, 12),
+      });
+    }
+    rails.push(
+      {
+        key: "latest",
+        title: t("opportunities.rails.latest", { defaultValue: "Just added" }),
+        subtitle: t("opportunities.rails.latestSubtitle", {
+          defaultValue: "The newest opportunities on Edutu",
+        }),
+        Icon: Sparkles,
+        accent: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+        items: latest,
+      },
+      {
+        key: "closing",
+        title: t("opportunities.rails.closing", {
+          defaultValue: "Closing soon",
+        }),
+        subtitle: t("opportunities.rails.closingSubtitle", {
+          defaultValue: "Deadlines around the corner — apply now",
+        }),
+        Icon: AlarmClock,
+        accent: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+        items: closingSoon,
+      },
+    );
+    return rails;
+  }, [
+    showRails,
+    filteredOpportunities,
+    isPersonalized,
+    personalizeFeed,
+    browseShuffleSeed,
+    t,
+  ]);
+
+  const railDetailPathFor = useCallback(
+    (opportunity: Opportunity) =>
+      `${embedded ? "/app" : ""}/opportunity/${opportunity.id}`,
+    [embedded],
+  );
+  const handleRailOpen = useCallback(
+    (opportunity: Opportunity) =>
+      trackInteraction(opportunity, "view", { context: "rail_open" }),
+    [trackInteraction],
+  );
 
   // Reset to the first page only when the user changes what they're browsing —
   // NOT when server match scores hydrate and re-sort the list, which would
   // otherwise snap the user off the page they're reading.
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedCategoryId, showClosed, sortOption]);
+  }, [searchTerm, selectedCategoryId, showClosed, sortOption, pageSize]);
 
   const totalPages = Math.max(
     1,
-    Math.ceil(sortedOpportunities.length / PAGE_SIZE),
+    Math.ceil(sortedOpportunities.length / pageSize),
   );
 
   // A shrinking result set (new filter, closed toggle) can leave `page` past
@@ -969,8 +1085,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   }, [totalPages]);
 
   const visibleOpportunities = sortedOpportunities.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
+    (page - 1) * pageSize,
+    page * pageSize,
   );
 
   const goToPage = useCallback((next: number) => {
@@ -1142,7 +1258,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             onClick={() => setFiltersOpen(false)}
           />
           <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 rounded-2xl border border-subtle bg-surface-elevated p-3 shadow-elevated">
-            <p className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="px-1 pb-1 text-2xs font-semibold uppercase tracking-[0.14em] text-text-muted">
               Sort by
             </p>
             <div className="space-y-0.5">
@@ -1182,7 +1298,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               <span className="flex items-center gap-1.5">
                 Show closed
                 {closedFilter.locked ? (
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase leading-none tracking-wide text-brand-700">
                     <Lock size={8} aria-hidden="true" />
                     Pro
                   </span>
@@ -1254,7 +1370,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
                   {t("navigation.explore")}
                 </p>
-                <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
+                <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
                   Browse by category
                 </h1>
                 <p className="mt-1.5 text-sm text-text-secondary">
@@ -1281,15 +1397,24 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   label={t(collection.labelKey)}
                   desc={collection.desc}
                   Icon={collection.Icon}
-                  card={collection.card}
                   chip={collection.chip}
-                  glow={collection.glow}
                   accentText={collection.accentText}
                 />
               ))}
             </div>
           </section>
         )}
+
+        {showRails && !loading ? (
+          <OpportunityRails
+            rails={discoveryRails}
+            detailPathFor={railDetailPathFor}
+            getPalette={getCardPalette}
+            matchInsights={matchInsights}
+            onOpen={handleRailOpen}
+            getToken={isSignedIn ? getToken : undefined}
+          />
+        ) : null}
 
         {error ? (
           <section
@@ -1320,15 +1445,35 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
         {loading ? (
           <section className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-            {Array.from({ length: PAGE_SIZE }).map((_, index) => (
+            {Array.from({ length: Math.min(pageSize, 12) }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
           </section>
         ) : sortedOpportunities.length > 0 ? (
           <>
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <p className="text-sm text-text-muted">
+                {t("opportunities.resultCount", {
+                  defaultValue: "{{count}} opportunities",
+                  count: sortedOpportunities.length,
+                })}
+              </p>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-subtle bg-surface-layer px-3 text-sm font-medium text-text-secondary shadow-soft transition hover:bg-surface-elevated hover:text-text-primary disabled:opacity-60"
+              >
+                <RefreshCw
+                  size={14}
+                  className={loading || refreshing ? "animate-spin" : ""}
+                />
+                {t("common.refresh", { defaultValue: "Refresh" })}
+              </button>
+            </div>
             <section
               ref={resultsRef}
-              className="mt-5 grid scroll-mt-28 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+              className="mt-4 grid scroll-mt-28 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
             >
               {visibleOpportunities.map((opportunity, index) => (
                 <ImpressionTracker
@@ -1359,12 +1504,41 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </ImpressionTracker>
               ))}
             </section>
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={goToPage}
-              className="mt-8"
-            />
+            <div className="mt-8 flex flex-col-reverse items-center gap-4 sm:flex-row sm:justify-between">
+              <label className="flex items-center gap-2 text-sm text-text-muted">
+                <span className="shrink-0">
+                  {t("opportunities.perPageLabel", { defaultValue: "Show" })}
+                </span>
+                <span className="relative">
+                  <Select
+                    value={pageSize}
+                    onChange={(event) => setPageSize(Number(event.target.value))}
+                    aria-label={t("opportunities.perPage", {
+                      defaultValue: "Results per page",
+                    })}
+                    className="h-9 w-auto min-w-[7rem] pr-9 text-sm"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {t("opportunities.perPageOption", {
+                          defaultValue: "{{count}} per page",
+                          count: size,
+                        })}
+                      </option>
+                    ))}
+                  </Select>
+                  <ChevronDown
+                    size={14}
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                  />
+                </span>
+              </label>
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={goToPage}
+              />
+            </div>
           </>
         ) : (
           <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-4">

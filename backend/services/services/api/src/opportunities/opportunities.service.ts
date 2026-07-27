@@ -27,6 +27,7 @@ import {
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { OpportunityShareEnrichService } from "./opportunity-share-enrich.service";
 import { CacheService } from "../common/cache/cache.service";
 import { SavedSearchesService } from "../saved-searches/saved-searches.service";
 
@@ -475,6 +476,7 @@ export class OpportunitiesService {
     private readonly opportunityRankingService: OpportunityRankingService,
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
+    private readonly shareEnrichService: OpportunityShareEnrichService,
     private readonly embeddingService: OpportunityEmbeddingService,
     @Optional() private readonly cache?: CacheService,
     @Optional() private readonly savedSearchesService?: SavedSearchesService,
@@ -582,6 +584,82 @@ export class OpportunitiesService {
     };
 
     return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
+  }
+
+  /**
+   * Editorially featured opportunities, active and not past their deadline.
+   *
+   * Deliberately its own query rather than a filter over the recommendations
+   * feed: ranking decides what a *user* is competitive for, which is a
+   * different question from what the team chose to spotlight. Filtering the
+   * ranked feed meant a featured item outside a user's top-N candidates simply
+   * never appeared, so the home rail emptied for reasons no one could see.
+   */
+  async findFeatured(limit: number = 10) {
+    const cappedLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+    const today = new Date().toISOString().slice(0, 10);
+    const cacheKey = `${OPPS_CACHE_PREFIX}featured:${cappedLimit}`;
+
+    // The generated share card is the image fallback for rows with no scraped
+    // image, but it lives in `metadata`, which the public projection strips.
+    // Lift it to a top-level field so featured cards don't render imageless.
+    const shape = (row: Record<string, any>) => ({
+      ...withOpportunityUrlAliases(row),
+      share_image_url:
+        row.metadata?.share_card?.url ?? row.share_image_url ?? null,
+    });
+
+    const run = async () => {
+      try {
+        if (this.supabase) {
+          const { data, error } = await this.supabase
+            .from("opportunities")
+            .select("*")
+            .eq("status", "active")
+            .eq("is_featured", true)
+            .or(`close_date.gte.${today},close_date.is.null`)
+            // Soonest real deadline first; rolling (null) items sort last so a
+            // spotlight the user can still act on leads the rail.
+            .order("close_date", { ascending: true, nullsFirst: false })
+            .limit(cappedLimit);
+
+          if (!error) {
+            return (data ?? []).map((row) => shape(row as Record<string, any>));
+          }
+
+          this.logger.warn(
+            `Featured opportunity query failed, falling back to Drizzle schema: ${error.message}`,
+          );
+        }
+
+        const rows = await db
+          .select()
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.status, "active"),
+              eq(opportunities.isFeatured, true),
+              or(
+                isNull(opportunities.closeDate),
+                gte(opportunities.closeDate, today),
+              ),
+            ),
+          )
+          .limit(cappedLimit)
+          .execute();
+
+        return rows.map((row) => shape(row as Record<string, any>));
+      } catch (error: any) {
+        this.logger.warn(
+          `Featured opportunities unavailable: ${error?.message ?? String(error)}`,
+        );
+        // An empty rail is the correct degraded state here — never a random
+        // unfeatured row dressed up as an editorial pick.
+        return [];
+      }
+    };
+
+    return this.cache ? this.cache.wrap(cacheKey, 120, run) : run();
   }
 
   // Logged once so a missing migration doesn't spam a warn per search request.
@@ -928,10 +1006,13 @@ export class OpportunitiesService {
   }
 
   async ensureShareCard(id: string) {
-    const opportunity = await this.findOne(id);
-    if (!opportunity) {
+    const loaded = await this.findOne(id);
+    if (!loaded) {
       return null;
     }
+    // Fill any missing benefits/eligibility/summary (grounded, cached) so the
+    // share text, card and OG unfurl all read as complete.
+    const opportunity = await this.shareEnrichService.ensureEnriched(loaded);
 
     const shareUrl = buildOpportunityPublicShareUrl(
       id,

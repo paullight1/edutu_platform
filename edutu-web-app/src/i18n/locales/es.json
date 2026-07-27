@@ -56,6 +56,16 @@
             "quickActions": "Acciones Rápidas"
         }
     },
+    "opportunities": {
+        "rails": {
+            "recommended": "Recomendadas para ti",
+            "recommendedSubtitle": "Coincidencias fuertes con tu perfil",
+            "latest": "Recién añadidas",
+            "latestSubtitle": "Las oportunidades más nuevas en Edutu",
+            "closing": "Cierran pronto",
+            "closingSubtitle": "Fechas límite a la vuelta de la esquina — postúlate ya"
+        }
+    },
     "goals": {
         "title": "Metas",
         "createGoal": "Crear Meta",

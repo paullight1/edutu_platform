@@ -36,63 +36,58 @@ const stagger = {
 };
 
 /**
- * Hero photo cluster — a staggered magazine grid of learner portraits on
- * vivid colour cards, echoing the reference "charming" fashion hero but
- * dressed in Edutu's community story. Each card keeps its colour if the
- * remote image fails, so the layout never collapses.
+ * Hero photo cluster — a staggered magazine grid of real Edutu-shaped learner
+ * photos: African students studying, graduating, and celebrating wins. Photos
+ * render in full colour (no blend tint); the card only falls back to a neutral
+ * placeholder if a remote image fails, so the layout never collapses.
  */
 type HeroCard = {
   src: string;
   alt: string;
-  bg: string;
   className: string;
 };
 
+/** Portrait crop params so the tall cards never letterbox. */
+const HERO_CROP = "w=480&h=640&q=80&auto=format&fit=crop";
+
 const heroCards: HeroCard[] = [
   {
-    src: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400&q=80&auto=format&fit=crop",
+    src: `https://images.unsplash.com/photo-1531123897727-8f129e1688ce?${HERO_CROP}`,
     alt: "Learner sharing a win with the community",
-    bg: "bg-amber-300",
     className: "h-40 sm:h-44",
   },
   {
-    src: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80&auto=format&fit=crop",
-    alt: "Member celebrating an admission",
-    bg: "bg-sky-400",
+    src: `https://images.unsplash.com/photo-1620829813573-7c9e1877706f?${HERO_CROP}`,
+    alt: "Student working through an application on his laptop",
     className: "h-32 sm:h-36",
   },
   {
-    src: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&q=80&auto=format&fit=crop",
-    alt: "Scholar in a study cohort",
-    bg: "bg-rose-300",
+    src: `https://images.unsplash.com/photo-1758525861622-f4e7ac86a2d7?${HERO_CROP}`,
+    alt: "Scholar studying in a cohort session",
     className: "h-32 sm:h-36",
   },
 ];
 
 const centerCard: HeroCard = {
-  src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=520&q=80&auto=format&fit=crop",
-  alt: "Edutu community member",
-  bg: "bg-brand-500",
+  src: "https://images.unsplash.com/photo-1686213011624-8578b598ef0f?w=640&h=880&q=80&auto=format&fit=crop",
+  alt: "Edutu community member celebrating her graduation",
   className: "h-64 sm:h-80",
 };
 
 const rightCards: HeroCard[] = [
   {
-    src: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&q=80&auto=format&fit=crop",
+    src: `https://images.unsplash.com/photo-1744880034592-7c64776b2a85?${HERO_CROP}`,
     alt: "Mentor guiding an applicant",
-    bg: "bg-violet-500",
     className: "h-32 sm:h-36",
   },
   {
-    src: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80&auto=format&fit=crop",
+    src: `https://images.unsplash.com/photo-1694175271713-a6e2cc378980?${HERO_CROP}`,
     alt: "Learner asking Edutu for help",
-    bg: "bg-emerald-300",
     className: "h-32 sm:h-36",
   },
   {
-    src: "https://images.unsplash.com/photo-1552058544-f2b08422138a?w=400&q=80&auto=format&fit=crop",
+    src: `https://images.unsplash.com/photo-1620829813629-45478205c88f?${HERO_CROP}`,
     alt: "Future leader from the Edutu network",
-    bg: "bg-orange-300",
     className: "h-40 sm:h-44",
   },
 ];
@@ -100,13 +95,13 @@ const rightCards: HeroCard[] = [
 function PhotoCard({ card }: { card: HeroCard }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl ${card.bg} ${card.className} shadow-soft`}
+      className={`relative overflow-hidden rounded-2xl bg-surface-elevated ${card.className} shadow-soft`}
     >
       <img
         src={card.src}
         alt={card.alt}
         loading="lazy"
-        className="h-full w-full object-cover mix-blend-multiply"
+        className="h-full w-full object-cover"
         onError={(event) => {
           event.currentTarget.style.display = "none";
         }}
@@ -284,7 +279,7 @@ const CommunityPage: React.FC = () => {
                       fill="none"
                     />
                   </defs>
-                  <text className="fill-text-secondary text-[10px] font-semibold uppercase tracking-[0.25em]">
+                  <text className="fill-text-secondary text-2xs font-semibold uppercase tracking-[0.25em]">
                     <textPath href="#communityBadgeArc">
                       Join the community • meet your people •
                     </textPath>
@@ -354,7 +349,7 @@ const CommunityPage: React.FC = () => {
               {/* far-right single card + tag */}
               <div className="hidden lg:block">
                 <PhotoCard card={rightCards[2]} />
-                <div className="mt-2 text-right text-xs font-bold tracking-wide text-text-muted">
+                <div className="mt-2 text-right text-xs font-semibold tracking-wide text-text-muted">
                   #EdutuFam
                 </div>
               </div>

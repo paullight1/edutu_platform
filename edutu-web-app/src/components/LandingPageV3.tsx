@@ -10,9 +10,13 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
+import EventsHomeSection from './EventsHomeSection';
+import UrgencyPill from './opportunity/UrgencyPill';
+import { organizationLabel } from '../lib/organizationLabel';
 import {
     OpportunityMatchIcon,
     DeadlineIcon,
@@ -30,6 +34,18 @@ interface FAQItem {
     question: string;
     answer: string;
 }
+
+/**
+ * Shared heading/copy scales. Two steps only — a section title and a section
+ * lede. Every section pulls from these so the page stops drifting between four
+ * different heading sizes and two body sizes.
+ */
+const SECTION_TITLE =
+    'landing-section-title font-display text-4xl font-semibold text-text-primary sm:text-5xl';
+const SECTION_COPY =
+    'landing-section-copy mt-4 max-w-[620px] text-base leading-[1.6] text-text-secondary sm:text-lg';
+/** One radius for every content card on the page. */
+const CARD = 'rounded-[22px] border border-subtle bg-surface-layer';
 
 const faqData: FAQItem[] = [
     {
@@ -96,7 +112,8 @@ const institutions = [
 
 const heroOpportunityWords = ['Programs', 'Scholarships', 'Internships', 'Fellowships'];
 
-const heroBackdropImages = [
+/** Neutral imagery used only when a real record has no image of its own. */
+const fallbackImages = [
     'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200',
     'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200',
     'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=1200',
@@ -114,36 +131,6 @@ interface LandingArticle {
     slug?: string;
 }
 
-const landingBlogArticles: LandingArticle[] = [
-    {
-        category: 'Scholarships',
-        title: 'How to Win Scholarships in 2026: AI-Powered Strategies',
-        excerpt: 'Use AI to spot the right opportunities faster, tailor stronger applications, and stay ahead of deadlines.',
-        author: 'Paul Adeyemi',
-        date: 'May 5, 2026',
-        readTime: '5 min read',
-        image: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=720',
-    },
-    {
-        category: 'Career',
-        title: 'Building an Application Routine That Actually Works',
-        excerpt: 'A simple framework for turning scattered deadlines into a weekly review habit.',
-        author: 'Sarah Chen',
-        date: 'Apr 28, 2026',
-        readTime: '6 min read',
-        image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=720',
-    },
-    {
-        category: 'Study Abroad',
-        title: 'Top Global Programs Learners Are Applying To Right Now',
-        excerpt: 'From fellowships to internships, see the kinds of opportunities building momentum inside Edutu today.',
-        author: 'James Okafor',
-        date: 'Apr 20, 2026',
-        readTime: '4 min read',
-        image: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg?auto=compress&cs=tinysrgb&w=720',
-    },
-];
-
 interface AboutFeature {
     title: string;
     desc: string;
@@ -155,29 +142,47 @@ interface AboutFeature {
 }
 
 const testimonials = [
-    { quote: 'Edutu helped me land 3 scholarship offers in 2 months. The opportunity feed was a game changer.', name: 'Adaeze O.', role: 'Computer Science Student', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=160' },
-    { quote: 'The opportunity tracking alone saved me from missing deadlines. Now I have a clear career path.', name: 'Tunde A.', role: 'Recent Graduate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=160' },
-    { quote: 'I went from confused about where to apply to having a focused list of real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=160' },
+    { quote: 'Edutu helped me land 3 scholarship offers in 2 months. The opportunity feed was a game changer.', name: 'Adaeze O.', role: 'Computer Science Student', country: 'Nigeria' },
+    { quote: 'The opportunity tracking alone saved me from missing deadlines. Now I have a clear career path.', name: 'Tunde A.', role: 'Recent Graduate', country: 'Nigeria' },
+    { quote: 'I went from confused about where to apply to having a focused list of real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria' },
 ];
 
-const SectionEyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-        {children}
-    </span>
+const initialsOf = (name: string) =>
+    name
+        .split(' ')
+        .map((part) => part.charAt(0))
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+/** Row-shaped placeholder that matches the real opportunity row's geometry. */
+const OpportunityRowSkeleton: React.FC = () => (
+    <li className="flex items-start gap-4 p-4 sm:items-center sm:p-5">
+        <div className="h-14 w-14 shrink-0 animate-pulse rounded-xl bg-surface-elevated sm:h-16 sm:w-16" />
+        <div className="min-w-0 flex-1">
+            <div className="h-3 w-32 animate-pulse rounded bg-surface-elevated" />
+            <div className="mt-2.5 h-4 w-full max-w-[420px] animate-pulse rounded bg-surface-elevated" />
+            <div className="mt-2.5 h-3 w-24 animate-pulse rounded bg-surface-elevated" />
+        </div>
+    </li>
 );
 
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
-    const { data: opportunities } = useOpportunities();
+    const {
+        data: opportunities,
+        loading: opportunitiesLoading,
+        error: opportunitiesError,
+    } = useOpportunities();
     const reduceMotion = useReducedMotion();
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [heroWordIndex, setHeroWordIndex] = useState(0);
-    const [blogArticles, setBlogArticles] = useState<LandingArticle[]>(landingBlogArticles);
+    const [blogArticles, setBlogArticles] = useState<LandingArticle[]>([]);
+    const [blogLoading, setBlogLoading] = useState(true);
 
     useEffect(() => {
         const controller = new AbortController();
         fetchPublishedPosts({ limit: 3, signal: controller.signal })
             .then((posts) => {
-                if (!posts.length) return;
                 setBlogArticles(posts.slice(0, 3).map((post, i) => ({
                     category: post.category || 'Insights',
                     title: post.title,
@@ -185,35 +190,41 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     author: post.authorName || 'Edutu Team',
                     date: formatPostDate(post.publishedAt || post.createdAt),
                     readTime: readingTime(post.content),
-                    image: post.coverImage || landingBlogArticles[i % landingBlogArticles.length].image,
+                    image: post.coverImage || fallbackImages[i % fallbackImages.length],
                     slug: post.slug,
                 })));
             })
-            .catch(() => { /* keep fallback articles */ });
+            .catch(() => {
+                // Leave the list empty — the section hides itself rather than
+                // shipping invented articles with invented authors.
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setBlogLoading(false);
+            });
         return () => controller.abort();
     }, []);
-    const latestOpportunities = opportunities.slice(0, 3);
+
+    const latestOpportunities = opportunities.slice(0, 5);
+    const showOpportunitySkeletons = opportunitiesLoading && latestOpportunities.length === 0;
+    const opportunitiesUnavailable = !opportunitiesLoading && latestOpportunities.length === 0;
+    const showBlogSection = blogLoading || blogArticles.length > 0;
 
     const aboutFeatures: AboutFeature[] = [
         { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: OpportunityMatchIcon, cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', iconColor: '#2455d6', titleColor: '#132a5c', descColor: '#42568c' },
         { title: 'Deadline Awareness', desc: 'Important dates stay visible before applications close.', icon: DeadlineIcon, cardBg: 'linear-gradient(160deg,#fbe9c6 0%,#f6d79b 100%)', iconColor: '#c2740b', titleColor: '#4a3410', descColor: '#7a5f2c' },
-        { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: GlobalNetworkIcon, cardBg: 'linear-gradient(160deg,#cbecf1 0%,#ade0e8 100%)', iconColor: '#0e7490', titleColor: '#0d3b45', descColor: '#356b76' },
+        { title: 'Global Network', desc: 'Connect with mentors and peers building careers in your niche around the world.', icon: GlobalNetworkIcon, cardBg: 'linear-gradient(160deg,#cbecf1 0%,#ade0e8 100%)', iconColor: '#0e7490', titleColor: '#0d3b45', descColor: '#356b76' },
         { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', icon: TrackingIcon, cardBg: 'linear-gradient(160deg,#d0ead9 0%,#b3e0c5 100%)', iconColor: '#0f8a4d', titleColor: '#123a26', descColor: '#3a6b50' },
     ];
 
     useEffect(() => {
+        // Users who asked for reduced motion get a stable headline, not an
+        // un-animated hard cut every 2.4s.
+        if (reduceMotion) return;
         const interval = window.setInterval(() => {
             setHeroWordIndex((current) => (current + 1) % heroOpportunityWords.length);
         }, 2400);
         return () => window.clearInterval(interval);
-    }, []);
-
-    const formatOpportunityDeadline = (deadline?: string | null) => {
-        if (!deadline) return 'Open now';
-        const parsed = new Date(deadline);
-        if (Number.isNaN(parsed.getTime())) return deadline;
-        return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
+    }, [reduceMotion]);
 
     const fadeUp = reduceMotion
         ? {}
@@ -225,12 +236,13 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
     return (
         <div className="landing-page min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
+            <PageSeo path="/" />
             <PublicHeader fixed onPrimaryAction={onGetStarted} />
 
             <main className="relative z-10">
                 {/* ─── Hero ─────────────────────────────────────────────── */}
                 <section
-                    className="landing-hero relative flex items-center overflow-hidden px-4 pt-24 pb-12 sm:min-h-[92vh] sm:px-6 sm:pt-28 sm:pb-20 md:min-h-dvh"
+                    className="landing-hero relative flex items-center overflow-hidden px-4 pt-24 pb-12 sm:min-h-[88vh] sm:px-6 sm:pt-28 sm:pb-16 md:min-h-[88dvh]"
                     id="platform"
                 >
                     {/* Theme-aware gradient field (dark = deep navy, light = soft mesh) */}
@@ -277,7 +289,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
-                            className="landing-hero-copy mt-5 max-w-[600px] text-[17px] font-normal leading-[1.5] text-text-secondary sm:mt-6 sm:text-[19px] sm:leading-[1.55]"
+                            className="landing-hero-copy mt-5 max-w-[600px] text-lg font-normal leading-[1.5] text-text-secondary sm:mt-6 sm:text-lg sm:leading-[1.55]"
                         >
                             Edutu finds scholarships, fellowships, and career programs matched to
                             you — globally, automatically, before the deadline.
@@ -291,14 +303,14 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         >
                             <button
                                 onClick={onGetStarted}
-                                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-9 py-4 text-[16px] font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-9 py-4 text-base font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
                             >
                                 Get started free
                                 <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
                             </button>
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-9 py-4 text-[16px] font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-9 py-4 text-base font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
                             >
                                 Browse opportunities
                             </Link>
@@ -308,68 +320,110 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </section>
 
                 {/* ─── Latest Opportunities ─────────────────────────────── */}
-                <section className="border-t border-subtle px-4 py-20 sm:px-6">
-                    <div className="mx-auto max-w-[1200px]">
-                        <div className="mb-12 max-w-2xl">
-                            <SectionEyebrow>Latest Opportunities</SectionEyebrow>
-                            <h2 className="landing-section-title mt-4 max-w-xl font-display text-[34px] font-semibold leading-[1.12] text-text-primary sm:text-[42px]">
+                {/* A dense list, not magazine tiles: this is what the product
+                    actually looks like, with real deadlines on the urgency ramp. */}
+                {/* Deliberately tighter top pad on mobile: the hero stops at
+                    84dvh so this heading is the thing peeking above the fold. */}
+                <section className="border-t border-subtle px-4 pt-10 pb-20 sm:px-6 sm:pt-20 sm:pb-28">
+                    <div className="mx-auto max-w-[1000px]">
+                        <div className="mb-10 max-w-2xl">
+                            <h2 className={SECTION_TITLE}>
                                 Fresh opportunities worth exploring
                             </h2>
-                            <p className="landing-section-copy mt-4 max-w-[640px] text-[18px] leading-[1.5] text-text-secondary">
-                                A quick look at a few scholarships, fellowships, internships, and
-                                programs that are ready for action.
+                            <p className={SECTION_COPY}>
+                                Real scholarships, fellowships, internships, and programs — with the
+                                deadlines that actually decide whether you can still apply.
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {latestOpportunities.map((opportunity, index) => (
-                                <motion.article
-                                    key={opportunity.id}
-                                    {...fadeUp}
-                                    transition={{ duration: 0.45, delay: index * 0.08 }}
-                                    whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer transition-colors hover:border-brand/40"
+                        {opportunitiesUnavailable ? (
+                            <div className={`${CARD} p-8 text-center`}>
+                                <p className="text-base text-text-secondary">
+                                    {opportunitiesError
+                                        ? "We couldn't load the latest opportunities just now."
+                                        : 'No opportunities are listed right now — new ones are added continuously.'}
+                                </p>
+                                <Link
+                                    to="/opportunities"
+                                    className="mt-4 inline-flex items-center gap-2 text-base font-semibold text-brand no-underline"
                                 >
-                                    <Link
-                                        to={`/share/opportunity/${encodeURIComponent(opportunity.id)}`}
-                                        className="block no-underline"
-                                        aria-label={`View ${opportunity.title}`}
-                                    >
-                                        <div className="relative h-[210px] overflow-hidden">
-                                            <img
-                                                src={opportunity.image || heroBackdropImages[index % heroBackdropImages.length]}
-                                                alt=""
-                                                className="h-full w-full object-cover"
-                                                loading="lazy"
-                                                decoding="async"
-                                            />
-                                            <div
-                                                className="absolute inset-0"
-                                                style={{ background: 'linear-gradient(180deg, rgba(8,18,36,0.05) 0%, rgba(8,18,36,0.2) 100%)' }}
-                                            />
-                                        </div>
-                                        <div className="p-5 sm:p-6">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
-                                                    {opportunity.category}
-                                                </p>
-                                                <span className="text-[12px] font-medium text-text-muted">
-                                                    {formatOpportunityDeadline(opportunity.deadline)}
-                                                </span>
-                                            </div>
-                                            <h3 className="mt-3 font-display text-[20px] font-semibold leading-[1.18] tracking-[-0.01em] text-text-primary sm:text-[22px]">
-                                                {opportunity.title}
-                                            </h3>
-                                        </div>
-                                    </Link>
-                                </motion.article>
-                            ))}
-                        </div>
+                                    Browse the full list <ArrowRight size={16} />
+                                </Link>
+                            </div>
+                        ) : (
+                            <ul className={`${CARD} divide-y divide-border-subtle overflow-hidden`}>
+                                {showOpportunitySkeletons
+                                    ? Array.from({ length: 5 }).map((_, i) => (
+                                          <OpportunityRowSkeleton key={`skeleton-${i}`} />
+                                      ))
+                                    : latestOpportunities.map((opportunity, index) => (
+                                          <motion.li
+                                              key={opportunity.id}
+                                              {...fadeUp}
+                                              transition={{ duration: 0.4, delay: Math.min(index, 4) * 0.06 }}
+                                          >
+                                              <Link
+                                                  to={`/share/opportunity/${encodeURIComponent(opportunity.id)}`}
+                                                  className="group flex items-start gap-4 p-4 no-underline transition-colors hover:bg-surface-elevated sm:items-center sm:p-5"
+                                              >
+                                                  <img
+                                                      src={opportunity.image || fallbackImages[index % fallbackImages.length]}
+                                                      alt=""
+                                                      className="h-14 w-14 shrink-0 rounded-xl object-cover sm:h-16 sm:w-16"
+                                                      loading="lazy"
+                                                      decoding="async"
+                                                  />
+                                                  {/* Mobile stacks; from sm the row splits into a text column
+                                                      and a status column. The list runs to 1000px, and letting an
+                                                      18px title use all of it puts ~100 characters on a line —
+                                                      so the extra width goes to right-aligned deadline/location
+                                                      instead, which also makes deadlines scannable down a column. */}
+                                                  <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-6">
+                                                      <div className="min-w-0 sm:flex-1">
+                                                          {/* Title leads. Category/org is metadata *about* the title,
+                                                              so it reads better under it than above it — and on mobile
+                                                              it no longer pushes the title down the row. */}
+                                                          <h3 className="line-clamp-2 font-display text-base font-semibold text-text-primary transition-colors group-hover:text-brand sm:text-lg">
+                                                              {opportunity.title}
+                                                          </h3>
+                                                          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-text-secondary sm:text-sm">
+                                                              <span className="font-medium text-brand">
+                                                                  {opportunity.category}
+                                                              </span>
+                                                              {organizationLabel(opportunity.organization, opportunity.title) ? (
+                                                                  <>
+                                                                      <span aria-hidden="true" className="text-text-muted">·</span>
+                                                                      <span className="truncate">
+                                                                          {organizationLabel(opportunity.organization, opportunity.title)}
+                                                                      </span>
+                                                                  </>
+                                                              ) : null}
+                                                          </div>
+                                                      </div>
+                                                      <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:mt-0 sm:shrink-0 sm:flex-col sm:items-end sm:gap-1.5">
+                                                          <UrgencyPill deadline={opportunity.deadline} always />
+                                                          {opportunity.location ? (
+                                                              <span className="truncate text-xs text-text-muted sm:text-sm">
+                                                                  {opportunity.location}
+                                                              </span>
+                                                          ) : null}
+                                                      </div>
+                                                  </div>
+                                                  <ArrowRight
+                                                      size={18}
+                                                      className="mt-1 hidden shrink-0 text-text-secondary transition-transform duration-200 group-hover:translate-x-1 group-hover:text-brand sm:mt-0 sm:block"
+                                                      aria-hidden="true"
+                                                  />
+                                              </Link>
+                                          </motion.li>
+                                      ))}
+                            </ul>
+                        )}
 
-                        <div className="mt-10 flex justify-center">
+                        <div className="mt-8 flex justify-center">
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center gap-2 rounded-xl border border-subtle px-5 py-3 text-[16px] font-medium text-text-primary no-underline transition-all duration-200 hover:translate-x-1.5 hover:border-brand/40 hover:text-brand"
+                                className="inline-flex items-center gap-2 rounded-xl border border-subtle px-5 py-3 text-base font-medium text-text-primary no-underline transition-all duration-200 hover:translate-x-1.5 hover:border-brand/40 hover:text-brand"
                             >
                                 Explore all opportunities <ArrowRight size={16} />
                             </Link>
@@ -378,97 +432,66 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </section>
 
                 {/* ─── Country reach ────────────────────────────────────── */}
-                <section className="overflow-hidden border-t border-subtle px-4 py-24 sm:px-6">
-                    <div className="mx-auto mb-16 max-w-[1200px] text-center">
-                        <SectionEyebrow>Global Reach</SectionEyebrow>
-                        <h2 className="landing-section-title mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                            Opportunities from <span className="text-brand">31 Countries</span>
+                <section className="overflow-hidden border-t border-subtle px-4 py-14 sm:px-6 sm:py-16">
+                    <div className="mx-auto mb-10 max-w-[1200px] text-center">
+                        <h2 className={SECTION_TITLE}>
+                            Opportunities from <span className="text-brand">31 countries</span>
                         </h2>
-                        <p className="landing-section-copy mx-auto mt-4 max-w-[600px] text-[20px] leading-[1.4] text-text-secondary">
+                        <p className={`${SECTION_COPY} mx-auto text-center`}>
                             Access scholarships, fellowships, and programs from every corner of the
                             world.
                         </p>
                     </div>
 
-                    <div className="relative">
+                    <div className="relative" aria-hidden="true">
                         <div className="landing-country-fade-left pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-32" />
                         <div className="landing-country-fade-right pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-32" />
 
-                        <div className="mb-6 flex gap-6" style={{ animation: 'marquee 30s linear infinite' }}>
+                        <div className="landing-marquee flex gap-6">
                             {[...flags, ...flags].map((flag, i) => (
                                 <div key={i} className="flex h-[60px] w-[80px] shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-elevated">
                                     <img src={flag} alt="" className="h-[36px] w-[48px] rounded object-cover" loading="lazy" decoding="async" />
                                 </div>
                             ))}
                         </div>
-
-                        <div className="flex gap-6" style={{ animation: 'marquee-reverse 30s linear infinite' }}>
-                            {[...flags.slice().reverse(), ...flags.slice().reverse()].map((flag, i) => (
-                                <div key={i} className="flex h-[60px] w-[80px] shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-elevated">
-                                    <img src={flag} alt="" className="h-[36px] w-[48px] rounded object-cover" loading="lazy" decoding="async" />
-                                </div>
-                            ))}
-                        </div>
                     </div>
-
-                    <style>{`
-                        @keyframes marquee {
-                            0% { transform: translateX(0); }
-                            100% { transform: translateX(-50%); }
-                        }
-                        @keyframes marquee-reverse {
-                            0% { transform: translateX(-50%); }
-                            100% { transform: translateX(0); }
-                        }
-                        .landing-country-fade-left {
-                            background: linear-gradient(to right, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
-                        }
-                        .landing-country-fade-right {
-                            background: linear-gradient(to left, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
-                        }
-                        @media (prefers-reduced-motion: reduce) {
-                            .landing-hero { }
-                        }
-                    `}</style>
                 </section>
 
                 {/* ─── Impact ───────────────────────────────────────────── */}
-                <section className="border-t border-subtle bg-surface-elevated px-4 py-24 sm:px-6">
+                <section className="border-t border-subtle bg-surface-elevated px-4 py-14 sm:px-6 sm:py-16">
                     <div className="mx-auto max-w-[1200px]">
                         <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
                             <div className="max-w-2xl">
-                                <SectionEyebrow>Our Impact</SectionEyebrow>
-                                <h2 className="landing-section-title mt-4 font-display text-[34px] font-semibold leading-[1.08] text-text-primary sm:text-[44px]">
+                                <h2 className={SECTION_TITLE}>
                                     Opportunity, shared across{' '}
                                     <span className="text-brand">a continent</span>
                                 </h2>
-                                <p className="landing-section-copy mt-4 max-w-[620px] text-[18px] leading-[1.5] text-text-secondary">
-                                    Edutu is closing Africa's opportunity gap with responsible AI. Here's
-                                    the proof — and the stories behind every number.
+                                <p className={SECTION_COPY}>
+                                    Edutu is closing Africa's opportunity gap with responsible AI.
+                                    See how learners are using it, and the stories behind the work.
                                 </p>
                             </div>
 
                             <Link
                                 to="/impact"
-                                className="group inline-flex items-center gap-2 self-start rounded-xl bg-brand px-6 py-3 text-[16px] font-semibold text-white no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                                className="inline-flex items-center gap-2 self-start rounded-xl border border-subtle bg-surface-layer px-5 py-3 text-base font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
                             >
-                                View our full impact
-                                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+                                Read our impact story
+                                <ArrowRight size={16} />
                             </Link>
                         </div>
                     </div>
                 </section>
 
                 {/* ─── Institutions ─────────────────────────────────────── */}
-                <section className="border-t border-subtle px-4 py-16 sm:px-6 sm:py-24">
-                    <div className="mx-auto mb-10 max-w-[1200px] text-center sm:mb-16">
-                        <SectionEyebrow>Top Institutions</SectionEyebrow>
-                        <h2 className="landing-section-title mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                            Scholarships from <span className="text-brand">World-Class</span> Universities
+                <section className="border-t border-subtle px-4 py-14 sm:px-6 sm:py-20">
+                    <div className="mx-auto mb-10 max-w-[1200px] text-center">
+                        <h2 className={SECTION_TITLE}>
+                            Scholarships from <span className="text-brand">world-class</span> universities
                         </h2>
-                        <p className="landing-section-copy mx-auto mt-4 max-w-[600px] text-[20px] leading-[1.4] text-text-secondary">
-                            Partner with leading institutions to find opportunities that match your
-                            ambition.
+                        <p className={`${SECTION_COPY} mx-auto text-center`}>
+                            Opportunities sourced from institutions like these — and hundreds more
+                            worldwide.
                         </p>
                     </div>
 
@@ -496,7 +519,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             fallbackLabel.textContent = inst.name;
                                             fallbackLabel.setAttribute('data-fallback', 'true');
                                             fallbackLabel.className =
-                                                'text-center font-display text-[12px] font-semibold leading-tight tracking-tight text-text-secondary transition-colors group-hover:text-text-primary sm:text-[15px]';
+                                                'text-center font-display text-xs font-semibold leading-tight text-text-secondary transition-colors group-hover:text-text-primary sm:text-base';
                                             parent.appendChild(fallbackLabel);
                                         }
                                     }}
@@ -507,14 +530,13 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </section>
 
                 {/* ─── About / features ─────────────────────────────────── */}
-                <section className="border-y border-subtle px-4 py-24 sm:px-6" id="about">
+                <section className="border-y border-subtle px-4 py-20 sm:px-6 sm:py-28" id="about">
                     <div className="mx-auto max-w-[1200px]">
-                        <div className="mb-16">
-                            <SectionEyebrow>About</SectionEyebrow>
-                            <h2 className="landing-section-title mb-4 mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                                Built for the <span className="text-brand">Ambitious</span>
+                        <div className="mb-12">
+                            <h2 className={SECTION_TITLE}>
+                                Built for the <span className="text-brand">ambitious</span>
                             </h2>
-                            <p className="landing-section-copy max-w-[600px] text-[20px] leading-[1.4] text-text-secondary">
+                            <p className={SECTION_COPY}>
                                 Modular tools designed to scale your career from day one.
                             </p>
                         </div>
@@ -525,19 +547,19 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     key={i}
                                     {...fadeUp}
                                     transition={{ duration: 0.4, delay: i * 0.08 }}
-                                    className="group rounded-2xl p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-8"
+                                    className="group rounded-[22px] p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-8"
                                     style={{ background: feature.cardBg }}
                                 >
                                     <div
-                                        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/55 transition-transform duration-300 group-hover:scale-105 sm:mb-7 sm:h-[72px] sm:w-[72px]"
+                                        className="mb-5 transition-transform duration-300 group-hover:scale-105 sm:mb-7"
                                         style={{ color: feature.iconColor }}
                                     >
-                                        <feature.icon size={40} />
+                                        <feature.icon size={44} />
                                     </div>
-                                    <h3 className="mb-2 font-display text-[20px] font-semibold sm:mb-3 sm:text-[22px]" style={{ color: feature.titleColor }}>
+                                    <h3 className="mb-2 font-display text-xl font-bold sm:mb-3 sm:text-xl" style={{ color: feature.titleColor }}>
                                         {feature.title}
                                     </h3>
-                                    <p className="text-[14px] leading-[1.6] sm:text-[15px]" style={{ color: feature.descColor }}>
+                                    <p className="text-sm leading-[1.6] sm:text-base" style={{ color: feature.descColor }}>
                                         {feature.desc}
                                     </p>
                                 </motion.div>
@@ -546,118 +568,126 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </div>
                 </section>
 
+                {/* ─── Events ───────────────────────────────────────────── */}
+                <EventsHomeSection />
+
                 {/* ─── Blog ─────────────────────────────────────────────── */}
-                <section className="border-t border-subtle bg-surface-elevated px-4 py-24 sm:px-6">
-                    <div className="mx-auto max-w-[1200px]">
-                        <div className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                            <div className="max-w-2xl">
-                                <SectionEyebrow>From the Blog</SectionEyebrow>
-                                <h2 className="landing-section-title mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                                    Stories and ideas for{' '}
-                                    <span className="text-brand">ambitious learners</span>
-                                </h2>
-                                <p className="landing-section-copy mt-4 max-w-[620px] text-[18px] leading-[1.5] text-text-secondary">
-                                    Practical guides, scholarship advice, and founder notes to help
-                                    you move with more clarity.
-                                </p>
+                {showBlogSection ? (
+                    <section className="border-t border-subtle bg-surface-elevated px-4 py-20 sm:px-6 sm:py-28">
+                        <div className="mx-auto max-w-[1200px]">
+                            <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                                <div className="max-w-2xl">
+                                    <h2 className={SECTION_TITLE}>
+                                        Stories and ideas for{' '}
+                                        <span className="text-brand">ambitious learners</span>
+                                    </h2>
+                                    <p className={SECTION_COPY}>
+                                        Practical guides, scholarship advice, and founder notes to help
+                                        you move with more clarity.
+                                    </p>
+                                </div>
+
+                                <Link
+                                    to="/blog"
+                                    className="inline-flex items-center gap-2 self-start rounded-xl border border-subtle bg-surface-layer px-5 py-3 text-base font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
+                                >
+                                    Read the blog <ArrowRight size={16} />
+                                </Link>
                             </div>
 
-                            <Link
-                                to="/blog"
-                                className="inline-flex items-center gap-2 self-start rounded-xl border border-subtle px-5 py-3 text-[16px] font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
-                            >
-                                Read the blog <ArrowRight size={16} />
-                            </Link>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                {blogLoading && blogArticles.length === 0
+                                    ? Array.from({ length: 3 }).map((_, i) => (
+                                          <div key={`blog-skeleton-${i}`} className={`${CARD} overflow-hidden`}>
+                                              <div className="h-[220px] animate-pulse bg-surface-elevated" />
+                                              <div className="p-5 sm:p-6">
+                                                  <div className="h-4 w-20 animate-pulse rounded-full bg-surface-elevated" />
+                                                  <div className="mt-4 h-5 w-full animate-pulse rounded bg-surface-elevated" />
+                                                  <div className="mt-2 h-5 w-2/3 animate-pulse rounded bg-surface-elevated" />
+                                                  <div className="mt-6 h-3 w-1/2 animate-pulse rounded bg-surface-elevated" />
+                                              </div>
+                                          </div>
+                                      ))
+                                    : blogArticles.map((article, index) => (
+                                          <motion.article
+                                              key={article.title}
+                                              {...fadeUp}
+                                              transition={{ duration: 0.45, delay: index * 0.08 }}
+                                              whileHover={reduceMotion ? undefined : { y: -3 }}
+                                              className={`${CARD} overflow-hidden transition-colors hover:border-brand/40`}
+                                          >
+                                              <Link to={article.slug ? `/blog/${article.slug}` : '/blog'} className="block no-underline">
+                                                  <div className="relative h-[220px] overflow-hidden">
+                                                      <img src={article.image} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                                      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,18,36,0.02) 0%, rgba(8,18,36,0.24) 100%)' }} />
+                                                  </div>
+                                                  <div className="p-5 sm:p-6">
+                                                      <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
+                                                          {article.category}
+                                                      </span>
+                                                      <h3 className="mt-4 line-clamp-2 font-display text-xl font-bold leading-[1.18] tracking-[-0.01em] text-text-primary sm:text-xl">
+                                                          {article.title}
+                                                      </h3>
+                                                      <p className="mt-2 line-clamp-3 text-base leading-[1.55] text-text-secondary">
+                                                          {article.excerpt}
+                                                      </p>
+                                                      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-text-secondary">
+                                                          <span className="inline-flex items-center gap-1.5 min-w-0"><User size={12} className="shrink-0" /><span className="truncate">{article.author}</span></span>
+                                                          <span className="inline-flex items-center gap-1.5"><Calendar size={12} className="shrink-0" />{article.date}</span>
+                                                          <span className="inline-flex items-center gap-1.5"><Clock size={12} className="shrink-0" />{article.readTime}</span>
+                                                      </div>
+                                                  </div>
+                                              </Link>
+                                          </motion.article>
+                                      ))}
+                            </div>
                         </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {blogArticles.map((article, index) => (
-                                <motion.article
-                                    key={article.title}
-                                    {...fadeUp}
-                                    transition={{ duration: 0.45, delay: index * 0.08 }}
-                                    whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer transition-colors hover:border-brand/40"
-                                >
-                                    <Link to={article.slug ? `/blog/${article.slug}` : '/blog'} className="block no-underline">
-                                        <div className="relative h-[220px] overflow-hidden">
-                                            <img src={article.image} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                                            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,18,36,0.02) 0%, rgba(8,18,36,0.24) 100%)' }} />
-                                        </div>
-                                        <div className="p-5 sm:p-6">
-                                            <span className="rounded-full bg-brand/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
-                                                {article.category}
-                                            </span>
-                                            <h3 className="mt-4 font-display text-[20px] font-semibold leading-[1.18] tracking-[-0.01em] text-text-primary sm:text-[22px]">
-                                                {article.title}
-                                            </h3>
-                                            <p className="mt-2 text-[15px] leading-[1.55] text-text-secondary">
-                                                {article.excerpt}
-                                            </p>
-                                            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-medium text-text-muted">
-                                                <span className="inline-flex items-center gap-1.5"><User size={12} />{article.author}</span>
-                                                <span className="inline-flex items-center gap-1.5"><Calendar size={12} />{article.date}</span>
-                                                <span className="inline-flex items-center gap-1.5"><Clock size={12} />{article.readTime}</span>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                </motion.article>
-                            ))}
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                ) : null}
 
                 {/* ─── Testimonials ─────────────────────────────────────── */}
-                <section className="border-y border-subtle bg-surface-elevated px-4 py-24 sm:px-6">
-                    <div className="mx-auto max-w-[1200px] text-center">
-                        <SectionEyebrow>Testimonials</SectionEyebrow>
-                        <h2 className="landing-section-title mb-16 mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                            Trusted by <span className="text-brand">Learners</span>
+                <section className="border-y border-subtle bg-surface-elevated px-4 py-20 sm:px-6 sm:py-28">
+                    <div className="mx-auto max-w-[1200px]">
+                        <h2 className={`${SECTION_TITLE} mb-12 text-center`}>
+                            Trusted by <span className="text-brand">learners</span>
                         </h2>
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                             {testimonials.map((testimonial, i) => (
-                                <motion.div
+                                <motion.figure
                                     key={i}
                                     {...fadeUp}
                                     transition={{ duration: 0.4, delay: i * 0.1 }}
-                                    className="rounded-2xl border border-subtle bg-surface-layer p-8 text-left shadow-soft"
+                                    className={`${CARD} m-0 p-8 text-left shadow-soft`}
                                 >
-                                    <div className="mb-4 flex gap-1 text-warning">
-                                        {[...Array(5)].map((_, j) => (
-                                            <span key={j}>★</span>
-                                        ))}
-                                    </div>
-                                    <p className="mb-6 text-[18px] leading-[1.5] text-text-secondary">
+                                    <blockquote className="text-lg leading-[1.55] text-text-primary">
                                         "{testimonial.quote}"
-                                    </p>
-                                    <div className="flex items-center gap-3">
-                                        <img
-                                            src={testimonial.avatar}
-                                            alt=""
-                                            className="h-12 w-12 rounded-full object-cover ring-2 ring-surface-layer shadow-soft"
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
-                                        <div>
-                                            <div className="text-[16px] font-semibold text-text-primary">{testimonial.name}</div>
-                                            <div className="text-[14px] text-text-muted">{testimonial.role} · {testimonial.country}</div>
-                                        </div>
-                                    </div>
-                                </motion.div>
+                                    </blockquote>
+                                    <figcaption className="mt-6 flex items-center gap-3">
+                                        <span
+                                            aria-hidden="true"
+                                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand/10 font-display text-base font-bold text-brand"
+                                        >
+                                            {initialsOf(testimonial.name)}
+                                        </span>
+                                        <span className="min-w-0">
+                                            <span className="block text-base font-semibold text-text-primary">{testimonial.name}</span>
+                                            <span className="block text-sm text-text-secondary">{testimonial.role} · {testimonial.country}</span>
+                                        </span>
+                                    </figcaption>
+                                </motion.figure>
                             ))}
                         </div>
                     </div>
                 </section>
 
                 {/* ─── FAQ ──────────────────────────────────────────────── */}
-                <section className="px-4 py-24 sm:px-6" id="faq">
+                <section className="px-4 py-20 sm:px-6 sm:py-28" id="faq">
                     <div className="mx-auto max-w-[800px]">
-                        <div className="mb-16 text-center">
-                            <SectionEyebrow>FAQ</SectionEyebrow>
-                            <h2 className="landing-section-title mb-4 mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
-                                Common <span className="text-brand">Questions</span>
+                        <div className="mb-12 text-center">
+                            <h2 className={SECTION_TITLE}>
+                                Common <span className="text-brand">questions</span>
                             </h2>
-                            <p className="landing-section-copy mx-auto max-w-[600px] text-[20px] leading-[1.4] text-text-secondary">
+                            <p className={`${SECTION_COPY} mx-auto text-center`}>
                                 Everything you need to know about Edutu.
                             </p>
                         </div>
@@ -665,38 +695,46 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <div className="space-y-4">
                             {faqData.map((item, index) => {
                                 const isOpen = openFAQ === index;
+                                const panelId = `faq-panel-${index}`;
+                                const buttonId = `faq-button-${index}`;
                                 return (
                                     <motion.div
                                         key={index}
                                         {...fadeUp}
                                         transition={{ duration: 0.4, delay: index * 0.05 }}
-                                        className={`overflow-hidden rounded-2xl border bg-surface-layer shadow-soft transition-colors ${isOpen ? 'border-brand' : 'border-subtle'}`}
+                                        className={`overflow-hidden rounded-[22px] border bg-surface-layer shadow-soft transition-colors ${isOpen ? 'border-brand' : 'border-subtle'}`}
                                     >
                                         <button
+                                            id={buttonId}
                                             onClick={() => setOpenFAQ(isOpen ? null : index)}
                                             className="flex w-full cursor-pointer items-center justify-between p-6 text-left"
                                             aria-expanded={isOpen}
+                                            aria-controls={panelId}
                                         >
-                                            <span className="pr-4 text-[18px] font-medium text-text-primary">
+                                            <span className="pr-4 text-lg font-medium text-text-primary">
                                                 {item.question}
                                             </span>
-                                            <motion.div
+                                            <motion.span
+                                                className="shrink-0"
                                                 animate={reduceMotion ? undefined : { rotate: isOpen ? 180 : 0 }}
                                                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                                             >
-                                                <ChevronDown size={20} className={isOpen ? 'text-brand' : 'text-text-muted'} />
-                                            </motion.div>
+                                                <ChevronDown size={20} className={isOpen ? 'text-brand' : 'text-text-secondary'} aria-hidden="true" />
+                                            </motion.span>
                                         </button>
                                         <AnimatePresence initial={false}>
                                             {isOpen && (
                                                 <motion.div
+                                                    id={panelId}
+                                                    role="region"
+                                                    aria-labelledby={buttonId}
                                                     initial={{ height: 0, opacity: 0 }}
                                                     animate={{ height: 'auto', opacity: 1 }}
                                                     exit={{ height: 0, opacity: 0 }}
                                                     transition={{ duration: 0.3, ease: 'easeInOut' }}
                                                 >
                                                     <div className="px-6 pb-6">
-                                                        <p className="text-[16px] leading-[1.6] text-text-secondary">
+                                                        <p className="text-base leading-[1.6] text-text-secondary">
                                                             {item.answer}
                                                         </p>
                                                     </div>
@@ -706,6 +744,26 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     </motion.div>
                                 );
                             })}
+                        </div>
+
+                        {/* Closing ask — the page previously never re-invited signup
+                            after the hero, which is exactly where a convinced
+                            reader is ready to act. */}
+                        <div className="mt-14 flex flex-col items-center gap-4 rounded-[22px] border border-subtle bg-surface-layer px-6 py-10 text-center shadow-soft">
+                            <h3 className="font-display text-2xl font-semibold text-text-primary sm:text-3xl">
+                                Start finding opportunities you can actually win
+                            </h3>
+                            <p className="max-w-[440px] text-base leading-[1.55] text-text-secondary">
+                                Free to join. Browse everything, track your deadlines, and get
+                                matches built around your profile.
+                            </p>
+                            <button
+                                onClick={onGetStarted}
+                                className="group mt-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-4 text-base font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                            >
+                                Get started free
+                                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+                            </button>
                         </div>
                     </div>
                 </section>

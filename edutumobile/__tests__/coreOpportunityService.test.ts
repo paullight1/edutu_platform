@@ -226,6 +226,112 @@ describe('core opportunity service contract', () => {
     expect(result.map((opportunity) => opportunity.id)).toEqual(['opp-catalog']);
   });
 
+  // Regression: a signed-in user whose token is momentarily unavailable (cold
+  // start, refresh in flight) used to fall straight through to the anonymous
+  // endpoint, which scores on a different scale with no signals — so the same
+  // user saw a different feed, and Best Shots blinked in and out between
+  // launches. The token gets retried, and only a genuinely tokenless session
+  // gives up.
+  it('retries the auth token before abandoning the authenticated feed', async () => {
+    const { fetchOpportunities } = loadService();
+    const supabase = {
+      from: jest.fn(() => ({
+        select: () => ({ in: async () => ({ data: [], error: null }) }),
+      })),
+    };
+    const getAuthToken = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('token-late');
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        opportunities: [{ id: 'opp-auth', title: 'Authed Row' }],
+      }),
+    } as Response);
+
+    const result = await fetchOpportunities({
+      supabase: supabase as never,
+      userId: 'user-1',
+      getAuthToken,
+      force: true,
+    });
+
+    expect(getAuthToken).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://api.example.test/opportunities/recommendations',
+    );
+    expect(result.map((o) => o.id)).toEqual(['opp-auth']);
+  });
+
+  it('serves a signed-in user their cached feed rather than anonymous scores', async () => {
+    await mockAsyncStorage.setItem(
+      'edutu_opportunities_cache:user-1',
+      JSON.stringify([{ id: 'opp-cached', title: 'Cached Row', match: 71, matchFit: 71 }]),
+    );
+
+    const { fetchOpportunities } = loadService();
+    const supabase = {
+      from: jest.fn(() => ({
+        select: () => ({ in: async () => ({ data: [], error: null }) }),
+      })),
+    };
+
+    const result = await fetchOpportunities({
+      supabase: supabase as never,
+      userId: 'user-1',
+      getAuthToken: async () => null,
+      force: true,
+    });
+
+    // No anonymous request at all — the cached feed is the stable answer.
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.map((o) => o.id)).toEqual(['opp-cached']);
+  });
+
+  // Regression: the home rail used to filter `featured` out of the ranked
+  // recommendations feed, so an editorial pick that fell outside a user's
+  // candidate window silently vanished from the section. Featured is an
+  // editorial question, not a ranking one — it gets its own endpoint.
+  it('fetches featured opportunities from the dedicated endpoint', async () => {
+    const { fetchFeaturedOpportunities } = loadService();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          id: 'opp-featured',
+          title: 'Spotlight Fellowship',
+          is_featured: true,
+          share_image_url: 'https://example.com/card.png',
+        },
+      ],
+    } as Response);
+
+    const result = await fetchFeaturedOpportunities(5);
+
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://api.example.test/opportunities/featured?limit=5',
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'opp-featured',
+        title: 'Spotlight Fellowship',
+        featured: true,
+        image: 'https://example.com/card.png',
+      }),
+    ]);
+  });
+
+  it('returns an empty featured rail rather than throwing when the endpoint fails', async () => {
+    const { fetchFeaturedOpportunities } = loadService();
+    mockFetch.mockRejectedValueOnce(new Error('offline'));
+
+    await expect(fetchFeaturedOpportunities()).resolves.toEqual([]);
+  });
+
   it('coerces object-shaped match_reasons into labels and preserves details', async () => {
     const { fetchOpportunities } = loadService();
     const supabase = { from: jest.fn() };

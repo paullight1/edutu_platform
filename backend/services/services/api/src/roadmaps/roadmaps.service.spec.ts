@@ -1,6 +1,7 @@
 import { NotFoundException } from "@nestjs/common";
 import { db } from "../db";
 import { roadmaps } from "../db/schema";
+import { toDatabaseUserId } from "../common/user-id";
 import { RoadmapsService } from "./roadmaps.service";
 
 jest.mock("../db", () => ({
@@ -304,5 +305,43 @@ describe("RoadmapsService", () => {
       expect(result.generatedBy).toBe("fallback");
       expect(result.milestones).toHaveLength(5);
     });
+  });
+
+  it("lets an approved mentor (mentor_status only) publish a personal roadmap", async () => {
+    // requireOwnedRoadmap → first select returns the owned roadmap
+    // (createdBy must match toDatabaseUserId("u1"), not the raw literal —
+    // requireOwnedRoadmap compares against the derived id, same as the
+    // toDatabaseUserId(...) convention used in goals.service.spec.ts)
+    const ownedWhere = jest
+      .fn()
+      .mockResolvedValue([
+        { id: "r1", createdBy: toDatabaseUserId("u1"), status: "personal" },
+      ]);
+    // profile lookup → mentor-only approval
+    const profileWhere = jest
+      .fn()
+      .mockResolvedValue([
+        { creatorStatus: "none", mentorStatus: "approved", role: "user" },
+      ]);
+    const from = jest
+      .fn()
+      .mockReturnValueOnce({ where: ownedWhere })
+      .mockReturnValueOnce({ where: profileWhere });
+    mockedDb.select.mockReturnValue({ from });
+
+    const returning = jest
+      .fn()
+      .mockResolvedValue([{ id: "r1", status: "published" }]);
+    const updWhere = jest.fn().mockReturnValue({ returning });
+    const set = jest.fn().mockReturnValue({ where: updWhere });
+    mockedDb.update.mockReturnValue({ set });
+    jest
+      .spyOn(service as any, "invalidateRoadmapCache")
+      .mockResolvedValue(undefined);
+
+    await expect(
+      service.setMineVisibility("u1", "r1", true),
+    ).resolves.toBeDefined();
+    expect(mockedDb.update).toHaveBeenCalled();
   });
 });
