@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Award,
   BriefcaseBusiness,
@@ -20,7 +19,6 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { EdutuLogo } from '../branding/EdutuLogo';
 import { Glow } from './Glow';
 import type { OnboardingPalette } from './onboardingTokens';
 
@@ -28,12 +26,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const STAGE = Math.min(SCREEN_WIDTH, 430);
 
 const CHIP = 46;
-const CORE_HALF = 44;
 
 /**
  * Two orbital planes, sized so nothing can ever touch anything else:
  *
- *   inner x-radius 82  → 38pt clear of the centre mark (chip half is 23)
+ *   inner x-radius 82  → leaves the centre open (chip half is 23)
  *   outer x-radius 148 → 66pt clear of the inner plane
  *   outer extent 148+23 = 171 < 177, the slide's half-width, so no clipping
  *
@@ -187,10 +184,6 @@ export function OpportunityOrbit({ palette }: { palette: OnboardingPalette; isDa
         <Glow size={STAGE * 0.62} color="#60A5FA" intensity={0.4} />
       </Animated.View>
 
-      <LinearGradient colors={['#FFFFFF', '#EFF4FF']} style={[styles.core, { shadowColor: '#2563EB' }]}>
-        <EdutuLogo size={54} frameless />
-      </LinearGradient>
-
       {PLANES.map((plane, planeIndex) =>
         plane.marks.map(({ icon: Icon, color, tint }, index) => (
           <OrbitChip
@@ -227,17 +220,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  core: {
-    width: CORE_HALF * 2,
-    height: CORE_HALF * 2,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.34,
-    shadowRadius: 28,
-    elevation: 12,
   },
   chipAnchor: {
     position: 'absolute',

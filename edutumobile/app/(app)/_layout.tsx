@@ -77,6 +77,12 @@ const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
 const NAV_PILL_HEIGHT = 66;
 // Icons-only height while scroll-compacted (Instagram-style shrink).
 const NAV_PILL_COMPACT_HEIGHT = 48;
+// …and its width. Compacting only the height left the four icons stranded at
+// their expanded spacing, so the bar looked like it had merely lost its labels
+// rather than contracted. 52pt per tab keeps every touch target comfortably
+// above the 44pt minimum while pulling the icons visibly together; navRow is
+// right-anchored, so the pill contracts toward the circle instead of drifting.
+const NAV_PILL_COMPACT_WIDTH = Math.min(NAV_PILL_WIDTH, 4 * 52 + 12);
 
 // Content height of the full-width bar styles, above the safe-area padding.
 const NAV_BAR_HEIGHT = 58;
@@ -888,12 +894,24 @@ export function BottomNav({
         });
     }, [navCompact, compactV]);
 
-    const pillStyle = useAnimatedStyle(() => ({
-        width: interpolate(collapse.value, [0, 1], [NAV_PILL_WIDTH, 0], Extrapolation.CLAMP),
-        opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
-        height: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT, NAV_PILL_COMPACT_HEIGHT], Extrapolation.CLAMP),
-        borderRadius: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT / 2, NAV_PILL_COMPACT_HEIGHT / 2], Extrapolation.CLAMP),
-    }));
+    const pillStyle = useAnimatedStyle(() => {
+        // The compacted width is the pill's new "expanded" size, which the
+        // collapse spring then takes to 0 on a tab change. Composed rather than
+        // interpolated separately so the two springs can overlap without one
+        // snapping the width back mid-flight.
+        const openWidth = interpolate(
+            compactV.value,
+            [0, 1],
+            [NAV_PILL_WIDTH, NAV_PILL_COMPACT_WIDTH],
+            Extrapolation.CLAMP,
+        );
+        return {
+            width: interpolate(collapse.value, [0, 1], [openWidth, 0], Extrapolation.CLAMP),
+            opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
+            height: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT, NAV_PILL_COMPACT_HEIGHT], Extrapolation.CLAMP),
+            borderRadius: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT / 2, NAV_PILL_COMPACT_HEIGHT / 2], Extrapolation.CLAMP),
+        };
+    });
 
     // The scrim exists to keep content from colliding with the tabs, so it
     // scales back with them: once the pill has collapsed to just the circle
@@ -905,9 +923,19 @@ export function BottomNav({
 
     const scrimHeight = Math.max(insets.bottom, 10) + NAV_PILL_HEIGHT + 20;
 
-    // Tabs fade ahead of the clip so nothing gets sliced mid-glyph.
+    // Tabs fade ahead of the clip so nothing gets sliced mid-glyph. The row
+    // carries the same compacted width as the pill — without it the row keeps
+    // its expanded width inside an `overflow: hidden` pill and the outer tabs
+    // are clipped away instead of moving closer. tabItem is flex:1, so the
+    // icons redistribute across the narrower row on their own.
     const pillContentStyle = useAnimatedStyle(() => ({
         opacity: interpolate(collapse.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+        width: interpolate(
+            compactV.value,
+            [0, 1],
+            [NAV_PILL_WIDTH, NAV_PILL_COMPACT_WIDTH],
+            Extrapolation.CLAMP,
+        ),
     }));
 
     const circleSwellStyle = useAnimatedStyle(() => ({

@@ -1334,14 +1334,18 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
 }) {
     const isSearching = variant === 'searching';
     const emptyTitle = isSearching
-        ? "Finding your best match"
+        ? "Still searching for your best shot"
         : "Complete your profile";
+    // Says what is actually happening rather than what the user failed to do:
+    // their profile IS in, nothing has cleared the competitiveness bar yet, and
+    // they do not need to keep checking. The notification promise is real —
+    // the interest-alert engine pushes when a new match lands.
     const emptyDesc = isSearching
-        ? "Nothing's cleared the bar yet — see recommendations below."
+        ? "Your profile's in. We'll notify you the moment one clears the bar — meanwhile, see recommendations below."
         : "Unlock the matches you can actually win.";
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
-        ? "Browse opportunities while we find your best shot"
+        ? "Still searching for your best shot. We will notify you when one is found. Browse recommendations meanwhile."
         : "Complete your profile to unlock your best shots";
 
     return (
@@ -1369,7 +1373,7 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
                     </Text>
                     <Text
                         style={[styles.bestShotEmptyDesc, { color: textSecondary }]}
-                        numberOfLines={2}
+                        numberOfLines={isSearching ? 3 : 2}
                         maxFontSizeMultiplier={1.3}
                     >
                         {emptyDesc}
@@ -1518,7 +1522,13 @@ export default function Dashboard() {
     // an incomplete profile means "we can't score you yet"; with a complete
     // profile it means "we just haven't found a strong match yet" — two very
     // different messages.
-    const { completeness: profileCompleteness } = useProfileCompleteness(supabase, user?.id ?? null);
+    // Clerk metadata is onboarding's primary store; without it a fully
+    // onboarded user reads as incomplete whenever the Supabase sync didn't land.
+    const { completeness: profileCompleteness } = useProfileCompleteness(
+        supabase,
+        user?.id ?? null,
+        (user?.unsafeMetadata as Record<string, any> | undefined) ?? null,
+    );
 
     // "Not interested" target — long-press on a card opens the typed-reason
     // sheet; the chosen reason routes differently in the ranking engine.

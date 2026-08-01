@@ -41,7 +41,6 @@ export const PROFILE_FIELDS: ProfileFieldSpec[] = [
     // ── core: needed to rank at all ──────────────────────────────────────────
     { key: 'country', label: 'Country', weight: 2, group: 'core', impact: 'Filters out opportunities closed to your region.' },
     { key: 'interests', label: 'Interests', weight: 3, group: 'core', impact: 'The main signal behind every recommendation you see.' },
-    { key: 'ambitions', label: 'Career goals', weight: 2, group: 'core', impact: 'Lets Edutu rank by where you are going, not just what you studied.' },
     { key: 'education', label: 'Education', weight: 2, group: 'core', impact: 'Most programmes gate on your school or level.' },
     { key: 'field_of_study', label: 'Field of study', weight: 2, group: 'core', impact: 'Matches you to field-specific funding.' },
 
@@ -52,6 +51,14 @@ export const PROFILE_FIELDS: ProfileFieldSpec[] = [
     { key: 'english_proficiency', label: 'English proficiency', weight: 1, group: 'eligibility', impact: 'Many international programmes require a test score.' },
 
     // ── edge: needed to compete ──────────────────────────────────────────────
+    // `ambitions` is NOT core, deliberately. There is no `ambitions` column on
+    // `profiles` and nothing writes it into `preferences` — onboarding captures
+    // it into Clerk metadata and it is never persisted. Gating "profile
+    // complete" on a field the system cannot store meant a user who filled in
+    // every input the UI offers still scored 4/6 and was told to complete their
+    // profile forever. It stays scored (it is genuinely useful for ranking) but
+    // it can no longer block. Persisting it is the real fix — see PR notes.
+    { key: 'ambitions', label: 'Career goals', weight: 2, group: 'edge', impact: 'Lets Edutu rank by where you are going, not just what you studied.' },
     { key: 'skills', label: 'Skills', weight: 2, group: 'edge', impact: 'Sharpens your essays and referee asks.' },
     { key: 'experience', label: 'Experience', weight: 1, group: 'edge', impact: 'Evidence reviewers look for in a strong application.' },
 ];
