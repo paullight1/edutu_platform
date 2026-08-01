@@ -23,6 +23,11 @@
   "exclude": [
     "node_modules",
     "supabase/functions",
-    "__tests__"
+    // Tests are typechecked by Jest's own transform, not by `tsc --noEmit`, and
+    // the repo carries no @types/jest — so app typechecking skips them. The
+    // glob covers colocated suites (components/state/__tests__, lib/__tests__)
+    // as well as the root directory; the bare "__tests__" entry this replaces
+    // matched only the root one.
+    "**/__tests__"
   ]
 }
