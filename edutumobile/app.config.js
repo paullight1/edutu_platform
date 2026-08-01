@@ -55,10 +55,15 @@ export default {
     scheme: "edutu",
     privacyPolicyUrl: "https://edutu.org/privacy",
     supportUrl: "https://edutu.org/support",
+    // Must stay in step with the JS splash (app/index.tsx): same mark, same
+    // background. The old splash-icon.jpg was a retired logo on #171a4f, so
+    // every launch flashed the previous branding before the JS splash swapped
+    // it for the current one. A prebuild regenerates the native assets from
+    // here, so changing the committed ios/ assets alone would regress.
     splash: {
-      image: "./assets/splash-icon.jpg",
+      image: "./assets/logo1.png",
       resizeMode: "contain",
-      backgroundColor: "#171a4f"
+      backgroundColor: "#08090D"
     },
     ios: {
       // Must match ios/Edutu.xcodeproj (PRODUCT_BUNDLE_IDENTIFIER) so a

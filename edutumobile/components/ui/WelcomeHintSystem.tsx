@@ -164,6 +164,38 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
   const focusStyle = getFocusStyle(step.focus, insets.bottom);
   const isLast = index === STEPS.length - 1;
 
+  // Four dim panels framing the focus rect, so the focused element itself stays
+  // unblurred and undimmed. Each is inset by 2pt into the ring's own border so
+  // the blur edge tucks under the stroke instead of showing a hairline seam.
+  const scrimPanels = useMemo(() => {
+    const { top, left, width: w, height: h } = focusStyle;
+    const bleed = 2;
+    const focusTop = top + bleed;
+    const focusBottom = top + h - bleed;
+    const focusLeft = left + bleed;
+    const focusRight = left + w - bleed;
+
+    return [
+      { top: 0, left: 0, right: 0, height: Math.max(0, focusTop) },
+      { top: focusBottom, left: 0, right: 0, bottom: 0 },
+      { top: focusTop, left: 0, width: Math.max(0, focusLeft), height: Math.max(0, focusBottom - focusTop) },
+      { top: focusTop, left: focusRight, right: 0, height: Math.max(0, focusBottom - focusTop) },
+    ];
+  }, [focusStyle]);
+
+  // Anchor the card to the element it describes instead of parking it at a
+  // fixed offset off the bottom of the screen: sit below the focus when the
+  // focus is in the top half, above it when it is in the bottom half. Pointing
+  // at the header while the copy sits by the tab bar made the two read as
+  // unrelated.
+  const cardPlacement = useMemo(() => {
+    const focusCentre = focusStyle.top + focusStyle.height / 2;
+    if (focusCentre > SCREEN_HEIGHT / 2) {
+      return { bottom: Math.max(SCREEN_HEIGHT - focusStyle.top + 14, insets.bottom + 12) };
+    }
+    return { top: focusStyle.top + focusStyle.height + 14 };
+  }, [focusStyle, insets.bottom]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -272,15 +304,28 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
     <Animated.View style={[styles.overlay, { opacity }]} pointerEvents="auto">
       {/* Pressable (even a no-op) is required to actually swallow touches;
           a plain View lets taps fall through to the screen underneath. */}
-      <Pressable style={StyleSheet.absoluteFill} accessible={false}>
-        <BlurView
-          intensity={30}
-          tint="dark"
-          experimentalBlurMethod="dimezisBlurView"
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.scrim} />
-      </Pressable>
+      {/* Pressable (even a no-op) is required to actually swallow touches;
+          a plain View lets taps fall through to the screen underneath. */}
+      <Pressable style={StyleSheet.absoluteFill} accessible={false} />
+
+      {/* The dimming is laid out as four panels framing the focus rect rather
+          than one full-screen sheet. A full-screen scrim dims the thing it is
+          pointing at just as much as everything else, so the "highlight" was
+          only a thin ring around equally-dark UI — the element never actually
+          stood out. Leaving the focus rect uncovered makes it the one bright
+          thing on screen, which is what a coach-mark is for. */}
+      {scrimPanels.map((panel, panelIndex) => (
+        <View key={panelIndex} style={[styles.scrimPanel, panel]} pointerEvents="none">
+          <BlurView
+            intensity={30}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.scrim} />
+        </View>
+      ))}
+
       <View
         style={[
           styles.focusRing,
@@ -297,7 +342,7 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
             backgroundColor: isDark ? '#111827' : '#FFFFFF',
             borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.08)',
             transform: [{ translateY: cardY }],
-            bottom: Math.max(insets.bottom, 12) + 104,
+            ...cardPlacement,
           },
         ]}
       >
@@ -363,9 +408,16 @@ const styles = StyleSheet.create({
     zIndex: 5000,
     elevation: 5000,
   },
+  scrimPanel: {
+    position: 'absolute',
+    overflow: 'hidden',
+  },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(2,6,23,0.72)',
+    // Deeper than the previous 0.72. With the focus rect now cut out of the
+    // dimming, the contrast between "focused" and "everything else" is what
+    // carries the emphasis, so the surround can afford to go darker.
+    backgroundColor: 'rgba(2,6,23,0.86)',
   },
   focusRing: {
     position: 'absolute',

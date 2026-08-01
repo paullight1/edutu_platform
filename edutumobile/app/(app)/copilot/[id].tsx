@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   CheckCircle2,
@@ -222,6 +222,12 @@ export default function ApplicationCopilotScreen() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { isDark, colors } = useTheme();
+  // Read here, in the screen, rather than inside the <Modal>s below: a
+  // react-native-safe-area-context SafeAreaView rendered inside a RN Modal
+  // measures against the modal's own native window and comes back with zero
+  // insets, which is why the workspace header used to sit under the status bar
+  // and the dynamic island. These values are measured against the real root.
+  const insets = useSafeAreaInsets();
   const reportAIContent = useReportAIContent("copilot");
   const { credits } = useCredits(supabase, user?.id || null);
   const { isPro } = useProStatus(supabase, user?.id || null);
@@ -1406,18 +1412,18 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         animationType="slide"
         onRequestClose={closeEssay}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
           <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: textSecondary, fontSize: 11, fontWeight: "700" }}>
+              <View style={styles.modalHeaderText}>
+                <Text style={[styles.modalEyebrow, { color: textSecondary }]}>
                   ESSAY WORKSPACE
                 </Text>
                 <Text
-                  style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", marginTop: 2 }}
+                  style={[styles.modalTitle, { color: colors.foreground }]}
                   numberOfLines={2}
                 >
                   {activePrompt?.prompt}
@@ -1425,6 +1431,9 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               </View>
               <TouchableOpacity
                 onPress={closeEssay}
+                accessibilityRole="button"
+                accessibilityLabel="Close essay workspace"
+                hitSlop={8}
                 style={[styles.headerBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
               >
                 <X size={18} color={colors.foreground} />
@@ -1649,7 +1658,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               )}
             </ScrollView>
           </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Referee outreach email draft */}
@@ -1658,14 +1667,14 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         animationType="slide"
         onRequestClose={() => setRefereeDraft(null)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: textSecondary, fontSize: 11, fontWeight: "700" }}>
+            <View style={styles.modalHeaderText}>
+              <Text style={[styles.modalEyebrow, { color: textSecondary }]}>
                 REFEREE REQUEST
               </Text>
               <Text
-                style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", marginTop: 2 }}
+                style={[styles.modalTitle, { color: colors.foreground }]}
                 numberOfLines={2}
               >
                 A ready-to-send ask for your recommender
@@ -1673,12 +1682,15 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
             </View>
             <TouchableOpacity
               onPress={() => setRefereeDraft(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close referee request"
+              hitSlop={8}
               style={[styles.headerBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
             >
               <X size={18} color={colors.foreground} />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }}>
             <Text style={{ color: textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
               Personalize the [Referee name] greeting, then send it. Referees say yes far more
               often when the ask is specific and two weeks ahead.
@@ -1700,7 +1712,7 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Animated launch overlay while we hand off to the application URL */}
@@ -1887,10 +1899,31 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    // Top-aligned, not centred: with a two-line title a centred close button
+    // drifts to the vertical middle and reads as unaligned with the eyebrow.
+    alignItems: "flex-start",
     gap: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
+  },
+  modalHeaderText: {
+    flex: 1,
+    // Keeps the last line of a truncated title clear of the 36pt close button
+    // instead of running right up under it.
+    paddingRight: 4,
+  },
+  modalEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 21,
+    marginTop: 3,
   },
   guidanceCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 14 },
   outlineBtn: {

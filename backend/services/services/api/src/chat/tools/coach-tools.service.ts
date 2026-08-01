@@ -360,7 +360,7 @@ export class CoachToolsService {
           ctx,
           "full_name, country, school, major, degree, age, interests, skills, interested_countries",
         );
-        const profile = (data ?? {}) as Record<string, unknown>;
+        const profile = data ?? {};
         const missing = [
           !profile.country && "country",
           !(profile.interests as string[] | null)?.length && "interests",
@@ -1274,12 +1274,31 @@ export class CoachToolsService {
     ctx: CoachToolContext,
     columns: string,
   ): Promise<Record<string, unknown> | null> {
+    // The dual-key read this comment has always described, but which the
+    // implementation never did — it queried a single key. `update_user_profile`
+    // writes through ProfileService's dual-key matcher, so a row reachable by
+    // writes was not necessarily reachable by reads: the coach could save an
+    // answer and then still report the profile as empty. `.maybeSingle()` is
+    // also wrong here, because it errors outright when both keyings exist.
+    const lookupIds = Array.from(
+      new Set([ctx.profileUserId, ctx.userId].filter(Boolean) as string[]),
+    );
+    if (!lookupIds.length) return null;
+
     const { data } = await ctx.supabase
       .from("profiles")
-      .select(columns)
-      .eq("user_id", ctx.profileUserId || ctx.userId)
-      .maybeSingle();
-    return (data ?? null) as Record<string, unknown> | null;
+      .select(`user_id, ${columns}`)
+      .in("user_id", lookupIds);
+
+    // Through `unknown`: the column list is a runtime template string, so
+    // PostgREST's compile-time select parser cannot infer a row shape for it.
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+    if (!rows.length) return null;
+
+    // Prefer the raw Clerk-keyed row: the uuid-keyed rows are empty orphans.
+    return (
+      rows.find((row) => row.user_id === ctx.profileUserId) ?? rows[0] ?? null
+    );
   }
 
   private analyzeFit(): CoachTool<{
@@ -1315,11 +1334,31 @@ export class CoachToolsService {
           const { data: opportunity } = await ctx.supabase
             .from("opportunities")
             .select(
-              "title, organization, category, requirements, eligibility, skills",
+              "title, organization, category, requirements, eligibility, skills, deadline, close_date",
             )
             .eq("id", args.opportunity_id)
             .maybeSingle();
           if (!opportunity) return { error: "Opportunity not found" };
+
+          // How much runway is left. Without this the model returned a generic
+          // to-do list — "retake IELTS", "get two references" — with no sense
+          // of whether there were three weeks or three days to do it in, which
+          // is the difference between a plan and a wish.
+          const deadlineRaw =
+            (opportunity as Record<string, unknown>).deadline ??
+            (opportunity as Record<string, unknown>).close_date ??
+            null;
+          const deadlineMs =
+            typeof deadlineRaw === "string" ? Date.parse(deadlineRaw) : NaN;
+          const daysLeft = Number.isFinite(deadlineMs)
+            ? Math.ceil((deadlineMs - Date.now()) / (24 * 60 * 60 * 1000))
+            : null;
+          const runwayLine =
+            daysLeft === null
+              ? "DEADLINE: none published — treat as evergreen, but do not stall."
+              : daysLeft < 0
+                ? `DEADLINE: CLOSED ${Math.abs(daysLeft)} days ago. Say so plainly and point at what to prepare for the next cycle instead.`
+                : `DEADLINE: ${daysLeft} day(s) away. Every next action must be completable in that window, ordered soonest-first; if a gap cannot realistically be closed in time, say that honestly rather than listing it as an action.`;
 
           const profile = await this.resolveProfileRow(
             ctx,
@@ -1346,6 +1385,7 @@ export class CoachToolsService {
             prompt: [
               "Assess how competitive this user is for the opportunity. Be honest and specific — no flattery, no fabrication. Ground every point ONLY in the data provided; if something is unknown, treat it as a gap, don't invent it.",
               `OPPORTUNITY: ${JSON.stringify(opportunity)}`,
+              runwayLine,
               `USER PROFILE: ${profile ? JSON.stringify(profile) : "Unknown"}`,
               uploadText
                 ? `USER DOCUMENT (their real CV/essay):\n${wrapUntrusted(
@@ -1366,7 +1406,8 @@ export class CoachToolsService {
             strengths: (analysis?.strengths ?? []).slice(0, 4),
             gaps: (analysis?.gaps ?? []).slice(0, 4),
             next_actions: (analysis?.nextActions ?? []).slice(0, 4),
-            note: "Give the verdict, the single biggest gap, and one next action. Offer to build a roadmap or draft the missing document.",
+            days_left: daysLeft,
+            note: "Give the verdict, the single biggest gap, and one next action. Lead with the deadline when it is close. Offer to build a roadmap or draft the missing document.",
           };
         } catch (error) {
           await this.monetizationService.refund(charge);

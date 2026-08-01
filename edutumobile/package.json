@@ -132,6 +132,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@react-native/jest-preset": "^0.85.3",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/react": "^19.2.0",

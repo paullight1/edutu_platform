@@ -117,12 +117,6 @@ import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { AiOrbBadge } from "../../../components/ui/AiOrbBadge";
 import { AiActionBar } from "../../../components/ai/AiActionBar";
-import { AiAssistRow, AiAssistTile } from "../../../components/ai/AiAssistTile";
-import {
-  BubbleChatQuestionIcon,
-  Navigation03Icon,
-  Target02Icon,
-} from "../../../components/ui/icons";
 import { accentGradient } from "../../../lib/themeGradient";
 import type { AiAction, AiActionResult } from "../../../components/ai/AiActionBar";
 import { DocumentUpload } from "../../../components/ai/DocumentUpload";
@@ -1779,6 +1773,13 @@ export default function OpportunityDetailScreen() {
               risks={matchRisks}
               reasonsTitle={t("detail.whyMatches")}
               risksTitle={t("detail.thingsToCheck")}
+              // `ranked` was never passed, so it arrived undefined and the panel
+              // took its !ranked branch on EVERY opportunity — the fit verdict
+              // was unreachable in the shipped app. A non-null tier is exactly
+              // the "we have a verdict" signal (getMatchTier returns null for a
+              // missing/zero score), so it drives the variant.
+              ranked={matchTier !== null}
+              onCompleteProfile={() => router.push("/profile/edit")}
             />
           </View>
 
