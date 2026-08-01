@@ -37,6 +37,7 @@ import { AiSparkGlyph } from "../../components/ui/AiSparkGlyph";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
+import { FeedbackProvider } from "../../components/state";
 import { UpgradeSheetProvider } from "../../components/context/UpgradeSheetContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import {
@@ -1415,6 +1416,11 @@ export default function AppLayout() {
 
     return (
         <ToastProvider>
+        {/* Inside ToastProvider so notify.success/failure can reach the toast,
+            and above the router so notify.confirm/milestone can be raised from
+            any screen — including plain async handlers and catch blocks, which
+            is where nearly all of this app's feedback originates. */}
+        <FeedbackProvider>
         <UpgradeSheetProvider>
         <View style={styles.appContainer}>
             <DailyLoginRewards />
@@ -1537,6 +1543,7 @@ export default function AppLayout() {
             <VoiceModeOverlay />
         </View>
         </UpgradeSheetProvider>
+        </FeedbackProvider>
         </ToastProvider>
     );
 }

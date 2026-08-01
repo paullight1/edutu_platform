@@ -17,7 +17,7 @@
     "deploy:webhook": "supabase functions deploy revenuecat-webhook"
   },
   "jest": {
-    "preset": "react-native",
+    "preset": "jest-expo",
     "roots": [
       "<rootDir>/app",
       "<rootDir>/components",

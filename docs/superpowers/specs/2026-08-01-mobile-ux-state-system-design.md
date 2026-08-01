@@ -43,8 +43,10 @@ problem**. Four state primitives already exist and almost nothing uses them.
 4. **No illustration assets.** Four Lottie JSONs at 2.7–3.5 KB (placeholder-grade
    geometry), three onboarding PNGs, five discovery PNGs. Every empty state in
    the app is a 32px lucide glyph in a tinted circle.
-5. **Haptics used in exactly one file** (`PremiumCelebration.tsx`) despite
-   `expo-haptics` being installed. No haptic vocabulary exists.
+5. **Haptics are solved and stay as-is.** `lib/haptics.ts` already defines the
+   full vocabulary (light/medium/heavy/selection/success/warning/error), gates
+   every call on a persisted Settings toggle, and is adopted across 19 files.
+   No new haptics module is needed — the state and feedback layers consume it.
 6. **`reducedMotion` is in `ThemeContext` but only 16 files read it**, and no
    wrapper enforces it — so every new animation is an accessibility regression
    by default.
@@ -285,20 +287,25 @@ Shared durations, easings, springs, and a 40ms stagger for list/section entry.
 default rather than something each screen must remember. This closes the gap
 where `reducedMotion` exists in `ThemeContext` but only 16 files consult it.
 
-### 6.2 `lib/haptics.ts`
+### 6.2 `lib/haptics.ts` — existing, unchanged
 
-A fixed vocabulary, never called raw:
+Already implemented and adopted in 19 files. It exposes
+`light · medium · heavy · selection · success · warning · error`, mirrors the
+persisted `hapticsEnabled` Settings flag in memory so each call is a cheap
+synchronous check, and is fire-and-forget so a haptic can never throw into the
+UI.
 
-| Token | Trigger |
+**No new module.** The state and feedback layers import it and apply this
+mapping:
+
+| Token | State-system trigger |
 |---|---|
 | `selection` | filter chip, tab, segmented control |
-| `impactLight` | card press, list row |
-| `impactMedium` | FAB, nav-circle morph, sheet open |
-| `success` | milestone |
+| `light` | card press, list row |
+| `medium` | sheet open, retry pressed |
+| `success` | milestone dialog presented |
 | `warning` | destructive confirm presented |
-| `error` | operation failure |
-
-Respects the reduced-motion preference as a proxy for reduced sensory output.
+| `error` | operation failure surfaced |
 
 ---
 
