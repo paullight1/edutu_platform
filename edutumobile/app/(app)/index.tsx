@@ -18,6 +18,7 @@ import {
     Minus,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
+import { SceneRenderer, StateView, useStateTokens } from '../../components/state';
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
     FadeIn,
@@ -1025,14 +1026,15 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
 
 // Shown when no opportunity is featured yet, so the section keeps its place
 // instead of vanishing from the home screen.
-function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: () => void }) {
+function FeaturedEmptyState({ onPress }: { onPress?: () => void }) {
     const { t } = useTranslation('home');
+    const stateTokens = useStateTokens('flow');
     return (
         <AnimatedPressable
             onPress={onPress}
             style={[styles.featuredEmptyCard, {
-                backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F5FF',
-                borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.3)',
+                backgroundColor: stateTokens.wash,
+                borderColor: stateTokens.ring,
             }]}
             entering={FadeInDown.duration(360).springify()}
             hapticFeedback="light"
@@ -1042,19 +1044,19 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
                 card `style` on its outer wrapper but nests children in flex:1
                 column views, so flexDirection on the card style is ignored. */}
             <View style={styles.featuredEmptyRow}>
-                <View style={[styles.featuredEmptyIllus, { backgroundColor: isDark ? 'rgba(99,102,241,0.16)' : 'rgba(99,102,241,0.12)' }]}>
-                    <Star size={22} color="#6366F1" strokeWidth={2.2} fill="#6366F1" />
-                </View>
+                {/* An inline-stage scene, not a hero one: this is a 56px row
+                    and a hero scene here would dwarf the copy beside it. */}
+                <SceneRenderer scene="emptyDiscovery" size={56} />
                 <View style={styles.featuredEmptyBody}>
                     <Text
-                        style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]}
+                        style={[styles.featuredEmptyTitle, { color: stateTokens.title }]}
                         numberOfLines={1}
                         maxFontSizeMultiplier={1.3}
                     >
                         {t('featured.emptyTitle', { defaultValue: 'Featured picks coming soon' })}
                     </Text>
                     <Text
-                        style={[styles.featuredEmptyHint, { color: isDark ? '#94A3B8' : '#64748B' }]}
+                        style={[styles.featuredEmptyHint, { color: stateTokens.body }]}
                         numberOfLines={1}
                         maxFontSizeMultiplier={1.3}
                     >
@@ -1063,8 +1065,8 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
                 </View>
                 {/* Chevron affordance only — the whole card is the tap target, so a
                     labelled "Explore" button would be a redundant second action. */}
-                <View style={[styles.featuredEmptyChevron, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.10)' }]}>
-                    <ChevronRight size={18} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+                <View style={[styles.featuredEmptyChevron, { backgroundColor: stateTokens.wash }]}>
+                    <ChevronRight size={18} color={stateTokens.hue} />
                 </View>
             </View>
         </AnimatedPressable>
@@ -1753,7 +1755,7 @@ export default function Dashboard() {
                                 getAuthToken={getToken}
                             />
                         ) : (
-                            <FeaturedEmptyState isDark={isDark} onPress={() => router.push('/opportunities')} />
+                            <FeaturedEmptyState onPress={() => router.push('/opportunities')} />
                         )}
                     </Animated.View>
                 )}
@@ -1854,29 +1856,16 @@ export default function Dashboard() {
 
                 {/* Empty State for No Recommendations */}
                 {otherOpportunities.length === 0 && !opportunitiesLoading && (
-                    <Animated.View entering={FadeInUp.duration(400).delay(200)} style={[styles.emptyStateCard, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF" }]}>
-                        <View style={styles.emptyStateIcon}>
-                            <Target size={32} color="#6366F1" />
-                        </View>
-                        <Text style={[styles.emptyStateTitle, { color: textPrimary }]}>
-                            {t('home.emptyTitle')}
-                        </Text>
-                        <Text style={[styles.emptyStateDesc, { color: textSecondary }]}>
-                            {t('home.emptyDescription')}
-                        </Text>
-                        {/* TouchableOpacity, not AnimatedPressable: the latter's inner
-                            flex:1 Pressable stretches unbounded inside this auto-height
-                            card, painting the CTA over the rest of the screen. */}
-                        <TouchableOpacity
-                            style={styles.emptyStateBtn}
-                            onPress={() => router.push('/opportunities')}
-                            activeOpacity={0.85}
-                            accessibilityRole="button"
-                        >
-                            <Text style={styles.emptyStateBtnText}>{t('home.emptyCta')}</Text>
-                            <ChevronRight size={16} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </Animated.View>
+                    <StateView
+                        state={{ kind: 'empty', reason: 'firstRun' }}
+                        flow="home"
+                        fill={false}
+                        sceneSize={170}
+                        title={t('home.emptyTitle')}
+                        body={t('home.emptyDescription')}
+                        actionLabel={t('home.emptyCta')}
+                        onAction={() => router.push('/opportunities')}
+                    />
                 )}
 
                 <View style={{ height: 100 }} />
