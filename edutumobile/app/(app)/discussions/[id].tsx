@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -9,22 +10,35 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Clock, Lock, MessageCircle, ShieldAlert } from 'lucide-react-native';
+import {
+  Clock,
+  Flag,
+  Lock,
+  MessageCircle,
+  MoreVertical,
+  Settings,
+  ShieldAlert,
+  UserCheck,
+} from 'lucide-react-native';
 import {
   deleteMessage,
   fetchGroup,
   fetchGroupForm,
+  fetchJoinRequests,
   isCommunityApiError,
   joinGroup,
   reportTarget,
+  type CommunityGroup,
+  type CommunityGroupMember,
   type CommunityMessage,
   type GroupDetail,
   type GroupQuestion,
   type JoinRequestAnswer,
+  type MemberRole,
   type MembershipStatus,
 } from '@edutu/core/src/services/communities';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
@@ -87,6 +101,44 @@ export async function markGroupRead(groupId: string, at: string): Promise<void> 
   }
 }
 
+/**
+ * WHO MAY ADMINISTER THIS GROUP — the client half of the ONE rule.
+ *
+ * This is a literal mirror of `resolveAdminRole` in
+ * `backend/services/services/api/src/communities/community-authz.ts`, which is
+ * the authority: same two arms, same precedence, same treatment of departures.
+ * It is restated here rather than invented because three Critical findings in
+ * this feature had the identical shape — two places that must agree,
+ * disagreeing — and the header is the newest place that has to agree.
+ *
+ * It is NOT a new rule and must never become one:
+ *   • `owner_id` alone is enough, so a drifted or missing membership row never
+ *     locks a real owner out of the settings screen for their own group;
+ *   • an explicit departure (`removed`/`banned`) is a decision, not drift, and
+ *     beats `owner_id`;
+ *   • only an `active` membership confers a role — `invited` and `pending` are
+ *     neither departures nor administration and confer nothing.
+ *
+ * The types come from the shared `@edutu/core` communities module, which is
+ * also the module that would host this predicate; it exports the membership
+ * shapes but no predicates today, and adding one there was outside this
+ * change's file allowlist. If it grows them, DELETE this and import it.
+ */
+export function resolveAdminRole(
+  group: Pick<CommunityGroup, 'ownerId'> | null,
+  userId: string | null,
+  membership: Pick<CommunityGroupMember, 'status' | 'role'> | null,
+): MemberRole | null {
+  if (!userId) return null;
+  const status = membership?.status;
+  const departed = status === 'removed' || status === 'banned';
+  if (group?.ownerId === userId && !departed) return 'owner';
+  if (status !== 'active') return null;
+  if (membership?.role === 'owner') return 'owner';
+  if (membership?.role === 'mod') return 'mod';
+  return null;
+}
+
 async function readBlocked(): Promise<string[]> {
   try {
     const raw = await AsyncStorage.getItem(BLOCKED_KEY);
@@ -105,6 +157,7 @@ export default function GroupChatScreen() {
   const { user } = useUser();
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
+  const router = useRouter();
 
   const userId = user?.id ?? null;
 
@@ -227,7 +280,64 @@ export default function GroupChatScreen() {
     [messages, getToken],
   );
 
-  const canModerate = membership?.role === 'owner' || membership?.role === 'mod';
+  // ── Rights ─────────────────────────────────────────────────────────────────
+  // One derivation, mirroring the backend, feeding every gated affordance on
+  // the screen. Nothing below re-tests a role by hand.
+  const adminRole = useMemo(
+    () => resolveAdminRole(group, userId, membership),
+    [group, userId, membership],
+  );
+
+  const canModerate = adminRole !== null;
+  /** Settings holds the group's identity and the screening form: owner only. */
+  const canOpenSettings = adminRole === 'owner';
+  /**
+   * Owner OR mod. A mod who cannot open the one queue they exist to review is a
+   * cosmetic role, which is exactly what an earlier review found.
+   */
+  const canReviewRequests = adminRole !== null;
+  /**
+   * Any active member who is not the owner. Reporting your own group is
+   * meaningless, and a non-member has no room to report from.
+   */
+  const canReportGroup = isMember && adminRole !== 'owner';
+
+  // ── The pending-request signal ─────────────────────────────────────────────
+  // Without it an owner has no way to learn that anybody is waiting: nothing
+  // else in the app mentions the queue. A failure leaves the count `null` and
+  // the entry point unbadged — the queue is still one tap away.
+  const [pendingRequests, setPendingRequests] = useState<number | null>(null);
+  useEffect(() => {
+    if (!groupId || !canReviewRequests) return undefined;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchJoinRequests(groupId, getToken);
+        if (!cancelled) {
+          setPendingRequests(rows.filter((row) => row.status === 'pending').length);
+        }
+      } catch {
+        // A badge is a nicety. It must never surface as an error on a chat.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, canReviewRequests, getToken]);
+
+  // ── The header menu ────────────────────────────────────────────────────────
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasMenu = canOpenSettings || canReviewRequests || canReportGroup;
+
+  const goTo = useCallback(
+    (path: string) => {
+      setMenuOpen(false);
+      // `as never`: typed routes cannot narrow a template literal, and this is
+      // the same cast `discussions/index.tsx` uses to open this screen.
+      router.push(path as never);
+    },
+    [router],
+  );
 
   // ── Send ───────────────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -277,7 +387,40 @@ export default function GroupChatScreen() {
       style={[styles.screen, { backgroundColor: colors.background }]}
       edges={['top']}
     >
-      <ScreenHeader title={headerTitle} showBack />
+      <ScreenHeader
+        title={headerTitle}
+        showBack
+        right={
+          // ONE affordance, not one button per feature. Settings, the request
+          // queue and report-group all live behind this kebab, so the header
+          // does not grow a control every time the feature does (DESIGN.md §5).
+          hasMenu ? (
+            <AnimatedPressable
+              testID="chat-menu-trigger"
+              accessibilityRole="button"
+              accessibilityLabel={t('community:actions.groupOptions')}
+              accessibilityState={{ expanded: menuOpen }}
+              hapticFeedback="selection"
+              scaleTo={0.94}
+              onPress={() => setMenuOpen((open) => !open)}
+              style={styles.headerAction}
+            >
+              <MoreVertical size={20} color={colors.foreground} />
+            </AnimatedPressable>
+          ) : undefined
+        }
+      />
+
+      {menuOpen && hasMenu && (
+        <GroupHeaderMenu
+          groupId={groupId}
+          canOpenSettings={canOpenSettings}
+          canReviewRequests={canReviewRequests}
+          canReportGroup={canReportGroup}
+          pendingRequests={pendingRequests}
+          onNavigate={goTo}
+        />
+      )}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -383,6 +526,245 @@ export default function GroupChatScreen() {
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The header menu
+// ---------------------------------------------------------------------------
+
+interface GroupHeaderMenuProps {
+  groupId: string;
+  canOpenSettings: boolean;
+  canReviewRequests: boolean;
+  canReportGroup: boolean;
+  /** `null` when the count is unknown — never rendered as a zero-that-lies. */
+  pendingRequests: number | null;
+  onNavigate: (path: string) => void;
+}
+
+/**
+ * The three secondary destinations of a group, behind one kebab.
+ *
+ * It drops in place under the header rather than seizing the screen in a modal
+ * — the same choice the message long-press menu makes, and for the same reason
+ * (DESIGN.md §5.2): a short list of actions about the thing you are already
+ * looking at is content in place, not an interruption.
+ *
+ * Every row is gated by a right computed ONCE by the screen from
+ * `resolveAdminRole`. This component takes booleans and never re-derives one,
+ * so there is no second opinion about who may do what.
+ */
+function GroupHeaderMenu({
+  groupId,
+  canOpenSettings,
+  canReviewRequests,
+  canReportGroup,
+  pendingRequests,
+  onNavigate,
+}: GroupHeaderMenuProps) {
+  const { t } = useTranslation(['community', 'common']);
+  const { colors } = useTheme();
+  const { getToken } = useAuth();
+
+  const [confirmingReport, setConfirmingReport] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submitReport = useCallback(async () => {
+    if (reporting) return;
+    setReporting(true);
+    setError(null);
+    try {
+      await reportTarget(
+        { targetType: 'group', targetId: groupId, reason: 'member_report' },
+        getToken,
+      );
+      setReported(true);
+      setConfirmingReport(false);
+    } catch (caught) {
+      // The server's sentence, never a status code.
+      setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+    } finally {
+      setReporting(false);
+    }
+  }, [reporting, groupId, getToken, t]);
+
+  return (
+    <View
+      testID="chat-menu"
+      style={[styles.menu, { borderColor: colors.border, backgroundColor: colors.card }]}
+    >
+      {canOpenSettings && (
+        <MenuRow
+          testID="chat-menu-settings"
+          label={t('community:screens.settingsTitle')}
+          icon={Settings}
+          color={colors.textSecondary}
+          labelColor={colors.foreground}
+          disabled={reporting}
+          onPress={() => onNavigate(`/discussions/${groupId}/settings`)}
+        />
+      )}
+
+      {canReviewRequests && (
+        <MenuRow
+          testID="chat-menu-requests"
+          label={t('community:screens.requestsTitle')}
+          icon={UserCheck}
+          color={colors.textSecondary}
+          labelColor={colors.foreground}
+          disabled={reporting}
+          badge={pendingRequests && pendingRequests > 0 ? pendingRequests : null}
+          onPress={() => onNavigate(`/discussions/${groupId}/requests`)}
+        />
+      )}
+
+      {canReportGroup &&
+        (confirmingReport ? (
+          // The second step states what a report does and does not do, because
+          // nobody at Edutu reviews it — the owner is told, and that is all.
+          <View testID="chat-menu-report-confirm" style={styles.menuConfirm}>
+            <Text style={[styles.menuConfirmTitle, { color: colors.foreground }]}>
+              {t('community:moderation.reportGroupConfirmTitle')}
+            </Text>
+            <Text style={[styles.menuConfirmBody, { color: colors.textSecondary }]}>
+              {t('community:moderation.reportGroupConfirmBody')}
+            </Text>
+            <View style={styles.menuConfirmRow}>
+              <AnimatedPressable
+                testID="chat-menu-report-cancel"
+                accessibilityRole="button"
+                accessibilityLabel={t('common:actions.cancel')}
+                accessibilityState={{ disabled: reporting }}
+                disabled={reporting}
+                hapticFeedback="selection"
+                scaleTo={0.97}
+                onPress={() => setConfirmingReport(false)}
+                style={[styles.menuConfirmButton, { borderColor: colors.border }]}
+              >
+                <Text
+                  style={[styles.menuConfirmLabel, { color: colors.foreground }]}
+                  numberOfLines={1}
+                >
+                  {t('common:actions.cancel')}
+                </Text>
+              </AnimatedPressable>
+
+              <AnimatedPressable
+                testID="chat-menu-report-submit"
+                accessibilityRole="button"
+                accessibilityLabel={t('community:moderation.reportGroup')}
+                accessibilityState={{ disabled: reporting, busy: reporting }}
+                disabled={reporting}
+                hapticFeedback="medium"
+                scaleTo={0.97}
+                onPress={() => void submitReport()}
+                style={[
+                  styles.menuConfirmButton,
+                  {
+                    borderColor: colors.error,
+                    backgroundColor: `${colors.error}14`,
+                    opacity: reporting ? 0.6 : 1,
+                  },
+                ]}
+              >
+                {reporting ? (
+                  <ActivityIndicator
+                    testID="chat-menu-report-busy"
+                    size="small"
+                    color={colors.error}
+                  />
+                ) : (
+                  <Text
+                    style={[styles.menuConfirmLabel, { color: colors.error }]}
+                    numberOfLines={1}
+                  >
+                    {t('community:moderation.reportGroup')}
+                  </Text>
+                )}
+              </AnimatedPressable>
+            </View>
+          </View>
+        ) : (
+          // The only destructive-tinted item here; everything else stays
+          // Restrained (DESIGN.md §1).
+          <MenuRow
+            testID="chat-menu-report-group"
+            label={
+              reported
+                ? t('community:moderation.reportGroupDone')
+                : t('community:moderation.reportGroup')
+            }
+            icon={Flag}
+            color={reported ? colors.textSecondary : colors.error}
+            labelColor={reported ? colors.textSecondary : colors.error}
+            disabled={reported || reporting}
+            onPress={() => setConfirmingReport(true)}
+          />
+        ))}
+
+      {!!error && (
+        <Text testID="chat-menu-error" style={[styles.menuError, { color: colors.error }]}>
+          {error}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/** One row of the header menu. Icon + label, never icon alone. */
+function MenuRow({
+  testID,
+  label,
+  icon: Icon,
+  color,
+  labelColor,
+  disabled,
+  badge = null,
+  onPress,
+}: {
+  testID: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  color: string;
+  labelColor: string;
+  disabled: boolean;
+  badge?: number | null;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <AnimatedPressable
+      testID={testID}
+      accessibilityRole="button"
+      // The count travels in the label so a screen reader hears "Join
+      // requests, 3" rather than a silent badge.
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      hapticFeedback="selection"
+      onPress={onPress}
+      style={[styles.menuRow, { opacity: disabled ? 0.5 : 1 }]}
+    >
+      <View style={styles.menuRowInner}>
+        <Icon size={16} color={color} />
+        <Text style={[styles.menuRowLabel, { color: labelColor }]} numberOfLines={1}>
+          {label}
+        </Text>
+        {badge ? (
+          <View
+            testID={`${testID}-badge`}
+            style={[styles.menuBadge, { backgroundColor: colors.accent }]}
+          >
+            <Text style={styles.menuBadgeLabel} numberOfLines={1}>
+              {badge}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </AnimatedPressable>
   );
 }
 
@@ -724,6 +1106,84 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  headerAction: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  menu: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  menuRow: {
+    minHeight: 44,
+  },
+  menuRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  menuRowLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  menuBadge: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuBadgeLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  menuConfirm: {
+    padding: 12,
+    gap: 8,
+  },
+  menuConfirmTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  menuConfirmBody: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  menuConfirmRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  menuConfirmButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  menuConfirmLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  menuError: {
+    fontSize: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
   },
   skeletonWrap: {
     flex: 1,

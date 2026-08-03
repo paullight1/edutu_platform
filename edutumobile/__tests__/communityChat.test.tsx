@@ -30,8 +30,16 @@ const mockJoinGroup = jest.fn();
 const mockFetchGroupForm = jest.fn();
 const mockDeleteMessage = jest.fn();
 const mockReportTarget = jest.fn();
+const mockFetchJoinRequests = jest.fn();
 const mockUnsubscribe = jest.fn();
 const mockSubscribe = jest.fn();
+/**
+ * ONE router for the whole suite. It has to be stable across renders: a factory
+ * that hands out a fresh `jest.fn()` per call makes every navigation assertion
+ * unfalsifiable, because the spy the test reads is never the spy the screen
+ * pressed.
+ */
+const mockPush = jest.fn();
 
 /** Params for the screen under test; reassigned per test. */
 let mockRouteParams: Record<string, string> = { id: 'g1' };
@@ -54,7 +62,7 @@ jest.mock('expo-router', () => {
   const ReactModule = require('react');
   return {
     useRouter: () => ({
-      push: jest.fn(),
+      push: mockPush,
       replace: jest.fn(),
       back: jest.fn(),
       canGoBack: () => true,
@@ -120,6 +128,10 @@ jest.mock('@edutu/core/src/services/communities', () => {
     fetchGroupForm: (...args: unknown[]) => mockFetchGroupForm(...args),
     deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
     reportTarget: (...args: unknown[]) => mockReportTarget(...args),
+    // MUST be mocked. The real one calls the product API, whose base URL in a
+    // test defaults to the PRODUCTION host — an unmocked count would fire a
+    // live HTTPS request from the suite.
+    fetchJoinRequests: (...args: unknown[]) => mockFetchJoinRequests(...args),
   };
 });
 
@@ -138,6 +150,7 @@ import type {
   CommunityGroup,
   CommunityGroupMember,
   CommunityMessage,
+  MemberRole,
   MembershipStatus,
 } from '@edutu/core/src/services/communities';
 
@@ -167,12 +180,15 @@ function makeGroup(overrides: Partial<CommunityGroup> = {}): CommunityGroup {
   };
 }
 
-function makeMembership(status: MembershipStatus): CommunityGroupMember {
+function makeMembership(
+  status: MembershipStatus,
+  role: MemberRole = 'member',
+): CommunityGroupMember {
   return {
     id: 'mem-1',
     groupId: 'g1',
     userId: 'user_1',
-    role: 'member',
+    role,
     status,
     joinedAt: '2026-07-10T10:00:00.000Z',
   };
@@ -218,6 +234,7 @@ beforeEach(async () => {
   mockSubscribe.mockReturnValue(mockUnsubscribe);
   mockFetchMessages.mockResolvedValue([]);
   mockFetchGroupForm.mockResolvedValue({ questions: [] });
+  mockFetchJoinRequests.mockResolvedValue([]);
   wireDetail('active');
 });
 
@@ -592,7 +609,207 @@ describe('unread bookkeeping', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. The hook: keyset paging and the merge
+// 6. The header menu — the seams between this screen and the ones beside it
+// ---------------------------------------------------------------------------
+//
+// Three screens were built and left unreachable: the settings editor (which
+// holds the per-group question builder), the owner/mod request queue, and
+// report-a-group, whose brief promised it "from the message long-press and the
+// group header". These tests are about WHO sees each entry as much as whether
+// it exists, because every gate here is a permission and a permission that is
+// only asserted positively is not asserted at all.
+
+describe('header menu', () => {
+  /** An `active` membership carrying `role`, with `ownerId` matching only an owner. */
+  function wireRole(role: MemberRole, group: Partial<CommunityGroup> = {}) {
+    mockFetchGroup.mockResolvedValue({
+      group: makeGroup({ ownerId: role === 'owner' ? 'user_1' : 'user_9', ...group }),
+      membership: makeMembership('active', role),
+    });
+  }
+
+  async function openMenu() {
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-menu-trigger'));
+    fireEvent.press(screen.getByTestId('chat-menu-trigger'));
+    await waitFor(() => screen.getByTestId('chat-menu'));
+    return screen;
+  }
+
+  // ── Settings: owner only ──────────────────────────────────────────────────
+
+  it('gives an owner the way into group settings — the only entry point it has', async () => {
+    wireRole('owner');
+    const screen = await openMenu();
+    screen.getByTestId('chat-menu-settings');
+  });
+
+  it('does NOT offer settings to a plain member', async () => {
+    wireRole('member');
+    const screen = await openMenu();
+    expect(screen.queryByTestId('chat-menu-settings')).toBeNull();
+  });
+
+  it('does NOT offer settings to a mod — it holds owner-only powers', async () => {
+    wireRole('mod');
+    const screen = await openMenu();
+    expect(screen.queryByTestId('chat-menu-settings')).toBeNull();
+  });
+
+  it('opens the settings screen for this group', async () => {
+    wireRole('owner');
+    const screen = await openMenu();
+    fireEvent.press(screen.getByTestId('chat-menu-settings'));
+    expect(mockPush).toHaveBeenCalledWith('/discussions/g1/settings');
+  });
+
+  // ── The request queue: owner OR mod ───────────────────────────────────────
+
+  it('gives an owner the request queue', async () => {
+    wireRole('owner');
+    const screen = await openMenu();
+    screen.getByTestId('chat-menu-requests');
+  });
+
+  it('gives a MOD the request queue — the queue is the reason the role exists', async () => {
+    wireRole('mod');
+    const screen = await openMenu();
+    screen.getByTestId('chat-menu-requests');
+  });
+
+  it('does NOT offer the request queue to a plain member, and never asks for its count', async () => {
+    wireRole('member');
+    const screen = await openMenu();
+    expect(screen.queryByTestId('chat-menu-requests')).toBeNull();
+    // A member must not even provoke the owner-only endpoint.
+    expect(mockFetchJoinRequests).not.toHaveBeenCalled();
+  });
+
+  it('opens the request queue for this group', async () => {
+    wireRole('mod');
+    const screen = await openMenu();
+    fireEvent.press(screen.getByTestId('chat-menu-requests'));
+    expect(mockPush).toHaveBeenCalledWith('/discussions/g1/requests');
+  });
+
+  it('shows how many people are waiting, which is the owner\'s only signal', async () => {
+    wireRole('owner');
+    mockFetchJoinRequests.mockResolvedValue([
+      { id: 'r1', status: 'pending' },
+      { id: 'r2', status: 'pending' },
+      // Already decided: it is not waiting on anybody and must not be counted.
+      { id: 'r3', status: 'approved' },
+    ]);
+
+    const screen = await openMenu();
+    const badge = await waitFor(() => screen.getByTestId('chat-menu-requests-badge'));
+    expect(badge).not.toBeNull();
+    screen.getByText('2');
+    // The count reaches a screen reader too, not just the eye.
+    expect(screen.getByTestId('chat-menu-requests').props.accessibilityLabel).toBe(
+      'Join requests, 2',
+    );
+  });
+
+  it('drops the badge rather than the queue when the count cannot be read', async () => {
+    wireRole('owner');
+    mockFetchJoinRequests.mockRejectedValue(new CommunityApiError('nope', 500));
+
+    const screen = await openMenu();
+    screen.getByTestId('chat-menu-requests');
+    expect(screen.queryByTestId('chat-menu-requests-badge')).toBeNull();
+    // A failed nicety is not an error on somebody's chat.
+    expect(screen.queryByTestId('chat-menu-error')).toBeNull();
+  });
+
+  // ── Report the group: any member who is not its owner ─────────────────────
+
+  it('lets a member report the group from the header, and reports the GROUP', async () => {
+    wireRole('member');
+    mockReportTarget.mockResolvedValue({ id: 'rep-1' });
+
+    const screen = await openMenu();
+    fireEvent.press(screen.getByTestId('chat-menu-report-group'));
+
+    // Destructive, so it confirms and says what a report does.
+    await waitFor(() => screen.getByTestId('chat-menu-report-confirm'));
+    fireEvent.press(screen.getByTestId('chat-menu-report-submit'));
+
+    await waitFor(() => expect(mockReportTarget).toHaveBeenCalledTimes(1));
+    expect(mockReportTarget.mock.calls[0][0]).toEqual({
+      targetType: 'group',
+      targetId: 'g1',
+      reason: 'member_report',
+    });
+    // And it says so afterwards instead of silently resetting.
+    await waitFor(() => screen.getByText('Reported to the group owner.'));
+  });
+
+  it('does NOT let an owner report their own group', async () => {
+    wireRole('owner');
+    const screen = await openMenu();
+    expect(screen.queryByTestId('chat-menu-report-group')).toBeNull();
+  });
+
+  it('lets a mod report the group — a mod is still a member, not the owner', async () => {
+    wireRole('mod');
+    const screen = await openMenu();
+    screen.getByTestId('chat-menu-report-group');
+  });
+
+  it("shows the server's sentence when a report is refused", async () => {
+    wireRole('member');
+    const sentence = "You've already reported this group.";
+    mockReportTarget.mockRejectedValue(new CommunityApiError(sentence, 409));
+
+    const screen = await openMenu();
+    fireEvent.press(screen.getByTestId('chat-menu-report-group'));
+    await waitFor(() => screen.getByTestId('chat-menu-report-confirm'));
+    fireEvent.press(screen.getByTestId('chat-menu-report-submit'));
+
+    await waitFor(() => screen.getByTestId('chat-menu-error'));
+    expect(screen.getByTestId('chat-menu-error').props.children).toBe(sentence);
+    expect(screen.queryByText(/409/)).toBeNull();
+  });
+
+  // ── No standing, no menu ──────────────────────────────────────────────────
+
+  it('gives a pending applicant no menu at all', async () => {
+    wireDetail('pending', { joinPolicy: 'request' });
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-gate'));
+    expect(screen.queryByTestId('chat-menu-trigger')).toBeNull();
+  });
+
+  it('gives a removed former owner nothing — a departure beats owner_id', async () => {
+    // The `owner_id` column still names them; the membership row says they were
+    // removed. The backend's resolveAdminRole lets the departure win, and so
+    // must the header, or a removed owner keeps the settings screen forever.
+    mockFetchGroup.mockResolvedValue({
+      group: makeGroup({ ownerId: 'user_1' }),
+      membership: makeMembership('removed', 'owner'),
+    });
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-gate'));
+    expect(screen.queryByTestId('chat-menu-trigger')).toBeNull();
+  });
+
+  it('keeps an owner whose membership row went missing — owner_id stands alone', async () => {
+    mockFetchGroup.mockResolvedValue({
+      group: makeGroup({ ownerId: 'user_1' }),
+      membership: null,
+    });
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-menu-trigger'));
+    fireEvent.press(screen.getByTestId('chat-menu-trigger'));
+    await waitFor(() => screen.getByTestId('chat-menu-settings'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The hook: keyset paging and the merge
 // ---------------------------------------------------------------------------
 
 describe('useGroupMessages', () => {

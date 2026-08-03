@@ -69,7 +69,8 @@
     "delete": "حذف المجموعة",
     "viewGroup": "عرض المجموعة",
     "createGroup": "إنشاء المجموعة",
-    "saveChanges": "حفظ التغييرات"
+    "saveChanges": "حفظ التغييرات",
+    "groupOptions": "خيارات المجموعة"
   },
   "create": {
     "nameLabel": "اسم المجموعة",

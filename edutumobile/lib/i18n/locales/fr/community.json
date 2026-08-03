@@ -65,7 +65,8 @@
     "delete": "Supprimer le groupe",
     "viewGroup": "Voir le groupe",
     "createGroup": "Créer le groupe",
-    "saveChanges": "Enregistrer les modifications"
+    "saveChanges": "Enregistrer les modifications",
+    "groupOptions": "Options du groupe"
   },
   "create": {
     "nameLabel": "Nom du groupe",

@@ -65,7 +65,8 @@
     "delete": "समूह हटाएं",
     "viewGroup": "समूह देखें",
     "createGroup": "समूह बनाएं",
-    "saveChanges": "बदलाव सहेजें"
+    "saveChanges": "बदलाव सहेजें",
+    "groupOptions": "ग्रुप विकल्प"
   },
   "create": {
     "nameLabel": "समूह का नाम",

@@ -64,7 +64,8 @@
     "delete": "删除小组",
     "viewGroup": "查看小组",
     "createGroup": "创建小组",
-    "saveChanges": "保存更改"
+    "saveChanges": "保存更改",
+    "groupOptions": "群组选项"
   },
   "create": {
     "nameLabel": "小组名称",

@@ -65,7 +65,8 @@
     "delete": "Futa kikundi",
     "viewGroup": "Angalia kikundi",
     "createGroup": "Anzisha kikundi",
-    "saveChanges": "Hifadhi mabadiliko"
+    "saveChanges": "Hifadhi mabadiliko",
+    "groupOptions": "Chaguo za kikundi"
   },
   "create": {
     "nameLabel": "Jina la kikundi",
