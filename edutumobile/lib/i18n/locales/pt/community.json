@@ -124,7 +124,19 @@
     "removeMember": "Remover membro",
     "deleteMessage": "Apagar mensagem",
     "noToleranceTitle": "Mantenha o respeito",
-    "noToleranceBody": "Golpes, assédio e discurso de ódio tiram você do grupo sem aviso prévio. Seja alguém que as pessoas ficam felizes em ver aqui."
+    "noToleranceBody": "Golpes, assédio e discurso de ódio tiram você do grupo sem aviso prévio. Seja alguém que as pessoas ficam felizes em ver aqui.",
+    "reportConfirmTitle": "Denunciar esta mensagem?",
+    "reportConfirmBody": "Ela some do seu chat na hora e o dono do grupo é avisado. Ninguém da Edutu analisa.",
+    "reportedNotice": "Você denunciou esta mensagem. Ela está oculta para você e o dono do grupo foi avisado.",
+    "reportGroupConfirmTitle": "Denunciar este grupo?",
+    "reportGroupConfirmBody": "O dono do grupo é avisado. Ninguém da Edutu analisa, então saia do grupo se ele não for para você.",
+    "reportGroupDone": "Denunciado ao dono do grupo.",
+    "blockConfirmTitle": "Bloquear esta pessoa?",
+    "blockConfirmBody": "Você deixa de ver as mensagens dessa pessoa em toda a Edutu. Ainda não dá para desfazer no app.",
+    "removeConfirmTitle": "Remover esta pessoa do grupo?",
+    "removeConfirmBody": "Ela perde o acesso ao grupo na hora. As mensagens antigas ficam e você pode convidá-la de volta.",
+    "deleteConfirmTitle": "Excluir esta mensagem?",
+    "deleteConfirmBody": "O texto some para todo mundo, para sempre. Fica um aviso no lugar para o grupo saber que algo foi removido."
   },
   "errors": {
     "notAMember": "Você ainda não é membro deste grupo.",
@@ -144,5 +156,18 @@
     "none": "Criar um grupo",
     "openA11y": "Abrir o grupo de discussão {{name}}",
     "startA11y": "Criar um grupo de discussão para esta oportunidade"
+  },
+  "requests": {
+    "subtitle": "Leia o que escreveram e decida quem entra.",
+    "applicant": "Candidato",
+    "noAnswers": "Este grupo não tinha perguntas.",
+    "noAnswer": "Sem resposta",
+    "declineConfirmTitle": "Recusar este pedido?",
+    "declineConfirmBody": "Ela não entra e não fica sabendo o motivo. Pode pedir de novo depois.",
+    "notAllowed": "Só o dono e os moderadores deste grupo podem revisar os pedidos."
+  },
+  "firstPost": {
+    "badge": "Antes da sua primeira mensagem",
+    "acknowledge": "Entendi"
   }
 }

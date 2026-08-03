@@ -124,7 +124,19 @@
     "removeMember": "Ondoa mwanachama",
     "deleteMessage": "Futa ujumbe",
     "noToleranceTitle": "Heshimiana",
-    "noToleranceBody": "Ulaghai, unyanyasaji, na matamshi ya chuki yatakuondoa kwenye kikundi bila onyo. Kuwa mtu ambaye watu wanafurahia kumuona hapa."
+    "noToleranceBody": "Ulaghai, unyanyasaji, na matamshi ya chuki yatakuondoa kwenye kikundi bila onyo. Kuwa mtu ambaye watu wanafurahia kumuona hapa.",
+    "reportConfirmTitle": "Ripoti ujumbe huu?",
+    "reportConfirmBody": "Utatoweka kwenye gumzo lako mara moja na mmiliki wa kikundi ataarifiwa. Hakuna mtu Edutu anayeukagua.",
+    "reportedNotice": "Umeripoti ujumbe huu. Umefichwa kwako na mmiliki wa kikundi amearifiwa.",
+    "reportGroupConfirmTitle": "Ripoti kikundi hiki?",
+    "reportGroupConfirmBody": "Mmiliki wa kikundi ataarifiwa. Hakuna mtu Edutu anayekikagua, hivyo ondoka kwenye kikundi kama hakikufai.",
+    "reportGroupDone": "Imeripotiwa kwa mmiliki wa kikundi.",
+    "blockConfirmTitle": "Zuia mtu huyu?",
+    "blockConfirmBody": "Hutaona tena ujumbe wao popote ndani ya Edutu. Bado huwezi kutengua hili ndani ya programu.",
+    "removeConfirmTitle": "Umuondoe kwenye kikundi?",
+    "removeConfirmBody": "Watapoteza ufikiaji wa kikundi hiki mara moja. Ujumbe wao wa zamani utabaki, na unaweza kuwaalika tena.",
+    "deleteConfirmTitle": "Futa ujumbe huu?",
+    "deleteConfirmBody": "Maandishi yatapotea kwa kila mtu, milele. Taarifa itabaki mahali pake ili kikundi kijue kitu kiliondolewa."
   },
   "errors": {
     "notAMember": "Bado wewe si mwanachama wa kikundi hiki.",
@@ -144,5 +156,18 @@
     "none": "Anzisha kikundi",
     "openA11y": "Fungua kikundi cha majadiliano {{name}}",
     "startA11y": "Anzisha kikundi cha majadiliano kwa fursa hii"
+  },
+  "requests": {
+    "subtitle": "Soma walichoandika, kisha amua nani aingie.",
+    "applicant": "Mwombaji",
+    "noAnswers": "Kikundi hiki hakikuwa na maswali.",
+    "noAnswer": "Hakuna jibu",
+    "declineConfirmTitle": "Kataa ombi hili?",
+    "declineConfirmBody": "Hataingia wala hataambiwa sababu. Anaweza kuomba tena baadaye.",
+    "notAllowed": "Ni mmiliki na wasimamizi wa kikundi hiki pekee wanaoweza kukagua maombi ya kujiunga."
+  },
+  "firstPost": {
+    "badge": "Kabla ya ujumbe wako wa kwanza",
+    "acknowledge": "Nimeelewa"
   }
 }

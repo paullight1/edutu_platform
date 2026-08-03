@@ -124,7 +124,19 @@
     "removeMember": "Retirer le membre",
     "deleteMessage": "Supprimer le message",
     "noToleranceTitle": "Restez respectueux",
-    "noToleranceBody": "Les arnaques, le harcèlement et les discours de haine entraînent un retrait immédiat, sans avertissement. Soyez quelqu'un que les gens sont contents de voir dans ce groupe."
+    "noToleranceBody": "Les arnaques, le harcèlement et les discours de haine entraînent un retrait immédiat, sans avertissement. Soyez quelqu'un que les gens sont contents de voir dans ce groupe.",
+    "reportConfirmTitle": "Signaler ce message ?",
+    "reportConfirmBody": "Il disparaît immédiatement de votre discussion et le propriétaire du groupe est prévenu. Personne chez Edutu ne l'examine.",
+    "reportedNotice": "Vous avez signalé ce message. Il vous est masqué et le propriétaire du groupe a été prévenu.",
+    "reportGroupConfirmTitle": "Signaler ce groupe ?",
+    "reportGroupConfirmBody": "Le propriétaire du groupe est prévenu. Personne chez Edutu ne l'examine, alors quittez le groupe s'il ne vous convient pas.",
+    "reportGroupDone": "Signalé au propriétaire du groupe.",
+    "blockConfirmTitle": "Bloquer cette personne ?",
+    "blockConfirmBody": "Vous ne verrez plus leurs messages nulle part dans Edutu. Impossible d'annuler depuis l'application pour l'instant.",
+    "removeConfirmTitle": "Retirer cette personne du groupe ?",
+    "removeConfirmBody": "Cette personne perd immédiatement accès au groupe. Ses anciens messages restent et vous pouvez la réinviter.",
+    "deleteConfirmTitle": "Supprimer ce message ?",
+    "deleteConfirmBody": "Le texte disparaît pour tout le monde, définitivement. Une note reste à sa place pour que le groupe sache qu'un message a été retiré."
   },
   "errors": {
     "notAMember": "Vous n'êtes pas encore membre de ce groupe.",
@@ -144,5 +156,18 @@
     "none": "Créer un groupe",
     "openA11y": "Ouvrir le groupe de discussion {{name}}",
     "startA11y": "Créer un groupe de discussion pour cette opportunité"
+  },
+  "requests": {
+    "subtitle": "Lisez ce qu'ils ont écrit, puis décidez qui entre.",
+    "applicant": "Candidat",
+    "noAnswers": "Ce groupe n'avait aucune question à poser.",
+    "noAnswer": "Sans réponse",
+    "declineConfirmTitle": "Refuser cette demande ?",
+    "declineConfirmBody": "Cette personne n'entre pas et n'apprend pas pourquoi. Elle pourra redemander plus tard.",
+    "notAllowed": "Seuls le propriétaire et les modérateurs de ce groupe peuvent examiner les demandes."
+  },
+  "firstPost": {
+    "badge": "Avant votre premier message",
+    "acknowledge": "Compris"
   }
 }

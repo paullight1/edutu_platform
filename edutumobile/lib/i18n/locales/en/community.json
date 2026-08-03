@@ -124,7 +124,19 @@
     "removeMember": "Remove member",
     "deleteMessage": "Delete message",
     "noToleranceTitle": "Keep it respectful",
-    "noToleranceBody": "Scams, harassment, and hate speech get you removed with no warning. Be someone people are glad to see in this group."
+    "noToleranceBody": "Scams, harassment, and hate speech get you removed with no warning. Be someone people are glad to see in this group.",
+    "reportConfirmTitle": "Report this message?",
+    "reportConfirmBody": "It disappears from your chat straight away and the group owner is told. Nobody at Edutu reviews it.",
+    "reportedNotice": "You reported this message. It's hidden from you and the group owner has been notified.",
+    "reportGroupConfirmTitle": "Report this group?",
+    "reportGroupConfirmBody": "The group owner is told. Nobody at Edutu reviews it, so leave the group too if it isn't for you.",
+    "reportGroupDone": "Reported to the group owner.",
+    "blockConfirmTitle": "Block this person?",
+    "blockConfirmBody": "You stop seeing their messages everywhere in Edutu. You can't undo this in the app yet.",
+    "removeConfirmTitle": "Remove them from the group?",
+    "removeConfirmBody": "They lose access to this group right away. Their old messages stay, and you can invite them back.",
+    "deleteConfirmTitle": "Delete this message?",
+    "deleteConfirmBody": "The text is gone for everyone, permanently. A note stays in its place so the group knows something was removed."
   },
   "errors": {
     "notAMember": "You're not a member of this group yet.",
@@ -144,5 +156,18 @@
     "none": "Start a group",
     "openA11y": "Open the discussion group {{name}}",
     "startA11y": "Start a discussion group for this opportunity"
+  },
+  "requests": {
+    "subtitle": "Read what they wrote, then decide who gets in.",
+    "applicant": "Applicant",
+    "noAnswers": "This group had no questions to answer.",
+    "noAnswer": "No answer",
+    "declineConfirmTitle": "Decline this request?",
+    "declineConfirmBody": "They don't get in and they aren't told why. They can ask again later.",
+    "notAllowed": "Only this group's owner and mods can review join requests."
+  },
+  "firstPost": {
+    "badge": "Before your first message",
+    "acknowledge": "Got it"
   }
 }

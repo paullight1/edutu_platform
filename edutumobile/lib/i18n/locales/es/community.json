@@ -124,7 +124,19 @@
     "removeMember": "Quitar miembro",
     "deleteMessage": "Eliminar mensaje",
     "noToleranceTitle": "Mantén el respeto",
-    "noToleranceBody": "Las estafas, el acoso y el discurso de odio te sacan del grupo sin previo aviso. Sé alguien que la gente se alegre de ver aquí."
+    "noToleranceBody": "Las estafas, el acoso y el discurso de odio te sacan del grupo sin previo aviso. Sé alguien que la gente se alegre de ver aquí.",
+    "reportConfirmTitle": "¿Denunciar este mensaje?",
+    "reportConfirmBody": "Desaparece de tu chat al instante y se avisa al propietario del grupo. Nadie en Edutu lo revisa.",
+    "reportedNotice": "Denunciaste este mensaje. Está oculto para ti y se avisó al propietario del grupo.",
+    "reportGroupConfirmTitle": "¿Denunciar este grupo?",
+    "reportGroupConfirmBody": "Se avisa al propietario del grupo. Nadie en Edutu lo revisa, así que sal del grupo si no es para ti.",
+    "reportGroupDone": "Denunciado al propietario del grupo.",
+    "blockConfirmTitle": "¿Bloquear a esta persona?",
+    "blockConfirmBody": "Dejarás de ver sus mensajes en toda la app. Todavía no puedes deshacerlo desde Edutu.",
+    "removeConfirmTitle": "¿Sacar a esta persona del grupo?",
+    "removeConfirmBody": "Pierde el acceso al grupo de inmediato. Sus mensajes antiguos se quedan y puedes volver a invitarla.",
+    "deleteConfirmTitle": "¿Eliminar este mensaje?",
+    "deleteConfirmBody": "El texto desaparece para todos, para siempre. Queda una nota en su lugar para que el grupo sepa que se eliminó algo."
   },
   "errors": {
     "notAMember": "Todavía no eres miembro de este grupo.",
@@ -144,5 +156,18 @@
     "none": "Crear un grupo",
     "openA11y": "Abrir el grupo de debate {{name}}",
     "startA11y": "Crear un grupo de debate para esta oportunidad"
+  },
+  "requests": {
+    "subtitle": "Lee lo que escribieron y decide quién entra.",
+    "applicant": "Solicitante",
+    "noAnswers": "Este grupo no tenía preguntas.",
+    "noAnswer": "Sin respuesta",
+    "declineConfirmTitle": "¿Rechazar esta solicitud?",
+    "declineConfirmBody": "No entra y no sabrá por qué. Puede volver a pedirlo más adelante.",
+    "notAllowed": "Solo el propietario y los moderadores de este grupo pueden revisar las solicitudes."
+  },
+  "firstPost": {
+    "badge": "Antes de tu primer mensaje",
+    "acknowledge": "Entendido"
   }
 }

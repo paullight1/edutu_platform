@@ -123,7 +123,19 @@
     "removeMember": "移除成员",
     "deleteMessage": "删除消息",
     "noToleranceTitle": "请保持尊重",
-    "noToleranceBody": "诈骗、骚扰和仇恨言论会让你被立即移出小组，不会事先警告。做一个大家乐于见到的成员。"
+    "noToleranceBody": "诈骗、骚扰和仇恨言论会让你被立即移出小组，不会事先警告。做一个大家乐于见到的成员。",
+    "reportConfirmTitle": "举报这条消息？",
+    "reportConfirmBody": "它会立刻从你的聊天中消失，并通知小组组长。Edutu 不会有人审核。",
+    "reportedNotice": "你已举报这条消息。它已对你隐藏，组长已收到通知。",
+    "reportGroupConfirmTitle": "举报这个小组？",
+    "reportGroupConfirmBody": "组长会收到通知。Edutu 不会有人审核，如果这个小组不适合你，请退出。",
+    "reportGroupDone": "已向组长举报。",
+    "blockConfirmTitle": "屏蔽这个人？",
+    "blockConfirmBody": "你将不再在 Edutu 的任何地方看到他们的消息。目前无法在应用内撤销。",
+    "removeConfirmTitle": "将其移出小组？",
+    "removeConfirmBody": "他们会立刻失去这个小组的访问权限。旧消息会保留，你之后可以再邀请他们。",
+    "deleteConfirmTitle": "删除这条消息？",
+    "deleteConfirmBody": "文字将对所有人永久消失。原处会留下一条提示，让小组知道有内容被删除。"
   },
   "errors": {
     "notAMember": "你还不是这个小组的成员。",
@@ -143,5 +155,18 @@
     "none": "创建小组",
     "openA11y": "打开讨论小组 {{name}}",
     "startA11y": "为该机会创建讨论小组"
+  },
+  "requests": {
+    "subtitle": "读完他们写的内容，再决定让谁加入。",
+    "applicant": "申请人",
+    "noAnswers": "这个小组没有设置问题。",
+    "noAnswer": "未回答",
+    "declineConfirmTitle": "拒绝这个申请？",
+    "declineConfirmBody": "他们不会加入，也不会被告知原因。以后可以再次申请。",
+    "notAllowed": "只有本小组的组长和管理员可以审核加入申请。"
+  },
+  "firstPost": {
+    "badge": "在你发出第一条消息前",
+    "acknowledge": "知道了"
   }
 }

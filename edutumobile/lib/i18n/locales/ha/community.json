@@ -124,7 +124,19 @@
     "removeMember": "Cire mamba",
     "deleteMessage": "Share saƙo",
     "noToleranceTitle": "Ku girmama juna",
-    "noToleranceBody": "Zamba, cin zarafi, da maganganun ƙiyayya za su sa a cire ka nan take, ba tare da gargaɗi ba. Ka kasance wanda mutane ke murna su gan shi a nan."
+    "noToleranceBody": "Zamba, cin zarafi, da maganganun ƙiyayya za su sa a cire ka nan take, ba tare da gargaɗi ba. Ka kasance wanda mutane ke murna su gan shi a nan.",
+    "reportConfirmTitle": "Ka kai rahoto kan wannan saƙon?",
+    "reportConfirmBody": "Zai ɓace daga hirarka nan take kuma mai kungiyar zai samu sanarwa. Babu wani a Edutu da zai duba shi.",
+    "reportedNotice": "Ka kai rahoto kan wannan saƙon. An ɓoye shi daga gare ka kuma an sanar da mai kungiyar.",
+    "reportGroupConfirmTitle": "Ka kai rahoto kan wannan kungiyar?",
+    "reportGroupConfirmBody": "Mai kungiyar zai samu sanarwa. Babu wani a Edutu da zai duba shi, don haka ka fita daga kungiyar idan bai dace da kai ba.",
+    "reportGroupDone": "An kai rahoto ga mai kungiyar.",
+    "blockConfirmTitle": "Ka toshe wannan mutumin?",
+    "blockConfirmBody": "Ba za ka ƙara ganin saƙonninsu ko'ina a Edutu ba. Ba za ka iya soke wannan a cikin manhajar ba tukuna.",
+    "removeConfirmTitle": "A cire su daga kungiyar?",
+    "removeConfirmBody": "Za su rasa damar shiga wannan kungiyar nan take. Tsoffin saƙonninsu za su ci gaba da kasancewa, kuma za ka iya sake gayyatarsu.",
+    "deleteConfirmTitle": "A goge wannan saƙon?",
+    "deleteConfirmBody": "Rubutun zai ɓace ga kowa har abada. Za a bar sanarwa a wurinsa domin kungiyar ta san an cire wani abu."
   },
   "errors": {
     "notAMember": "Ba ka riga ka zama mamban wannan kungiya ba.",
@@ -144,5 +156,18 @@
     "none": "Fara ƙungiya",
     "openA11y": "Buɗe ƙungiyar tattaunawa {{name}}",
     "startA11y": "Fara ƙungiyar tattaunawa don wannan damar"
+  },
+  "requests": {
+    "subtitle": "Karanta abin da suka rubuta, sannan ka yanke shawarar wa zai shiga.",
+    "applicant": "Mai neman shiga",
+    "noAnswers": "Wannan kungiyar ba ta da tambayoyi.",
+    "noAnswer": "Babu amsa",
+    "declineConfirmTitle": "A ki wannan buƙatar?",
+    "declineConfirmBody": "Ba za su shiga ba kuma ba za a gaya musu dalili ba. Za su iya sake nema daga baya.",
+    "notAllowed": "Mai kungiyar da masu gudanarwa ne kaɗai za su iya duba buƙatun shiga."
+  },
+  "firstPost": {
+    "badge": "Kafin saƙonka na farko",
+    "acknowledge": "Na gane"
   }
 }
