@@ -126,9 +126,15 @@ viewer each stay small enough to test exhaustively.
 `id` · `target_type ('message'|'group')` · `target_id` · `reporter_id text` ·
 `reason text` · `status ('open'|'actioned'|'dismissed')` · `created_at`.
 
-RLS on all six: `SELECT` for members of the group (public groups readable by
-any signed-in user); no `INSERT`/`UPDATE`/`DELETE` policy at all, because the
-service role writes.
+RLS: `community_groups`, `community_group_members` and
+`community_group_messages` are `SELECT`-able by members of the group, with
+public groups readable by any signed-in user — these three are what Realtime
+reads. `community_join_requests` and `community_group_forms` are `SELECT`-able
+by the requesting user and the group's owner/mods only. **`community_reports`
+gets no `SELECT` policy at all** — a reporter must never be able to enumerate
+reports, and members must never see who reported them. It is read exclusively
+by the service role. No table gets an `INSERT`/`UPDATE`/`DELETE` policy,
+because every write goes through the backend.
 
 ## 5. Backend
 
@@ -151,9 +157,13 @@ the existing controller + service + Zod-DTO shape.
 | DELETE | `/communities/messages/:id` | author or owner/mod; soft delete |
 | POST | `/communities/reports` | message or group |
 
-**Creation limit:** 2 active groups per user, 10 for mentors — the number the
-Communities spec already settled. Enforced in the service against a count of
-non-archived owned groups, not in the client.
+**Creation limit:** 2 active groups per user — the number the Communities spec
+settled — raised to 10 for a mentor. "Mentor" here means an approved row in the
+existing `creator_applications` / `creator_profiles` pipeline; if the
+implementation finds that signal is not queryable from this service without a
+new join, the limit is a flat 2 for everyone and the raise becomes a follow-up.
+It is not worth a schema change to grant eight extra groups. Enforced in the
+service against a count of non-archived owned groups, never in the client.
 
 **Send-time screening:** every message body passes a text screener reusing the
 scraper scam-gate's threshold and vocabulary. It is a *separate* implementation
@@ -228,6 +238,16 @@ shipping in the first release rather than a follow-up:
 - **Send-time screening** as described in §5.
 - **A no-tolerance notice** shown before a user's first post, acknowledged once
   and recorded.
+
+**Who acts on a report.** §2 puts the admin console out of scope, which would
+leave `community_reports` accumulating rows nobody reads — a moderation queue
+with no moderator is worse than none, because it implies a response that never
+comes. So the first release does two things instead: a report immediately and
+automatically hides the reported message from the reporter (client-side, via
+the same filter that hides blocked users), and it notifies the group owner, who
+already has remove-member and delete-message powers. Rows still accrue for a
+later admin surface, but no one waits on one. The owner is the moderator at
+this scale; Edutu-level triage arrives with the admin slice.
 
 ## 9. Testing
 
