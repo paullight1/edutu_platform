@@ -83,7 +83,7 @@ import { trackOpportunityApplication } from "@edutu/core/src/services/applicatio
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { isAiBillingError } from "@edutu/core/src/services/productApi";
-import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
+import { usePromptProUpgrade } from "../../../lib/upsell";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { fetchMobileControlConfig } from "../../../lib/mobileControl";
@@ -231,7 +231,8 @@ export default function ApplicationCopilotScreen() {
   const reportAIContent = useReportAIContent("copilot");
   const { credits } = useCredits(supabase, user?.id || null);
   const { isPro } = useProStatus(supabase, user?.id || null);
-  const upgradeSheet = useUpgradeSheet();
+  // Single upsell entry point (lib/upsell) for every Pro nudge on this screen.
+  const promptProUpgrade = usePromptProUpgrade();
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [kit, setKit] = useState<ApplicationKit | null>(null);
@@ -390,24 +391,15 @@ export default function ApplicationCopilotScreen() {
   const showBillingAlert = useCallback(
     (error: unknown): boolean => {
       if (!isAiBillingError(error)) return false;
-      // Prefer the shared upgrade bottom sheet; the alert stays as a fallback
-      // if the provider isn't mounted for any reason.
-      if (upgradeSheet) {
-        upgradeSheet.show(error.message);
-        return true;
-      }
-      Alert.alert(
-        error.code === "limit" ? "Limit reached" : "Not enough credits",
-        error.message,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Buy Credits", onPress: () => router.push("/wallet" as never) },
-          { text: "Go Pro", onPress: () => router.push("/paywall" as never) },
-        ],
-      );
+      // One shared upsell (lib/upsell): the sheet when it's mounted, an alert
+      // otherwise — with the server's own message as the reason.
+      promptProUpgrade({
+        title: error.code === "limit" ? "Limit reached" : "Not enough credits",
+        reason: error.message,
+      });
       return true;
     },
-    [router, upgradeSheet],
+    [promptProUpgrade],
   );
 
   const essayEntryFor = useCallback(
@@ -427,15 +419,12 @@ export default function ApplicationCopilotScreen() {
       // Pre-flight UX check only — the server is the source of truth and
       // debits credits itself (402/429 below is the real gate).
       if (!refresh && !isPro && credits < kitCreditCost) {
-        Alert.alert(
-          "Insufficient Credits",
-          `The Application Co-pilot kit requires ${kitCreditCost} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Buy Credits", onPress: () => router.push("/wallet" as never) },
-            { text: "Go Pro", onPress: () => router.push("/paywall" as never) },
-          ],
-        );
+        // Credit shortage — the helper offers both exits (top up / go Pro).
+        promptProUpgrade({
+          title: "Insufficient Credits",
+          reason: `The Application Co-pilot kit requires ${kitCreditCost} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
+          offerCredits: true,
+        });
         return;
       }
 
@@ -487,7 +476,9 @@ export default function ApplicationCopilotScreen() {
         setGenerating(false);
       }
     },
-    [opportunity, isPro, credits, kitCreditCost, getToken, router, showBillingAlert, user],
+    // `router` is gone from this list on purpose: the credit-shortage branch
+    // used to push /paywall itself and now delegates to promptProUpgrade.
+    [opportunity, isPro, credits, kitCreditCost, getToken, showBillingAlert, promptProUpgrade, user],
   );
 
   const confirmRefresh = useCallback(() => {

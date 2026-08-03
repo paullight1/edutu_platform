@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/paystack';
 import { findUidForRenewal, grantPro, markSubscriptionCanceled, recordPayment, upsertSubscription } from '@/lib/entitlements';
-import { isBillingPlan } from '@/lib/money';
+import { isBillingPlan, type BillingPlan } from '@/lib/money';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Best-effort plan inference for renewal charges that carry no metadata. */
-function planFromPaystack(data: any): 'monthly' | 'yearly' {
+/**
+ * Best-effort plan inference for renewal charges that carry no metadata.
+ *
+ * This drives planDurationDays(), so a wrong guess is a direct revenue leak:
+ * a weekly renewal inferred as 'monthly' grants 31 days of Pro for a 7-day
+ * payment. Read the structured interval FIRST — Paystack's own enum (daily |
+ * weekly | monthly | quarterly | biannually | annually) is exact, whereas the
+ * plan name is free text a human typed into the Paystack dashboard.
+ */
+function planFromPaystack(data: any): BillingPlan {
+  const interval = String(data?.plan?.interval ?? '').trim().toLowerCase();
+  if (interval === 'weekly') return 'weekly';
+  if (interval === 'annually') return 'yearly';
+  // daily/quarterly/biannually are not plans we sell; fall through to the
+  // monthly default rather than inventing a duration for them.
+  if (interval === 'monthly') return 'monthly';
+
+  // `data.plan` is sometimes a bare plan code string ("PLN_xxx") instead of an
+  // object, which yields no usable signal and lands on the monthly default.
   const name = String(data?.plan?.name ?? data?.plan ?? '').toLowerCase();
+  // Order matters. 'week' is tested before both the year test and the monthly
+  // catch-all: plan names are free text, and something like "Weekly (4 charges
+  // per month)" or "Weekly — 52 per year" would otherwise be shadowed by a
+  // substring match on 'month'/'year' and over-grant.
+  if (name.includes('week')) return 'weekly';
   if (name.includes('year') || name.includes('annual')) return 'yearly';
   return 'monthly';
 }
@@ -72,16 +94,22 @@ export async function POST(req: NextRequest) {
 
       // Failed charges are recorded (not acted on) so the admin dashboard
       // shows renewals that need attention instead of silently losing them.
+      // NOTHING is granted here — a failed charge must never touch
+      // billing_entitlements, only the payments ledger.
       case 'charge.failed':
       case 'invoice.payment_failed': {
         const data = event.data ?? {};
         const uid: string | null =
           data.metadata?.uid ??
           (await findUidForRenewal({
-            subscriptionCode: data.subscription?.subscription_code ?? null,
+            // Same two shapes charge.success sees: nested on the charge for
+            // renewals, flat on the payload for invoice-level failures.
+            subscriptionCode: data.subscription?.subscription_code ?? data.subscription_code ?? null,
             email: data.customer?.email ?? null,
           }));
         if (uid && data.reference) {
+          // Same idempotency as the success path — the payments unique index on
+          // (provider, reference) makes a redelivered failure a no-op.
           await recordPayment({
             userId: uid,
             email: data.customer?.email ?? null,
@@ -91,6 +119,14 @@ export async function POST(req: NextRequest) {
             reference: data.reference,
             status: 'failed',
             raw: data,
+          });
+        } else {
+          // Unattributable failure: log loudly rather than dropping it, since
+          // there is no ledger row for anyone to notice afterwards.
+          console.error('payment failure with unresolvable uid', {
+            event: event.event,
+            reference: data.reference,
+            email: data.customer?.email,
           });
         }
         break;

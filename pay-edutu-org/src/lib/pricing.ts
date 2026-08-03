@@ -8,9 +8,16 @@ import type { BillingPlan } from './money';
 
 export interface ResolvedPricing {
   currency: string;
+  weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
-  promo: { active: boolean; label: string; monthlyPrice: number | null; yearlyPrice: number | null };
+  promo: {
+    active: boolean;
+    label: string;
+    weeklyPrice: number | null;
+    monthlyPrice: number | null;
+    yearlyPrice: number | null;
+  };
 }
 
 function num(v: unknown): number | null {
@@ -21,9 +28,10 @@ function num(v: unknown): number | null {
 function fallbackPricing(): ResolvedPricing {
   return {
     currency: config.fallbackCurrency(),
+    weeklyPrice: config.fallbackWeekly(),
     monthlyPrice: config.fallbackMonthly(),
     yearlyPrice: config.fallbackYearly(),
-    promo: { active: false, label: '', monthlyPrice: null, yearlyPrice: null },
+    promo: { active: false, label: '', weeklyPrice: null, monthlyPrice: null, yearlyPrice: null },
   };
 }
 
@@ -42,11 +50,13 @@ export async function fetchPricing(): Promise<ResolvedPricing> {
     const promo = p.promo && typeof p.promo === 'object' ? p.promo : {};
     return {
       currency: typeof p.currency === 'string' && p.currency.trim() ? p.currency.trim().toUpperCase() : fb.currency,
+      weeklyPrice: num(p.weeklyPrice) ?? fb.weeklyPrice,
       monthlyPrice: num(p.monthlyPrice) ?? fb.monthlyPrice,
       yearlyPrice: num(p.yearlyPrice) ?? fb.yearlyPrice,
       promo: {
         active: promo.active === true,
         label: typeof promo.label === 'string' ? promo.label : '',
+        weeklyPrice: num(promo.weeklyPrice),
         monthlyPrice: num(promo.monthlyPrice),
         yearlyPrice: num(promo.yearlyPrice),
       },
@@ -56,10 +66,20 @@ export async function fetchPricing(): Promise<ResolvedPricing> {
   }
 }
 
+function regularPrice(pricing: ResolvedPricing, plan: BillingPlan): number {
+  if (plan === 'weekly') return pricing.weeklyPrice;
+  return plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+}
+
 /** Server-authoritative price actually charged for a plan (promo wins). */
 export function effectivePrice(pricing: ResolvedPricing, plan: BillingPlan): number {
-  const regular = plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+  const regular = regularPrice(pricing, plan);
   if (!pricing.promo.active) return regular;
-  const override = plan === 'monthly' ? pricing.promo.monthlyPrice : pricing.promo.yearlyPrice;
+  const override =
+    plan === 'weekly'
+      ? pricing.promo.weeklyPrice
+      : plan === 'monthly'
+        ? pricing.promo.monthlyPrice
+        : pricing.promo.yearlyPrice;
   return override != null ? override : regular;
 }

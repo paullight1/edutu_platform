@@ -40,13 +40,16 @@ import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { setProfileFabHidden } from '../../../lib/navFabStore';
+import { usePromptProUpgrade } from '../../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
 function PremiumButton({ isPro }: { isPro: boolean }) {
-    const router = useRouter();
+    // Shared upsell (lib/upsell). This chip IS the pitch, so it opens the
+    // paywall directly rather than stacking a second upgrade prompt on top.
+    const promptProUpgrade = usePromptProUpgrade();
     const { isDark } = useTheme();
     const { t } = useTranslation('profile');
 
@@ -62,7 +65,7 @@ function PremiumButton({ isPro }: { isPro: boolean }) {
     return (
         <TouchableOpacity
             style={[styles.premiumButton, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}
-            onPress={() => router.push('/paywall')}
+            onPress={() => promptProUpgrade({ direct: true })}
             activeOpacity={0.7}
         >
             <Crown size={16} color="#F59E0B" />
@@ -78,6 +81,8 @@ export default function ProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { t } = useTranslation('profile');
+    // Shared upsell (lib/upsell) — this row is already the pitch, so `direct`.
+    const promptProUpgrade = usePromptProUpgrade();
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     // Set when the user skipped onboarding — we surface a resume card so they
@@ -259,7 +264,7 @@ export default function ProfileScreen() {
                 {!isPro && (
                     <Animated.View entering={FadeInDown.duration(360)}>
                         <TouchableOpacity
-                            onPress={() => router.push('/paywall')}
+                            onPress={() => promptProUpgrade({ direct: true })}
                             activeOpacity={0.88}
                             style={styles.upgradeLineWrap}
                         >

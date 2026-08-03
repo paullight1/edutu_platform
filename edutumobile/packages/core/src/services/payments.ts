@@ -6,6 +6,14 @@ import Purchases, {
   PurchasesStoreProduct,
   LOG_LEVEL,
 } from 'react-native-purchases';
+import type { PRODUCT_CATEGORY } from 'react-native-purchases';
+
+// PRODUCT_CATEGORY is imported as a TYPE only and re-created as a literal:
+// pulling the enum in as a value would make this module depend on a runtime
+// export that mocked/`test_`-key environments (jest, Expo Go) do not provide,
+// and the whole file would explode on import. The string is the enum's own
+// wire value.
+const NON_SUBSCRIPTION = 'NON_SUBSCRIPTION' as PRODUCT_CATEGORY;
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -179,7 +187,12 @@ export async function purchaseProduct(
   }
 
   try {
-    const { customerInfo } = await Purchases.purchaseProduct(product.identifier);
+    // purchaseStoreProduct, not the deprecated purchaseProduct(identifier):
+    // the identifier-only overload defaults to PURCHASE_TYPE.SUBS on Android,
+    // so a consumable (credit pack) bought through it fails with a
+    // product-not-found from Play Billing. Passing the real store product lets
+    // the SDK use the category the product actually has.
+    const { customerInfo } = await Purchases.purchaseStoreProduct(product);
     return { success: true, customerInfo };
   } catch (error: any) {
     if (error.userCancelled) {
@@ -220,11 +233,54 @@ export async function manageSubscriptions(): Promise<void> {
 
 // ─── Credit Purchase Helper ─────────────────────────────────────────────────
 
+// Resolve the REAL store product for an identifier. The old code cast
+// `{ identifier } as PurchasesStoreProduct` and relied on purchaseProduct only
+// ever reading `.identifier` — an implementation detail that stopped being true
+// the moment we moved to purchaseStoreProduct (the native layer reads the
+// product's category, price and, on Android, its offering token). A fabricated
+// product would now crash or silently mis-purchase, so we always hand the SDK
+// an object it produced itself.
+async function resolveStoreProduct(productId: string): Promise<PurchasesStoreProduct | null> {
+  if (!canUseRevenueCat()) {
+    return null;
+  }
+
+  // Prefer the instance attached to the current offering: it is exactly what
+  // the paywall priced, so the user is charged the amount they were shown.
+  const packages = await getAvailablePackages();
+  const fromOffering = packages.find((pkg) => pkg.product?.identifier === productId)?.product;
+  if (fromOffering) {
+    return fromOffering;
+  }
+
+  try {
+    // Credit packs are consumables. getProducts defaults to subscriptions, so
+    // without NON_SUBSCRIPTION this returns an empty array for every pack.
+    const products = await Purchases.getProducts([productId], NON_SUBSCRIPTION);
+    return products.find((product) => product.identifier === productId) ?? products[0] ?? null;
+  } catch (error) {
+    console.error('Failed to fetch store product:', error);
+    return null;
+  }
+}
+
 export async function purchaseCredits(
   productId: string
 ): Promise<{ success: boolean; credits: number; customerInfo: CustomerInfo | null; error?: string }> {
-  const result = await purchaseProduct({ identifier: productId } as PurchasesStoreProduct);
-  
+  const product = await resolveStoreProduct(productId);
+  if (!product) {
+    return {
+      success: false,
+      credits: 0,
+      customerInfo: null,
+      error: canUseRevenueCat()
+        ? 'That credit pack is unavailable right now'
+        : 'Payments are not configured yet',
+    };
+  }
+
+  const result = await purchaseProduct(product);
+
   if (result.success && result.customerInfo) {
     const credits = CREDIT_AMOUNTS[productId] || 0;
     return { success: true, credits, customerInfo: result.customerInfo };

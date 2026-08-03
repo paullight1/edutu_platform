@@ -48,14 +48,17 @@ export function UpgradeSheet({ visible, onClose, reason, pricing: pricingProp }:
   const [fetchedPricing, setFetchedPricing] = useState<PricingConfig | null>(null);
 
   // Admin pricing (same source as the paywall); silent fallback to defaults.
+  // Fetched only once the sheet is actually opened — the provider keeps this
+  // component permanently mounted, so an unconditional fetch would hit the
+  // control endpoint on every app launch for a sheet most users never see.
   useEffect(() => {
-    if (pricingProp) return;
+    if (pricingProp || !visible) return;
     let cancelled = false;
     fetchMobileControlConfig()
       .then((config) => { if (!cancelled) setFetchedPricing(config.pricing); })
       .catch(() => { /* keep defaults */ });
     return () => { cancelled = true; };
-  }, [pricingProp]);
+  }, [pricingProp, visible]);
 
   const pricing = pricingProp ?? fetchedPricing ?? DEFAULT_PRICING;
 

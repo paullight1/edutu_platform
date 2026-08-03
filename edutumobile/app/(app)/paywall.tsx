@@ -97,49 +97,71 @@ export default function PaywallScreen() {
   const [restoring, setRestoring] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   // On device we only ever sell via IAP. Track whether offerings are still
-  // loading vs unavailable so the CTA can show a spinner / disabled state
-  // instead of silently routing to an (store-forbidden) external checkout.
+  // loading vs unavailable so the CTA can show a spinner while loading, and an
+  // explanation + retry when they never arrived — never a redirect to a
+  // (store-forbidden) external checkout, and never a dead greyed-out button.
   // Raw state is only meaningful on the native+signed-in path; the two bail
   // cases (web build, guest) are derived below instead of synchronously
   // setState-ing them in the offerings effect.
   const [iapLoadingRaw, setIapLoading] = useState(USE_NATIVE_IAP);
   const [iapUnavailableRaw, setIapUnavailable] = useState(false);
-  const iapLoading = user?.id ? iapLoadingRaw : false;
+  const iapLoading = userId ? iapLoadingRaw : false;
   // Purchases need an identity, so IAP is unavailable for guests on device.
-  const iapUnavailable = user?.id ? iapUnavailableRaw : USE_NATIVE_IAP;
+  const iapUnavailable = userId ? iapUnavailableRaw : USE_NATIVE_IAP;
   // Set true once we hand off to the browser, so the next foreground re-checks
   // Pro (the pay.edutu.org webhook grants it while we're away).
   const awaitingReturnRef = useRef(false);
 
   // Device: load StoreKit (iOS) / Play Billing (Android) offerings via
-  // RevenueCat. If they can't load we mark IAP unavailable and disable the CTA —
-  // we must NOT fall back to an external checkout on device (store policy).
-  useEffect(() => {
+  // RevenueCat. If they can't load we mark IAP unavailable — we must NOT fall
+  // back to an external checkout on device (store policy), so the recovery is a
+  // retry, never a redirect. Extracted from the effect so the CTA's "Try again"
+  // re-runs exactly this load without remounting the screen.
+  const loadIapOfferings = useCallback(async () => {
     // Web build and guest cases are derived at render (see the iapLoading /
-    // iapUnavailable locals above) — no synchronous setState here. A userId
-    // change refetches without flipping the loader (accepted SWR-style).
-    const userId = user?.id;
+    // iapUnavailable locals above) — nothing to load on those paths.
     if (!USE_NATIVE_IAP || !userId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const configured = await initRevenueCat(userId);
-        if (!configured) {
-          if (!cancelled) { setIapUnavailable(true); setIapLoading(false); }
-          return;
-        }
-        const offering = await getOfferings();
-        if (cancelled) return;
-        const packages = offering?.availablePackages || [];
-        setIapPackages(packages);
-        setIapUnavailable(packages.length === 0);
+    // Deliberately no synchronous setState before the first await: this runs
+    // straight from an effect, and a sync setState there cascades a render
+    // (react-hooks/set-state-in-effect). The initial loading state is seeded by
+    // useState; the retry path flips it itself (see retryIapOfferings).
+    try {
+      const configured = await initRevenueCat(userId);
+      if (!configured) {
+        setIapUnavailable(true);
         setIapLoading(false);
-      } catch {
-        if (!cancelled) { setIapUnavailable(true); setIapLoading(false); }
+        return;
       }
+      const offering = await getOfferings();
+      const packages = offering?.availablePackages || [];
+      setIapPackages(packages);
+      setIapUnavailable(packages.length === 0);
+      setIapLoading(false);
+    } catch {
+      setIapUnavailable(true);
+      setIapLoading(false);
+    }
+  }, [userId]);
+
+  // User-initiated reload (CTA dialog / the note under the CTA): unlike the
+  // mount path this one shows the spinner again, so the tap visibly does
+  // something even when the retry ends up failing the same way.
+  const retryIapOfferings = useCallback(() => {
+    setIapLoading(true);
+    setIapUnavailable(false);
+    void loadIapOfferings();
+  }, [loadIapOfferings]);
+
+  // A userId change refetches without flipping the loader first (accepted
+  // SWR-style). Settling after unmount is a no-op in React 18, so this drops
+  // the old cancellation flag rather than duplicating it on the retry path.
+  useEffect(() => {
+    // Wrapped in an async IIFE so nothing this effect calls can settle state
+    // synchronously in the effect body (react-hooks/set-state-in-effect).
+    void (async () => {
+      await loadIapOfferings();
     })();
-    return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [loadIapOfferings]);
 
   const iapPackageForPlan = (plan: BillingPlan) =>
     iapPackages.find((pkg) =>
@@ -152,9 +174,22 @@ export default function PaywallScreen() {
           : pkg.identifier.includes('year') || pkg.identifier.includes('annual'),
     );
   const selectedPackage = iapPackageForPlan(selectedPlan);
-  // On iOS use IAP only when a matching StoreKit product actually loaded;
-  // otherwise fall back to the web checkout so the button is never a dead end.
+  // True when this purchase will actually be charged by the store — i.e. we're
+  // on device AND a matching StoreKit/Play product loaded. It gates the Apple
+  // auto-renew disclosure ONLY; it is not a checkout switch. There is no
+  // web-checkout fallback on device (see handleCheckout below): when no product
+  // loaded the CTA explains itself and offers a retry instead.
   const iapActive = USE_NATIVE_IAP && Boolean(selectedPackage);
+  // Two different failures deserve two different sentences: the store never
+  // came up at all, vs it came up without a product for THIS plan — in which
+  // case the other plan cards may well still be buyable.
+  const iapBlockedMessage = iapUnavailable
+    ? t('paywall.iapUnavailable', {
+        defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
+      })
+    : t('paywall.planUnavailable', {
+        defaultValue: 'This plan is not available on your device right now. Try another plan, or try again.',
+      });
 
   // Admin-controlled prices/currency/promo + paywall design/copy (mobile-
   // control config). Falls back to defaults if the feed is unreachable, so the
@@ -227,14 +262,38 @@ export default function PaywallScreen() {
     setTimeout(() => setRedirecting(false), 800);
   }, [userId, userEmail, pricing, selectedPlan, openExternal]);
 
+  const handleRestore = useCallback(async () => {
+    setRestoring(true);
+    try {
+      const result = await restorePurchases();
+      if (result.success) {
+        await refreshStatus();
+        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
+      } else {
+        Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
+      }
+    } catch (error: any) {
+      Alert.alert(t('common:states.error'), error?.message || t('paywall.restoreFailed'));
+    } finally {
+      setRestoring(false);
+    }
+  }, [refreshStatus, t]);
+
   const purchaseWithIap = useCallback(async () => {
     if (!selectedPackage) {
-      // No external fallback on device (store policy) — surface a retry instead.
+      // Store policy forbids an external checkout here, so this branch can't
+      // route anywhere — but it must not be a dead end either. The CTA stays
+      // TAPPABLE (see the disabled prop below) so pressing it lands on this
+      // dialog, which offers the two things that can actually resolve it:
+      // reload the store products, or restore an existing subscription.
       Alert.alert(
-        t('common:states.error'),
-        t('paywall.iapUnavailable', {
-          defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
-        }),
+        t('paywall.iapUnavailableTitle', { defaultValue: 'Subscriptions unavailable right now' }),
+        iapBlockedMessage,
+        [
+          { text: t('common:actions.cancel'), style: 'cancel' },
+          { text: t('paywall.restore'), onPress: () => { void handleRestore(); } },
+          { text: t('common:actions.tryAgain'), onPress: retryIapOfferings },
+        ],
       );
       return;
     }
@@ -254,30 +313,15 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [selectedPackage, refreshStatus, t]);
+  }, [selectedPackage, refreshStatus, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
 
   // On device ALWAYS go through native IAP (never the external web checkout —
   // store policy). Only the web build uses the hosted pay.edutu.org checkout.
   const handleCheckout = USE_NATIVE_IAP ? purchaseWithIap : redirectToWebCheckout;
-  // Native purchase is only actionable once a matching store product loaded.
+  // Whether a purchase can complete right now. Used to DIM the CTA and to show
+  // the explanatory line — not to disable it: a greyed-out button with no way
+  // forward is the dead end we're avoiding (purchaseWithIap handles the tap).
   const canPurchase = USE_NATIVE_IAP ? Boolean(selectedPackage) : true;
-
-  const handleRestore = useCallback(async () => {
-    setRestoring(true);
-    try {
-      const result = await restorePurchases();
-      if (result.success) {
-        await refreshStatus();
-        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
-      } else {
-        Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
-      }
-    } catch (error: any) {
-      Alert.alert(t('common:states.error'), error?.message || t('paywall.restoreFailed'));
-    } finally {
-      setRestoring(false);
-    }
-  }, [refreshStatus, t]);
 
   const handleManage = useCallback(async () => {
     if (!userId) return;
@@ -595,7 +639,10 @@ export default function PaywallScreen() {
             {/* Big white CTA (reference style) */}
             <TouchableOpacity
               activeOpacity={0.9}
-              disabled={redirecting || purchasing || (USE_NATIVE_IAP && (iapLoading || !canPurchase))}
+              // Only ever disabled while something is genuinely in flight. When
+              // store products are missing the button stays live and its tap
+              // opens the retry/restore dialog.
+              disabled={redirecting || purchasing || (USE_NATIVE_IAP && iapLoading)}
               onPress={handleCheckout}
               style={[
                 styles.ctaButton,
@@ -636,13 +683,27 @@ export default function PaywallScreen() {
             </View>
 
             {/* On device we only sell via the store. If products can't load we
-                say so rather than dead-ending — one short line, not a paragraph. */}
-            {USE_NATIVE_IAP && !iapLoading && iapUnavailable && (
-              <Text style={styles.secureNote} numberOfLines={1}>
-                {t('paywall.iapUnavailable', {
-                  defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
-                })}
-              </Text>
+                say so rather than dead-ending — one short line, not a paragraph.
+                Keyed off canPurchase (not iapUnavailable) so the case where
+                offerings loaded but THIS plan has no matching product explains
+                itself too, instead of a silently unbuyable card. Tapping the
+                line reloads the products; so does tapping the CTA. */}
+            {USE_NATIVE_IAP && !iapLoading && !canPurchase && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={retryIapOfferings}
+                accessibilityRole="button"
+                hitSlop={{ top: 6, bottom: 6 }}
+              >
+                <Text style={styles.secureNote} numberOfLines={2}>
+                  {iapBlockedMessage}
+                </Text>
+                {/* The action is its own line, not appended to the sentence:
+                    it has to read as something you can press. */}
+                <Text style={styles.retryLink} numberOfLines={1}>
+                  {t('common:actions.tryAgain')}
+                </Text>
+              </TouchableOpacity>
             )}
 
             {/* Apple REQUIRES the auto-renew disclosure when charging via
@@ -1010,6 +1071,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 10,
+  },
+  // Reads as a link (brighter, underlined) so the recovery from an unbuyable
+  // CTA looks pressable instead of like more fine print.
+  retryLink: {
+    color: 'rgba(255,255,255,0.86)',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    marginTop: 3,
   },
   trustRow: {
     flexDirection: 'row',

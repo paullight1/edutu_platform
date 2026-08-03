@@ -29,6 +29,7 @@ import { useAiAction } from "../../hooks/useAiAction";
 import { setVoiceModeThread as setPendingChatThread } from "../../lib/voiceModeStore";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
+import { usePromptProUpgrade } from "../../lib/upsell";
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
 
@@ -241,9 +242,13 @@ export default function AppliedPage() {
     },
     [router],
   );
+  // One shared upsell entry point (lib/upsell). The win-coach sheet already
+  // shows the billing message next to this button, so it goes straight to the
+  // paywall rather than repeating itself in a dialog.
+  const promptProUpgrade = usePromptProUpgrade();
   const goToPaywall = useCallback(() => {
-    router.push('/paywall' as never);
-  }, [router]);
+    promptProUpgrade({ direct: true });
+  }, [promptProUpgrade]);
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
   const [rawLoading, setLoading] = useState(true);
   // Signed-out users have nothing to load — derive instead of synchronously

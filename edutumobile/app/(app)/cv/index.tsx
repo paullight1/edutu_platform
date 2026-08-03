@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -19,8 +19,6 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Plus,
-    ChevronLeft,
-    Eye,
     Crown,
     ChevronRight,
     FilePlus,
@@ -31,7 +29,6 @@ import {
     GraduationCap,
     Code2,
     FolderOpen,
-    Wand2,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
@@ -43,14 +40,15 @@ import * as cvService from '@edutu/core/src/services/cv';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { isAiBillingError } from '@edutu/core/src/services/productApi';
 import { useUpgradeSheet } from '../../../components/context/UpgradeSheetContext';
-import { buildExportName, exportCVAsPdf } from '../../../lib/exportCv';
+import { buildExportName, exportCVAsPdf, exportCVAsText } from '../../../lib/exportCv';
+import { resolveTemplateDesign } from '@edutu/core/src/services/templateDesigns';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
 
 // Import extracted components
 import { CVTemplateCard } from '../../../components/cv/CVTemplateCard';
 import { CVListItem } from '../../../components/cv/CVListItem';
-import { CVEditor } from '../../../components/cv/CVEditor';
+import { CVWizard } from '../../../components/cv/wizard/CVWizard';
 import { CVPreview } from '../../../components/cv/CVPreview';
 import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
@@ -64,7 +62,12 @@ import {
     TemplateResumePreview,
 } from '../../../components/cv/CVTemplateLivePreview';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
+import {
+    EmptyCvIllustration,
+    TemplatePickIllustration,
+} from '../../../components/state/illustrations';
 import { haptics } from '../../../lib/haptics';
+import { useReportAIContent } from '../../../lib/reportAiContent';
 
 type CVSection = 'templates' | 'editor' | 'preview' | 'tailorReport';
 
@@ -110,18 +113,11 @@ function getTemplateSample(template?: CVTemplate | null) {
     return SAMPLE_BY_CATEGORY[category as keyof typeof SAMPLE_BY_CATEGORY] || SAMPLE_BY_CATEGORY.general;
 }
 
-// Self-contained gradient per category — no fragile external image hotlinks
-// that fail on weak connections and leave the preview blank.
-const TEMPLATE_PREVIEW_GRADIENTS: Record<string, [string, string]> = {
-    academic: ['#2563EB', '#1D4ED8'],
-    professional: ['#0F766E', '#0D9488'],
-    creative: ['#7C3AED', '#DB2777'],
-    general: ['#6366F1', '#8B5CF6'],
-};
-
+// The card gradient is part of the template's design spec, so the preview
+// modal, the gallery card and the exported PDF can never disagree about what
+// a template looks like.
 function getTemplatePreviewGradient(template?: CVTemplate | null): [string, string] {
-    const category = template?.category?.toLowerCase() || 'general';
-    return TEMPLATE_PREVIEW_GRADIENTS[category] || TEMPLATE_PREVIEW_GRADIENTS.general;
+    return resolveTemplateDesign(template).gradient;
 }
 
 function QuickActionCard({
@@ -193,6 +189,7 @@ export default function CVBuilderScreen() {
     const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
+    const reportAIContent = useReportAIContent('cv');
     // Single source of truth for Pro across the whole app (RevenueCat on-device
     // + profiles.is_pro + billing_entitlements). CV used to read profiles.is_pro
     // alone, which disagreed with the rest of the app after an on-device purchase.
@@ -202,7 +199,7 @@ export default function CVBuilderScreen() {
     const [activeSection, setActiveSection] = useState<CVSection>('templates');
     const [templates, setTemplates] = useState<CVTemplate[]>([]);
     const [userCVs, setUserCVs] = useState<UserCV[]>([]);
-    const [, setSelectedTemplate] = useState<CVTemplate | null>(null);
+    const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate | null>(null);
     const [currentCV, setCurrentCV] = useState<Partial<UserCV>>({
         name: t('defaults.myCv'),
         data_json: {},
@@ -272,16 +269,59 @@ export default function CVBuilderScreen() {
         null;
     const previewModel = deriveCvPreviewModel(previewCv?.data_json);
 
+    /**
+     * The template the open CV is actually written into. Falls back to the id
+     * stored on the CV so a CV opened from the list still renders in its own
+     * template even before `templates` has loaded.
+     */
+    const activeTemplate = useMemo(
+        () =>
+            selectedTemplate ||
+            templates.find((item) => item.id === currentCV.template_id) ||
+            (currentCV.template_id ? ({ id: currentCV.template_id } as CVTemplate) : null),
+        [selectedTemplate, templates, currentCV.template_id],
+    );
+
+    /**
+     * The screen's ONE upgrade entry point. Every "this is Pro" moment routes
+     * through here, so the trial modal, the shared sheet and the paywall can
+     * never end up stacked on each other.
+     *
+     * The free trial is the only thing ProUpgradeModal offers over a plain
+     * paywall push — once it's spent, showing it would just be an extra tap
+     * between the user and the real purchase screen, so we skip it.
+     */
+    const openUpgrade = (feature: string) => {
+        if (trialUsed) {
+            router.push('/paywall' as never);
+            return;
+        }
+        // No provider mounted means nothing can collide, so the claim is
+        // implicitly granted; a refused claim means another surface owns the
+        // screen and this tap must be swallowed.
+        if (upgradeSheet && !upgradeSheet.claimFlow()) return;
+        setUpgradeFeature(feature);
+        setShowUpgradeModal(true);
+    };
+
+    const closeUpgrade = () => {
+        setShowUpgradeModal(false);
+        upgradeSheet?.releaseFlow();
+    };
+
     // Server-side billing refusal (402 insufficient credits / 429 fair-use
     // limit) — the backend debits credits for /cv/ai/* itself now.
     const showBillingAlert = (error: unknown): boolean => {
         if (!isAiBillingError(error)) return false;
-        // Prefer the shared upgrade bottom sheet; the alert stays as a
-        // fallback if the provider isn't mounted for any reason.
+        // The shared sheet is the surface for this. Its own single-flow guard
+        // swallows the call when the Pro modal is already up, so we still
+        // report "handled" — falling through to the Alert here would stack a
+        // second upgrade prompt, which is the bug this path used to have.
         if (upgradeSheet) {
             upgradeSheet.show(error.message);
             return true;
         }
+        // Provider-less fallback only (never reachable in the real app tree).
         Alert.alert(
             error.code === 'limit' ? 'Limit reached' : 'Not enough credits',
             error.message,
@@ -581,8 +621,7 @@ export default function CVBuilderScreen() {
 
     const handleSelectTemplate = (template: CVTemplate) => {
         if (template.is_premium && !hasPro) {
-            setUpgradeFeature(t('upgrade.templateFeature', { name: template.name }));
-            setShowUpgradeModal(true);
+            openUpgrade(t('upgrade.templateFeature', { name: template.name }));
             return;
         }
         setSelectedTemplate(template);
@@ -707,12 +746,29 @@ export default function CVBuilderScreen() {
         try {
             // "{Full Name} - CV - {Org}" naming when the CV was tailored to an
             // opportunity this session; plain "{Full Name} - CV" otherwise.
-            const mode = await exportCVAsPdf(currentCV, {
+            const result = await exportCVAsPdf(currentCV, {
                 tailoredTo: currentCV.target_opportunity_id ? tailorTargetOrg : undefined,
+                design: resolveTemplateDesign(activeTemplate),
             });
-            if (mode === 'text') {
-                Alert.alert(t('alerts.sharedAsTextTitle'), t('alerts.sharedAsTextMessage'));
+
+            if (result.ok) {
+                if (result.mode === 'pdf') setToast(t('toast.exported'));
+                return;
             }
+
+            // Failure used to be swallowed into a silent text share, so a user
+            // who asked for a PDF got a text message and no explanation. Now
+            // the reason is named and both recovery paths are offered.
+            console.error('CV export failed:', result.reason, result.error);
+            Alert.alert(
+                t('alerts.exportFailedTitle'),
+                t(`alerts.exportReason.${result.reason}`),
+                [
+                    { text: t('common:actions.cancel'), style: 'cancel' },
+                    { text: t('alerts.exportShareAsText'), onPress: () => void exportCVAsText(currentCV) },
+                    { text: t('alerts.exportRetry'), onPress: () => void handleExport() },
+                ],
+            );
         } catch (error) {
             console.error('Error exporting CV:', error);
             Alert.alert(t('common:states.error'), t('alerts.exportFailed'));
@@ -803,11 +859,14 @@ export default function CVBuilderScreen() {
                 />
             )}
 
-            {/* Pro Status Banner — hidden once the user is Pro or has an active trial */}
+            {/* Pro Status Banner — hidden once the user is Pro or has an active
+                trial. Passes the screen title into the modal's "Unlock {feature}"
+                slot: already translated in every locale, unlike the empty
+                string this tap used to leave behind. */}
             {!hasPro && (
                 <TouchableOpacity
                     style={[styles.proBanner, { backgroundColor: isDark ? '#1E293B' : '#FEF3C7' }]}
-                    onPress={() => setShowUpgradeModal(true)}
+                    onPress={() => openUpgrade(t('header.title'))}
                 >
                     <View style={[styles.proBannerIcon, { backgroundColor: '#F59E0B' }]}>
                         <Crown size={18} color="#FFFFFF" />
@@ -870,6 +929,26 @@ export default function CVBuilderScreen() {
                         />
                     </Animated.View>
 
+                    {/* No CV yet — an illustrated invitation rather than a gap
+                        where the "Your CVs" rail would otherwise sit. */}
+                    {userCVs.length === 0 && (
+                        <Animated.View
+                            entering={FadeInDown.delay(100)}
+                            style={[
+                                styles.emptyCvCard,
+                                { backgroundColor: colors.card, borderColor: colors.border },
+                            ]}
+                        >
+                            <EmptyCvIllustration size={120} accent={colors.primary} />
+                            <Text style={[styles.emptyCvTitle, { color: colors.foreground }]}>
+                                {t('emptyCv.title')}
+                            </Text>
+                            <Text style={[styles.emptyCvText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                {t('emptyCv.description')}
+                            </Text>
+                        </Animated.View>
+                    )}
+
                     {/* Existing CVs */}
                     {userCVs.length > 0 && (
                         <Animated.View entering={FadeInDown.delay(100)}>
@@ -894,7 +973,13 @@ export default function CVBuilderScreen() {
                     {/* Template Selection */}
                     <Animated.View entering={FadeInUp.delay(200)}>
                         <View style={styles.sectionHeaderRow}>
-                            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>{t('sections.chooseTemplate')}</Text>
+                            <View style={styles.templateHeading}>
+                                <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>{t('sections.chooseTemplate')}</Text>
+                                <Text style={[styles.templateSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                    {t('sections.chooseTemplateSubtitle')}
+                                </Text>
+                            </View>
+                            <TemplatePickIllustration size={64} accent={colors.primary} />
                         </View>
                         <FlatList
                             data={templates}
@@ -916,75 +1001,38 @@ export default function CVBuilderScreen() {
                 </ScrollView>
             )}
 
+            {/* The wizard owns its own header (name, template chip, health
+                pill, preview) — one chrome instead of two competing ones. */}
             {activeSection === 'editor' && (
-                <View
-                    style={[
-                        styles.editorHeader,
-                        { borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
-                    ]}
-                >
-                    <TouchableOpacity
-                        style={[
-                            styles.backBtn,
-                            { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
-                        ]}
-                        onPress={() => setActiveSection('templates')}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <ChevronLeft size={22} color={isDark ? '#FFFFFF' : '#1E293B'} strokeWidth={2.5} />
-                    </TouchableOpacity>
-                    <TextInput
-                        style={[styles.cvNameInput, { color: colors.foreground }]}
-                        value={currentCV.name}
-                        onChangeText={(text) => setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, name: text }))}
-                    />
-                    {/* The tailor report is content, not a one-shot alert — it
-                        stays reachable while the user edits against it. */}
-                    {!!tailorResult && (
-                        <TouchableOpacity
-                            style={[styles.reportBtn, { borderColor: colors.primary }]}
-                            onPress={() => setActiveSection('tailorReport')}
-                            accessibilityRole="button"
-                        >
-                            <Wand2 size={13} color={colors.primary} />
-                            <Text style={[styles.reportBtnText, { color: colors.primary }]}>
-                                {t('tailorResult.reopen')}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                        style={styles.previewBtn}
-                        onPress={() => setActiveSection('preview')}
-                    >
-                        <Eye size={20} color={colors.primary} />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {activeSection === 'editor' && (
-                <CVEditor
+                <CVWizard
                     currentCV={currentCV}
                     setCurrentCV={setCurrentCV}
+                    template={activeTemplate}
                     isPro={hasPro}
                     isSaving={isSaving}
-                    isExporting={isExporting}
                     isImprovingSummary={isImprovingSummary}
                     onSave={handleSaveCV}
-                    onExport={handleExport}
+                    onPreview={() => setActiveSection('preview')}
+                    onBack={() => setActiveSection('templates')}
                     onAITailor={handleAITailor}
                     onImproveSummary={handleImproveSummary}
-                    onUpgradeFeature={(feature) => {
-                        setUpgradeFeature(feature);
-                        setShowUpgradeModal(true);
-                    }}
+                    onChangeTemplate={() => setActiveSection('templates')}
+                    onUpgradeFeature={openUpgrade}
+                    onReportSummary={() =>
+                        reportAIContent(currentCV.data_json?.summary || '', { cvId: currentCV.id })
+                    }
                     canUndoSummary={summaryUndo !== null}
                     onUndoSummary={handleUndoSummaryRewrite}
+                    onOpenTailorReport={
+                        tailorResult ? () => setActiveSection('tailorReport') : undefined
+                    }
                 />
             )}
 
             {activeSection === 'preview' && (
                 <CVPreview
                     currentCV={currentCV}
+                    design={resolveTemplateDesign(activeTemplate)}
                     onBack={() => setActiveSection('editor')}
                     onExport={handleExport}
                     isExporting={isExporting}
@@ -1011,7 +1059,7 @@ export default function CVBuilderScreen() {
             {/* Modals */}
             <ProUpgradeModal
                 visible={showUpgradeModal}
-                onClose={() => setShowUpgradeModal(false)}
+                onClose={closeUpgrade}
                 feature={upgradeFeature}
                 trialUsed={trialUsed}
                 onTrialActivated={handleTrialActivated}
@@ -1126,7 +1174,7 @@ export default function CVBuilderScreen() {
                         {previewModel ? (
                             <TemplateResumePreview
                                 model={previewModel}
-                                accent={getTemplateAccent(previewTemplate?.category)}
+                                accent={getTemplateAccent(previewTemplate)}
                                 isDark={isDark}
                             />
                         ) : (
@@ -1303,6 +1351,36 @@ export default function CVBuilderScreen() {
 }
 
 const styles = StyleSheet.create({
+    emptyCvCard: {
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 18,
+        paddingVertical: 24,
+        paddingHorizontal: 20,
+        marginTop: 20,
+        gap: 4,
+    },
+    emptyCvTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        marginTop: 6,
+        textAlign: 'center',
+    },
+    emptyCvText: {
+        fontSize: 13.5,
+        lineHeight: 20,
+        textAlign: 'center',
+        marginTop: 4,
+    },
+    templateHeading: {
+        flex: 1,
+    },
+    templateSubtitle: {
+        fontSize: 13,
+        lineHeight: 19,
+        marginTop: 2,
+        paddingRight: 8,
+    },
     container: {
         flex: 1,
     },

@@ -1,4 +1,4 @@
-export type BillingPlan = 'monthly' | 'yearly';
+export type BillingPlan = 'weekly' | 'monthly' | 'yearly';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   NGN: '₦', USD: '$', GHS: '₵', KES: 'KSh', ZAR: 'R', GBP: '£', EUR: '€',
@@ -21,6 +21,7 @@ export function toMinorUnits(amountMajor: number): number {
 
 /** Days of Pro granted per plan for one-time (non-recurring) charges. */
 export function planDurationDays(plan: BillingPlan): number {
+  if (plan === 'weekly') return 7;
   return plan === 'yearly' ? 366 : 31;
 }
 
@@ -31,5 +32,5 @@ export function addDays(from: Date, days: number): Date {
 }
 
 export function isBillingPlan(value: unknown): value is BillingPlan {
-  return value === 'monthly' || value === 'yearly';
+  return value === 'weekly' || value === 'monthly' || value === 'yearly';
 }

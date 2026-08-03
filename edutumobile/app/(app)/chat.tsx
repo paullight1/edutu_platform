@@ -51,6 +51,7 @@ import { useChat } from '@edutu/core/src/hooks/useChat';
 import { ChatRateLimitError } from '@edutu/core/src/services/chat';
 import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatImageCard, ChatMessage, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
 import { syncMilestonesToCalendar } from '../../lib/calendarSync';
+import { usePromptProUpgrade } from '../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
@@ -70,7 +71,6 @@ import Animated, {
 import { haptics } from '../../lib/haptics';
 import { getDeadlineBadge } from '@edutu/core/src/utils/deadline';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
-import { notificationService } from '../../lib/notifications';
 import { useReportAIContent } from '../../lib/reportAiContent';
 import { openVoiceMode, useVoiceModeState, consumeVoiceModeThread } from '../../lib/voiceModeStore';
 import VoiceRecordingModal from '../../components/chat/VoiceRecordingModal';
@@ -253,6 +253,8 @@ export default function ChatScreen() {
     const { user } = useUser();
     const { getToken } = useAuth();
     const router = useRouter();
+    // Single upsell entry point (lib/upsell) for every Pro nudge on this screen.
+    const promptProUpgrade = usePromptProUpgrade();
     const reportAIContent = useReportAIContent('chat');
     const { voiceMsg, prefill } = useLocalSearchParams<{ voiceMsg?: string; prefill?: string }>();
     const { isDark, colors, reducedMotion } = useTheme();
@@ -399,21 +401,19 @@ export default function ChatScreen() {
         setVoiceRecOpen(false);
     }, [voiceRec]);
 
-    // Executes device-side effects the agent's tools requested (local goal
-    // reminders + optional device-calendar events). Runs only for messages
-    // freshly returned by sendMessage — resuming an old thread never
-    // re-schedules anything.
+    // Executes device-side effects the agent's tools requested (currently just
+    // optional device-calendar events). Runs only for messages freshly returned
+    // by sendMessage — resuming an old thread never re-runs anything.
+    //
+    // `notifications.schedule` is deliberately ignored: the backend already
+    // schedules goal reminders at 7/3/1/0 days in the user's own timezone and
+    // with their notification preferences applied, and it keeps doing so across
+    // reinstalls. Scheduling locally on top of that gave every goal two
+    // overlapping reminder series.
     const runDeviceActions = useCallback(async (actions: ChatDeviceAction[]) => {
         for (const action of actions) {
             try {
-                if (action.type === 'notifications.schedule') {
-                    const goals = Array.isArray(action.payload?.goals) ? action.payload.goals as Array<{ id?: string; title?: string; deadline?: string }> : [];
-                    for (const goal of goals) {
-                        if (goal.id && goal.title && goal.deadline) {
-                            await notificationService.scheduleGoalReminder(goal.id, goal.title, goal.deadline);
-                        }
-                    }
-                } else if (action.type === 'calendar.sync') {
+                if (action.type === 'calendar.sync') {
                     const title = typeof action.payload?.title === 'string' ? action.payload.title : 'Edutu plan';
                     const milestones = Array.isArray(action.payload?.milestones)
                         ? (action.payload.milestones as Array<{ title?: string; dueDate?: string }>).filter(m => m.title)
@@ -1415,7 +1415,9 @@ export default function ChatScreen() {
                                             onPress={() => {
                                                 setSendError(null);
                                                 setPendingResend(lastAttemptRef.current);
-                                                router.push('/paywall');
+                                                // The banner above already states the limit, so this
+                                                // opens the paywall directly instead of re-explaining.
+                                                promptProUpgrade({ direct: true });
                                             }}
                                             activeOpacity={0.85}
                                         >
