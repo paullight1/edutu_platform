@@ -26,6 +26,7 @@ import {
   type Deadline,
   type DeadlinesResponse,
 } from "../services/deadlines";
+import WebPushPrompt from "./WebPushPrompt";
 
 type WorkItemKind = Deadline["type"] | "saved";
 
@@ -462,6 +463,18 @@ export default function DeadlinesPage() {
             <div className="mb-5 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-sm font-semibold text-danger">
               {error}
             </div>
+          ) : null}
+
+          {/* Contextual opt-in: the single most reminder-worthy screen in the
+              app. Renders nothing when push is unavailable, blocked, already
+              on, or previously dismissed. */}
+          {!loading && datedWorkItems.length > 0 ? (
+            <WebPushPrompt
+              promptId="deadlines"
+              title="Get a nudge before each deadline"
+              body="We'll send a browser reminder 7, 3 and 1 days before your tracked deadlines close."
+              className="mb-5"
+            />
           ) : null}
 
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
 import AppearanceSettings from "./AppearanceSettings";
 import ReminderSettings from "./ReminderSettings";
+import WebPushSettings from "./WebPushSettings";
 import LanguageSwitcher from "./LanguageSwitcher";
 import MemberSettingsPanel from "./MemberSettingsPanel";
 import { usePersonalization } from "../hooks/usePersonalization";
@@ -41,6 +42,11 @@ export default function SettingsPage() {
         </Link>
 
         <AppearanceSettings />
+
+        {/* Durable, two-way control for server-sent push. `ReminderSettings`
+            below covers local (in-tab) reminders, which is a different
+            mechanism. */}
+        <WebPushSettings />
 
         <ReminderSettings />
 

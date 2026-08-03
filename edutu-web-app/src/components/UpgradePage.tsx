@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   ArrowRight,
   Check,
@@ -14,14 +14,17 @@ import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
 import { createCheckout, type BillingInterval } from '../services/billing';
-import { type RemotePricing } from '../services/mobileControl';
 import { usePaywall } from '../hooks/usePaywall';
 import {
-  FALLBACK_PRICING,
+  PRO_PLANS,
   effectivePrice,
   formatMoney,
-  loadRemotePricing,
+  useProPricing,
 } from '../lib/proPricing';
+
+// The full-page form of the upgrade surface. It shares its plan catalogue,
+// price source and badge language with the compact UpgradeModal — both read
+// ../lib/proPricing, so a price can never differ between the two.
 
 interface PlanCard {
   plan: BillingInterval;
@@ -70,25 +73,18 @@ const FAQ: Array<{ q: string; a: string }> = [
 
 const UpgradePage: React.FC = () => {
   const { getToken, isSignedIn } = useAuth();
+  const { user } = useUser();
   const { isPro } = usePaywall();
 
-  const [pricing, setPricing] = useState<RemotePricing>(FALLBACK_PRICING);
+  // Shared admin pricing (session-cached, same hook the modal uses). Billing
+  // status is owned by useBillingStatus under PaywallProvider, which already
+  // refetches on mount and on tab focus — so returning from checkout re-checks
+  // Pro without a duplicate request here.
+  const { pricing: remotePricing, loading: pricingLoading, displayPricing: pricing } = useProPricing();
+  const showPrices = !pricingLoading;
+
   const [pendingPlan, setPendingPlan] = useState<BillingInterval | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Pull the latest admin pricing (shared session cache). Billing status is
-  // owned by useBillingStatus under PaywallProvider, which already refetches on
-  // mount and on tab focus — so returning from Paystack re-checks Pro without a
-  // duplicate request here.
-  useEffect(() => {
-    let cancelled = false;
-    void loadRemotePricing().then((remote) => {
-      if (!cancelled && remote) setPricing(remote);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Yearly vs. paying monthly for a year — leaned into as the headline saving.
   const yearlySavingPct = useMemo(() => {
@@ -100,39 +96,27 @@ const UpgradePage: React.FC = () => {
 
   const plans = useMemo<PlanCard[]>(() => {
     const promoLabel = pricing.promo?.active && pricing.promo.label ? pricing.promo.label : undefined;
-    return [
-      {
-        plan: 'weekly',
-        label: 'Weekly',
-        cadence: 'per week',
-        price: formatMoney(effectivePrice(pricing, 'weekly'), pricing.currency),
-        badge: promoLabel,
-        hint: 'Try Pro for a big week — perfect around a deadline.',
-        highlighted: false,
-      },
-      {
-        plan: 'monthly',
-        label: 'Monthly',
-        cadence: 'per month',
-        price: formatMoney(effectivePrice(pricing, 'monthly'), pricing.currency),
-        badge: promoLabel ?? 'Most popular',
-        hint: 'Full access, month to month. Cancel anytime.',
-        highlighted: false,
-      },
-      {
-        plan: 'yearly',
-        label: 'Yearly',
-        cadence: 'per year',
-        price: formatMoney(effectivePrice(pricing, 'yearly'), pricing.currency),
-        badge: promoLabel ?? (yearlySavingPct > 0 ? `Best value · save ${yearlySavingPct}%` : 'Best value'),
+    return PRO_PLANS.map((meta) => {
+      // The "save N%" claim is derived from prices, so it waits for the real
+      // ones too — a fallback-derived percentage would be a guess.
+      const savingBadge =
+        showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
+          ? `Best value · save ${yearlySavingPct}%`
+          : meta.defaultBadge;
+      return {
+        plan: meta.plan,
+        label: meta.longLabel,
+        cadence: meta.cadence,
+        price: formatMoney(effectivePrice(pricing, meta.plan), pricing.currency),
+        badge: promoLabel ?? savingBadge,
         hint:
-          yearlySavingPct > 0
+          showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
             ? `A full year of Pro for roughly ${yearlySavingPct}% less than paying monthly.`
-            : 'A full year of Pro at our best price.',
-        highlighted: true,
-      },
-    ];
-  }, [pricing, yearlySavingPct]);
+            : meta.hint,
+        highlighted: meta.highlighted,
+      };
+    });
+  }, [pricing, yearlySavingPct, showPrices]);
 
   const startCheckout = async (plan: BillingInterval) => {
     if (pendingPlan) return;
@@ -144,7 +128,15 @@ const UpgradePage: React.FC = () => {
         setError('Please sign in to continue to checkout.');
         return;
       }
-      const checkout = await createCheckout(token, { plan, returnTo: '/upgrade' });
+      // Pro plans originate at pay.edutu.org (see services/billing.ts) — it
+      // identifies the buyer from uid/email and re-resolves the amount itself.
+      const checkout = await createCheckout(token, {
+        plan,
+        returnTo: '/upgrade',
+        uid: user?.id,
+        email: user?.primaryEmailAddress?.emailAddress,
+        pricing: remotePricing,
+      });
       if (checkout.configured === false || !checkout.authorizationUrl) {
         setError(
           checkout.message ||
@@ -258,9 +250,16 @@ const UpgradePage: React.FC = () => {
                         {card.label}
                       </h3>
                       <div className="mt-3 flex items-baseline gap-1.5">
-                        <span className="font-display text-4xl font-semibold leading-none text-text-primary">
-                          {card.price}
-                        </span>
+                        {showPrices ? (
+                          <span className="font-display text-4xl font-semibold leading-none text-text-primary">
+                            {card.price}
+                          </span>
+                        ) : (
+                          <span
+                            aria-label="Loading price"
+                            className="block h-9 w-32 animate-pulse rounded-lg bg-surface-elevated"
+                          />
+                        )}
                         <span className="text-sm font-medium text-text-muted">
                           {card.cadence}
                         </span>

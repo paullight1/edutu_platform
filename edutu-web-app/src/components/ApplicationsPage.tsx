@@ -36,6 +36,7 @@ import {
   type ApplicationRecord,
   type ApplicationStatus,
 } from '../services/applications';
+import WebPushPrompt from './WebPushPrompt';
 
 type ApplicationFilter = 'all' | ApplicationStatus;
 
@@ -397,6 +398,18 @@ export default function ApplicationsPage() {
               })}
             </div>
           </section>
+        ) : null}
+
+        {/* Contextual opt-in: only asked once there is a live pipeline worth
+            being nudged about. Renders nothing when push is unavailable,
+            blocked, already on, or previously dismissed. */}
+        {!loading && applications.length > 0 ? (
+          <WebPushPrompt
+            promptId="applications"
+            title="Get told when it's time to follow up"
+            body="Turn on browser reminders for status nudges and closing dates on the roles you're tracking."
+            className="mb-5"
+          />
         ) : null}
 
         <section className={error && (loading || applications.length === 0) ? 'mt-5' : ''}>

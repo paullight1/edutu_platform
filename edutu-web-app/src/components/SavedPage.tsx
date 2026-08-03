@@ -13,6 +13,7 @@ import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import { getBookmarks, type BookmarkRecord } from "../services/bookmarks";
 import UrgencyPill from "./opportunity/UrgencyPill";
+import WebPushPrompt from "./WebPushPrompt";
 
 function formatDeadline(value?: string | null) {
   if (!value) return "No deadline";
@@ -125,6 +126,18 @@ export default function SavedPage() {
               </span>
             </div>
           </section>
+
+          {/* Contextual opt-in: only worth asking once there is something saved
+              whose deadline we could remind them about. Hides itself entirely
+              when push is unavailable, blocked, already on, or dismissed. */}
+          {!loading && !error && bookmarks.length > 0 ? (
+            <WebPushPrompt
+              promptId="saved"
+              title="Never miss a saved deadline"
+              body="Turn on browser reminders and we'll nudge you before each saved opportunity closes."
+              className="mt-5"
+            />
+          ) : null}
 
           {loading ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">

@@ -2,10 +2,12 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 import UpgradeModal from '../components/ui/UpgradeModal';
 import { useBillingStatus } from './useBillingStatus';
 import { isUpgradeRequiredError } from '../services/productApi';
@@ -41,8 +43,16 @@ interface PaywallContextValue {
 
 const PaywallContext = createContext<PaywallContextValue | null>(null);
 
+/**
+ * The full-page upgrade surface. While the user is on it, the modal must never
+ * also open — /upgrade IS the paywall, and stacking the dialog on top of it
+ * would show the same plans twice.
+ */
+const UPGRADE_ROUTE = '/upgrade';
+
 export function PaywallProvider({ children }: { children: ReactNode }) {
   const { status, loading, refresh } = useBillingStatus();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
   const [returnTo, setReturnTo] = useState<string | undefined>(undefined);
@@ -57,6 +67,15 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closePaywall = useCallback(() => setOpen(false), []);
+
+  const onUpgradePage =
+    pathname === UPGRADE_ROUTE || pathname.startsWith(`${UPGRADE_ROUTE}/`);
+
+  // A dialog must not survive a route change — otherwise leaving /upgrade (where
+  // it was suppressed) would pop it back open on the next page.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   const handleUpgradeError = useCallback(
     (error: unknown): boolean => {
@@ -85,8 +104,12 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   return (
     <PaywallContext.Provider value={value}>
       {children}
+      {/* Exactly ONE paywall surface can be visible at a time: a single shared
+          modal instance (every ProGate / useProFeature call funnels through
+          this provider, so gates cannot stack dialogs), and it stays closed on
+          the /upgrade page, which is the full-page form of the same thing. */}
       <UpgradeModal
-        open={open}
+        open={onUpgradePage ? false : open}
         onClose={closePaywall}
         reason={reason}
         returnTo={returnTo}
