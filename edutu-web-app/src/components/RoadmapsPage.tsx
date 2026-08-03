@@ -9,7 +9,6 @@ import {
   Star,
   Users,
   Clock,
-  Map as MapIcon,
   X,
   Check,
   CalendarPlus,
@@ -26,7 +25,7 @@ import { useGoals } from "../hooks/useGoals";
 import { usePaywall } from "../hooks/usePaywall";
 import { useProFeature } from "./ProGate";
 import PullToRefresh from "./ui/PullToRefresh";
-import { EmptyState, ErrorState } from "./ui/EmptyState";
+import { StateView, showsContent, useScreenState } from "./state";
 import Button from "./ui/Button";
 
 interface AdoptionInfo {
@@ -66,7 +65,9 @@ export default function RoadmapsPage() {
 
   const [roadmaps, setRoadmaps] = useState<BackendRoadmap[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // The raw failure rather than a message string: classifyError() reads its
+  // status to tell a 404 from a 500, which a flattened string destroys.
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [selected, setSelected] = useState<BackendRoadmap | null>(null);
@@ -76,15 +77,11 @@ export default function RoadmapsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       setRoadmaps(await fetchRoadmaps({ limit: 40 }));
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load roadmaps.",
-      );
+    } catch (caught) {
+      setLoadError(caught);
     } finally {
       setLoading(false);
     }
@@ -140,6 +137,17 @@ export default function RoadmapsPage() {
       );
     });
   }, [roadmaps, query, category]);
+
+  // The screen already knows when the user has narrowed the list, which is
+  // exactly what separates a filtered empty from a first-run one — a
+  // distinction the primitive this replaces could not express.
+  const filtersActive = Boolean(query.trim()) || category !== "all";
+  const screenState = useScreenState({
+    data: visible,
+    loading,
+    error: loadError,
+    filtersActive,
+  });
 
   const enroll = useCallback(
     async (roadmap: BackendRoadmap) => {
@@ -278,24 +286,17 @@ export default function RoadmapsPage() {
                 />
               ))}
             </div>
-          ) : error ? (
+          ) : !showsContent(screenState) ? (
             <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <ErrorState message={error} onRetry={() => void load()} />
-            </div>
-          ) : visible.length === 0 ? (
-            <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <EmptyState
-                icon={<MapIcon size={32} />}
-                title="No roadmaps found"
-                description="Try a different search or category — new expert roadmaps are added regularly."
-                action={
-                  query || category !== "all"
-                    ? {
-                        label: "Clear filters",
-                        onClick: () => {
-                          setQuery("");
-                          setCategory("all");
-                        },
+              <StateView
+                state={screenState}
+                flow="goals"
+                onRetry={() => void load()}
+                onAction={
+                  filtersActive
+                    ? () => {
+                        setQuery("");
+                        setCategory("all");
                       }
                     : undefined
                 }
