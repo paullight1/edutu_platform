@@ -1,20 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Mail, MessageCircle } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import ImageWithFallback from './ImageWithFallback';
 import {
     BAND_BODY,
-    JOIN_CTA_LABEL,
     MOSAIC,
-    PARTNER_MAILTO,
     PROGRAM_HEADLINE,
     PROGRAM_KICKER,
     PROGRAM_NAME,
     PROGRAM_PATH,
     REACH_GOAL,
     REACH_TODAY,
-    WHATSAPP_JOIN_URL,
 } from '../lib/edutuForYou';
 
 /**
@@ -149,25 +146,9 @@ const EdutuForYouBand: React.FC = () => {
                             to={PROGRAM_PATH}
                             className="inline-flex items-center justify-center gap-2 rounded-pill bg-brand px-6 py-3 text-base font-semibold text-white no-underline transition hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
                         >
-                            Read the mission
+                            Read more
                             <ArrowRight size={18} aria-hidden="true" />
                         </Link>
-                        <a
-                            href={PARTNER_MAILTO}
-                            className="inline-flex items-center justify-center gap-2 rounded-pill border border-white/20 px-6 py-3 text-base font-semibold text-[#F8FAFC] no-underline transition hover:border-white/40 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
-                        >
-                            <Mail size={18} aria-hidden="true" />
-                            Partner with us
-                        </a>
-                        <a
-                            href={WHATSAPP_JOIN_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-2 rounded-pill px-2 py-3 text-base font-semibold text-[#C7D2FE] no-underline transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
-                        >
-                            <MessageCircle size={18} aria-hidden="true" />
-                            {JOIN_CTA_LABEL}
-                        </a>
                     </div>
                 </motion.div>
 

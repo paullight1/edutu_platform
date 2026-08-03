@@ -142,7 +142,7 @@ export const GAP_STATS: GapStat[] = [
 ];
 
 export const GAP_THESIS =
-  "None of these numbers describe a shortage of ability. They describe a shortage of information. The scholarship exists, the fellowship is open, the grant is unclaimed — and the person who should have applied never heard about it until the deadline had passed.";
+  "None of these describe a shortage of ability. They describe a shortage of information — the scholarship that was open, and the person who heard about it after the deadline.";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The aim
@@ -204,7 +204,7 @@ export const PILLARS: Pillar[] = [
   {
     icon: Compass,
     title: "AI matching, in local context",
-    body: "Our engine reads thousands of scholarships, fellowships, grants and programs, then filters them down to what one specific person is actually eligible for — by country, level, field and deadline. Mobile-first and built for low bandwidth.",
+    body: "Thousands of opportunities, filtered to what one specific person is eligible for — by country, level, field and deadline.",
     youGet:
       "A shortlist of opportunities you can genuinely win, instead of a feed of ones you can't.",
     image: `https://images.unsplash.com/photo-1694175271713-a6e2cc378980?${PORTRAIT}`,
@@ -213,7 +213,7 @@ export const PILLARS: Pillar[] = [
   {
     icon: FileText,
     title: "Application coaching",
-    body: "CV tailoring, essay structure, interview preparation — the work that normally requires a paid consultant, delivered by an AI coach that has read what the funder is actually asking for.",
+    body: "CV tailoring, essay structure and interview prep — the work that normally costs a paid consultant.",
     youGet:
       "Help turning what you've done into an application that reads the way funders expect.",
     image: `https://images.unsplash.com/photo-1620829813629-45478205c88f?${PORTRAIT}`,
@@ -222,7 +222,7 @@ export const PILLARS: Pillar[] = [
   {
     icon: Users,
     title: "Community and mentorship",
-    body: "Peer cohorts and mentor access around the AI. Applying is lonely and rejection is the norm; the people who keep going are the ones who aren't doing it alone.",
+    body: "Applying is lonely and rejection is the norm. The people who keep going are the ones not doing it alone.",
     youGet:
       "People a year ahead of you who have already been through the exact thing you're attempting.",
     image: `https://images.unsplash.com/photo-1565490129165-bd6a24996c25?${PORTRAIT}`,
@@ -231,134 +231,11 @@ export const PILLARS: Pillar[] = [
   {
     icon: Globe2,
     title: "Access to global opportunities",
-    body: "No gatekeepers, no agent fees, no dependence on knowing the right person. The same information a well-connected applicant has, delivered to someone who has none of those advantages.",
+    body: "No gatekeepers, no agent fees, no knowing the right person. The same information a well-connected applicant already has.",
     youGet:
       "The world's opportunities, on the same terms as everyone else applying for them.",
     image: `https://images.unsplash.com/photo-1628825453863-ccfe2dcc4c70?${PORTRAIT}`,
     imageAlt: "Two young women standing together",
-  },
-];
-
-/* ────────────────────────────────────────────────────────────────────────────
- * Stories
- *
- * These are composites drawn from user research — NOT alumni. Every card
- * renders `COMPOSITE_LABEL`, and the section renders `COMPOSITE_DISCLOSURE`
- * above them. Both are load-bearing: an unlabelled fictional testimonial on an
- * impact page is the fastest way to lose a funder's trust. Do not remove them,
- * and do not reuse the names published as real testimonials on /impact
- * (Amara, David, Zainab, Kwame).
- * ──────────────────────────────────────────────────────────────────────────*/
-
-export const COMPOSITE_LABEL = "Illustrative composite";
-
-export const COMPOSITE_DISCLOSURE =
-  "The three people below are composites, drawn from our user research. They portray who Edutu For You is built for — not alumni we have already served. We would rather show you the problem honestly than borrow someone else's success story.";
-
-export interface Story {
-  name: string;
-  age: number;
-  place: string;
-  image: string;
-  imageAlt: string;
-  quote: string;
-  /** The two-line teaser shown before expanding. */
-  teaser: string;
-  /** Paragraphs revealed by "Read more". */
-  full: string[];
-  /** The one sentence that names the barrier. */
-  barrier: string;
-}
-
-export const STORIES: Story[] = [
-  {
-    name: "Aisha",
-    age: 19,
-    place: "Kano, Nigeria",
-    image: `https://images.unsplash.com/photo-1770235621081-030607a06cee?${PORTRAIT}`,
-    imageAlt: "A young woman studying at her desk with an open book",
-    quote:
-      "I could write the code. I could not write the paragraph about myself.",
-    teaser:
-      "She taught herself Python on a phone with a cracked screen, working through tutorials between her shifts at her mother's shop.",
-    full: [
-      "Aisha taught herself Python on a phone with a cracked screen, working through tutorials between shifts at her mother's shop. By nineteen she had built three small apps, one of which the shop still runs on.",
-      "What she had never done was write about herself. The fully-funded fellowship she eventually applied to had been open for two years before she heard it existed, and when she found it, the application asked for a CV, a personal statement and two references — a genre of writing nobody in her circle had ever filled in before.",
-    ],
-    barrier:
-      "The barrier was never the coursework. It was a CV she had no idea how to write.",
-  },
-  {
-    name: "Kofi",
-    age: 23,
-    place: "Kumasi, Ghana",
-    image: `https://images.unsplash.com/photo-1620829813573-7c9e1877706f?${PORTRAIT}`,
-    imageAlt: "A graduate working at a laptop",
-    quote: "I applied to forty things. I should have applied to four.",
-    teaser:
-      "He graduated top of his class into three years of 'we regret to inform you'. The volume was never the problem.",
-    full: [
-      "Kofi graduated top of his class and then spent three years collecting rejections. He was not lazy about it — he applied to more than forty programs, some of them twice.",
-      "Almost none of them were a fit. He was applying to opportunities that wanted five years of experience, or a different passport, or a research background he did not have, because there was no way to tell from the listing which was which. Every rejection cost him two evenings and a little more belief.",
-      "The four that genuinely matched his profile were buried somewhere in the same feed. He never found them, because nothing was doing the filtering except him.",
-    ],
-    barrier:
-      "His problem was applying to the wrong forty things instead of the right four.",
-  },
-  {
-    name: "Halima",
-    age: 17,
-    place: "Kakuma, Kenya",
-    image: `https://images.unsplash.com/photo-1747021941314-4179268d6258?${PORTRAIT}`,
-    imageAlt: "A young student outdoors, looking at the camera",
-    quote: "Everything I do online, I do on someone else's data bundle.",
-    teaser:
-      "She lives in a refugee settlement and shares a data bundle with four other people. For her, low-bandwidth access is not a feature.",
-    full: [
-      "Halima is seventeen, lives in a refugee settlement, and shares a data bundle with four other people. Her study time is measured in megabytes.",
-      "Most scholarship portals are built by people who have never had to think about this. A page that loads six megabytes of hero video costs her a week of browsing. A form that times out and loses her answers costs her the whole attempt.",
-      "For her, the promise of an opportunity platform is not the AI. It is that the thing loads at all, in a language she reads, on the phone she actually has, without spending the bundle before she reaches the apply button.",
-    ],
-    barrier:
-      "For Halima, low-bandwidth mobile access is not a feature of the product. It is the product.",
-  },
-];
-
-/* ────────────────────────────────────────────────────────────────────────────
- * A year in the program
- * ──────────────────────────────────────────────────────────────────────────*/
-
-export interface TimelineStep {
-  window: string;
-  title: string;
-  body: string;
-}
-
-export const TIMELINE: TimelineStep[] = [
-  {
-    window: "Month 1",
-    title: "Profile and first matches",
-    body: "You tell us where you are, what you've done and what you're aiming at. You get your first real shortlist within the week.",
-  },
-  {
-    window: "Months 2–3",
-    title: "Your first application kit",
-    body: "A CV that reads properly, a personal statement in your own voice, and a clear picture of what one specific funder is asking for.",
-  },
-  {
-    window: "Months 4–6",
-    title: "First submissions",
-    body: "You apply — to a handful of things you can genuinely win, with deadlines tracked so none of them pass you quietly.",
-  },
-  {
-    window: "Months 7–9",
-    title: "Mentorship and iteration",
-    body: "Some of it comes back as no. You work with a mentor and the coach on what to change, and you go again with better material.",
-  },
-  {
-    window: "Months 10–12",
-    title: "Outcomes, and paying it forward",
-    body: "An offer, an admission, a grant or a role — and a cohort behind you asking you exactly what you asked a year ago.",
   },
 ];
 
@@ -396,7 +273,7 @@ export const PARTNER_LANES: PartnerLane[] = [
 ];
 
 export const PARTNER_PITCH =
-  "Edutu already runs the infrastructure — the opportunity catalogue, the matching engine, the coach, the deadline tracking, the scam filtering. What it takes to reach the next million is not a new platform. It is funding, distribution and opportunities from people who want the same thing.";
+  "The infrastructure already exists. What the next million needs is funding, distribution and opportunities.";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Joining
@@ -427,7 +304,7 @@ export const JOIN_STEPS: JoinStep[] = [
 ];
 
 export const JOIN_ELIGIBILITY =
-  "Edutu For You is for young people across Africa who have the ability and not the access — no cost, no gatekeeping, no connections required. If you are reading this and that describes you, you already qualify.";
+  "For young people across Africa with the ability and not the access. No cost, no gatekeeping, no connections required.";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * FAQ — including the two uncomfortable questions.
@@ -474,7 +351,7 @@ export const PROGRAM_NAME = "Edutu For You";
 export const PROGRAM_KICKER = "An Edutu impact program";
 export const PROGRAM_HEADLINE = "Talent is everywhere. Access isn't.";
 export const PROGRAM_SUBHEAD =
-  "Edutu For You is our commitment to reach one million underprivileged young people with access to global opportunities — using the AI infrastructure we have already built.";
+  "Our commitment to reach one million underprivileged young people with access to global opportunities — using the AI infrastructure we have already built.";
 
 /** The homepage band's shorter framing. */
 export const BAND_BODY =

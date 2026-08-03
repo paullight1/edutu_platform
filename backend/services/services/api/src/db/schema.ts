@@ -1005,6 +1005,45 @@ export const blogPosts = pgTable(
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type NewBlogPost = typeof blogPosts.$inferInsert;
 
+// Edutu For You — beneficiary impact stories rendered on /edutuforyou.
+//
+// `isComposite` is load-bearing: it drives the attribution line the public page
+// renders under a story. Seeded rows are composites written from user research
+// and illustrated with stock photography. When an admin replaces one with a
+// real, consented story they clear this flag and the disclosure disappears for
+// that story alone. Never default it to false.
+export const impactStories = pgTable(
+  "impact_stories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    age: integer("age"),
+    place: text("place").notNull(),
+    outcome: text("outcome").notNull(),
+    portrait: text("portrait").notNull(),
+    portraitAlt: text("portrait_alt").notNull(),
+    heroImage: text("hero_image").notNull(),
+    heroAlt: text("hero_alt").notNull(),
+    quote: text("quote").notNull(),
+    teaser: text("teaser").notNull(),
+    // [{ heading: string, body: string[] }]
+    chapters: jsonb("chapters").notNull().default([]),
+    // [{ value: string, label: string }]
+    stats: jsonb("stats").notNull().default([]),
+    barrier: text("barrier"),
+    isComposite: boolean("is_composite").notNull().default(true),
+    status: text("status").notNull().default("published"), // 'draft' | 'published'
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("idx_impact_stories_status").on(table.status)],
+);
+
+export type ImpactStory = typeof impactStories.$inferSelect;
+export type NewImpactStory = typeof impactStories.$inferInsert;
+
 // Events announced by admins and shown publicly when published
 export const events = pgTable(
   "events",

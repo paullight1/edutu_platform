@@ -1,14 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import EdutuForYouPage from "../../components/EdutuForYouPage";
 import EdutuForYouBand from "../../components/EdutuForYouBand";
-import {
-  COMPOSITE_LABEL,
-  PARTNER_EMAIL,
-  STORIES,
-  WHATSAPP_JOIN_URL,
-} from "../../lib/edutuForYou";
+import EdutuForYouStoryPage from "../../components/EdutuForYouStoryPage";
+import { PARTNER_EMAIL, WHATSAPP_JOIN_URL } from "../../lib/edutuForYou";
+import { STORIES, STORY_ATTRIBUTION } from "../../lib/edutuForYouStories";
 
 // Hoisted so useAuth()/useUser() return the same object every render — the
 // public header reads both, and a fresh object per render churns effects.
@@ -29,10 +26,35 @@ vi.mock("../../hooks/useDarkMode", () => ({
   useDarkMode: () => ({ isDarkMode: false, toggleDarkMode: vi.fn() }),
 }));
 
+beforeEach(() => {
+  // Unstubbed fetch would hit the network; the service swallows the failure and
+  // falls back to the seeds, which is exactly the path we want to exercise.
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/edutuforyou"]}>
       <EdutuForYouPage />
+    </MemoryRouter>,
+  );
+}
+
+function renderStory(slug: string) {
+  return render(
+    <MemoryRouter initialEntries={[`/edutuforyou/stories/${slug}`]}>
+      <Routes>
+        <Route
+          path="/edutuforyou/stories/:slug"
+          element={<EdutuForYouStoryPage />}
+        />
+        <Route path="/edutuforyou" element={<div>program page</div>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -45,14 +67,64 @@ describe("EdutuForYouPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("points every partner CTA at the partner mailbox with a prefilled subject", () => {
+  it("renders every story as a link to its own page", async () => {
     renderPage();
-    const partnerLinks = screen
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", {
+          name: new RegExp(STORIES[0].name, "i"),
+        }),
+      ).toBeInTheDocument();
+    });
+
+    for (const story of STORIES) {
+      const link = screen.getByRole("link", {
+        name: new RegExp(`${story.name}, ${story.age}`, "i"),
+      });
+      expect(link).toHaveAttribute(
+        "href",
+        `/edutuforyou/stories/${story.slug}`,
+      );
+    }
+  });
+
+  it("falls back to the seeded stories when the API is unreachable", async () => {
+    renderPage();
+
+    // fetch is stubbed to reject, so the service returns the bundled seeds and
+    // the section renders all nine rather than going empty.
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("link", {
+          name: new RegExp(`${STORIES[0].name}, ${STORIES[0].age}`),
+        }),
+      ).toHaveLength(1);
+    });
+
+    for (const story of STORIES) {
+      expect(
+        screen.getByText(story.quote, { exact: false }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  // The attribution is the honesty guarantee for invented stories. It must be
+  // present whenever any rendered story is still a composite.
+  it("discloses that composite stories are not real users", async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText(STORY_ATTRIBUTION)).toBeInTheDocument();
+    });
+  });
+
+  it("points every partner CTA at the partner mailbox", () => {
+    renderPage();
+    const links = screen
       .getAllByRole("link", { name: /partner with us/i })
       .map((node) => node.getAttribute("href"));
 
-    expect(partnerLinks.length).toBeGreaterThan(0);
-    for (const href of partnerLinks) {
+    expect(links.length).toBeGreaterThan(0);
+    for (const href of links) {
       expect(href).toContain(`mailto:${PARTNER_EMAIL}`);
       expect(href).toContain("subject=");
     }
@@ -60,65 +132,88 @@ describe("EdutuForYouPage", () => {
 
   it("opens the WhatsApp community in a new tab without leaking the referrer", () => {
     renderPage();
-    const joinLinks = screen.getAllByRole("link", {
+    for (const link of screen.getAllByRole("link", {
       name: /follow the community/i,
-    });
-
-    expect(joinLinks.length).toBeGreaterThan(0);
-    for (const link of joinLinks) {
+    })) {
       expect(link).toHaveAttribute("href", WHATSAPP_JOIN_URL);
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
   });
 
-  // The composite labelling is the page's honesty guarantee, not decoration:
-  // an unlabelled fictional testimonial on an impact page is a trust problem.
-  it("labels every story as an illustrative composite", () => {
-    renderPage();
-    expect(screen.getAllByText(COMPOSITE_LABEL)).toHaveLength(STORIES.length);
-  });
-
-  it("discloses that the stories are composites rather than alumni", () => {
-    renderPage();
-    expect(screen.getByText(/not alumni we have already served/i)).toBeInTheDocument();
-  });
-
-  it("expands and collapses a story on Read more", () => {
-    renderPage();
-    const story = STORIES[0];
-    const toggle = screen.getByRole("button", {
-      name: new RegExp(`read ${story.name}'s story`, "i"),
-    });
-
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText(story.barrier)).not.toBeInTheDocument();
-
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText(story.barrier)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /show less/i }));
-    expect(
-      screen.getByRole("button", {
-        name: new RegExp(`read ${story.name}'s story`, "i"),
-      }),
-    ).toHaveAttribute("aria-expanded", "false");
-  });
-
   it("sources every statistic on the gap cards", () => {
     renderPage();
-    // Two external figures plus two of our own — none unattributed.
-    expect(screen.getByText("UN DESA, World Population Prospects")).toBeInTheDocument();
+    expect(
+      screen.getByText("UN DESA, World Population Prospects"),
+    ).toBeInTheDocument();
     expect(screen.getByText("African Development Bank")).toBeInTheDocument();
     expect(screen.getAllByText("Edutu platform data")).toHaveLength(2);
   });
 
-  it("cross-links to the research on /impact", () => {
+  it("collapses and expands FAQ answers one at a time", () => {
     renderPage();
+    const buttons = screen.getAllByRole("button", { name: /\?$/ });
+    expect(buttons.length).toBeGreaterThan(1);
+
+    // First item starts open.
+    expect(buttons[0]).toHaveAttribute("aria-expanded", "true");
+    expect(buttons[1]).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(buttons[1]);
+    expect(buttons[1]).toHaveAttribute("aria-expanded", "true");
+    expect(buttons[0]).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(buttons[1]);
+    expect(buttons[1]).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("EdutuForYouStoryPage", () => {
+  it("renders the full story with every chapter", async () => {
+    const story = STORIES[0];
+    renderStory(story.slug);
+
     expect(
-      screen.getByRole("link", { name: /read the research behind this/i }),
-    ).toHaveAttribute("href", "/impact");
+      screen.getByRole("heading", {
+        name: new RegExp(`${story.name}, ${story.age}`),
+        level: 1,
+      }),
+    ).toBeInTheDocument();
+
+    for (const chapter of story.chapters) {
+      expect(
+        screen.getByRole("heading", { name: chapter.heading }),
+      ).toBeInTheDocument();
+      for (const paragraph of chapter.body) {
+        expect(screen.getByText(paragraph)).toBeInTheDocument();
+      }
+    }
+  });
+
+  it("shows the attribution on a composite story", async () => {
+    renderStory(STORIES[0].slug);
+    await waitFor(() => {
+      expect(screen.getByText(STORY_ATTRIBUTION)).toBeInTheDocument();
+    });
+  });
+
+  it("links on to the next story", async () => {
+    renderStory(STORIES[0].slug);
+    await waitFor(() => {
+      expect(screen.getByText(/next story/i)).toBeInTheDocument();
+    });
+    const nextLink = screen.getByText(/next story/i).closest("a");
+    expect(nextLink).toHaveAttribute(
+      "href",
+      `/edutuforyou/stories/${STORIES[1].slug}`,
+    );
+  });
+
+  it("redirects an unknown slug back to the program page", async () => {
+    renderStory("not-a-real-story");
+    await waitFor(() => {
+      expect(screen.getByText("program page")).toBeInTheDocument();
+    });
   });
 });
 
@@ -131,27 +226,22 @@ describe("EdutuForYouBand", () => {
     );
   }
 
-  it("links through to the program page", () => {
+  it("carries exactly one call to action, pointing at the program page", () => {
     renderBand();
-    expect(
-      screen.getByRole("link", { name: /read the mission/i }),
-    ).toHaveAttribute("href", "/edutuforyou");
-  });
-
-  it("carries both the partner and join CTAs", () => {
-    renderBand();
-    expect(
-      screen.getByRole("link", { name: /partner with us/i }),
-    ).toHaveAttribute("href", expect.stringContaining(`mailto:${PARTNER_EMAIL}`));
-    expect(
-      screen.getByRole("link", { name: /follow the community/i }),
-    ).toHaveAttribute("href", WHATSAPP_JOIN_URL);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/edutuforyou");
+    expect(links[0]).toHaveTextContent(/read more/i);
   });
 
   it("exposes the reach progress to assistive tech", () => {
     renderBand();
     const bar = screen.getByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuemax", "1000000");
-    expect(within(bar.parentElement as HTMLElement).getByText(/of 1,000,000 reached/i)).toBeInTheDocument();
+    expect(
+      within(bar.parentElement as HTMLElement).getByText(
+        /of 1,000,000 reached/i,
+      ),
+    ).toBeInTheDocument();
   });
 });

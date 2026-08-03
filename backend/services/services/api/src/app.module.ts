@@ -9,6 +9,7 @@ import { CreatorModule } from "./creator/creator.module";
 import { QuizModule } from "./quiz/quiz.module";
 import { FlashcardsModule } from "./flashcards/flashcards.module";
 import { BlogModule } from "./blog/blog.module";
+import { ImpactStoriesModule } from "./impact-stories/impact-stories.module";
 import { ScraperModule } from "./scraper/scraper.module";
 import { CvModule } from "./cv/cv.module";
 import { RoadmapsModule } from "./roadmaps/roadmaps.module";
@@ -60,6 +61,7 @@ import { SupportModule } from "./support/support.module";
     QuizModule,
     FlashcardsModule,
     BlogModule,
+    ImpactStoriesModule,
     ScraperModule,
     CvModule,
     RoadmapsModule,
