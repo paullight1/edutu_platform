@@ -1,7 +1,4 @@
-import {
-  OG_INJECTED_MARKER,
-  injectIntoShell,
-} from "./og-shell-inject";
+import { OG_INJECTED_MARKER, injectIntoShell } from "./og-shell-inject";
 import type { OgPageMeta } from "./og-page.render";
 
 /**
@@ -71,7 +68,9 @@ describe("injectIntoShell", () => {
 
     // These responses reach real users, not just crawlers. Losing the entry
     // script would replace the app with a blank page on every shared link.
-    expect(html).toContain('<script type="module" src="/assets/index-abc123.js"></script>');
+    expect(html).toContain(
+      '<script type="module" src="/assets/index-abc123.js"></script>',
+    );
     expect(html).toContain('<div id="root"></div>');
   });
 
@@ -91,9 +90,7 @@ describe("injectIntoShell", () => {
       imageHeight: 1350,
     })!;
 
-    expect(html).toContain(
-      '<meta property="og:image:width" content="1080" />',
-    );
+    expect(html).toContain('<meta property="og:image:width" content="1080" />');
     expect(html).toContain(
       '<meta property="og:image:height" content="1350" />',
     );

@@ -243,7 +243,7 @@ export class CopilotService {
       if (concurrent && Object.keys(concurrent.kit || {}).length) {
         void this.monetizationService.refund(charge);
         return {
-          ...this.withOpportunity(concurrent, opportunity),
+          ...(await this.withOpportunity(concurrent, opportunity)),
           profileGrounded: this.isProfileGrounded(profile),
         };
       }
@@ -284,18 +284,21 @@ export class CopilotService {
     // Lets the client show "Complete your profile for a sharper kit" instead of
     // pretending an empty-profile kit is personalized (P0.1).
     const profileGrounded = this.isProfileGrounded(profile);
-    return { ...this.withOpportunity(saved, opportunity), profileGrounded };
+    return {
+      ...(await this.withOpportunity(saved, opportunity)),
+      profileGrounded,
+    };
   }
 
   /** True when the profile has any signal worth grounding the kit on. */
   private isProfileGrounded(profile: ProfileContext): boolean {
     return Boolean(
       profile.country ||
-        profile.major ||
-        profile.degree ||
-        profile.school ||
-        profile.interests?.length ||
-        profile.skills?.length,
+      profile.major ||
+      profile.degree ||
+      profile.school ||
+      profile.interests?.length ||
+      profile.skills?.length,
     );
   }
 
@@ -896,7 +899,7 @@ export class CopilotService {
       type: row.type ?? null,
       eligibility:
         row.eligibility && typeof row.eligibility === "object"
-          ? (row.eligibility as Record<string, unknown>)
+          ? row.eligibility
           : null,
       requirements: list(metadata.requirements),
       benefits: list(metadata.benefits),

@@ -5,9 +5,22 @@ jest.mock("../db", () => {
   (globalThis as Record<string, any>).__snapSql = executed;
   const render = (query: any): string =>
     ((query?.queryChunks ?? []) as any[])
-      .map((c) => (typeof c === "string" ? c : Array.isArray(c?.value) ? c.value.join("") : ""))
+      .map((c) =>
+        typeof c === "string"
+          ? c
+          : Array.isArray(c?.value)
+            ? c.value.join("")
+            : "",
+      )
       .join("");
-  return { db: { execute: async (q: any) => { executed.push(render(q)); return { rows: [] }; } } };
+  return {
+    db: {
+      execute: async (q: any) => {
+        executed.push(render(q));
+        return { rows: [] };
+      },
+    },
+  };
 });
 
 import { GrowthSnapshotService } from "./growth-snapshot.service";
@@ -26,7 +39,16 @@ describe("GrowthSnapshotService", () => {
     const adminService = {
       getFunnel: async () => ({
         generatedAt: "2026-07-22T00:00:00Z",
-        stages: [{ key: "signup", label: "Signup", total: 100, newThisWeek: 20, newLastWeek: 15, convFromPrev: null }],
+        stages: [
+          {
+            key: "signup",
+            label: "Signup",
+            total: 100,
+            newThisWeek: 20,
+            newLastWeek: 15,
+            convFromPrev: null,
+          },
+        ],
         referral: { invitersTotal: 8, invitersThisWeek: 2 },
         cohorts: [],
       }),
@@ -40,10 +62,16 @@ describe("GrowthSnapshotService", () => {
   });
 
   it("never throws even if getFunnel fails", async () => {
-    const adminService = { getFunnel: async () => { throw new Error("db down"); } } as any;
+    const adminService = {
+      getFunnel: async () => {
+        throw new Error("db down");
+      },
+    } as any;
     await expect(
       new GrowthSnapshotService(adminService).captureDailySnapshot(),
     ).resolves.toBeUndefined();
-    expect(snapSql().filter((t) => t.includes("analytics_snapshots"))).toHaveLength(0);
+    expect(
+      snapSql().filter((t) => t.includes("analytics_snapshots")),
+    ).toHaveLength(0);
   });
 });

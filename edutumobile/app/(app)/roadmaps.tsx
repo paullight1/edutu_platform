@@ -353,11 +353,18 @@ export default function RoadmapsScreen() {
         if (!id || openedDeepLinkRef.current === id) return;
         openedDeepLinkRef.current = id;
 
-        const local = roadmaps.find((r) => r.id === id) || myRoadmaps.find((r) => r.id === id);
-        if (local) { setSelectedItem(local); return; }
-
         let cancelled = false;
         (async () => {
+            // Opening the sheet is an effect of the deep link, not state derived
+            // from render, so the set happens inside the async flow — a
+            // synchronous setState in the effect body trips set-state-in-effect.
+            const local =
+                roadmaps.find((r) => r.id === id) || myRoadmaps.find((r) => r.id === id);
+            if (local) {
+                if (!cancelled) setSelectedItem(local);
+                return;
+            }
+
             try {
                 const res = await apiFetch(`/roadmaps/${id}`);
                 if (!res?.ok || cancelled) return;
