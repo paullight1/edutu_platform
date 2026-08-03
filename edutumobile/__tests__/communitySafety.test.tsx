@@ -476,21 +476,11 @@ describe('reporting', () => {
     expect(en.moderation.reportConfirmBody).not.toMatch(/we('| wi)ll review|Edutu will review/i);
   });
 
-  it('reports the whole group from the transcript', async () => {
+  // Reporting the GROUP is not a message action and is not offered here — it
+  // lives once, in the chat header's kebab, and communityChat.test.tsx covers it.
+  it('does not offer to report the whole group from a message', () => {
     const screen = renderForeignBubble();
-
-    fireEvent.press(screen.getByTestId('message-report-group-m1'));
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
-    });
-
-    await waitFor(() =>
-      expect(mockReportTarget).toHaveBeenCalledWith(
-        { targetType: 'group', targetId: 'g1', reason: 'member_report' },
-        mockGetToken,
-      ),
-    );
-    expect(ownerNotifications[0].targetType).toBe('group');
+    expect(screen.queryByTestId('message-report-group-m1')).toBeNull();
   });
 
   it('keeps the message and shows the server sentence when the report fails', async () => {

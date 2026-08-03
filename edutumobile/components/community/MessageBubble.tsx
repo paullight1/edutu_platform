@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@clerk/clerk-expo';
-import { Ban, EyeOff, Flag, ShieldAlert, Trash2, UserMinus } from 'lucide-react-native';
+import { Ban, EyeOff, Flag, Trash2, UserMinus } from 'lucide-react-native';
 import * as communityApi from '@edutu/core/src/services/communities';
 import type { CommunityMessage } from '@edutu/core/src/services/communities';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
@@ -25,6 +25,10 @@ import { formatRelativeTime } from '../../lib/utils';
  *    debt: an action row on a message you are already looking at is content in
  *    place, not an interruption that needs to seize the screen.
  *
+ *    Reporting the GROUP is deliberately NOT here: a group is not a message,
+ *    and its report lives once, in the chat header's kebab, where the gating
+ *    and the confirm step already are.
+ *
  * 3. A REPORT WITH NO ADMIN CONSOLE BEHIND IT. Nobody at Edutu reads a queue in
  *    this release, so a report does two things and the copy promises exactly
  *    those two: the message disappears from the reporter's transcript
@@ -44,7 +48,7 @@ import { formatRelativeTime } from '../../lib/utils';
  */
 
 /** Every action the long-press menu can start. */
-type BubbleAction = 'report' | 'reportGroup' | 'block' | 'remove' | 'delete';
+type BubbleAction = 'report' | 'block' | 'remove' | 'delete';
 
 export interface MessageBubbleProps {
   message: CommunityMessage;
@@ -87,7 +91,6 @@ export function MessageBubble({
   const [busy, setBusy] = useState<BubbleAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
-  const [groupReported, setGroupReported] = useState(false);
 
   const deleted = !!message.deletedAt;
   const canAct = !deleted && !pending;
@@ -104,13 +107,6 @@ export function MessageBubble({
           if (onReport) return onReport(message);
           await communityApi.reportTarget(
             { targetType: 'message', targetId: message.id, reason: 'member_report' },
-            getToken,
-          );
-          return;
-        }
-        case 'reportGroup': {
-          await communityApi.reportTarget(
-            { targetType: 'group', targetId: message.groupId, reason: 'member_report' },
             getToken,
           );
           return;
@@ -152,8 +148,6 @@ export function MessageBubble({
           // The visible consequence of a report, and the whole of it: the
           // message goes. Nothing else in this release makes it disappear.
           setReported(true);
-        } else if (action === 'reportGroup') {
-          setGroupReported(true);
         } else {
           setActionsOpen(false);
         }
@@ -182,11 +176,6 @@ export function MessageBubble({
       body: t('community:moderation.reportConfirmBody'),
       label: t('community:moderation.reportMessage'),
     },
-    reportGroup: {
-      title: t('community:moderation.reportGroupConfirmTitle'),
-      body: t('community:moderation.reportGroupConfirmBody'),
-      label: t('community:moderation.reportGroup'),
-    },
     block: {
       title: t('community:moderation.blockConfirmTitle'),
       body: t('community:moderation.blockConfirmBody'),
@@ -204,7 +193,7 @@ export function MessageBubble({
     },
   };
 
-  /** Block, remove and delete take something away; the two reports do not. */
+  /** Block, remove and delete take something away; a report does not. */
   const destructive = confirming === 'block' || confirming === 'remove' || confirming === 'delete';
 
   // ── Reported: hidden from the reporter, at once ────────────────────────────
@@ -432,22 +421,6 @@ export function MessageBubble({
                   onPress={() => setConfirming('delete')}
                 />
               )}
-
-              {/* The whole room, not this message. It lives here because the
-                  transcript is where somebody decides a group is wrong. */}
-              <BubbleActionRow
-                testID={`message-report-group-${message.id}`}
-                label={
-                  groupReported
-                    ? t('community:moderation.reportGroupDone')
-                    : t('community:moderation.reportGroup')
-                }
-                icon={ShieldAlert}
-                color={colors.textSecondary}
-                labelColor={groupReported ? colors.textSecondary : colors.foreground}
-                disabled={groupReported || busy !== null}
-                onPress={() => setConfirming('reportGroup')}
-              />
             </>
           )}
 
