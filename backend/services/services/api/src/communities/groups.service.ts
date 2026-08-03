@@ -22,6 +22,7 @@ import {
   canReadGroup,
   canSelfActivate,
   canSelfJoinWithoutInvite,
+  isDepartedStatus,
   isLiveMembershipStatus,
   resolveAdminRole,
   type MemberRole,
@@ -949,7 +950,10 @@ export class GroupsService {
     }
 
     const target = await this.store.findMembership(groupId, targetUserId);
-    if (!target || target.status === "removed" || target.status === "banned") {
+    // The same departure rule `resolveAdminRole` uses to let a `removed` row
+    // beat `owner_id`: somebody who has been removed or banned is not in the
+    // group, so there is no role to change.
+    if (!target || isDepartedStatus(target.status)) {
       throw new NotFoundException("That person isn't in this group.");
     }
     if (target.role === role) return target;
