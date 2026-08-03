@@ -42,9 +42,9 @@ import {
   Share2,
   ArrowDownWideNarrow,
   Bell,
-  AlertCircle,
 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { StateView, useScreenState } from '../../../components/state';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -936,6 +936,13 @@ export default function OpportunitiesScreen() {
     void shareOpportunity(opportunity);
   }, [getToken]);
 
+  const screenState = useScreenState({
+    data: explore,
+    loading,
+    error,
+    filtersActive: Boolean(searchTerm),
+  });
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await refresh();
@@ -1333,24 +1340,15 @@ export default function OpportunitiesScreen() {
             )}
 
             {error && !loading ? (
-              <View
-                accessibilityRole="alert"
-                style={[styles.errorBox, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View style={[styles.errorIconWrap, { backgroundColor: `${colors.accent}18` }]}>
-                  <AlertCircle size={26} color={colors.accent} />
-                </View>
-                <Text style={[styles.errorTitle, { color: colors.foreground }]}>{t('list.errorTitle')}</Text>
-                <Text style={[styles.errorText, { color: colors.textSecondary }]}>{t('list.errorBody')}</Text>
-                <Pressable
-                  onPress={() => void handleRefresh()}
-                  style={[styles.errorRetryBtn, { backgroundColor: colors.accent }]}
-                  accessibilityRole="button"
-                >
-                  <RefreshCw size={15} color="#FFFFFF" />
-                  <Text style={styles.errorRetryText}>{t('list.retry')}</Text>
-                </Pressable>
-              </View>
+              <StateView
+                state={screenState}
+                flow="discovery"
+                fill={false}
+                title={t('list.errorTitle')}
+                body={t('list.errorBody')}
+                actionLabel={t('list.retry')}
+                onRetry={() => void handleRefresh()}
+              />
             ) : null}
           </View>
         }
@@ -1370,31 +1368,21 @@ export default function OpportunitiesScreen() {
               ))}
             </View>
           ) : error ? null : (
-            <View style={styles.emptyState}>
-              <View style={[styles.emptyStateIcon, { backgroundColor: `${colors.accent}18` }]}>
-                <Inbox size={42} color={colors.accent} strokeWidth={1.8} />
-              </View>
-              <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>{t('list.emptyTitle')}</Text>
-              <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
-                {searchTerm ? t('list.emptyTrySearch') : t('list.emptyCheckBack')}
-              </Text>
-              <Pressable
-                onPress={() => {
-                  if (searchTerm) {
-                    setSearchTerm('');
-                  } else {
-                    void handleRefresh();
-                  }
-                }}
-                style={[styles.emptyStateBtn, { backgroundColor: colors.accent }]}
-                accessibilityRole="button"
-              >
-                {searchTerm ? <X size={15} color="#FFFFFF" /> : <RefreshCw size={15} color="#FFFFFF" />}
-                <Text style={styles.emptyStateBtnText}>
-                  {searchTerm ? t('list.clearSearch') : t('list.refresh')}
-                </Text>
-              </Pressable>
-            </View>
+            <StateView
+              state={screenState}
+              flow="discovery"
+              fill={false}
+              title={t('list.emptyTitle')}
+              body={searchTerm ? t('list.emptyTrySearch') : t('list.emptyCheckBack')}
+              actionLabel={searchTerm ? t('list.clearSearch') : t('list.refresh')}
+              onAction={() => {
+                if (searchTerm) {
+                  setSearchTerm('');
+                } else {
+                  void handleRefresh();
+                }
+              }}
+            />
           )
         }
       />
