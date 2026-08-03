@@ -10,11 +10,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  Ban,
   Clock,
   Flag,
   Lock,
@@ -26,21 +27,23 @@ import {
 } from 'lucide-react-native';
 import {
   deleteMessage,
+  fetchBlockedUsers,
   fetchGroup,
   fetchGroupForm,
   fetchJoinRequests,
   isCommunityApiError,
   joinGroup,
+  removeMember,
   reportTarget,
-  type CommunityGroup,
-  type CommunityGroupMember,
+  unblockUser,
+  type BlockedUser,
   type CommunityMessage,
   type GroupDetail,
   type GroupQuestion,
   type JoinRequestAnswer,
-  type MemberRole,
   type MembershipStatus,
 } from '@edutu/core/src/services/communities';
+import { resolveAdminRole } from '@edutu/core/src/services/communityAuthz';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -48,6 +51,10 @@ import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { MessageBubble } from '../../../components/community/MessageBubble';
 import { Composer } from '../../../components/community/Composer';
+import {
+  FirstPostNotice,
+  hasAcknowledgedFirstPost,
+} from '../../../components/community/FirstPostNotice';
 import { useGroupMessages, type LocalMessage } from '../../../hooks/useGroupMessages';
 
 /**
@@ -80,8 +87,23 @@ import { useGroupMessages, type LocalMessage } from '../../../hooks/useGroupMess
  */
 const LAST_READ_KEY = 'edutu:discussions:lastRead';
 
-/** Local-only mute list. There is no server block endpoint yet. */
+/**
+ * The device's copy of the caller's block list, mirroring the server's
+ * `user_blocks`. See `visibleMessages` for why the client keeps one at all.
+ */
 const BLOCKED_KEY = 'edutu:community:blocked';
+
+/**
+ * Ids of messages this reader has reported.
+ *
+ * WHY IT IS PERSISTED. A report hides the message — that is the whole of what a
+ * report visibly does in this release. Holding that in component state made it
+ * survive exactly until the screen unmounted, so a person who reported
+ * something abusive met it again on the next launch and reasonably concluded
+ * the report did nothing. Hiding is a promise; a promise that lasts one session
+ * is not one.
+ */
+const REPORTED_KEY = 'edutu:community:reportedMessages';
 
 /**
  * Stamp this group as read. Read-modify-write on one JSON blob, because the
@@ -102,51 +124,44 @@ export async function markGroupRead(groupId: string, at: string): Promise<void> 
 }
 
 /**
- * WHO MAY ADMINISTER THIS GROUP — the client half of the ONE rule.
- *
- * This is a literal mirror of `resolveAdminRole` in
- * `backend/services/services/api/src/communities/community-authz.ts`, which is
- * the authority: same two arms, same precedence, same treatment of departures.
- * It is restated here rather than invented because three Critical findings in
- * this feature had the identical shape — two places that must agree,
- * disagreeing — and the header is the newest place that has to agree.
- *
- * It is NOT a new rule and must never become one:
- *   • `owner_id` alone is enough, so a drifted or missing membership row never
- *     locks a real owner out of the settings screen for their own group;
- *   • an explicit departure (`removed`/`banned`) is a decision, not drift, and
- *     beats `owner_id`;
- *   • only an `active` membership confers a role — `invited` and `pending` are
- *     neither departures nor administration and confer nothing.
- *
- * The types come from the shared `@edutu/core` communities module, which is
- * also the module that would host this predicate; it exports the membership
- * shapes but no predicates today, and adding one there was outside this
- * change's file allowlist. If it grows them, DELETE this and import it.
+ * WHO MAY ADMINISTER THIS GROUP is decided by
+ * `@edutu/core/src/services/communityAuthz`, imported above, and by nothing
+ * else on this screen. It used to be a hand-copied mirror of the backend's
+ * `community-authz.ts` living here; the three Critical findings this feature
+ * has already produced were all "two places that must agree, disagreeing", so
+ * the copy went and the import stayed. Do not re-derive a role below.
  */
-export function resolveAdminRole(
-  group: Pick<CommunityGroup, 'ownerId'> | null,
-  userId: string | null,
-  membership: Pick<CommunityGroupMember, 'status' | 'role'> | null,
-): MemberRole | null {
-  if (!userId) return null;
-  const status = membership?.status;
-  const departed = status === 'removed' || status === 'banned';
-  if (group?.ownerId === userId && !departed) return 'owner';
-  if (status !== 'active') return null;
-  if (membership?.role === 'owner') return 'owner';
-  if (membership?.role === 'mod') return 'mod';
-  return null;
-}
 
-async function readBlocked(): Promise<string[]> {
+/** One JSON string array in AsyncStorage, read defensively. */
+async function readIdList(key: string): Promise<string[]> {
   try {
-    const raw = await AsyncStorage.getItem(BLOCKED_KEY);
+    const raw = await AsyncStorage.getItem(key);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
   } catch {
     return [];
   }
+}
+
+async function addToIdList(key: string, id: string): Promise<string[]> {
+  const next = await readIdList(key);
+  if (!next.includes(id)) next.push(id);
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // A failed write costs the hide on the NEXT launch, never this one.
+  }
+  return next;
+}
+
+async function removeFromIdList(key: string, id: string): Promise<string[]> {
+  const next = (await readIdList(key)).filter((value) => value !== id);
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // As above.
+  }
+  return next;
 }
 
 export default function GroupChatScreen() {
@@ -165,6 +180,14 @@ export default function GroupChatScreen() {
   const [detailLoading, setDetailLoading] = useState(true);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<string[]>([]);
+  /**
+   * Reported messages as they stood WHEN THIS SCREEN OPENED, and deliberately
+   * not as they stand now: reporting inside this session is answered by the
+   * bubble itself, which keeps the row in place and says who was told. Folding
+   * a fresh report into this list instead would make the message silently
+   * vanish mid-conversation. What this list is for is the next launch.
+   */
+  const [reportedAtOpen, setReportedAtOpen] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   /** Set when the group is loaded — see `loadDetail` for why not in render. */
   const [expired, setExpired] = useState(false);
@@ -227,7 +250,31 @@ export default function GroupChatScreen() {
   }, [loadDetail]);
 
   useEffect(() => {
-    void (async () => setBlocked(await readBlocked()))();
+    void (async () => {
+      const [blockedIds, reportedIds] = await Promise.all([
+        readIdList(BLOCKED_KEY),
+        readIdList(REPORTED_KEY),
+      ]);
+      setBlocked(blockedIds);
+      setReportedAtOpen(reportedIds);
+    })();
+  }, []);
+
+  // ── The first-post notice ──────────────────────────────────────────────────
+  // `null` while the flag is being read. The composer stays shut until the
+  // answer is known, so the gate can never be beaten by being fast: a first
+  // post that slips out during a disk read is exactly the post the App Store
+  // requires the notice in front of.
+  const [firstPostAcknowledged, setFirstPostAcknowledged] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const acknowledged = await hasAcknowledgedFirstPost();
+      if (!cancelled) setFirstPostAcknowledged(acknowledged);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Unread ─────────────────────────────────────────────────────────────────
@@ -245,20 +292,41 @@ export default function GroupChatScreen() {
   }, [groupId, canRead, newestAt, group?.lastMessageAt]);
 
   // ── Moderation ─────────────────────────────────────────────────────────────
+  /**
+   * THE CLIENT-SIDE BLOCK FILTER IS THE SECOND LAYER. DO NOT DELETE IT AS
+   * REDUNDANT.
+   *
+   * `MessagesService.list` filters blocked authors on the server, and that
+   * covers REST pages — the history you scroll. It does NOT cover the live
+   * stream: Supabase Realtime publishes straight from Postgres replication and
+   * never passes through the service, so a blocked member's NEW messages arrive
+   * on the socket having been filtered by nothing at all. Without this pass a
+   * block works on relaunch and fails while you are watching.
+   *
+   * The reported-ids pass beside it is durable for the reason given at
+   * REPORTED_KEY: a report that stops hiding on relaunch reads as a report that
+   * did nothing.
+   */
   const visibleMessages = useMemo(
     () =>
-      blocked.length === 0
+      blocked.length === 0 && reportedAtOpen.length === 0
         ? messages.messages
-        : messages.messages.filter((message) => !blocked.includes(message.userId)),
-    [messages.messages, blocked],
+        : messages.messages.filter(
+            (message) =>
+              !blocked.includes(message.userId) && !reportedAtOpen.includes(message.id),
+          ),
+    [messages.messages, blocked, reportedAtOpen],
   );
 
   const handleBlock = useCallback(async (message: CommunityMessage) => {
     if (!message.userId) return;
-    const next = await readBlocked();
-    if (!next.includes(message.userId)) next.push(message.userId);
-    await AsyncStorage.setItem(BLOCKED_KEY, JSON.stringify(next));
-    setBlocked(next);
+    // The bubble has already written the block to the server; this is the copy
+    // that filters the socket. See `visibleMessages`.
+    setBlocked(await addToIdList(BLOCKED_KEY, message.userId));
+  }, []);
+
+  const handleUnblock = useCallback(async (userId: string) => {
+    setBlocked(await removeFromIdList(BLOCKED_KEY, userId));
   }, []);
 
   const handleReport = useCallback(
@@ -267,6 +335,8 @@ export default function GroupChatScreen() {
         { targetType: 'message', targetId: message.id, reason: 'member_report' },
         getToken,
       );
+      // Recorded, not applied — `reportedAtOpen` is the next launch's filter.
+      await addToIdList(REPORTED_KEY, message.id);
     },
     [getToken],
   );
@@ -278,6 +348,22 @@ export default function GroupChatScreen() {
       messages.applyMessage(await deleteMessage(message.id, getToken));
     },
     [messages, getToken],
+  );
+
+  /**
+   * Remove somebody from the group.
+   *
+   * The bubble can do this itself, and did — which left the screen holding a
+   * roster that still counted the person who had just been thrown out, until
+   * something else happened to refetch. Removing changes `member_count` and can
+   * change the caller's own standing, so the group is re-read afterwards.
+   */
+  const handleRemoveMember = useCallback(
+    async (message: CommunityMessage) => {
+      await removeMember(message.groupId, message.userId, getToken);
+      await loadDetail();
+    },
+    [getToken, loadDetail],
   );
 
   // ── Rights ─────────────────────────────────────────────────────────────────
@@ -306,28 +392,40 @@ export default function GroupChatScreen() {
   // Without it an owner has no way to learn that anybody is waiting: nothing
   // else in the app mentions the queue. A failure leaves the count `null` and
   // the entry point unbadged — the queue is still one tap away.
+  //
+  // ON FOCUS, not on mount. Approving somebody happens on the requests screen
+  // and the owner then comes STRAIGHT BACK here — a count fetched once at mount
+  // is stale at precisely the moment it is looked at, and a badge that still
+  // says 3 after you cleared the queue teaches people to distrust it.
   const [pendingRequests, setPendingRequests] = useState<number | null>(null);
-  useEffect(() => {
-    if (!groupId || !canReviewRequests) return undefined;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const rows = await fetchJoinRequests(groupId, getToken);
-        if (!cancelled) {
-          setPendingRequests(rows.filter((row) => row.status === 'pending').length);
+  useFocusEffect(
+    useCallback(() => {
+      if (!groupId || !canReviewRequests) return undefined;
+      let cancelled = false;
+      void (async () => {
+        try {
+          const rows = await fetchJoinRequests(groupId, getToken);
+          if (!cancelled) {
+            setPendingRequests(rows.filter((row) => row.status === 'pending').length);
+          }
+        } catch {
+          // A badge is a nicety. It must never surface as an error on a chat.
         }
-      } catch {
-        // A badge is a nicety. It must never surface as an error on a chat.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [groupId, canReviewRequests, getToken]);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [groupId, canReviewRequests, getToken]),
+  );
 
   // ── The header menu ────────────────────────────────────────────────────────
   const [menuOpen, setMenuOpen] = useState(false);
-  const hasMenu = canOpenSettings || canReviewRequests || canReportGroup;
+  /**
+   * Block is one mis-tap away in a row action sheet the width of a bubble, and
+   * until now nothing in the app could undo it. Any member gets the list.
+   */
+  const canManageBlocks = isMember;
+  const hasMenu = canOpenSettings || canReviewRequests || canReportGroup || canManageBlocks;
 
   const goTo = useCallback(
     (path: string) => {
@@ -340,11 +438,22 @@ export default function GroupChatScreen() {
   );
 
   // ── Send ───────────────────────────────────────────────────────────────────
+  /**
+   * Nobody posts before they have been shown the house rules once. The flag is
+   * device-local and once ever, not once per group — the rules are the same
+   * room to room — and `!== true` rather than `=== false` so the unread state
+   * gates too.
+   */
+  const firstPostBlocked = firstPostAcknowledged !== true;
+
   const handleSend = useCallback(async () => {
+    // The composer is disabled while the notice stands; this is the same rule
+    // stated where it cannot be routed around.
+    if (firstPostBlocked) return;
     const ok = await messages.send(draft);
     // Cleared ONLY on success. A screener refusal keeps every character.
     if (ok) setDraft('');
-  }, [messages, draft]);
+  }, [firstPostBlocked, messages, draft]);
 
   const handleChangeDraft = useCallback(
     (value: string) => {
@@ -375,9 +484,12 @@ export default function GroupChatScreen() {
         onReport={handleReport}
         onBlock={handleBlock}
         onDelete={handleDelete}
+        // Without this the bubble calls `removeMember` itself and the screen
+        // never learns the roster changed.
+        onRemoveMember={handleRemoveMember}
       />
     ),
-    [userId, canModerate, handleReport, handleBlock, handleDelete],
+    [userId, canModerate, handleReport, handleBlock, handleDelete, handleRemoveMember],
   );
 
   const busy = detailLoading || (canRead && messages.loading && visibleMessages.length === 0);
@@ -417,8 +529,10 @@ export default function GroupChatScreen() {
           canOpenSettings={canOpenSettings}
           canReviewRequests={canReviewRequests}
           canReportGroup={canReportGroup}
+          canManageBlocks={canManageBlocks}
           pendingRequests={pendingRequests}
           onNavigate={goTo}
+          onUnblocked={handleUnblock}
         />
       )}
 
@@ -504,15 +618,27 @@ export default function GroupChatScreen() {
             )}
 
             {isMember ? (
-              <Composer
-                value={draft}
-                onChangeText={handleChangeDraft}
-                onSend={() => void handleSend()}
-                sending={messages.sending}
-                disabled={postingDisabled}
-                disabledNotice={postingNotice}
-                error={messages.sendError}
-              />
+              <>
+                {/* THE APP STORE'S USER-GENERATED-CONTENT REQUIREMENT, at the
+                    only moment it is cheap to state: the person is about to
+                    post. It sits above the composer rather than over it,
+                    persists its own acknowledgement, and holds the composer
+                    shut until it is answered — a notice you can post past is
+                    decoration. It is not shown where posting is off anyway. */}
+                <FirstPostNotice
+                  active={!postingDisabled}
+                  onAcknowledge={() => setFirstPostAcknowledged(true)}
+                />
+                <Composer
+                  value={draft}
+                  onChangeText={handleChangeDraft}
+                  onSend={() => void handleSend()}
+                  sending={messages.sending}
+                  disabled={postingDisabled || firstPostBlocked}
+                  disabledNotice={postingNotice}
+                  error={messages.sendError}
+                />
+              </>
             ) : (
               <JoinGate
                 groupId={groupId}
@@ -538,9 +664,12 @@ interface GroupHeaderMenuProps {
   canOpenSettings: boolean;
   canReviewRequests: boolean;
   canReportGroup: boolean;
+  canManageBlocks: boolean;
   /** `null` when the count is unknown — never rendered as a zero-that-lies. */
   pendingRequests: number | null;
   onNavigate: (path: string) => void;
+  /** Drop this person from the device's socket filter as well as the server. */
+  onUnblocked: (userId: string) => Promise<void> | void;
 }
 
 /**
@@ -560,8 +689,10 @@ function GroupHeaderMenu({
   canOpenSettings,
   canReviewRequests,
   canReportGroup,
+  canManageBlocks,
   pendingRequests,
   onNavigate,
+  onUnblocked,
 }: GroupHeaderMenuProps) {
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
@@ -571,6 +702,52 @@ function GroupHeaderMenu({
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── The block list ─────────────────────────────────────────────────────────
+  // Fetched when the panel is opened, never on every chat open: it is a
+  // recovery path, and a request on the way into a room nobody asked for is a
+  // request nobody should pay for.
+  const [blocksOpen, setBlocksOpen] = useState(false);
+  const [blocks, setBlocks] = useState<BlockedUser[] | null>(null);
+  const [blocksLoading, setBlocksLoading] = useState(false);
+  const [unblocking, setUnblocking] = useState<string | null>(null);
+
+  const openBlocks = useCallback(async () => {
+    setBlocksOpen(true);
+    setError(null);
+    if (blocks !== null) return;
+    setBlocksLoading(true);
+    try {
+      setBlocks(await fetchBlockedUsers(getToken));
+    } catch (caught) {
+      setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+      setBlocks([]);
+    } finally {
+      setBlocksLoading(false);
+    }
+  }, [blocks, getToken, t]);
+
+  const submitUnblock = useCallback(
+    async (userId: string) => {
+      if (unblocking) return;
+      setUnblocking(userId);
+      setError(null);
+      try {
+        await unblockUser(userId, getToken);
+        // The server is the record; the device's socket filter has to be told
+        // too, or the person stays invisible in this room until a relaunch.
+        await onUnblocked(userId);
+        setBlocks((previous) =>
+          (previous ?? []).filter((entry) => entry.userId !== userId),
+        );
+      } catch (caught) {
+        setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+      } finally {
+        setUnblocking(null);
+      }
+    },
+    [unblocking, getToken, onUnblocked, t],
+  );
 
   const submitReport = useCallback(async () => {
     if (reporting) return;
@@ -619,6 +796,105 @@ function GroupHeaderMenu({
           badge={pendingRequests && pendingRequests > 0 ? pendingRequests : null}
           onPress={() => onNavigate(`/discussions/${groupId}/requests`)}
         />
+      )}
+
+      {canManageBlocks && !blocksOpen && (
+        <MenuRow
+          testID="chat-menu-blocked"
+          label={t('community:moderation.blockedList')}
+          icon={Ban}
+          color={colors.textSecondary}
+          labelColor={colors.foreground}
+          disabled={reporting}
+          onPress={() => void openBlocks()}
+        />
+      )}
+
+      {canManageBlocks && blocksOpen && (
+        <View testID="chat-menu-blocked-panel" style={styles.menuConfirm}>
+          <Text style={[styles.menuConfirmTitle, { color: colors.foreground }]}>
+            {t('community:moderation.blockedList')}
+          </Text>
+
+          {blocksLoading && (
+            <ActivityIndicator
+              testID="chat-menu-blocked-busy"
+              size="small"
+              color={colors.textSecondary}
+            />
+          )}
+
+          {!blocksLoading && (blocks?.length ?? 0) === 0 && (
+            <Text
+              testID="chat-menu-blocked-empty"
+              style={[styles.menuConfirmBody, { color: colors.textSecondary }]}
+            >
+              {t('community:moderation.blockedEmpty')}
+            </Text>
+          )}
+
+          {(blocks ?? []).map((entry) => (
+            <View key={entry.userId} style={styles.blockedRow}>
+              <Text
+                style={[styles.blockedName, { color: colors.foreground }]}
+                numberOfLines={1}
+              >
+                {entry.displayName}
+              </Text>
+              <AnimatedPressable
+                testID={`chat-menu-unblock-${entry.userId}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('community:moderation.unblock')}, ${entry.displayName}`}
+                accessibilityState={{
+                  disabled: unblocking !== null,
+                  busy: unblocking === entry.userId,
+                }}
+                disabled={unblocking !== null}
+                hapticFeedback="medium"
+                scaleTo={0.97}
+                onPress={() => void submitUnblock(entry.userId)}
+                style={[
+                  styles.blockedAction,
+                  { borderColor: colors.border, opacity: unblocking !== null ? 0.6 : 1 },
+                ]}
+              >
+                {unblocking === entry.userId ? (
+                  <ActivityIndicator
+                    testID={`chat-menu-unblock-busy-${entry.userId}`}
+                    size="small"
+                    color={colors.foreground}
+                  />
+                ) : (
+                  <Text
+                    style={[styles.menuConfirmLabel, { color: colors.foreground }]}
+                    numberOfLines={1}
+                  >
+                    {t('community:moderation.unblock')}
+                  </Text>
+                )}
+              </AnimatedPressable>
+            </View>
+          ))}
+
+          <AnimatedPressable
+            testID="chat-menu-blocked-close"
+            accessibilityRole="button"
+            accessibilityLabel={t('common:actions.close')}
+            accessibilityState={{ disabled: unblocking !== null }}
+            disabled={unblocking !== null}
+            hapticFeedback="selection"
+            scaleTo={0.97}
+            onPress={() => setBlocksOpen(false)}
+            style={[styles.menuConfirmButton, { borderColor: colors.border }]}
+          >
+            <Text
+              style={[styles.menuConfirmLabel, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {t('common:actions.close')}
+            </Text>
+          </AnimatedPressable>
+        </View>
       )}
 
       {canReportGroup &&
@@ -1179,6 +1455,27 @@ const styles = StyleSheet.create({
   menuConfirmLabel: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 38,
+  },
+  blockedName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  blockedAction: {
+    borderWidth: 1,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    minHeight: 34,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   menuError: {
     fontSize: 12,

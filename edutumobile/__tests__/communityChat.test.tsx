@@ -31,6 +31,10 @@ const mockFetchGroupForm = jest.fn();
 const mockDeleteMessage = jest.fn();
 const mockReportTarget = jest.fn();
 const mockFetchJoinRequests = jest.fn();
+const mockRemoveMember = jest.fn();
+const mockBlockUser = jest.fn();
+const mockFetchBlockedUsers = jest.fn();
+const mockUnblockUser = jest.fn();
 const mockUnsubscribe = jest.fn();
 const mockSubscribe = jest.fn();
 /**
@@ -51,10 +55,29 @@ let mockRouteParams: Record<string, string> = { id: 'g1' };
  */
 const mockFocusCleanups: (() => void)[] = [];
 
+/**
+ * The focus callbacks themselves, kept so `focus()` can run them AGAIN on a
+ * screen that never unmounted. Without this the mock could only model the first
+ * focus, and "refreshes when you come back" would be untestable — which is the
+ * shape of bug it exists to catch (an owner approves someone on the requests
+ * screen and returns to a badge that still shows the old count).
+ */
+const mockFocusCallbacks: (() => (() => void) | void)[] = [];
+
 function blur() {
   const pending = mockFocusCleanups.splice(0, mockFocusCleanups.length);
   act(() => {
     for (const cleanup of pending) cleanup();
+  });
+}
+
+/** Come back to the screen. Pair it with `blur()`; the tree stays mounted. */
+async function focus() {
+  await act(async () => {
+    for (const callback of [...mockFocusCallbacks]) {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') mockFocusCleanups.push(cleanup);
+    }
   });
 }
 
@@ -72,10 +95,13 @@ jest.mock('expo-router', () => {
     // the BLUR handler and may run long before unmount.
     useFocusEffect: (callback: () => (() => void) | void) => {
       ReactModule.useEffect(() => {
+        mockFocusCallbacks.push(callback);
         const cleanup = callback();
-        if (typeof cleanup !== 'function') return undefined;
-        mockFocusCleanups.push(cleanup);
+        if (typeof cleanup === 'function') mockFocusCleanups.push(cleanup);
         return () => {
+          const registered = mockFocusCallbacks.indexOf(callback);
+          if (registered !== -1) mockFocusCallbacks.splice(registered, 1);
+          if (typeof cleanup !== 'function') return;
           const index = mockFocusCleanups.indexOf(cleanup);
           if (index === -1) return; // already run by blur()
           mockFocusCleanups.splice(index, 1);
@@ -132,6 +158,15 @@ jest.mock('@edutu/core/src/services/communities', () => {
     // test defaults to the PRODUCTION host — an unmocked count would fire a
     // live HTTPS request from the suite.
     fetchJoinRequests: (...args: unknown[]) => mockFetchJoinRequests(...args),
+    // Same rule, and it applies to EVERY service call any component in this
+    // tree can reach: `MessageBubble` calls blockUser/removeMember itself when
+    // a handler is missing, and the header menu reads and writes the block
+    // list. `getApiBaseUrl()` has no test override, so anything left unmocked
+    // here is an HTTPS request at edutu-platform.onrender.com from `npx jest`.
+    removeMember: (...args: unknown[]) => mockRemoveMember(...args),
+    blockUser: (...args: unknown[]) => mockBlockUser(...args),
+    fetchBlockedUsers: (...args: unknown[]) => mockFetchBlockedUsers(...args),
+    unblockUser: (...args: unknown[]) => mockUnblockUser(...args),
   };
 });
 
@@ -140,6 +175,7 @@ jest.mock('@edutu/core/src/services/communityRealtime', () => ({
 }));
 
 import GroupChatScreen from '../app/(app)/discussions/[id]';
+import { FIRST_POST_NOTICE_KEY } from '../components/community/FirstPostNotice';
 import {
   MESSAGE_PAGE_SIZE,
   mergeMessages,
@@ -229,12 +265,28 @@ function realtimeHandler(): (message: CommunityMessage) => void {
 beforeEach(async () => {
   jest.clearAllMocks();
   mockFocusCleanups.length = 0;
+  mockFocusCallbacks.length = 0;
   mockRouteParams = { id: 'g1' };
   await AsyncStorage.clear();
+  // The DEFAULT for this suite is a person who has already been shown the house
+  // rules once, because that is the state almost every test is about. The gate
+  // itself is tested by clearing this flag explicitly, in §8 — if it were left
+  // unset here, every composer test would be silently testing the gate instead
+  // of what it says it tests.
+  await AsyncStorage.setItem(FIRST_POST_NOTICE_KEY, 'true');
   mockSubscribe.mockReturnValue(mockUnsubscribe);
   mockFetchMessages.mockResolvedValue([]);
   mockFetchGroupForm.mockResolvedValue({ questions: [] });
   mockFetchJoinRequests.mockResolvedValue([]);
+  mockFetchBlockedUsers.mockResolvedValue([]);
+  mockBlockUser.mockResolvedValue({ success: true, blockedUserId: 'user_9' });
+  mockUnblockUser.mockResolvedValue({
+    success: true,
+    blockedUserId: 'user_9',
+    wasBlocked: true,
+  });
+  mockRemoveMember.mockResolvedValue({ success: true });
+  mockReportTarget.mockResolvedValue({ id: 'rep-1' });
   wireDetail('active');
 });
 
@@ -892,5 +944,263 @@ describe('useGroupMessages', () => {
     // Same instant, both orders in — one deterministic result.
     expect(mergeMessages([], [one, two]).map((m) => m.id)).toEqual(['bbb', 'aaa']);
     expect(mergeMessages([], [two, one]).map((m) => m.id)).toEqual(['bbb', 'aaa']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. The seams — the wiring BETWEEN this screen and the pieces it mounts
+// ---------------------------------------------------------------------------
+//
+// Every component below was built, tested in isolation, and then reachable from
+// nowhere or wired to nothing. These tests are about the joins: a notice that is
+// mounted, a hide that outlives the process, a filter that catches the socket as
+// well as the REST page, an undo that exists, a removal the screen hears about,
+// and a count that is re-read when somebody comes back to it.
+
+/** The group as an owner sees it: `owner_id` is them and the row agrees. */
+function wireOwner() {
+  mockFetchGroup.mockResolvedValue({
+    group: makeGroup({ ownerId: 'user_1' }),
+    membership: makeMembership('active', 'owner'),
+  });
+}
+
+describe('the first-post notice', () => {
+  it('stands in front of a first post rather than beside it', async () => {
+    // Nobody has ever posted from this device.
+    await AsyncStorage.removeItem(FIRST_POST_NOTICE_KEY);
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-composer'));
+
+    // The rules are on screen, above the composer, before a word is typed.
+    await waitFor(() => screen.getByTestId('first-post-notice'));
+    expect(screen.getByText(/Scams, harassment, and hate speech/)).toBeTruthy();
+
+    // And the composer is SHUT. A notice you can post past is decoration, and
+    // the one thing this notice has to do is come before the first message.
+    expect(screen.getByTestId('chat-composer-input').props.editable).toBe(false);
+    fireEvent.press(screen.getByTestId('chat-composer-send'));
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('first-post-notice-acknowledge'));
+    });
+
+    // Acknowledged: it goes, and the room opens.
+    await waitFor(() => expect(screen.queryByTestId('first-post-notice')).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-composer-input').props.editable).toBe(true),
+    );
+
+    mockSendMessage.mockResolvedValue(
+      makeMessage({ id: 'm-new', userId: 'user_1', body: 'Hello all' }),
+    );
+    fireEvent.changeText(screen.getByTestId('chat-composer-input'), 'Hello all');
+    fireEvent.press(screen.getByTestId('chat-composer-send'));
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows once EVER, not once per launch', async () => {
+    await AsyncStorage.removeItem(FIRST_POST_NOTICE_KEY);
+
+    const first = render(<GroupChatScreen />);
+    await waitFor(() => first.getByTestId('first-post-notice'));
+    await act(async () => {
+      fireEvent.press(first.getByTestId('first-post-notice-acknowledge'));
+    });
+    await waitFor(async () =>
+      expect(await AsyncStorage.getItem(FIRST_POST_NOTICE_KEY)).toBe('true'),
+    );
+
+    // A new process: the whole tree is thrown away and rebuilt.
+    first.unmount();
+    const second = render(<GroupChatScreen />);
+    await waitFor(() => second.getByTestId('chat-composer'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(second.queryByTestId('first-post-notice')).toBeNull();
+    // …and it does not leave the composer locked behind it.
+    expect(second.getByTestId('chat-composer-input').props.editable).toBe(true);
+  });
+
+  it('stays out of the way where posting is off anyway', async () => {
+    await AsyncStorage.removeItem(FIRST_POST_NOTICE_KEY);
+    wireDetail('active', { archivedAt: '2026-07-30T10:00:00.000Z' });
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-composer-disabled-notice'));
+
+    // Rules about posting, on a group nobody can post in, are noise.
+    expect(screen.queryByTestId('first-post-notice')).toBeNull();
+  });
+});
+
+describe('a reported message', () => {
+  it('stays hidden after the screen is torn down and rebuilt', async () => {
+    mockFetchMessages.mockResolvedValue([makeMessage()]);
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('message-bubble-m1'));
+
+    fireEvent(screen.getByTestId('message-bubble-m1'), 'longPress');
+    fireEvent.press(screen.getByTestId('message-report-m1'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
+    });
+    await waitFor(() => expect(mockReportTarget).toHaveBeenCalledTimes(1));
+
+    // In THIS session the row stays put and says who was told — the transcript
+    // does not silently reflow under the reader.
+    await waitFor(() => screen.getByTestId('message-reported-m1'));
+
+    // Next launch. The server still serves the message; the client must not.
+    screen.unmount();
+    const relaunch = render(<GroupChatScreen />);
+    await waitFor(() => relaunch.getByTestId('chat-empty'));
+
+    expect(relaunch.queryByTestId('message-bubble-m1')).toBeNull();
+    expect(relaunch.queryByText('Has anyone started the essay?')).toBeNull();
+  });
+});
+
+describe('blocking, on both layers', () => {
+  it("filters a blocked member's REALTIME message client-side, and unblock restores it", async () => {
+    mockFetchMessages.mockResolvedValue([makeMessage()]);
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('message-bubble-m1'));
+
+    fireEvent(screen.getByTestId('message-bubble-m1'), 'longPress');
+    fireEvent.press(screen.getByTestId('message-block-m1'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
+    });
+
+    await waitFor(() => expect(mockBlockUser).toHaveBeenCalledTimes(1));
+    expect(mockBlockUser.mock.calls[0][0]).toBe('user_9');
+    await waitFor(() => expect(screen.queryByTestId('message-bubble-m1')).toBeNull());
+
+    // THE POINT OF THIS TEST. A new message from the blocked member arrives on
+    // the socket — Supabase Realtime publishes from replication and never runs
+    // through MessagesService, so the server-side block filter has no say here.
+    // If the client pass were deleted as "redundant", this row would render.
+    act(() => {
+      realtimeHandler()(
+        makeMessage({ id: 'm2', userId: 'user_9', body: 'still here', createdAt: '2026-08-01T09:30:00.000Z' }),
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('message-bubble-m2')).toBeNull();
+
+    // Everyone else still arrives, so this is a filter and not a dead socket.
+    act(() => {
+      realtimeHandler()(
+        makeMessage({ id: 'm3', userId: 'user_7', body: 'morning', createdAt: '2026-08-01T09:40:00.000Z' }),
+      );
+    });
+    await waitFor(() => screen.getByTestId('message-bubble-m3'));
+
+    // Undo it. Block sits one mis-tap away in a row action sheet; until this
+    // existed the confirmation's "you can't undo this" was the literal truth.
+    mockFetchBlockedUsers.mockResolvedValue([
+      { userId: 'user_9', displayName: 'Ada', avatarUrl: null, blockedAt: null, resolved: true },
+    ]);
+    fireEvent.press(screen.getByTestId('chat-menu-trigger'));
+    await waitFor(() => screen.getByTestId('chat-menu-blocked'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('chat-menu-blocked'));
+    });
+    await waitFor(() => screen.getByTestId('chat-menu-unblock-user_9'));
+    screen.getByText('Ada');
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('chat-menu-unblock-user_9'));
+    });
+    await waitFor(() => expect(mockUnblockUser).toHaveBeenCalledTimes(1));
+    expect(mockUnblockUser.mock.calls[0][0]).toBe('user_9');
+
+    // Visible again, both the REST row and the one that came over the socket.
+    await waitFor(() => screen.getByTestId('message-bubble-m2'));
+    screen.getByTestId('message-bubble-m1');
+  });
+
+  it('offers the block list to a member and teaches when it is empty', async () => {
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-menu-trigger'));
+    fireEvent.press(screen.getByTestId('chat-menu-trigger'));
+
+    await waitFor(() => screen.getByTestId('chat-menu-blocked'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('chat-menu-blocked'));
+    });
+
+    await waitFor(() => screen.getByTestId('chat-menu-blocked-empty'));
+    expect(mockFetchBlockedUsers).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('removing a member', () => {
+  it('goes through the SCREEN, which then re-reads the roster', async () => {
+    wireOwner();
+    mockFetchMessages.mockResolvedValue([makeMessage()]);
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('message-bubble-m1'));
+    const readsBefore = mockFetchGroup.mock.calls.length;
+
+    fireEvent(screen.getByTestId('message-bubble-m1'), 'longPress');
+    fireEvent.press(screen.getByTestId('message-remove-member-m1'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
+    });
+
+    await waitFor(() => expect(mockRemoveMember).toHaveBeenCalledTimes(1));
+    expect(mockRemoveMember.mock.calls[0][0]).toBe('g1');
+    expect(mockRemoveMember.mock.calls[0][1]).toBe('user_9');
+
+    // Removing changes member_count and can change the caller's own standing.
+    // A screen that never hears about it keeps rendering a stale roster.
+    await waitFor(() =>
+      expect(mockFetchGroup.mock.calls.length).toBe(readsBefore + 1),
+    );
+  });
+});
+
+describe('the pending-request count', () => {
+  it('is re-read when the owner comes BACK to the screen', async () => {
+    wireOwner();
+    mockFetchJoinRequests.mockResolvedValue([
+      { id: 'r1', status: 'pending' },
+      { id: 'r2', status: 'pending' },
+    ]);
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-menu-trigger'));
+    fireEvent.press(screen.getByTestId('chat-menu-trigger'));
+    await waitFor(() => screen.getByTestId('chat-menu-requests-badge'));
+    screen.getByText('2');
+
+    const readsBefore = mockFetchJoinRequests.mock.calls.length;
+
+    // They open the queue, approve both, and come straight back here. The
+    // screen never unmounted, so a mount-only fetch would still say 2.
+    mockFetchJoinRequests.mockResolvedValue([
+      { id: 'r1', status: 'approved' },
+      { id: 'r2', status: 'approved' },
+    ]);
+    blur();
+    await focus();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('chat-menu-requests-badge')).toBeNull(),
+    );
+    expect(mockFetchJoinRequests.mock.calls.length).toBeGreaterThan(readsBefore);
+    // The queue itself never goes away — only the badge.
+    screen.getByTestId('chat-menu-requests');
   });
 });
