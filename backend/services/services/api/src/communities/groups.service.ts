@@ -1110,6 +1110,17 @@ export class GroupsService {
   // Helpers
   // -------------------------------------------------------------------------
 
+  /**
+   * ACCEPTED LEAK, not an oversight: this runs before every authz gate, so a
+   * signed-in caller can tell "this private group exists" (403 "ask an owner
+   * for an invite") from "no such group" (404) for any uuid they can guess.
+   * Collapsing both to 404 would take the invite flow's one actionable sentence
+   * away from every legitimate invitee who follows a share link before
+   * accepting. The ids are random v4 uuids and are not enumerable, and the
+   * response carries no name, roster, or message, so what leaks is one bit
+   * about an unguessable id. Revisit if group ids ever become sequential or
+   * derived from anything guessable.
+   */
   private async requireGroup(groupId: string): Promise<CommunityGroup> {
     this.assertUuid(groupId, "group");
     const group = await this.store.findGroup(groupId);
