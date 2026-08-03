@@ -3,6 +3,9 @@ import type {
   CommunityGroup,
   CommunityGroupMember,
   CommunityGroupMessage,
+  GroupCounterBump,
+  MessageCursor,
+  MessagePatch,
   MessagesStore,
   NewMessageRow,
 } from "./messages.service";
@@ -14,6 +17,12 @@ import { MessagesService } from "./messages.service";
  * performs. The double sits at the store boundary — the same boundary the real
  * adapter implements — so a broken WHERE clause in the adapter cannot be
  * papered over by a mock that replays a builder chain call-by-call.
+ *
+ * IT DECIDES NOTHING. Every write below applies exactly the patch or counter
+ * bump it is handed. That is the point: when the double invents a behaviour of
+ * its own (it used to blank `body` and increment `message_count` itself), the
+ * assertions about that behaviour test the double, not the service, and the
+ * production code can lose the rule with every test still green.
  */
 class FakeMessagesStore implements MessagesStore {
   groups: CommunityGroup[] = [];
@@ -35,17 +44,30 @@ class FakeMessagesStore implements MessagesStore {
     );
   }
 
+  /** Records the limit the service asked for, so the clamp is observable. */
+  lastLimit: number | null = null;
+
   async listMessages(
     groupId: string,
-    before: Date | null,
+    before: MessageCursor | null,
     limit: number,
   ): Promise<CommunityGroupMessage[]> {
+    this.lastLimit = limit;
     return this.messages
       .filter((message) => message.groupId === groupId)
-      .filter(
-        (message) => !before || message.createdAt.getTime() < before.getTime(),
+      .filter((message) => {
+        if (!before) return true;
+        const delta = message.createdAt.getTime() - before.createdAt.getTime();
+        if (delta !== 0) return delta < 0;
+        // Same instant: the id tiebreak decides, matching the adapter's
+        // (created_at desc, id desc) keyset.
+        return before.id ? message.id < before.id : false;
+      })
+      .sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
       )
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
   }
 
@@ -53,7 +75,10 @@ class FakeMessagesStore implements MessagesStore {
     return this.messages.find((message) => message.id === messageId) ?? null;
   }
 
-  async insertMessage(row: NewMessageRow): Promise<CommunityGroupMessage> {
+  async insertMessage(
+    row: NewMessageRow,
+    bump: GroupCounterBump,
+  ): Promise<CommunityGroupMessage> {
     const message: CommunityGroupMessage = {
       id: randomUUID(),
       groupId: row.groupId,
@@ -68,21 +93,22 @@ class FakeMessagesStore implements MessagesStore {
     this.messages.push(message);
     const group = this.groups.find((row_) => row_.id === row.groupId);
     if (group) {
-      group.messageCount += 1;
-      group.lastMessageAt = message.createdAt;
+      // Applied, not invented: the delta and the touch are the service's.
+      group.messageCount += bump.messageCountDelta;
+      if (bump.touchLastMessageAt) group.lastMessageAt = message.createdAt;
     }
     return message;
   }
 
-  async softDeleteMessage(
+  async updateMessage(
     messageId: string,
-    actorId: string,
+    patch: MessagePatch,
   ): Promise<CommunityGroupMessage | null> {
     const message = this.messages.find((row) => row.id === messageId);
     if (!message) return null;
-    message.body = "";
-    message.deletedAt = new Date();
-    message.deletedBy = actorId;
+    // Applies the patch verbatim. If the service stops asking for the body to
+    // be blanked, the row keeps its text and the tombstone tests fail.
+    Object.assign(message, patch);
     return message;
   }
 }
@@ -140,7 +166,7 @@ function fakeDb(
 
   for (const [index, message] of (config.messages ?? []).entries()) {
     store.messages.push({
-      id: MESSAGE_ID,
+      id: index === 0 ? MESSAGE_ID : randomUUID(),
       groupId: group.id,
       body: "Anyone got the referee form?",
       kind: "text",
@@ -184,6 +210,82 @@ describe("MessagesService", () => {
       await expect(
         new MessagesService(db).list("user_abc", GROUP_ID),
       ).resolves.toHaveLength(1);
+    });
+
+    // The two halves of the same rule, which must match GroupsService.get.
+    it("lets an invited user read a private group, so the invite preview works", async () => {
+      const db = fakeDb({
+        group: { visibility: "private" },
+        members: [{ userId: "user_invitee", status: "invited" }],
+        messages: [{ userId: "user_owner" }],
+      });
+      await expect(
+        new MessagesService(db).list("user_invitee", GROUP_ID),
+      ).resolves.toHaveLength(1);
+    });
+
+    it("refuses a pending applicant, who is unvetted rather than invited", async () => {
+      const db = fakeDb({
+        group: { visibility: "private" },
+        members: [{ userId: "user_applicant", status: "pending" }],
+        messages: [{ userId: "user_owner" }],
+      });
+      await expect(
+        new MessagesService(db).list("user_applicant", GROUP_ID),
+      ).rejects.toThrow(/not a member/i);
+    });
+
+    it("refuses a signed-out reader", async () => {
+      await expect(
+        new MessagesService(fakeDb()).list("", GROUP_ID),
+      ).rejects.toThrow(/signed in/i);
+    });
+
+    it("clamps the page size, so a negative limit never reaches SQL", async () => {
+      const db = fakeDb();
+      await new MessagesService(db).list("user_abc", GROUP_ID, { limit: -1 });
+      expect(db.lastLimit).toBe(1);
+      await new MessagesService(db).list("user_abc", GROUP_ID, { limit: 5000 });
+      expect(db.lastLimit).toBe(50);
+    });
+
+    it("does not skip a message that shares the page boundary's exact timestamp", async () => {
+      // created_at is defaultNow() — transaction time — so a system post
+      // written alongside another message carries an identical instant.
+      const instant = new Date("2026-01-01T10:00:00.000Z");
+      const older = new Date("2026-01-01T09:00:00.000Z");
+      const db = fakeDb({
+        messages: [
+          {
+            id: "00000000-0000-4000-8000-0000000000c3",
+            userId: "u",
+            createdAt: instant,
+          },
+          {
+            id: "00000000-0000-4000-8000-0000000000b2",
+            userId: "u",
+            createdAt: instant,
+          },
+          {
+            id: "00000000-0000-4000-8000-0000000000a1",
+            userId: "u",
+            createdAt: older,
+          },
+        ],
+      });
+      const service = new MessagesService(db);
+
+      const firstPage = await service.list("user_abc", GROUP_ID, { limit: 1 });
+      expect(firstPage[0].id).toBe("00000000-0000-4000-8000-0000000000c3");
+
+      const secondPage = await service.list("user_abc", GROUP_ID, {
+        limit: 1,
+        before: firstPage[0].createdAt,
+        beforeId: firstPage[0].id,
+      });
+      // Without the id tiebreak this returns the 09:00 row and the tied 10:00
+      // message is lost between pages.
+      expect(secondPage[0].id).toBe("00000000-0000-4000-8000-0000000000b2");
     });
   });
 
@@ -240,6 +342,28 @@ describe("MessagesService", () => {
       ).rejects.toThrow(/join/i);
       expect(db.messages).toHaveLength(0);
     });
+
+    it("gives a banned member a terminal sentence, not advice to join", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_bad", status: "banned" }],
+      });
+      const error = await new MessagesService(db)
+        .send("user_bad", GROUP_ID, { body: "Hello" })
+        .catch((caught: Error) => caught);
+      // Telling them to join would send them to `join`'s flat refusal.
+      expect((error as Error).message).not.toMatch(/join/i);
+      expect((error as Error).message).toMatch(/no longer post/i);
+      expect(db.messages).toHaveLength(0);
+    });
+
+    it("tells a caller sending blank text to type something, not that it looks like a scam", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      const error = await new MessagesService(db)
+        .send("user_abc", GROUP_ID, { body: "   " })
+        .catch((caught: Error) => caught);
+      expect((error as Error).message).toMatch(/type a message/i);
+      expect((error as Error).message).not.toMatch(/money/i);
+    });
   });
 
   describe("softDelete", () => {
@@ -283,6 +407,37 @@ describe("MessagesService", () => {
       ).rejects.toThrow(/not allowed/i);
       expect(db.messages[0].body).not.toBe("");
       expect(db.messages[0].deletedAt).toBeNull();
+    });
+
+    it("lets a creator whose membership row is missing moderate their own group", async () => {
+      // Matches GroupsService.assertCanAdminister: owner_id and the membership
+      // row are both authoritative, so drift never locks a real owner out.
+      const db = fakeDb({
+        group: { ownerId: "user_owner" },
+        members: [],
+        messages: [{ id: MESSAGE_ID, userId: "user_other" }],
+      });
+      await new MessagesService(db).softDelete("user_owner", MESSAGE_ID);
+      expect(db.messages[0].deletedBy).toBe("user_owner");
+    });
+
+    it("still refuses a banned creator, because a ban is a decision not drift", async () => {
+      const db = fakeDb({
+        group: { ownerId: "user_owner" },
+        members: [{ userId: "user_owner", role: "owner", status: "banned" }],
+        messages: [{ id: MESSAGE_ID, userId: "user_other" }],
+      });
+      await expect(
+        new MessagesService(db).softDelete("user_owner", MESSAGE_ID),
+      ).rejects.toThrow(/not allowed/i);
+      expect(db.messages[0].deletedAt).toBeNull();
+    });
+
+    it("answers a non-uuid message id with a sentence, not a Postgres 22P02", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      await expect(
+        new MessagesService(db).softDelete("user_abc", "abc"),
+      ).rejects.toThrow(/isn't valid/i);
     });
   });
 });
