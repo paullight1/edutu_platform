@@ -21,7 +21,12 @@ Every task's requirements implicitly include this section.
 5. **One Realtime channel, for the on-screen group only.** Never one channel per joined group. Subscribe on screen focus, remove on blur.
 6. **No hardcoded user-visible strings.** New keys go in a new `community` namespace at `edutumobile/lib/i18n/locales/en/community.json`, mirrored into `ar es fr ha hi pt sw zh`. Those files mix 2- and 4-space indentation — insert textually at an anchor, never reformat. Run `node scripts/gen-i18n-resources.js` after any locale change.
 7. **DESIGN.md is binding.** Icons are `lucide-react-native` only; icon-only controls require `accessibilityLabel`; empty states get a 30–34pt icon at ~50% opacity plus one line and one CTA; every interactive component ships default / pressed / disabled / loading / error; `reducedMotion` honoured per component; colour stays Restrained (no saturated field — groups are not an AI moment).
-8. **Gates before every commit:** `npx tsc --noEmit` and `npx eslint <changed files> --max-warnings 0` must both exit 0. Backend tests: `npm test -- <spec>` from `backend/services/services/api`. Mobile tests: `npx jest <file> --maxWorkers=2` from `edutumobile`.
+8. **Gates before every commit:** `npx eslint <changed files> --max-warnings 0` must exit 0 everywhere. Backend tests: `npm test -- <spec>` from `backend/services/services/api`. Mobile tests: `npx jest <file> --maxWorkers=2` from `edutumobile`.
+
+   **`tsc` baselines differ by project, and neither is zero on mobile.**
+   - Backend (`backend/services/services/api`): `npx tsc --noEmit` exits 0. Any error is yours.
+   - Mobile (`edutumobile`): `npx tsc --noEmit -p tsconfig.json` reports **2 pre-existing errors on `origin/main`**, both in `app/(app)/cv/index.tsx` — a stale import of `components/cv/CVEditor` (deleted upstream) and an implicit `any` at line 976. They are NOT yours, they are NOT in scope, and fixing them widens the diff into another session's work. The gate is **no NEW errors**, not zero.
+   - The mobile jest suite likewise has a pre-existing baseline of ~9 failing suites, all environment/mock shims (`requireOptionalNativeModule`, `Easing.back`, `setStatusBarStyle`, `user.update`) plus one paywall test asserting a string that exists nowhere in the repo. Same rule: do not add to it, do not try to fix it.
 
 ## File Structure
 
