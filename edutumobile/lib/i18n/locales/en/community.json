@@ -9,7 +9,8 @@
   "sections": {
     "yourGroups": "Your groups",
     "forYourSavedOpportunities": "For opportunities you saved",
-    "discover": "Discover groups"
+    "discover": "Discover groups",
+    "awaitingApproval": "Waiting on approval"
   },
   "whatsappBanner": {
     "title": "Get updates on WhatsApp",

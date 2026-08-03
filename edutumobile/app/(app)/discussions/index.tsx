@@ -16,6 +16,8 @@ import {
   fetchGroups,
   isCommunityApiError,
   type CommunityGroup,
+  type GroupWithMembership,
+  type MembershipStatus,
 } from '@edutu/core/src/services/communities';
 import {
   fetchSavedOpportunities,
@@ -76,6 +78,20 @@ function isUnread(group: CommunityGroup, lastRead: LastReadMap): boolean {
   return new Date(group.lastMessageAt).getTime() > new Date(seen).getTime();
 }
 
+/** `null` when the caller has no row on this group at all. */
+function statusOf(row: GroupWithMembership): MembershipStatus | null {
+  return row.membership?.status ?? null;
+}
+
+/**
+ * A relationship that is over. The backend never returns these from the list,
+ * but a stale cache or a deploy skew could — and neither may be offered as a
+ * way in.
+ */
+function isClosed(status: MembershipStatus | null): boolean {
+  return status === 'removed' || status === 'banned';
+}
+
 export default function DiscussionsBrowseScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
@@ -86,8 +102,11 @@ export default function DiscussionsBrowseScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mine, setMine] = useState<CommunityGroup[]>([]);
-  const [visible, setVisible] = useState<CommunityGroup[]>([]);
+  // `{ group, membership }` rows, not bare groups: `mine` now means every group
+  // the caller has a live relationship with — joined, invited, or applied — and
+  // only the membership tells those apart.
+  const [mine, setMine] = useState<GroupWithMembership[]>([]);
+  const [visible, setVisible] = useState<GroupWithMembership[]>([]);
   const [saved, setSaved] = useState<SavedOpportunity[]>([]);
   const [lastRead, setLastRead] = useState<LastReadMap>({});
 
@@ -166,32 +185,81 @@ export default function DiscussionsBrowseScreen() {
     return map;
   }, [saved]);
 
-  const mineIds = useMemo(() => new Set(mine.map((g) => g.id)), [mine]);
-
-  /** Groups pinned to an opportunity this user saved — mine first. */
-  const railGroups = useMemo(() => {
-    const seen = new Set<string>();
-    const out: CommunityGroup[] = [];
-    for (const group of [...mine, ...visible]) {
-      if (seen.has(group.id)) continue;
-      if (!group.opportunityId || !savedById.has(group.opportunityId)) continue;
-      seen.add(group.id);
-      out.push(group);
-    }
-    return out;
-  }, [mine, visible, savedById]);
-
-  const railIds = useMemo(
-    () => new Set(railGroups.map((g) => g.id)),
-    [railGroups],
+  const mineIds = useMemo(
+    () => new Set(mine.map((row) => row.group.id)),
+    [mine],
   );
 
-  const discoverGroups = useMemo(
+  /**
+   * One row per group id across both calls, the caller's own membership winning
+   * — the `mine` call is the only one guaranteed to carry it, so a group that
+   * appears in both must be described by that row, never by the anonymous one.
+   */
+  const rowsById = useMemo(() => {
+    const map = new Map<string, GroupWithMembership>();
+    for (const row of [...mine, ...visible]) {
+      if (!map.has(row.group.id)) map.set(row.group.id, row);
+    }
+    return map;
+  }, [mine, visible]);
+
+  /**
+   * "Your groups", in the order a person acts on them: an invitation is the
+   * only door into a private group, so it sits at the top; closed
+   * relationships sink to the bottom and are inert. Applications are NOT here
+   * — they are not memberships, and they get their own list below.
+   */
+  const relationshipRows = useMemo(() => {
+    const rank = (row: GroupWithMembership) => {
+      const status = statusOf(row);
+      if (status === 'invited') return 0;
+      if (isClosed(status)) return 2;
+      return 1;
+    };
+    return mine
+      .filter((row) => statusOf(row) !== 'pending')
+      .slice()
+      .sort((a, b) => rank(a) - rank(b));
+  }, [mine]);
+
+  /** Applied, unapproved. A label on a waiting-room, never a way through. */
+  const pendingRows = useMemo(
+    () => mine.filter((row) => statusOf(row) === 'pending'),
+    [mine],
+  );
+
+  /**
+   * Groups pinned to an opportunity this user saved. Only rooms they are in or
+   * could walk into: an invitation or an application has to read as itself, and
+   * a bare rail card would strip that off.
+   */
+  const railRows = useMemo(() => {
+    const out: GroupWithMembership[] = [];
+    for (const row of rowsById.values()) {
+      const status = statusOf(row);
+      if (status !== null && status !== 'active') continue;
+      const { opportunityId } = row.group;
+      if (!opportunityId || !savedById.has(opportunityId)) continue;
+      out.push(row);
+    }
+    return out;
+  }, [rowsById, savedById]);
+
+  const railIds = useMemo(
+    () => new Set(railRows.map((row) => row.group.id)),
+    [railRows],
+  );
+
+  const discoverRows = useMemo(
     () =>
-      visible.filter(
-        (group) =>
-          !mineIds.has(group.id) && !railIds.has(group.id) && !group.archivedAt,
-      ),
+      visible.filter((row) => {
+        const { group } = row;
+        if (mineIds.has(group.id) || railIds.has(group.id)) return false;
+        if (group.archivedAt) return false;
+        // A ban is terminal. Offering the room back as a discovery pill would
+        // be the client re-opening a door moderation closed.
+        return statusOf(row) !== 'banned';
+      }),
     [visible, mineIds, railIds],
   );
 
@@ -272,7 +340,7 @@ export default function DiscussionsBrowseScreen() {
                 {t('community:sections.yourGroups')}
               </Text>
 
-              {mine.length === 0 ? (
+              {relationshipRows.length === 0 && pendingRows.length === 0 ? (
                 <EmptyState
                   testID="discussions-empty"
                   icon={Users}
@@ -285,21 +353,54 @@ export default function DiscussionsBrowseScreen() {
                   onAction={openCreate}
                 />
               ) : (
-                mine.map((group, index) => (
-                  <GroupRow
-                    key={group.id}
-                    group={group}
-                    membership="active"
-                    unread={isUnread(group, lastRead)}
-                    index={index}
-                    onPress={openGroup}
-                  />
-                ))
+                relationshipRows.map((row, index) => {
+                  const status = statusOf(row);
+                  return (
+                    <GroupRow
+                      key={row.group.id}
+                      group={row.group}
+                      membership={status}
+                      // Unread is about a room you can read. An invitation has
+                      // no history yet as far as the invitee is concerned.
+                      unread={
+                        status === 'active' && isUnread(row.group, lastRead)
+                      }
+                      // Removed or banned: still named, so the state is legible,
+                      // but never a way back in.
+                      disabled={isClosed(status)}
+                      index={index}
+                      onPress={openGroup}
+                    />
+                  );
+                })
               )}
             </View>
 
+            {/* ── 1b. Applications: a separate list, on purpose ─────────
+                A pending row in the same list as real memberships would read
+                as one. It is its own heading, below them, and tapping it
+                lands on the group's waiting state — the room stays shut. */}
+            {pendingRows.length > 0 && (
+              <View testID="discussions-pending" style={styles.section}>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.textSecondary }]}
+                >
+                  {t('community:sections.awaitingApproval')}
+                </Text>
+                {pendingRows.map((row, index) => (
+                  <GroupRow
+                    key={row.group.id}
+                    group={row.group}
+                    membership="pending"
+                    index={index}
+                    onPress={openGroup}
+                  />
+                ))}
+              </View>
+            )}
+
             {/* ── 2. Saved-opportunity groups: horizontal rail ─────────── */}
-            {railGroups.length > 0 && (
+            {railRows.length > 0 && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                   {t('community:sections.forYourSavedOpportunities')}
@@ -310,7 +411,8 @@ export default function DiscussionsBrowseScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.rail}
                 >
-                  {railGroups.map((group, index) => {
+                  {railRows.map((row, index) => {
+                    const { group } = row;
                     const opportunity = group.opportunityId
                       ? savedById.get(group.opportunityId)
                       : undefined;
@@ -330,13 +432,13 @@ export default function DiscussionsBrowseScreen() {
             )}
 
             {/* ── 3. Discover: inline pills, no card chrome ────────────── */}
-            {discoverGroups.length > 0 && (
+            {discoverRows.length > 0 && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                   {t('community:sections.discover')}
                 </Text>
                 <View testID="discussions-discover" style={styles.pillWrap}>
-                  {discoverGroups.map((group) => (
+                  {discoverRows.map(({ group }) => (
                     <AnimatedPressable
                       key={group.id}
                       testID={`discover-pill-${group.id}`}

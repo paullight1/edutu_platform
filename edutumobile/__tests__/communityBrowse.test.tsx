@@ -10,7 +10,7 @@
  * mounts, and a refusal from the backend shows the sentence the backend wrote.
  */
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const mockPush = jest.fn();
@@ -81,7 +81,11 @@ import {
   WHATSAPP_CHANNEL_URL,
 } from '../components/community/WhatsAppBanner';
 import { CommunityApiError } from '@edutu/core/src/services/communities';
-import type { CommunityGroup } from '@edutu/core/src/services/communities';
+import type {
+  CommunityGroup,
+  GroupWithMembership,
+  MembershipStatus,
+} from '@edutu/core/src/services/communities';
 
 function makeGroup(overrides: Partial<CommunityGroup> = {}): CommunityGroup {
   return {
@@ -105,6 +109,31 @@ function makeGroup(overrides: Partial<CommunityGroup> = {}): CommunityGroup {
   };
 }
 
+/**
+ * The REAL wire shape. `fetchGroups` returns `{ group, membership }` rows, not
+ * bare groups — a mock that keeps returning groups is the failure this suite
+ * exists to stop, because the screen would then be tested against a contract
+ * the backend does not serve.
+ */
+function makeRow(
+  group: CommunityGroup,
+  status: MembershipStatus | null = null,
+): GroupWithMembership {
+  return {
+    group,
+    membership: status
+      ? {
+          id: `m-${group.id}`,
+          groupId: group.id,
+          userId: 'user_1',
+          role: 'member',
+          status,
+          joinedAt: '2026-07-10T10:00:00.000Z',
+        }
+      : null,
+  };
+}
+
 const MINE = makeGroup({ id: 'mine-1', name: 'My study group' });
 const RAIL = makeGroup({
   id: 'rail-1',
@@ -113,9 +142,24 @@ const RAIL = makeGroup({
   expiresAt: '2026-08-06T00:00:00.000Z',
 });
 const DISCOVER = makeGroup({ id: 'disc-1', name: 'Open to anyone' });
+const INVITED = makeGroup({
+  id: 'inv-1',
+  name: 'Private cohort',
+  visibility: 'private',
+  joinPolicy: 'request',
+});
+const PENDING = makeGroup({
+  id: 'pend-1',
+  name: 'Mentors circle',
+  joinPolicy: 'request',
+});
 
-/** `mine: true` returns memberships; the unfiltered call returns everything. */
-function wireGroups(mine: CommunityGroup[], visible: CommunityGroup[]) {
+/**
+ * `mine: true` returns every LIVE relationship — active, invited and pending —
+ * each carrying its own membership row. The unfiltered call returns what is
+ * visible, membership included when there is one.
+ */
+function wireGroups(mine: GroupWithMembership[], visible: GroupWithMembership[]) {
   mockFetchGroups.mockImplementation((filter: { mine?: boolean }) =>
     Promise.resolve(filter?.mine ? mine : visible),
   );
@@ -153,7 +197,10 @@ describe('Discover tile', () => {
 
 describe('browse screen affordances', () => {
   it('renders your groups as rows, saved-opportunity groups as a rail, and discovery inline — three different components', async () => {
-    wireGroups([MINE], [RAIL, DISCOVER]);
+    wireGroups(
+      [makeRow(MINE, 'active')],
+      [makeRow(RAIL), makeRow(DISCOVER)],
+    );
     mockFetchSavedOpportunities.mockResolvedValue([
       {
         id: 'b1',
@@ -191,7 +238,7 @@ describe('browse screen affordances', () => {
   });
 
   it('opens a group from any of the three affordances', async () => {
-    wireGroups([MINE], [DISCOVER]);
+    wireGroups([makeRow(MINE, 'active')], [makeRow(DISCOVER)]);
     const { getByTestId } = render(<DiscussionsBrowseScreen />);
 
     await waitFor(() => getByTestId(`group-row-${MINE.id}`));
@@ -218,6 +265,110 @@ describe('browse screen affordances', () => {
     expect(invitedLabel).toBe("You're invited");
     expect(pendingLabel).toBe('Request sent');
     expect(invitedLabel).not.toBe(pendingLabel);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Membership, end to end through the screen
+//
+// GroupRow could always draw all five states; until the list carried a
+// membership the screen could only ever hand it `active`, so four of them were
+// unreachable. These assert the wiring, against the shape the API really
+// returns.
+// ---------------------------------------------------------------------------
+
+describe('membership states on the browse screen', () => {
+  it('feeds the screen the real { group, membership } row shape', async () => {
+    wireGroups([makeRow(MINE, 'active')], [makeRow(DISCOVER)]);
+    const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
+    await waitFor(() => getByTestId(`group-row-${MINE.id}`));
+
+    // The fake is the contract: every row is { group, membership }, never a
+    // bare group. If it drifted back, the screen below would be green against
+    // a shape the backend does not serve.
+    const rows = await mockFetchGroups.mock.results[0].value;
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual(['group', 'membership']);
+      expect(typeof row.group.id).toBe('string');
+    }
+
+    // And the screen read `row.group`, not the row: reading the old shape
+    // would key every row off an undefined id.
+    expect(queryByTestId('group-row-undefined')).toBeNull();
+    expect(queryByTestId('discover-pill-undefined')).toBeNull();
+  });
+
+  it('shows an invitation in your groups, reading as an invitation and not as membership', async () => {
+    wireGroups(
+      [makeRow(MINE, 'active'), makeRow(INVITED, 'invited')],
+      [],
+    );
+    const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
+
+    const label = await waitFor(() =>
+      getByTestId(`group-row-membership-${INVITED.id}`),
+    );
+    expect(label.props.children).toBe("You're invited");
+    expect(label.props.children).not.toBe('Member');
+
+    // It is a live relationship, not an application: it must not be filed
+    // under the waiting list.
+    expect(queryByTestId('discussions-pending')).toBeNull();
+
+    // And it leads somewhere the invitee can accept — the only door into a
+    // private group.
+    fireEvent.press(getByTestId(`group-row-${INVITED.id}`));
+    expect(mockPush).toHaveBeenCalledWith(`/discussions/${INVITED.id}`);
+  });
+
+  it('shows an application as waiting, apart from real memberships, with no way to force entry', async () => {
+    wireGroups(
+      [makeRow(MINE, 'active'), makeRow(PENDING, 'pending')],
+      [],
+    );
+    const { getByTestId, queryByTestId, queryByText, getByText } = render(
+      <DiscussionsBrowseScreen />,
+    );
+
+    await waitFor(() => getByTestId(`group-row-${MINE.id}`));
+
+    // Its own list, its own heading — not mixed in with the groups they are
+    // actually in.
+    const waiting = getByTestId('discussions-pending');
+    getByText('Waiting on approval');
+    within(waiting).getByTestId(`group-row-${PENDING.id}`);
+    expect(within(waiting).queryByTestId(`group-row-${MINE.id}`)).toBeNull();
+
+    expect(
+      getByTestId(`group-row-membership-${PENDING.id}`).props.children,
+    ).toBe('Request sent');
+
+    // Nothing on this screen offers a pending applicant a way in.
+    expect(queryByText('Join')).toBeNull();
+    expect(queryByText('Accept invite')).toBeNull();
+    expect(queryByTestId(`discover-pill-${PENDING.id}`)).toBeNull();
+  });
+
+  it('opens the chat for a group you are actually in', async () => {
+    wireGroups([makeRow(MINE, 'active')], []);
+    const { getByTestId } = render(<DiscussionsBrowseScreen />);
+
+    await waitFor(() => getByTestId(`group-row-${MINE.id}`));
+    expect(getByTestId(`group-row-membership-${MINE.id}`).props.children).toBe(
+      'Member',
+    );
+
+    fireEvent.press(getByTestId(`group-row-${MINE.id}`));
+    expect(mockPush).toHaveBeenCalledWith(`/discussions/${MINE.id}`);
+  });
+
+  it('never offers a banned group back as somewhere to go', async () => {
+    const banned = makeGroup({ id: 'ban-1', name: 'Closed to me' });
+    wireGroups([], [makeRow(banned, 'banned')]);
+    const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
+
+    await waitFor(() => getByTestId('discussions-empty'));
+    expect(queryByTestId(`discover-pill-${banned.id}`)).toBeNull();
   });
 });
 

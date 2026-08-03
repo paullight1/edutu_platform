@@ -9,7 +9,8 @@
   "sections": {
     "yourGroups": "你的小组",
     "forYourSavedOpportunities": "你收藏的机会对应的小组",
-    "discover": "发现小组"
+    "discover": "发现小组",
+    "awaitingApproval": "等待批准"
   },
   "whatsappBanner": {
     "title": "在 WhatsApp 上获取更新",

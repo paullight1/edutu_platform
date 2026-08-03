@@ -9,7 +9,8 @@
   "sections": {
     "yourGroups": "Vos groupes",
     "forYourSavedOpportunities": "Pour les opportunités enregistrées",
-    "discover": "Découvrir des groupes"
+    "discover": "Découvrir des groupes",
+    "awaitingApproval": "En attente d'approbation"
   },
   "whatsappBanner": {
     "title": "Recevez les actualités sur WhatsApp",
