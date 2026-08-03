@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ArrowRight,
     Calendar,
@@ -16,8 +16,8 @@ import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
 import EdutuForYouBand from './EdutuForYouBand';
 import EventsHomeSection from './EventsHomeSection';
-import UrgencyPill from './opportunity/UrgencyPill';
 import { organizationLabel } from '../lib/organizationLabel';
+import type { Opportunity } from '../types/opportunity';
 import {
     OpportunityMatchIcon,
     DeadlineIcon,
@@ -156,17 +156,34 @@ const initialsOf = (name: string) =>
         .slice(0, 2)
         .toUpperCase();
 
-/** Row-shaped placeholder that matches the real opportunity row's geometry. */
-const OpportunityRowSkeleton: React.FC = () => (
-    <li className="flex items-start gap-4 p-4 sm:items-center sm:p-5">
-        <div className="h-14 w-14 shrink-0 animate-pulse rounded-xl bg-surface-elevated sm:h-16 sm:w-16" />
-        <div className="min-w-0 flex-1">
-            <div className="h-3 w-32 animate-pulse rounded bg-surface-elevated" />
-            <div className="mt-2.5 h-4 w-full max-w-[420px] animate-pulse rounded bg-surface-elevated" />
-            <div className="mt-2.5 h-3 w-24 animate-pulse rounded bg-surface-elevated" />
+/**
+ * Placeholder that matches the real card's geometry in BOTH layouts — compact
+ * row on mobile, stacked card from sm — so the switch to real data doesn't
+ * shift the section's height.
+ */
+const OpportunityCardSkeleton: React.FC = () => (
+    <li className={`${CARD} flex items-center gap-4 overflow-hidden p-3 sm:block sm:p-0`}>
+        <div className="h-20 w-20 shrink-0 animate-pulse rounded-xl bg-surface-elevated sm:h-auto sm:w-full sm:rounded-none sm:pb-[62.5%]" />
+        <div className="min-w-0 flex-1 sm:p-5">
+            <div className="h-3 w-24 animate-pulse rounded bg-surface-elevated" />
+            <div className="mt-2.5 h-4 w-full animate-pulse rounded bg-surface-elevated" />
+            <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-surface-elevated" />
         </div>
     </li>
 );
+
+/**
+ * Most recently added first — the section promises "fresh", so it has to be
+ * ordered by when we found the opportunity, not by the feed's default ranking
+ * (which is shuffled for variety and would put months-old records on top).
+ * Records with no timestamp sort last rather than jumping the queue.
+ */
+const addedAt = (opportunity: Opportunity): number => {
+    const stamp = opportunity.createdAt || opportunity.lastUpdated;
+    if (!stamp) return 0;
+    const ms = Date.parse(stamp);
+    return Number.isNaN(ms) ? 0 : ms;
+};
 
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const {
@@ -205,7 +222,11 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         return () => controller.abort();
     }, []);
 
-    const latestOpportunities = opportunities.slice(0, 5);
+    // Six, not five: the grid runs three-up on desktop, so five leaves a hole.
+    const latestOpportunities = useMemo(
+        () => [...opportunities].sort((a, b) => addedAt(b) - addedAt(a)).slice(0, 6),
+        [opportunities],
+    );
     const showOpportunitySkeletons = opportunitiesLoading && latestOpportunities.length === 0;
     const opportunitiesUnavailable = !opportunitiesLoading && latestOpportunities.length === 0;
     const showBlogSection = blogLoading || blogArticles.length > 0;
@@ -321,8 +342,11 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </section>
 
                 {/* ─── Latest Opportunities ─────────────────────────────── */}
-                {/* A dense list, not magazine tiles: this is what the product
-                    actually looks like, with real deadlines on the urgency ramp. */}
+                {/* The newest records we have, newest first. No countdown or
+                    "Closed" chip here: a visitor who hasn't signed up yet is
+                    deciding whether the catalogue is worth their time, and a
+                    wall of expiry states argues the opposite. Deadlines belong
+                    on the detail page, where they're actionable. */}
                 {/* Deliberately tighter top pad on mobile: the hero stops at
                     84dvh so this heading is the thing peeking above the fold. */}
                 <section className="border-t border-subtle px-4 pt-10 pb-20 sm:px-6 sm:pt-20 sm:pb-28">
@@ -332,8 +356,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 Fresh opportunities worth exploring
                             </h2>
                             <p className={SECTION_COPY}>
-                                Real scholarships, fellowships, internships, and programs — with the
-                                deadlines that actually decide whether you can still apply.
+                                Real scholarships, fellowships, internships, and programs — the
+                                newest ones we've found, added as they open.
                             </p>
                         </div>
 
@@ -352,72 +376,76 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 </Link>
                             </div>
                         ) : (
-                            <ul className={`${CARD} divide-y divide-border-subtle overflow-hidden`}>
+                            /* One card, two layouts. Below sm it stays a compact
+                               row so six records don't turn into six screens of
+                               scrolling; from sm it becomes a stacked tile in a
+                               2-up / 3-up grid, where the artwork finally has
+                               room to do the persuading. */
+                            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
                                 {showOpportunitySkeletons
-                                    ? Array.from({ length: 5 }).map((_, i) => (
-                                          <OpportunityRowSkeleton key={`skeleton-${i}`} />
+                                    ? Array.from({ length: 6 }).map((_, i) => (
+                                          <OpportunityCardSkeleton key={`skeleton-${i}`} />
                                       ))
-                                    : latestOpportunities.map((opportunity, index) => (
+                                    : latestOpportunities.map((opportunity, index) => {
+                                      // Most scraped records carry a junk organization that
+                                      // organizationLabel suppresses, so the meta row is often
+                                      // empty — don't reserve space for nothing.
+                                      const org = organizationLabel(opportunity.organization, opportunity.title);
+                                      const meta = [org, opportunity.location].filter(Boolean) as string[];
+                                      return (
                                           <motion.li
                                               key={opportunity.id}
                                               {...fadeUp}
                                               transition={{ duration: 0.4, delay: Math.min(index, 4) * 0.06 }}
+                                              className="flex"
                                           >
                                               <Link
                                                   to={`/share/opportunity/${encodeURIComponent(opportunity.id)}`}
-                                                  className="group flex items-start gap-4 p-4 no-underline transition-colors hover:bg-surface-elevated sm:items-center sm:p-5"
+                                                  className={`${CARD} group flex w-full items-center gap-4 overflow-hidden p-3 no-underline transition-all duration-200 hover:border-brand/40 hover:shadow-elevated sm:block sm:p-0 sm:hover:-translate-y-1`}
                                               >
-                                                  <img
-                                                      src={opportunity.image || fallbackImages[index % fallbackImages.length]}
-                                                      alt=""
-                                                      className="h-14 w-14 shrink-0 rounded-xl object-cover sm:h-16 sm:w-16"
-                                                      loading="lazy"
-                                                      decoding="async"
-                                                  />
-                                                  {/* Mobile stacks; from sm the row splits into a text column
-                                                      and a status column. The list runs to 1000px, and letting an
-                                                      18px title use all of it puts ~100 characters on a line —
-                                                      so the extra width goes to right-aligned deadline/location
-                                                      instead, which also makes deadlines scannable down a column. */}
-                                                  <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-6">
-                                                      <div className="min-w-0 sm:flex-1">
-                                                          {/* Title leads. Category/org is metadata *about* the title,
-                                                              so it reads better under it than above it — and on mobile
-                                                              it no longer pushes the title down the row. */}
-                                                          <h3 className="line-clamp-2 font-display text-base font-semibold text-text-primary transition-colors group-hover:text-brand sm:text-lg">
-                                                              {opportunity.title}
-                                                          </h3>
-                                                          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-text-secondary sm:text-sm">
-                                                              <span className="font-medium text-brand">
-                                                                  {opportunity.category}
-                                                              </span>
-                                                              {organizationLabel(opportunity.organization, opportunity.title) ? (
-                                                                  <>
-                                                                      <span aria-hidden="true" className="text-text-muted">·</span>
-                                                                      <span className="truncate">
-                                                                          {organizationLabel(opportunity.organization, opportunity.title)}
-                                                                      </span>
-                                                                  </>
-                                                              ) : null}
-                                                          </div>
-                                                      </div>
-                                                      <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:mt-0 sm:shrink-0 sm:flex-col sm:items-end sm:gap-1.5">
-                                                          <UrgencyPill deadline={opportunity.deadline} always />
-                                                          {opportunity.location ? (
-                                                              <span className="truncate text-xs text-text-muted sm:text-sm">
-                                                                  {opportunity.location}
-                                                              </span>
-                                                          ) : null}
-                                                      </div>
+                                                  {/* The wrapper owns the geometry, not the image — an
+                                                      <img> sized by its own intrinsic ratio makes every
+                                                      card in the row a different height. */}
+                                                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-elevated sm:h-auto sm:w-full sm:rounded-none sm:aspect-[16/10]">
+                                                      <img
+                                                          src={opportunity.image || fallbackImages[index % fallbackImages.length]}
+                                                          alt=""
+                                                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                                          loading="lazy"
+                                                          decoding="async"
+                                                          onError={(event) => {
+                                                              // A dead image URL would otherwise leave a
+                                                              // card-wide white hole. Swap once — guarding
+                                                              // against a loop if the fallback also fails.
+                                                              const img = event.currentTarget;
+                                                              const fallback = fallbackImages[index % fallbackImages.length];
+                                                              if (img.src !== fallback) img.src = fallback;
+                                                          }}
+                                                      />
                                                   </div>
-                                                  <ArrowRight
-                                                      size={18}
-                                                      className="mt-1 hidden shrink-0 text-text-secondary transition-transform duration-200 group-hover:translate-x-1 group-hover:text-brand sm:mt-0 sm:block"
-                                                      aria-hidden="true"
-                                                  />
+                                                  <div className="min-w-0 flex-1 sm:p-5">
+                                                      {/* Category leads the card the way an eyebrow does —
+                                                          it's the fastest way to tell whether this row is
+                                                          even the kind of thing you're looking for. */}
+                                                      {/* Reserves its line even when a record has no
+                                                          category, so titles stay aligned across a row
+                                                          rather than inventing a category to fill it. */}
+                                                      <span className="block min-h-[1.125rem] text-xs font-semibold uppercase tracking-[0.08em] text-brand">
+                                                          {opportunity.category}
+                                                      </span>
+                                                      <h3 className="mt-1.5 line-clamp-2 font-display text-base font-semibold leading-snug text-text-primary transition-colors group-hover:text-brand sm:text-lg">
+                                                          {opportunity.title}
+                                                      </h3>
+                                                      {meta.length > 0 ? (
+                                                          <p className="mt-2 truncate text-xs text-text-secondary sm:text-sm">
+                                                              {meta.join(' · ')}
+                                                          </p>
+                                                      ) : null}
+                                                  </div>
                                               </Link>
                                           </motion.li>
-                                      ))}
+                                      );
+                                  })}
                             </ul>
                         )}
 
