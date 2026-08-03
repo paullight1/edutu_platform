@@ -1578,3 +1578,100 @@ export const aiUsageEvents = pgTable(
 );
 
 export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
+
+// ── Group Discussions ──────────────────────────────────────────────────────
+// user_id columns hold the RAW Clerk subject. Unlike savedSearches above,
+// these are `text`, not `uuid` — see clerk-auth.guard.ts:169 for why the two
+// representations exist and the plan's Global Constraint 2 for the rule.
+export const communityGroups = pgTable(
+  "community_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    opportunityId: uuid("opportunity_id"),
+    ownerId: text("owner_id").notNull(),
+    visibility: text("visibility").default("public").notNull(),
+    joinPolicy: text("join_policy").default("open").notNull(),
+    coverEmoji: text("cover_emoji").default("💬").notNull(),
+    accent: text("accent"),
+    expiresAt: timestamp("expires_at"),
+    archivedAt: timestamp("archived_at"),
+    memberCount: integer("member_count").default(0).notNull(),
+    messageCount: integer("message_count").default(0).notNull(),
+    lastMessageAt: timestamp("last_message_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("community_groups_opportunity_idx").on(table.opportunityId),
+    index("community_groups_owner_idx").on(table.ownerId),
+  ],
+);
+
+export const communityGroupMembers = pgTable(
+  "community_group_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id").notNull(),
+    userId: text("user_id").notNull(),
+    role: text("role").default("member").notNull(),
+    status: text("status").default("active").notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("community_group_members_user_idx").on(table.userId, table.status),
+  ],
+);
+
+export const communityGroupMessages = pgTable(
+  "community_group_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id").notNull(),
+    userId: text("user_id").notNull(),
+    body: text("body").notNull(),
+    kind: text("kind").default("text").notNull(),
+    opportunityId: uuid("opportunity_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at"),
+    deletedBy: text("deleted_by"),
+  },
+  (table) => [
+    index("community_group_messages_group_idx").on(
+      table.groupId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const communityJoinRequests = pgTable("community_join_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  groupId: uuid("group_id").notNull(),
+  userId: text("user_id").notNull(),
+  answers: jsonb("answers").default([]).notNull(),
+  status: text("status").default("pending").notNull(),
+  decidedBy: text("decided_by"),
+  decidedAt: timestamp("decided_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityGroupForms = pgTable("community_group_forms", {
+  groupId: uuid("group_id").primaryKey(),
+  questions: jsonb("questions").default([]).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const communityReports = pgTable("community_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  targetType: text("target_type").notNull(),
+  targetId: uuid("target_id").notNull(),
+  reporterId: text("reporter_id").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").default("open").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CommunityGroup = typeof communityGroups.$inferSelect;
+export type CommunityGroupMember = typeof communityGroupMembers.$inferSelect;
+export type CommunityGroupMessage = typeof communityGroupMessages.$inferSelect;
