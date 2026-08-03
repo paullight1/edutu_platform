@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { CommunityArchiveCron } from "./archive.cron";
 import { CommunitiesController } from "./communities.controller";
 import { FormsService } from "./forms.service";
 import { GroupsService } from "./groups.service";
@@ -18,7 +19,18 @@ import { ModerationService } from "./moderation.service";
 @Module({
   imports: [NotificationsModule],
   controllers: [CommunitiesController],
-  providers: [GroupsService, MessagesService, FormsService, ModerationService],
+  providers: [
+    GroupsService,
+    MessagesService,
+    FormsService,
+    ModerationService,
+    // Registered as a provider and deliberately NOT exported: the nightly
+    // expiry sweep has exactly one caller, the scheduler, and exporting it
+    // would invite a second one. @Cron only fires for providers Nest has
+    // instantiated, so omitting this line is a silent no-op — every expired
+    // group would simply stay writable forever with nothing failing.
+    CommunityArchiveCron,
+  ],
   exports: [GroupsService, MessagesService, FormsService, ModerationService],
 })
 export class CommunitiesModule {}
