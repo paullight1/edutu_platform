@@ -60,6 +60,21 @@ create table if not exists public.community_group_members (
 create index if not exists community_group_members_user_idx
   on public.community_group_members (user_id, status);
 
+-- The status check above only lands on a database that has never seen this
+-- table: `create table if not exists` is a silent no-op everywhere else, so a
+-- dev or branch database carrying the earlier 4-status version would keep it and
+-- `invite()` would raise a raw 23514 on the first 'invited' row. Restating the
+-- constraint unconditionally is what makes "safe to re-run" true rather than
+-- true-only-on-a-fresh-database. Drop-then-add is safe here because the table is
+-- not yet in production, so there is no window in which bad rows could land, and
+-- the new set is a strict superset of the old one so ADD cannot fail on
+-- existing rows.
+alter table public.community_group_members
+  drop constraint if exists community_group_members_status_check;
+alter table public.community_group_members
+  add constraint community_group_members_status_check
+  check (status in ('active','invited','pending','removed','banned'));
+
 create table if not exists public.community_group_messages (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.community_groups(id) on delete cascade,

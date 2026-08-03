@@ -143,6 +143,20 @@ export class LastOwnerError extends Error {
 }
 
 /**
+ * Raised by `transitionMembership` when the row it locked is no longer in the
+ * status the caller read before taking the lock. The caller's decision was made
+ * against a snapshot that has since been overwritten — writing anyway would
+ * resurrect a row somebody else just retired (a promotion racing a `leave`
+ * re-activates the leaver as a mod) or undo a ban. A type, not a string match.
+ */
+export class MembershipChangedError extends Error {
+  constructor() {
+    super("Membership changed before the write");
+    this.name = "MembershipChangedError";
+  }
+}
+
+/**
  * The persistence boundary. The service depends on this, not on Drizzle, so
  * the spec can hand it a plain in-memory double: mocking the query-builder
  * chain call-by-call produces tests that pass against a broken WHERE clause.
@@ -192,6 +206,12 @@ export interface GroupsStore {
    *     so two concurrent removals of the same person decrement once, not twice.
    * The increment path (`activateMembership`) was already transactional; this is
    * the same treatment for every other transition.
+   *
+   * `expectedStatus` closes the last unlocked read: every caller decides what to
+   * write from a membership row fetched OUTSIDE this transaction, so without it
+   * a stale snapshot is written back verbatim under the lock. When set, the
+   * in-lock row must still hold that status or `MembershipChangedError` is
+   * raised and nothing is written.
    */
   transitionMembership(input: {
     groupId: string;
@@ -199,6 +219,7 @@ export interface GroupsStore {
     role: string;
     status: MembershipStatus;
     requireSurvivingOwner: boolean;
+    expectedStatus?: MembershipStatus;
   }): Promise<CommunityGroupMember>;
   countActiveOwners(groupId: string): Promise<number>;
   upsertJoinRequest(
@@ -469,6 +490,7 @@ export class DrizzleGroupsStore implements GroupsStore {
     role: string;
     status: MembershipStatus;
     requireSurvivingOwner: boolean;
+    expectedStatus?: MembershipStatus;
   }): Promise<CommunityGroupMember> {
     return db.transaction(async (tx) => {
       // The owner count is a check-then-write over MANY rows, so FOR UPDATE on
@@ -493,6 +515,15 @@ export class DrizzleGroupsStore implements GroupsStore {
         )
         .limit(1)
         .for("update");
+
+      // The caller read this row before the lock existed. If it moved in the
+      // meantime, their whole decision is void: a promotion computed against an
+      // `active` snapshot would write `status: 'active'` back over a row that
+      // has since been left or banned, resurrecting the person as a mod while
+      // member_count stays "correct", so nothing self-heals and nothing alerts.
+      if (input.expectedStatus && existing?.status !== input.expectedStatus) {
+        throw new MembershipChangedError();
+      }
 
       if (input.requireSurvivingOwner) {
         // Counted BEFORE the write, so the row being changed is still included:
@@ -901,6 +932,15 @@ export class GroupsService {
         "This group has been archived, so you can't invite anyone to it.",
       );
     }
+    // `join` refuses an expired group before it ever reaches the `invited`
+    // branch, so an invitation written past the deadline is one the invitee is
+    // told "this group has closed" for accepting. Refuse it at the source
+    // rather than issuing an invitation that cannot be accepted.
+    if (group.expiresAt && group.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException(
+        "This group has closed because its deadline has passed, so you can't invite anyone to it.",
+      );
+    }
 
     const existing = await this.store.findMembership(groupId, invitee);
     if (existing?.status === "active") return existing;
@@ -977,10 +1017,18 @@ export class GroupsService {
         userId: targetUserId,
         role,
         status: target.status as MembershipStatus,
+        // `target` was read without a lock, so the status above is a snapshot.
+        // Pinning it makes the store refuse the write if the row moved — a
+        // promotion racing the member's own `leave` would otherwise write the
+        // stale 'active' back and hand a departed member moderator powers.
+        expectedStatus: target.status as MembershipStatus,
         requireSurvivingOwner: losesOwnership,
       });
     } catch (error) {
       if (error instanceof LastOwnerError) throw this.lastOwnerDemoteError();
+      if (error instanceof MembershipChangedError) {
+        throw this.membershipChangedError();
+      }
       throw error;
     }
   }
@@ -1005,7 +1053,17 @@ export class GroupsService {
   async leave(userId: string, groupId: string): Promise<{ success: true }> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    if (!membership || membership.status === "removed") {
+    // A WHITELIST, not "anything but removed". `banned` is a moderator's
+    // decision and every other reader of it here (join, invite, setMemberRole,
+    // assertCanAdminister) treats it as one; a denylist let a banned user
+    // launder their own ban by "leaving" — the row went to `removed`, and
+    // `join` then let them straight back in.
+    if (membership?.status === "banned") {
+      throw new ForbiddenException(
+        "You've been banned from this group, so there's nothing to leave.",
+      );
+    }
+    if (!membership || !this.isLiveMembership(membership.status)) {
       throw new BadRequestException("You're not a member of this group.");
     }
 
@@ -1047,7 +1105,15 @@ export class GroupsService {
     );
 
     const target = await this.store.findMembership(groupId, targetId);
-    if (!target || target.status === "removed") {
+    // Same whitelist as `leave`, for the same reason: on a denylist a mod could
+    // "remove" a banned user, rewriting the ban to `removed` and letting them
+    // rejoin — a moderator silently undoing an owner's ban.
+    if (target?.status === "banned") {
+      throw new BadRequestException(
+        "That person is already banned from this group.",
+      );
+    }
+    if (!target || !this.isLiveMembership(target.status)) {
       throw new NotFoundException("That person isn't in this group.");
     }
     if (target.role === "owner") {
@@ -1084,6 +1150,11 @@ export class GroupsService {
         userId,
         role: membership.role,
         status: "removed",
+        // Pinned for the same reason as setMemberRole: `membership` was read
+        // before the lock, and a row that has since been banned must not be
+        // rewritten to `removed` by a removal that was decided against the
+        // older status.
+        expectedStatus: membership.status as MembershipStatus,
         requireSurvivingOwner:
           membership.role === "owner" && membership.status === "active",
       });
@@ -1092,6 +1163,9 @@ export class GroupsService {
         throw kind === "leave"
           ? this.lastOwnerLeaveError()
           : this.lastOwnerDemoteError();
+      }
+      if (error instanceof MembershipChangedError) {
+        throw this.membershipChangedError();
       }
       throw error;
     }
@@ -1182,6 +1256,23 @@ export class GroupsService {
       return existing.role;
     }
     return "member";
+  }
+
+  /**
+   * The three statuses a person can be moved OUT of by `leave` / `removeMember`:
+   * in the group, invited to it, or waiting on a decision. `removed` is already
+   * out and `banned` is a moderation decision that must not be laundered into
+   * `removed` — both are excluded by being absent, so a sixth status added later
+   * is refused by default rather than silently accepted.
+   */
+  private isLiveMembership(status: string): boolean {
+    return status === "active" || status === "invited" || status === "pending";
+  }
+
+  private membershipChangedError(): BadRequestException {
+    return new BadRequestException(
+      "That person's membership changed while you were looking at it. Open the group again and retry.",
+    );
   }
 
   private lastOwnerLeaveError(): BadRequestException {

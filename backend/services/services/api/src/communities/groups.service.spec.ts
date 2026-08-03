@@ -12,6 +12,7 @@ import {
   GroupCapReachedError,
   GroupsService,
   LastOwnerError,
+  MembershipChangedError,
   LIST_LIMIT,
   MAX_GROUPS_PER_USER,
 } from "./groups.service";
@@ -246,9 +247,10 @@ class FakeGroupsStore implements GroupsStore {
   }
 
   /**
-   * Mirrors the real adapter's contract: the owner re-count and the
-   * member_count adjustment happen inside the same transaction as the write,
-   * and the count is taken with the row being changed still included.
+   * Mirrors the real adapter's contract: the owner re-count, the expected-status
+   * re-check and the member_count adjustment all happen inside the same
+   * transaction as the write, and the count is taken with the row being changed
+   * still included.
    */
   async transitionMembership(input: {
     groupId: string;
@@ -256,9 +258,23 @@ class FakeGroupsStore implements GroupsStore {
     role: string;
     status: string;
     requireSurvivingOwner: boolean;
+    expectedStatus?: string;
   }): Promise<CommunityGroupMember> {
     return this.transaction(async () => {
-      const existing = await this.findMembership(input.groupId, input.userId);
+      // Read straight off the table, NOT through findMembership: the adapter's
+      // in-transaction read is a separate `select ... for update`, and a test
+      // that simulates a stale caller by stubbing findMembership would
+      // otherwise make this read stale too and could never fail.
+      const existing =
+        this.members.find(
+          (row) => row.groupId === input.groupId && row.userId === input.userId,
+        ) ?? null;
+      // Re-read INSIDE the transaction, exactly like the adapter's FOR UPDATE
+      // select: a fake that trusted the caller's snapshot could never fail the
+      // stale-status test, so the test would prove nothing.
+      if (input.expectedStatus && existing?.status !== input.expectedStatus) {
+        throw new MembershipChangedError();
+      }
       if (input.requireSurvivingOwner) {
         if ((await this.countActiveOwners(input.groupId)) <= 1) {
           throw new LastOwnerError();
@@ -705,6 +721,54 @@ describe("GroupsService", () => {
       expect(sawRequirement).toBe(true);
     });
 
+    /**
+     * PROBE C. `leave` used to accept anything that was not `removed`, so a
+     * banned user could launder their own ban: join is refused → they "leave"
+     * → the ban becomes `removed` → join admits them. Walked end to end here,
+     * because each step in isolation looks harmless.
+     */
+    it("does not let a banned user launder their ban by leaving", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      db.members.push({
+        id: randomUUID(),
+        groupId: GROUP_ID,
+        userId: "user_banned",
+        role: "member",
+        status: "banned",
+        joinedAt: new Date(),
+      });
+      await expect(service.join("user_banned", GROUP_ID, [])).rejects.toThrow(
+        /can't join this group/i,
+      );
+      await expect(service.leave("user_banned", GROUP_ID)).rejects.toThrow(
+        /banned/i,
+      );
+      const row = db.members.find((item) => item.userId === "user_banned")!;
+      expect(row.status).toBe("banned");
+      await expect(service.join("user_banned", GROUP_ID, [])).rejects.toThrow(
+        /can't join this group/i,
+      );
+    });
+
+    it("lets an invitee decline and an applicant withdraw", async () => {
+      const db = fakeDb({
+        group: { id: GROUP_ID, visibility: "public", joinPolicy: "request" },
+      });
+      const service = new GroupsService(db);
+      await service.invite("user_owner", GROUP_ID, "user_friend");
+      await service.join("user_applicant", GROUP_ID, []);
+      const before = db.groups[0].memberCount;
+      await expect(service.leave("user_friend", GROUP_ID)).resolves.toEqual({
+        success: true,
+      });
+      await expect(service.leave("user_applicant", GROUP_ID)).resolves.toEqual({
+        success: true,
+      });
+      // Neither was ever counted, so neither departure may move the counter.
+      expect(db.groups[0].memberCount).toBe(before);
+    });
+
     it("removes an ordinary member and decrements the count", async () => {
       const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
       const service = new GroupsService(db);
@@ -740,10 +804,12 @@ describe("GroupsService", () => {
       const service = new GroupsService(db);
       await service.join("user_xyz", GROUP_ID, []);
       const before = db.groups[0].memberCount;
-      // The decrement used to be a third, unlocked round-trip after the status
-      // write; it now shares the write's transaction, so a failure rolls both
-      // back and two racing removals cannot both decrement.
-      db.upsertMembership = async () => {
+      // The failure is injected into the COUNT step, which runs AFTER the status
+      // write has landed — the only ordering that can tell a transaction from
+      // two unrelated statements. Failing the status write instead (the earlier
+      // version of this test) never reaches the counter at all, so it passes
+      // identically against a store with no transaction whatsoever.
+      db.adjustMemberCount = async () => {
         throw new Error("write failed");
       };
       await expect(
@@ -778,6 +844,31 @@ describe("GroupsService", () => {
         service.removeMember("user_owner", GROUP_ID, "user_xyz"),
       ).rejects.toThrow(/isn't in this group/i);
       expect(db.groups[0].memberCount).toBe(before - 1);
+    });
+
+    it("does not let a mod undo an owner's ban by removing the banned user", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_mod", GROUP_ID, []);
+      await service.setMemberRole("user_owner", GROUP_ID, "user_mod", "mod");
+      db.members.push({
+        id: randomUUID(),
+        groupId: GROUP_ID,
+        userId: "user_banned",
+        role: "member",
+        status: "banned",
+        joinedAt: new Date(),
+      });
+      await expect(
+        service.removeMember("user_mod", GROUP_ID, "user_banned"),
+      ).rejects.toThrow(/already banned/i);
+      // Rewriting the ban to `removed` would have let them rejoin.
+      expect(
+        db.members.find((row) => row.userId === "user_banned")!.status,
+      ).toBe("banned");
+      await expect(service.join("user_banned", GROUP_ID, [])).rejects.toThrow(
+        /can't join this group/i,
+      );
     });
 
     it("treats a plain member removing themselves as leaving", async () => {
@@ -1075,6 +1166,25 @@ describe("GroupsService", () => {
       expect(result.membership.role).toBe("member");
     });
 
+    it("refuses to invite anyone to a group whose deadline has passed", async () => {
+      const db = fakeDb({
+        group: {
+          id: GROUP_ID,
+          visibility: "private",
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      });
+      const service = new GroupsService(db);
+      // `join` refuses an expired group before it reaches the `invited` branch,
+      // so allowing the invite would issue one that can never be accepted.
+      await expect(
+        service.invite("user_owner", GROUP_ID, "user_friend"),
+      ).rejects.toThrow(/deadline has passed/i);
+      expect(db.members.some((row) => row.userId === "user_friend")).toBe(
+        false,
+      );
+    });
+
     it("refuses an invite from someone who cannot administer the group", async () => {
       const service = new GroupsService(
         fakeDb({ group: { id: GROUP_ID, visibility: "private" } }),
@@ -1183,6 +1293,37 @@ describe("GroupsService", () => {
       await expect(
         service.setMemberRole("user_heir", GROUP_ID, "user_heir", "member"),
       ).rejects.toThrow(/no owner/i);
+    });
+
+    /**
+     * PROBE D. The role write is decided from a membership row read outside any
+     * transaction, then written back complete with that snapshot's `status`. An
+     * owner promoting a member who is concurrently leaving used to write
+     * `role: 'mod', status: 'active'` over the committed `removed` row —
+     * resurrecting a departed member as a moderator. member_count stays correct
+     * throughout, so nothing self-heals and nothing alerts.
+     */
+    it("refuses a promotion decided against a status that has since changed", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_xyz", GROUP_ID, []);
+      const stale = { ...db.members.find((r) => r.userId === "user_xyz")! };
+      // The racing `leave` commits first.
+      await service.leave("user_xyz", GROUP_ID);
+      const after = db.groups[0].memberCount;
+      // ...but the promotion is still holding the pre-leave snapshot.
+      const original = db.findMembership.bind(db);
+      db.findMembership = async (groupId, userId) =>
+        userId === "user_xyz" ? stale : original(groupId, userId);
+
+      await expect(
+        service.setMemberRole("user_owner", GROUP_ID, "user_xyz", "mod"),
+      ).rejects.toThrow(/membership changed/i);
+
+      const row = db.members.find((r) => r.userId === "user_xyz")!;
+      expect(row.status).toBe("removed");
+      expect(row.role).toBe("member");
+      expect(db.groups[0].memberCount).toBe(after);
     });
 
     it("refuses a role change from a mod", async () => {
