@@ -210,9 +210,20 @@ returns boolean language sql stable security definer set search_path = public, p
   );
 $$;
 
+-- Revoke from PUBLIC *and* from anon. Supabase's `alter default privileges`
+-- grants EXECUTE on new public-schema functions to anon and authenticated
+-- explicitly, and a PUBLIC revoke does not remove an explicit role grant — so
+-- after the first apply these were still reachable by a signed-out caller over
+-- /rest/v1/rpc/ (caught by the anon_security_definer_function_executable
+-- advisor). Every policy below is `to authenticated`, so anon never needs them;
+-- community_group_is_public in particular was an existence oracle for arbitrary
+-- group uuids.
 revoke execute on function public.community_is_active_member(uuid) from public;
 revoke execute on function public.community_group_is_public(uuid) from public;
 revoke execute on function public.community_is_owner_or_mod(uuid) from public;
+revoke execute on function public.community_is_active_member(uuid) from anon;
+revoke execute on function public.community_group_is_public(uuid) from anon;
+revoke execute on function public.community_is_owner_or_mod(uuid) from anon;
 grant execute on function public.community_is_active_member(uuid) to authenticated;
 grant execute on function public.community_group_is_public(uuid) to authenticated;
 grant execute on function public.community_is_owner_or_mod(uuid) to authenticated;
