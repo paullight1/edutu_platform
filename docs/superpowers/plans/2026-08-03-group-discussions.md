@@ -766,6 +766,21 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Implement the two services, the controller and the module**
 
+**Contract gaps Task 7 found while writing the client against these services.
+Close them here or the mobile app breaks silently:**
+
+- **`GroupsService.list` has no `mine` parameter.** The browse screen's "your
+  groups" section needs it. Without it `mine=true` silently returns everything.
+- Confirm these request bodies, which Task 7 had to infer: invite `{ userId }`,
+  role `{ role }`, decision `{ decision }`.
+- **`GET /groups/:id` must return `{ group, membership }`**, not a flattened
+  group. `GroupsService.get` returns both and the client is typed against it;
+  flattening breaks `GroupDetail` and the join gate loses the viewer's state.
+- Every handler takes `@CurrentUser("authId")` — the RAW Clerk sub. `"id"` is
+  the derived UUID and writes rows no client can read back.
+- `MessagesService.list` takes an options object with a `beforeId` keyset
+  cursor; forward it, or same-instant messages are dropped.
+
 **FIRST, extract `src/communities/community-authz.ts`.** Three separate
 Criticals in this feature have been "two methods that should agree, disagreeing":
 `join` vs `get` on private-group entry (Task 4), and `list` vs `get` on
