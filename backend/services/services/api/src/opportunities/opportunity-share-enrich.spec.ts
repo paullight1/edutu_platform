@@ -19,7 +19,10 @@ const thin = {
 
 describe("opportunity share enrichment", () => {
   it("reports benefits + eligibility as missing on a thin opportunity", () => {
-    expect(missingShareFields(thin).sort()).toEqual(["benefits", "eligibility"]);
+    expect(missingShareFields(thin).sort()).toEqual([
+      "benefits",
+      "eligibility",
+    ]);
   });
 
   it("reports nothing missing when data is already present", () => {
@@ -46,7 +49,9 @@ describe("opportunity share enrichment", () => {
 
   it("builds a grounded prompt that names only the missing fields", () => {
     const prompt = buildShareEnrichPrompt(thin, ["benefits", "eligibility"]);
-    expect(prompt).toContain("Moroccan Government Scholarship Programme 2026-27");
+    expect(prompt).toContain(
+      "Moroccan Government Scholarship Programme 2026-27",
+    );
     expect(prompt).toContain("benefits");
     expect(prompt).toContain("eligibility");
     expect(prompt.toLowerCase()).toContain("do not invent");

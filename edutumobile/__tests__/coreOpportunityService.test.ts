@@ -478,4 +478,78 @@ describe('core opportunity service contract', () => {
     await expect(getOpportunity('opp-missing', missingSupabase as never)).resolves.toBeNull();
     consoleErrorSpy.mockRestore();
   });
+
+  // The detail screen reads GET /opportunities/:id, which is @Public() and
+  // therefore carries no user context — `match` comes back 0 and the fit panel
+  // renders "Not ranked yet" forever, however complete the profile is. The
+  // ranking has to be hydrated separately from the authenticated batch scorer.
+  describe('fetchOpportunityRanking', () => {
+    it('scores a single id against the signed-in user and maps the server shape', async () => {
+      const { fetchOpportunityRanking } = loadService();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scores: [
+            {
+              id: 'opp-1',
+              match_score: 84,
+              match_fit: 79,
+              match_reasons: ['Matches your interest in Climate'],
+              match_risks: ['Requires 2 years experience'],
+              match_reason_details: [
+                { kind: 'interest', label: 'Matches your interest in Climate', points: 20 },
+              ],
+            },
+          ],
+          count: 1,
+          engine: 'hybrid_v2',
+        }),
+      } as Response);
+
+      const ranking = await fetchOpportunityRanking('opp-1', async () => 'token-abc');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.test/opportunities/match-scores',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({ Authorization: 'Bearer token-abc' }),
+          body: JSON.stringify({ opportunityIds: ['opp-1'] }),
+        }),
+      );
+      expect(ranking).toEqual({
+        match: 84,
+        matchFit: 79,
+        matchReasons: ['Matches your interest in Climate'],
+        matchRisks: ['Requires 2 years experience'],
+        matchReasonDetails: [
+          { kind: 'interest', label: 'Matches your interest in Climate', points: 20 },
+        ],
+      });
+    });
+
+    it('returns null without a token, so guests are never scored anonymously', async () => {
+      const { fetchOpportunityRanking } = loadService();
+
+      await expect(fetchOpportunityRanking('opp-1', async () => null)).resolves.toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('returns null when the endpoint fails, leaving the unranked read intact', async () => {
+      const { fetchOpportunityRanking } = loadService();
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404 } as Response);
+
+      await expect(fetchOpportunityRanking('opp-1', async () => 'token-abc')).resolves.toBeNull();
+    });
+
+    it('treats a zero score as no verdict rather than a "stretch" tier', async () => {
+      const { fetchOpportunityRanking } = loadService();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ scores: [{ id: 'opp-1', match_score: 0 }] }),
+      } as Response);
+
+      await expect(fetchOpportunityRanking('opp-1', async () => 'token-abc')).resolves.toBeNull();
+    });
+  });
 });

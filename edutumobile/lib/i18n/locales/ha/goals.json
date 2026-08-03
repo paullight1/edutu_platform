@@ -56,7 +56,9 @@
   },
   "sections": {
     "roadmaps": "Taswirorin Hanya",
-    "personalGoals": "Manufofin Kai"
+    "personalGoals": "Manufofin Kai",
+    "roadmapsHint": "Matakan taswirorin hanya da ka fara, tuni da kwanan wata.",
+    "personalGoalsHint": "Abubuwan da ka zaɓa ka kammala, a kan kwanakinka."
   },
   "filter": {
     "byStatus": "Tace bisa Matsayi",
@@ -75,7 +77,13 @@
     },
     "noPersonalGoals": {
       "title": "Babu Manufofin Kai",
-      "description": "Danna alamar ƙari don saka manufarka ta farko."
+      "description": "Danna alamar ƙari don saka manufarka ta farko.",
+      "action": "Saka manufarka ta farko"
+    },
+    "noMatch": {
+      "title": "Babu abin da ya dace",
+      "description": "Babu manufar da ta dace da binciken ko tacewar ka. Share su don ganin komai.",
+      "action": "Share bincike"
     }
   },
   "dashboard": {
@@ -93,7 +101,8 @@
       "title": "Kana da Damammakin da Za ka Raba?",
       "subtitle": "Tuntuɓe mu idan kana da tallafin karatu, ayyuka, ko shirye-shiryen da kake son rabawa da al'ummarmu",
       "action": "Tuntuɓe Mu"
-    }
+    },
+    "subtitleEmpty": "Ba a bin diddigin komai tukuna"
   },
   "detail": {
     "title": "Bayanan Manufa",
@@ -160,14 +169,15 @@
     }
   },
   "allRoadmaps": {
-    "title": "Manufofin Taswirar Hanya",
+    "title": "Shirye-shiryena",
     "goalCount_one": "Manufa {{count}}",
     "goalCount_other": "Manufofi {{count}}",
     "otherGroup": "Sauran",
     "empty": {
-      "title": "Babu manufofin taswirar hanya",
-      "searchHint": "Gwada sauya binciken ka",
-      "description": "Shigo da manufofi daga taswirar hanya don ganin su a nan"
+      "title": "Babu shiri tukuna",
+      "searchHint": "Gwada wani bincike",
+      "description": "Fara tsari sai matakansa su bayyana a nan da kwanansu.",
+      "action": "Duba tsare-tsare"
     }
   },
   "myList": {
@@ -318,7 +328,26 @@
       "placeholder": "Me ka so ko me za a iya ingantawa?",
       "submit": "Mika Ra'ayi",
       "thanksTitle": "Mun gode!",
-      "thanksMessage": "Ra'ayinka yana taimaka mana mu inganta taswirorin hanya ga kowa."
+      "thanksMessage": "Ra'ayinka yana taimaka mana mu inganta taswirorin hanya ga kowa.",
+      "failedTitle": "An kasa adana kimarka"
+    },
+    "started": "An fara",
+    "notRatedYet": "Ba a kima ba tukuna",
+    "emptyTitle": "Babu kome a nan tukuna",
+    "clearFilters": "Share tacewa",
+    "continueButton": "Ci gaba da wannan tsarin",
+    "startHint_one": "Yana ƙara mataki {{count}} cikin burinka kuma ya tsara tunatarwa.",
+    "startHint_other": "Yana ƙara matakai {{count}} cikin burinka kuma ya tsara tunatarwa.",
+    "progressLabel": "An kammala matakai {{completed}} daga {{total}}",
+    "adopted": {
+      "progress": "Yana cikin shirinka — an kammala matakai {{completed}} daga {{total}}.",
+      "inPlan": "Wannan tsarin yana cikin shirinka tuni."
+    },
+    "a11y": {
+      "card": "{{title}}, tsarin matakin {{difficulty}}",
+      "cardStarted": "{{title}}, an fara, an kammala matakai {{completed}} daga {{total}}",
+      "cardHint": "Yana buɗe cikakken bayanin tsarin",
+      "close": "Rufe"
     }
   },
   "templates": {
@@ -356,7 +385,23 @@
     "stepPlan": "Shirin matakai {{count}}",
     "allLevels": "Duk Matakai",
     "defaultCadence": "An shirya tunatarwar muhimman matakai daga ranar farawarka.",
-    "resourceFallback": "Kayan aiki"
+    "resourceFallback": "Kayan aiki",
+    "previewNotice": "Muna nuna hanyoyin misali — ba mu iya isa ga Edutu ba. Ja ƙasa don loda ɗakin karatu na gaske.",
+    "previewOnlyTitle": "Hanyar misali",
+    "previewOnlyMessage": "Wannan samfuri ne na layi, don haka babu abin da za a fara tukuna. Ka duba tsare-tsaren gaske?",
+    "browseRoadmaps": "Duba tsare-tsare",
+    "searchPlaceholder": "Nemo hanyoyi, marubuta…",
+    "clearSearch": "Share bincike",
+    "emptyTitle": "Babu hanyar da ta dace",
+    "emptyMessage": "Gwada wani bincike ko rukuni.",
+    "clearFilters": "Share tacewa",
+    "remindersOn": "An kunna tunatarwa",
+    "remindersOnA11y": "An kunna tunatarwa, {{count}} an tsara. Danna don kashewa.",
+    "remindersOnTitle": "An kunna tunatarwa",
+    "remindersOnMessage": "An tsara tunatarwa {{count}} na matakan wannan hanyar.",
+    "turnOffReminders": "Kashe",
+    "remindersCancelledTitle": "An kashe tunatarwa",
+    "remindersCancelledMessage": "Ba za mu ƙara tunatar da kai game da wannan hanyar ba."
   },
   "calendar": {
     "title": "Kalandata",
@@ -415,5 +460,17 @@
     "today": "YAU",
     "milestoneDone": "{{title}}, an gama",
     "removeMilestone": "Cire {{title}}"
+  },
+  "a11y": {
+    "addGoal": "Ƙara manufa",
+    "clearSearch": "Share bincike",
+    "openFilters": "Tace manufofi",
+    "completeGoal": "Sanya \"{{title}}\" a matsayin an gama",
+    "reopenGoal": "Sake buɗe \"{{title}}\"",
+    "deleteGoal": "Share \"{{title}}\"",
+    "toggleReminder": "Kunna ko kashe tunatarwar \"{{title}}\"",
+    "statusTab_one": "{{label}}, manufa {{count}}",
+    "statusTab_other": "{{label}}, manufofi {{count}}",
+    "openSort": "Canza tsarin jeri"
   }
 }

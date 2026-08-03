@@ -57,10 +57,11 @@ import { useNavFabState } from "../../lib/navFabStore";
 import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
 import { setStatusBarStyle } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
-import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
+import { registerForPushNotificationsAsync } from "../../lib/notifications";
+import { reportNotificationOpened } from "../../lib/notificationTelemetry";
 import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
 import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
-import { updateProfile } from "@edutu/core/src/services/profile";
+import { syncDeviceTimezone } from "../../lib/timezoneSync";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
@@ -686,12 +687,14 @@ function CreateSpeedDial({
     solidColor,
     onSelect,
     onClose,
+    reducedMotion = false,
 }: {
     open: boolean;
     bottom: number;
     solidColor: string;
     onSelect: (target: string) => void;
     onClose: () => void;
+    reducedMotion?: boolean;
 }) {
     const { t } = useTranslation('home');
     const dial = useAnimatedValue(0);
@@ -703,24 +706,50 @@ function CreateSpeedDial({
     if (prevOpen !== open) {
         setPrevOpen(open);
         if (open) setRendered(true);
+        // With motion reduced there is no collapse animation to wait for, so
+        // the un-mount happens here rather than in an animation callback.
+        else if (reducedMotion) setRendered(false);
     }
 
     useEffect(() => {
         if (open) {
             haptics.light();
+            if (reducedMotion) {
+                // Static end-state: reducedMotion is honored per component.
+                dial.setValue(1);
+                return;
+            }
             Animated.spring(dial, { toValue: 1, friction: 7, tension: 120, useNativeDriver: true }).start();
         } else {
+            if (reducedMotion) {
+                dial.setValue(0);
+                return;
+            }
             Animated.timing(dial, { toValue: 0, duration: 150, useNativeDriver: true }).start(({ finished }) => {
                 if (finished) setRendered(false);
             });
         }
-    }, [open, dial]);
+    }, [open, dial, reducedMotion]);
 
     if (!rendered) return null;
 
+    // Each option carries a second line: "Goal" and "Roadmap" alone never said
+    // which one adds a personal deadline and which one opens Creator Studio.
     const options = [
-        { key: "goal", label: t('tabs.createGoal', 'Goal'), Icon: Target, target: "/goals/add" },
-        { key: "roadmap", label: t('tabs.createRoadmap', 'Roadmap'), Icon: Route, target: "/creator-dashboard" },
+        {
+            key: "goal",
+            label: t('tabs.createGoal', 'Goal'),
+            hint: t('tabs.createGoalHint', 'One thing you want to finish, with a date'),
+            Icon: Target,
+            target: "/goals/add",
+        },
+        {
+            key: "roadmap",
+            label: t('tabs.createRoadmap', 'Roadmap'),
+            hint: t('tabs.createRoadmapHint', 'A multi-step plan in Creator Studio'),
+            Icon: Route,
+            target: "/creator-dashboard",
+        },
     ];
 
     return (
@@ -728,7 +757,8 @@ function CreateSpeedDial({
             <TouchableOpacity
                 activeOpacity={1}
                 onPress={onClose}
-                style={StyleSheet.absoluteFill}
+                style={[StyleSheet.absoluteFill, styles.dialScrim]}
+                accessibilityRole="button"
                 accessibilityLabel={t('tabs.closeCreateMenu', 'Close create menu')}
             />
             <View pointerEvents="box-none" style={[styles.dialWrap, { bottom }]}>
@@ -760,12 +790,18 @@ function CreateSpeedDial({
                                     onSelect(option.target);
                                 }}
                                 activeOpacity={0.85}
-                                style={[styles.dialOption, { backgroundColor: `${solidColor}F0` }]}
+                                style={[styles.dialOption, { backgroundColor: `${solidColor}F5` }]}
                                 accessibilityRole="button"
                                 accessibilityLabel={option.label}
+                                accessibilityHint={option.hint}
                             >
-                                <option.Icon size={18} color="#FFFFFF" strokeWidth={2.4} />
-                                <Text style={styles.dialOptionText}>{option.label}</Text>
+                                <View style={styles.dialOptionIcon}>
+                                    <option.Icon size={22} color="#FFFFFF" strokeWidth={2.4} />
+                                </View>
+                                <View style={styles.dialOptionCopy}>
+                                    <Text style={styles.dialOptionText} numberOfLines={1}>{option.label}</Text>
+                                    <Text style={styles.dialOptionHint} numberOfLines={2}>{option.hint}</Text>
+                                </View>
                             </TouchableOpacity>
                         </Animated.View>
                     );
@@ -1227,20 +1263,26 @@ export default function AppLayout() {
 
         registeredPushUserRef.current = userId;
         void (async () => {
-            await notificationService.requestPermissions();
+            // Launch registration is SILENT: `promptIfNeeded: false` means a
+            // user who hasn't granted permission is left alone here. The ask
+            // now happens in context (saving an opportunity with a deadline),
+            // where there is an actual reason to say yes. Users who already
+            // granted still get their token refreshed and re-synced on launch.
+            //
             // Pass the token *getter*, not a pre-fetched token: registration does
-            // slow work (permission prompt + Expo push-token fetch) and Clerk
-            // session tokens expire in ~60s, so the token must be minted fresh
-            // right before the sync POST — otherwise it 401s as expired.
-            await registerForPushNotificationsAsync(userId, getToken);
-            // Sync the device timezone so proactive alerts honor quiet hours
-            // in the user's local time (fire-and-forget, once per launch).
+            // slow work (Expo push-token fetch) and Clerk session tokens expire
+            // in ~60s, so the token must be minted fresh right before the sync
+            // POST — otherwise it 401s as expired.
             try {
-                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                if (timezone) await updateProfile(getToken, { timezone });
+                await registerForPushNotificationsAsync(userId, getToken, { promptIfNeeded: false });
             } catch {
-                // Non-fatal — alerts fall back to UTC quiet hours.
+                // getExpoPushTokenAsync throws on simulators and when FCM/APNs
+                // is misconfigured. Swallow it here so it cannot take the
+                // timezone sync below down with it.
             }
+            // Sync the device timezone so proactive alerts honor quiet hours in
+            // the user's local time. Idempotent: a no-op after the first launch.
+            await syncDeviceTimezone(getToken);
         })();
     }, [getToken, isSignedIn, userId]);
 
@@ -1257,6 +1299,11 @@ export default function AppLayout() {
             handledIds.add(id);
 
             const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+
+            // Attribute the tap before any routing branch returns — every path
+            // below this point exits, so anything placed later would only ever
+            // record the fall-through case.
+            reportNotificationOpened(data?.notificationId);
             if (!data) return;
 
             // Action buttons. Android handles these headlessly in
@@ -1481,6 +1528,7 @@ export default function AppLayout() {
                         bottom={getCreateDialBottom(navBarStyle, insets.bottom)}
                         solidColor={colors.accent || "#6366F1"}
                         onClose={() => setCreateDialOpen(false)}
+                        reducedMotion={reducedMotion}
                         onSelect={(target) => {
                             setCreateDialOpen(false);
                             router.push(target as never);
@@ -1629,30 +1677,42 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: 6,
     },
+    // A dim scrim, not an invisible catcher: the dial used to fan out over
+    // live content with nothing signalling that the rest of the screen was
+    // inert, so taps that dismissed it read as taps that did nothing.
+    dialScrim: {
+        backgroundColor: "rgba(2,6,23,0.45)",
+    },
     dialWrap: {
         position: "absolute",
+        left: 18,
         right: 18,
-        alignItems: "flex-end",
-        gap: 10,
+        alignItems: "stretch",
+        gap: 12,
     },
     dialPrompt: {
         color: "#FFFFFF",
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: "700",
-        backgroundColor: "rgba(2,6,23,0.78)",
+        alignSelf: "flex-end",
+        backgroundColor: "rgba(2,6,23,0.82)",
         overflow: "hidden",
-        paddingHorizontal: 12,
-        paddingVertical: 7,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
         borderRadius: 999,
-        marginBottom: 2,
+        marginBottom: 4,
     },
+    // 64pt rows with a 16pt label and a supporting line. The old pills were
+    // ~38pt tall with 13pt text — under the touch minimum, and the two of them
+    // were indistinguishable at a glance.
     dialOption: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 999,
+        gap: 14,
+        minHeight: 64,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 22,
         borderCurve: "continuous",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 6 },
@@ -1660,10 +1720,28 @@ const styles = StyleSheet.create({
         shadowRadius: 14,
         elevation: 10,
     },
+    dialOptionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        borderCurve: "continuous",
+        backgroundColor: "rgba(255,255,255,0.18)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    dialOptionCopy: {
+        flex: 1,
+    },
     dialOptionText: {
         color: "#FFFFFF",
-        fontSize: 13,
+        fontSize: 16,
         fontWeight: "700",
+    },
+    dialOptionHint: {
+        color: "rgba(255,255,255,0.82)",
+        fontSize: 12,
+        lineHeight: 16,
+        marginTop: 2,
     },
     navCircle: {
         width: 66,

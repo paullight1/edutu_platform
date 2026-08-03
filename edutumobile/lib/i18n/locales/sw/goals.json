@@ -56,7 +56,9 @@
   },
   "sections": {
     "roadmaps": "Ramani za Njia",
-    "personalGoals": "Malengo Binafsi"
+    "personalGoals": "Malengo Binafsi",
+    "roadmapsHint": "Hatua za ramani ulizoanza, tayari zina tarehe.",
+    "personalGoalsHint": "Mambo uliyochagua kumaliza, kwa tarehe zako mwenyewe."
   },
   "filter": {
     "byStatus": "Chuja kwa Hali",
@@ -75,7 +77,13 @@
     },
     "noPersonalGoals": {
       "title": "Hakuna Malengo Binafsi",
-      "description": "Gusa alama ya kuongeza ili kuweka lengo lako la kwanza."
+      "description": "Gusa alama ya kuongeza ili kuweka lengo lako la kwanza.",
+      "action": "Weka lengo lako la kwanza"
+    },
+    "noMatch": {
+      "title": "Hakuna kinacholingana",
+      "description": "Hakuna lengo linalolingana na utafutaji au kichujio chako. Yafute ili uone yote tena.",
+      "action": "Futa utafutaji"
     }
   },
   "dashboard": {
@@ -93,7 +101,8 @@
       "title": "Una Fursa za Kushiriki?",
       "subtitle": "Wasiliana nasi ikiwa una ufadhili wa masomo, kazi, au programu ambazo ungependa kushiriki na jamii yetu",
       "action": "Wasiliana Nasi"
-    }
+    },
+    "subtitleEmpty": "Hakuna kinachofuatiliwa bado"
   },
   "detail": {
     "title": "Maelezo ya Lengo",
@@ -160,14 +169,15 @@
     }
   },
   "allRoadmaps": {
-    "title": "Malengo ya Ramani za Njia",
+    "title": "Mipango yangu",
     "goalCount_one": "Lengo {{count}}",
     "goalCount_other": "Malengo {{count}}",
     "otherGroup": "Mengineyo",
     "empty": {
-      "title": "Hakuna malengo ya ramani za njia",
-      "searchHint": "Jaribu kubadilisha utafutaji wako",
-      "description": "Leta malengo kutoka kwenye ramani ya njia ili kuyaona hapa"
+      "title": "Bado hakuna mipango",
+      "searchHint": "Jaribu utafutaji mwingine",
+      "description": "Anza ramani na hatua zake zitaonekana hapa zikiwa na tarehe.",
+      "action": "Vinjari ramani"
     }
   },
   "myList": {
@@ -318,7 +328,26 @@
       "placeholder": "Ulipenda nini au ni nini kingeweza kuboreshwa?",
       "submit": "Tuma Maoni",
       "thanksTitle": "Asante!",
-      "thanksMessage": "Maoni yako yanatusaidia kuboresha ramani za njia kwa kila mtu."
+      "thanksMessage": "Maoni yako yanatusaidia kuboresha ramani za njia kwa kila mtu.",
+      "failedTitle": "Imeshindwa kuhifadhi ukadiriaji wako"
+    },
+    "started": "Imeanza",
+    "notRatedYet": "Bado haijakadiriwa",
+    "emptyTitle": "Bado hakuna kitu hapa",
+    "clearFilters": "Futa vichujio",
+    "continueButton": "Endelea na ramani hii",
+    "startHint_one": "Huongeza hatua {{count}} kwenye malengo yako na kupanga vikumbusho.",
+    "startHint_other": "Huongeza hatua {{count}} kwenye malengo yako na kupanga vikumbusho.",
+    "progressLabel": "Hatua {{completed}} kati ya {{total}} zimekamilika",
+    "adopted": {
+      "progress": "Ipo kwenye mpango wako — hatua {{completed}} kati ya {{total}} zimekamilika.",
+      "inPlan": "Ramani hii tayari ipo kwenye mpango wako."
+    },
+    "a11y": {
+      "card": "{{title}}, ramani ya kiwango cha {{difficulty}}",
+      "cardStarted": "{{title}}, imeanza, hatua {{completed}} kati ya {{total}} zimekamilika",
+      "cardHint": "Hufungua maelezo ya ramani",
+      "close": "Funga"
     }
   },
   "templates": {
@@ -356,7 +385,23 @@
     "stepPlan": "Mpango wa hatua {{count}}",
     "allLevels": "Viwango Vyote",
     "defaultCadence": "Vikumbusho vya hatua muhimu vimepangwa kuanzia tarehe yako ya kuanza.",
-    "resourceFallback": "Rasilimali"
+    "resourceFallback": "Rasilimali",
+    "previewNotice": "Tunaonyesha njia za mfano — hatukuweza kufikia Edutu. Vuta chini kupakia maktaba halisi.",
+    "previewOnlyTitle": "Njia ya mfano",
+    "previewOnlyMessage": "Hii ni hakikisho la nje ya mtandao, kwa hivyo hakuna cha kuanza bado. Ungependa kuvinjari ramani halisi?",
+    "browseRoadmaps": "Vinjari ramani",
+    "searchPlaceholder": "Tafuta njia, waandishi…",
+    "clearSearch": "Futa utafutaji",
+    "emptyTitle": "Hakuna njia inayolingana",
+    "emptyMessage": "Jaribu utafutaji au kategoria nyingine.",
+    "clearFilters": "Futa vichujio",
+    "remindersOn": "Vikumbusho vimewashwa",
+    "remindersOnA11y": "Vikumbusho vimewashwa, {{count}} vimepangwa. Gusa kuzima.",
+    "remindersOnTitle": "Vikumbusho vimewashwa",
+    "remindersOnMessage": "Vikumbusho {{count}} vya hatua vimepangwa kwa njia hii.",
+    "turnOffReminders": "Zima",
+    "remindersCancelledTitle": "Vikumbusho vimezimwa",
+    "remindersCancelledMessage": "Hatutakukumbusha tena kuhusu njia hii."
   },
   "calendar": {
     "title": "Kalenda Yangu",
@@ -415,5 +460,17 @@
     "today": "LEO",
     "milestoneDone": "{{title}}, imekamilika",
     "removeMilestone": "Ondoa {{title}}"
+  },
+  "a11y": {
+    "addGoal": "Ongeza lengo",
+    "clearSearch": "Futa utafutaji",
+    "openFilters": "Chuja malengo",
+    "completeGoal": "Weka alama \"{{title}}\" limekamilika",
+    "reopenGoal": "Fungua tena \"{{title}}\"",
+    "deleteGoal": "Futa \"{{title}}\"",
+    "toggleReminder": "Washa au zima kikumbusho cha \"{{title}}\"",
+    "statusTab_one": "{{label}}, lengo {{count}}",
+    "statusTab_other": "{{label}}, malengo {{count}}",
+    "openSort": "Badilisha mpangilio"
   }
 }

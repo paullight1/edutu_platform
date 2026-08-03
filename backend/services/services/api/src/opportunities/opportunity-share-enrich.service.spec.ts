@@ -14,7 +14,8 @@ const thin = {
   id: "opp-1",
   title: "Moroccan Government Scholarship 2026-27",
   summary: "A funded chance to study in Morocco.",
-  description: "Covers tuition and a monthly stipend for international students.",
+  description:
+    "Covers tuition and a monthly stipend for international students.",
   organization: "Government of Morocco",
   metadata: {},
 };
@@ -27,7 +28,10 @@ describe("OpportunityShareEnrichService", () => {
     });
     const result = await service.ensureEnriched(thin);
     expect(aiService.generateJson).toHaveBeenCalledTimes(1);
-    expect(result.metadata.benefits).toEqual(["Full tuition", "Monthly stipend"]);
+    expect(result.metadata.benefits).toEqual([
+      "Full tuition",
+      "Monthly stipend",
+    ]);
     expect(result.metadata.eligibility).toEqual([
       "Open to international students",
     ]);

@@ -5,12 +5,22 @@ import {
   AITailorResponse,
   CVData,
   CVMatchResult,
+  CVSectionType,
   CVStructure,
   CVTemplate,
+  CVTemplateDesign,
   UserCV,
 } from '../types/cv';
 import { toSafeUUID } from '../utils/auth';
 import { requestProductApi, isAiBillingError, type GetAuthToken } from './productApi';
+import {
+  getDensityMetrics,
+  getFontStack,
+  resolveTemplateDesign,
+  resolveTemplateDesignById,
+  TEMPLATE_DESIGNS,
+  type CVDensityMetrics,
+} from './templateDesigns';
 
 const TEMPLATE_STRUCTURE: CVStructure = {
   sections: [
@@ -24,43 +34,109 @@ const TEMPLATE_STRUCTURE: CVStructure = {
   ],
 };
 
+const SECTION_LABELS: Record<CVSectionType, string> = {
+  header: 'Header',
+  summary: 'Summary',
+  experience: 'Experience',
+  education: 'Education',
+  skills: 'Skills',
+  projects: 'Projects',
+  achievements: 'Achievements',
+  research: 'Research',
+  publications: 'Publications',
+  references: 'References',
+  transactions: 'Transactions',
+};
+
+const REPEATABLE_SECTIONS: CVSectionType[] = [
+  'experience',
+  'education',
+  'projects',
+  'achievements',
+  'research',
+  'publications',
+  'references',
+  'transactions',
+];
+
+/** A template's structure is its design's section list — one source of truth. */
+function structureFromDesign(slug: string): CVStructure {
+  const design = TEMPLATE_DESIGNS[slug];
+  if (!design) return TEMPLATE_STRUCTURE;
+  return {
+    sections: design.sections.map((type) => ({
+      id: type,
+      type,
+      label: SECTION_LABELS[type],
+      repeatable: REPEATABLE_SECTIONS.includes(type),
+    })),
+  };
+}
+
+function mockTemplate(
+  slug: string,
+  name: string,
+  category: string,
+  description: string,
+  isPremium = false,
+): CVTemplate {
+  return {
+    id: slug,
+    slug,
+    name,
+    category,
+    description,
+    structure_json: structureFromDesign(slug),
+    is_premium: isPremium,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * The shipped template set. Each one resolves to a distinct design spec in
+ * templateDesigns.ts, so picking a template genuinely changes the exported
+ * document — descriptions here must stay true to that spec.
+ */
 const MOCK_TEMPLATES: CVTemplate[] = [
-  {
-    id: 't-1',
-    name: 'Modern Professional',
-    category: 'Professional',
-    description: 'Clean single-column layout for scholarships, internships, and early-career roles.',
-    structure_json: TEMPLATE_STRUCTURE,
-    is_premium: false,
-    thumbnail_url:
-      'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=500&auto=format&fit=crop&q=60',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 't-2',
-    name: 'Academic Research',
-    category: 'Academic',
-    description: 'Stronger focus on education, research, and publications.',
-    structure_json: TEMPLATE_STRUCTURE,
-    is_premium: false,
-    thumbnail_url:
-      'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=500&auto=format&fit=crop&q=60',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 't-3',
-    name: 'Creative Portfolio',
-    category: 'Creative',
-    description: 'Balanced structure for product, design, media, and portfolio-heavy work.',
-    structure_json: TEMPLATE_STRUCTURE,
-    is_premium: false,
-    thumbnail_url:
-      'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=500&auto=format&fit=crop&q=60',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
+  mockTemplate(
+    'minimal-ats',
+    'Minimal ATS',
+    'General',
+    'Pure black on white with no rules or fills — the safest choice when an applicant tracking system reads first.',
+  ),
+  mockTemplate(
+    'modern-professional',
+    'Modern Professional',
+    'Professional',
+    'Teal accent rules and skill chips. Clean and current, for scholarships, internships and early-career roles.',
+  ),
+  mockTemplate(
+    'academic-research',
+    'Academic Research',
+    'Academic',
+    'Serif type and a centred header. Leads with education and research, and adds Publications and References sections.',
+  ),
+  mockTemplate(
+    'bold-impact',
+    'Bold Impact',
+    'Professional',
+    'Oversized name and boxed section labels in indigo. Built to be remembered in a stack of applications.',
+  ),
+  mockTemplate(
+    'creative-portfolio',
+    'Creative Portfolio',
+    'Creative',
+    'Violet header band with Projects promoted above Experience — for design, product, media and portfolio-led work.',
+    true,
+  ),
+  mockTemplate(
+    'executive',
+    'Executive',
+    'Professional',
+    'Serif name beside a right-aligned contact column, compact spacing and Achievements up front. For a long track record.',
+    true,
+  ),
 ];
 
 const LOCAL_CV_KEY_PREFIX = 'edutu:user_cvs:';
@@ -156,6 +232,7 @@ function mapTemplate(row: any): CVTemplate {
     description: row.description,
     structure_json: (row.structure_json as CVStructure) || TEMPLATE_STRUCTURE,
     is_premium: Boolean(row.is_premium),
+    slug: row.slug || undefined,
     thumbnail_url: row.thumbnail_url,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -257,11 +334,16 @@ export async function fetchCVTemplates(
     const { data, error } = await query;
     if (error) throw error;
 
-    const fromDb = (data || []).map(mapTemplate);
-    const merged = [...fromDb];
-    for (const template of MOCK_TEMPLATES) {
-      if (!merged.some((item) => item.id === template.id)) merged.push(template);
-    }
+    // Dedupe on the resolved design, not the row id: legacy rows (t-1/t-2/t-3)
+    // alias onto shipped slugs, and showing both would put two "Modern
+    // Professional" cards in the gallery. The shipped catalogue wins, because
+    // its description is guaranteed to match the design it renders.
+    const shipped = new Set(MOCK_TEMPLATES.map((item) => item.id));
+    const fromDb = (data || [])
+      .map(mapTemplate)
+      .filter((item) => !shipped.has(resolveTemplateDesign(item).slug));
+
+    const merged = [...MOCK_TEMPLATES, ...fromDb];
 
     return merged.filter((template) => {
       if (!options?.includePremium && template.is_premium) return false;
@@ -1270,23 +1352,124 @@ function dateRange(start?: string | null, end?: string | null, current?: boolean
   return [from, to].filter(Boolean).join(' – ');
 }
 
+/** Heading CSS for the four section-rule treatments. */
+function sectionHeadingCss(design: CVTemplateDesign, metrics: CVDensityMetrics): string {
+  const shared = `font-size: ${design.sectionCase === 'upper' ? 12 : 13.5}px; font-weight: 700; letter-spacing: ${design.sectionCase === 'upper' ? '1.4px' : '0.2px'}; text-transform: ${design.sectionCase === 'upper' ? 'uppercase' : 'none'}; margin: ${metrics.sectionGap}px 0 ${Math.round(metrics.itemGap * 0.8)}px;`;
+
+  switch (design.sectionRule) {
+    case 'underline':
+      return `h2 { ${shared} color: ${design.accent}; border-bottom: 1.5px solid ${design.accent}; padding-bottom: 3px; }`;
+    case 'tick':
+      return `h2 { ${shared} color: ${design.accent}; border-left: 3px solid ${design.accent}; padding-left: 8px; }`;
+    case 'boxed':
+      return `h2 { ${shared} color: ${design.accent}; background: ${design.accentSoft}; display: inline-block; padding: 4px 10px; border-radius: 4px; }`;
+    case 'none':
+    default:
+      return `h2 { ${shared} color: ${design.ink}; }`;
+  }
+}
+
+/** Header markup + CSS for the four header treatments. */
+function renderHeader(
+  design: CVTemplateDesign,
+  metrics: CVDensityMetrics,
+  name: string,
+  contactParts: string[],
+): { css: string; html: string } {
+  const nameHtml = `<h1>${escapeHtml(name)}</h1>`;
+  const inlineContact = contactParts.map(escapeHtml).join(' &nbsp;•&nbsp; ');
+
+  const baseCss = `h1 { font-family: ${getFontStack(design.displayFont)}; font-size: ${metrics.nameSize}px; font-weight: 700; letter-spacing: 0.2px; color: ${design.ink}; }
+  .contact { margin-top: 5px; color: ${design.muted}; font-size: ${metrics.baseFontSize - 1}px; }`;
+
+  switch (design.headerStyle) {
+    case 'centered':
+      return {
+        css: `${baseCss}
+  .hdr { text-align: center; padding-bottom: ${Math.round(metrics.sectionGap * 0.5)}px; border-bottom: 1px solid ${design.accent}; }`,
+        html: `<header class="hdr">${nameHtml}${inlineContact ? `<div class="contact">${inlineContact}</div>` : ''}</header>`,
+      };
+
+    case 'band':
+      // Negative margins bleed the accent band to the page edge, then restore
+      // the page gutter inside it.
+      return {
+        css: `${baseCss}
+  h1 { color: #FFFFFF; }
+  .hdr { background: ${design.accent}; margin: -${metrics.pagePaddingY}px -${metrics.pagePaddingX}px ${metrics.sectionGap}px; padding: ${metrics.pagePaddingY}px ${metrics.pagePaddingX}px ${Math.round(metrics.pagePaddingY * 0.7)}px; }
+  .hdr .contact { color: rgba(255,255,255,0.88); }`,
+        html: `<header class="hdr">${nameHtml}${inlineContact ? `<div class="contact">${inlineContact}</div>` : ''}</header>`,
+      };
+
+    case 'split':
+      return {
+        css: `${baseCss}
+  .hdr { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: ${Math.round(metrics.sectionGap * 0.5)}px; border-bottom: 2px solid ${design.accent}; }
+  .hdr .contact { margin-top: 0; text-align: right; line-height: 1.55; }
+  .hdr .contact div { white-space: nowrap; }`,
+        html: `<header class="hdr"><div>${nameHtml}</div>${
+          contactParts.length
+            ? `<div class="contact">${contactParts.map((part) => `<div>${escapeHtml(part)}</div>`).join('')}</div>`
+            : ''
+        }</header>`,
+      };
+
+    case 'left':
+    default:
+      return {
+        css: baseCss,
+        html: `<header class="hdr">${nameHtml}${inlineContact ? `<div class="contact">${inlineContact}</div>` : ''}</header>`,
+      };
+  }
+}
+
+/** Skills markup for the three skill treatments. `inline` is the ATS-safest. */
+function renderSkills(design: CVTemplateDesign, skills: string[]): string {
+  if (!skills.length) return '';
+  switch (design.skillStyle) {
+    case 'chips':
+      return `<div class="skills">${skills.map((s) => `<span class="skill">${escapeHtml(s)}</span>`).join('')}</div>`;
+    case 'bulleted':
+      return `<ul class="skill-list">${skills.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
+    case 'inline':
+    default:
+      return `<p>${skills.map(escapeHtml).join(' &nbsp;·&nbsp; ')}</p>`;
+  }
+}
+
 /**
- * Renders a clean, single-column, print-friendly resume as HTML for
- * expo-print's printToFileAsync. Kept intentionally ATS-safe: system fonts,
- * no columns, semantic headings.
+ * Renders a print-friendly resume as HTML for expo-print's printToFileAsync,
+ * styled by the chosen template's design spec.
+ *
+ * Every template stays single-column with semantic headings so ATS parsers
+ * can read it; the spec varies typography, colour, header treatment, section
+ * rules, density and section order. Pass `design` explicitly when the caller
+ * already resolved it (the preview does, so both agree); otherwise it is
+ * derived from `cv.template_id`.
  */
-export function buildCVHtml(cv: Partial<UserCV>): string {
+export function buildCVHtml(cv: Partial<UserCV>, design?: CVTemplateDesign | null): string {
+  const spec = design || resolveTemplateDesignById(cv.template_id);
+  const metrics = getDensityMetrics(spec.density);
   const data = cv.data_json || emptyCVData();
   const header: NonNullable<CVData['header']> = data.header || emptyCVData().header!;
-  const contact = [header.email, header.phone, header.location, header.linkedin, header.portfolio || header.website]
-    .filter(Boolean)
-    .map(escapeHtml)
-    .join(' &nbsp;•&nbsp; ');
+
+  const contactParts = [
+    header.email,
+    header.phone,
+    header.location,
+    header.linkedin,
+    header.portfolio || header.website,
+  ].filter(Boolean) as string[];
 
   const section = (title: string, body: string) =>
-    body
-      ? `<section><h2>${escapeHtml(title)}</h2>${body}</section>`
+    body ? `<section><h2>${escapeHtml(title)}</h2>${body}</section>` : '';
+
+  const bullets = (items?: string[] | null) => {
+    const clean = (items || []).map((h) => (h || '').trim()).filter(Boolean);
+    return clean.length
+      ? `<ul>${clean.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>`
       : '';
+  };
 
   const experience = (data.experience || [])
     .filter((item) => item.role || item.company)
@@ -1295,7 +1478,7 @@ export function buildCVHtml(cv: Partial<UserCV>): string {
         <div class="row"><strong>${escapeHtml(item.role || '')}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date, item.current))}</span></div>
         <div class="sub">${escapeHtml([item.company, item.location].filter(Boolean).join(' · '))}</div>
         ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
-        ${item.highlights?.filter(Boolean).length ? `<ul>${item.highlights.filter(Boolean).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}
+        ${bullets(item.highlights)}
       </div>`)
     .join('');
 
@@ -1305,7 +1488,7 @@ export function buildCVHtml(cv: Partial<UserCV>): string {
       <div class="item">
         <div class="row"><strong>${escapeHtml([item.degree, item.field].filter(Boolean).join(', '))}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date))}</span></div>
         <div class="sub">${escapeHtml(item.institution || '')}${item.gpa ? ` · GPA ${escapeHtml(item.gpa)}` : ''}</div>
-        ${item.highlights?.filter(Boolean).length ? `<ul>${item.highlights.filter(Boolean).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}
+        ${bullets(item.highlights)}
       </div>`)
     .join('');
 
@@ -1313,7 +1496,7 @@ export function buildCVHtml(cv: Partial<UserCV>): string {
     .filter((item) => item.name)
     .map((item) => `
       <div class="item">
-        <div class="row"><strong>${escapeHtml(item.name)}</strong></div>
+        <div class="row"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date))}</span></div>
         ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
         ${item.technologies?.length ? `<div class="sub">${escapeHtml(item.technologies.join(', '))}</div>` : ''}
         ${item.url ? `<div class="sub">${escapeHtml(item.url)}</div>` : ''}
@@ -1330,36 +1513,91 @@ export function buildCVHtml(cv: Partial<UserCV>): string {
       </div>`)
     .join('');
 
+  const research = (data.research || [])
+    .filter((item) => item.title || item.institution)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.title || '')}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date))}</span></div>
+        <div class="sub">${escapeHtml([item.role, item.institution].filter(Boolean).join(' · '))}</div>
+        ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+      </div>`)
+    .join('');
+
+  const publications = (data.publications || [])
+    .filter((item) => item.title)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.title)}</strong>${item.date ? `<span>${escapeHtml(formatDate(item.date))}</span>` : ''}</div>
+        ${item.journal || item.coauthors?.length
+          ? `<div class="sub">${escapeHtml([item.journal, (item.coauthors || []).join(', ')].filter(Boolean).join(' · '))}</div>`
+          : ''}
+        ${item.url ? `<div class="sub">${escapeHtml(item.url)}</div>` : ''}
+      </div>`)
+    .join('');
+
+  const references = (data.references || [])
+    .filter((item) => item.name)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.name)}</strong></div>
+        <div class="sub">${escapeHtml([item.title, item.organization].filter(Boolean).join(', '))}</div>
+        ${item.email || item.phone
+          ? `<div class="sub">${escapeHtml([item.email, item.phone].filter(Boolean).join(' · '))}</div>`
+          : ''}
+      </div>`)
+    .join('');
+
+  const headerParts = renderHeader(
+    spec,
+    metrics,
+    header.full_name || cv.name || 'Untitled CV',
+    contactParts,
+  );
+
+  // Section order comes from the template spec, so "Academic" really does lead
+  // with education and research while "Creative" leads with projects.
+  const sectionHtml: Partial<Record<CVSectionType, string>> = {
+    summary: section('Summary', data.summary ? `<p>${escapeHtml(data.summary)}</p>` : ''),
+    skills: section('Skills', renderSkills(spec, (data.skills || []).filter(Boolean))),
+    experience: section('Experience', experience),
+    education: section('Education', education),
+    projects: section('Projects', projects),
+    achievements: section('Achievements', achievements),
+    research: section('Research', research),
+    publications: section('Publications', publications),
+    references: section('References', references),
+  };
+
+  const body = spec.sections
+    .filter((type) => type !== 'header')
+    .map((type) => sectionHtml[type] || '')
+    .join('\n  ');
+
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111827; font-size: 12.5px; line-height: 1.5; padding: 36px 44px; }
-  h1 { font-size: 24px; letter-spacing: 0.2px; }
-  .contact { margin-top: 4px; color: #4B5563; font-size: 11.5px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: #1F2937; border-bottom: 1.5px solid #111827; padding-bottom: 3px; margin: 18px 0 8px; }
-  .item { margin-bottom: 10px; }
+  body { font-family: ${getFontStack(spec.bodyFont)}; color: ${spec.ink}; font-size: ${metrics.baseFontSize}px; line-height: ${metrics.lineHeight}; padding: ${metrics.pagePaddingY}px ${metrics.pagePaddingX}px; }
+  ${headerParts.css}
+  ${sectionHeadingCss(spec, metrics)}
+  section { page-break-inside: auto; }
+  .item { margin-bottom: ${metrics.itemGap}px; page-break-inside: avoid; }
   .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .row span { color: #6B7280; font-size: 11px; white-space: nowrap; }
-  .sub { color: #4B5563; font-size: 11.5px; margin-top: 1px; }
+  .row span { color: ${spec.muted}; font-size: ${metrics.baseFontSize - 1.5}px; white-space: nowrap; }
+  .sub { color: ${spec.muted}; font-size: ${metrics.baseFontSize - 1}px; margin-top: 1px; }
   p { margin-top: 3px; }
   ul { margin: 4px 0 0 16px; }
   li { margin-bottom: 2px; }
+  .skill-list { columns: 2; margin-top: 2px; }
   .skills { display: flex; flex-wrap: wrap; gap: 6px; }
-  .skill { border: 1px solid #D1D5DB; border-radius: 999px; padding: 2px 10px; font-size: 11px; color: #374151; }
+  .skill { border: 1px solid ${spec.accent}; color: ${spec.accent}; background: ${spec.accentSoft}; border-radius: 999px; padding: 2px 10px; font-size: ${metrics.baseFontSize - 1.5}px; }
 </style>
 </head>
 <body>
-  <h1>${escapeHtml(header.full_name || cv.name || 'Untitled CV')}</h1>
-  ${contact ? `<div class="contact">${contact}</div>` : ''}
-  ${section('Summary', data.summary ? `<p>${escapeHtml(data.summary)}</p>` : '')}
-  ${section('Skills', (data.skills || []).length ? `<div class="skills">${(data.skills || []).map((s) => `<span class="skill">${escapeHtml(s)}</span>`).join('')}</div>` : '')}
-  ${section('Experience', experience)}
-  ${section('Education', education)}
-  ${section('Projects', projects)}
-  ${section('Achievements', achievements)}
+  ${headerParts.html}
+  ${body}
 </body>
 </html>`;
 }

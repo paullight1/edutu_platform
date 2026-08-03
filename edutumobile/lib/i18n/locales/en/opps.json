@@ -105,6 +105,12 @@
     "cancel": "Cancel"
   },
   "detail": {
+    "pushOptIn": {
+      "title": "Want a nudge before this closes?",
+      "message": "We can remind you a few days before the deadline so this one does not slip past you.",
+      "confirm": "Remind me",
+      "dismiss": "No thanks"
+    },
     "headerTitle": "Opportunity Details",
     "loading": "Loading opportunity...",
     "notFound": "Opportunity not found",
@@ -130,6 +136,7 @@
       "title": "Your fit",
       "eyebrow": "Edutu's read",
       "unknown": "Not ranked yet",
+      "evidenceHeadline": "Why Edutu says so",
       "unknownBlurb": "Finish your profile and Edutu can rank this one for you.",
       "tiers": {
         "strong": "Strong fit",
@@ -181,6 +188,7 @@
     "addToGoals": "Add to My Goals",
     "applyNow": "Apply Now",
     "savedLabel": "Saved",
+    "saveAction": "Save",
     "alerts": {
       "removedTitle": "Removed",
       "removedMsg": "Opportunity removed from saved list",
@@ -435,5 +443,63 @@
     "emptyTitle": "No submissions yet",
     "emptyMessage": "Found a great opportunity? Submit it and help others discover it.",
     "submitCta": "Submit an opportunity"
+  },
+  "alerts": {
+    "title": "Alerts",
+    "subtitle": "We watch the catalog so you don't have to",
+    "loading": "Loading your alerts…",
+    "settingsA11y": "Notification settings",
+    "summary": "Watching {{n}}",
+    "summaryPaused": "{{n}} paused",
+    "newAlert": "New alert",
+    "delete": "Delete",
+    "deleteTitle": "Delete this alert?",
+    "deleteBody": "You'll stop getting notified about new matches for “{{name}}”.",
+    "deleteFailed": "We couldn't delete that alert. Try again in a moment.",
+    "toggleFailed": "We couldn't save that change. Try again in a moment.",
+    "pushOff": "Push notifications are off, so these alerts can't reach you. Tap to turn them on.",
+    "empty": {
+      "title": "Create your first alert",
+      "body": "Tell us what you're looking for. We check every new opportunity as it lands and ping you when one fits.",
+      "browse": "Or browse Discover instead"
+    },
+    "composer": {
+      "createTitle": "New alert",
+      "editTitle": "Edit alert",
+      "keywordLabel": "Keywords",
+      "keywordPlaceholder": "e.g. fully funded masters",
+      "categoryLabel": "Category",
+      "remoteLabel": "Remote only",
+      "nameLabel": "Alert name",
+      "namePlaceholder": "Name this alert",
+      "untitled": "My alert",
+      "needCriterion": "Add a keyword, pick a category, or switch on remote-only.",
+      "cancel": "Cancel",
+      "save": "Save alert",
+      "update": "Save changes",
+      "failedTitle": "Could not save",
+      "failedBody": "Check your connection and try again.",
+      "limitReached": "You can keep up to {{max}} alerts. Delete one to make room."
+    },
+    "card": {
+      "watching": "Watching",
+      "paused": "Paused",
+      "lastMatch": "last match {{when}}",
+      "remoteChip": "Remote only",
+      "matchesTotal": "Matches so far: {{n}}",
+      "noMatchesYet": "No matches yet",
+      "muteA11y": "Pause this alert",
+      "unmuteA11y": "Resume this alert",
+      "editA11y": "Edit this alert",
+      "deleteA11y": "Delete this alert",
+      "liveCount": "Matching right now: {{n}}",
+      "liveEmpty": "Nothing in the catalog matches this yet — we'll ping you when something does.",
+      "liveError": "We couldn't load matches. Pull down to refresh."
+    },
+    "time": {
+      "justNow": "just now",
+      "hours": "{{n}}h ago",
+      "days": "{{n}}d ago"
+    }
   }
 }

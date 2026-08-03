@@ -142,8 +142,14 @@ function OrbShape({ design, s, size }: { design: OrbDesign; s: OrbStyles; size: 
                     style={[s.base, s.round, s.blobBody, { borderColor: palette.border }]}
                 >
                     <View style={s.blobEyes}>
-                        <View style={[s.blobEye, { backgroundColor: palette.eye }]} />
-                        <View style={[s.blobEye, { backgroundColor: palette.eye }]} />
+                        {/* Catchlight in each eye — the animated blob has one;
+                            without it the still read as two flat slots. */}
+                        <View style={[s.blobEye, { backgroundColor: palette.eye }]}>
+                            <View style={s.blobEyeGlint} />
+                        </View>
+                        <View style={[s.blobEye, { backgroundColor: palette.eye }]}>
+                            <View style={s.blobEyeGlint} />
+                        </View>
                     </View>
                 </LinearGradient>
             );
@@ -169,7 +175,11 @@ function OrbShape({ design, s, size }: { design: OrbDesign; s: OrbStyles; size: 
                                         ],
                                     },
                                 ]}
-                            />
+                            >
+                                {/* Each pebble catches the light on its upper
+                                    left, as in the animated halo. */}
+                                <View style={s.petalGlint} />
+                            </View>
                         );
                     })}
                 </View>
@@ -178,7 +188,11 @@ function OrbShape({ design, s, size }: { design: OrbDesign; s: OrbStyles; size: 
         case 'robot':
             return (
                 <View style={[s.base, s.robot, { backgroundColor: palette.bodyColor }]}>
+                    {/* Glossy top-left highlight on the shell, matching the
+                        animated bot's radial gradient. */}
+                    <View style={s.robotSheen} pointerEvents="none" />
                     <View style={[s.visor, { backgroundColor: palette.visorColor, borderColor: palette.visorAccent }]}>
+                        <View style={s.visorSheen} pointerEvents="none" />
                         <View style={[s.eye, { backgroundColor: palette.visorEyeColor }]} />
                         <View style={[s.eye, { backgroundColor: palette.visorEyeColor }]} />
                     </View>
@@ -240,10 +254,6 @@ function makeStyles(size: number) {
         // (lib/voiceSettingsStore.ts) via inline style overrides in
         // `OrbShape` — this StyleSheet only owns shape/geometry so there is
         // exactly one place the hex values live.
-        particles: {
-            borderWidth: Math.max(2, size * 0.039),
-            borderStyle: 'dotted',
-        },
         ringGlowAndroid: {
             position: 'absolute',
         },
@@ -289,6 +299,16 @@ function makeStyles(size: number) {
             width: size * 0.09,
             height: size * 0.14,
             borderRadius: size * 0.05,
+            overflow: 'hidden',
+        },
+        blobEyeGlint: {
+            position: 'absolute',
+            top: size * 0.02,
+            left: size * 0.018,
+            width: size * 0.03,
+            height: size * 0.03,
+            borderRadius: size * 0.015,
+            backgroundColor: 'rgba(255,255,255,0.9)',
         },
         petals: { position: 'relative' },
         petalDot: {
@@ -296,8 +316,36 @@ function makeStyles(size: number) {
             width: size * 0.30,
             height: size * 0.20,
             borderRadius: size * 0.10,
+            overflow: 'hidden',
         },
-        robot: {},
+        petalGlint: {
+            position: 'absolute',
+            top: size * 0.03,
+            left: size * 0.05,
+            width: size * 0.11,
+            height: size * 0.045,
+            borderRadius: size * 0.03,
+            backgroundColor: 'rgba(255,255,255,0.35)',
+        },
+        robot: { overflow: 'hidden' },
+        robotSheen: {
+            position: 'absolute',
+            top: -size * 0.14,
+            left: -size * 0.10,
+            width: size * 0.78,
+            height: size * 0.52,
+            borderRadius: size * 0.39,
+            backgroundColor: 'rgba(255,255,255,0.55)',
+        },
+        visorSheen: {
+            position: 'absolute',
+            top: 1,
+            left: size * 0.04,
+            right: size * 0.04,
+            height: size * 0.08,
+            borderRadius: size * 0.04,
+            backgroundColor: 'rgba(255,255,255,0.12)',
+        },
         visor: {
             flexDirection: 'row',
             alignItems: 'center',
@@ -307,6 +355,7 @@ function makeStyles(size: number) {
             height: size * 0.30,
             borderRadius: size * 0.15,
             borderWidth: 2,
+            overflow: 'hidden',
         },
         eye: {
             width: Math.max(5, size * 0.094),

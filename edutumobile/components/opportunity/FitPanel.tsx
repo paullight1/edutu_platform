@@ -14,10 +14,12 @@ import {
 import { accentGradientDeep } from '../../lib/themeGradient';
 
 type FitPanelProps = {
-  /** Tier headline, e.g. "Strong fit" — never a percentage. */
+  /** Tier headline, e.g. "Strong fit" — never a percentage. Unranked only. */
   heading: string;
-  /** One sentence of what the tier means for this user. */
+  /** One sentence of what the tier means for this user. Unranked only. */
   blurb: string;
+  /** Ranked heading — what this card is, e.g. "Why Edutu says so". */
+  headline: string;
   eyebrow: string;
   reasons: string[];
   risks: string[];
@@ -52,6 +54,7 @@ type FitPanelProps = {
 export function FitPanel({
   heading,
   blurb,
+  headline,
   eyebrow,
   reasons,
   risks,
@@ -119,6 +122,11 @@ export function FitPanel({
     );
   }
 
+  // Ranked, but nothing to say about WHY: the verdict itself already sits in
+  // the decision strip above, so a gradient card repeating it and stopping
+  // there is a headline with no article under it.
+  if (reasons.length === 0 && risks.length === 0) return null;
+
   return (
     <View style={styles.wrap}>
       <LinearGradient
@@ -131,8 +139,11 @@ export function FitPanel({
         <AiOrbBadge size={20} />
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
-      <Text style={styles.heading}>{heading}</Text>
-      <Text style={styles.blurb}>{blurb}</Text>
+      {/* The tier heading and its blurb are NOT repeated here. They are the
+          decision strip's job (it is the scan layer, and it comes first); this
+          card is the evidence behind that verdict. Printing "Strong fit" twice
+          within one screen height read as two separate assessments. */}
+      <Text style={styles.heading}>{headline}</Text>
 
       {reasons.length > 0 ? (
         <View style={styles.group}>

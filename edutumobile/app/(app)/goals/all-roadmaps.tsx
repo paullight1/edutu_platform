@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { GoalCard, useFilteredGoals } from '../../../components/goals';
 import { Map, Search, X, Grid, List } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
 
 const { width } = Dimensions.get('window');
@@ -21,6 +22,7 @@ export default function AllRoadmapsScreen() {
     const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const { user } = useUser();
+    const router = useRouter();
     const { goals, isLoading } = useGoals(supabase, user?.id || null);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -167,6 +169,19 @@ export default function AllRoadmapsScreen() {
                         <Text style={[styles.emptyDesc, { color: textSecondary }]}>
                             {searchTerm ? t('allRoadmaps.empty.searchHint') : t('allRoadmaps.empty.description')}
                         </Text>
+                        {/* An empty state that only says "nothing here" leaves the
+                            user to work out where plans come from. Point at it. */}
+                        {!searchTerm && (
+                            <TouchableOpacity
+                                style={[styles.emptyAction, { borderColor: colors.accent }]}
+                                onPress={() => router.push('/roadmaps')}
+                                accessibilityRole="button"
+                            >
+                                <Text style={[styles.emptyActionText, { color: colors.accent }]}>
+                                    {t('allRoadmaps.empty.action')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
             </ScrollView>
@@ -258,6 +273,16 @@ const styles = StyleSheet.create({
     },
     emptyDesc: {
         fontSize: 14,
+        lineHeight: 20,
         textAlign: 'center',
+        paddingHorizontal: 24,
     },
+    emptyAction: {
+        marginTop: 18,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 20,
+        paddingVertical: 11,
+    },
+    emptyActionText: { fontSize: 13.5, fontWeight: '800' },
 });

@@ -56,7 +56,9 @@
   },
   "sections": {
     "roadmaps": "रोडमैप",
-    "personalGoals": "निजी लक्ष्य"
+    "personalGoals": "निजी लक्ष्य",
+    "roadmapsHint": "आपके शुरू किए रोडमैप के पड़ाव, तारीख के साथ।",
+    "personalGoalsHint": "जो आपने खुद पूरा करना चुना, अपनी तारीखों पर।"
   },
   "filter": {
     "byStatus": "स्थिति से फ़िल्टर करें",
@@ -75,7 +77,13 @@
     },
     "noPersonalGoals": {
       "title": "कोई निजी लक्ष्य नहीं",
-      "description": "अपना पहला लक्ष्य जोड़ने के लिए प्लस आइकन पर टैप करें।"
+      "description": "अपना पहला लक्ष्य जोड़ने के लिए प्लस आइकन पर टैप करें।",
+      "action": "अपना पहला लक्ष्य तय करें"
+    },
+    "noMatch": {
+      "title": "कुछ नहीं मिला",
+      "description": "आपकी खोज या फ़िल्टर से कोई लक्ष्य मेल नहीं खाता। सब कुछ फिर देखने के लिए इन्हें हटाएँ।",
+      "action": "खोज हटाएँ"
     }
   },
   "dashboard": {
@@ -93,7 +101,8 @@
       "title": "शेयर करने के लिए अवसर हैं?",
       "subtitle": "अगर आपके पास ऐसी स्कॉलरशिप, नौकरियाँ या प्रोग्राम हैं जो आप हमारी कम्युनिटी से शेयर करना चाहें, तो हमसे संपर्क करें",
       "action": "संपर्क करें"
-    }
+    },
+    "subtitleEmpty": "अभी कुछ ट्रैक नहीं हो रहा"
   },
   "detail": {
     "title": "लक्ष्य का विवरण",
@@ -160,14 +169,15 @@
     }
   },
   "allRoadmaps": {
-    "title": "रोडमैप लक्ष्य",
+    "title": "मेरी योजनाएँ",
     "goalCount_one": "{{count}} लक्ष्य",
     "goalCount_other": "{{count}} लक्ष्य",
     "otherGroup": "अन्य",
     "empty": {
-      "title": "कोई रोडमैप लक्ष्य नहीं",
-      "searchHint": "अपनी सर्च बदलकर देखें",
-      "description": "यहाँ देखने के लिए किसी रोडमैप से लक्ष्य इंपोर्ट करें"
+      "title": "अभी कोई योजना नहीं",
+      "searchHint": "कोई दूसरी खोज आज़माएँ",
+      "description": "कोई रोडमैप शुरू करें और उसके पड़ाव यहाँ तारीख़ के साथ दिखेंगे।",
+      "action": "रोडमैप देखें"
     }
   },
   "myList": {
@@ -318,7 +328,26 @@
       "placeholder": "आपको क्या पसंद आया या क्या बेहतर हो सकता है?",
       "submit": "फ़ीडबैक सबमिट करें",
       "thanksTitle": "धन्यवाद!",
-      "thanksMessage": "आपका फ़ीडबैक सबके लिए रोडमैप बेहतर बनाने में मदद करता है।"
+      "thanksMessage": "आपका फ़ीडबैक सबके लिए रोडमैप बेहतर बनाने में मदद करता है।",
+      "failedTitle": "आपकी रेटिंग सहेजी नहीं जा सकी"
+    },
+    "started": "शुरू किया गया",
+    "notRatedYet": "अभी कोई रेटिंग नहीं",
+    "emptyTitle": "यहाँ अभी कुछ नहीं है",
+    "clearFilters": "फ़िल्टर हटाएँ",
+    "continueButton": "यह रोडमैप जारी रखें",
+    "startHint_one": "आपके लक्ष्यों में {{count}} पड़ाव जोड़ता है और रिमाइंडर सेट करता है।",
+    "startHint_other": "आपके लक्ष्यों में {{count}} पड़ाव जोड़ता है और रिमाइंडर सेट करता है।",
+    "progressLabel": "{{total}} में से {{completed}} चरण पूरे",
+    "adopted": {
+      "progress": "आपकी योजना में — {{total}} में से {{completed}} चरण पूरे।",
+      "inPlan": "यह रोडमैप पहले से आपकी योजना में है।"
+    },
+    "a11y": {
+      "card": "{{title}}, {{difficulty}} स्तर का रोडमैप",
+      "cardStarted": "{{title}}, शुरू किया गया, {{total}} में से {{completed}} चरण पूरे",
+      "cardHint": "रोडमैप का विवरण खोलता है",
+      "close": "बंद करें"
     }
   },
   "templates": {
@@ -356,7 +385,23 @@
     "stepPlan": "{{count}}-स्टेप प्लान",
     "allLevels": "सभी स्तर",
     "defaultCadence": "आपकी शुरुआत की तारीख़ से माइलस्टोन रिमाइंडर शेड्यूल किए जाते हैं।",
-    "resourceFallback": "संसाधन"
+    "resourceFallback": "संसाधन",
+    "previewNotice": "नमूना पाथ दिखाए जा रहे हैं — Edutu से संपर्क नहीं हो सका। लाइव लाइब्रेरी लोड करने के लिए नीचे खींचें।",
+    "previewOnlyTitle": "नमूना पाथ",
+    "previewOnlyMessage": "यह ऑफ़लाइन प्रीव्यू है, इसलिए अभी शुरू करने को कुछ नहीं है। असली रोडमैप देखें?",
+    "browseRoadmaps": "रोडमैप देखें",
+    "searchPlaceholder": "पाथ, लेखक खोजें…",
+    "clearSearch": "खोज हटाएँ",
+    "emptyTitle": "कोई पाथ मेल नहीं खाता",
+    "emptyMessage": "कोई दूसरी खोज या श्रेणी आज़माएँ।",
+    "clearFilters": "फ़िल्टर हटाएँ",
+    "remindersOn": "रिमाइंडर चालू",
+    "remindersOnA11y": "रिमाइंडर चालू, {{count}} शेड्यूल किए गए। बंद करने के लिए टैप करें।",
+    "remindersOnTitle": "रिमाइंडर चालू हैं",
+    "remindersOnMessage": "इस पाथ के लिए {{count}} स्टेप रिमाइंडर शेड्यूल हैं।",
+    "turnOffReminders": "बंद करें",
+    "remindersCancelledTitle": "रिमाइंडर बंद",
+    "remindersCancelledMessage": "अब हम आपको इस पाथ के बारे में याद नहीं दिलाएँगे।"
   },
   "calendar": {
     "title": "मेरा कैलेंडर",
@@ -415,5 +460,17 @@
     "today": "आज",
     "milestoneDone": "{{title}}, हो गया",
     "removeMilestone": "{{title}} हटाएँ"
+  },
+  "a11y": {
+    "addGoal": "लक्ष्य जोड़ें",
+    "clearSearch": "खोज हटाएँ",
+    "openFilters": "लक्ष्य फ़िल्टर करें",
+    "completeGoal": "\"{{title}}\" को पूरा दिखाएँ",
+    "reopenGoal": "\"{{title}}\" फिर से खोलें",
+    "deleteGoal": "\"{{title}}\" हटाएँ",
+    "toggleReminder": "\"{{title}}\" का रिमाइंडर चालू या बंद करें",
+    "statusTab_one": "{{label}}, {{count}} लक्ष्य",
+    "statusTab_other": "{{label}}, {{count}} लक्ष्य",
+    "openSort": "क्रम बदलें"
   }
 }

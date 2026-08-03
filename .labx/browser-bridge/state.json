@@ -1,10 +1,18 @@
 {
   "version": 1,
   "projectPath": "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder",
-  "updatedAt": "2026-07-27T13:16:24.009805+00:00",
+  "updatedAt": "2026-08-03T08:54:15.637225+00:00",
   "state": {
     "activeTabId": "tab_mq790wlz_d904z1ht",
     "agentContext": [
+      {
+        "body": "http://localhost:8080/",
+        "createdAt": "2026-08-02T03:35:48.241Z",
+        "id": "ctx_msb8zqxd_2lr5fyg2",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
       {
         "body": "http://localhost:5173/",
         "createdAt": "2026-07-22T13:12:48.591Z",
@@ -316,14 +324,6 @@
         "sourceId": null,
         "title": "Current browser URL",
         "type": "url"
-      },
-      {
-        "body": "https://supabase.com/docs/guides/realtime/authorization",
-        "createdAt": "2026-06-08T04:06:38.834Z",
-        "id": "ctx_mq4ovk6q_ldklozd4",
-        "sourceId": null,
-        "title": "Current browser URL",
-        "type": "url"
       }
     ],
     "annotations": [
@@ -362,11 +362,11 @@
       }
     ],
     "currentInspection": null,
-    "currentUrl": "http://localhost:5173/",
+    "currentUrl": "http://localhost:8080/",
     "isRecording": false,
     "mode": "browse",
     "previewMessage": null,
-    "previewRevision": 68,
+    "previewRevision": 70,
     "previewStatus": "ready",
     "recordedActions": [],
     "selectedAnnotationId": null,
@@ -374,18 +374,19 @@
       {
         "createdAt": "2026-06-09T23:06:12.885Z",
         "history": [
-          "http://localhost:5173/"
+          "http://localhost:5173/",
+          "http://localhost:8080/"
         ],
-        "historyIndex": 0,
+        "historyIndex": 1,
         "id": "tab_mq790wlz_d904z1ht",
         "previewMessage": null,
         "previewStatus": "ready",
         "title": "localhost",
-        "updatedAt": "2026-07-22T13:12:48.588Z",
-        "url": "http://localhost:5173/"
+        "updatedAt": "2026-08-02T03:35:48.239Z",
+        "url": "http://localhost:8080/"
       }
     ],
-    "urlInput": "http://localhost:5173/",
+    "urlInput": "http://localhost:8080/",
     "viewportId": "responsive"
   }
 }

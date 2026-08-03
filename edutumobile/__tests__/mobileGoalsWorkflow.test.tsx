@@ -172,8 +172,8 @@ describe('mobile goal workflows', () => {
   it('creates a new goal with valid data and routes home from the success alert', async () => {
     const { getByPlaceholderText, getByText } = render(<AddGoalScreen />);
 
-    fireEvent.changeText(getByPlaceholderText('What do you want to achieve?'), 'Master scholarship applications');
-    fireEvent.changeText(getByPlaceholderText('Add more details about this goal...'), 'Prepare documents and submit on time.');
+    fireEvent.changeText(getByPlaceholderText('e.g. Submit the Chevening application'), 'Master scholarship applications');
+    fireEvent.changeText(getByPlaceholderText("The steps, links or documents you'll need."), 'Prepare documents and submit on time.');
     fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2030-01-10');
 
     expect(findTouchable(getByText('Create Goal')).props.disabled).toBe(false);
@@ -208,11 +208,11 @@ describe('mobile goal workflows', () => {
   it('keeps invalid goal inputs disabled and surfaces validation text', () => {
     const { getByPlaceholderText, getByText, queryByText } = render(<AddGoalScreen />);
 
-    fireEvent.changeText(getByPlaceholderText('What do you want to achieve?'), 'ab');
+    fireEvent.changeText(getByPlaceholderText('e.g. Submit the Chevening application'), 'ab');
     expect(getByText('Title must be at least 3 characters')).toBeTruthy();
     expect(findTouchable(getByText('Create Goal')).props.disabled).toBe(true);
 
-    fireEvent.changeText(getByPlaceholderText('What do you want to achieve?'), 'Valid goal title');
+    fireEvent.changeText(getByPlaceholderText('e.g. Submit the Chevening application'), 'Valid goal title');
     fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
 
     expect(getByText('Deadline cannot be in the past')).toBeTruthy();

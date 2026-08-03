@@ -38,6 +38,11 @@ export interface CVTemplateDesign {
   accent: string;
   /** Low-opacity accent for fills and tints. Must keep body text readable. */
   accentSoft: string;
+  /**
+   * Two-stop gradient for the gallery card. Part of the spec so the card can
+   * never advertise a colour the document doesn't use.
+   */
+  gradient: [string, string];
   ink: string;
   muted: string;
   bodyFont: CVFontFamily;
@@ -48,9 +53,9 @@ export interface CVTemplateDesign {
   density: CVDensity;
   skillStyle: CVSkillStyle;
   /**
-   * True when the document is pure text on white with no colour behind any
-   * glyph — the most conservative thing to feed an ATS parser. All templates
-   * are single-column and therefore parseable; this flags the extra-safe ones.
+   * True for the most conservative templates: standard section names, no
+   * reversed-out text, no decorative bands. Every template is single-column
+   * and therefore parseable — this flags the extra-safe ones for the badge.
    */
   atsPlain: boolean;
   /** Which sections this template renders, in order. Drives the PDF and the wizard. */

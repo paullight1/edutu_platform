@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "Kana son tunatarwa kafin a rufe?",
+      "message": "Za mu iya tunatar da kai kwanaki kaɗan kafin ranar ƙarshe don kada wannan ta wuce ka.",
+      "confirm": "Ka tunatar da ni",
+      "dismiss": "A’a, na gode"
+    },
     "headerTitle": "Bayanan Dama",
     "loading": "Ana loda dama...",
     "notFound": "Ba a samu damar ba",
@@ -120,6 +126,24 @@
     "addToGoals": "Saka a Manufofina",
     "applyNow": "Nema Yanzu",
     "savedLabel": "An ajiye",
+    "saveAction": "Ajiye",
+    "fit": {
+      "title": "Daidaituwarka",
+      "eyebrow": "Ra'ayin Edutu",
+      "unknown": "Ba a tantance ba tukuna",
+      "unknownBlurb": "Kammala bayananka domin Edutu ya iya tantance wannan damar a gare ka.",
+      "evidenceHeadline": "Dalilin da Edutu ya faɗi haka",
+      "tiers": {
+        "strong": "Daidaituwa mai ƙarfi",
+        "strongBlurb": "Wannan ya yi daidai da bayananka sosai — ya cancanci ƙoƙari na gaske.",
+        "solid": "Daidaituwa mai kyau",
+        "solidBlurb": "Ya yi daidai a mafi yawan abin da ya fi muhimmanci. Duba giɓin da ke ƙasa.",
+        "possible": "Yiwuwar daidaituwa",
+        "possibleBlurb": "Wani ɓangare na bayananka ya yi daidai. Karanta sharuɗɗan kafin ka ci gaba.",
+        "stretch": "Mai wahala",
+        "stretchBlurb": "Ya fi nisa daga bayananka fiye da yawancin — ka nema idan gaskiya yana burge ka."
+      }
+    },
     "alerts": {
       "removedTitle": "An cire",
       "removedMsg": "An cire damar daga jerin ajiyayyu",
@@ -300,5 +324,63 @@
     "today": "Yau",
     "tomorrow": "Gobe",
     "daysShortLeft": "Saura kwana {{count}}"
+  },
+  "alerts": {
+    "title": "Faɗakarwa",
+    "subtitle": "Muna sa ido kan damarmaki a madadinka",
+    "loading": "Ana ɗora faɗakarwarka…",
+    "settingsA11y": "Saitin sanarwa",
+    "summary": "Ana sa ido kan {{n}}",
+    "summaryPaused": "{{n}} an dakatar",
+    "newAlert": "Sabuwar faɗakarwa",
+    "delete": "Share",
+    "deleteTitle": "A share wannan faɗakarwa?",
+    "deleteBody": "Ba za a ƙara sanar da kai sabbin damarmaki masu dacewa da “{{name}}” ba.",
+    "deleteFailed": "Ba mu iya share wannan faɗakarwa ba. Sake gwadawa nan da ɗan lokaci.",
+    "toggleFailed": "Ba mu iya adana wannan canjin ba. Sake gwadawa nan da ɗan lokaci.",
+    "pushOff": "An kashe sanarwar push, don haka waɗannan faɗakarwa ba za su iso gare ka ba. Danna don kunna su.",
+    "empty": {
+      "title": "Ƙirƙiri faɗakarwarka ta farko",
+      "body": "Faɗa mana abin da kake nema. Muna duba kowace sabuwar dama da zarar ta shigo mu sanar da kai idan ta dace.",
+      "browse": "Ko kuma bincika Gano"
+    },
+    "composer": {
+      "createTitle": "Sabuwar faɗakarwa",
+      "editTitle": "Gyara faɗakarwa",
+      "keywordLabel": "Kalmomi masu mahimmanci",
+      "keywordPlaceholder": "misali digiri na biyu da cikakken tallafi",
+      "categoryLabel": "Rukuni",
+      "remoteLabel": "Nesa kaɗai",
+      "nameLabel": "Sunan faɗakarwa",
+      "namePlaceholder": "Ba wannan faɗakarwa suna",
+      "untitled": "Faɗakarwata",
+      "needCriterion": "Ƙara kalma, zaɓi rukuni, ko kunna nesa kaɗai.",
+      "cancel": "Soke",
+      "save": "Adana faɗakarwa",
+      "update": "Adana canje-canje",
+      "failedTitle": "An kasa adanawa",
+      "failedBody": "Duba haɗin intanet ɗinka sannan ka sake gwadawa.",
+      "limitReached": "Za ka iya riƙe faɗakarwa har {{max}}. Share ɗaya don samun sarari."
+    },
+    "card": {
+      "watching": "Ana sa ido",
+      "paused": "An dakatar",
+      "lastMatch": "dacewa ta ƙarshe {{when}}",
+      "remoteChip": "Nesa kaɗai",
+      "matchesTotal": "Dacewa har yanzu: {{n}}",
+      "noMatchesYet": "Babu dacewa tukuna",
+      "muteA11y": "Dakatar da wannan faɗakarwa",
+      "unmuteA11y": "Ci gaba da wannan faɗakarwa",
+      "editA11y": "Gyara wannan faɗakarwa",
+      "deleteA11y": "Share wannan faɗakarwa",
+      "liveCount": "Masu dacewa yanzu: {{n}}",
+      "liveEmpty": "Babu abin da ya dace da wannan tukuna — za mu sanar da kai da zarar an samu.",
+      "liveError": "Ba mu iya ɗora masu dacewa ba. Ja ƙasa don sabuntawa."
+    },
+    "time": {
+      "justNow": "yanzu",
+      "hours": "awa {{n}} da suka wuce",
+      "days": "kwana {{n}} da suka wuce"
+    }
   }
 }

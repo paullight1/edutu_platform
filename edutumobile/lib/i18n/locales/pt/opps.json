@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "Quer um aviso antes de fechar?",
+      "message": "Podemos lembrar você alguns dias antes do prazo para que esta não passe despercebida.",
+      "confirm": "Lembrar-me",
+      "dismiss": "Não, obrigado"
+    },
     "headerTitle": "Detalhes da oportunidade",
     "loading": "Carregando oportunidade...",
     "notFound": "Oportunidade não encontrada",
@@ -120,6 +126,24 @@
     "addToGoals": "Adicionar às minhas metas",
     "applyNow": "Candidatar-se",
     "savedLabel": "Salva",
+    "saveAction": "Salvar",
+    "fit": {
+      "title": "Sua adequação",
+      "eyebrow": "A leitura da Edutu",
+      "unknown": "Ainda não classificada",
+      "unknownBlurb": "Complete seu perfil e a Edutu poderá classificar esta oportunidade para você.",
+      "evidenceHeadline": "Por que a Edutu diz isso",
+      "tiers": {
+        "strong": "Forte adequação",
+        "strongBlurb": "Isto combina de perto com o seu perfil — vale um esforço de verdade.",
+        "solid": "Boa adequação",
+        "solidBlurb": "Combina na maior parte do que importa. Veja as lacunas abaixo.",
+        "possible": "Adequação possível",
+        "possibleBlurb": "Parte do seu perfil combina. Leia os requisitos antes de se comprometer.",
+        "stretch": "Ambiciosa",
+        "stretchBlurb": "Mais distante do seu perfil do que a maioria — candidate-se se realmente te empolga."
+      }
+    },
     "alerts": {
       "removedTitle": "Removida",
       "removedMsg": "Oportunidade removida da lista de salvos",
@@ -300,5 +324,63 @@
     "today": "Hoje",
     "tomorrow": "Amanhã",
     "daysShortLeft": "{{count}}d restantes"
+  },
+  "alerts": {
+    "title": "Alertas",
+    "subtitle": "Vigiamos o catálogo por si",
+    "loading": "A carregar os seus alertas…",
+    "settingsA11y": "Definições de notificações",
+    "summary": "A vigiar {{n}}",
+    "summaryPaused": "{{n}} em pausa",
+    "newAlert": "Novo alerta",
+    "delete": "Eliminar",
+    "deleteTitle": "Eliminar este alerta?",
+    "deleteBody": "Deixará de ser avisado sobre novas correspondências de “{{name}}”.",
+    "deleteFailed": "Não conseguimos eliminar esse alerta. Tente de novo daqui a pouco.",
+    "toggleFailed": "Não conseguimos guardar essa alteração. Tente de novo daqui a pouco.",
+    "pushOff": "As notificações push estão desligadas, por isso estes alertas não chegam até si. Toque para as ligar.",
+    "empty": {
+      "title": "Crie o seu primeiro alerta",
+      "body": "Diga-nos o que procura. Verificamos cada nova oportunidade assim que chega e avisamo-lo quando encaixa.",
+      "browse": "Ou explore o Descobrir"
+    },
+    "composer": {
+      "createTitle": "Novo alerta",
+      "editTitle": "Editar alerta",
+      "keywordLabel": "Palavras-chave",
+      "keywordPlaceholder": "ex. mestrado totalmente financiado",
+      "categoryLabel": "Categoria",
+      "remoteLabel": "Apenas remoto",
+      "nameLabel": "Nome do alerta",
+      "namePlaceholder": "Dê um nome a este alerta",
+      "untitled": "O meu alerta",
+      "needCriterion": "Adicione uma palavra-chave, escolha uma categoria ou active apenas remoto.",
+      "cancel": "Cancelar",
+      "save": "Guardar alerta",
+      "update": "Guardar alterações",
+      "failedTitle": "Não foi possível guardar",
+      "failedBody": "Verifique a sua ligação e tente de novo.",
+      "limitReached": "Pode manter até {{max}} alertas. Elimine um para abrir espaço."
+    },
+    "card": {
+      "watching": "A vigiar",
+      "paused": "Em pausa",
+      "lastMatch": "última correspondência {{when}}",
+      "remoteChip": "Apenas remoto",
+      "matchesTotal": "Correspondências até agora: {{n}}",
+      "noMatchesYet": "Ainda sem correspondências",
+      "muteA11y": "Pausar este alerta",
+      "unmuteA11y": "Retomar este alerta",
+      "editA11y": "Editar este alerta",
+      "deleteA11y": "Eliminar este alerta",
+      "liveCount": "A corresponder agora: {{n}}",
+      "liveEmpty": "Ainda nada no catálogo corresponde a isto — avisamos assim que algo corresponder.",
+      "liveError": "Não conseguimos carregar as correspondências. Puxe para actualizar."
+    },
+    "time": {
+      "justNow": "agora mesmo",
+      "hours": "há {{n}} h",
+      "days": "há {{n}} d"
+    }
   }
 }

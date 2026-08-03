@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import {
   AudioModule,
   RecordingPresets,
@@ -65,6 +66,12 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   // word-by-word caption highlight so the text tracks Edutu's voice.
   const [spokenRatio, setSpokenRatio] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
+  /**
+   * True when the OS took the session away from us (the user backgrounded the
+   * app or took a call) rather than the user stopping it. The UI says so
+   * instead of pretending the mic is still live.
+   */
+  const [paused, setPaused] = useState(false);
 
   const greetedRef = useRef(false);
   const activeRef = useRef(true);
@@ -76,6 +83,13 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   // Last observed recording length — reported with the transcription request
   // so server-side usage metering can bill real seconds, not estimates.
   const durationMsRef = useRef(0);
+  /**
+   * The last thing the user actually said. Kept after a failed turn so
+   * `retry()` can re-send those words instead of making the user repeat a
+   * sentence they already spoke (the old failure mode: one dropped packet and
+   * the whole utterance was gone).
+   */
+  const lastPromptRef = useRef<string | null>(null);
   const modeRef = useRef(mode);
   useEffect(() => {
     // Post-commit write — render-time ref writes are unsafe under concurrent
@@ -85,6 +99,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   // Ref mirror so async callbacks (TTS onDone fires long after render) see
   // the mute state at completion time, not at closure-creation time.
   const mutedRef = useRef(false);
+  const pausedRef = useRef(false);
 
   const updateStatus = useCallback((next: VoiceSessionStatus) => {
     statusRef.current = next;
@@ -143,6 +158,8 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       heardSpeechRef.current = false;
       lastVoiceAtRef.current = Date.now();
       setErrorCode(null);
+      pausedRef.current = false;
+      setPaused(false);
       updateStatus('listening');
       haptics.light();
     } catch {
@@ -211,34 +228,23 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     });
   }, [getAuthToken, resumeAfterTurn, updateStatus]);
 
-  const stopAndProcess = useCallback(async () => {
-    if (statusRef.current !== 'listening' || processingRef.current) return;
+  /**
+   * The "think + speak" half of a turn, split out from the recording half so
+   * a network failure can be retried against the words the user already said.
+   */
+  const askEdutu = useCallback(async (prompt: string) => {
+    lastPromptRef.current = prompt;
     processingRef.current = true;
-    updateStatus('transcribing');
-    setLevel(0);
-    haptics.medium();
+    setUserTranscript(prompt);
+    setAssistantReply(null);
+    setErrorCode(null);
+    updateStatus('thinking');
 
     try {
-      await stopRecorderQuietly();
-      const uri = recorder.uri;
-      const transcript = uri ? await transcribe(uri) : null;
-      if (!activeRef.current) return;
-
-      const trimmed = transcript?.trim();
-      if (!trimmed) {
-        processingRef.current = false;
-        resumeAfterTurn();
-        return;
-      }
-
-      setUserTranscript(trimmed);
-      setAssistantReply(null);
-      updateStatus('thinking');
-
       if (!userId) throw new Error('Sign in to use voice mode');
       const result = await sendChatMessage(supabase, {
         threadId: threadIdRef.current,
-        message: trimmed,
+        message: prompt,
         userId,
         authToken: await getAuthToken(),
         // Voice channel: the AI answers in speakable prose (no bullets/emoji/UI
@@ -271,7 +277,39 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       updateStatus('error');
       haptics.error();
     }
-  }, [getAuthToken, recorder, resumeAfterTurn, speakReply, stopRecorderQuietly, transcribe, updateStatus, userId]);
+  }, [getAuthToken, resumeAfterTurn, speakReply, updateStatus, userId]);
+
+  /** Record → transcribe → hand the words to `askEdutu`. */
+  const stopAndProcess = useCallback(async () => {
+    if (statusRef.current !== 'listening' || processingRef.current) return;
+    processingRef.current = true;
+    updateStatus('transcribing');
+    setLevel(0);
+    haptics.medium();
+
+    try {
+      await stopRecorderQuietly();
+      const uri = recorder.uri;
+      const transcript = uri ? await transcribe(uri) : null;
+      if (!activeRef.current) return;
+
+      const trimmed = transcript?.trim();
+      if (!trimmed) {
+        processingRef.current = false;
+        resumeAfterTurn();
+        return;
+      }
+
+      await askEdutu(trimmed);
+    } catch (err) {
+      processingRef.current = false;
+      if (!activeRef.current) return;
+      const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
+      setErrorCode(isLimit ? 'limit' : 'network');
+      updateStatus('error');
+      haptics.error();
+    }
+  }, [askEdutu, recorder, resumeAfterTurn, stopRecorderQuietly, transcribe, updateStatus]);
 
   // Metering → level for the audio-reactive orb + trailing-silence VAD.
   useEffect(() => {
@@ -310,6 +348,17 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     }
   }, [recorderState, startListening, stopAndProcess, stopRecorderQuietly]);
 
+  /**
+   * Cut Edutu off mid-sentence and hand the floor back to the user. Bound to
+   * both the orb tap and the explicit "Interrupt" control, because a tap on a
+   * talking orb is discoverable only once you already know it works.
+   */
+  const bargeIn = useCallback(() => {
+    stopSpeaking();
+    setSpokenRatio(1);
+    void startListening();
+  }, [startListening]);
+
   /** Primary orb interaction: tap to talk / stop / barge in over the AI. */
   const onOrbPress = useCallback(() => {
     switch (statusRef.current) {
@@ -321,13 +370,12 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         void stopAndProcess();
         break;
       case 'speaking':
-        stopSpeaking();
-        void startListening();
+        bargeIn();
         break;
       default:
         break;
     }
-  }, [startListening, stopAndProcess]);
+  }, [bargeIn, startListening, stopAndProcess]);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
@@ -372,11 +420,61 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     void startListening();
   }, [greeting, getAuthToken, resumeAfterTurn, startListening, updateStatus]);
 
+  /**
+   * Recovery for whatever went wrong, without punishing the user for it:
+   *  - network failure after they spoke → re-send the same words
+   *  - anything else (permission granted since, rate limit lifted) → listen
+   * The old `retry` was an alias for `begin`, which just re-armed the mic and
+   * silently discarded the sentence the user had already said.
+   */
+  const retry = useCallback(() => {
+    setErrorCode(null);
+    if (errorCode === 'network' && lastPromptRef.current) {
+      void askEdutu(lastPromptRef.current);
+      return;
+    }
+    void startListening();
+  }, [askEdutu, errorCode, startListening]);
+
   const end = useCallback(() => {
     activeRef.current = false;
     stopSpeaking();
     void stopRecorderQuietly();
   }, [stopRecorderQuietly]);
+
+  /**
+   * The OS can take the session away at any moment — the user switches apps,
+   * a call arrives, the screen locks. Before this, the recorder kept running
+   * into a suspended audio session, TTS kept playing over whatever the user
+   * switched to, and the UI came back still claiming "Listening…" over a mic
+   * that was dead. Park the session honestly instead.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'background') {
+        if (statusRef.current === 'idle' && !pausedRef.current) return;
+        pausedRef.current = true;
+        setPaused(true);
+        stopSpeaking();
+        processingRef.current = false;
+        void stopRecorderQuietly();
+        setLevel(0);
+        updateStatus('idle');
+        return;
+      }
+      if (next === 'active' && pausedRef.current) {
+        pausedRef.current = false;
+        setPaused(false);
+        // Live mode is a hands-free conversation, so it resumes itself.
+        // Tap-to-talk stays parked — re-arming a mic the user can't see would
+        // be a surprise recording.
+        if (activeRef.current && modeRef.current === 'live' && !mutedRef.current) {
+          void startListening();
+        }
+      }
+    });
+    return () => subscription?.remove?.();
+  }, [startListening, stopRecorderQuietly, updateStatus]);
 
   return {
     status,
@@ -387,10 +485,12 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     assistantReply,
     spokenRatio,
     turnCount,
+    paused,
     begin,
     end,
     onOrbPress,
+    bargeIn,
     toggleMute,
-    retry: begin,
+    retry,
   };
 }

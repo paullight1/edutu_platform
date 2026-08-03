@@ -4,11 +4,18 @@ import { CalendarClock, Compass } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
 type DecisionStripProps = {
-  /** "Can I win this?" — tier language only, never a percentage. */
-  fitLabel: string;
-  fitBlurb: string;
-  fitColor: string;
-  fitTitle: string;
+  /**
+   * "Can I win this?" — tier language only, never a percentage.
+   *
+   * Omitted when Edutu has no verdict for this user. The strip is the scan
+   * layer for facts we HAVE; an empty cell reading "Not ranked yet" directly
+   * above a FitPanel that says exactly the same thing was the same non-answer
+   * printed twice within a screen height.
+   */
+  fitLabel?: string | null;
+  fitBlurb?: string;
+  fitColor?: string;
+  fitTitle?: string;
   /** "When must I act?" — from the shared urgency ramp. */
   deadlineLabel: string;
   deadlineDetail: string;
@@ -33,23 +40,28 @@ export function DecisionStrip({
 }: DecisionStripProps) {
   const { colors, isDark } = useTheme();
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
+  const showFit = Boolean(fitLabel);
 
   return (
     <View style={styles.row}>
-      <View style={styles.cell}>
-        <View style={styles.capRow}>
-          <Compass size={13} color={textSecondary} />
-          <Text style={[styles.cap, { color: textSecondary }]}>{fitTitle}</Text>
-        </View>
-        <Text style={[styles.value, { color: fitColor }]} numberOfLines={1}>
-          {fitLabel}
-        </Text>
-        <Text style={[styles.detail, { color: textSecondary }]} numberOfLines={2}>
-          {fitBlurb}
-        </Text>
-      </View>
+      {showFit ? (
+        <>
+          <View style={styles.cell}>
+            <View style={styles.capRow}>
+              <Compass size={13} color={textSecondary} />
+              <Text style={[styles.cap, { color: textSecondary }]}>{fitTitle}</Text>
+            </View>
+            <Text style={[styles.value, { color: fitColor }]} numberOfLines={1}>
+              {fitLabel}
+            </Text>
+            <Text style={[styles.detail, { color: textSecondary }]} numberOfLines={2}>
+              {fitBlurb}
+            </Text>
+          </View>
 
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        </>
+      ) : null}
 
       <View style={styles.cell}>
         <View style={styles.capRow}>

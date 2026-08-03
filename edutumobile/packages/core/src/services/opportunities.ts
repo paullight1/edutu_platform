@@ -729,6 +729,80 @@ async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Pr
   }
 }
 
+/** The ranking half of an opportunity — everything a fit verdict needs. */
+export interface OpportunityRanking {
+  match: number;
+  matchFit?: number;
+  matchReasons: string[];
+  matchRisks: string[];
+  matchReasonDetails?: MatchReason[];
+}
+
+/**
+ * Score ONE opportunity against the signed-in user.
+ *
+ * `GET /opportunities/:id` is `@Public()`: it answers with the catalog row and
+ * nothing else, so `match` arrives as 0 and every fit surface on the detail
+ * screen renders its unranked variant — permanently, and regardless of how
+ * complete the profile is. The feed never showed this because it reads the
+ * authenticated recommendations endpoint instead.
+ *
+ * `POST /opportunities/match-scores` exists precisely for this ("client badge
+ * hydration… browse page, detail deep links") and runs the same ranking
+ * pipeline as the feed, so a detail score is on the same scale as its card.
+ *
+ * Returns null — never a zero — when there is no verdict to show: no token
+ * (a guest must not be scored anonymously), a failed/undeployed endpoint, or a
+ * score of 0. Callers keep whatever they already had.
+ */
+export async function fetchOpportunityRanking(
+  id: string,
+  getAuthToken: () => Promise<string | null | undefined>,
+): Promise<OpportunityRanking | null> {
+  if (!id || !API_BASE_URL || !getAuthToken) return null;
+
+  try {
+    const token = await resolveAuthToken(getAuthToken);
+    if (!token) return null;
+
+    const response = await fetchWithTimeout(`${API_BASE_URL}/opportunities/match-scores`, 10000, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ opportunityIds: [id] }),
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    const row = (Array.isArray(payload?.scores) ? payload.scores : []).find(
+      (score: any) => String(score?.id) === String(id),
+    );
+    if (!row) return null;
+
+    const match = Number(row.match_score ?? row.matchScore ?? row.match ?? 0);
+    // A zero is the engine saying "no verdict", not a weak one — surfacing it
+    // would render as the "stretch" tier and overstate what we know.
+    if (!Number.isFinite(match) || match <= 0) return null;
+
+    const rawDetails = row.match_reason_details ?? row.matchReasonDetails;
+    const rawReasons = row.match_reasons ?? row.matchReasons ?? [];
+    const details = toReasonDetails(Array.isArray(rawDetails) ? rawDetails : rawReasons);
+
+    return {
+      match,
+      matchFit: toOptionalScore(row.match_fit ?? row.matchFit),
+      matchReasons: toReasonLabels(rawReasons),
+      matchRisks: toReasonLabels(row.match_risks ?? row.matchRisks ?? []),
+      matchReasonDetails: details.length > 0 ? details : undefined,
+    };
+  } catch {
+    // Ranking is additive: a failure leaves the honest unranked read in place.
+    return null;
+  }
+}
+
 export type OpportunityFetchStatus = 'ok' | 'not_found' | 'error';
 
 export interface OpportunityFetchResult {

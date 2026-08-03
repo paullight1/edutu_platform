@@ -6,6 +6,7 @@ const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockGetToken = jest.fn().mockResolvedValue('token');
 const mockGetOpportunity = jest.fn();
+const mockFetchOpportunityRanking = jest.fn().mockResolvedValue(null);
 const mockIsOpportunitySaved = jest.fn();
 const mockSaveOpportunity = jest.fn().mockResolvedValue(undefined);
 const mockUnsaveOpportunity = jest.fn().mockResolvedValue(undefined);
@@ -193,6 +194,7 @@ jest.mock('../lib/notifications', () => ({
     notify: jest.fn(),
     triggerHaptic: jest.fn().mockResolvedValue(undefined),
   },
+  registerForPushNotificationsAsync: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('../lib/supabase', () => ({
@@ -207,6 +209,7 @@ jest.mock('@edutu/core/src/services/opportunities', () => ({
     const opportunity = await mockGetOpportunity(...args);
     return { opportunity, status: opportunity ? 'ok' : 'not_found' };
   },
+  fetchOpportunityRanking: (...args: unknown[]) => mockFetchOpportunityRanking(...args),
 }), { virtual: true });
 
 jest.mock('../packages/core/src/services/bookmarks', () => ({
@@ -317,6 +320,8 @@ describe('mobile opportunity detail route', () => {
     mockPromptAuth.mockClear();
     mockOpportunity = null;
     mockGetOpportunity.mockResolvedValue(mockOpportunity);
+    mockFetchOpportunityRanking.mockReset();
+    mockFetchOpportunityRanking.mockResolvedValue(null);
     mockIsOpportunitySaved.mockResolvedValue(false);
     mockSpendCredits.mockResolvedValue(true);
   });
@@ -434,18 +439,57 @@ describe('mobile opportunity detail route', () => {
     expect(getByText('42 applied')).toBeTruthy();
   });
 
+  // GET /opportunities/:id is public, so the record the detail screen loads is
+  // always unranked (match 0). Before the hydration call, that made "Not
+  // ranked yet" permanent for every signed-in user with a complete profile.
+  describe('fit ranking', () => {
+    it('hydrates the fit verdict from the authenticated scorer', async () => {
+      mockIsSignedIn = true;
+      mockOpportunity = { ...makeOpportunity(), match: 0, matchReasons: [], matchRisks: [] };
+      mockGetOpportunity.mockResolvedValue(mockOpportunity);
+      mockFetchOpportunityRanking.mockResolvedValue({
+        match: 84,
+        matchFit: 84,
+        matchReasons: ['Matches your interest in Climate'],
+        matchRisks: [],
+      });
+
+      const { getByText, queryByText } = render(<OpportunityDetailScreen />);
+      await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+      await waitFor(() => expect(getByText('Strong fit')).toBeTruthy());
+      expect(getByText('Matches your interest in Climate')).toBeTruthy();
+      expect(queryByText('Not ranked yet')).toBeNull();
+    });
+
+    it('says "Not ranked yet" exactly once when there is genuinely no verdict', async () => {
+      mockIsSignedIn = true;
+      mockOpportunity = { ...makeOpportunity(), match: 0 };
+      mockGetOpportunity.mockResolvedValue(mockOpportunity);
+      mockFetchOpportunityRanking.mockResolvedValue(null);
+
+      const { getByText, queryAllByText } = render(<OpportunityDetailScreen />);
+      await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+      // Was rendered twice: the decision strip's fit cell AND the fit panel.
+      expect(queryAllByText('Not ranked yet')).toHaveLength(1);
+    });
+  });
+
   it('renders a loaded opportunity and supports save/apply actions', async () => {
     mockOpportunity = makeOpportunity();
     mockGetOpportunity.mockResolvedValue(mockOpportunity);
 
-    const { getByText } = render(<OpportunityDetailScreen />);
+    const { getByText, getByLabelText, queryAllByLabelText } = render(<OpportunityDetailScreen />);
 
     await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
     expect(getByText('Edutu')).toBeTruthy();
     expect(getByText('Apply Now')).toBeTruthy();
-    expect(getByText('Save')).toBeTruthy();
+    // Exactly ONE save control on the page — the header's. It used to be
+    // repeated in the quiet footer and again in the sticky bar.
+    expect(queryAllByLabelText('Save')).toHaveLength(1);
 
-    fireEvent.press(getByText('Save'));
+    fireEvent.press(getByLabelText('Save'));
     await waitFor(() => expect(mockSaveOpportunity).toHaveBeenCalledWith(
       expect.any(Object),
       'user-1',

@@ -1,36 +1,22 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Crown, Lock } from 'lucide-react-native';
+import { Crown, Lock, ShieldCheck } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { CVTemplate } from '@edutu/core/src/types/cv';
+import { resolveTemplateDesign } from '@edutu/core/src/services/templateDesigns';
 import { useTheme } from '../../components/context/ThemeContext';
 import { CvPreviewModel, TemplateCardThumb } from './CVTemplateLivePreview';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Self-contained gradient visuals — no external image dependency, so cards
-// always render (even offline / on a weak connection) instead of collapsing to
-// empty boxes when a remote thumbnail fails to load.
-const CATEGORY_GRADIENTS: Record<string, [string, string]> = {
-    academic: ['#2563EB', '#1D4ED8'],
-    professional: ['#0F766E', '#0D9488'],
-    creative: ['#7C3AED', '#DB2777'],
-    general: ['#6366F1', '#8B5CF6'],
-};
-
-const CATEGORY_ACCENTS: Record<string, string> = {
-    academic: '#2563EB',
-    professional: '#0F766E',
-    creative: '#7C3AED',
-    general: '#6366F1',
-};
-
+// Gradient and accent both come from the template's design spec, so a card
+// can only ever show the colour its exported PDF actually uses. They used to
+// be guessed from `category`, which meant three different templates sharing a
+// category all looked identical and none matched the export.
 function getTemplateVisual(item: CVTemplate) {
-    const key = (item.category || 'general').toLowerCase();
-    const gradient = CATEGORY_GRADIENTS[key] || CATEGORY_GRADIENTS.general;
-    const accent = CATEGORY_ACCENTS[key] || CATEGORY_ACCENTS.general;
-    return { gradient, accent };
+    const design = resolveTemplateDesign(item);
+    return { gradient: design.gradient, accent: design.accent, atsPlain: design.atsPlain };
 }
 
 interface Props {
@@ -97,9 +83,16 @@ export function CVTemplateCard({ item, onSelect, isPro, preview }: Props) {
                         </View>
                     )}
                 </View>
-                <Text style={[styles.templateCategory, { color: muted }]}>
-                    {preview ? t('templates.tapToPreviewOwn') : t('templates.tapToPreview')}
-                </Text>
+                {visual.atsPlain ? (
+                    <View style={styles.atsRow}>
+                        <ShieldCheck size={11} color="#10B981" />
+                        <Text style={styles.atsText}>{t('templates.atsSafe')}</Text>
+                    </View>
+                ) : (
+                    <Text style={[styles.templateCategory, { color: muted }]}>
+                        {preview ? t('templates.tapToPreviewOwn') : t('templates.tapToPreview')}
+                    </Text>
+                )}
             </View>
             {item.is_premium && !isPro && (
                 <View style={styles.lockedOverlay}>
@@ -214,6 +207,19 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 12,
         marginLeft: 8,
+    },
+    atsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        marginTop: 5,
+    },
+    atsText: {
+        fontSize: 10.5,
+        fontWeight: '800',
+        color: '#10B981',
+        letterSpacing: 0.2,
     },
     templateCategory: {
         fontSize: 12,

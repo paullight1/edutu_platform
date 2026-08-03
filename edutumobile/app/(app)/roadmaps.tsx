@@ -8,19 +8,21 @@ import {
     Search, BookOpen, Star, Users, Rocket, Wand2,
     X, Clock, ChevronRight, CalendarDays,
     ShieldCheck, CheckCircle, Zap, GraduationCap,
-    ThumbsUp, Pencil, Plus
+    ThumbsUp, Pencil, Plus, CalendarPlus, MessagesSquare, ArrowRight
 } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import { LoadState } from "../../components/ui/LoadState";
+import { SuccessDialog } from "../../components/ui/SuccessDialog";
 import { shareIcsString } from "../../lib/roadmapCalendar";
 import { swr } from "../../packages/core/src/services/swrCache";
+import { urgencyColor, type UrgencyLevel } from "../../packages/core/src/utils/deadline";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 const API_RETRY_COOLDOWN_MS = 30 * 1000;
@@ -165,17 +167,54 @@ interface AIQuestion {
     options?: string[];
 }
 
+/**
+ * What the catalog needs to know about a roadmap the user already started:
+ * enough to swap "Start" for "Continue" and draw a progress figure. Built from
+ * GET /roadmaps/my-enrollments, keyed by roadmap id.
+ */
+interface EnrollmentSummary {
+    enrollmentId: string;
+    completedSteps: number;
+    totalSteps: number;
+    communityAction?: RoadmapAdoptionResponse['communityAction'];
+}
+
 const CATEGORY_FILTERS = ['All', 'Scholarship', 'Career', 'Education', 'Skills', 'Business', 'Tech'];
 
+/**
+ * Urgency level from a target deadline, so the deadline row on a card uses the
+ * app-wide green → amber → red ramp instead of the roadmap's category hue
+ * (which is decorative, and fails contrast at label sizes).
+ */
+function deadlineUrgency(deadline?: string | null): UrgencyLevel {
+    if (!deadline) return 'none';
+    const time = new Date(deadline).getTime();
+    if (Number.isNaN(time)) return 'none';
+    const days = Math.ceil((time - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days < 0) return 'expired';
+    if (days === 0) return 'today';
+    if (days === 1) return 'tomorrow';
+    if (days <= 7) return 'urgent';
+    if (days <= 30) return 'soon';
+    return 'normal';
+}
+
 export default function RoadmapsScreen() {
-    const { t } = useTranslation('goals');
+    const { t, i18n } = useTranslation('goals');
     const { isDark, colors } = useTheme();
     const router = useRouter();
+    // `edutu://roadmap/<id>` redirects here carrying the id, so a shared link
+    // opens the roadmap it names instead of an unfiltered catalog.
+    const { open: openRoadmapId } = useLocalSearchParams<{ open?: string }>();
     const { user } = useUser();
     const { getToken } = useAuth();
     const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
     const [myRoadmaps, setMyRoadmaps] = useState<Roadmap[]>([]);
+    const [enrollments, setEnrollments] = useState<Record<string, EnrollmentSummary>>({});
     const [loading, setLoading] = useState(true);
+    // Pull-to-refresh owns its own flag. Sharing `loading` made the first paint
+    // render the pull spinner *and* the full-screen LoadState at the same time.
+    const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [category, setCategory] = useState('All');
@@ -189,6 +228,11 @@ export default function RoadmapsScreen() {
     const [feedbackScore, setFeedbackScore] = useState(0);
     const [feedbackText, setFeedbackText] = useState('');
     const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+    // The adoption that just happened, if any — drives the success dialog and
+    // the sheet's post-adoption state (calendar / community live there now,
+    // instead of as extra buttons on a four-option Alert).
+    const [justAdopted, setJustAdopted] = useState<RoadmapAdoptionResponse | null>(null);
+    const [showAdoptedDialog, setShowAdoptedDialog] = useState(false);
 
     const backgroundColor = colors.background;
     const textPrimary = colors.foreground;
@@ -251,7 +295,80 @@ export default function RoadmapsScreen() {
         }
     }, [user, getToken]);
 
-    useFocusEffect(useCallback(() => { fetchMine(); }, [fetchMine]));
+    // Which roadmaps has this user already started? Without this the catalog has
+    // no memory: every card offers "Start", and tapping it a second time adopts
+    // the same roadmap again and duplicates its milestone goals.
+    const fetchEnrollments = useCallback(async () => {
+        if (!user) { setEnrollments({}); return; }
+        try {
+            const token = await getToken();
+            if (!token) return;
+            const res = await apiFetch('/roadmaps/my-enrollments', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res?.ok) return;
+            const rows = await res.json();
+            if (!Array.isArray(rows)) return;
+
+            const next: Record<string, EnrollmentSummary> = {};
+            for (const row of rows) {
+                const enrollment = row?.enrollment ?? row;
+                const roadmap = row?.roadmap;
+                const roadmapId = enrollment?.roadmap_id ?? enrollment?.roadmapId;
+                if (!roadmapId) continue;
+                const completed = enrollment?.completed_steps ?? enrollment?.completedSteps ?? [];
+                next[String(roadmapId)] = {
+                    enrollmentId: String(enrollment.id),
+                    completedSteps: Array.isArray(completed) ? completed.length : 0,
+                    totalSteps: Array.isArray(roadmap?.steps) ? roadmap.steps.length : 0,
+                    communityAction: enrollment?.communityAction ?? enrollment?.community_action ?? null,
+                };
+            }
+            setEnrollments(next);
+        } catch {
+            /* non-critical — the catalog still renders without progress marks */
+        }
+    }, [user, getToken]);
+
+    useFocusEffect(useCallback(() => {
+        fetchMine();
+        fetchEnrollments();
+    }, [fetchMine, fetchEnrollments]));
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([fetchRoadmaps(), fetchMine(), fetchEnrollments()]);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [fetchRoadmaps, fetchMine, fetchEnrollments]);
+
+    // A deep-linked roadmap opens its sheet directly. Prefer the copy already in
+    // the list (instant), fall back to fetching it by id so a link to a roadmap
+    // outside the current page/filter still resolves.
+    const openedDeepLinkRef = useRef<string | null>(null);
+    useEffect(() => {
+        const id = typeof openRoadmapId === 'string' ? openRoadmapId : '';
+        if (!id || openedDeepLinkRef.current === id) return;
+        openedDeepLinkRef.current = id;
+
+        const local = roadmaps.find((r) => r.id === id) || myRoadmaps.find((r) => r.id === id);
+        if (local) { setSelectedItem(local); return; }
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await apiFetch(`/roadmaps/${id}`);
+                if (!res?.ok || cancelled) return;
+                const data = await res.json();
+                if (data?.id && !cancelled) setSelectedItem(data);
+            } catch {
+                /* the catalog is already on screen — a dead link just stays on it */
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [openRoadmapId, roadmaps, myRoadmaps]);
 
     // ── Intent intake (ask once) ─────────────────────────────────────────────
     // After the catalog first paints, check whether this user has a stored
@@ -348,8 +465,13 @@ export default function RoadmapsScreen() {
         AsyncStorage.setItem(INTENT_PROMPT_DISMISSED_KEY, '1').catch(() => { /* best effort */ });
     }, []);
 
+    const hasIntentAnswer = useMemo(
+        () => Object.values(intentAnswers).some((answer) => (answer || '').trim().length > 0),
+        [intentAnswers],
+    );
+
     const submitIntent = async () => {
-        if (!user) return;
+        if (!user || !hasIntentAnswer) return;
         setIntentLoading(true);
         try {
             const token = await getAuthToken();
@@ -402,7 +524,7 @@ export default function RoadmapsScreen() {
         setFeedbackSubmitting(true);
         try {
             const token = await getAuthToken();
-            await apiFetch('/roadmaps/feedback', {
+            const res = await apiFetch('/roadmaps/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({
@@ -413,12 +535,27 @@ export default function RoadmapsScreen() {
                     wouldRecommend: feedbackScore >= 3,
                 }),
             });
+
+            // apiFetch resolves any status and returns null only when the API is
+            // unreachable — so an unchecked response thanked the user for a
+            // rating the server had rejected. Keep the sheet open on failure so
+            // the stars and note aren't lost.
+            if (res === null) {
+                Alert.alert(t('roadmaps.enroll.offlineTitle'), t('roadmaps.enroll.offlineMessage'));
+                return;
+            }
+            if (!res.ok) {
+                Alert.alert(t('roadmaps.feedback.failedTitle'), await extractErrorMessage(res));
+                return;
+            }
+
             setShowFeedbackModal(false);
             setFeedbackScore(0);
             setFeedbackText('');
             Alert.alert(t('roadmaps.feedback.thanksTitle'), t('roadmaps.feedback.thanksMessage'));
         } catch (e) {
             console.error('Feedback failed:', e);
+            Alert.alert(t('roadmaps.enroll.offlineTitle'), t('roadmaps.enroll.offlineMessage'));
         } finally {
             setFeedbackSubmitting(false);
         }
@@ -441,12 +578,15 @@ export default function RoadmapsScreen() {
         if (Number.isNaN(date.getTime())) return deadline;
 
         const diffDays = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        // Follow the app's active language, not en-US — an American date inside
+        // translated copy (and inside RTL Arabic) is the tell that this string
+        // was never localised.
+        const formatted = date.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric', year: 'numeric' });
         if (diffDays === 0) return t('roadmaps.deadline.dueToday', { date: formatted });
         if (diffDays === 1) return t('roadmaps.deadline.dueTomorrow', { date: formatted });
         if (diffDays > 1) return t('roadmaps.deadline.daysLeft', { date: formatted, count: diffDays });
         return t('roadmaps.deadline.overdue', { date: formatted });
-    }, [t]);
+    }, [t, i18n.language]);
 
     const formatRelativeDueDay = useCallback((value?: number | string | null) => {
         if (value === null || value === undefined || value === '') return '';
@@ -532,6 +672,21 @@ export default function RoadmapsScreen() {
         }
     };
 
+    // The backend hands back where this roadmap's community lives; honour it
+    // rather than pushing back to the screen the user is already looking at.
+    const openCommunity = useCallback((action?: RoadmapAdoptionResponse['communityAction']) => {
+        const route = action?.route;
+        if (!route) return;
+        setShowAdoptedDialog(false);
+        setSelectedItem(null);
+        router.push(route as never);
+    }, [router]);
+
+    const closeSheet = useCallback(() => {
+        setSelectedItem(null);
+        setJustAdopted(null);
+    }, []);
+
     const handleEnroll = async () => {
         if (!selectedItem || !user) return;
         const target = selectedItem;
@@ -577,18 +732,24 @@ export default function RoadmapsScreen() {
                 adoption = null;
             }
 
-            setSelectedItem(null);
-            Alert.alert(t('roadmaps.enroll.adoptedTitle'), buildAdoptionMessage(adoption), [
-                { text: t('roadmaps.enroll.viewGoals'), onPress: () => router.push('/goals') },
-                ...(adoption?.id
-                    ? [{ text: t('roadmaps.enroll.addToCalendar'), onPress: () => handleAddCalendar(adoption.id) }]
-                    : []),
-                ...(adoption?.communityAction || adoption?.community_action
-                    ? [{ text: t('roadmaps.enroll.openCommunity'), onPress: () => router.push('/roadmaps') }]
-                    : []),
-                { text: t('roadmaps.enroll.continueBrowsing') },
-            ]);
+            // Keep the sheet mounted and switch it to its adopted state. The old
+            // four-button Alert stacked vertically on iOS with no visual primary,
+            // and its "Open Community" action pushed back to this same screen.
+            setJustAdopted(adoption);
+            setShowAdoptedDialog(true);
+            if (adoption?.id) {
+                setEnrollments((existing) => ({
+                    ...existing,
+                    [target.id]: {
+                        enrollmentId: adoption.id,
+                        completedSteps: 0,
+                        totalSteps: target.steps?.length ?? 0,
+                        communityAction: adoption.communityAction || adoption.community_action || null,
+                    },
+                }));
+            }
             fetchRoadmaps();
+            fetchEnrollments();
         } catch {
             // fetch() rejected despite apiFetch's guard (rare) — treat as offline.
             Alert.alert(t('roadmaps.enroll.offlineTitle'), t('roadmaps.enroll.offlineMessage'), [
@@ -601,28 +762,47 @@ export default function RoadmapsScreen() {
     };
 
     const filteredRoadmaps = useMemo(() => {
+        // The server already applied the category filter. Re-applying it here
+        // against a hardcoded seven-name list meant any category the backend
+        // knows about but this screen doesn't rendered as "No roadmaps found".
+        // Only the search term is narrowed locally, so typing feels instant
+        // while the debounced request is still in flight.
         const term = search.trim().toLowerCase();
-        return roadmaps.filter((r) => {
-            if (category !== 'All' && r.category !== category.toLowerCase()) return false;
-            if (!term) return true;
-            return (
-                r.title.toLowerCase().includes(term) ||
-                r.description.toLowerCase().includes(term) ||
-                r.creator_name.toLowerCase().includes(term)
-            );
-        });
-    }, [roadmaps, search, category]);
+        if (!term) return roadmaps;
+        return roadmaps.filter((r) => (
+            r.title.toLowerCase().includes(term) ||
+            (r.description || '').toLowerCase().includes(term) ||
+            (r.creator_name || '').toLowerCase().includes(term)
+        ));
+    }, [roadmaps, search]);
 
     const renderCard = useCallback(({ item }: { item: Roadmap }) => {
         const categoryColor = getCategoryColor(item.category);
-        const deadlineLabel = formatTargetDeadline(getTargetDeadline(item));
+        const targetDeadline = getTargetDeadline(item);
+        const deadlineLabel = formatTargetDeadline(targetDeadline);
         const relativeDueLabel = formatRelativeDueDay(getRelativeDueDay(item));
+        const deadlineTint = urgencyColor(deadlineUrgency(targetDeadline));
+        const enrollment = enrollments[item.id];
+        const progress = enrollment && enrollment.totalSteps > 0
+            ? Math.round((enrollment.completedSteps / enrollment.totalSteps) * 100)
+            : 0;
 
         return (
             <TouchableOpacity
                 style={[styles.card, { backgroundColor: cardBg, borderColor }]}
                 onPress={() => setSelectedItem(item)}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={
+                    enrollment
+                        ? t('roadmaps.a11y.cardStarted', {
+                            title: item.title,
+                            completed: enrollment.completedSteps,
+                            total: enrollment.totalSteps,
+                        })
+                        : t('roadmaps.a11y.card', { title: item.title, difficulty: item.difficulty })
+                }
+                accessibilityHint={t('roadmaps.a11y.cardHint')}
             >
                 <View style={styles.imageContainer}>
                     {item.cover_image ? (
@@ -634,8 +814,14 @@ export default function RoadmapsScreen() {
                     )}
                     {item.is_featured && (
                         <View style={styles.featuredBadge}>
-                            <Star color="#F59E0B" size={10} fill="#F59E0B" />
+                            <Star color="#FFFFFF" size={11} fill="#FFFFFF" />
                             <Text style={styles.featuredText}>{t('roadmaps.featured')}</Text>
+                        </View>
+                    )}
+                    {enrollment && (
+                        <View style={styles.startedBadge}>
+                            <CheckCircle color="#FFFFFF" size={11} />
+                            <Text style={styles.startedText}>{t('roadmaps.started')}</Text>
                         </View>
                     )}
                 </View>
@@ -644,22 +830,35 @@ export default function RoadmapsScreen() {
                     <Text style={[styles.cardSummary, { color: textSecondary }]} numberOfLines={2}>
                         {item.description || t('roadmaps.noDescription')}
                     </Text>
+                    {enrollment && enrollment.totalSteps > 0 && (
+                        <View style={styles.progressBlock}>
+                            <View style={[styles.progressTrack, { backgroundColor: `${colors.primary}22` }]}>
+                                <View style={[styles.progressFill, { width: `${Math.max(progress, 3)}%`, backgroundColor: colors.primary }]} />
+                            </View>
+                            <Text style={[styles.progressLabel, { color: textSecondary }]} numberOfLines={1}>
+                                {t('roadmaps.progressLabel', { completed: enrollment.completedSteps, total: enrollment.totalSteps })}
+                            </Text>
+                        </View>
+                    )}
                     {(deadlineLabel || relativeDueLabel) && (
-                        <View style={styles.cardDeadlineRow}>
-                            <CalendarDays size={12} color={categoryColor} />
-                            <Text style={[styles.cardDeadlineText, { color: categoryColor }]} numberOfLines={1}>
+                        // The urgency ramp carries the meaning through the icon and
+                        // the pill tint; the label itself stays at ink contrast.
+                        // 10px category-hue text on a white card measured ~2.1:1.
+                        <View style={[styles.cardDeadlineRow, { backgroundColor: `${deadlineTint}1A` }]}>
+                            <CalendarDays size={12} color={deadlineTint} />
+                            <Text style={[styles.cardDeadlineText, { color: textPrimary }]} numberOfLines={1}>
                                 {deadlineLabel || relativeDueLabel}
                             </Text>
                         </View>
                     )}
                     <View style={styles.cardFooter}>
                         <View style={styles.badgeRow}>
-                            <View style={[styles.difficultyBadge, { backgroundColor: `${categoryColor}15` }]}>
-                                <Text style={[styles.badgeText, { color: categoryColor }]}>{item.difficulty}</Text>
+                            <View style={[styles.difficultyBadge, { backgroundColor: `${categoryColor}22` }]}>
+                                <Text style={[styles.badgeText, { color: textPrimary }]}>{item.difficulty}</Text>
                             </View>
                             {item.steps?.length > 0 && (
-                                <View style={[styles.difficultyBadge, { backgroundColor: `${categoryColor}15` }]}>
-                                    <Text style={[styles.badgeText, { color: categoryColor }]}>{t('roadmaps.stepsCount', { count: item.steps.length })}</Text>
+                                <View style={[styles.difficultyBadge, { backgroundColor: `${categoryColor}22` }]}>
+                                    <Text style={[styles.badgeText, { color: textPrimary }]}>{t('roadmaps.stepsCount', { count: item.steps.length })}</Text>
                                 </View>
                             )}
                         </View>
@@ -673,7 +872,7 @@ export default function RoadmapsScreen() {
                 </View>
             </TouchableOpacity>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, t, formatTargetDeadline, formatRelativeDueDay]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, t, formatTargetDeadline, formatRelativeDueDay, enrollments, colors.primary]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top', 'left', 'right']}>
@@ -703,7 +902,7 @@ export default function RoadmapsScreen() {
                 windowSize={7}
                 removeClippedSubviews
                 refreshControl={
-                    <RefreshControl refreshing={loading} onRefresh={() => { fetchRoadmaps(); fetchMine(); }} tintColor="#6366F1" />
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
                 }
                 ListHeaderComponent={
                     <>
@@ -777,6 +976,9 @@ export default function RoadmapsScreen() {
                                             key={cat}
                                             style={[styles.filterChip, { borderColor }, category === cat && styles.filterChipActive]}
                                             onPress={() => setCategory(cat)}
+                                            accessibilityRole="button"
+                                            accessibilityState={{ selected: category === cat }}
+                                            accessibilityLabel={t(`roadmaps.categories.${cat.toLowerCase()}`)}
                                         >
                                             <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && styles.filterChipTextActive]}>
                                                 {t(`roadmaps.categories.${cat.toLowerCase()}`)}
@@ -834,21 +1036,40 @@ export default function RoadmapsScreen() {
                     loading ? (
                         <LoadState
                             label={t('roadmaps.loading')}
-                            onRetry={() => { fetchRoadmaps(); fetchMine(); }}
+                            onRetry={handleRefresh}
                             onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
                         />
                     ) : (
-                        <Text style={[styles.emptyText, { color: textSecondary }]}>{t('roadmaps.empty')}</Text>
+                        <View style={styles.emptyWrap}>
+                            <BookOpen size={40} color={textSecondary} />
+                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('roadmaps.emptyTitle')}</Text>
+                            <Text style={[styles.emptyText, { color: textSecondary }]}>{t('roadmaps.empty')}</Text>
+                            {(search || category !== 'All') && (
+                                <TouchableOpacity
+                                    style={[styles.emptyAction, { borderColor: colors.primary }]}
+                                    onPress={() => { setSearch(''); setCategory('All'); }}
+                                    accessibilityRole="button"
+                                >
+                                    <Text style={[styles.emptyActionText, { color: colors.primary }]}>{t('roadmaps.clearFilters')}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     )
                 }
             />
 
             {/* Roadmap Detail Modal */}
-            <Modal visible={!!selectedItem} transparent animationType="slide" onRequestClose={() => setSelectedItem(null)}>
+            <Modal visible={!!selectedItem} transparent animationType="slide" onRequestClose={closeSheet}>
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalSheet, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor }]}>
-                        <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedItem(null)}>
-                            <X color={textPrimary} size={18} />
+                        <TouchableOpacity
+                            style={styles.modalClose}
+                            onPress={closeSheet}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('roadmaps.a11y.close')}
+                        >
+                            <X color="#FFFFFF" size={20} />
                         </TouchableOpacity>
                         {selectedItem && (
                             <ScrollView showsVerticalScrollIndicator={false}>
@@ -868,10 +1089,24 @@ export default function RoadmapsScreen() {
                                                 {selectedItem.category?.toUpperCase()}
                                             </Text>
                                         </View>
-                                        <View style={styles.modalRating}>
-                                            <Star color="#F59E0B" size={14} fill="#F59E0B" />
-                                            <Text style={[styles.modalRatingText, { color: textPrimary }]}>{selectedItem.rating_avg ? (selectedItem.rating_avg / 10).toFixed(1) : t('roadmaps.notAvailable')}</Text>
-                                        </View>
+                                        {/* rating_avg is numeric(3,2) — already a 0–5 mean. It was
+                                            being divided by 10, so a 4.6-rated roadmap displayed
+                                            as "0.5" beside a filled star. */}
+                                        {selectedItem.rating_count > 0 && selectedItem.rating_avg > 0 ? (
+                                            <View style={styles.modalRating}>
+                                                <Star color="#F59E0B" size={14} fill="#F59E0B" />
+                                                <Text style={[styles.modalRatingText, { color: textPrimary }]}>
+                                                    {selectedItem.rating_avg.toFixed(1)}
+                                                </Text>
+                                                <Text style={[styles.modalRatingCount, { color: textSecondary }]}>
+                                                    ({selectedItem.rating_count})
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={[styles.modalRatingCount, { color: textSecondary }]}>
+                                                {t('roadmaps.notRatedYet')}
+                                            </Text>
+                                        )}
                                     </View>
                                     <Text style={[styles.modalTitle, { color: textPrimary }]}>{selectedItem.title}</Text>
                                     <Text style={[styles.modalDescription, { color: textSecondary }]}>{selectedItem.description}</Text>
@@ -977,28 +1212,111 @@ export default function RoadmapsScreen() {
                                         </View>
                                     )}
 
-                                    <TouchableOpacity
-                                        style={[styles.enrollBtn, enrolling && { opacity: 0.7 }]}
-                                        onPress={handleEnroll}
-                                        disabled={enrolling}
-                                    >
-                                        {enrolling ? (
-                                            <ActivityIndicator color="white" size="small" />
-                                        ) : (
-                                            <>
-                                                <Rocket size={18} color="white" />
-                                                <Text style={styles.enrollBtnText}>{t('roadmaps.startButton')}</Text>
-                                            </>
-                                        )}
-                                    </TouchableOpacity>
+                                    {(() => {
+                                        const enrollment = enrollments[selectedItem.id];
+                                        const communityAction =
+                                            justAdopted?.communityAction ||
+                                            justAdopted?.community_action ||
+                                            enrollment?.communityAction;
 
-                                    <TouchableOpacity
-                                        style={[styles.feedbackBtn, { borderColor }]}
-                                        onPress={() => setShowFeedbackModal(true)}
-                                    >
-                                        <ThumbsUp size={16} color={textSecondary} />
-                                        <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>{t('roadmaps.rateButton')}</Text>
-                                    </TouchableOpacity>
+                                        // Already started: never offer "Start" again — a second
+                                        // adoption silently duplicates every milestone goal.
+                                        if (enrollment) {
+                                            return (
+                                                <>
+                                                    <View style={[styles.adoptedNotice, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                                                        <CheckCircle size={16} color="#10B981" />
+                                                        <Text style={[styles.adoptedNoticeText, { color: textPrimary }]}>
+                                                            {enrollment.totalSteps > 0
+                                                                ? t('roadmaps.adopted.progress', {
+                                                                    completed: enrollment.completedSteps,
+                                                                    total: enrollment.totalSteps,
+                                                                })
+                                                                : t('roadmaps.adopted.inPlan')}
+                                                        </Text>
+                                                    </View>
+
+                                                    <TouchableOpacity
+                                                        style={styles.enrollBtn}
+                                                        onPress={() => { closeSheet(); router.push('/goals'); }}
+                                                        accessibilityRole="button"
+                                                    >
+                                                        <ArrowRight size={18} color="white" />
+                                                        <Text style={styles.enrollBtnText}>{t('roadmaps.continueButton')}</Text>
+                                                    </TouchableOpacity>
+
+                                                    <TouchableOpacity
+                                                        style={[styles.feedbackBtn, { borderColor }]}
+                                                        onPress={() => handleAddCalendar(enrollment.enrollmentId)}
+                                                        accessibilityRole="button"
+                                                    >
+                                                        <CalendarPlus size={16} color={textSecondary} />
+                                                        <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>
+                                                            {t('roadmaps.enroll.addToCalendar')}
+                                                        </Text>
+                                                    </TouchableOpacity>
+
+                                                    {communityAction?.route ? (
+                                                        <TouchableOpacity
+                                                            style={[styles.feedbackBtn, { borderColor }]}
+                                                            onPress={() => openCommunity(communityAction)}
+                                                            accessibilityRole="button"
+                                                        >
+                                                            <MessagesSquare size={16} color={textSecondary} />
+                                                            <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>
+                                                                {communityAction.label || t('roadmaps.enroll.openCommunity')}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ) : null}
+
+                                                    <TouchableOpacity
+                                                        style={[styles.feedbackBtn, { borderColor }]}
+                                                        onPress={() => setShowFeedbackModal(true)}
+                                                        accessibilityRole="button"
+                                                    >
+                                                        <ThumbsUp size={16} color={textSecondary} />
+                                                        <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>{t('roadmaps.rateButton')}</Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            );
+                                        }
+
+                                        return (
+                                            <>
+                                                {/* Say what the button will actually do before it does it:
+                                                    adopting creates goals and schedules reminders, and the
+                                                    user was never told. */}
+                                                <Text style={[styles.enrollHint, { color: textSecondary }]}>
+                                                    {t('roadmaps.startHint', { count: selectedItem.steps?.length || 0 })}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={[styles.enrollBtn, enrolling && { opacity: 0.7 }]}
+                                                    onPress={handleEnroll}
+                                                    disabled={enrolling}
+                                                    accessibilityRole="button"
+                                                    accessibilityState={{ disabled: enrolling, busy: enrolling }}
+                                                >
+                                                    {enrolling ? (
+                                                        <ActivityIndicator color="white" size="small" />
+                                                    ) : (
+                                                        <>
+                                                            <Rocket size={18} color="white" />
+                                                            <Text style={styles.enrollBtnText}>{t('roadmaps.startButton')}</Text>
+                                                        </>
+                                                    )}
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[styles.feedbackBtn, { borderColor }]}
+                                                    onPress={() => setShowFeedbackModal(true)}
+                                                    accessibilityRole="button"
+                                                >
+                                                    <ThumbsUp size={16} color={textSecondary} />
+                                                    <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>{t('roadmaps.rateButton')}</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        );
+                                    })()}
                                 </View>
                             </ScrollView>
                         )}
@@ -1052,9 +1370,17 @@ export default function RoadmapsScreen() {
                                 <Text style={[styles.intentSkipText, { color: textSecondary }]}>{t('roadmaps.intent.skip')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.intentSubmitBtn, { backgroundColor: colors.primary }, intentLoading && { opacity: 0.7 }]}
+                                style={[
+                                    styles.intentSubmitBtn,
+                                    { backgroundColor: colors.primary },
+                                    (intentLoading || !hasIntentAnswer) && { opacity: 0.5 },
+                                ]}
                                 onPress={submitIntent}
-                                disabled={intentLoading}
+                                // Submitting with nothing filled posts goals: [] and the
+                                // DTO rejects it — block the dead tap instead.
+                                disabled={intentLoading || !hasIntentAnswer}
+                                accessibilityRole="button"
+                                accessibilityState={{ disabled: intentLoading || !hasIntentAnswer }}
                             >
                                 {intentLoading ? (
                                     <ActivityIndicator color="white" size="small" />
@@ -1121,6 +1447,27 @@ export default function RoadmapsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/*
+              Adoption succeeded. One primary route forward ("See my plan"), one
+              quiet way back to browsing — the calendar and community actions
+              that used to crowd this moment now live in the sheet behind it,
+              which stays open and has switched to its adopted state.
+            */}
+            <SuccessDialog
+                visible={showAdoptedDialog}
+                kind="roadmap"
+                title={t('roadmaps.enroll.adoptedTitle')}
+                message={buildAdoptionMessage(justAdopted)}
+                actionLabel={t('roadmaps.enroll.viewGoals')}
+                onAction={() => {
+                    setShowAdoptedDialog(false);
+                    closeSheet();
+                    router.push('/goals');
+                }}
+                secondaryLabel={t('roadmaps.enroll.continueBrowsing')}
+                onSecondary={() => setShowAdoptedDialog(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -1248,27 +1595,40 @@ const styles = StyleSheet.create({
     mySectionLabel: { fontSize: 15, fontWeight: '800', marginTop: 20, marginBottom: 12 },
     centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     loadingText: { marginTop: 12, fontSize: 14 },
-    emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14, paddingHorizontal: 20 },
+    emptyWrap: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 24, gap: 10 },
+    emptyTitle: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
+    emptyText: { textAlign: 'center', fontSize: 14, lineHeight: 20 },
+    emptyAction: { marginTop: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+    emptyActionText: { fontSize: 13, fontWeight: '800' },
     card: { width: '47.5%', borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
     imageContainer: { position: 'relative', width: '100%', height: 100 },
     cardImage: { width: '100%', height: '100%' },
     cardImagePlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-    featuredBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(245,158,11,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-    featuredText: { color: 'white', fontSize: 9, fontWeight: 'bold' },
+    featuredBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(180,83,9,0.94)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+    featuredText: { color: 'white', fontSize: 11, fontWeight: '800' },
+    startedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(4,120,87,0.94)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+    startedText: { color: 'white', fontSize: 11, fontWeight: '800' },
     cardBody: { padding: 14 },
     cardTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8, lineHeight: 18 },
     cardSummary: { fontSize: 12, lineHeight: 16, marginBottom: 10 },
-    cardDeadlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
-    cardDeadlineText: { flex: 1, fontSize: 10, fontWeight: '700' },
+    progressBlock: { marginBottom: 10, gap: 5 },
+    progressTrack: { height: 5, borderRadius: 3, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 3 },
+    progressLabel: { fontSize: 11, fontWeight: '700' },
+    cardDeadlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10, paddingHorizontal: 7, paddingVertical: 5, borderRadius: 8 },
+    cardDeadlineText: { flex: 1, fontSize: 11, fontWeight: '700' },
     cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     badgeRow: { flexDirection: 'row', gap: 6 },
     difficultyBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    badgeText: { fontSize: 10, fontWeight: '600' },
+    badgeText: { fontSize: 11, fontWeight: '700' },
     userCount: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     userCountText: { fontSize: 11, fontWeight: '600' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
     modalSheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '85%', borderWidth: 1 },
-    modalClose: { position: 'absolute', top: 20, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.1)', padding: 10, borderRadius: 25 },
+    // 44×44 minimum: the old 18px icon in 10px padding gave a ~38pt target in
+    // the hardest corner for a thumb, over an image whose brightness is unknown
+    // — hence the fixed dark scrim rather than a 10%-white wash.
+    modalClose: { position: 'absolute', top: 16, right: 16, zIndex: 10, backgroundColor: 'rgba(2,6,23,0.6)', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     modalImageContainer: { width: '100%', height: 200 },
     modalImage: { width: '100%', height: '100%', borderTopLeftRadius: 32, borderTopRightRadius: 32 },
     modalImagePlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 32, borderTopRightRadius: 32 },
@@ -1278,6 +1638,7 @@ const styles = StyleSheet.create({
     categoryBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
     modalRating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     modalRatingText: { fontSize: 16, fontWeight: 'bold' },
+    modalRatingCount: { fontSize: 13, fontWeight: '600' },
     modalTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 12 },
     modalDescription: { fontSize: 15, lineHeight: 22, marginBottom: 16 },
     infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, marginBottom: 16 },
@@ -1297,6 +1658,9 @@ const styles = StyleSheet.create({
     stepTitle: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
     stepDescription: { fontSize: 13, lineHeight: 18 },
     stepMetaText: { fontSize: 12, lineHeight: 17, marginTop: 8 },
+    adoptedNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, marginBottom: 14 },
+    adoptedNoticeText: { flex: 1, fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+    enrollHint: { fontSize: 12.5, lineHeight: 18, marginBottom: 10, textAlign: 'center' },
     enrollBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18, borderRadius: 16, backgroundColor: '#6366F1' },
     enrollBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
     feedbackBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1, marginTop: 12 },

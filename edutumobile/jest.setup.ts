@@ -87,6 +87,8 @@ jest.mock('react-native-reanimated', () => {
     PinwheelIn: reanimatedBuilder,
     ZoomIn: reanimatedBuilder,
     SlideInRight: reanimatedBuilder,
+    SlideInLeft: reanimatedBuilder,
+    SlideOutRight: reanimatedBuilder,
     SlideOutLeft: reanimatedBuilder,
   };
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator, TextInput, Image } from 'react-native';
-import { X, Wand2, Search, Building2 } from 'lucide-react-native';
+import { X, Search, Building2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -8,6 +8,7 @@ import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
 import { CvModalBackdrop } from './CvModalBackdrop';
 import { decodeHtmlEntities } from '../../lib/utils';
+import { AiTailorIllustration } from '../state/illustrations';
 
 interface Props {
     visible: boolean;
@@ -111,8 +112,10 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
                         <X size={24} color={muted} />
                     </TouchableOpacity>
 
+                    {/* A drawn scene reads far better than a lone glyph at the
+                        top of a sheet that is asking for a decision. */}
                     <View style={styles.modalIcon}>
-                        <Wand2 size={48} color={colors.primary} />
+                        <AiTailorIllustration size={148} accent={colors.primary} />
                     </View>
 
                     <Text style={[styles.modalTitle, { color: colors.foreground }]}>

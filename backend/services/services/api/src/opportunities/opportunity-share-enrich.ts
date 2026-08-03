@@ -67,7 +67,8 @@ function hasBenefits(opp: OpportunityRecord): boolean {
 
 function hasEligibility(opp: OpportunityRecord): boolean {
   const metadata = asRecord(opp.metadata);
-  if (cleanList(opp.eligibility ?? metadata.eligibility).length > 0) return true;
+  if (cleanList(opp.eligibility ?? metadata.eligibility).length > 0)
+    return true;
   const obj = asRecord(opp.eligibility ?? metadata.eligibility);
   if (Array.isArray(obj.countries) && obj.countries.length > 0) return true;
   return Boolean(clean(obj.audience || obj.target_audience));
