@@ -670,7 +670,28 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Implement `MessagesService`**
 
-`send` screens first and throws `BadRequestException` with a human sentence (Global Constraint 7 / DESIGN.md §4 — never a code), then inserts and bumps `messageCount` / `lastMessageAt` on the group. `softDelete` sets `deletedAt`/`deletedBy` and never issues a `DELETE`. `list` requires an active membership unless the group is public.
+`send` screens first and throws `BadRequestException` with a human sentence (Global Constraint 7 / DESIGN.md §4 — never a code), then inserts and bumps `messageCount` / `lastMessageAt` on the group. `list` requires an active membership unless the group is public.
+
+**`softDelete` MUST blank the body**, not merely stamp `deletedAt`:
+
+```ts
+.set({ body: "", deletedAt: new Date(), deletedBy: actorId })
+```
+
+Found in the Task 1 migration review. The mobile client reads
+`community_group_messages` **directly** through Supabase Realtime, so RLS is
+the only boundary — there is no server in the read path to filter rows. Leaving
+the text in place lets any member (or, in a public group, any signed-in user)
+run `select body from community_group_messages where deleted_at is not null`
+and read exactly the content a moderator removed. Filtering deleted rows in the
+React Native client is cosmetic.
+
+Do **not** "fix" this by adding `and deleted_at is null` to the read policy:
+that hides the soft-delete `UPDATE` from Realtime subscribers, so the tombstone
+never propagates and the deleted message stays on every open screen until
+reload. The row must stay visible; its content must not.
+
+A test asserting the blanked body is required, not optional.
 
 - [ ] **Step 4: Run and watch them pass**
 
