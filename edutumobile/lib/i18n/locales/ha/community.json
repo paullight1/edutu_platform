@@ -1,0 +1,132 @@
+{
+  "screens": {
+    "browseTitle": "Kungiyoyi",
+    "chatTitle": "Hirar kungiya",
+    "createTitle": "Fara kungiya",
+    "settingsTitle": "Saitunan kungiya",
+    "requestsTitle": "Bukatun shiga"
+  },
+  "sections": {
+    "yourGroups": "Kungiyoyinka",
+    "forYourSavedOpportunities": "Don damarmakin da ka ajiye",
+    "discover": "Gano kungiyoyi"
+  },
+  "whatsappBanner": {
+    "title": "Karɓi labarai a WhatsApp",
+    "body": "Bi tashar wannan kungiyar don tunatarwa da labarai, ko da ba ka cikin app ɗin.",
+    "action": "Shiga a WhatsApp",
+    "dismiss": "Ba yanzu ba"
+  },
+  "visibility": {
+    "public": "Na kowa",
+    "private": "Na sirri",
+    "publicDesc": "Kowa zai iya samu ya kuma ga wannan kungiya",
+    "privateDesc": "Mambobi ne kaɗai za su iya samu su kuma ga wannan kungiya"
+  },
+  "joinPolicy": {
+    "open": "Bude domin shiga",
+    "request": "Nemi izinin shiga",
+    "openDesc": "Kowa zai iya shiga nan take",
+    "requestDesc": "Mai kungiyar yana duba kowace buƙata kafin ya bar wani ya shiga"
+  },
+  "groupState": {
+    "archived": "An adana",
+    "archivedReadOnly": "An adana wannan kungiya. Kana iya karanta tsofaffin saƙonni, amma babu wanda zai iya aikawa da sabo.",
+    "archiveWarning": "Adana kungiya na rufe ta har abada — babu wanda zai iya soke wannan, ko da kai.",
+    "expired": "Ta kare",
+    "expiredDesc": "Damar da aka kafa wannan kungiya a kanta ta rufe.",
+    "memberCount_one": "Mamba {{count}}",
+    "memberCount_other": "Mambobi {{count}}"
+  },
+  "membership": {
+    "active": "Mamba",
+    "invited": "An gayyace ka",
+    "invitedDesc": "Mai kungiyar ya gayyace ka zuwa wannan kungiya. Duba ta farko, sannan ka yanke shawara.",
+    "pending": "An aika buƙata",
+    "pendingDesc": "Ka nemi shiga. Za ka shiga da zarar mai kungiyar ya amince.",
+    "removed": "An cire ka",
+    "removedDesc": "Wani mai kungiyar ya cire ka daga wannan kungiya.",
+    "banned": "An hana ka",
+    "bannedDesc": "An hana ka wannan kungiya kuma ba za ka iya sake shiga ba."
+  },
+  "actions": {
+    "join": "Shiga",
+    "leave": "Bar kungiya",
+    "requestToJoin": "Nemi izinin shiga",
+    "cancelRequest": "Soke buƙata",
+    "acceptInvite": "Karɓi gayyata",
+    "declineInvite": "Ƙi",
+    "preview": "Kallon farko",
+    "approve": "Amince",
+    "decline": "Ƙi",
+    "archive": "Adana kungiya",
+    "delete": "Share kungiya",
+    "viewGroup": "Duba kungiya",
+    "createGroup": "Kirkiri kungiya",
+    "saveChanges": "Ajiye canje-canje"
+  },
+  "create": {
+    "nameLabel": "Sunan kungiya",
+    "namePlaceholder": "Bai wa kungiyarka suna",
+    "descriptionLabel": "Bayani",
+    "descriptionPlaceholder": "Don me ake amfani da wannan kungiya?",
+    "opportunityLabel": "Damar da aka haɗa",
+    "opportunityHelper": "Mambobi za su ga wannan dama a manne a kungiyar.",
+    "emojiLabel": "Emoji",
+    "emojiHelper": "Zaɓi emoji da za ta wakilci kungiyarka",
+    "visibilityLabel": "Wanda zai iya samun wannan kungiya",
+    "joinPolicyLabel": "Wanda zai iya shiga"
+  },
+  "joinRequestForm": {
+    "title": "Nemi izinin shiga",
+    "intro": "Faɗa wa mai kungiyar dalilin da ya sa kake son shiga.",
+    "messageLabel": "Saƙonka",
+    "messagePlaceholder": "Me ya sa kake son shiga wannan kungiya?",
+    "submit": "Aika buƙata"
+  },
+  "questionBuilder": {
+    "title": "Tambayoyin bincike",
+    "helper": "Yi tambayoyi har guda 5 da mutane dole su amsa kafin su nemi shiga.",
+    "addQuestion": "Ƙara tambaya",
+    "questionLabel": "Tambaya",
+    "questionPlaceholder": "Me kake son tambaya?",
+    "typeLabel": "Nau'in amsa",
+    "typeShortText": "Gajeren rubutu",
+    "typeLongAnswer": "Dogon amsa",
+    "typeSingleChoice": "Zaɓi ɗaya",
+    "optionsLabel": "Zaɓuɓɓuka",
+    "addOption": "Ƙara zaɓi",
+    "requiredLabel": "Wajibi",
+    "limitReached": "Ka kai iyakar tambayoyi 5."
+  },
+  "chat": {
+    "composerPlaceholder": "Rubuta wa kungiya saƙo",
+    "send": "Aika",
+    "messageDeleted": "An share wannan saƙo",
+    "emptyTitle": "Babu saƙonni tukuna",
+    "emptyBody": "Kasance na farko da zai yi gaisuwa ya fara tattaunawa.",
+    "loading": "Ana loda saƙonni…"
+  },
+  "moderation": {
+    "reportMessage": "Kai rahoton saƙo",
+    "reportGroup": "Kai rahoton kungiya",
+    "blockUser": "Toshe mai amfani",
+    "removeMember": "Cire mamba",
+    "deleteMessage": "Share saƙo",
+    "noToleranceTitle": "Ku girmama juna",
+    "noToleranceBody": "Zamba, cin zarafi, da maganganun ƙiyayya za su sa a cire ka nan take, ba tare da gargaɗi ba. Ka kasance wanda mutane ke murna su gan shi a nan."
+  },
+  "errors": {
+    "notAMember": "Ba ka riga ka zama mamban wannan kungiya ba.",
+    "groupPrivate": "Wannan kungiya sirri ce. Kana buƙatar gayyata ko amincewar buƙatarka domin ganin ta.",
+    "groupClosed": "Wannan kungiya ta rufe kuma ba ta karɓar sabbin mambobi.",
+    "groupArchived": "An adana wannan kungiya, don haka ba za a iya aikawa da saƙonni a nan ba.",
+    "groupLimitReached": "Ka riga ka shiga kungiyoyi 2, iyakar da za ka iya shiga a lokaci guda. Bar ɗaya domin ka shiga wata.",
+    "messageRejected": "Ba za a iya aika wannan saƙo yadda yake ba — gwada cire hanyoyin yanar gizo, bayanan tuntuɓa, ko bukatun biya, sannan ka sake aikawa."
+  },
+  "empty": {
+    "noGroups": "Ba ka da kungiyoyi tukuna. Shiga ɗaya daga wata dama da ka ajiye, ko kirkiri naka domin tara mutane.",
+    "noMessages": "Babu saƙonni tukuna. Yi gaisuwa ka fara tattaunawa.",
+    "noPendingRequests": "Babu buƙatun da ke jira. Idan wani ya nemi shiga, za ka duba shi a nan."
+  }
+}

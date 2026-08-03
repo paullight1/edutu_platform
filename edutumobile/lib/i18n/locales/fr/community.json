@@ -1,0 +1,132 @@
+{
+  "screens": {
+    "browseTitle": "Groupes",
+    "chatTitle": "Discussion de groupe",
+    "createTitle": "Créer un groupe",
+    "settingsTitle": "Paramètres du groupe",
+    "requestsTitle": "Demandes d'adhésion"
+  },
+  "sections": {
+    "yourGroups": "Vos groupes",
+    "forYourSavedOpportunities": "Pour les opportunités enregistrées",
+    "discover": "Découvrir des groupes"
+  },
+  "whatsappBanner": {
+    "title": "Recevez les actualités sur WhatsApp",
+    "body": "Suivez le canal de ce groupe pour les rappels et les nouvelles, même en dehors de l'appli.",
+    "action": "Rejoindre sur WhatsApp",
+    "dismiss": "Plus tard"
+  },
+  "visibility": {
+    "public": "Public",
+    "private": "Privé",
+    "publicDesc": "Tout le monde peut trouver et voir ce groupe",
+    "privateDesc": "Seuls les membres peuvent trouver et voir ce groupe"
+  },
+  "joinPolicy": {
+    "open": "Adhésion libre",
+    "request": "Adhésion sur demande",
+    "openDesc": "Tout le monde peut rejoindre instantanément",
+    "requestDesc": "Le propriétaire examine chaque demande avant d'accepter quelqu'un"
+  },
+  "groupState": {
+    "archived": "Archivé",
+    "archivedReadOnly": "Ce groupe est archivé. Vous pouvez lire les anciens messages, mais personne ne peut publier.",
+    "archiveWarning": "Archiver ferme ce groupe définitivement : personne, pas même vous, ne peut annuler cette action.",
+    "expired": "Expiré",
+    "expiredDesc": "L'opportunité autour de laquelle ce groupe a été créé est maintenant close.",
+    "memberCount_one": "{{count}} membre",
+    "memberCount_other": "{{count}} membres"
+  },
+  "membership": {
+    "active": "Membre",
+    "invited": "Vous êtes invité(e)",
+    "invitedDesc": "Le propriétaire vous a invité(e) dans ce groupe. Jetez-y un œil, puis décidez.",
+    "pending": "Demande envoyée",
+    "pendingDesc": "Vous avez demandé à rejoindre ce groupe. Vous y entrerez dès que le propriétaire approuvera.",
+    "removed": "Retiré(e)",
+    "removedDesc": "Un propriétaire vous a retiré(e) de ce groupe.",
+    "banned": "Banni(e)",
+    "bannedDesc": "Vous avez été banni(e) de ce groupe et ne pouvez pas le rejoindre à nouveau."
+  },
+  "actions": {
+    "join": "Rejoindre",
+    "leave": "Quitter le groupe",
+    "requestToJoin": "Demander à rejoindre",
+    "cancelRequest": "Annuler la demande",
+    "acceptInvite": "Accepter l'invitation",
+    "declineInvite": "Refuser",
+    "preview": "Aperçu",
+    "approve": "Approuver",
+    "decline": "Refuser",
+    "archive": "Archiver le groupe",
+    "delete": "Supprimer le groupe",
+    "viewGroup": "Voir le groupe",
+    "createGroup": "Créer le groupe",
+    "saveChanges": "Enregistrer les modifications"
+  },
+  "create": {
+    "nameLabel": "Nom du groupe",
+    "namePlaceholder": "Donnez un nom à votre groupe",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "À quoi sert ce groupe ?",
+    "opportunityLabel": "Opportunité associée",
+    "opportunityHelper": "Les membres verront cette opportunité épinglée dans le groupe.",
+    "emojiLabel": "Emoji",
+    "emojiHelper": "Choisissez un emoji pour représenter votre groupe",
+    "visibilityLabel": "Qui peut trouver ce groupe",
+    "joinPolicyLabel": "Qui peut rejoindre"
+  },
+  "joinRequestForm": {
+    "title": "Demander à rejoindre",
+    "intro": "Expliquez au propriétaire pourquoi vous aimeriez rejoindre ce groupe.",
+    "messageLabel": "Votre message",
+    "messagePlaceholder": "Pourquoi souhaitez-vous rejoindre ce groupe ?",
+    "submit": "Envoyer la demande"
+  },
+  "questionBuilder": {
+    "title": "Questions de présélection",
+    "helper": "Posez jusqu'à 5 questions auxquelles les gens doivent répondre avant de demander à rejoindre.",
+    "addQuestion": "Ajouter une question",
+    "questionLabel": "Question",
+    "questionPlaceholder": "Que voulez-vous demander ?",
+    "typeLabel": "Type de réponse",
+    "typeShortText": "Texte court",
+    "typeLongAnswer": "Réponse longue",
+    "typeSingleChoice": "Choix unique",
+    "optionsLabel": "Options",
+    "addOption": "Ajouter une option",
+    "requiredLabel": "Obligatoire",
+    "limitReached": "Vous avez atteint la limite de 5 questions."
+  },
+  "chat": {
+    "composerPlaceholder": "Écrire au groupe",
+    "send": "Envoyer",
+    "messageDeleted": "Ce message a été supprimé",
+    "emptyTitle": "Aucun message pour l'instant",
+    "emptyBody": "Soyez le premier à dire bonjour et à lancer la conversation.",
+    "loading": "Chargement des messages…"
+  },
+  "moderation": {
+    "reportMessage": "Signaler le message",
+    "reportGroup": "Signaler le groupe",
+    "blockUser": "Bloquer l'utilisateur",
+    "removeMember": "Retirer le membre",
+    "deleteMessage": "Supprimer le message",
+    "noToleranceTitle": "Restez respectueux",
+    "noToleranceBody": "Les arnaques, le harcèlement et les discours de haine entraînent un retrait immédiat, sans avertissement. Soyez quelqu'un que les gens sont contents de voir dans ce groupe."
+  },
+  "errors": {
+    "notAMember": "Vous n'êtes pas encore membre de ce groupe.",
+    "groupPrivate": "Ce groupe est privé. Une invitation ou une demande approuvée est nécessaire pour le voir.",
+    "groupClosed": "Ce groupe est fermé et n'accepte plus de nouveaux membres.",
+    "groupArchived": "Ce groupe est archivé, il n'est donc plus possible d'y publier.",
+    "groupLimitReached": "Vous êtes déjà dans 2 groupes, le maximum autorisé à la fois. Quittez-en un pour en rejoindre un autre.",
+    "messageRejected": "Ce message ne peut pas être envoyé tel quel : essayez de retirer les liens, les coordonnées ou les demandes de paiement, puis renvoyez-le."
+  },
+  "empty": {
+    "noGroups": "Aucun groupe pour l'instant. Rejoignez-en un depuis une opportunité enregistrée, ou créez le vôtre pour rassembler des gens.",
+    "noMessages": "Aucun message pour l'instant. Dites bonjour et lancez la conversation.",
+    "noPendingRequests": "Aucune demande en attente. Quand quelqu'un demandera à rejoindre, vous l'examinerez ici."
+  }
+}

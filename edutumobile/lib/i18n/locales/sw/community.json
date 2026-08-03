@@ -1,0 +1,132 @@
+{
+  "screens": {
+    "browseTitle": "Vikundi",
+    "chatTitle": "Mazungumzo ya kikundi",
+    "createTitle": "Anzisha kikundi",
+    "settingsTitle": "Mipangilio ya kikundi",
+    "requestsTitle": "Maombi ya kujiunga"
+  },
+  "sections": {
+    "yourGroups": "Vikundi vyako",
+    "forYourSavedOpportunities": "Kwa fursa ulizohifadhi",
+    "discover": "Gundua vikundi"
+  },
+  "whatsappBanner": {
+    "title": "Pata taarifa kwenye WhatsApp",
+    "body": "Fuata chaneli ya kikundi hiki upate vikumbusho na habari, hata ukiwa nje ya programu.",
+    "action": "Jiunge kwenye WhatsApp",
+    "dismiss": "Si sasa"
+  },
+  "visibility": {
+    "public": "Wazi kwa wote",
+    "private": "Faragha",
+    "publicDesc": "Mtu yeyote anaweza kuona na kupata kikundi hiki",
+    "privateDesc": "Wanachama pekee ndio wanaoweza kuona na kupata kikundi hiki"
+  },
+  "joinPolicy": {
+    "open": "Kujiunga kwa uwazi",
+    "request": "Kuomba kujiunga",
+    "openDesc": "Mtu yeyote anaweza kujiunga papo hapo",
+    "requestDesc": "Mmiliki anakagua kila ombi kabla ya kumruhusu mtu"
+  },
+  "groupState": {
+    "archived": "Kimehifadhiwa",
+    "archivedReadOnly": "Kikundi hiki kimehifadhiwa. Unaweza kusoma ujumbe wa zamani, lakini hakuna anayeweza kutuma ujumbe mpya.",
+    "archiveWarning": "Kuhifadhi kunafunga kikundi hiki milele — hakuna anayeweza kutengua hatua hii, hata wewe.",
+    "expired": "Kimeisha muda",
+    "expiredDesc": "Fursa iliyoanzisha kikundi hiki tayari imefungwa.",
+    "memberCount_one": "Mwanachama {{count}}",
+    "memberCount_other": "Wanachama {{count}}"
+  },
+  "membership": {
+    "active": "Mwanachama",
+    "invited": "Umealikwa",
+    "invitedDesc": "Mmiliki amekualika kwenye kikundi hiki. Angalia kwanza kisha uamue.",
+    "pending": "Ombi limetumwa",
+    "pendingDesc": "Umeomba kujiunga. Utaingia mara mmiliki atakapoidhinisha.",
+    "removed": "Umeondolewa",
+    "removedDesc": "Mmiliki alikuondoa kwenye kikundi hiki.",
+    "banned": "Umepigwa marufuku",
+    "bannedDesc": "Umepigwa marufuku kwenye kikundi hiki na huwezi kujiunga tena."
+  },
+  "actions": {
+    "join": "Jiunge",
+    "leave": "Ondoka kwenye kikundi",
+    "requestToJoin": "Omba kujiunga",
+    "cancelRequest": "Ghairi ombi",
+    "acceptInvite": "Kubali mwaliko",
+    "declineInvite": "Kataa",
+    "preview": "Onyesho la kwanza",
+    "approve": "Idhinisha",
+    "decline": "Kataa",
+    "archive": "Hifadhi kikundi",
+    "delete": "Futa kikundi",
+    "viewGroup": "Angalia kikundi",
+    "createGroup": "Anzisha kikundi",
+    "saveChanges": "Hifadhi mabadiliko"
+  },
+  "create": {
+    "nameLabel": "Jina la kikundi",
+    "namePlaceholder": "Weka jina la kikundi chako",
+    "descriptionLabel": "Maelezo",
+    "descriptionPlaceholder": "Kikundi hiki ni cha nini?",
+    "opportunityLabel": "Fursa iliyounganishwa",
+    "opportunityHelper": "Wanachama wataona fursa hii ikiwa imebandikwa kwenye kikundi.",
+    "emojiLabel": "Emoji",
+    "emojiHelper": "Chagua emoji itakayowakilisha kikundi chako",
+    "visibilityLabel": "Nani anaweza kupata kikundi hiki",
+    "joinPolicyLabel": "Nani anaweza kujiunga"
+  },
+  "joinRequestForm": {
+    "title": "Omba kujiunga",
+    "intro": "Mwambie mmiliki kwa nini ungependa kujiunga.",
+    "messageLabel": "Ujumbe wako",
+    "messagePlaceholder": "Kwa nini unataka kujiunga na kikundi hiki?",
+    "submit": "Tuma ombi"
+  },
+  "questionBuilder": {
+    "title": "Maswali ya uchunguzi",
+    "helper": "Uliza hadi maswali 5 ambayo watu lazima wajibu kabla ya kuomba kujiunga.",
+    "addQuestion": "Ongeza swali",
+    "questionLabel": "Swali",
+    "questionPlaceholder": "Unataka kuuliza nini?",
+    "typeLabel": "Aina ya jibu",
+    "typeShortText": "Maandishi mafupi",
+    "typeLongAnswer": "Jibu refu",
+    "typeSingleChoice": "Chaguo moja",
+    "optionsLabel": "Chaguo",
+    "addOption": "Ongeza chaguo",
+    "requiredLabel": "Lazima",
+    "limitReached": "Umefikia kikomo cha maswali 5."
+  },
+  "chat": {
+    "composerPlaceholder": "Andika ujumbe kwa kikundi",
+    "send": "Tuma",
+    "messageDeleted": "Ujumbe huu ulifutwa",
+    "emptyTitle": "Hakuna ujumbe bado",
+    "emptyBody": "Kuwa wa kwanza kusalimu na kuanzisha mazungumzo.",
+    "loading": "Inapakia ujumbe…"
+  },
+  "moderation": {
+    "reportMessage": "Ripoti ujumbe",
+    "reportGroup": "Ripoti kikundi",
+    "blockUser": "Zuia mtumiaji",
+    "removeMember": "Ondoa mwanachama",
+    "deleteMessage": "Futa ujumbe",
+    "noToleranceTitle": "Heshimiana",
+    "noToleranceBody": "Ulaghai, unyanyasaji, na matamshi ya chuki yatakuondoa kwenye kikundi bila onyo. Kuwa mtu ambaye watu wanafurahia kumuona hapa."
+  },
+  "errors": {
+    "notAMember": "Bado wewe si mwanachama wa kikundi hiki.",
+    "groupPrivate": "Kikundi hiki ni cha faragha. Unahitaji mwaliko au ombi lililoidhinishwa ili kukiona.",
+    "groupClosed": "Kikundi hiki kimefungwa na hakikubali wanachama wapya.",
+    "groupArchived": "Kikundi hiki kimehifadhiwa, hivyo kutuma ujumbe hakuwezekani tena.",
+    "groupLimitReached": "Tayari uko kwenye vikundi 2, ndicho kiwango cha juu unachoweza kujiunga kwa wakati mmoja. Ondoka kwenye kimoja ili ujiunge na kingine.",
+    "messageRejected": "Ujumbe huo hauwezi kutumwa jinsi ulivyoandikwa — jaribu kuondoa viungo, taarifa za mawasiliano, au maombi ya malipo, kisha utume tena."
+  },
+  "empty": {
+    "noGroups": "Bado huna vikundi. Jiunge na kimoja kutoka kwenye fursa uliyohifadhi, au anzisha chako mwenyewe ili kukusanya watu.",
+    "noMessages": "Hakuna ujumbe bado. Salimu na uanzishe mazungumzo.",
+    "noPendingRequests": "Hakuna maombi yanayosubiri. Mtu akiomba kujiunga, utayakagua hapa."
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "screens": {
+    "browseTitle": "小组",
+    "chatTitle": "小组聊天",
+    "createTitle": "创建小组",
+    "settingsTitle": "小组设置",
+    "requestsTitle": "加入申请"
+  },
+  "sections": {
+    "yourGroups": "你的小组",
+    "forYourSavedOpportunities": "你收藏的机会对应的小组",
+    "discover": "发现小组"
+  },
+  "whatsappBanner": {
+    "title": "在 WhatsApp 上获取更新",
+    "body": "关注这个小组的频道，即使不在应用内也能收到提醒和最新消息。",
+    "action": "在 WhatsApp 上加入",
+    "dismiss": "暂不需要"
+  },
+  "visibility": {
+    "public": "公开",
+    "private": "私密",
+    "publicDesc": "任何人都能找到并查看这个小组",
+    "privateDesc": "只有成员才能找到并查看这个小组"
+  },
+  "joinPolicy": {
+    "open": "自由加入",
+    "request": "需申请加入",
+    "openDesc": "任何人都能立即加入",
+    "requestDesc": "群主会在批准前审核每一份申请"
+  },
+  "groupState": {
+    "archived": "已归档",
+    "archivedReadOnly": "这个小组已归档。你可以查看历史消息，但没有人可以再发言。",
+    "archiveWarning": "归档会永久关闭这个小组——包括你在内，没有人能撤销这个操作。",
+    "expired": "已过期",
+    "expiredDesc": "这个小组所依托的机会已经关闭。",
+    "memberCount_other": "{{count}} 位成员"
+  },
+  "membership": {
+    "active": "成员",
+    "invited": "你已被邀请",
+    "invitedDesc": "群主邀请你加入这个小组。先看看，再做决定。",
+    "pending": "申请已发送",
+    "pendingDesc": "你已申请加入。群主批准后你就能进入。",
+    "removed": "已被移出",
+    "removedDesc": "有群主将你移出了这个小组。",
+    "banned": "已被封禁",
+    "bannedDesc": "你已被这个小组封禁，无法再次加入。"
+  },
+  "actions": {
+    "join": "加入",
+    "leave": "退出小组",
+    "requestToJoin": "申请加入",
+    "cancelRequest": "取消申请",
+    "acceptInvite": "接受邀请",
+    "declineInvite": "拒绝",
+    "preview": "预览",
+    "approve": "批准",
+    "decline": "拒绝",
+    "archive": "归档小组",
+    "delete": "删除小组",
+    "viewGroup": "查看小组",
+    "createGroup": "创建小组",
+    "saveChanges": "保存更改"
+  },
+  "create": {
+    "nameLabel": "小组名称",
+    "namePlaceholder": "给你的小组起个名字",
+    "descriptionLabel": "简介",
+    "descriptionPlaceholder": "这个小组是做什么的？",
+    "opportunityLabel": "关联的机会",
+    "opportunityHelper": "成员会在小组里看到这个机会被置顶。",
+    "emojiLabel": "表情符号",
+    "emojiHelper": "选一个表情符号来代表你的小组",
+    "visibilityLabel": "谁可以找到这个小组",
+    "joinPolicyLabel": "谁可以加入"
+  },
+  "joinRequestForm": {
+    "title": "申请加入",
+    "intro": "告诉群主你想加入的原因。",
+    "messageLabel": "你的留言",
+    "messagePlaceholder": "你为什么想加入这个小组？",
+    "submit": "发送申请"
+  },
+  "questionBuilder": {
+    "title": "筛选问题",
+    "helper": "最多设置 5 个问题，申请者在提交加入申请前必须回答。",
+    "addQuestion": "添加问题",
+    "questionLabel": "问题",
+    "questionPlaceholder": "你想问什么？",
+    "typeLabel": "回答类型",
+    "typeShortText": "简短文字",
+    "typeLongAnswer": "详细回答",
+    "typeSingleChoice": "单选",
+    "optionsLabel": "选项",
+    "addOption": "添加选项",
+    "requiredLabel": "必填",
+    "limitReached": "你已达到 5 个问题的上限。"
+  },
+  "chat": {
+    "composerPlaceholder": "给小组发消息",
+    "send": "发送",
+    "messageDeleted": "这条消息已删除",
+    "emptyTitle": "还没有消息",
+    "emptyBody": "第一个打招呼，开启话题吧。",
+    "loading": "正在加载消息…"
+  },
+  "moderation": {
+    "reportMessage": "举报消息",
+    "reportGroup": "举报小组",
+    "blockUser": "屏蔽用户",
+    "removeMember": "移除成员",
+    "deleteMessage": "删除消息",
+    "noToleranceTitle": "请保持尊重",
+    "noToleranceBody": "诈骗、骚扰和仇恨言论会让你被立即移出小组，不会事先警告。做一个大家乐于见到的成员。"
+  },
+  "errors": {
+    "notAMember": "你还不是这个小组的成员。",
+    "groupPrivate": "这个小组是私密的，需要受邀或申请获批才能查看。",
+    "groupClosed": "这个小组已关闭，不再接受新成员。",
+    "groupArchived": "这个小组已归档，无法再发送消息。",
+    "groupLimitReached": "你已经加入了 2 个小组，这是同时能加入的上限。退出一个才能加入新的。",
+    "messageRejected": "这条消息目前无法发送——请去掉链接、联系方式或付款请求后再试一次。"
+  },
+  "empty": {
+    "noGroups": "还没有加入任何小组。从你收藏的机会里加入一个，或者创建自己的小组，把大家聚在一起。",
+    "noMessages": "还没有消息。打个招呼，开启对话吧。",
+    "noPendingRequests": "暂无待处理的申请。有人申请加入时，你可以在这里查看。"
+  }
+}

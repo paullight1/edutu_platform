@@ -1,0 +1,132 @@
+{
+  "screens": {
+    "browseTitle": "Groups",
+    "chatTitle": "Group chat",
+    "createTitle": "Start a group",
+    "settingsTitle": "Group settings",
+    "requestsTitle": "Join requests"
+  },
+  "sections": {
+    "yourGroups": "Your groups",
+    "forYourSavedOpportunities": "For opportunities you saved",
+    "discover": "Discover groups"
+  },
+  "whatsappBanner": {
+    "title": "Get updates on WhatsApp",
+    "body": "Follow this group's channel for reminders and news, even when you're not in the app.",
+    "action": "Join on WhatsApp",
+    "dismiss": "Not now"
+  },
+  "visibility": {
+    "public": "Public",
+    "private": "Private",
+    "publicDesc": "Anyone can find and view this group",
+    "privateDesc": "Only members can find and view this group"
+  },
+  "joinPolicy": {
+    "open": "Open to join",
+    "request": "Request to join",
+    "openDesc": "Anyone can join instantly",
+    "requestDesc": "The owner reviews each request before letting people in"
+  },
+  "groupState": {
+    "archived": "Archived",
+    "archivedReadOnly": "This group is archived. You can read past messages, but no one can post.",
+    "archiveWarning": "Archiving closes this group for good — no one, including you, can undo it.",
+    "expired": "Expired",
+    "expiredDesc": "The opportunity this group was built around has closed.",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members"
+  },
+  "membership": {
+    "active": "Member",
+    "invited": "You're invited",
+    "invitedDesc": "The owner invited you to this group. Preview it, then decide.",
+    "pending": "Request sent",
+    "pendingDesc": "You applied to join. You'll get in as soon as the owner approves.",
+    "removed": "Removed",
+    "removedDesc": "You were removed from this group by an owner.",
+    "banned": "Banned",
+    "bannedDesc": "You were banned from this group and can't rejoin."
+  },
+  "actions": {
+    "join": "Join",
+    "leave": "Leave group",
+    "requestToJoin": "Request to join",
+    "cancelRequest": "Cancel request",
+    "acceptInvite": "Accept invite",
+    "declineInvite": "Decline",
+    "preview": "Preview",
+    "approve": "Approve",
+    "decline": "Decline",
+    "archive": "Archive group",
+    "delete": "Delete group",
+    "viewGroup": "View group",
+    "createGroup": "Create group",
+    "saveChanges": "Save changes"
+  },
+  "create": {
+    "nameLabel": "Group name",
+    "namePlaceholder": "Give your group a name",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What is this group for?",
+    "opportunityLabel": "Linked opportunity",
+    "opportunityHelper": "Members will see this opportunity pinned in the group.",
+    "emojiLabel": "Emoji",
+    "emojiHelper": "Pick an emoji to represent your group",
+    "visibilityLabel": "Who can find this group",
+    "joinPolicyLabel": "Who can join"
+  },
+  "joinRequestForm": {
+    "title": "Request to join",
+    "intro": "Tell the owner why you'd like to join.",
+    "messageLabel": "Your message",
+    "messagePlaceholder": "Why do you want to join this group?",
+    "submit": "Send request"
+  },
+  "questionBuilder": {
+    "title": "Screening questions",
+    "helper": "Ask up to 5 questions that people must answer before requesting to join.",
+    "addQuestion": "Add question",
+    "questionLabel": "Question",
+    "questionPlaceholder": "What do you want to ask?",
+    "typeLabel": "Answer type",
+    "typeShortText": "Short text",
+    "typeLongAnswer": "Long answer",
+    "typeSingleChoice": "Single choice",
+    "optionsLabel": "Options",
+    "addOption": "Add option",
+    "requiredLabel": "Required",
+    "limitReached": "You've reached the 5-question limit."
+  },
+  "chat": {
+    "composerPlaceholder": "Message the group",
+    "send": "Send",
+    "messageDeleted": "This message was deleted",
+    "emptyTitle": "No messages yet",
+    "emptyBody": "Be the first to say hello and get the conversation started.",
+    "loading": "Loading messages…"
+  },
+  "moderation": {
+    "reportMessage": "Report message",
+    "reportGroup": "Report group",
+    "blockUser": "Block user",
+    "removeMember": "Remove member",
+    "deleteMessage": "Delete message",
+    "noToleranceTitle": "Keep it respectful",
+    "noToleranceBody": "Scams, harassment, and hate speech get you removed with no warning. Be someone people are glad to see in this group."
+  },
+  "errors": {
+    "notAMember": "You're not a member of this group yet.",
+    "groupPrivate": "This group is private. You'll need an invite or an approved request to see it.",
+    "groupClosed": "This group has closed and isn't accepting new members.",
+    "groupArchived": "This group is archived, so posting isn't possible anymore.",
+    "groupLimitReached": "You're already in 2 groups, which is the most you can join at once. Leave one to join another.",
+    "messageRejected": "That message can't be sent as written — try removing links, contact details, or payment requests, then send it again."
+  },
+  "empty": {
+    "noGroups": "No groups yet. Join one from an opportunity you saved, or start your own to bring people together.",
+    "noMessages": "No messages yet. Say hello and get the conversation started.",
+    "noPendingRequests": "No pending requests. When someone asks to join, you'll review them here."
+  }
+}
