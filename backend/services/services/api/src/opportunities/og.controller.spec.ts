@@ -113,7 +113,7 @@ describe("OgController shell-injected Open Graph", () => {
     expect(html).toContain("Mandela Rhodes Scholarship 2027 | Edutu");
     expect(html).toContain("https://cdn.example.org/flyer.jpg");
     expect(html).not.toContain("https://source.example.org/poster.png");
-    expect(html).not.toContain("icons/icon-512x512.png\"\n    />");
+    expect(html).not.toContain('icons/icon-512x512.png"\n    />');
     expect(html).toMatch(
       /<meta property="og:url" content="https:\/\/www\.edutu\.org\/opportunity\/opp-1"/,
     );
