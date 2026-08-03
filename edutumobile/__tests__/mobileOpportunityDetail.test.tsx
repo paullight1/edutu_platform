@@ -17,6 +17,7 @@ const mockSpendCredits = jest.fn().mockResolvedValue(true);
 const mockIsPro = false;
 const mockCredits = 12;
 const mockGenerateRoadmap = jest.fn();
+const mockFetchGroups = jest.fn().mockResolvedValue([]);
 
 let mockOpportunity: any = null;
 let mockUserState: { user: { id: string } | null };
@@ -254,6 +255,15 @@ jest.mock('@edutu/core/src/utils/auth', () => ({
   toSafeUUID: (value: string) => `safe-${value}`,
 }), { virtual: true });
 
+// The discussion-group row looks this up on mount. Unmocked it is a REAL
+// request to the production API (getApiBaseUrl defaults to the deployed host),
+// which leaves an open handle after the run and makes this suite's result
+// depend on the network. The row itself is covered by
+// communityOpportunityEntry.test.tsx; here it just needs to be inert.
+jest.mock('@edutu/core/src/services/communities', () => ({
+  fetchGroups: (...args: unknown[]) => mockFetchGroups(...args),
+}), { virtual: true });
+
 const OpportunityDetailScreen = require('../app/(app)/opportunities/[id]').default;
 const alertSpy = jest.spyOn(Alert, 'alert');
 const openUrlSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true as never);
@@ -308,6 +318,8 @@ describe('mobile opportunity detail route', () => {
     mockUpdateGoal.mockClear();
     mockSpendCredits.mockClear();
     mockGenerateRoadmap.mockReset();
+    mockFetchGroups.mockReset();
+    mockFetchGroups.mockResolvedValue([]);
     alertSpy.mockClear();
     openUrlSpy.mockClear();
     shareSpy.mockClear();

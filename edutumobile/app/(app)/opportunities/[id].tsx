@@ -68,6 +68,10 @@ import {
   saveOpportunity,
   unsaveOpportunity,
 } from "../../../packages/core/src/services/bookmarks";
+import {
+  fetchGroups,
+  type CommunityGroup,
+} from "@edutu/core/src/services/communities";
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
@@ -480,6 +484,10 @@ function AiCopilotFab({
 
 export default function OpportunityDetailScreen() {
   const { t } = useTranslation("opps");
+  // The discussion row's strings belong to the communities feature, not to this
+  // screen — a second translator rather than `community:`-prefixed keys, so the
+  // namespace is declared once instead of on every lookup.
+  const { t: tCommunity } = useTranslation("community");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useUser();
@@ -734,6 +742,93 @@ export default function OpportunityDetailScreen() {
       );
     };
   }, []);
+
+  // ── DISCUSSION GROUP ────────────────────────────────────────────────────
+  // The one row into this opportunity's group, or into creating it. Looked up
+  // rather than assumed: the label has to say "open" or "start", and guessing
+  // wrong sends someone to a create form for a group that already exists.
+  //
+  // THREE STATES, AND THE THIRD IS WHY THE STATUS IS SEPARATE FROM THE RESULT.
+  // "no group" and "we couldn't find out" are different facts, and collapsing
+  // them into `group === null` would offer "Start a group" to somebody whose
+  // lookup merely timed out — the one wrong outcome available here, since it
+  // ends in a duplicate group nobody wanted. On failure the row simply does not
+  // render. It is additive; the screen is complete without it.
+  //
+  // Guests skip the lookup entirely: the row's press raises the auth wall
+  // whatever the answer is, so asking costs a request and a token refresh to
+  // learn something that changes nothing.
+  const [discussionGroup, setDiscussionGroup] =
+    useState<CommunityGroup | null>(null);
+  const [discussionLookup, setDiscussionLookup] = useState<
+    "pending" | "ready" | "failed"
+  >("pending");
+
+  useEffect(() => {
+    if (!id || !isSignedIn || isGuestBrowsing) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        // limit 1: the row shows one group. The backend orders the list, so
+        // asking for more only to drop them is bandwidth on a screen that
+        // already makes several calls.
+        const groups = await fetchGroups(
+          { opportunityId: id, limit: 1 },
+          getToken,
+        );
+        if (cancelled) return;
+        // `fetchGroups` returns {group, membership} rows — the membership is
+        // what the browse screen renders "Invited"/"Pending" from. This row
+        // says "open" either way (an invitee should be able to walk in), so
+        // only the group is kept.
+        setDiscussionGroup(groups[0]?.group ?? null);
+        setDiscussionLookup("ready");
+      } catch {
+        // Deliberately silent. A CommunityApiError here carries a sentence
+        // meant for a screen the user asked for; on a detail page they came to
+        // read, an alert about a feature they never invoked is noise.
+        if (!cancelled) setDiscussionLookup("failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, id, isSignedIn, isGuestBrowsing]);
+
+  // Narrowed for the callback below: depending on the whole `opportunity`
+  // object would rebuild the handler on every unrelated field change.
+  const opportunityTitle = opportunity?.title ?? null;
+
+  const openDiscussion = useCallback(() => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth("browse");
+      return;
+    }
+    if (discussionGroup) {
+      router.push(`/discussions/${discussionGroup.id}` as never);
+      return;
+    }
+    // Prefilled AND locked: a group's opportunity link is fixed at creation
+    // (see UpdateGroupInput, which omits opportunityId), so the create screen
+    // shows this as a set fact rather than an editable field.
+    router.push({
+      pathname: "/discussions/new",
+      params: {
+        opportunityId: id,
+        // The title travels with the id so the locked field has a label
+        // immediately. Without it the create screen falls back to a cache
+        // lookup and, on a miss, shows a raw UUID as the "linked opportunity".
+        ...(opportunityTitle ? { opportunityTitle } : {}),
+      },
+    } as never);
+  }, [
+    authWall,
+    discussionGroup,
+    id,
+    isGuestBrowsing,
+    opportunityTitle,
+    router,
+  ]);
 
   const toggleBookmark = async () => {
     if (isGuestBrowsing) {
@@ -1888,6 +1983,57 @@ export default function OpportunityDetailScreen() {
                 </Text>
               </View>
             ) : null}
+
+            {/* ── DISCUSSION ──────────────────────────────────────────────
+                One inline row, continuing the FactRows hairline stack — NOT
+                another bordered card. DESIGN.md §5.4 already names this screen
+                as text-dense with weak hierarchy, and §5.1 bans card
+                monoculture; the most card-saturated screen in the app is the
+                last place to add a card. It sits with the facts because that
+                is what it is: "who else is on this" is a fact about the
+                opportunity, and it reads label-left/value-right like the rest.
+
+                Hidden while the lookup is pending or failed — see the effect. */}
+            {(isGuestBrowsing || discussionLookup === "ready") && (
+              <AnimatedPressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  discussionGroup
+                    ? tCommunity("opportunityEntry.openA11y", {
+                        name: discussionGroup.name,
+                      })
+                    : tCommunity("opportunityEntry.startA11y")
+                }
+                onPress={openDiscussion}
+                style={[
+                  styles.discussionRow,
+                  {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: borderColor,
+                  },
+                ]}
+              >
+                <Users size={15} color={textSecondary} />
+                <Text
+                  style={[styles.discussionLabel, { color: textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {tCommunity("opportunityEntry.label")}
+                </Text>
+                <Text
+                  style={[
+                    styles.discussionValue,
+                    { color: discussionGroup ? textPrimary : colors.accent },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {discussionGroup
+                    ? discussionGroup.name
+                    : tCommunity("opportunityEntry.none")}
+                </Text>
+                <ChevronRight size={16} color={textSecondary} />
+              </AnimatedPressable>
+            )}
           </View>
 
           {opportunity.aiTags && opportunity.aiTags.length > 0 && (
@@ -3547,6 +3693,23 @@ const styles = StyleSheet.create({
   // Matches FactRows' row rhythm so the fee reads as one more fact.
   feeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 13 },
   feeText: { flex: 1, fontSize: 15, fontWeight: "600" },
+  // Deliberately the FactRows geometry (same gap, same 13pt rhythm, same
+  // label/value type) so the discussion row reads as one more fact rather than
+  // a widget parked among them. The chevron is the only extra: it is the one
+  // row in the stack you can press, and nothing else would say so.
+  discussionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 13,
+  },
+  discussionLabel: { fontSize: 13, fontWeight: "600", minWidth: 72 },
+  discussionValue: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "right",
+  },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 14 },
   tagChip: {
     paddingHorizontal: 10,
