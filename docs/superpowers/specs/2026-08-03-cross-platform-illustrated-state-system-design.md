@@ -2,7 +2,18 @@
 
 **Date:** 2026-08-03
 **Scope:** `packages/ux-state/` (new) · `edutumobile/` · `edutu-web-app/`
-**Status:** Approved for planning
+**Status:** Implemented. The system and the high-traffic flows are shipped —
+26 shared scenes, both renderers, web's state contract, and 11 migrated screens
+(6 web, 5 mobile). `edutu-web-app/src/components/ui/EmptyState.tsx` is deleted.
+
+Deferred per §9, with the baseline measured on 2026-08-03:
+202 `Alert.alert` calls across 41 files, 45 files rendering a raw
+`ActivityIndicator`, the three lint guardrails (which can only be enabled once
+those counts reach zero), mobile's profile / settings / wallet / onboarding /
+admin flows, and every web screen beyond the six. Detail screens
+(`opportunities/[id]`, `copilot/[id]`, `goals/[id]`, `roadmap/[id]`) and
+`app/(app)/roadmaps.tsx` are also outstanding — see the migration plan's Scope
+section for why they were held back.
 **Supersedes in part:** `2026-08-01-mobile-ux-state-system-design.md` §4 (illustration
 tiers) and §4.2. That spec's feedback layer, guardrails and full-adoption plan
 remain in force as the follow-on work — see §9.
