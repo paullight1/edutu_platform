@@ -41,7 +41,19 @@ create table if not exists public.community_group_members (
   group_id uuid not null references public.community_groups(id) on delete cascade,
   user_id text not null,
   role text not null default 'member' check (role in ('owner','mod','member')),
-  status text not null default 'active' check (status in ('active','pending','removed','banned')),
+  -- 'invited' and 'pending' are deliberately DIFFERENT states, not one state
+  -- read two ways:
+  --   invited  an owner or mod put this person here (backend `invite`). It is a
+  --            standing decision to admit them, so accepting it activates the
+  --            row whatever the group's visibility or join policy is.
+  --   pending  the person put themselves here (backend `join` on a
+  --            request-to-join group) and nobody has approved them yet.
+  -- Overloading one status for both, and telling them apart by reading
+  -- community_groups.visibility, is unsound because visibility is mutable: an
+  -- owner flipping a public request-to-join group to private would silently
+  -- convert their whole unvetted applicant queue into a guest list.
+  status text not null default 'active'
+    check (status in ('active','invited','pending','removed','banned')),
   joined_at timestamptz not null default now(),
   unique (group_id, user_id)
 );
@@ -135,6 +147,16 @@ alter table public.community_reports enable row level security;
 drop function if exists public.community_is_active_member(uuid, text) cascade;
 drop function if exists public.community_is_owner_or_mod(uuid, text) cascade;
 
+-- "Active" means exactly status = 'active'. The 'invited' and 'pending' states
+-- are NOT membership: an invitee can read their own membership row (the
+-- `user_id = sub` arm of community_group_members_read) but cannot read the
+-- private group itself, its roster, or its messages through Supabase. That is
+-- intentional — an unaccepted invitation must not hand out the group's content.
+-- CONSEQUENCE FOR CLIENTS: the invite-preview screen (group name, cover, who
+-- invited you) MUST be fetched from the backend, which runs as service_role and
+-- applies GroupsService.get's own rule. A direct client select will come back
+-- empty for an invitee, and that is the correct behaviour, not a bug to "fix"
+-- by widening this helper.
 create or replace function public.community_is_active_member(gid uuid)
 returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (

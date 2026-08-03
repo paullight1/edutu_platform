@@ -1616,6 +1616,14 @@ export const communityGroupMembers = pgTable(
     groupId: uuid("group_id").notNull(),
     userId: text("user_id").notNull(),
     role: text("role").default("member").notNull(),
+    // check (status in ('active','invited','pending','removed','banned')).
+    // 'invited' and 'pending' are different states on purpose: 'invited' is an
+    // owner's standing decision to admit someone, 'pending' is an unapproved
+    // self-application. Telling them apart by reading community_groups
+    // .visibility instead is unsound — visibility is mutable, so flipping a
+    // public request-to-join group to private would turn its unvetted applicant
+    // queue into a guest list. Only 'active' counts as membership: member_count,
+    // countActiveOwners and the RLS helpers all compare against 'active' alone.
     status: text("status").default("active").notNull(),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
   },

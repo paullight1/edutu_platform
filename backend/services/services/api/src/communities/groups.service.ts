@@ -8,7 +8,7 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   communityGroupMembers,
@@ -34,7 +34,36 @@ export const MAX_GROUPS_PER_USER = 2;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const LIST_LIMIT = 50;
+/** Exported so the spec asserts against the real cap, not a copy of it. */
+export const LIST_LIMIT = 50;
+
+/**
+ * The five membership states. `invited` and `pending` are DIFFERENT states on
+ * purpose and the distinction is load-bearing:
+ *
+ *   invited  an owner/mod put this person here (`invite`). A standing decision
+ *            to admit them, so accepting it activates the row whatever the
+ *            group's visibility or join policy currently says.
+ *   pending  the person put themselves here (`join` on a request-to-join
+ *            group). Nobody has approved them; it is never self-activatable.
+ *
+ * The previous shape used one `pending` status for both and disambiguated by
+ * reading `visibility`. `update` can set `visibility: 'private'`, so an owner
+ * making a public request-to-join group private converted their entire unvetted
+ * applicant queue into a guest list — every one of them could then "accept"
+ * their own application. Making the two states distinct in the data model is
+ * the only fix that does not depend on a mutable column.
+ *
+ * Only `active` is membership: `member_count`, `countActiveOwners`, and the RLS
+ * helpers in 20260803120000_community_groups.sql all compare against `active`
+ * alone, so adding a fifth status changes none of their meanings.
+ */
+export type MembershipStatus =
+  | "active"
+  | "invited"
+  | "pending"
+  | "removed"
+  | "banned";
 
 export type NewGroupRow = {
   slug: string;
@@ -70,6 +99,13 @@ export type GroupListFilter = {
   opportunityId?: string;
   query?: string;
   limit?: number;
+  /**
+   * Group ids the caller is an active member of. The visibility filter has to
+   * run in the same query as the LIMIT: filtering other people's private groups
+   * out *after* the 50-row cap returns a short page while more public groups
+   * are still waiting, which reads to the user as "there is nothing else".
+   */
+  visibleGroupIds?: string[];
 };
 
 export type JoinResult = {
@@ -90,6 +126,19 @@ export class GroupCapReachedError extends Error {
   constructor() {
     super("Group cap reached");
     this.name = "GroupCapReachedError";
+  }
+}
+
+/**
+ * Raised by `transitionMembership` when the write would have left the group
+ * with zero active owners. The service's own pre-check produces the friendly
+ * sentence; this is the authoritative one, taken under a lock, and exists as a
+ * type so the service does not string-match the store.
+ */
+export class LastOwnerError extends Error {
+  constructor() {
+    super("Group would be left with no owner");
+    this.name = "LastOwnerError";
   }
 }
 
@@ -133,8 +182,25 @@ export interface GroupsStore {
   activateMembership(
     member: NewMemberRow & { groupId: string },
   ): Promise<CommunityGroupMember>;
+  /**
+   * Move one membership row to a new (role, status) inside ONE transaction
+   * that, under a group-scoped advisory lock:
+   *   - re-counts active owners when `requireSurvivingOwner` is set and throws
+   *     `LastOwnerError` rather than stranding the group with nobody who can
+   *     moderate or archive it;
+   *   - adjusts `member_count` by exactly the change in "is this row active",
+   *     so two concurrent removals of the same person decrement once, not twice.
+   * The increment path (`activateMembership`) was already transactional; this is
+   * the same treatment for every other transition.
+   */
+  transitionMembership(input: {
+    groupId: string;
+    userId: string;
+    role: string;
+    status: MembershipStatus;
+    requireSurvivingOwner: boolean;
+  }): Promise<CommunityGroupMember>;
   countActiveOwners(groupId: string): Promise<number>;
-  adjustMemberCount(groupId: string, delta: number): Promise<void>;
   upsertJoinRequest(
     groupId: string,
     userId: string,
@@ -265,6 +331,15 @@ export class DrizzleGroupsStore implements GroupsStore {
         sql`(${communityGroups.name} ilike ${pattern} or ${communityGroups.description} ilike ${pattern})`,
       );
     }
+    // Visibility filtered here rather than after the fetch, so the LIMIT counts
+    // rows the caller can actually see.
+    const visible = filter.visibleGroupIds ?? [];
+    const isPublic = eq(communityGroups.visibility, "public");
+    conditions.push(
+      visible.length
+        ? or(isPublic, inArray(communityGroups.id, visible))!
+        : isPublic,
+    );
     return db
       .select()
       .from(communityGroups)
@@ -285,7 +360,13 @@ export class DrizzleGroupsStore implements GroupsStore {
       .where(
         and(
           eq(communityGroupMembers.userId, userId),
-          inArray(communityGroupMembers.status, ["active", "pending"]),
+          // 'invited' rides along so a future "your invitations" surface has
+          // the rows; `list` itself still narrows to 'active' only.
+          inArray(communityGroupMembers.status, [
+            "active",
+            "invited",
+            "pending",
+          ]),
         ),
       );
   }
@@ -382,15 +463,82 @@ export class DrizzleGroupsStore implements GroupsStore {
     return row?.value ?? 0;
   }
 
-  async adjustMemberCount(groupId: string, delta: number): Promise<void> {
-    // greatest(...) keeps the member_count >= 0 check constraint satisfied even
-    // if two removals race.
-    await db
-      .update(communityGroups)
-      .set({
-        memberCount: sql`greatest(0, ${communityGroups.memberCount} + ${delta})`,
-      })
-      .where(eq(communityGroups.id, groupId));
+  async transitionMembership(input: {
+    groupId: string;
+    userId: string;
+    role: string;
+    status: MembershipStatus;
+    requireSurvivingOwner: boolean;
+  }): Promise<CommunityGroupMember> {
+    return db.transaction(async (tx) => {
+      // The owner count is a check-then-write over MANY rows, so FOR UPDATE on
+      // the caller's own row is not enough: two different last-two owners
+      // leaving concurrently lock different rows, both read 2, and both write
+      // 'removed'. The serialisation point is therefore a transaction-scoped
+      // advisory lock keyed on the group — the same pattern the per-owner group
+      // cap uses in createGroupWithOwner. A zero-owner group is unrecoverable:
+      // there is no unarchive and no ownership transfer, so nobody could ever
+      // moderate or retire it again.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`community_group_members:${input.groupId}`}))`,
+      );
+      const [existing] = await tx
+        .select()
+        .from(communityGroupMembers)
+        .where(
+          and(
+            eq(communityGroupMembers.groupId, input.groupId),
+            eq(communityGroupMembers.userId, input.userId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (input.requireSurvivingOwner) {
+        // Counted BEFORE the write, so the row being changed is still included:
+        // <= 1 means "this is the last active owner".
+        const [owners] = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(communityGroupMembers)
+          .where(
+            and(
+              eq(communityGroupMembers.groupId, input.groupId),
+              eq(communityGroupMembers.role, "owner"),
+              eq(communityGroupMembers.status, "active"),
+            ),
+          );
+        if ((owners?.value ?? 0) <= 1) throw new LastOwnerError();
+      }
+
+      const wasActive = existing?.status === "active";
+      const nowActive = input.status === "active";
+      const [row] = await tx
+        .insert(communityGroupMembers)
+        .values({
+          groupId: input.groupId,
+          userId: input.userId,
+          role: input.role,
+          status: input.status,
+        })
+        .onConflictDoUpdate({
+          target: [communityGroupMembers.groupId, communityGroupMembers.userId],
+          set: { role: input.role, status: input.status },
+        })
+        .returning();
+
+      if (wasActive !== nowActive) {
+        // greatest(...) keeps the member_count >= 0 check constraint satisfied
+        // even if an unrelated writer has already floored the counter.
+        const delta = nowActive ? 1 : -1;
+        await tx
+          .update(communityGroups)
+          .set({
+            memberCount: sql`greatest(0, ${communityGroups.memberCount} + ${delta})`,
+          })
+          .where(eq(communityGroups.id, input.groupId));
+      }
+      return row;
+    });
   }
 
   async upsertJoinRequest(
@@ -529,7 +677,14 @@ export class GroupsService {
         .filter((member) => member.status === "active")
         .map((member) => member.groupId),
     );
-    const rows = await this.store.listGroups(filter);
+    // Handed to the store so the visibility rule and the 50-row cap are applied
+    // by the same query: filtering afterwards returns a short page while more
+    // public groups are still waiting behind the cap. The post-filter stays as
+    // defence in depth for a store that ignores the hint.
+    const rows = await this.store.listGroups({
+      ...filter,
+      visibleGroupIds: [...mine],
+    });
     return rows.filter(
       (group) => group.visibility === "public" || mine.has(group.id),
     );
@@ -544,12 +699,21 @@ export class GroupsService {
   }> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    // `join` and `get` draw the same line: on a private group a `pending` row is
-    // an owner's invitation, so an invitee can read the group they were invited
-    // to — being unable to see what you have been invited to would make the
-    // invitation unusable. Everyone else gets the same wall from both methods.
+    // `join` and `get` draw the same line: an `invited` row is an owner's
+    // standing decision, so an invitee can read the group they were invited to —
+    // being unable to see what you have been invited to would make the
+    // invitation unusable. A `pending` row is an unapproved self-application and
+    // buys nothing: applicants to a group that has since gone private are shut
+    // out exactly like strangers.
+    //
+    // KNOWN DIVERGENCE FROM RLS: community_is_active_member() (see the
+    // migration) admits 'active' only, so a client reading community_groups
+    // directly through Supabase gets nothing for an invitee. That is deliberate
+    // — an unaccepted invitation must not hand out a private group's roster or
+    // messages — and it means the invite-preview screen must call this backend
+    // endpoint, not Supabase.
     const invitedOrIn =
-      membership?.status === "active" || membership?.status === "pending";
+      membership?.status === "active" || membership?.status === "invited";
     if (group.visibility === "private" && !invitedOrIn) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
@@ -586,12 +750,12 @@ export class GroupsService {
 
   /**
    * Retire a group. Owner-only, and **one-way: archiving cannot be undone.**
-   * There is deliberately no `unarchive`. Un-retiring would have to re-run the
-   * per-owner cap under the same lock `create` uses and re-open a group whose
-   * `expires_at` may long since have passed, i.e. a second creation path with
-   * all of creation's invariants — and the cap message tells people to archive
-   * a group they are finished with, not to park one. Every message that offers
-   * archiving says so.
+   * There is deliberately no `unarchive` — that is a scope decision, not a
+   * technical one (un-retiring would be strictly simpler than `create`: the same
+   * capped re-count, none of the slug or opportunity work). Archiving is offered
+   * as "for a group you're finished with", not as a park button, so every
+   * message that mentions it says the door does not reopen. If product wants a
+   * park button later, `unarchive` is a small method, not a rewrite.
    *
    * An archived group is read-only: it is excluded from `list`, from the cap
    * count, and `join` refuses it.
@@ -649,30 +813,39 @@ export class GroupsService {
       };
     }
 
-    // THE PRIVATE RULE: a private group can never be self-joined, whatever its
-    // join policy says. `visibility` and `joinPolicy` are independent enums, so
-    // private+open is directly creatable, and group uuids travel in share links
-    // and deep links — without this, anyone holding an id could walk straight
-    // past the same wall `get` puts in front of them, and the backend runs as
-    // service_role so RLS is not a second line of defence. Entry is by owner
-    // action only: `invite` writes a pending membership row, and accepting that
-    // invitation is the one path below.
-    if (group.visibility === "private") {
-      if (existing?.status !== "pending") {
-        throw new ForbiddenException(
-          "This group is private. Ask an owner for an invite.",
-        );
-      }
-      // The pending row on a private group IS the owner's invitation, so
-      // accepting it admits them regardless of joinPolicy — the owner already
-      // made the decision that `request` exists to collect.
+    // ACCEPTING AN INVITATION. An `invited` row is an owner's standing decision
+    // to admit this person, so it is honoured before any policy check and on any
+    // group: on private it is the only way in, and on a public request-to-join
+    // group it is what stops an invitation from silently degrading into "now go
+    // apply and wait". It can only have been written by `invite`, which is gated
+    // on assertCanAdminister.
+    if (existing?.status === "invited") {
       const membership = await this.store.activateMembership({
         groupId,
         userId: joinerId,
-        role: existing.role === "mod" ? "mod" : "member",
+        role: this.roleOnActivation(existing),
         status: "active",
       });
       return { status: "active", groupId, membership, request: null };
+    }
+
+    // THE PRIVATE RULE: a private group can never be self-joined, whatever its
+    // join policy says and whatever rows the group accumulated earlier in its
+    // life. `visibility` and `joinPolicy` are independent enums, so private+open
+    // is directly creatable, and group uuids travel in share links and deep
+    // links — without this, anyone holding an id could walk straight past the
+    // same wall `get` puts in front of them, and the backend runs as service_role
+    // so RLS is not a second line of defence.
+    //
+    // A `pending` row explicitly does NOT open this door. It is an unapproved
+    // self-application, and a group that was public+request before an owner
+    // flipped it to private is carrying a queue of them: reading `pending` as
+    // "invited" would auto-admit that entire queue the instant the owner asked
+    // for more privacy — the exact opposite of what they asked for.
+    if (group.visibility === "private") {
+      throw new ForbiddenException(
+        "This group is private. Ask an owner for an invite.",
+      );
     }
 
     if (group.joinPolicy === "request") {
@@ -684,7 +857,7 @@ export class GroupsService {
       const membership = await this.store.upsertMembership({
         groupId,
         userId: joinerId,
-        role: existing?.role === "mod" ? "mod" : "member",
+        role: this.roleOnActivation(existing),
         status: "pending",
       });
       return { status: "pending", groupId, membership, request };
@@ -695,16 +868,21 @@ export class GroupsService {
     const membership = await this.store.activateMembership({
       groupId,
       userId: joinerId,
-      role: existing?.role === "mod" ? "mod" : "member",
+      role: this.roleOnActivation(existing),
       status: "active",
     });
     return { status: "active", groupId, membership, request: null };
   }
 
   /**
-   * The owner action that lets someone into a private group. Writes a `pending`
+   * The owner action that lets someone into a group. Writes an `invited`
    * membership row the invitee converts by calling `join`; nothing is counted
    * against `member_count` until they actually accept.
+   *
+   * Allowed on public groups too, and it is not a no-op there: on a public
+   * request-to-join group the `invited` row is what lets the invitee walk
+   * straight in instead of joining the approval queue they were invited past.
+   * On public+open it is a harmless pre-registration.
    */
   async invite(
     actorId: string,
@@ -734,8 +912,8 @@ export class GroupsService {
     return this.store.upsertMembership({
       groupId,
       userId: invitee,
-      role: existing?.role === "mod" ? "mod" : "member",
-      status: "pending",
+      role: this.roleOnActivation(existing),
+      status: "invited",
     });
   }
 
@@ -770,6 +948,10 @@ export class GroupsService {
     }
     if (target.role === role) return target;
 
+    // Demoting an active owner is the only transition here that can strand the
+    // group, so it is the only one that needs the locked re-count.
+    const losesOwnership =
+      target.role === "owner" && target.status === "active";
     if (target.role === "owner") {
       // community_groups.owner_id is NOT NULL and is the canonical record of
       // who made the group; there is no transfer, so demoting it would leave a
@@ -779,50 +961,69 @@ export class GroupsService {
           "You created this group, so you stay its owner. You can archive the group instead.",
         );
       }
-      const owners = await this.store.countActiveOwners(groupId);
-      if (owners <= 1) {
-        throw new BadRequestException(
-          "This group would be left with no owner. Make someone else an owner first.",
-        );
+      // Optimistic pre-check, purely for the friendly sentence; the store
+      // re-counts under a lock and is the authority.
+      if (
+        losesOwnership &&
+        (await this.store.countActiveOwners(groupId)) <= 1
+      ) {
+        throw this.lastOwnerDemoteError();
       }
     }
 
-    return this.store.upsertMembership({
-      groupId,
-      userId: targetUserId,
-      role,
-      status: target.status,
-    });
+    try {
+      return await this.store.transitionMembership({
+        groupId,
+        userId: targetUserId,
+        role,
+        status: target.status as MembershipStatus,
+        requireSurvivingOwner: losesOwnership,
+      });
+    } catch (error) {
+      if (error instanceof LastOwnerError) throw this.lastOwnerDemoteError();
+      throw error;
+    }
   }
 
+  /**
+   * THE CREATOR CANNOT LEAVE; they archive instead.
+   *
+   * Three rules were possible once a departed creator turned out to be able to
+   * neither administer the group (a `removed` row beats `owner_id` in
+   * assertCanAdminister) nor stop it counting against their 2-group cap
+   * (countActiveOwnedGroups counts by `owner_id`): stop counting groups whose
+   * creator left, let `owner_id` keep the right to archive, or refuse the
+   * departure. The third is chosen because it is the only one that keeps
+   * `community_groups.owner_id` meaning one thing. Option 1 leaves a live group
+   * with an absentee owner nobody can replace (there is no transfer); option 2
+   * resurrects moderation powers for someone the roster says has left, which is
+   * exactly the drift the `removed`-beats-`owner_id` rule exists to respect.
+   * Refusing keeps the creator's slot always recoverable — archive is available
+   * to them at any moment — and it is already how `setMemberRole` treats the
+   * creator ("you stay its owner"), so the two now say the same thing.
+   */
   async leave(userId: string, groupId: string): Promise<{ success: true }> {
-    await this.requireGroup(groupId);
+    const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
     if (!membership || membership.status === "removed") {
       throw new BadRequestException("You're not a member of this group.");
     }
 
-    // Losing the last owner leaves a group nobody can administer, moderate, or
-    // archive, so this is refused rather than silently orphaning it.
-    if (membership.role === "owner") {
-      const owners = await this.store.countActiveOwners(groupId);
-      if (owners <= 1) {
-        throw new BadRequestException(
-          "You're the only owner of this group. Make another member an owner first, or archive the group — archiving can't be undone.",
-        );
-      }
+    if (group.ownerId === userId) {
+      throw new BadRequestException(
+        "You created this group, so you can't leave it. Archive it instead when you're finished — archiving can't be undone, and it frees up one of your group slots.",
+      );
     }
 
-    // Read before writing: the count only moves for someone who was actually
-    // counted, and re-reading the row after the update would see "removed".
-    const wasCounted = membership.status === "active";
-    await this.store.upsertMembership({
-      groupId,
-      userId,
-      role: membership.role,
-      status: "removed",
-    });
-    if (wasCounted) await this.store.adjustMemberCount(groupId, -1);
+    // Losing the last owner leaves a group nobody can administer, moderate, or
+    // archive, so this is refused rather than silently orphaning it. Optimistic
+    // pre-check for the friendly sentence; the store re-counts under a lock.
+    if (membership.role === "owner" && membership.status === "active") {
+      const owners = await this.store.countActiveOwners(groupId);
+      if (owners <= 1) throw this.lastOwnerLeaveError();
+    }
+
+    await this.deactivate(groupId, userId, membership, "leave");
     return { success: true };
   }
 
@@ -860,15 +1061,40 @@ export class GroupsService {
       );
     }
 
-    const wasCounted = target.status === "active";
-    await this.store.upsertMembership({
-      groupId,
-      userId: targetId,
-      role: target.role,
-      status: "removed",
-    });
-    if (wasCounted) await this.store.adjustMemberCount(groupId, -1);
+    await this.deactivate(groupId, targetId, target, "remove");
     return { success: true };
+  }
+
+  /**
+   * The single write behind `leave` and `removeMember`. One transaction, under
+   * the group lock: the row goes to `removed` and `member_count` moves by
+   * exactly the change in "is this row active". Doing it as read-status →
+   * upsert → adjust, the way this used to, let two concurrent removals of the
+   * same person both read `active` and both decrement.
+   */
+  private async deactivate(
+    groupId: string,
+    userId: string,
+    membership: CommunityGroupMember,
+    kind: "leave" | "remove",
+  ): Promise<void> {
+    try {
+      await this.store.transitionMembership({
+        groupId,
+        userId,
+        role: membership.role,
+        status: "removed",
+        requireSurvivingOwner:
+          membership.role === "owner" && membership.status === "active",
+      });
+    } catch (error) {
+      if (error instanceof LastOwnerError) {
+        throw kind === "leave"
+          ? this.lastOwnerLeaveError()
+          : this.lastOwnerDemoteError();
+      }
+      throw error;
+    }
   }
 
   /** The membership row when it is active, otherwise null. */
@@ -897,6 +1123,12 @@ export class GroupsService {
    * is enough so a drifted row never locks a real owner out. The one exception
    * is an explicit departure — a `removed` or `banned` row is a decision, not
    * drift, so it beats `owner_id`. Returns the role the caller acted with.
+   *
+   * `leave` refuses the creator outright and `removeMember` refuses any owner,
+   * so no supported path can now produce a departed `owner_id` holder; this arm
+   * is left in place for hand-edited rows. `invited` and `pending` are not
+   * departures and are not administration either — neither satisfies the
+   * `status === 'active'` test below.
    */
   private async assertCanAdminister(
     userId: string,
@@ -922,6 +1154,35 @@ export class GroupsService {
   ): Promise<void> {
     const role = await this.assertCanAdminister(userId, group, message);
     if (role !== "owner") throw new ForbiddenException(message);
+  }
+
+  /**
+   * The role an existing row keeps when it is activated or re-invited.
+   *
+   * A live row (`invited` / `pending`) keeps whatever role an owner gave it:
+   * `setMemberRole` can promote an invitee before they accept, and flattening
+   * that to "member" on acceptance would silently undo the owner's decision.
+   * Anything else — no row at all, or a `removed` / `banned` one — starts again
+   * as a plain member, so a former owner cannot get their powers back merely by
+   * rejoining a public group.
+   */
+  private roleOnActivation(existing: CommunityGroupMember | null): string {
+    if (existing?.status === "invited" || existing?.status === "pending") {
+      return existing.role;
+    }
+    return "member";
+  }
+
+  private lastOwnerLeaveError(): BadRequestException {
+    return new BadRequestException(
+      "You're the only owner of this group. Make another member an owner first, or archive the group — archiving can't be undone.",
+    );
+  }
+
+  private lastOwnerDemoteError(): BadRequestException {
+    return new BadRequestException(
+      "This group would be left with no owner. Make someone else an owner first.",
+    );
   }
 
   private groupCapError(): BadRequestException {

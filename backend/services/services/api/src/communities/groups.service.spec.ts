@@ -11,6 +11,8 @@ import type {
 import {
   GroupCapReachedError,
   GroupsService,
+  LastOwnerError,
+  LIST_LIMIT,
   MAX_GROUPS_PER_USER,
 } from "./groups.service";
 
@@ -146,26 +148,35 @@ class FakeGroupsStore implements GroupsStore {
   async listGroups(filter: GroupListFilter): Promise<CommunityGroup[]> {
     const now = Date.now();
     const needle = filter.query?.trim().toLowerCase();
-    return this.groups
-      .filter((group) => group.archivedAt === null)
-      .filter((group) => !group.expiresAt || group.expiresAt.getTime() > now)
-      .filter(
-        (group) =>
-          !filter.opportunityId || group.opportunityId === filter.opportunityId,
-      )
-      .filter(
-        (group) =>
-          !needle ||
-          group.name.toLowerCase().includes(needle) ||
-          (group.description ?? "").toLowerCase().includes(needle),
-      )
-      .sort((a, b) => {
-        const left = a.lastMessageAt?.getTime() ?? -Infinity;
-        const right = b.lastMessageAt?.getTime() ?? -Infinity;
-        if (left !== right) return right - left;
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      })
-      .slice(0, Math.min(filter.limit ?? 50, 50));
+    const visible = new Set(filter.visibleGroupIds ?? []);
+    return (
+      this.groups
+        .filter((group) => group.archivedAt === null)
+        // Applied BEFORE the slice, exactly as the SQL applies it before LIMIT:
+        // a fake that filtered afterwards would hide the short-page bug.
+        .filter(
+          (group) => group.visibility === "public" || visible.has(group.id),
+        )
+        .filter((group) => !group.expiresAt || group.expiresAt.getTime() > now)
+        .filter(
+          (group) =>
+            !filter.opportunityId ||
+            group.opportunityId === filter.opportunityId,
+        )
+        .filter(
+          (group) =>
+            !needle ||
+            group.name.toLowerCase().includes(needle) ||
+            (group.description ?? "").toLowerCase().includes(needle),
+        )
+        .sort((a, b) => {
+          const left = a.lastMessageAt?.getTime() ?? -Infinity;
+          const right = b.lastMessageAt?.getTime() ?? -Infinity;
+          if (left !== right) return right - left;
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        })
+        .slice(0, Math.min(filter.limit ?? LIST_LIMIT, LIST_LIMIT))
+    );
   }
 
   async listMembershipsForUser(
@@ -232,6 +243,40 @@ class FakeGroupsStore implements GroupsStore {
   async adjustMemberCount(groupId: string, delta: number): Promise<void> {
     const group = this.groups.find((item) => item.id === groupId);
     if (group) group.memberCount = Math.max(0, group.memberCount + delta);
+  }
+
+  /**
+   * Mirrors the real adapter's contract: the owner re-count and the
+   * member_count adjustment happen inside the same transaction as the write,
+   * and the count is taken with the row being changed still included.
+   */
+  async transitionMembership(input: {
+    groupId: string;
+    userId: string;
+    role: string;
+    status: string;
+    requireSurvivingOwner: boolean;
+  }): Promise<CommunityGroupMember> {
+    return this.transaction(async () => {
+      const existing = await this.findMembership(input.groupId, input.userId);
+      if (input.requireSurvivingOwner) {
+        if ((await this.countActiveOwners(input.groupId)) <= 1) {
+          throw new LastOwnerError();
+        }
+      }
+      const wasActive = existing?.status === "active";
+      const nowActive = input.status === "active";
+      const row = await this.upsertMembership({
+        groupId: input.groupId,
+        userId: input.userId,
+        role: input.role,
+        status: input.status,
+      });
+      if (wasActive !== nowActive) {
+        await this.adjustMemberCount(input.groupId, nowActive ? 1 : -1);
+      }
+      return row;
+    });
   }
 
   async upsertJoinRequest(
@@ -588,11 +633,76 @@ describe("GroupsService", () => {
   });
 
   describe("leave", () => {
-    it("refuses to let the only owner leave", async () => {
-      const service = new GroupsService(fakeDb({ group: { id: GROUP_ID } }));
+    it("refuses to let the group's creator leave, whoever else is an owner", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
       await expect(service.leave("user_owner", GROUP_ID)).rejects.toThrow(
+        /created this group, so you can't leave it/i,
+      );
+      // Even after following the old advice to hand ownership to someone else.
+      await service.join("user_heir", GROUP_ID, []);
+      await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "owner");
+      await expect(service.leave("user_owner", GROUP_ID)).rejects.toThrow(
+        /created this group, so you can't leave it/i,
+      );
+    });
+
+    /**
+     * PROBE B. The creator used to be able to leave after promoting an heir,
+     * which cost them a group slot forever: countActiveOwnedGroups counts by
+     * owner_id regardless of membership, while assertCanAdminister let the
+     * `removed` row beat owner_id — so the group kept its slot and could never
+     * be archived. Refusing the departure is what keeps the slot recoverable.
+     */
+    it("never leaves the creator holding a slot they cannot free", async () => {
+      const db = fakeDb({ ownedActive: 1 });
+      const group = db.groups[0];
+      const service = new GroupsService(db);
+      await service.join("user_heir", group.id, []);
+      await service.setMemberRole("user_abc", group.id, "user_heir", "owner");
+      await expect(service.leave("user_abc", group.id)).rejects.toThrow(
+        /archive it instead/i,
+      );
+      // Still an owner, so archiving still works, so the slot comes back.
+      await expect(
+        service.archive("user_abc", group.id),
+      ).resolves.toMatchObject({ id: group.id });
+      expect(await db.countActiveOwnedGroups("user_abc")).toBe(0);
+    });
+
+    it("lets a promoted owner leave while the creator is still an owner", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_heir", GROUP_ID, []);
+      await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "owner");
+      await expect(service.leave("user_heir", GROUP_ID)).resolves.toEqual({
+        success: true,
+      });
+      expect(await service.activeMembership("user_heir", GROUP_ID)).toBeNull();
+    });
+
+    it("re-checks the last-owner rule inside the transaction, not just before it", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_heir", GROUP_ID, []);
+      await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "owner");
+      // The racing co-owner: the unlocked pre-check still reads 2 owners, the
+      // locked re-count inside the write sees 1. Without the in-transaction
+      // check both departures commit and the group is stranded with none.
+      db.countActiveOwners = async () => 2;
+      const original = db.transitionMembership.bind(db);
+      let sawRequirement = false;
+      db.transitionMembership = async (input) => {
+        if (input.requireSurvivingOwner) {
+          sawRequirement = true;
+          throw new LastOwnerError();
+        }
+        return original(input);
+      };
+      await expect(service.leave("user_heir", GROUP_ID)).rejects.toThrow(
         /only owner/i,
       );
+      expect(sawRequirement).toBe(true);
     });
 
     it("removes an ordinary member and decrements the count", async () => {
@@ -616,13 +726,33 @@ describe("GroupsService", () => {
       ).rejects.toThrow(/not allowed/i);
     });
 
-    it("refuses to let the only owner remove themselves", async () => {
+    it("refuses to let the creator remove themselves", async () => {
       const service = new GroupsService(
         fakeDb({ group: { id: GROUP_ID, ownerId: "user_owner" } }),
       );
       await expect(
         service.removeMember("user_owner", GROUP_ID, "user_owner"),
-      ).rejects.toThrow(/only owner/i);
+      ).rejects.toThrow(/created this group, so you can't leave it/i);
+    });
+
+    it("does not move member_count when the removal write fails", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_xyz", GROUP_ID, []);
+      const before = db.groups[0].memberCount;
+      // The decrement used to be a third, unlocked round-trip after the status
+      // write; it now shares the write's transaction, so a failure rolls both
+      // back and two racing removals cannot both decrement.
+      db.upsertMembership = async () => {
+        throw new Error("write failed");
+      };
+      await expect(
+        service.removeMember("user_owner", GROUP_ID, "user_xyz"),
+      ).rejects.toThrow(/write failed/);
+      expect(db.groups[0].memberCount).toBe(before);
+      expect(
+        await service.activeMembership("user_xyz", GROUP_ID),
+      ).not.toBeNull();
     });
 
     it("lets an owner remove an ordinary member and decrements the count", async () => {
@@ -805,6 +935,35 @@ describe("GroupsService", () => {
       ]);
     });
 
+    it("fills the page with public groups instead of returning a short one", async () => {
+      const db = fakeDb();
+      // 60 private groups belonging to someone else, all more recently active
+      // than any public one. Filtering them out AFTER the 50-row cap returns a
+      // near-empty page while 60 public groups sit behind it.
+      for (let i = 0; i < 60; i += 1) {
+        seedGroup(db, {
+          id: randomUUID(),
+          slug: `secret-${i}`,
+          name: `Secret ${i}`,
+          ownerId: "user_other",
+          visibility: "private",
+          lastMessageAt: new Date(2027, 6, 1 + i),
+        });
+      }
+      for (let i = 0; i < 60; i += 1) {
+        seedGroup(db, {
+          id: randomUUID(),
+          slug: `open-${i}`,
+          name: `Open ${i}`,
+          ownerId: "user_other",
+          lastMessageAt: new Date(2027, 0, 1 + i),
+        });
+      }
+      const rows = await new GroupsService(db).list("user_abc", {});
+      expect(rows).toHaveLength(LIST_LIMIT);
+      expect(rows.every((row) => row.visibility === "public")).toBe(true);
+    });
+
     it("leaves expired groups out of the browse feed", async () => {
       const db = fakeDb();
       seedGroup(db, { id: randomUUID(), slug: "live", name: "Live" });
@@ -853,6 +1012,67 @@ describe("GroupsService", () => {
       const result = await service.join("user_friend", GROUP_ID, []);
       expect(result.status).toBe("active");
       expect(db.groups[0].memberCount).toBe(2);
+    });
+
+    /**
+     * PROBE A. `visibility` is mutable and `update` exposes it, so a single
+     * overloaded `pending` status could be read as "invited" the moment the
+     * owner asked for MORE privacy: every unvetted applicant in the queue could
+     * then accept their own application. `invited` and `pending` are separate
+     * states precisely so this flip changes nothing about who may enter.
+     */
+    it("does not admit a queued applicant when the owner flips the group to private", async () => {
+      const db = fakeDb({
+        group: { id: GROUP_ID, visibility: "public", joinPolicy: "request" },
+      });
+      const service = new GroupsService(db);
+      const applied = await service.join("user_stranger", GROUP_ID, []);
+      expect(applied.status).toBe("pending");
+
+      await service.update("user_owner", GROUP_ID, { visibility: "private" });
+
+      await expect(service.join("user_stranger", GROUP_ID, [])).rejects.toThrow(
+        /private\. Ask an owner for an invite/i,
+      );
+      expect(
+        await service.activeMembership("user_stranger", GROUP_ID),
+      ).toBeNull();
+      await expect(service.get("user_stranger", GROUP_ID)).rejects.toThrow(
+        /private/i,
+      );
+      expect(db.groups[0].memberCount).toBe(1);
+    });
+
+    it("lets an invitee skip the queue on a public request-to-join group", async () => {
+      const db = fakeDb({
+        group: { id: GROUP_ID, visibility: "public", joinPolicy: "request" },
+      });
+      const service = new GroupsService(db);
+      await service.invite("user_owner", GROUP_ID, "user_friend");
+      // Without this, an invitation to a request-to-join group degrades into
+      // "now go and apply", which is not what the owner did.
+      const result = await service.join("user_friend", GROUP_ID, []);
+      expect(result.status).toBe("active");
+      expect(db.groups[0].memberCount).toBe(2);
+    });
+
+    it("keeps the role an owner gave an invitee before they accepted", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, visibility: "private" } });
+      const service = new GroupsService(db);
+      await service.invite("user_owner", GROUP_ID, "user_heir");
+      await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "mod");
+      const result = await service.join("user_heir", GROUP_ID, []);
+      expect(result.membership.role).toBe("mod");
+    });
+
+    it("does not hand a departed mod their powers back when they rejoin", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
+      const service = new GroupsService(db);
+      await service.join("user_mod", GROUP_ID, []);
+      await service.setMemberRole("user_owner", GROUP_ID, "user_mod", "mod");
+      await service.leave("user_mod", GROUP_ID);
+      const result = await service.join("user_mod", GROUP_ID, []);
+      expect(result.membership.role).toBe("member");
     });
 
     it("refuses an invite from someone who cannot administer the group", async () => {
@@ -938,20 +1158,6 @@ describe("GroupsService", () => {
       ).toBeNull();
     });
 
-    it("unblocks the only owner: promote someone else, then leave", async () => {
-      const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
-      const service = new GroupsService(db);
-      await service.join("user_heir", GROUP_ID, []);
-      await expect(service.leave("user_owner", GROUP_ID)).rejects.toThrow(
-        /only owner/i,
-      );
-      await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "owner");
-      await expect(service.leave("user_owner", GROUP_ID)).resolves.toEqual({
-        success: true,
-      });
-      expect(await service.activeMembership("user_owner", GROUP_ID)).toBeNull();
-    });
-
     it("refuses to demote the last owner", async () => {
       const db = fakeDb({ group: { id: GROUP_ID, joinPolicy: "open" } });
       const service = new GroupsService(db);
@@ -968,7 +1174,12 @@ describe("GroupsService", () => {
       ).resolves.toMatchObject({ role: "member" });
       // ...but now that they are the last owner again, nothing can demote them.
       await service.setMemberRole("user_owner", GROUP_ID, "user_heir", "owner");
-      await service.leave("user_owner", GROUP_ID);
+      // The creator cannot leave through the API any more, so the only way to
+      // reach "the heir is the last active owner" is a drifted row.
+      const creatorRow = db.members.find(
+        (row) => row.groupId === GROUP_ID && row.userId === "user_owner",
+      )!;
+      creatorRow.status = "removed";
       await expect(
         service.setMemberRole("user_heir", GROUP_ID, "user_heir", "member"),
       ).rejects.toThrow(/no owner/i);
