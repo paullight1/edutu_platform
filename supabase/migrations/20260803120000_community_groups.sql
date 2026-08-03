@@ -115,40 +115,70 @@ alter table public.community_reports enable row level security;
 -- helpers run as the owner and bypass RLS, breaking the cycle. search_path is
 -- pinned on every one of them: an unpinned SECURITY DEFINER function is a
 -- privilege-escalation vector.
+--
+-- DO NOT ever apply `force row level security` to these tables. The recursion fix
+-- above depends entirely on the table owner's built-in RLS exemption: forcing RLS
+-- makes the owner subject to the policies too, the SECURITY DEFINER helpers stop
+-- bypassing them, and the 42P17 infinite recursion returns immediately.
+--
+-- The membership helpers deliberately take NO subject argument. They read the
+-- caller's own Clerk subject out of the JWT, so a signed-in user can only ever
+-- ask "am I a member of this group?" — never "is <other user> a member of this
+-- private group?". A subject-taking definer function granted to `authenticated`
+-- is a membership oracle: group uuids leak via share links and deep links, and
+-- Clerk subjects are bulk-harvestable from any public group's roster.
 
-create or replace function public.community_is_active_member(gid uuid, uid text)
-returns boolean language sql stable security definer set search_path = public as $$
+-- Earlier drafts shipped two-argument overloads. Postgres would keep them
+-- alongside the new one-argument versions and the leaky variant would stay
+-- callable, so drop them by full old signature. CASCADE clears any policy left
+-- depending on them; every policy is recreated below.
+drop function if exists public.community_is_active_member(uuid, text) cascade;
+drop function if exists public.community_is_owner_or_mod(uuid, text) cascade;
+
+create or replace function public.community_is_active_member(gid uuid)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
     select 1 from public.community_group_members m
-    where m.group_id = gid and m.user_id = uid and m.status = 'active'
+    where m.group_id = gid
+      and m.user_id = (select auth.jwt() ->> 'sub')
+      and m.status = 'active'
   );
 $$;
 
 create or replace function public.community_group_is_public(gid uuid)
-returns boolean language sql stable security definer set search_path = public as $$
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
     select 1 from public.community_groups g
     where g.id = gid and g.visibility = 'public'
   );
 $$;
 
-create or replace function public.community_is_owner_or_mod(gid uuid, uid text)
-returns boolean language sql stable security definer set search_path = public as $$
+-- Belt and braces: community_groups.owner_id is the canonical, NOT NULL record of
+-- ownership, while community_group_members.role is a second, unsynchronised copy.
+-- If group creation ever fails to write the creator's role='owner' membership row,
+-- or that row's status drifts off 'active', resolving ownership from membership
+-- alone would lock the real owner out of their own pending-request queue.
+create or replace function public.community_is_owner_or_mod(gid uuid)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
     select 1 from public.community_group_members m
     where m.group_id = gid
-      and m.user_id = uid
+      and m.user_id = (select auth.jwt() ->> 'sub')
       and m.status = 'active'
       and m.role in ('owner','mod')
+  ) or exists (
+    select 1 from public.community_groups g
+    where g.id = gid
+      and g.owner_id = (select auth.jwt() ->> 'sub')
   );
 $$;
 
-revoke execute on function public.community_is_active_member(uuid, text) from public;
+revoke execute on function public.community_is_active_member(uuid) from public;
 revoke execute on function public.community_group_is_public(uuid) from public;
-revoke execute on function public.community_is_owner_or_mod(uuid, text) from public;
-grant execute on function public.community_is_active_member(uuid, text) to authenticated;
+revoke execute on function public.community_is_owner_or_mod(uuid) from public;
+grant execute on function public.community_is_active_member(uuid) to authenticated;
 grant execute on function public.community_group_is_public(uuid) to authenticated;
-grant execute on function public.community_is_owner_or_mod(uuid, text) to authenticated;
+grant execute on function public.community_is_owner_or_mod(uuid) to authenticated;
 
 -- Realtime reads. auth.jwt() ->> 'sub' is the raw Clerk subject, matching user_id.
 -- It is always wrapped in (select ...) so the planner evaluates it once per query
@@ -158,7 +188,7 @@ drop policy if exists community_groups_read on public.community_groups;
 create policy community_groups_read on public.community_groups for select to authenticated
   using (
     visibility = 'public'
-    or public.community_is_active_member(id, (select auth.jwt() ->> 'sub'))
+    or public.community_is_active_member(id)
   );
 
 -- Members of a private group must be able to see the roster, not just themselves.
@@ -166,16 +196,26 @@ drop policy if exists community_group_members_read on public.community_group_mem
 create policy community_group_members_read on public.community_group_members for select to authenticated
   using (
     public.community_group_is_public(group_id)
-    or public.community_is_active_member(group_id, (select auth.jwt() ->> 'sub'))
+    or public.community_is_active_member(group_id)
     or user_id = (select auth.jwt() ->> 'sub')
   );
 
 -- Public groups are read-before-join: any signed-in user may read the messages.
+--
+-- SOFT DELETE MUST BLANK `body`, not just stamp `deleted_at`. The client reads
+-- this table directly through Supabase, so RLS is the only boundary there is:
+-- leaving the text in place lets any member — or any signed-in user, for a public
+-- group — run `select body from community_group_messages where deleted_at is not
+-- null` and read back exactly the content a moderator removed.
+-- Do NOT "fix" that by adding `and deleted_at is null` to this policy. Doing so
+-- hides the soft-delete UPDATE from Realtime subscribers (the post-update row no
+-- longer passes the read check), so the tombstone never propagates and the
+-- deleted message stays on screen until a full reload.
 drop policy if exists community_group_messages_read on public.community_group_messages;
 create policy community_group_messages_read on public.community_group_messages for select to authenticated
   using (
     public.community_group_is_public(group_id)
-    or public.community_is_active_member(group_id, (select auth.jwt() ->> 'sub'))
+    or public.community_is_active_member(group_id)
   );
 
 -- Requester sees their own row; owner AND mods see the whole pending queue.
@@ -183,7 +223,7 @@ drop policy if exists community_join_requests_read on public.community_join_requ
 create policy community_join_requests_read on public.community_join_requests for select to authenticated
   using (
     user_id = (select auth.jwt() ->> 'sub')
-    or public.community_is_owner_or_mod(group_id, (select auth.jwt() ->> 'sub'))
+    or public.community_is_owner_or_mod(group_id)
   );
 
 -- A group's screening form is readable exactly when the group is. A prospective
@@ -194,18 +234,31 @@ drop policy if exists community_group_forms_read on public.community_group_forms
 create policy community_group_forms_read on public.community_group_forms for select to authenticated
   using (
     public.community_group_is_public(group_id)
-    or public.community_is_active_member(group_id, (select auth.jwt() ->> 'sub'))
+    or public.community_is_active_member(group_id)
   );
 
--- community_reports gets NO policy of any kind on purpose: a reporter must not be
--- able to enumerate reports, and members must not see who reported them.
--- The service role bypasses RLS and is the only reader. No grant is issued below.
+-- community_reports gets NO row-level policy of any kind on purpose: a reporter
+-- must not be able to enumerate reports, and members must not see who reported
+-- them. The service role bypasses RLS and is the only reader. The service_role
+-- grant below is a table privilege, not a policy — RLS bypass does not imply the
+-- table privilege, and without it the backend gets 42501 on every read/insert.
 
 grant select on public.community_groups to authenticated;
 grant select on public.community_group_members to authenticated;
 grant select on public.community_group_messages to authenticated;
 grant select on public.community_join_requests to authenticated;
 grant select on public.community_group_forms to authenticated;
+
+-- Every write in this feature goes through the backend as service_role. These
+-- explicit grants mean we are not relying on Supabase's default privileges, so
+-- the backend role must be named explicitly for all six tables — including
+-- community_reports, which has no `authenticated` grant at all.
+grant select, insert, update, delete on public.community_groups to service_role;
+grant select, insert, update, delete on public.community_group_members to service_role;
+grant select, insert, update, delete on public.community_group_messages to service_role;
+grant select, insert, update, delete on public.community_join_requests to service_role;
+grant select, insert, update, delete on public.community_group_forms to service_role;
+grant select, insert, update, delete on public.community_reports to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Realtime
