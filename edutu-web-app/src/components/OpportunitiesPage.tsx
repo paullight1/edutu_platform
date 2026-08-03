@@ -1560,8 +1560,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </button>
               ) : null}
               {searchTerm.trim() && hasActiveFilters ? (
-                // EmptyOpportunities already offers Clear Filters; only the
-                // search branch needs this extra escape hatch.
+                // StateView's own action clears the search; this is the extra
+                // escape hatch for when filters are ALSO narrowing the list.
                 <button
                   type="button"
                   onClick={clearAllFilters}

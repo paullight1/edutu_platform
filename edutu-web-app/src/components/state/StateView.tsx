@@ -169,6 +169,13 @@ export interface StateViewProps {
     onRetry?: () => void;
     onAction?: () => void;
     actionLabel?: string;
+    /**
+     * A second, lower-weight way out. Only render one when it is genuinely a
+     * different route — "browse everything" beside "clear this filter" — never
+     * as a restatement of the primary action.
+     */
+    secondaryActionLabel?: string;
+    onSecondaryAction?: () => void;
     title?: string;
     body?: string;
     /** Scene width in px. Shrink it on dense surfaces rather than dropping it. */
@@ -182,6 +189,8 @@ export function StateView({
     onRetry,
     onAction,
     actionLabel,
+    secondaryActionLabel,
+    onSecondaryAction,
     title,
     body,
     sceneSize = 220,
@@ -197,6 +206,7 @@ export function StateView({
     const handler = copy.retry ? onRetry : (onAction ?? onRetry);
     const label = actionLabel ?? copy.action;
     const showAction = Boolean(label && handler);
+    const showSecondary = Boolean(secondaryActionLabel && onSecondaryAction);
 
     return (
         <div
@@ -212,11 +222,18 @@ export function StateView({
                 {body ?? copy.body}
             </p>
 
-            {showAction && (
-                <div className="mt-6">
-                    <Button onClick={handler} variant="primary" size="sm">
-                        {label}
-                    </Button>
+            {(showAction || showSecondary) && (
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                    {showAction && (
+                        <Button onClick={handler} variant="primary" size="sm">
+                            {label}
+                        </Button>
+                    )}
+                    {showSecondary && (
+                        <Button onClick={onSecondaryAction} variant="secondary" size="sm">
+                            {secondaryActionLabel}
+                        </Button>
+                    )}
                 </div>
             )}
         </div>

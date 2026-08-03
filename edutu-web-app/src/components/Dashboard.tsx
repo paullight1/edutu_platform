@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { EmptyState, ErrorState } from "./ui/EmptyState";
+import { StateView, useScreenState } from "./state";
 import CalendarStrip from "./CalendarStrip";
 import EventsHomeSection from "./EventsHomeSection";
 import MemberSettingsPanel from "./MemberSettingsPanel";
@@ -1043,6 +1043,17 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       [shuffledOpportunityFeed],
     );
 
+    // The feed's failure state, shared by all three render sites below. A
+    // discovery category is a filter, so selecting one and finding nothing is
+    // a filtered empty rather than "you have no recommendations" — a
+    // distinction the primitive this replaces could not express.
+    const feedState = useScreenState({
+      data: normalizedOpportunityFeed,
+      error: opportunityFeedError,
+      filtersActive: Boolean(selectedDiscoveryCategory),
+    });
+    const feedEmptyState = { kind: "empty", reason: selectedDiscoveryCategory ? "filtered" : "firstRun" } as const;
+
     const opportunityEmptyTitle = selectedDiscoveryCategory
       ? t("dashboard.empty.noCategoryFound", { category: selectedDiscoveryCategory.title.toLowerCase() })
       : t("dashboard.empty.noRecommendations");
@@ -1964,8 +1975,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <div
                         className={`rounded-2xl border border-subtle bg-white`}
                       >
-                        <ErrorState
-                          message={feedErrorMessage}
+                        <StateView
+                          state={feedState}
+                          flow="home"
                           onRetry={hookRefreshOpportunities}
                         />
                       </div>
@@ -1973,11 +1985,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <div
                         className={`rounded-2xl border border-subtle bg-white`}
                       >
-                        <EmptyState
-                          icon={<Briefcase size={28} />}
+                        <StateView
+                          state={feedEmptyState}
+                          flow="home"
                           title={opportunityEmptyTitle}
-                          description={opportunityEmptyDescription}
-                          action={opportunityEmptyAction}
+                          body={opportunityEmptyDescription}
+                          actionLabel={opportunityEmptyAction.label}
+                          onAction={opportunityEmptyAction.onClick}
                         />
                       </div>
                     ) : (
@@ -2091,8 +2105,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div
                           className={`col-span-full rounded-[20px] border border-subtle bg-white`}
                         >
-                          <ErrorState
-                            message={feedErrorMessage}
+                          <StateView
+                            state={feedState}
+                            flow="home"
                             onRetry={hookRefreshOpportunities}
                           />
                         </div>
@@ -2100,21 +2115,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div
                           className={`col-span-full rounded-[20px] border border-subtle bg-white`}
                         >
-                          <EmptyState
-                            icon={<Briefcase size={32} />}
+                          <StateView
+                            state={feedEmptyState}
+                            flow="home"
                             title={opportunityEmptyTitle}
-                            description={opportunityEmptyDescription}
-                            action={opportunityEmptyAction}
-                            secondaryAction={
+                            body={opportunityEmptyDescription}
+                            actionLabel={opportunityEmptyAction.label}
+                            onAction={opportunityEmptyAction.onClick}
+                            secondaryActionLabel={
                               selectedDiscoveryCategory
-                                ? {
-                                    label: t("dashboard.browseAll"),
-                                    onClick: onViewAllOpportunities,
-                                  }
-                                : {
-                                    label: t("dashboard.improveProfile"),
-                                    onClick: () => setActivePanel("profile"),
-                                  }
+                                ? t("dashboard.browseAll")
+                                : t("dashboard.improveProfile")
+                            }
+                            onSecondaryAction={
+                              selectedDiscoveryCategory
+                                ? onViewAllOpportunities
+                                : () => setActivePanel("profile")
                             }
                           />
                         </div>
@@ -2158,8 +2174,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div
                           className={`rounded-[20px] border border-subtle bg-white`}
                         >
-                          <ErrorState
-                            message={feedErrorMessage}
+                          <StateView
+                            state={feedState}
+                            flow="home"
                             onRetry={hookRefreshOpportunities}
                           />
                         </div>
@@ -2167,21 +2184,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div
                           className={`rounded-[20px] border border-subtle bg-white`}
                         >
-                          <EmptyState
-                            icon={<Briefcase size={32} />}
+                          <StateView
+                            state={feedEmptyState}
+                            flow="home"
                             title={opportunityEmptyTitle}
-                            description={opportunityEmptyDescription}
-                            action={opportunityEmptyAction}
-                            secondaryAction={
+                            body={opportunityEmptyDescription}
+                            actionLabel={opportunityEmptyAction.label}
+                            onAction={opportunityEmptyAction.onClick}
+                            secondaryActionLabel={
                               selectedDiscoveryCategory
-                                ? {
-                                    label: t("dashboard.browseAll"),
-                                    onClick: onViewAllOpportunities,
-                                  }
-                                : {
-                                    label: t("dashboard.improveProfile"),
-                                    onClick: () => setActivePanel("profile"),
-                                  }
+                                ? t("dashboard.browseAll")
+                                : t("dashboard.improveProfile")
+                            }
+                            onSecondaryAction={
+                              selectedDiscoveryCategory
+                                ? onViewAllOpportunities
+                                : () => setActivePanel("profile")
                             }
                           />
                         </div>
