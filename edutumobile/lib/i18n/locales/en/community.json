@@ -36,7 +36,8 @@
     "expired": "Expired",
     "expiredDesc": "The opportunity this group was built around has closed.",
     "memberCount_one": "{{count}} member",
-    "memberCount_other": "{{count}} members"
+    "memberCount_other": "{{count}} members",
+    "archiveConfirm": "Yes, archive for good"
   },
   "membership": {
     "active": "Member",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Pick an emoji to represent your group",
     "visibilityLabel": "Who can find this group",
-    "joinPolicyLabel": "Who can join"
+    "joinPolicyLabel": "Who can join",
+    "nameTooShort": "Group names need at least 3 characters.",
+    "opportunityLockedNote": "Set when the group was created — it can't be moved to another opportunity."
   },
   "joinRequestForm": {
     "title": "Request to join",
@@ -97,7 +100,13 @@
     "optionsLabel": "Options",
     "addOption": "Add option",
     "requiredLabel": "Required",
-    "limitReached": "You've reached the 5-question limit."
+    "limitReached": "You've reached the 5-question limit.",
+    "labelRequired": "Write the question before you save.",
+    "needsTwoOptions": "A single choice needs at least 2 options.",
+    "optionRequired": "Fill in this option or remove it.",
+    "optionPlaceholder": "Option",
+    "removeQuestion": "Remove question",
+    "removeOption": "Remove option"
   },
   "chat": {
     "composerPlaceholder": "Message the group",
@@ -128,5 +137,11 @@
     "noGroups": "No groups yet. Join one from an opportunity you saved, or start your own to bring people together.",
     "noMessages": "No messages yet. Say hello and get the conversation started.",
     "noPendingRequests": "No pending requests. When someone asks to join, you'll review them here."
+  },
+  "opportunityEntry": {
+    "label": "Discussion",
+    "none": "Start a group",
+    "openA11y": "Open the discussion group {{name}}",
+    "startA11y": "Start a discussion group for this opportunity"
   }
 }

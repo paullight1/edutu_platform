@@ -36,7 +36,8 @@
     "expired": "Encerrado",
     "expiredDesc": "A oportunidade em torno da qual este grupo foi criado já fechou.",
     "memberCount_one": "{{count}} membro",
-    "memberCount_other": "{{count}} membros"
+    "memberCount_other": "{{count}} membros",
+    "archiveConfirm": "Sim, arquivar de vez"
   },
   "membership": {
     "active": "Membro",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Escolha um emoji para representar seu grupo",
     "visibilityLabel": "Quem pode encontrar este grupo",
-    "joinPolicyLabel": "Quem pode entrar"
+    "joinPolicyLabel": "Quem pode entrar",
+    "nameTooShort": "O nome do grupo precisa de pelo menos 3 caracteres.",
+    "opportunityLockedNote": "Definido na criação do grupo — não dá para mudar para outra oportunidade."
   },
   "joinRequestForm": {
     "title": "Pedir para entrar",
@@ -97,7 +100,13 @@
     "optionsLabel": "Opções",
     "addOption": "Adicionar opção",
     "requiredLabel": "Obrigatória",
-    "limitReached": "Você atingiu o limite de 5 perguntas."
+    "limitReached": "Você atingiu o limite de 5 perguntas.",
+    "labelRequired": "Escreva a pergunta antes de salvar.",
+    "needsTwoOptions": "Uma escolha única precisa de pelo menos 2 opções.",
+    "optionRequired": "Preencha esta opção ou remova-a.",
+    "optionPlaceholder": "Opção",
+    "removeQuestion": "Remover pergunta",
+    "removeOption": "Remover opção"
   },
   "chat": {
     "composerPlaceholder": "Enviar mensagem ao grupo",
@@ -128,5 +137,11 @@
     "noGroups": "Você ainda não tem grupos. Entre em um a partir de uma oportunidade que salvou, ou crie o seu para reunir pessoas.",
     "noMessages": "Ainda não há mensagens. Diga olá e comece a conversa.",
     "noPendingRequests": "Nenhum pedido pendente. Quando alguém pedir para entrar, você vai revisar aqui."
+  },
+  "opportunityEntry": {
+    "label": "Discussão",
+    "none": "Criar um grupo",
+    "openA11y": "Abrir o grupo de discussão {{name}}",
+    "startA11y": "Criar um grupo de discussão para esta oportunidade"
   }
 }

@@ -36,7 +36,8 @@
     "expired": "Vencido",
     "expiredDesc": "La oportunidad en torno a la que se creó este grupo ya cerró.",
     "memberCount_one": "{{count}} miembro",
-    "memberCount_other": "{{count}} miembros"
+    "memberCount_other": "{{count}} miembros",
+    "archiveConfirm": "Sí, archivar definitivamente"
   },
   "membership": {
     "active": "Miembro",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Elige un emoji para representar a tu grupo",
     "visibilityLabel": "Quién puede encontrar este grupo",
-    "joinPolicyLabel": "Quién puede unirse"
+    "joinPolicyLabel": "Quién puede unirse",
+    "nameTooShort": "El nombre del grupo necesita al menos 3 caracteres.",
+    "opportunityLockedNote": "Se define al crear el grupo: no se puede cambiar a otra oportunidad."
   },
   "joinRequestForm": {
     "title": "Solicitar para unirse",
@@ -97,7 +100,13 @@
     "optionsLabel": "Opciones",
     "addOption": "Añadir opción",
     "requiredLabel": "Obligatoria",
-    "limitReached": "Llegaste al límite de 5 preguntas."
+    "limitReached": "Llegaste al límite de 5 preguntas.",
+    "labelRequired": "Escribe la pregunta antes de guardar.",
+    "needsTwoOptions": "Una opción única necesita al menos 2 opciones.",
+    "optionRequired": "Completa esta opción o elimínala.",
+    "optionPlaceholder": "Opción",
+    "removeQuestion": "Eliminar pregunta",
+    "removeOption": "Eliminar opción"
   },
   "chat": {
     "composerPlaceholder": "Escribe al grupo",
@@ -128,5 +137,11 @@
     "noGroups": "Aún no tienes grupos. Únete a uno desde una oportunidad que guardaste, o crea el tuyo para reunir a más gente.",
     "noMessages": "Aún no hay mensajes. Saluda y arranca la conversación.",
     "noPendingRequests": "No hay solicitudes pendientes. Cuando alguien pida unirse, lo revisarás aquí."
+  },
+  "opportunityEntry": {
+    "label": "Debate",
+    "none": "Crear un grupo",
+    "openA11y": "Abrir el grupo de debate {{name}}",
+    "startA11y": "Crear un grupo de debate para esta oportunidad"
   }
 }

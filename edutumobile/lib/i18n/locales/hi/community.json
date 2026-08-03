@@ -36,7 +36,8 @@
     "expired": "समाप्त",
     "expiredDesc": "जिस अवसर के लिए यह समूह बनाया गया था, वह बंद हो चुका है।",
     "memberCount_one": "{{count}} सदस्य",
-    "memberCount_other": "{{count}} सदस्य"
+    "memberCount_other": "{{count}} सदस्य",
+    "archiveConfirm": "हाँ, हमेशा के लिए संग्रह करें"
   },
   "membership": {
     "active": "सदस्य",
@@ -75,7 +76,9 @@
     "emojiLabel": "इमोजी",
     "emojiHelper": "अपने समूह के लिए एक इमोजी चुनें",
     "visibilityLabel": "यह समूह किसे दिखेगा",
-    "joinPolicyLabel": "कौन जुड़ सकता है"
+    "joinPolicyLabel": "कौन जुड़ सकता है",
+    "nameTooShort": "समूह के नाम में कम से कम 3 अक्षर होने चाहिए।",
+    "opportunityLockedNote": "समूह बनाते समय तय होता है — इसे किसी और अवसर से नहीं जोड़ा जा सकता।"
   },
   "joinRequestForm": {
     "title": "जुड़ने का अनुरोध करें",
@@ -97,7 +100,13 @@
     "optionsLabel": "विकल्प",
     "addOption": "विकल्प जोड़ें",
     "requiredLabel": "अनिवार्य",
-    "limitReached": "आप 5-प्रश्न की सीमा तक पहुंच गए हैं।"
+    "limitReached": "आप 5-प्रश्न की सीमा तक पहुंच गए हैं।",
+    "labelRequired": "सहेजने से पहले प्रश्न लिखें।",
+    "needsTwoOptions": "एकल विकल्प के लिए कम से कम 2 विकल्प चाहिए।",
+    "optionRequired": "यह विकल्प भरें या हटा दें।",
+    "optionPlaceholder": "विकल्प",
+    "removeQuestion": "प्रश्न हटाएं",
+    "removeOption": "विकल्प हटाएं"
   },
   "chat": {
     "composerPlaceholder": "समूह को संदेश भेजें",
@@ -128,5 +137,11 @@
     "noGroups": "अभी तक कोई समूह नहीं है। अपने सहेजे गए किसी अवसर से किसी समूह में जुड़ें, या लोगों को एक साथ लाने के लिए अपना समूह बनाएं।",
     "noMessages": "अभी तक कोई संदेश नहीं है। नमस्ते कहें और बातचीत शुरू करें।",
     "noPendingRequests": "कोई लंबित अनुरोध नहीं है। जब कोई जुड़ने का अनुरोध करेगा, तो आप उसकी समीक्षा यहां करेंगे।"
+  },
+  "opportunityEntry": {
+    "label": "चर्चा",
+    "none": "समूह बनाएँ",
+    "openA11y": "चर्चा समूह {{name}} खोलें",
+    "startA11y": "इस अवसर के लिए चर्चा समूह बनाएँ"
   }
 }

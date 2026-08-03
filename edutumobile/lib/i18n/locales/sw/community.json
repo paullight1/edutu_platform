@@ -36,7 +36,8 @@
     "expired": "Kimeisha muda",
     "expiredDesc": "Fursa iliyoanzisha kikundi hiki tayari imefungwa.",
     "memberCount_one": "Mwanachama {{count}}",
-    "memberCount_other": "Wanachama {{count}}"
+    "memberCount_other": "Wanachama {{count}}",
+    "archiveConfirm": "Ndiyo, hifadhi kabisa"
   },
   "membership": {
     "active": "Mwanachama",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Chagua emoji itakayowakilisha kikundi chako",
     "visibilityLabel": "Nani anaweza kupata kikundi hiki",
-    "joinPolicyLabel": "Nani anaweza kujiunga"
+    "joinPolicyLabel": "Nani anaweza kujiunga",
+    "nameTooShort": "Jina la kikundi linahitaji angalau herufi 3.",
+    "opportunityLockedNote": "Huwekwa wakati kikundi kinaundwa — haliwezi kuhamishiwa fursa nyingine."
   },
   "joinRequestForm": {
     "title": "Omba kujiunga",
@@ -97,7 +100,13 @@
     "optionsLabel": "Chaguo",
     "addOption": "Ongeza chaguo",
     "requiredLabel": "Lazima",
-    "limitReached": "Umefikia kikomo cha maswali 5."
+    "limitReached": "Umefikia kikomo cha maswali 5.",
+    "labelRequired": "Andika swali kabla ya kuhifadhi.",
+    "needsTwoOptions": "Chaguo moja linahitaji angalau machaguo 2.",
+    "optionRequired": "Jaza chaguo hili au liondoe.",
+    "optionPlaceholder": "Chaguo",
+    "removeQuestion": "Ondoa swali",
+    "removeOption": "Ondoa chaguo"
   },
   "chat": {
     "composerPlaceholder": "Andika ujumbe kwa kikundi",
@@ -128,5 +137,11 @@
     "noGroups": "Bado huna vikundi. Jiunge na kimoja kutoka kwenye fursa uliyohifadhi, au anzisha chako mwenyewe ili kukusanya watu.",
     "noMessages": "Hakuna ujumbe bado. Salimu na uanzishe mazungumzo.",
     "noPendingRequests": "Hakuna maombi yanayosubiri. Mtu akiomba kujiunga, utayakagua hapa."
+  },
+  "opportunityEntry": {
+    "label": "Majadiliano",
+    "none": "Anzisha kikundi",
+    "openA11y": "Fungua kikundi cha majadiliano {{name}}",
+    "startA11y": "Anzisha kikundi cha majadiliano kwa fursa hii"
   }
 }

@@ -40,7 +40,8 @@
     "memberCount_two": "عضوان",
     "memberCount_few": "{{count}} أعضاء",
     "memberCount_many": "{{count}} عضوًا",
-    "memberCount_other": "{{count}} عضو"
+    "memberCount_other": "{{count}} عضو",
+    "archiveConfirm": "نعم، أرشفها نهائيًا"
   },
   "membership": {
     "active": "عضو",
@@ -79,7 +80,9 @@
     "emojiLabel": "الرمز التعبيري",
     "emojiHelper": "اختر رمزًا تعبيريًا يمثل مجموعتك",
     "visibilityLabel": "من يمكنه العثور على هذه المجموعة",
-    "joinPolicyLabel": "من يمكنه الانضمام"
+    "joinPolicyLabel": "من يمكنه الانضمام",
+    "nameTooShort": "يجب ألا يقل اسم المجموعة عن 3 أحرف.",
+    "opportunityLockedNote": "يُحدَّد عند إنشاء المجموعة — لا يمكن نقلها إلى فرصة أخرى."
   },
   "joinRequestForm": {
     "title": "طلب الانضمام",
@@ -101,7 +104,13 @@
     "optionsLabel": "الخيارات",
     "addOption": "إضافة خيار",
     "requiredLabel": "إلزامي",
-    "limitReached": "لقد وصلت إلى الحد الأقصى وهو 5 أسئلة."
+    "limitReached": "لقد وصلت إلى الحد الأقصى وهو 5 أسئلة.",
+    "labelRequired": "اكتب السؤال قبل الحفظ.",
+    "needsTwoOptions": "يحتاج الاختيار الواحد إلى خيارين على الأقل.",
+    "optionRequired": "أكمل هذا الخيار أو احذفه.",
+    "optionPlaceholder": "خيار",
+    "removeQuestion": "حذف السؤال",
+    "removeOption": "حذف الخيار"
   },
   "chat": {
     "composerPlaceholder": "اكتب رسالة إلى المجموعة",
@@ -132,5 +141,11 @@
     "noGroups": "لا توجد مجموعات بعد. انضم إلى إحداها من فرصة حفظتها، أو أنشئ مجموعتك الخاصة لجمع الناس.",
     "noMessages": "لا توجد رسائل بعد. ألقِ التحية وابدأ المحادثة.",
     "noPendingRequests": "لا توجد طلبات معلّقة. عندما يطلب أحدهم الانضمام، ستراجعه هنا."
+  },
+  "opportunityEntry": {
+    "label": "نقاش",
+    "none": "أنشئ مجموعة",
+    "openA11y": "افتح مجموعة النقاش {{name}}",
+    "startA11y": "أنشئ مجموعة نقاش لهذه الفرصة"
   }
 }

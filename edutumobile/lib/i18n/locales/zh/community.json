@@ -35,7 +35,8 @@
     "archiveWarning": "归档会永久关闭这个小组——包括你在内，没有人能撤销这个操作。",
     "expired": "已过期",
     "expiredDesc": "这个小组所依托的机会已经关闭。",
-    "memberCount_other": "{{count}} 位成员"
+    "memberCount_other": "{{count}} 位成员",
+    "archiveConfirm": "确定，永久归档"
   },
   "membership": {
     "active": "成员",
@@ -74,7 +75,9 @@
     "emojiLabel": "表情符号",
     "emojiHelper": "选一个表情符号来代表你的小组",
     "visibilityLabel": "谁可以找到这个小组",
-    "joinPolicyLabel": "谁可以加入"
+    "joinPolicyLabel": "谁可以加入",
+    "nameTooShort": "小组名称至少需要 3 个字符。",
+    "opportunityLockedNote": "在创建小组时确定，之后无法改到其他机会。"
   },
   "joinRequestForm": {
     "title": "申请加入",
@@ -96,7 +99,13 @@
     "optionsLabel": "选项",
     "addOption": "添加选项",
     "requiredLabel": "必填",
-    "limitReached": "你已达到 5 个问题的上限。"
+    "limitReached": "你已达到 5 个问题的上限。",
+    "labelRequired": "保存前请先写出问题。",
+    "needsTwoOptions": "单选至少需要 2 个选项。",
+    "optionRequired": "请填写该选项或将其删除。",
+    "optionPlaceholder": "选项",
+    "removeQuestion": "删除问题",
+    "removeOption": "删除选项"
   },
   "chat": {
     "composerPlaceholder": "给小组发消息",
@@ -127,5 +136,11 @@
     "noGroups": "还没有加入任何小组。从你收藏的机会里加入一个，或者创建自己的小组，把大家聚在一起。",
     "noMessages": "还没有消息。打个招呼，开启对话吧。",
     "noPendingRequests": "暂无待处理的申请。有人申请加入时，你可以在这里查看。"
+  },
+  "opportunityEntry": {
+    "label": "讨论",
+    "none": "创建小组",
+    "openA11y": "打开讨论小组 {{name}}",
+    "startA11y": "为该机会创建讨论小组"
   }
 }

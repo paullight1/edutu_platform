@@ -36,7 +36,8 @@
     "expired": "Ta kare",
     "expiredDesc": "Damar da aka kafa wannan kungiya a kanta ta rufe.",
     "memberCount_one": "Mamba {{count}}",
-    "memberCount_other": "Mambobi {{count}}"
+    "memberCount_other": "Mambobi {{count}}",
+    "archiveConfirm": "Eh, adana shi har abada"
   },
   "membership": {
     "active": "Mamba",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Zaɓi emoji da za ta wakilci kungiyarka",
     "visibilityLabel": "Wanda zai iya samun wannan kungiya",
-    "joinPolicyLabel": "Wanda zai iya shiga"
+    "joinPolicyLabel": "Wanda zai iya shiga",
+    "nameTooShort": "Sunan kungiya yana buƙatar aƙalla haruffa 3.",
+    "opportunityLockedNote": "An saita shi lokacin ƙirƙirar ƙungiyar — ba za a iya canza shi zuwa wata dama ba."
   },
   "joinRequestForm": {
     "title": "Nemi izinin shiga",
@@ -97,7 +100,13 @@
     "optionsLabel": "Zaɓuɓɓuka",
     "addOption": "Ƙara zaɓi",
     "requiredLabel": "Wajibi",
-    "limitReached": "Ka kai iyakar tambayoyi 5."
+    "limitReached": "Ka kai iyakar tambayoyi 5.",
+    "labelRequired": "Rubuta tambayar kafin ka ajiye.",
+    "needsTwoOptions": "Zaɓi ɗaya yana buƙatar aƙalla zaɓuɓɓuka 2.",
+    "optionRequired": "Cika wannan zaɓi ko ka cire shi.",
+    "optionPlaceholder": "Zaɓi",
+    "removeQuestion": "Cire tambaya",
+    "removeOption": "Cire zaɓi"
   },
   "chat": {
     "composerPlaceholder": "Rubuta wa kungiya saƙo",
@@ -128,5 +137,11 @@
     "noGroups": "Ba ka da kungiyoyi tukuna. Shiga ɗaya daga wata dama da ka ajiye, ko kirkiri naka domin tara mutane.",
     "noMessages": "Babu saƙonni tukuna. Yi gaisuwa ka fara tattaunawa.",
     "noPendingRequests": "Babu buƙatun da ke jira. Idan wani ya nemi shiga, za ka duba shi a nan."
+  },
+  "opportunityEntry": {
+    "label": "Tattaunawa",
+    "none": "Fara ƙungiya",
+    "openA11y": "Buɗe ƙungiyar tattaunawa {{name}}",
+    "startA11y": "Fara ƙungiyar tattaunawa don wannan damar"
   }
 }

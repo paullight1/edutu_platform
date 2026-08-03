@@ -36,7 +36,8 @@
     "expired": "Expiré",
     "expiredDesc": "L'opportunité autour de laquelle ce groupe a été créé est maintenant close.",
     "memberCount_one": "{{count}} membre",
-    "memberCount_other": "{{count}} membres"
+    "memberCount_other": "{{count}} membres",
+    "archiveConfirm": "Oui, archiver définitivement"
   },
   "membership": {
     "active": "Membre",
@@ -75,7 +76,9 @@
     "emojiLabel": "Emoji",
     "emojiHelper": "Choisissez un emoji pour représenter votre groupe",
     "visibilityLabel": "Qui peut trouver ce groupe",
-    "joinPolicyLabel": "Qui peut rejoindre"
+    "joinPolicyLabel": "Qui peut rejoindre",
+    "nameTooShort": "Le nom du groupe doit contenir au moins 3 caractères.",
+    "opportunityLockedNote": "Défini à la création du groupe — il ne peut pas être associé à une autre opportunité."
   },
   "joinRequestForm": {
     "title": "Demander à rejoindre",
@@ -97,7 +100,13 @@
     "optionsLabel": "Options",
     "addOption": "Ajouter une option",
     "requiredLabel": "Obligatoire",
-    "limitReached": "Vous avez atteint la limite de 5 questions."
+    "limitReached": "Vous avez atteint la limite de 5 questions.",
+    "labelRequired": "Rédigez la question avant d'enregistrer.",
+    "needsTwoOptions": "Un choix unique nécessite au moins 2 options.",
+    "optionRequired": "Remplissez cette option ou supprimez-la.",
+    "optionPlaceholder": "Option",
+    "removeQuestion": "Supprimer la question",
+    "removeOption": "Supprimer l'option"
   },
   "chat": {
     "composerPlaceholder": "Écrire au groupe",
@@ -128,5 +137,11 @@
     "noGroups": "Aucun groupe pour l'instant. Rejoignez-en un depuis une opportunité enregistrée, ou créez le vôtre pour rassembler des gens.",
     "noMessages": "Aucun message pour l'instant. Dites bonjour et lancez la conversation.",
     "noPendingRequests": "Aucune demande en attente. Quand quelqu'un demandera à rejoindre, vous l'examinerez ici."
+  },
+  "opportunityEntry": {
+    "label": "Discussion",
+    "none": "Créer un groupe",
+    "openA11y": "Ouvrir le groupe de discussion {{name}}",
+    "startA11y": "Créer un groupe de discussion pour cette opportunité"
   }
 }
