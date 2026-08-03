@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { db } from "../db";
+import { toDatabaseUserId } from "../common/user-id";
 import {
   communityGroupMembers,
   communityGroupMessages,
@@ -26,7 +27,31 @@ import { screenMessage } from "./message-screen";
 
 export type { CommunityGroup, CommunityGroupMember, CommunityGroupMessage };
 
+/** The largest page `list` will ever HAND BACK to a caller. */
 const LIST_LIMIT = 50;
+
+/**
+ * The largest batch `list` will ever ASK THE STORE FOR in one round.
+ *
+ * Bigger than `LIST_LIMIT` because blocked authors' messages are dropped after
+ * the rows come back, so a 50-row page has to read more than 50 rows to stay a
+ * 50-row page. It is still a hard ceiling: the adapter clamps to it, so no
+ * arithmetic upstream can turn into an unbounded scan.
+ */
+const FETCH_CEILING = 150;
+
+/** How much slack to read per round when the caller has any blocks at all. */
+const OVERFETCH_FACTOR = 2;
+
+/**
+ * How many times `list` will re-read to refill a page emptied by blocks.
+ *
+ * Bounded on purpose: a caller who has blocked every talkative member of a busy
+ * group would otherwise walk the group's whole history inside one request. Five
+ * rounds is up to 750 rows — far past any real block list — and the loop stops
+ * the instant the page is full or the group is exhausted.
+ */
+const MAX_FETCH_ROUNDS = 5;
 
 export type NewMessageRow = {
   groupId: string;
@@ -157,6 +182,47 @@ export interface AuthorDirectory {
 /** Token so the module can swap the directory without touching the service. */
 export const AUTHOR_DIRECTORY = Symbol("AUTHOR_DIRECTORY");
 
+// ---------------------------------------------------------------------------
+// Block directory
+// ---------------------------------------------------------------------------
+
+/**
+ * One person on the other side of a block from the caller, in RAW COLUMN
+ * VALUES — no decisions. The service turns these into the set it filters on.
+ *
+ * `databaseId` is the `uuid` stored in `user_blocks`. `subject` is the raw
+ * Clerk subject recovered by joining back through `profiles`, or null when no
+ * profile row matched: `toDatabaseUserId` is one-way, so a join is the only
+ * route back from the uuid namespace `user_blocks` uses to the raw-subject
+ * namespace `community_group_messages.user_id` uses.
+ */
+export type BlockedPartyRow = {
+  databaseId: string;
+  subject: string | null;
+};
+
+/**
+ * Everyone in a MUTUAL block relationship with one caller.
+ *
+ * A separate boundary from `AuthorDirectory` for the same reason that one is
+ * separate from `MessagesStore`: a different table, a different id convention
+ * (`user_blocks` is `uuid` on both sides where the `community_*` tables are
+ * `text`), and a double for one should not be forced to fake the other.
+ */
+export interface BlockDirectory {
+  /**
+   * BOTH DIRECTIONS. Rows where the caller is the blocker AND rows where the
+   * caller is the blocked — a one-directional block would let the person who
+   * was blocked keep reading, which is the exact outcome people block to stop.
+   *
+   * ONE query per `list` call. Never per message, never per page round.
+   */
+  findBlockedParties(userId: string): Promise<BlockedPartyRow[]>;
+}
+
+/** Token so the module can swap the directory without touching the service. */
+export const BLOCK_DIRECTORY = Symbol("BLOCK_DIRECTORY");
+
 /** What the client renders beside a bubble. Nothing else about the person. */
 export type MessageAuthor = {
   displayName: string;
@@ -229,15 +295,20 @@ export class DrizzleMessagesStore implements MessagesStore {
           : lt(communityGroupMessages.createdAt, before.createdAt),
       );
     }
-    return db
-      .select()
-      .from(communityGroupMessages)
-      .where(and(...conditions))
-      .orderBy(
-        desc(communityGroupMessages.createdAt),
-        desc(communityGroupMessages.id),
-      )
-      .limit(Math.min(limit, LIST_LIMIT));
+    return (
+      db
+        .select()
+        .from(communityGroupMessages)
+        .where(and(...conditions))
+        .orderBy(
+          desc(communityGroupMessages.createdAt),
+          desc(communityGroupMessages.id),
+        )
+        // Clamped to the FETCH ceiling, not the page ceiling: `list` reads more
+        // rows than it returns so that dropping a blocked author's messages does
+        // not shrink the page. The page cap still lives in `resolveLimit`.
+        .limit(Math.min(limit, FETCH_CEILING))
+    );
   }
 
   async findMessage(messageId: string): Promise<CommunityGroupMessage | null> {
@@ -352,6 +423,66 @@ export class DrizzleAuthorDirectory implements AuthorDirectory {
   }
 }
 
+/**
+ * Reads the caller's block relationships in ONE round trip, in both directions,
+ * and maps each stored uuid back to the raw Clerk subject a message carries.
+ *
+ * THE ID TRANSLATION LIVES HERE, in the adapter that knows the column types,
+ * and nowhere in the service — the same arrangement, and the same single
+ * sanctioned exception to this feature's "never call `toDatabaseUserId`" rule,
+ * as `DrizzleModerationStore.insertBlock`. `user_blocks` predates Group
+ * Discussions, is `uuid` on both sides, and is shared with roadmap comments;
+ * handing it a raw `user_2abc…` subject is not merely inconsistent, it is
+ * Postgres 22P02.
+ *
+ * The `union` is what makes the block symmetric. The left half is "people I
+ * blocked", the right half is "people who blocked me", and both halves have to
+ * be here: filtering only the left one leaves the blocked party watching.
+ *
+ * The `profiles` join is dual-keyed for the reason `DrizzleAuthorDirectory`
+ * documents — `profiles.user_id` is declared `uuid` in `schema.ts` and is
+ * `text` in the LIVE database (verified against it, not against the schema
+ * file), holding the raw subject for most rows and the derived uuid for the
+ * rest. Matching only one representation would silently un-block the minority.
+ */
+export class DrizzleBlockDirectory implements BlockDirectory {
+  async findBlockedParties(userId: string): Promise<BlockedPartyRow[]> {
+    const me = toDatabaseUserId((userId || "").trim());
+    if (!me) return [];
+
+    const result = await db.execute(sql`
+      with parties as (
+        select ub.blocked_user_id as database_id
+          from public.user_blocks ub
+         where ub.blocker_user_id = ${me}::uuid
+        union
+        select ub.blocker_user_id as database_id
+          from public.user_blocks ub
+         where ub.blocked_user_id = ${me}::uuid
+      )
+      select
+        parties.database_id::text as database_id,
+        max(p.user_id::text)      as subject
+      from parties
+      left join public.profiles p
+        on p.user_id::text = parties.database_id::text
+        or public.clerk_id_to_uuid(p.user_id::text) = parties.database_id::text
+      group by parties.database_id
+    `);
+
+    // TWO COLUMNS, both of them ids. A block list is not a place to select a
+    // name, an email or anything else about a person the caller has chosen to
+    // stop seeing — `ModerationService.listBlocks` renders the "Blocked"
+    // screen, and this only decides what disappears from a chat.
+    return extractRows<{ database_id: string; subject: string | null }>(
+      result,
+    ).map((row) => ({
+      databaseId: row.database_id,
+      subject: row.subject ?? null,
+    }));
+  }
+}
+
 /** `db.execute` is a pg `QueryResult` on some paths and a bare array on others. */
 function extractRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
@@ -386,13 +517,19 @@ export type ListMessagesOptions = {
 export class MessagesService {
   private readonly store: MessagesStore;
   private readonly authors: AuthorDirectory;
+  private readonly blocks: BlockDirectory;
 
   constructor(
     @Optional() @Inject(MESSAGES_STORE) store?: MessagesStore,
     @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
+    @Optional() @Inject(BLOCK_DIRECTORY) blocks?: BlockDirectory,
   ) {
     this.store = store ?? new DrizzleMessagesStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
+    // Falls back to the real adapter rather than to an empty list, for the same
+    // reason ModerationService falls back to a real notifier: a silent no-op
+    // here would ship a Block button that records a block and hides nothing.
+    this.blocks = blocks ?? new DrizzleBlockDirectory();
   }
 
   /**
@@ -409,6 +546,24 @@ export class MessagesService {
    *
    * This line is the entire boundary — the backend connects as `service_role`,
    * so RLS is bypassed, not a second line of defence.
+   *
+   * BLOCKS ARE ENFORCED HERE, and the shape is over-fetch-and-trim rather than
+   * filter-and-return-short. Callers — the mobile chat screen and the web one,
+   * both being written against this contract right now — page by asking for N
+   * and stopping when they get fewer than N back. A page that came back short
+   * because a block removed rows would read to them as "end of history", so a
+   * member who blocked one chatty person would see the group's past simply
+   * stop. Reading extra rows and trimming to N keeps that signal honest.
+   *
+   * The cursor is UNAFFECTED by the filtering: the next page is always asked
+   * for relative to the last row actually RETURNED, so rows trimmed off the end
+   * are strictly older than it and come back on the following page. Nothing is
+   * skipped and nothing repeats, including when the block sits across a page
+   * boundary.
+   *
+   * Blanking a blocked message's body instead was rejected outright: an empty
+   * bubble still tells the caller that the person they blocked is here, still
+   * here, and talking this often.
    */
   async list(
     userId: string,
@@ -421,15 +576,41 @@ export class MessagesService {
     if (!canReadGroup(group, membership)) {
       throw new ForbiddenException("You're not a member of this group.");
     }
-    const before: MessageCursor | null = options.before
+
+    const limit = this.resolveLimit(options.limit);
+    // EXACTLY ONE block lookup per call, reused across every refill round and
+    // every message on the page. One per message is fifty round trips on the
+    // screen users open most; one per round would grow with the block list.
+    const hidden = await this.loadHiddenAuthors(readerId);
+
+    let cursor: MessageCursor | null = options.before
       ? { createdAt: options.before, id: options.beforeId }
       : null;
-    const messages = await this.store.listMessages(
-      groupId,
-      before,
-      this.resolveLimit(options.limit),
-    );
-    return this.withAuthors(messages);
+    // With nothing hidden there is nothing to trim, so the store is asked for
+    // exactly the page — the pre-block query, unchanged, for the overwhelming
+    // majority of callers who have never blocked anybody.
+    const fetchSize =
+      hidden.size === 0
+        ? limit
+        : Math.min(limit * OVERFETCH_FACTOR, FETCH_CEILING);
+
+    const visible: CommunityGroupMessage[] = [];
+    for (let round = 0; round < MAX_FETCH_ROUNDS; round += 1) {
+      const batch = await this.store.listMessages(groupId, cursor, fetchSize);
+      if (batch.length === 0) break;
+      for (const message of batch) {
+        if (!this.isHidden(message, hidden)) visible.push(message);
+      }
+      // The raw batch's last row, not the last VISIBLE one: the next round has
+      // to resume where the read stopped, or the rows a block removed at the
+      // tail would be read a second time.
+      const last = batch[batch.length - 1];
+      cursor = { createdAt: last.createdAt, id: last.id };
+      // Short batch means the group is exhausted; a full page means we are done.
+      if (batch.length < fetchSize || visible.length >= limit) break;
+    }
+
+    return this.withAuthors(visible.slice(0, limit));
   }
 
   async send(
@@ -532,6 +713,45 @@ export class MessagesService {
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * The set of author ids whose messages this reader must not see.
+   *
+   * DECIDED HERE, not in the directory. The directory hands back raw column
+   * values; this turns them into a set, and every judgement in between is the
+   * service's: dropping the rows whose subject could not be recovered from the
+   * uuid, keeping the stored uuid as a second key for the rows whose community
+   * id happens to be the derived one, trimming, and refusing to hide the reader
+   * from themselves. A double that returned a ready-made set would be testing
+   * its own reimplementation of all four.
+   *
+   * The self-guard is belt and braces — `ModerationService.block` already
+   * refuses a self-block — but a stray legacy row would otherwise blank the
+   * caller's entire side of every conversation, which reads as total data loss.
+   */
+  private async loadHiddenAuthors(readerId: string): Promise<Set<string>> {
+    const parties = await this.blocks.findBlockedParties(readerId);
+    const hidden = new Set<string>();
+    for (const party of parties ?? []) {
+      // Both keys. `community_group_messages.user_id` holds the raw subject,
+      // which is what `subject` recovers; `databaseId` covers the rows whose
+      // community id was written as the derived uuid instead.
+      for (const key of [party?.subject, party?.databaseId]) {
+        const trimmed = (key || "").trim();
+        if (trimmed && trimmed !== readerId) hidden.add(trimmed);
+      }
+    }
+    return hidden;
+  }
+
+  /** A message is hidden when its author is on either side of a block. */
+  private isHidden(
+    message: CommunityGroupMessage,
+    hidden: Set<string>,
+  ): boolean {
+    if (hidden.size === 0) return false;
+    return hidden.has((message.userId || "").trim());
+  }
 
   /**
    * Attaches an author card to every message in a page using ONE directory

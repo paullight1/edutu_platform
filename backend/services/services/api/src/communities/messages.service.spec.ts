@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
   AuthorDirectory,
   AuthorRow,
+  BlockDirectory,
+  BlockedPartyRow,
   CommunityGroup,
   CommunityGroupMember,
   CommunityGroupMessage,
@@ -146,6 +148,60 @@ class FakeAuthorDirectory implements AuthorDirectory {
   }
 }
 
+/**
+ * The `user_blocks` side, and — like the other two doubles — a dumb reader.
+ *
+ * It holds the block pairs a real table would hold and hands back the raw
+ * column values for the other party, standing in for the adapter's `union` of
+ * "people I blocked" and "people who blocked me". It decides NOTHING else: no
+ * trimming, no self-exclusion, no set-building, no page arithmetic. Every one
+ * of those is the service's, which is what makes the assertions below observe
+ * `MessagesService` and not this class.
+ *
+ * `databaseId` mimics the stored uuid the real table keys on. It is a made-up
+ * string rather than a real `toDatabaseUserId` output on purpose: the service
+ * must never care which namespace it is in, and a test that computed the real
+ * derivation would be asserting `toDatabaseUserId` instead of the filter.
+ *
+ * `calls` is what makes "ONE lookup per list call" checkable at all.
+ */
+class FakeBlockDirectory implements BlockDirectory {
+  /** Raw pairs of Clerk subjects, exactly as `user_blocks` stores them. */
+  pairs: Array<{ blockerId: string; blockedId: string }> = [];
+
+  /** Rows whose subject could not be recovered from the stored uuid. */
+  unresolved: string[] = [];
+
+  calls: string[] = [];
+
+  block(blockerId: string, blockedId: string): this {
+    this.pairs.push({ blockerId, blockedId });
+    return this;
+  }
+
+  async findBlockedParties(userId: string): Promise<BlockedPartyRow[]> {
+    this.calls.push(userId);
+    const rows: BlockedPartyRow[] = [];
+    for (const pair of this.pairs) {
+      // Both directions, the way the adapter's `union` reads them back.
+      const other =
+        pair.blockerId === userId
+          ? pair.blockedId
+          : pair.blockedId === userId
+            ? pair.blockerId
+            : null;
+      if (other === null) continue;
+      rows.push({
+        databaseId: `uuid-of:${other}`,
+        // Null when the profiles join found nothing — the case the real
+        // adapter hits for a member who has never written a profile row.
+        subject: this.unresolved.includes(other) ? null : other,
+      });
+    }
+    return rows;
+  }
+}
+
 const GROUP_ID = "00000000-0000-4000-8000-000000000001";
 const MESSAGE_ID = "00000000-0000-4000-8000-0000000000a1";
 
@@ -222,8 +278,9 @@ function fakeDb(
 function messagesService(
   db: FakeMessagesStore,
   directory: FakeAuthorDirectory = new FakeAuthorDirectory(),
+  blocks: FakeBlockDirectory = new FakeBlockDirectory(),
 ): MessagesService {
-  return new MessagesService(db, directory);
+  return new MessagesService(db, directory, blocks);
 }
 
 describe("MessagesService", () => {
@@ -697,6 +754,289 @@ describe("MessagesService", () => {
         kind: "text",
         deletedAt: null,
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Blocks
+  //
+  // "Users can block each other" is this feature's App Store justification.
+  // Until these passed, the block wrote a durable row and changed nothing a
+  // user could see — which is worse than no block, because they believed they
+  // were protected.
+  // -------------------------------------------------------------------------
+
+  describe("blocks", () => {
+    /** Authors newest-first; message N is older than message N-1. */
+    function chat(authors: string[]): FakeMessagesStore {
+      return fakeDb({ messages: authors.map((userId) => ({ userId })) });
+    }
+
+    const ids = (page: Array<{ id: string }>) => page.map((row) => row.id);
+
+    it("hides the messages of someone the reader blocked", async () => {
+      const db = chat(["user_ada", "user_troll", "user_bola"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_ada",
+        "user_bola",
+      ]);
+    });
+
+    it("hides the blocker's messages from the person they blocked, too", async () => {
+      // The other half of the same row. A one-directional block leaves the
+      // blocked party still watching, which is what people block to prevent.
+      const db = chat(["user_ada", "user_troll", "user_bola"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_troll", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_troll",
+        "user_bola",
+      ]);
+    });
+
+    it("leaves a third party seeing both of them", async () => {
+      const db = chat(["user_ada", "user_troll", "user_bola"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_bola", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_ada",
+        "user_troll",
+        "user_bola",
+      ]);
+    });
+
+    it("restores visibility once the block is undone", async () => {
+      const db = chat(["user_ada", "user_troll"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+      const service = messagesService(db, new FakeAuthorDirectory(), blocks);
+
+      await expect(service.list("user_ada", GROUP_ID)).resolves.toHaveLength(1);
+
+      blocks.pairs = [];
+      await expect(service.list("user_ada", GROUP_ID)).resolves.toHaveLength(2);
+    });
+
+    it("never hides the reader's own messages", async () => {
+      // A stray self-block row would otherwise blank the caller's whole side of
+      // every conversation, which reads as total data loss.
+      const db = chat(["user_ada", "user_bola"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_ada");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_ada",
+        "user_bola",
+      ]);
+    });
+
+    it("does not send a blocked author's name to the author directory", async () => {
+      // The hidden rows are gone before the page is named, so a blocked member
+      // is not even looked up — nothing about them reaches the response.
+      const db = chat(["user_ada", "user_troll"]);
+      const directory = new FakeAuthorDirectory();
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      await messagesService(db, directory, blocks).list("user_ada", GROUP_ID);
+
+      expect(directory.calls).toEqual([["user_ada"]]);
+    });
+
+    // -----------------------------------------------------------------------
+    // Pagination
+    // -----------------------------------------------------------------------
+
+    it("keeps the page size honest when a block removes rows from it", async () => {
+      // Over-fetch-and-trim, not filter-and-return-short: a client pages until
+      // it gets fewer rows than it asked for, so a page shortened by a block
+      // would read as the end of the group's history.
+      const db = chat([
+        "user_ada",
+        "user_troll",
+        "user_bola",
+        "user_troll",
+        "user_chidi",
+      ]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID, { limit: 3 });
+
+      expect(page).toHaveLength(3);
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_ada",
+        "user_bola",
+        "user_chidi",
+      ]);
+    });
+
+    it("advances the keyset across a block that straddles a page boundary, with no skips and no repeats", async () => {
+      // Eight messages, alternating, with the blocked author sitting exactly on
+      // the seam of every page. Paging the way the client does must yield the
+      // five visible messages once each, oldest last, in order.
+      const db = chat([
+        "user_ada", // 1
+        "user_troll", // 2  — dropped, on the first page's tail
+        "user_ada", // 3
+        "user_troll", // 4  — dropped, first row after the boundary
+        "user_ada", // 5
+        "user_ada", // 6
+        "user_troll", // 7  — dropped, on the last seam
+        "user_ada", // 8
+      ]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+      const service = messagesService(db, new FakeAuthorDirectory(), blocks);
+      const visible = db.messages
+        .filter((message) => message.userId === "user_ada")
+        .map((message) => message.id);
+
+      const collected: string[] = [];
+      let cursor: { before?: Date; beforeId?: string } = {};
+      for (let page = 0; page < 6; page += 1) {
+        const rows = await service.list("user_ada", GROUP_ID, {
+          limit: 2,
+          ...cursor,
+        });
+        collected.push(...ids(rows));
+        if (rows.length < 2) break;
+        const last = rows[rows.length - 1];
+        cursor = { before: last.createdAt, beforeId: last.id };
+      }
+
+      // Every visible message exactly once, in order — and nothing else.
+      expect(collected).toEqual(visible);
+      expect(new Set(collected).size).toBe(collected.length);
+      expect(collected).not.toContain(
+        db.messages.find((message) => message.userId === "user_troll")?.id,
+      );
+    });
+
+    it("refills a page whose whole first read was blocked, rather than reporting the end of history", async () => {
+      // limit 2 reads 4 rows a round; the first four are all the blocked
+      // author's. Returning [] here would tell the client the group is over.
+      const db = chat([
+        "user_troll",
+        "user_troll",
+        "user_troll",
+        "user_troll",
+        "user_ada",
+        "user_bola",
+      ]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID, { limit: 2 });
+
+      expect(page.map((message) => message.userId)).toEqual([
+        "user_ada",
+        "user_bola",
+      ]);
+    });
+
+    it("asks the store for exactly the page when the reader has blocked nobody", async () => {
+      // No blocks, no over-fetch: the pre-block query, unchanged, for the
+      // overwhelming majority of callers.
+      const db = chat(["user_ada", "user_bola"]);
+      await messagesService(db).list("user_ada", GROUP_ID, { limit: 2 });
+      expect(db.lastLimit).toBe(2);
+    });
+
+    // -----------------------------------------------------------------------
+    // Cost
+    // -----------------------------------------------------------------------
+
+    it("looks the block list up ONCE per list call, whatever the page size", async () => {
+      const db = chat(Array.from({ length: 40 }, () => "user_bola"));
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+      const service = messagesService(db, new FakeAuthorDirectory(), blocks);
+
+      await service.list("user_ada", GROUP_ID, { limit: 1 });
+      expect(blocks.calls).toEqual(["user_ada"]);
+
+      await service.list("user_ada", GROUP_ID, { limit: 50 });
+      expect(blocks.calls).toEqual(["user_ada", "user_ada"]);
+    });
+
+    it("looks it up once even when the page needs several refill rounds", async () => {
+      const db = chat([
+        ...Array.from({ length: 12 }, () => "user_troll"),
+        "user_ada",
+      ]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      await messagesService(db, new FakeAuthorDirectory(), blocks).list(
+        "user_ada",
+        GROUP_ID,
+        { limit: 2 },
+      );
+
+      expect(blocks.calls).toHaveLength(1);
+    });
+
+    // -----------------------------------------------------------------------
+    // The uuid namespace
+    // -----------------------------------------------------------------------
+
+    it("also hides an author whose community rows carry the derived uuid", async () => {
+      // `user_blocks` is uuid-keyed and `community_group_messages.user_id` is
+      // text; most rows hold the raw subject but some hold the derived uuid, so
+      // both keys are matched.
+      const db = chat(["user_ada", "uuid-of:user_troll"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual(["user_ada"]);
+    });
+
+    it("still hides a blocked member whose uuid maps back to no profile row", async () => {
+      // `toDatabaseUserId` is one-way, so an unresolvable row yields no
+      // subject; the stored uuid is the only key left and it must still work.
+      const db = chat(["user_ada", "uuid-of:user_troll"]);
+      const blocks = new FakeBlockDirectory().block("user_ada", "user_troll");
+      blocks.unresolved.push("user_troll");
+
+      const page = await messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        blocks,
+      ).list("user_ada", GROUP_ID);
+
+      expect(page.map((message) => message.userId)).toEqual(["user_ada"]);
     });
   });
 });
