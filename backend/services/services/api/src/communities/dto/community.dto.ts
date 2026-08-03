@@ -23,15 +23,67 @@ export type SendMessageDto = z.infer<typeof SendMessageSchema>;
 
 // The constrained question set. Max 5, fixed types — a form builder, not a
 // form engine, so the builder / renderer / viewer each stay testable.
-export const GroupQuestionSchema = z.object({
-  id: z.string().min(1).max(40),
-  type: z.enum(["short_text", "long_text", "single_select"]),
-  label: z.string().trim().min(1).max(60),
+//
+// `options` only makes sense for `single_select`. Rather than leaving that as
+// a comment downstream code has to remember (and re-check with
+// `type === "single_select"` before trusting `options`), the invariant is
+// encoded as a discriminated union on `type`. That gives two wins over a
+// `.superRefine` on a flat object: (1) after a successful parse, TypeScript
+// narrows `options` to `string[]` on the `single_select` branch — no
+// `string[] | undefined` for callers to guard against — and (2) a
+// `short_text`/`long_text` question that carries `options` is rejected
+// outright (via `z.undefined()`) instead of the value being silently
+// stripped or ignored.
+const questionId = z
+  .string()
+  .min(1, "Question id is required")
+  .max(40, "Question id must be 40 characters or fewer");
+
+const questionLabel = z
+  .string()
+  .trim()
+  .min(1, "Question label is required")
+  .max(60, "Question label must be 60 characters or fewer");
+
+const questionOption = z
+  .string()
+  .trim()
+  .min(1, "Option text cannot be empty")
+  .max(40, "Option text must be 40 characters or fewer");
+
+const TextQuestionSchema = z.object({
+  id: questionId,
+  type: z.enum(["short_text", "long_text"]),
+  label: questionLabel,
   required: z.boolean().default(false),
-  options: z.array(z.string().trim().min(1).max(40)).max(6).optional(),
+  options: z
+    .undefined({
+      error: "options is only allowed for single_select questions",
+    })
+    .optional(),
 });
+
+const SingleSelectQuestionSchema = z.object({
+  id: questionId,
+  type: z.literal("single_select"),
+  label: questionLabel,
+  required: z.boolean().default(false),
+  options: z
+    .array(questionOption)
+    .min(2, "single_select needs at least 2 options")
+    .max(6, "single_select allows at most 6 options"),
+});
+
+export const GroupQuestionSchema = z.discriminatedUnion("type", [
+  TextQuestionSchema,
+  SingleSelectQuestionSchema,
+]);
+export type GroupQuestionDto = z.infer<typeof GroupQuestionSchema>;
+
 export const GroupFormSchema = z.object({
-  questions: z.array(GroupQuestionSchema).max(5),
+  questions: z
+    .array(GroupQuestionSchema)
+    .max(5, "A form allows at most 5 questions"),
 });
 export type GroupFormDto = z.infer<typeof GroupFormSchema>;
 
