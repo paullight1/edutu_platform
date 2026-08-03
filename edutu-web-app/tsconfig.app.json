@@ -29,6 +29,7 @@
   },
   "include": ["src", "../packages/ux-state/src"],
   "exclude": [
+    "../packages/ux-state/src/**/__tests__/**",
     "src/services/admin/index.ts",
     "src/services/admin/marketplaceAdmin.ts",
     "src/services/admin/opportunities.ts",

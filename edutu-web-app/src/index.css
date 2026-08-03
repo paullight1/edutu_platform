@@ -67,6 +67,14 @@
   --color-success-500: 16 185 129;
   --color-warning-500: 245 158 11;
   --color-danger-500: 239 68 68;
+
+  /* Scene tokens — the duotone's second tone and the plate every illustration
+     sits on. Derived from the brand ramp so a theme pack, which overrides the
+     full ramp in light mode, carries the illustrations with it for free.
+     The dark block below replaces both: a light tint disappears against a dark
+     surface, and packs only override 500/600 there. */
+  --color-scene-soft: var(--color-brand-100);
+  --color-scene-plate: var(--color-neutral-100);
   --color-info-500: 14 165 233;
 
   /* Surface tokens */
@@ -110,6 +118,11 @@
 
 .dark {
   color-scheme: dark;
+
+  /* See the light-mode note above: a tint vanishes on a dark surface, so the
+     duotone's second tone becomes a deep shade instead of a light one. */
+  --color-scene-soft: 42 47 82;
+  --color-scene-plate: 30 41 59;
   --color-neutral-0: 8 11 24;
   --color-neutral-50: 12 15 26;
   --color-neutral-100: 17 22 34;
