@@ -1615,7 +1615,8 @@ export class OpportunitiesService {
           void this.embeddingService.embedOpportunity(id);
         }
         const row = await this.findOne(id);
-        // Approval is when a row becomes visible — match saved-search alerts now.
+        // Approval is when a row becomes visible — record saved-search matches
+        // now. Delivery is batched by the saved-search digest cron, never here.
         if (status === "active" && row) {
           void this.savedSearchesService?.notifyNewOpportunities([row]);
         }
@@ -3107,7 +3108,8 @@ ${sourceText || "No source page text was available. Still write a complete summa
         if (savedId)
           void this.embeddingService.embedOpportunity(String(savedId));
       }
-      // Fire-and-forget: alert users whose saved searches match (active rows only).
+      // Fire-and-forget: record saved-search matches (active rows only). The
+      // digest cron batches them into one push per user.
       void this.savedSearchesService?.notifyNewOpportunities(saved);
       await this.prewarmShareAssets(saved);
       return { inserted, skipped, opportunities: saved };

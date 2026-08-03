@@ -111,11 +111,28 @@ async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, toke
     return pushSyncInFlight;
 }
 
-export async function registerForPushNotificationsAsync(userId?: string, getAuthToken?: AuthTokenGetter): Promise<string | null> {
+export interface RegisterPushOptions {
+    /**
+     * Whether a missing permission may raise the OS prompt. Launch-time
+     * registration passes `false`: the system prompt is a one-shot resource on
+     * iOS and firing it on a cold start — before the user has any reason to
+     * say yes — is how you lose it permanently. Contextual opt-ins and the
+     * settings toggle pass `true` (the default).
+     */
+    promptIfNeeded?: boolean;
+}
+
+export async function registerForPushNotificationsAsync(
+    userId?: string,
+    getAuthToken?: AuthTokenGetter,
+    options: RegisterPushOptions = {},
+): Promise<string | null> {
+    const { promptIfNeeded = true } = options;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
+        if (!promptIfNeeded) return null;
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
     }

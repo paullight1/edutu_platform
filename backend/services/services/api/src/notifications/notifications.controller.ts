@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -11,6 +12,7 @@ import {
 } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AdminGuard } from "../auth/admin.guard";
+import { Public } from "../auth/public.decorator";
 import { NotificationsService } from "./notifications.service";
 import {
   BroadcastNotificationSchema,
@@ -38,6 +40,30 @@ export class NotificationsController {
   @Get("summary")
   summary(@CurrentUser("id") userId: string, @Query("limit") limit?: number) {
     return this.notificationsService.getSummary(userId, limit);
+  }
+
+  /**
+   * Records that the user tapped the notification itself (distinct from
+   * `read_at`, which only means it was seen in the inbox list).
+   *
+   * PUBLIC BY NECESSITY: the web service worker that reports this has no Clerk
+   * session — a `notificationclick` usually wakes a cold worker with no page
+   * around to supply a token — so it sends `credentials: "omit"`. The design
+   * makes that safe rather than merely tolerable:
+   *   - the id is a uuid4, so it cannot be guessed or enumerated;
+   *   - it only ever sets `opened_at`, and only when currently null, so a
+   *     replay is a no-op and nothing user-visible can be mutated;
+   *   - it ALWAYS returns 204 whether or not the id exists, so it cannot be
+   *     used as an oracle to test which notification ids are real.
+   * The worst an attacker who already knows an id can do is falsify one row of
+   * engagement telemetry. That is an acceptable trade for a metrics field; it
+   * would not be for anything that changes what a user sees.
+   */
+  @Public()
+  @Post(":id/opened")
+  @HttpCode(204)
+  async markOpened(@Param("id") id: string): Promise<void> {
+    await this.notificationsService.markOpened(id);
   }
 
   @Patch(":id/read")
