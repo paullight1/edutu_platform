@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "https://www.edutu.org",
+  "generatedFrom": "http://localhost:4173",
   "width": 1200,
   "height": 630,
   "deviceScaleFactor": 2,
@@ -35,6 +35,11 @@
       "path": "/impact",
       "slug": "impact",
       "file": "/og/impact.jpg"
+    },
+    {
+      "path": "/edutuforyou",
+      "slug": "edutu-for-you",
+      "file": "/og/edutu-for-you.jpg"
     },
     {
       "path": "/events",

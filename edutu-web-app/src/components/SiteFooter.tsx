@@ -32,6 +32,7 @@ const columns: FooterColumn[] = [
         links: [
             { label: 'About', to: '/about' },
             { label: 'Our Impact', to: '/impact' },
+            { label: 'Edutu For You', to: '/edutuforyou' },
             { label: 'What We Believe', to: '/what-we-believe' },
             { label: 'Blog', to: '/blog' },
             { label: 'Careers', to: '/careers' },

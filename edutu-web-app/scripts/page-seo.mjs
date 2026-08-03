@@ -108,6 +108,16 @@ export const PAGE_SEO = [
     settleMs: 1500,
   },
   {
+    path: "/edutuforyou",
+    slug: "edutu-for-you",
+    title: "Edutu For You — one million young people, one open door",
+    description:
+      "Edutu For You is our impact program: reaching one million underprivileged young people with access to global opportunities, using AI infrastructure. Partner with us, or join the community.",
+    imageAlt: "Edutu For You — talent is everywhere, access isn't",
+    // Hero photograph plus a staggered reveal and an animated progress rail.
+    settleMs: 2500,
+  },
+  {
     path: "/events",
     slug: "events",
     title: "Edutu events | Scholarships, mentorship and application support",

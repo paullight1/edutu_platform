@@ -19,6 +19,7 @@ const defaultNavItems: NavItem[] = [
   { label: 'Mentor', to: '/mentor' },
   { label: 'About', to: '/about' },
   { label: 'Impact', to: '/impact' },
+  { label: 'Edutu For You', to: '/edutuforyou' },
   { label: 'Blog', to: '/blog' },
   { label: 'Events', to: '/events' },
 ];

@@ -105,7 +105,7 @@ const EdutuForYouBand: React.FC = () => {
 
                     <h2
                         id="edutu-for-you-heading"
-                        className="mt-6 font-display text-[2rem] font-bold leading-[1.1] tracking-[-0.02em] sm:text-[2.75rem]"
+                        className="mt-6 font-display text-[2rem] font-bold leading-[1.1] tracking-[-0.02em] text-[#F8FAFC] sm:text-[2.75rem]"
                     >
                         {PROGRAM_HEADLINE}
                     </h2>
@@ -179,21 +179,19 @@ const EdutuForYouBand: React.FC = () => {
                             ? undefined
                             : { duration: 0.6, delay: 0.12, ease: [0.16, 1, 0.3, 1] }
                     }
-                    className="grid grid-cols-3 gap-3 sm:gap-4"
+                    // Five images across three columns: the first spans both
+                    // rows, so the remaining four fill the other two columns
+                    // exactly. A plain 3-col flow would leave a hole bottom-right.
+                    className="grid auto-rows-[minmax(0,1fr)] grid-cols-3 grid-rows-2 gap-3 sm:gap-4"
                 >
                     {MOSAIC.map((image, index) => (
                         <div
                             key={image.src}
                             className={[
                                 'overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]',
-                                // Staggered heights turn a plain grid into a mosaic.
-                                index === 0 ? 'h-40 sm:h-56' : '',
-                                index === 1 ? 'mt-6 h-48 sm:mt-10 sm:h-64' : '',
-                                index === 2 ? 'h-40 sm:h-56' : '',
-                                index === 3 ? 'h-36 sm:h-48' : '',
-                                index === 4 ? 'h-36 sm:h-48' : '',
-                                // The last two sit under the first three.
-                                index >= 3 ? 'col-span-1' : '',
+                                // The lead portrait runs the full height of the block.
+                                index === 0 ? 'row-span-2 h-full min-h-[18rem] sm:min-h-[24rem]' : '',
+                                index > 0 ? 'h-36 sm:h-[11.5rem]' : '',
                             ]
                                 .filter(Boolean)
                                 .join(' ')}

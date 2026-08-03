@@ -284,6 +284,15 @@ async function main() {
       changefreq: "daily",
       priority: "0.9",
     },
+    // Impact program landing page. NOTE: the other marketing routes
+    // (/about, /impact, /community, …) are still missing from this list —
+    // worth backfilling, but out of scope for this change.
+    {
+      loc: toAbsoluteUrl("/edutuforyou"),
+      lastmod: today,
+      changefreq: "monthly",
+      priority: "0.7",
+    },
     // Category collection landing pages (crawler meta injected by the
     // opportunities-og edge function).
     ...["scholarships", "internships", "fellowships", "programs"].map(

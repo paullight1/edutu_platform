@@ -14,6 +14,7 @@ import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
+import EdutuForYouBand from './EdutuForYouBand';
 import EventsHomeSection from './EventsHomeSection';
 import UrgencyPill from './opportunity/UrgencyPill';
 import { organizationLabel } from '../lib/organizationLabel';
@@ -679,6 +680,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </div>
                     </div>
                 </section>
+
+                {/* ─── Edutu For You (impact program) ───────────────────── */}
+                <EdutuForYouBand />
 
                 {/* ─── FAQ ──────────────────────────────────────────────── */}
                 <section className="px-4 py-20 sm:px-6 sm:py-28" id="faq">

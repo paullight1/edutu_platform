@@ -54,6 +54,10 @@
       "destination": "/impact/index.html"
     },
     {
+      "source": "/edutuforyou",
+      "destination": "/edutuforyou/index.html"
+    },
+    {
       "source": "/events",
       "destination": "/events/index.html"
     },

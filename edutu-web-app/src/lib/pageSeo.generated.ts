@@ -57,6 +57,13 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
     image: "https://www.edutu.org/og/impact.jpg",
     imageAlt: "Edutu impact — closing Africa's opportunity gap",
   },
+  "/edutuforyou": {
+    slug: "edutu-for-you",
+    title: "Edutu For You — one million young people, one open door",
+    description: "Edutu For You is our impact program: reaching one million underprivileged young people with access to global opportunities, using AI infrastructure. Partner with us, or join the community.",
+    image: "https://www.edutu.org/og/edutu-for-you.jpg",
+    imageAlt: "Edutu For You — talent is everywhere, access isn't",
+  },
   "/events": {
     slug: "events",
     title: "Edutu events | Scholarships, mentorship and application support",

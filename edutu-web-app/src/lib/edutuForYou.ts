@@ -26,7 +26,6 @@ import {
   GraduationCap,
   HeartHandshake,
   Megaphone,
-  Sparkles,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -74,10 +73,10 @@ export const REACH_TODAY = 67_000;
 const PORTRAIT = "w=480&h=640&q=80&auto=format&fit=crop";
 
 export const HERO_IMAGE =
-  "https://images.pexels.com/photos/8199562/pexels-photo-8199562.jpeg?auto=compress&cs=tinysrgb&w=1920";
+  "https://images.unsplash.com/photo-1686213011624-8578b598ef0f?w=1920&h=1080&q=80&auto=format&fit=crop";
 
 export const HERO_IMAGE_ALT =
-  "A young African student working through her studies";
+  "A young graduate celebrating on her graduation day";
 
 /** The offset mosaic on the landing band and the program hero. */
 export interface MosaicImage {
@@ -87,12 +86,12 @@ export interface MosaicImage {
 
 export const MOSAIC: MosaicImage[] = [
   {
-    src: `https://images.unsplash.com/photo-1686213011624-8578b598ef0f?${PORTRAIT}`,
-    alt: "A graduate celebrating on her graduation day",
+    src: `https://images.unsplash.com/photo-1541339907198-e08756dedf3f?${PORTRAIT}`,
+    alt: "Graduates throwing their caps in the air",
   },
   {
-    src: `https://images.unsplash.com/photo-1620829813573-7c9e1877706f?${PORTRAIT}`,
-    alt: "A student working through an application on a laptop",
+    src: `https://images.unsplash.com/photo-1778824717521-a23599f32d71?${PORTRAIT}`,
+    alt: "A group of young people celebrating together",
   },
   {
     src: `https://images.unsplash.com/photo-1758525861622-f4e7ac86a2d7?${PORTRAIT}`,
@@ -236,7 +235,7 @@ export const PILLARS: Pillar[] = [
     youGet:
       "The world's opportunities, on the same terms as everyone else applying for them.",
     image: `https://images.unsplash.com/photo-1628825453863-ccfe2dcc4c70?${PORTRAIT}`,
-    imageAlt: "A young person looking out toward what comes next",
+    imageAlt: "Two young women standing together",
   },
 ];
 
@@ -276,16 +275,15 @@ export const STORIES: Story[] = [
     name: "Aisha",
     age: 19,
     place: "Kano, Nigeria",
-    image: `https://images.unsplash.com/photo-1541339907198-e08756dedf3f?${PORTRAIT}`,
-    imageAlt: "A young woman studying on her phone",
+    image: `https://images.unsplash.com/photo-1770235621081-030607a06cee?${PORTRAIT}`,
+    imageAlt: "A young woman studying at her desk with an open book",
     quote:
       "I could write the code. I could not write the paragraph about myself.",
     teaser:
       "She taught herself Python on a phone with a cracked screen, working through tutorials between her shifts at her mother's shop.",
     full: [
       "Aisha taught herself Python on a phone with a cracked screen, working through tutorials between shifts at her mother's shop. By nineteen she had built three small apps, one of which the shop still runs on.",
-      "What she had never done was write about herself. The fully-funded fellowship she eventually applied to had been open for two years before she heard it existed, and when she found it, the application asked for a CV, a personal statement and two references — a genre of writing nobody had ever taught her.",
-      "The technical ability was never the gap. The gap was a document, a deadline, and the fact that nobody in her circle had ever filled one of these in before.",
+      "What she had never done was write about herself. The fully-funded fellowship she eventually applied to had been open for two years before she heard it existed, and when she found it, the application asked for a CV, a personal statement and two references — a genre of writing nobody in her circle had ever filled in before.",
     ],
     barrier:
       "The barrier was never the coursework. It was a CV she had no idea how to write.",
@@ -312,7 +310,7 @@ export const STORIES: Story[] = [
     age: 17,
     place: "Kakuma, Kenya",
     image: `https://images.unsplash.com/photo-1747021941314-4179268d6258?${PORTRAIT}`,
-    imageAlt: "A student reading in a community learning space",
+    imageAlt: "A young student outdoors, looking at the camera",
     quote: "Everything I do online, I do on someone else's data bundle.",
     teaser:
       "She lives in a refugee settlement and shares a data bundle with four other people. For her, low-bandwidth access is not a feature.",
@@ -481,5 +479,3 @@ export const PROGRAM_SUBHEAD =
 /** The homepage band's shorter framing. */
 export const BAND_BODY =
   "Somewhere right now a nineteen-year-old is qualified for a fully-funded scholarship she will never hear about. Edutu For You exists to close that gap one million times.";
-
-export const SPARKLE_ICON = Sparkles;

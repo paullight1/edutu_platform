@@ -48,9 +48,13 @@ const StoryCard: React.FC<StoryCardProps> = ({ story }) => {
                     <span>{story.quote}</span>
                 </blockquote>
 
-                <p className="mt-4 text-[0.9375rem] leading-[1.65] text-text-secondary">
-                    {story.teaser}
-                </p>
+                {/* The teaser is the collapsed stand-in for the first
+                    paragraph, so showing both once expanded reads as a stutter. */}
+                {open ? null : (
+                    <p className="mt-4 text-[0.9375rem] leading-[1.65] text-text-secondary">
+                        {story.teaser}
+                    </p>
+                )}
 
                 <AnimatePresence initial={false}>
                     {open ? (

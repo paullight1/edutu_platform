@@ -87,28 +87,39 @@ Every stat is attributed on the card itself. Two classes:
   (UN DESA, World Population Prospects).
 - Youth unemployment / underemployment in sub-Saharan Africa (ILO).
 
-**Edutu-owned** (computed from our own data, attributed to us):
+**Edutu-owned** — as shipped, these reuse figures **already published on
+`/impact`** rather than computing new ones, so the two pages cannot disagree:
 
-- Count of live, fully-funded opportunities Edutu tracks, updated daily.
-- Share of tracked opportunities that close within 30 days of first discovery —
-  the "you found it too late" number, which is the actual thesis of the program.
+- `67,000` young people reached so far.
+- `31 of 54` African countries where Edutu is already active.
 
-**Rule: any figure we cannot source gets cut, not softened.** The implementation
-plan must include a step where the two external figures are confirmed against a
-live source and the two Edutu figures are computed; placeholder numbers must not
-reach production.
+**Rule: any figure we cannot source gets cut, not softened.** Each card renders
+its own `source` string, and `GapStat.source` is a required field precisely so
+an unattributed number cannot be added by accident.
+
+**Still owed before publish:** the two external figures (UN DESA population
+skew; African Development Bank youth-employment) are stated from general
+knowledge and have **not** been checked against a live citation. Confirm both,
+or cut them — they are the only numbers on the page not derived from our own
+platform data.
 
 ### 4.3 Our aim — the milestone ladder
 
 The 1,000,000 figure is presented as a staged plan, not a slogan:
 
+**Revised during implementation.** `/impact` already publishes "Reach 1 million
+young Africans — 67k reached so far", so a ladder starting at 10,000 would have
+contradicted a live page. The ladder is anchored on that published figure:
+
 | Phase | Reach | Horizon |
 |---|---|---|
-| Phase 1 — Prove | 10,000 | 2026 |
-| Phase 2 — Scale | 100,000 | 2027 |
-| Phase 3 — Reach | 1,000,000 | 2030 |
+| Where we are | 67,000 | Today |
+| Phase one — Deepen | 150,000 | 2026 |
+| Phase two — Widen | 500,000 | 2028 |
+| Phase three — Reach | 1,000,000 | 2030 |
 
-Horizons are the design's proposal and are confirmed by the user before ship.
+`REACH_TODAY` and `REACH_GOAL` in `src/lib/edutuForYou.ts` must stay identical
+to the figures on `/impact`. Horizons are the design's proposal, to be confirmed.
 
 ### 4.4 Stories — three composite personas
 
@@ -121,12 +132,17 @@ Presented as vivid, emotionally true narratives. **Each card carries a visible
 This is non-negotiable. An impact page is trust-critical; an unlabelled fictional
 testimonial is the single fastest way to lose a funder or a journalist.
 
-1. **Amara, 19 — Kano, Nigeria.** Teaching herself Python on a phone with a
+**Names revised during implementation.** `/impact` already publishes
+testimonials attributed to **Amara (Kenya)** and **Kwame (Rwanda)**, presented as
+real people. Reusing those names here with different ages and countries would
+have made both pages read as fabricated. The composites are therefore Aisha,
+Kofi and Halima, and the library file carries a comment forbidding reuse of the
+`/impact` names.
+
+1. **Aisha, 19 — Kano, Nigeria.** Teaching herself Python on a phone with a
    cracked screen. Finds a fully-funded fellowship she had never heard of. The
    barrier was never the coursework; it was a CV she had no idea how to write.
-   (Amara is already the persona name used in Edutu's user-testing research —
-   reusing it keeps our internal and external language consistent.)
-2. **Kwame, 23 — Kumasi, Ghana.** Graduated top of his class into three years of
+2. **Kofi, 23 — Kumasi, Ghana.** Graduated top of his class into three years of
    "we regret to inform you". His problem was applying to the wrong forty things
    instead of the right four.
 3. **Halima, 17 — Kakuma, Kenya.** A refugee settlement and a shared data
@@ -218,6 +234,7 @@ lines — if it does, sections get extracted.
 | `src/components/ImpactPage.tsx` | One cross-link to `/edutuforyou`. |
 | `scripts/page-seo.mjs` | New `PAGE_SEO` entry (`path: "/edutuforyou"`, `slug: "edutu-for-you"`). |
 | `scripts/generate-sitemap.mjs` | Add `/edutuforyou` to the static URL list. |
+| `vercel.json` | Rewrite `/edutuforyou` → `/edutuforyou/index.html`. Required: without it the SPA catch-all answers crawlers with generic tags, and the `pageSeo` guard test fails. |
 
 ### 6.3 SEO / Open Graph
 
@@ -231,7 +248,18 @@ never hand-edited.
 hero's motion and images have settled before the OG screenshot is captured.
 
 Note that OG image capture (`npm run seo:og`) is **not** part of `prebuild` — it
-is a separate manual step. Generating `public/og/edutu-for-you.jpg` and
+is a separate manual step, and it **defaults to capturing production**. For a
+route that does not exist in production yet, that silently screenshots whatever
+the live catch-all serves (the sign-in page). Capture a new route against a
+local preview instead:
+
+```
+npm run build && npx vite preview --port 4173
+OG_BASE_URL=http://localhost:4173 node scripts/generate-og-images.mjs edutu-for-you
+```
+
+Passing the slug matters too: an unfiltered run rewrites all twenty images from
+live content and produces unrelated churn in the diff. Generating `public/og/edutu-for-you.jpg` and
 committing it is therefore an explicit task in the implementation plan; skipping
 it leaves the page unfurling with a missing image.
 
