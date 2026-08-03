@@ -16,6 +16,11 @@ import {
   type CommunityGroupMember,
   type CommunityGroupMessage,
 } from "../db/schema";
+import {
+  canModerateGroup,
+  canPostInGroup,
+  canReadGroup,
+} from "./community-authz";
 import type { SendMessageDto } from "./dto/community.dto";
 import { screenMessage } from "./message-screen";
 
@@ -252,20 +257,16 @@ export class MessagesService {
   }
 
   /**
-   * Mirrors `GroupsService.get`'s visibility rule EXACTLY, and must keep
-   * mirroring it: a private group is members-only, a public one is readable by
-   * any signed-in user, joined or not — read-before-join is intended. Archived
-   * groups stay readable; only `send` treats archiving as a wall.
+   * Does not mirror `GroupsService.get`'s visibility rule — it IS that rule.
+   * Both call `canReadGroup`, which is the whole reason community-authz.ts
+   * exists: the previous copy here admitted `pending` and refused `invited`
+   * while `get` did the opposite, so unvetted applicants got the full message
+   * history and genuine invitees could not load the invite preview.
    *
-   * `invited` reads, `pending` does not. An `invited` row is an owner's
-   * standing decision to admit someone, and the invite-preview screen this
-   * backend endpoint exists to serve (see the comment on `GroupsService.get`)
-   * cannot show an invitee anything if this throws. A `pending` row is an
-   * unapproved self-application: a group that was public+request before an
-   * owner flipped it to private carries a queue of them, and treating that
-   * queue as invited would hand the whole message history to every unvetted
-   * applicant the instant the owner asked for MORE privacy. `join`, `get` and
-   * the RLS helper all refuse them; so does this.
+   * The membership row is read for every group, not only private ones, so this
+   * asks the shared predicate the same question `get` asks rather than
+   * second-guessing when the answer could depend on the row. One indexed point
+   * select; `get` has always paid it.
    *
    * This line is the entire boundary — the backend connects as `service_role`,
    * so RLS is bypassed, not a second line of defence.
@@ -277,13 +278,9 @@ export class MessagesService {
   ): Promise<CommunityGroupMessage[]> {
     const readerId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
-    if (group.visibility === "private") {
-      const membership = await this.store.findMembership(groupId, readerId);
-      const invitedOrIn =
-        membership?.status === "active" || membership?.status === "invited";
-      if (!invitedOrIn) {
-        throw new ForbiddenException("You're not a member of this group.");
-      }
+    const membership = await this.store.findMembership(groupId, readerId);
+    if (!canReadGroup(group, membership)) {
+      throw new ForbiddenException("You're not a member of this group.");
     }
     const before: MessageCursor | null = options.before
       ? { createdAt: options.before, id: options.beforeId }
@@ -317,7 +314,7 @@ export class MessagesService {
         "You can no longer post in this group. This decision was made by the group's owners.",
       );
     }
-    if (membership?.status !== "active") {
+    if (!canPostInGroup(group, membership)) {
       throw new ForbiddenException(
         "You need to join this group before you can post in it.",
       );
@@ -396,32 +393,22 @@ export class MessagesService {
   }
 
   /**
-   * The same rule as `GroupsService.assertCanAdminister` (and the
-   * `community_is_owner_or_mod` RLS helper), restated here rather than imported
-   * because depending on GroupsService would be circular — it posts
-   * `kind='system'` messages through this service.
-   *
-   * `owner_id` and the membership row are both authoritative and either alone
-   * is enough, so a drifted or missing row never locks a real owner out of
-   * moderating their own group. An explicit departure (`removed`/`banned`) is a
-   * decision rather than drift, so it beats `owner_id`.
+   * The same function `GroupsService.assertCanAdminister` calls — literally the
+   * same, not a restatement. Importing GroupsService would be circular (it posts
+   * `kind='system'` messages through this service), and that constraint is what
+   * produced the copy this replaces; a dependency-free module dissolves it.
    */
   private async assertCanModerate(
     groupId: string,
     userId: string,
   ): Promise<void> {
-    const denial = new ForbiddenException(
-      "You're not allowed to delete this message.",
-    );
     const group = await this.store.findGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    const departed =
-      membership?.status === "removed" || membership?.status === "banned";
-    if (group?.ownerId === userId && !departed) return;
-    const allowed =
-      membership?.status === "active" &&
-      (membership.role === "owner" || membership.role === "mod");
-    if (!allowed) throw denial;
+    if (!canModerateGroup(group, userId, membership)) {
+      throw new ForbiddenException(
+        "You're not allowed to delete this message.",
+      );
+    }
   }
 
   /**

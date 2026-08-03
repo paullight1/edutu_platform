@@ -18,9 +18,24 @@ import {
   type CommunityGroup,
   type CommunityGroupMember,
 } from "../db/schema";
+import {
+  canReadGroup,
+  canSelfActivate,
+  canSelfJoinWithoutInvite,
+  isLiveMembershipStatus,
+  resolveAdminRole,
+  type MemberRole,
+  type MembershipStatus,
+} from "./community-authz";
 import type { CreateGroupDto, UpdateGroupDto } from "./dto/community.dto";
 
 export type { CommunityGroup, CommunityGroupMember };
+/**
+ * Re-exported, not redefined: the membership vocabulary is part of the
+ * authorization rule, so it lives beside the predicates that read it. See
+ * community-authz.ts for why `invited` and `pending` are distinct states.
+ */
+export type { MemberRole, MembershipStatus };
 export type CommunityJoinRequest = typeof communityJoinRequests.$inferSelect;
 
 /**
@@ -36,34 +51,6 @@ const UUID_PATTERN =
 
 /** Exported so the spec asserts against the real cap, not a copy of it. */
 export const LIST_LIMIT = 50;
-
-/**
- * The five membership states. `invited` and `pending` are DIFFERENT states on
- * purpose and the distinction is load-bearing:
- *
- *   invited  an owner/mod put this person here (`invite`). A standing decision
- *            to admit them, so accepting it activates the row whatever the
- *            group's visibility or join policy currently says.
- *   pending  the person put themselves here (`join` on a request-to-join
- *            group). Nobody has approved them; it is never self-activatable.
- *
- * The previous shape used one `pending` status for both and disambiguated by
- * reading `visibility`. `update` can set `visibility: 'private'`, so an owner
- * making a public request-to-join group private converted their entire unvetted
- * applicant queue into a guest list — every one of them could then "accept"
- * their own application. Making the two states distinct in the data model is
- * the only fix that does not depend on a mutable column.
- *
- * Only `active` is membership: `member_count`, `countActiveOwners`, and the RLS
- * helpers in 20260803120000_community_groups.sql all compare against `active`
- * alone, so adding a fifth status changes none of their meanings.
- */
-export type MembershipStatus =
-  | "active"
-  | "invited"
-  | "pending"
-  | "removed"
-  | "banned";
 
 export type NewGroupRow = {
   slug: string;
@@ -114,8 +101,6 @@ export type JoinResult = {
   membership: CommunityGroupMember;
   request: CommunityJoinRequest | null;
 };
-
-export type MemberRole = "owner" | "mod" | "member";
 
 /**
  * Raised by the store when the in-transaction re-check of the per-owner group
@@ -730,22 +715,10 @@ export class GroupsService {
   }> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    // `join` and `get` draw the same line: an `invited` row is an owner's
-    // standing decision, so an invitee can read the group they were invited to —
-    // being unable to see what you have been invited to would make the
-    // invitation unusable. A `pending` row is an unapproved self-application and
-    // buys nothing: applicants to a group that has since gone private are shut
-    // out exactly like strangers.
-    //
-    // KNOWN DIVERGENCE FROM RLS: community_is_active_member() (see the
-    // migration) admits 'active' only, so a client reading community_groups
-    // directly through Supabase gets nothing for an invitee. That is deliberate
-    // — an unaccepted invitation must not hand out a private group's roster or
-    // messages — and it means the invite-preview screen must call this backend
-    // endpoint, not Supabase.
-    const invitedOrIn =
-      membership?.status === "active" || membership?.status === "invited";
-    if (group.visibility === "private" && !invitedOrIn) {
+    // The shared read rule — `MessagesService.list` calls the same function, so
+    // the group and its messages cannot disagree about who may see them. See
+    // community-authz.ts for why `invited` reads and `pending` does not.
+    if (!canReadGroup(group, membership)) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );
@@ -844,13 +817,13 @@ export class GroupsService {
       };
     }
 
-    // ACCEPTING AN INVITATION. An `invited` row is an owner's standing decision
-    // to admit this person, so it is honoured before any policy check and on any
+    // ACCEPTING AN INVITATION. Honoured before any policy check and on any
     // group: on private it is the only way in, and on a public request-to-join
     // group it is what stops an invitation from silently degrading into "now go
-    // apply and wait". It can only have been written by `invite`, which is gated
-    // on assertCanAdminister.
-    if (existing?.status === "invited") {
+    // apply and wait". The row can only have been written by `invite`, which is
+    // gated on assertCanAdminister. `canSelfActivate` takes no group argument at
+    // all, so no mutable column can widen this branch — see community-authz.ts.
+    if (canSelfActivate(existing)) {
       const membership = await this.store.activateMembership({
         groupId,
         userId: joinerId,
@@ -861,19 +834,12 @@ export class GroupsService {
     }
 
     // THE PRIVATE RULE: a private group can never be self-joined, whatever its
-    // join policy says and whatever rows the group accumulated earlier in its
-    // life. `visibility` and `joinPolicy` are independent enums, so private+open
-    // is directly creatable, and group uuids travel in share links and deep
-    // links — without this, anyone holding an id could walk straight past the
-    // same wall `get` puts in front of them, and the backend runs as service_role
-    // so RLS is not a second line of defence.
-    //
-    // A `pending` row explicitly does NOT open this door. It is an unapproved
-    // self-application, and a group that was public+request before an owner
-    // flipped it to private is carrying a queue of them: reading `pending` as
-    // "invited" would auto-admit that entire queue the instant the owner asked
-    // for more privacy — the exact opposite of what they asked for.
-    if (group.visibility === "private") {
+    // join policy says and whatever rows it accumulated earlier in its life.
+    // The mirror image of `canReadGroup` above — what cannot be read without an
+    // invite cannot be joined without one. Reached only when `canSelfActivate`
+    // said no, so the `pending` queue of a group that has since gone private
+    // stops here rather than being auto-admitted.
+    if (!canSelfJoinWithoutInvite(group)) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );
@@ -1063,7 +1029,7 @@ export class GroupsService {
         "You've been banned from this group, so there's nothing to leave.",
       );
     }
-    if (!membership || !this.isLiveMembership(membership.status)) {
+    if (!membership || !isLiveMembershipStatus(membership.status)) {
       throw new BadRequestException("You're not a member of this group.");
     }
 
@@ -1113,7 +1079,7 @@ export class GroupsService {
         "That person is already banned from this group.",
       );
     }
-    if (!target || !this.isLiveMembership(target.status)) {
+    if (!target || !isLiveMembershipStatus(target.status)) {
       throw new NotFoundException("That person isn't in this group.");
     }
     if (target.role === "owner") {
@@ -1203,17 +1169,11 @@ export class GroupsService {
   }
 
   /**
-   * Belt and braces, mirroring `community_is_owner_or_mod`: `owner_id` is the
-   * canonical record, the membership row the operational one, and either alone
-   * is enough so a drifted row never locks a real owner out. The one exception
-   * is an explicit departure — a `removed` or `banned` row is a decision, not
-   * drift, so it beats `owner_id`. Returns the role the caller acted with.
-   *
-   * `leave` refuses the creator outright and `removeMember` refuses any owner,
-   * so no supported path can now produce a departed `owner_id` holder; this arm
-   * is left in place for hand-edited rows. `invited` and `pending` are not
-   * departures and are not administration either — neither satisfies the
-   * `status === 'active'` test below.
+   * The shared admin rule — `MessagesService.assertCanModerate` calls the same
+   * function, so who may moderate a group and who may delete its messages
+   * cannot drift apart. Returns the role the caller acted with; see
+   * community-authz.ts for why `owner_id` and the membership row are both
+   * authoritative and why a departure beats `owner_id`.
    */
   private async assertCanAdminister(
     userId: string,
@@ -1221,14 +1181,9 @@ export class GroupsService {
     message: string,
   ): Promise<MemberRole> {
     const membership = await this.store.findMembership(group.id, userId);
-    const departed =
-      membership?.status === "removed" || membership?.status === "banned";
-    if (group.ownerId === userId && !departed) return "owner";
-    const allowed =
-      membership?.status === "active" &&
-      (membership.role === "owner" || membership.role === "mod");
-    if (!allowed) throw new ForbiddenException(message);
-    return membership.role === "owner" ? "owner" : "mod";
+    const role = resolveAdminRole(group, userId, membership);
+    if (!role) throw new ForbiddenException(message);
+    return role;
   }
 
   /** Owner-only gate for the two irreversible-ish powers: archive and roles. */
@@ -1256,17 +1211,6 @@ export class GroupsService {
       return existing.role;
     }
     return "member";
-  }
-
-  /**
-   * The three statuses a person can be moved OUT of by `leave` / `removeMember`:
-   * in the group, invited to it, or waiting on a decision. `removed` is already
-   * out and `banned` is a moderation decision that must not be laundered into
-   * `removed` — both are excluded by being absent, so a sixth status added later
-   * is refused by default rather than silently accepted.
-   */
-  private isLiveMembership(status: string): boolean {
-    return status === "active" || status === "invited" || status === "pending";
   }
 
   private membershipChangedError(): BadRequestException {
