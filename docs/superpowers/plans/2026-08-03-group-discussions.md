@@ -761,6 +761,22 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Implement the two services, the controller and the module**
 
+**FIRST, extract `src/communities/community-authz.ts`.** Three separate
+Criticals in this feature have been "two methods that should agree, disagreeing":
+`join` vs `get` on private-group entry (Task 4), and `list` vs `get` on
+message-read visibility (Task 5). The second happened in a service written
+*after* the first was in its brief, so restating the rule in prose does not
+work. Both services now carry near-duplicate `canRead` / `canModerate` logic,
+duplicated only because `MessagesService` must not import `GroupsService`
+(circular — `GroupsService` posts `kind='system'` messages).
+
+Extract the shared predicates into a dependency-free module both import:
+`canReadGroup(group, membership)`, `canModerateGroup(group, membership)`,
+`canActivate(group, membership)`. Pure functions over plain rows, no db, no
+Nest. Then delete the copies in both services and confirm the existing tests
+still pass — if a behaviour changes, the two had already drifted and the diff
+tells you which was wrong.
+
 `FormsService`: `getForm(groupId)`, `setForm(actorId, groupId, dto)` (owner only), `listRequests(actorId, groupId)` (owner only), `decide(actorId, requestId, 'approved'|'rejected')` which on approval flips the member row to `active`.
 
 `ModerationService`: `report(userId, dto)` inserts into `community_reports` and notifies the group owner via the existing `NotificationsService`; `block(userId, targetId)` writes to the existing `user_blocks` table.
