@@ -46,23 +46,6 @@ import { formatRelativeTime } from '../../lib/utils';
 /** Every action the long-press menu can start. */
 type BubbleAction = 'report' | 'reportGroup' | 'block' | 'remove' | 'delete';
 
-/**
- * `POST /communities/blocks` was routed after this component was written, so
- * the client function is looked up rather than imported: on a build where it
- * is present the block is written server-side and survives a reinstall, and on
- * one where it is not, the caller's local mute (`onBlock`) still hides the
- * messages. A hard import would make this file fail to load on the older
- * build; a hard *absence* would design around a gap that is being closed.
- */
-type BlockUserFn = (
-  targetUserId: string,
-  getAuthToken: Parameters<typeof communityApi.reportTarget>[1],
-) => Promise<unknown>;
-
-function serverBlock(): BlockUserFn | undefined {
-  return (communityApi as { blockUser?: BlockUserFn }).blockUser;
-}
-
 export interface MessageBubbleProps {
   message: CommunityMessage;
   /** Right-aligned, accent-tinted when true. */
@@ -133,10 +116,12 @@ export function MessageBubble({
           return;
         }
         case 'block': {
-          const block = serverBlock();
-          // Server first: if it refuses (you cannot block yourself, you are
-          // signed out) the local mute must not pretend it worked.
-          if (block) await block(message.userId, getToken);
+          // SERVER FIRST, and then the caller's local mute. The server write is
+          // what survives a reinstall and reaches the member's other device;
+          // `onBlock` is what makes the transcript update in this frame. If the
+          // server refuses ("You can't block yourself"), the local mute must not
+          // pretend it worked, so it never runs.
+          await communityApi.blockUser(message.userId, getToken);
           if (onBlock) await onBlock(message);
           return;
         }

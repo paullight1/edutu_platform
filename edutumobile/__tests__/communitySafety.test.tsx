@@ -39,12 +39,7 @@ const mockSubscribe = jest.fn();
 const mockUnsubscribe = jest.fn();
 const mockPush = jest.fn();
 
-/**
- * Reassigned per test so one file can cover BOTH worlds: a build where
- * `POST /communities/blocks` is routed and its client function exists, and the
- * older build where it does not and the local mute is all there is.
- */
-let mockBlockUser: ((...args: unknown[]) => Promise<unknown>) | undefined;
+const mockBlockUser = jest.fn();
 
 let mockRouteParams: Record<string, string> = { id: 'g1' };
 
@@ -98,16 +93,10 @@ jest.mock('@edutu/core/src/services/communities', () => {
     reportTarget: (...args: unknown[]) => mockReportTarget(...args),
     deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
     removeMember: (...args: unknown[]) => mockRemoveMember(...args),
+    blockUser: (...args: unknown[]) => mockBlockUser(...args),
     sendMessage: jest.fn(),
     joinGroup: jest.fn(),
   };
-  // A GETTER, not a value: `blockUser` must be genuinely ABSENT in the
-  // older-build test, and a spread property can only ever be `undefined`-valued,
-  // which is not the same thing to `typeof`-free feature detection.
-  Object.defineProperty(mocked, 'blockUser', {
-    configurable: true,
-    get: () => mockBlockUser,
-  });
   return mocked;
 });
 
@@ -140,6 +129,8 @@ import type {
 let members: Record<string, { status: string; role: MemberRole }>;
 /** Everything the backend pushed to a group owner. */
 let ownerNotifications: { ownerId: string; targetType: string; targetId: string }[];
+/** The server-side `user_blocks` rows written by this caller. */
+let serverBlocks: string[];
 
 const GROUP_OWNER = 'user_9';
 
@@ -231,7 +222,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await AsyncStorage.clear();
   mockRouteParams = { id: 'g1' };
-  mockBlockUser = undefined;
+  serverBlocks = [];
   members = {
     user_77777777: { status: 'pending', role: 'member' },
     user_7: { status: 'active', role: 'member' },
@@ -275,6 +266,11 @@ beforeEach(async () => {
   mockDeleteMessage.mockImplementation(async (messageId: string) =>
     makeMessage({ id: messageId, body: '', deletedAt: 'now', deletedBy: 'user_1' }),
   );
+  // The real block endpoint: it writes the shared `user_blocks` table.
+  mockBlockUser.mockImplementation(async (userId: string) => {
+    serverBlocks.push(userId);
+    return { success: true, blockedUserId: userId };
+  });
   mockRemoveMember.mockImplementation(async (_groupId: string, userId: string) => {
     delete members[userId];
     return { success: true };
@@ -547,12 +543,7 @@ describe('blocking', () => {
     expect(screen.getByText('Message from somebody else')).toBeTruthy();
   });
 
-  it('writes the block to the server when the endpoint is there', async () => {
-    const serverBlocks: string[] = [];
-    mockBlockUser = async (...args: unknown[]) => {
-      serverBlocks.push(args[0] as string);
-      return { success: true };
-    };
+  it('writes the block to the SERVER, not just to this phone', async () => {
     const onBlock = jest.fn();
 
     const screen = renderForeignBubble({ onBlock });
@@ -561,13 +552,17 @@ describe('blocking', () => {
       fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
     });
 
-    // Server-side, so it survives a reinstall and reaches the other device.
+    // `user_blocks`, so it survives a reinstall and reaches the other device —
+    // the AsyncStorage list this replaced did neither.
     await waitFor(() => expect(serverBlocks).toEqual(['user_7']));
-    expect(onBlock).toHaveBeenCalled();
+    expect(mockBlockUser).toHaveBeenCalledWith('user_7', mockGetToken);
+    // …and the local mute still runs, so the transcript updates this frame.
+    expect(onBlock).toHaveBeenCalledTimes(1);
   });
 
-  it('still mutes locally on a build with no blocks endpoint', async () => {
-    mockBlockUser = undefined;
+  it('does not mute locally when the server refuses the block', async () => {
+    const { CommunityApiError } = jest.requireActual('@edutu/core/src/services/communities');
+    mockBlockUser.mockRejectedValue(new CommunityApiError("You can't block yourself.", 400));
     const onBlock = jest.fn();
 
     const screen = renderForeignBubble({ onBlock });
@@ -576,7 +571,11 @@ describe('blocking', () => {
       fireEvent.press(screen.getByTestId('message-confirm-accept-m1'));
     });
 
-    await waitFor(() => expect(onBlock).toHaveBeenCalledTimes(1));
+    // A local mute over a failed server write is a block that silently
+    // evaporates on the next device.
+    await waitFor(() => expect(screen.getByTestId('message-action-error-m1')).toBeTruthy());
+    expect(screen.getByText("You can't block yourself.")).toBeTruthy();
+    expect(onBlock).not.toHaveBeenCalled();
   });
 
   it('confirms before blocking and says the block cannot be undone in the app', () => {
