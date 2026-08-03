@@ -767,6 +767,24 @@ Expected: FAIL, module not found.
 
 Controller: every route from the spec's §5 table. **Every handler takes `@CurrentUser("authId")`.** Body validation via `new ZodValidationPipe(Schema)`, matching `saved-searches.controller.ts`.
 
+**Three routes beyond the spec's §5 table**, added by the Task 4 review and
+already implemented in `GroupsService` — without them the service has methods
+no client can reach, and two user-facing error messages point at nothing:
+
+| Method | Route | Notes |
+|---|---|---|
+| POST | `/communities/groups/:id/archive` | owner only; **irreversible**, there is deliberately no unarchive |
+| PATCH | `/communities/groups/:id/members/:uid/role` | owner only; refuses to leave the group with zero owners |
+| POST | `/communities/groups/:id/invite` | owner/mod only; the ONLY entry path into a private group |
+
+`invite` is load-bearing, not a convenience. The Task 4 review found that
+`join` let a stranger holding a leaked group id self-join a private group that
+`get` refuses to show them, and RLS does not catch it because the backend runs
+as `service_role` and bypasses row-level security entirely. The rule is now
+that a private group can never be self-joined whatever its `joinPolicy` says;
+entry is by owner action. If `invite` has no route, private groups become
+unjoinable by anyone, including people the owner wants in.
+
 Module: standard Nest module importing `NotificationsModule`; register in `app.module.ts` alongside `SavedSearchesModule` (`app.module.ts:37` for the import, `:86` for the providers array).
 
 - [ ] **Step 4: Run the whole backend suite**
