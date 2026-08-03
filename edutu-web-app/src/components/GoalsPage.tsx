@@ -7,14 +7,13 @@ import {
   Plus,
   Check,
   Trash2,
-  Target,
   Flag,
   X,
   CalendarClock,
 } from "lucide-react";
 import { useGoals, type Goal, type GoalStatus } from "../hooks/useGoals";
 import PullToRefresh from "./ui/PullToRefresh";
-import { EmptyState, ErrorState } from "./ui/EmptyState";
+import { StateView, showsContent, useScreenState } from "./state";
 import Button from "./ui/Button";
 import EnableNotificationsButton from "./EnableNotificationsButton";
 import ConnectCalendarButton from "./ConnectCalendarButton";
@@ -135,6 +134,20 @@ export default function GoalsPage() {
       return b.created_at.localeCompare(a.created_at);
     });
   }, [goals, filter]);
+
+  // `filter` is this screen's only narrowing control, so it is what separates
+  // "you have no goals" from "none match this tab" — two different problems
+  // with two different fixes, previously shown with the same words.
+  //
+  // NOTE: useGoals exposes `error` as a string, so classifyError() can only
+  // reach `server` for most failures. Widening the hook to carry the response
+  // status is follow-on work; this plan does not change data layers.
+  const screenState = useScreenState({
+    data: visibleGoals,
+    loading: isLoading,
+    error,
+    filtersActive: filter !== "all",
+  });
 
   const handleCreate = useCallback(async () => {
     if (!form.title.trim()) {
@@ -302,29 +315,18 @@ export default function GoalsPage() {
                 />
               ))}
             </div>
-          ) : error && goals.length === 0 ? (
+          ) : !showsContent(screenState) ? (
             <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <ErrorState
-                message={error}
+              <StateView
+                state={screenState}
+                flow="goals"
+                title={
+                  filter === "completed" ? "No completed goals yet" : undefined
+                }
                 onRetry={() => {
                   void refreshGoals();
                 }}
-              />
-            </div>
-          ) : visibleGoals.length === 0 ? (
-            <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <EmptyState
-                icon={<Target size={32} />}
-                title={
-                  filter === "completed"
-                    ? "No completed goals yet"
-                    : "No goals yet"
-                }
-                description="Set a goal to break a big ambition into trackable progress with a deadline."
-                action={{
-                  label: "Create a goal",
-                  onClick: () => setShowForm(true),
-                }}
+                onAction={() => setShowForm(true)}
               />
             </div>
           ) : (
