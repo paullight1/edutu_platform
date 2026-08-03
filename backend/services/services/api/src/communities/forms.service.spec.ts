@@ -680,3 +680,156 @@ describe("FormsService.decide", () => {
     );
   });
 });
+
+/**
+ * The screening form did not screen until these existed. `JoinRequestSchema`
+ * validates that each answer is a `{ id, value }` pair under 500 characters and
+ * stops there — nothing checked the answers against the QUESTIONS, so a
+ * `required` question could be skipped entirely and an owner would review a
+ * blank where the answer they gate on should be.
+ */
+describe("FormsService.validateAnswers", () => {
+  function formOf(
+    store: FakeFormsStore,
+    groupId: string,
+    questions: unknown[],
+  ) {
+    store.forms.push({ groupId, questions, updatedAt: new Date() });
+  }
+
+  const WHY = {
+    id: "why",
+    type: "short_text",
+    label: "Why join?",
+    required: true,
+  };
+  const STAGE = {
+    id: "stage",
+    type: "single_select",
+    label: "Where are you up to?",
+    required: false,
+    options: ["Not started", "Drafting", "Submitted"],
+  };
+
+  it("accepts answers that satisfy every question", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [WHY, STAGE]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "I'm applying this cycle" },
+        { id: "stage", value: "Drafting" },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a submission that skips a required question, naming it", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [WHY, STAGE]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "stage", value: "Drafting" },
+      ]),
+    ).rejects.toThrow(/Why join\?/);
+  });
+
+  it("treats a whitespace-only answer to a required question as no answer", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [WHY]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "   " },
+      ]),
+    ).rejects.toThrow(/Why join\?/);
+  });
+
+  it("refuses an answer to a question that isn't on the form", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [WHY]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "Because" },
+        { id: "salary", value: "$$$" },
+      ]),
+    ).rejects.toThrow(/isn't on this group's form/);
+  });
+
+  it("refuses any answer at all when the group has no form", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "Because" },
+      ]),
+    ).rejects.toThrow(/isn't on this group's form/);
+  });
+
+  it("refuses the same question answered twice", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [WHY]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "One reason" },
+        { id: "why", value: "A different reason" },
+      ]),
+    ).rejects.toThrow(/more than once/);
+  });
+
+  it("refuses a single_select answer that is not one of its options", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [STAGE]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "stage", value: "Nearly done" },
+      ]),
+    ).rejects.toThrow(/Where are you up to\?/);
+  });
+
+  it("does not apply the option check to a text question", async () => {
+    // Narrowing on `type` rather than on "does `options` exist" is what keeps a
+    // text question's prose from being graded against a list.
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [{ ...WHY, options: ["Not started", "Drafting"] }]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "why", value: "Anything I like" },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("allows an optional single_select to be left blank", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store);
+    formOf(store, group.id, [STAGE]);
+
+    await expect(
+      service.validateAnswers(APPLICANT, group.id, [
+        { id: "stage", value: "" },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a stranger at a private group rather than leaking its questions", async () => {
+    const { store, service } = setup();
+    const group = ownedGroup(store, { visibility: "private" });
+    formOf(store, group.id, [WHY]);
+
+    await expect(
+      service.validateAnswers(STRANGER, group.id, []),
+    ).rejects.toThrow(/private/);
+  });
+});

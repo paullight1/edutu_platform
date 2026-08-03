@@ -21,7 +21,14 @@ import {
   resolveAdminRole,
   type MemberRole,
 } from "./community-authz";
-import type { GroupFormDto, GroupQuestionDto } from "./dto/community.dto";
+import type {
+  GroupFormDto,
+  GroupQuestionDto,
+  JoinRequestDto,
+} from "./dto/community.dto";
+
+/** One `{ id, value }` pair off `JoinRequestSchema`. */
+export type JoinAnswer = JoinRequestDto["answers"][number];
 
 export type { CommunityGroup, CommunityGroupMember };
 export type CommunityGroupForm = typeof communityGroupForms.$inferSelect;
@@ -368,6 +375,85 @@ export class FormsService {
       questions: this.asQuestionArray(row.questions),
       updatedAt: row.updatedAt,
     };
+  }
+
+  /**
+   * GRADE THE ANSWERS AGAINST THE FORM. Called before `GroupsService.join`
+   * writes the request.
+   *
+   * Without this the screening form did not screen: `JoinRequestSchema` checks
+   * that each answer is a `{ id, value }` pair under 500 characters and nothing
+   * else, so a `required` question could go unanswered, an answer could name a
+   * question that does not exist, and a `single_select` could carry free text
+   * that was never one of the offered choices. An owner reviewing the queue
+   * would see a blank where the answer they gate on should be.
+   *
+   * Three rules, each with a sentence that names the question it is about — a
+   * form error that does not say WHICH question is an error the applicant
+   * cannot act on:
+   *   1. every `required` question has a non-empty answer;
+   *   2. no answer refers to a question that is not on the form (and none is
+   *      answered twice — `JoinRequestSchema` keys on the id, so a duplicate
+   *      makes it ambiguous which value the owner is reading);
+   *   3. a `single_select` answer is one of that question's own `options`.
+   *
+   * Goes through `getForm`, so its authorization is the shared `canReadGroup`:
+   * a stranger holding a leaked private-group id gets the same "ask an owner
+   * for an invite" they get everywhere else, rather than learning the group's
+   * question labels from a validation error.
+   */
+  async validateAnswers(
+    userId: string,
+    groupId: string,
+    answers: JoinAnswer[] = [],
+  ): Promise<void> {
+    const form = await this.getForm(userId, groupId);
+    const questions = this.asQuestionArray(form.questions);
+    const byId = new Map(questions.map((question) => [question.id, question]));
+
+    const seen = new Set<string>();
+    for (const answer of answers ?? []) {
+      const question = byId.get(answer.id);
+      if (!question) {
+        throw new BadRequestException(
+          "One of your answers is for a question that isn't on this group's form any more. Reopen the group and answer the current questions.",
+        );
+      }
+      if (seen.has(answer.id)) {
+        throw new BadRequestException(
+          `You answered “${question.label}” more than once. Leave just one answer for it.`,
+        );
+      }
+      seen.add(answer.id);
+
+      const value = (answer.value ?? "").trim();
+      // A blank answer is "not answered", handled by the required pass below —
+      // an optional question left empty is allowed, so there is nothing to
+      // check against the option list either.
+      if (!value) continue;
+      // Narrowed on `type`, not on "does `options` exist": GroupQuestionSchema
+      // is a discriminated union precisely so this cannot be got wrong, and a
+      // text question that smuggled an `options` array would otherwise start
+      // rejecting perfectly good prose.
+      if (
+        question.type === "single_select" &&
+        !question.options.includes(value)
+      ) {
+        throw new BadRequestException(
+          `“${value}” isn't one of the choices for “${question.label}”. Pick one of the options listed.`,
+        );
+      }
+    }
+
+    for (const question of questions) {
+      if (!question.required) continue;
+      const answer = answers?.find((item) => item.id === question.id);
+      if (!(answer?.value ?? "").trim()) {
+        throw new BadRequestException(
+          `Please answer “${question.label}” before asking to join.`,
+        );
+      }
+    }
   }
 
   /**

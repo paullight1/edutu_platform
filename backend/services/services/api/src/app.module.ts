@@ -33,6 +33,7 @@ import { CalendarModule } from "./calendar/calendar.module";
 import { CacheModule } from "./common/cache/cache.module";
 import { CopilotModule } from "./copilot/copilot.module";
 import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
+import { CommunitiesModule } from "./communities/communities.module";
 import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { DocumentsModule } from "./documents/documents.module";
@@ -79,6 +80,7 @@ import { UploadsModule } from "./uploads/uploads.module";
     CalendarModule,
     CopilotModule,
     SavedSearchesModule,
+    CommunitiesModule,
     AlertsModule,
   ],
   controllers: [AppController],

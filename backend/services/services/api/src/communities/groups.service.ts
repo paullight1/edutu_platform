@@ -88,6 +88,26 @@ export type GroupListFilter = {
   query?: string;
   limit?: number;
   /**
+   * "Only the groups I'm in." The mobile browse screen leads with this section,
+   * and without the filter `mine=true` returned every public group in the
+   * system — a "your groups" list containing groups the caller has never seen.
+   *
+   * A SERVICE-level flag: the caller sets this, the service turns it into
+   * `restrictToGroupIds` below. Membership means `active` only, so a group the
+   * caller merely applied to (a `pending` row) is not "theirs" — it is a
+   * request awaiting somebody else's decision, and listing it as a group they
+   * belong to would be the browse screen telling them they are in.
+   */
+  mine?: boolean;
+  /**
+   * The resolved id set behind `mine`, decided by the service and merely
+   * applied by the store — the same division every other write in this feature
+   * follows. An EMPTY array is meaningful: it means "restrict to nothing", and
+   * the store must return no rows rather than falling through to every public
+   * group, which is precisely the bug this filter exists to fix.
+   */
+  restrictToGroupIds?: string[];
+  /**
    * Group ids the caller is an active member of. The visibility filter has to
    * run in the same query as the LIMIT: filtering other people's private groups
    * out *after* the 50-row cap returns a short page while more public groups
@@ -337,6 +357,13 @@ export class DrizzleGroupsStore implements GroupsStore {
       conditions.push(
         sql`(${communityGroups.name} ilike ${pattern} or ${communityGroups.description} ilike ${pattern})`,
       );
+    }
+    // `mine`, applied in the same query as the LIMIT for the same reason the
+    // visibility rule is: narrowing after the 50-row cap would return a page
+    // that is short of the caller's own groups because public ones filled it.
+    if (filter.restrictToGroupIds) {
+      if (filter.restrictToGroupIds.length === 0) return [];
+      conditions.push(inArray(communityGroups.id, filter.restrictToGroupIds));
     }
     // Visibility filtered here rather than after the fetch, so the LIMIT counts
     // rows the caller can actually see.
@@ -683,7 +710,15 @@ export class GroupsService {
     }
   }
 
-  /** Public groups, plus any group the caller already belongs to. */
+  /**
+   * Public groups, plus any group the caller already belongs to — or, with
+   * `mine: true`, ONLY the groups they belong to.
+   *
+   * "Belongs to" is `status === 'active'` and nothing else. A `pending` row is
+   * an application somebody else has yet to decide, and an `invited` row is an
+   * offer not yet accepted; neither is membership, and `member_count`,
+   * `countActiveOwners` and the RLS helpers all agree.
+   */
   async list(
     userId: string,
     filter: GroupListFilter = {},
@@ -694,14 +729,17 @@ export class GroupsService {
         .filter((member) => member.status === "active")
         .map((member) => member.groupId),
     );
+    const mineIds = [...mine];
     // Handed to the store so the visibility rule and the 50-row cap are applied
     // by the same query: filtering afterwards returns a short page while more
     // public groups are still waiting behind the cap. The post-filter stays as
     // defence in depth for a store that ignores the hint.
     const rows = await this.store.listGroups({
       ...filter,
-      visibleGroupIds: [...mine],
+      visibleGroupIds: mineIds,
+      restrictToGroupIds: filter.mine ? mineIds : undefined,
     });
+    if (filter.mine) return rows.filter((group) => mine.has(group.id));
     return rows.filter(
       (group) => group.visibility === "public" || mine.has(group.id),
     );
