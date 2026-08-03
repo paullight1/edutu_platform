@@ -33,11 +33,16 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
     ],
+    "modulePaths": [
+      "<rootDir>/node_modules"
+    ],
     "moduleNameMapper": {
       "^expo$": "<rootDir>/empty.js",
       "^expo/src/winter/.*$": "<rootDir>/empty.js",
       "^@edutu/core/src/(.*)$": "<rootDir>/packages/core/src/$1",
       "^@edutu/core$": "<rootDir>/packages/core/src/index.ts",
+      "^@edutu/ux-state/state$": "<rootDir>/../packages/ux-state/src/state/index.ts",
+      "^@edutu/ux-state/scenes$": "<rootDir>/../packages/ux-state/src/scenes/index.ts",
       "\\.(wav|mp3|m4a|aac)$": "<rootDir>/empty.js"
     },
     "modulePathIgnorePatterns": [
@@ -67,6 +72,7 @@
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.11",
     "@edutu/core": "file:./packages/core",
+    "@edutu/ux-state": "file:../packages/ux-state",
     "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
     "@hugeicons/core-free-icons": "^4.2.3",

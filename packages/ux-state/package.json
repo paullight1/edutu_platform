@@ -1,0 +1,22 @@
+{
+    "name": "@edutu/ux-state",
+    "version": "0.0.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        "./state": {
+            "types": "./src/state/index.ts",
+            "default": "./src/state/index.ts",
+            "react-native": "./src/state/index.ts"
+        },
+        "./scenes": {
+            "types": "./src/scenes/index.ts",
+            "default": "./src/scenes/index.ts",
+            "react-native": "./src/scenes/index.ts"
+        }
+    },
+    "peerDependencies": {
+        "react": ">=18"
+    }
+}

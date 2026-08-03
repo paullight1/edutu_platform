@@ -66,7 +66,17 @@ The riskiest step in the whole plan is Metro and Jest resolving a package that l
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `@edutu/ux-state/state` exporting `ScreenState`, `ErrorCause`, `StateKind`, `ScreenStateInput`, `classifyError(error: unknown): ErrorCause`, `useScreenState(input: ScreenStateInput): ScreenState`, `showsContent(state: ScreenState): boolean`.
+- Produces: `@edutu/ux-state/state` exporting `ScreenState`, `ErrorCause`, `StateKind`, `ScreenStateInput`, `classifyError(error: unknown): ErrorCause`, `deriveState(input: ScreenStateInput): ScreenState`, `showsContent(state: ScreenState): boolean`.
+
+**Resolved during execution — the package is React-free.** The contract originally
+exported a `useScreenState` hook. A `react` import from a package outside either
+app's root fails to resolve under Metro, Jest, Vite and Vitest alike, and every
+workaround (tsconfig `paths` to `react`, `modulePaths`, a devDependency in the
+package) trades one resolution problem for another. So the package exports the
+pure `deriveState()` and **each app owns a three-line memoised
+`useScreenState`**. The precedence rules — the part worth sharing — stay shared.
+Mobile's Jest also needs `"modulePaths": ["<rootDir>/node_modules"]` so the
+out-of-root package resolves its own imports.
 
 - [ ] **Step 1: Create the package manifest**
 
@@ -2640,6 +2650,7 @@ git commit -m "feat(mobile): StateView renders shared scenes; drop Tier 3 and th
 **Files:**
 - Create: `edutu-web-app/src/components/state/StateView.tsx`
 - Create: `edutu-web-app/src/components/state/InlineError.tsx`
+- Create: `edutu-web-app/src/components/state/useScreenState.ts` (the three-line memoised wrapper over `deriveState`, mirroring `edutumobile/components/state/ScreenState.ts`)
 - Create: `edutu-web-app/src/components/state/index.ts`
 - Test: `edutu-web-app/src/test/__tests__/StateView.test.tsx`
 
@@ -2924,9 +2935,10 @@ export { StateView, type StateViewProps } from './StateView';
 export { InlineError, type InlineErrorProps } from './InlineError';
 export { SceneRenderer, type SceneRendererProps } from './SceneRenderer';
 export { hueTokens } from './sceneTokens';
+export { useScreenState } from './useScreenState';
 export {
-  useScreenState,
   classifyError,
+  deriveState,
   showsContent,
   type ScreenState,
   type ScreenStateInput,
