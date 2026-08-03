@@ -18,9 +18,16 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* The shared UX-state package lives outside this app's root. */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@edutu/ux-state/*": ["../packages/ux-state/src/*"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "../packages/ux-state/src"],
   "exclude": [
     "src/services/admin/index.ts",
     "src/services/admin/marketplaceAdmin.ts",

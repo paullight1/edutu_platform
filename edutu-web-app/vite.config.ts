@@ -171,6 +171,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@edutu/ux-state': resolve(__dirname, '../packages/ux-state/src'),
+    },
+  },
+  server: {
+    fs: {
+      // The shared UX-state package sits outside this app's root. Without this
+      // the production build succeeds and only `npm run dev` 403s, which is an
+      // easy failure to miss in CI.
+      allow: [resolve(__dirname, '.'), resolve(__dirname, '../packages/ux-state')],
     },
   },
   build: {

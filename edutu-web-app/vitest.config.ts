@@ -35,6 +35,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': resolve(__dirname, './src'),
+            '@edutu/ux-state': resolve(__dirname, '../packages/ux-state/src'),
         },
     },
 });
