@@ -72,7 +72,7 @@ import { useToast } from "./ui/ToastProvider";
 import { Skeleton } from "./ui/Skeleton";
 import Pagination from "./ui/Pagination";
 import Select from "./ui/Select";
-import { EmptyOpportunities, EmptySearchResults } from "./ui/EmptyState";
+import { InlineError, StateView, showsContent, useScreenState } from "./state";
 import {
   shareOpportunity,
   shareOutcomeMessage,
@@ -1103,6 +1103,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     searchTerm.trim() || selectedCategoryId || showClosed,
   );
 
+  // `hasActiveFilters` already encodes every way this screen narrows results,
+  // so it is exactly the signal that separates "nothing matched your filters"
+  // from "we have nothing to show" — two states this screen used to render
+  // with two different components and no shared language.
+  const screenState = useScreenState({
+    data: sortedOpportunities,
+    loading,
+    error,
+    filtersActive: hasActiveFilters,
+  });
+
   const latestUpdatedAt = useMemo(
     () => getLatestUpdatedAt(opportunities),
     [opportunities],
@@ -1416,31 +1427,15 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           />
         ) : null}
 
-        {error ? (
-          <section
-            role="alert"
-            className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5 text-danger"
-          >
-            <h2 className="font-display text-lg font-semibold tracking-tight">
-              {t("opportunities.errorTitle")}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-danger/80">
-              {error}
-            </p>
-            {sortedOpportunities.length > 0 ? (
-              <p className="mt-2 text-xs font-semibold text-danger/70">
-                Showing cached results
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={refresh}
-              className="mt-4 inline-flex items-center gap-2 rounded-md bg-danger px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-danger/90"
-            >
-              <RefreshCw size={16} />
-              {t("common.retry")}
-            </button>
-          </section>
+        {showsContent(screenState) && screenState.kind === "partial" ? (
+          // Cached results are on screen and the refresh failed. That is the
+          // `partial` state: keep the content, flag the staleness inline, and
+          // never replace what the user is already reading.
+          <InlineError
+            message={t("opportunities.errorTitle")}
+            onRetry={refresh}
+            className="mt-5"
+          />
         ) : null}
 
         {loading ? (
@@ -1542,14 +1537,12 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           </>
         ) : (
           <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-4">
-            {searchTerm.trim() ? (
-              <EmptySearchResults
-                query={searchTerm.trim()}
-                onClear={clearSearch}
-              />
-            ) : (
-              <EmptyOpportunities onExplore={clearAllFilters} />
-            )}
+            <StateView
+              state={screenState}
+              flow="discovery"
+              onRetry={refresh}
+              onAction={searchTerm.trim() ? clearSearch : clearAllFilters}
+            />
             <div className="flex flex-wrap items-center justify-center gap-2 pb-4">
               {!showClosed ? (
                 <button
