@@ -90,12 +90,19 @@ anchored group inherits that opportunity's deadline as `expires_at`.
 
 ### `community_group_members`
 `group_id` · `user_id text` · `role ('owner'|'mod'|'member')` ·
-`status ('active'|'pending'|'removed'|'banned')` · `joined_at` ·
+`status ('active'|'invited'|'pending'|'removed'|'banned')` · `joined_at` ·
 unique `(group_id, user_id)`.
 
 Role and status are separate columns on purpose. A removed owner and an active
 member are different facts, and collapsing them into one enum has to be undone
 the first time a mod is banned.
+
+`invited` and `pending` are likewise different states, not a nicety. `invited`
+is an owner's decision to let someone in; `pending` is a stranger's unapproved
+application. An earlier draft used `pending` for both and disambiguated them by
+reading `visibility` — which is mutable — so an owner flipping a busy
+request-to-join group to private auto-admitted their entire unvetted applicant
+queue. Only an `invited` row is ever self-activatable.
 
 ### `community_group_messages`
 `id uuid pk` · `group_id` · `user_id text` · `body text` ·
