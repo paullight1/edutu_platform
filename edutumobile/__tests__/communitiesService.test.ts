@@ -238,6 +238,39 @@ describe('communities service', () => {
     );
   });
 
+  it('reads the browse list as { group, membership } pairs, invitations included', async () => {
+    // The backend returns the SAME shape from list and get. The membership is
+    // the point: a private group cannot be self-joined, so an `invited` row is
+    // the only way in, and while the list carried bare groups the invitation
+    // was unreachable from anywhere in the app.
+    mockFetch.mockResolvedValue(
+      ok([
+        {
+          group: { id: 'g1', name: 'Invite only', visibility: 'private' },
+          membership: { id: 'm1', groupId: 'g1', status: 'invited', role: 'member' },
+        },
+        { group: { id: 'g2', name: 'Open door', visibility: 'public' }, membership: null },
+      ]),
+    );
+    const { fetchGroups } = loadCommunities();
+
+    const rows = await fetchGroups({ mine: true }, getAuthToken);
+
+    expect(rows.map((row) => [row.group.name, row.membership?.status ?? null])).toEqual([
+      ['Invite only', 'invited'],
+      ['Open door', null],
+    ]);
+  });
+
+  it('drops a bare group row rather than blanking the screen on a deploy skew', async () => {
+    // An older backend serving `CommunityGroup[]` would otherwise reach the
+    // renderer as rows whose `group` is undefined.
+    mockFetch.mockResolvedValue(ok([{ id: 'g1', name: 'Legacy shape' }]));
+    const { fetchGroups } = loadCommunities();
+
+    expect(await fetchGroups({}, getAuthToken)).toEqual([]);
+  });
+
   it('routes leaveGroup at the caller own membership row', async () => {
     mockFetch.mockResolvedValue(ok({ success: true }));
     const { leaveGroup } = loadCommunities();

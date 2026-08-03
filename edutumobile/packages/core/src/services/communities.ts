@@ -165,11 +165,27 @@ export interface JoinRequest {
 
 export type JoinRequestDecision = 'approved' | 'rejected';
 
-/** `GroupsService.get` returns both, so the caller knows what it may do. */
-export interface GroupDetail {
+/**
+ * A group as THIS caller sees it: the group, plus their own membership row or
+ * `null` if they have none.
+ *
+ * ONE shape for the list and the detail, because the backend returns one shape
+ * from `list` and `get`. A browse row that could not carry a membership was why
+ * an invitation had nowhere to appear: a private group cannot be self-joined,
+ * so entry is always via an `invited` row, and a bare group gave the invitee
+ * nothing to render.
+ *
+ * The membership is present whatever its status, `removed`/`banned` included,
+ * on groups that are visible for another reason (they are public) — so a browse
+ * row shows "banned" rather than offering "Join" to somebody who cannot.
+ */
+export interface GroupWithMembership {
   group: CommunityGroup;
   membership: CommunityGroupMember | null;
 }
+
+/** The same shape, named for the detail screen that consumed it first. */
+export type GroupDetail = GroupWithMembership;
 
 /**
  * The outcome of `join`. `status: 'pending'` is not a failure — it means the
@@ -205,7 +221,13 @@ export interface CreateGroupInput {
 export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, 'opportunityId'>;
 
 export interface GroupListFilter {
-  /** Only groups the caller is an active member of. */
+  /**
+   * Only groups the caller has a LIVE relationship with — joined (`active`),
+   * invited to, or applied to (`pending`). Not `active` alone: an invitation
+   * has to appear somewhere, and each row carries its `membership` so the
+   * screen labels it rather than implying membership. `removed`/`banned` never
+   * appear.
+   */
   mine?: boolean;
   opportunityId?: string;
   query?: string;
@@ -360,22 +382,38 @@ function compact<T extends Record<string, unknown>>(input: T): Partial<T> {
 // Groups
 // ---------------------------------------------------------------------------
 
+/**
+ * Each row is `{ group, membership }` — the SAME shape `fetchGroup` returns for
+ * one group, so a browse row and the screen it opens cannot describe the same
+ * group differently.
+ *
+ * The membership is the whole reason the endpoint was widened: an `invited` row
+ * is the only way into a private group, and a list of bare groups left it with
+ * nowhere to be seen.
+ */
 export async function fetchGroups(
   filter: GroupListFilter,
   getAuthToken: GetAuthToken,
-): Promise<CommunityGroup[]> {
+): Promise<GroupWithMembership[]> {
   const query = toQuery({
     mine: filter.mine ? true : undefined,
     opportunityId: filter.opportunityId,
     query: filter.query,
     limit: filter.limit,
   });
-  const result = await requestCommunityApi<CommunityGroup[]>(
+  const result = await requestCommunityApi<GroupWithMembership[]>(
     `/communities/groups${query}`,
     { method: 'GET' },
     getAuthToken,
   );
-  return Array.isArray(result) ? result : [];
+  if (!Array.isArray(result)) return [];
+  // Defensive against an older backend still serving bare groups: a row with no
+  // `group` key is one of those, and rendering `undefined.name` would blank the
+  // whole screen over a deploy-order skew.
+  return result.filter(
+    (row): row is GroupWithMembership =>
+      !!row && typeof row === 'object' && 'group' in row && !!row.group,
+  );
 }
 
 export async function fetchGroup(
