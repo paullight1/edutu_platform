@@ -1,12 +1,13 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Bookmark, CheckCircle, ChevronRight, AlertCircle, CalendarClock } from "lucide-react-native";
+import { Bookmark, CheckCircle, ChevronRight } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { StateView, useScreenState } from "../../components/state";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { DeadlineItem, fetchOpportunityDeadlines } from "../../packages/core/src/services/deadlines";
 import { useTranslation } from "react-i18next";
@@ -198,6 +199,14 @@ export default function DeadlinesScreen() {
         fetchDeadlines();
     }, [user, fetchDeadlines]);
 
+    // `loadError` is a boolean flag rather than the caught value, so the cause
+    // resolves to `server`. Threading the real error through fetchDeadlines is
+    // follow-on work; this plan does not change data layers.
+    const screenState = useScreenState({
+        data: deadlines,
+        error: loadError ? new Error('Unable to load deadlines.') : undefined,
+    });
+
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
@@ -226,50 +235,25 @@ export default function DeadlinesScreen() {
                 ListHeaderComponent={
                     <>
                         {loadError && totalDeadlines === 0 ? (
-                            <View style={styles.errorState}>
-                                <AlertCircle size={40} color="#F59E0B" />
-                                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                                    {t('deadlines.errorTitle', { defaultValue: "Couldn't load deadlines" })}
-                                </Text>
-                                <Text style={[styles.emptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                                    {t('deadlines.errorDescription', { defaultValue: 'Check your connection and try again.' })}
-                                </Text>
-                                <TouchableOpacity
-                                    style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => void retryDeadlines()}
-                                    activeOpacity={0.8}
-                                >
-                                    <Text style={styles.emptyBtnText}>
-                                        {t('deadlines.retry', { defaultValue: 'Retry' })}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
+                            <StateView
+                                state={screenState}
+                                flow="applied"
+                                fill={false}
+                                title={t('deadlines.errorTitle', { defaultValue: "Couldn't load deadlines" })}
+                                body={t('deadlines.errorDescription', { defaultValue: 'Check your connection and try again.' })}
+                                actionLabel={t('deadlines.retry', { defaultValue: 'Retry' })}
+                                onRetry={() => void retryDeadlines()}
+                            />
                         ) : totalDeadlines === 0 ? (
-                            <View style={styles.emptyState}>
-                                <View
-                                    style={[
-                                        styles.emptyIconWrap,
-                                        { backgroundColor: isDark ? 'rgba(16,185,129,0.14)' : 'rgba(16,185,129,0.10)' },
-                                    ]}
-                                >
-                                    <CalendarClock size={40} color="#10B981" />
-                                </View>
-                                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                                    {t('deadlines.emptyTitle')}
-                                </Text>
-                                <Text style={[styles.emptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                                    {t('deadlines.emptyDescription')}
-                                </Text>
-                                <TouchableOpacity
-                                    style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => router.push('/opportunities')}
-                                    activeOpacity={0.8}
-                                >
-                                    <Text style={styles.emptyBtnText}>
-                                        {t('deadlines.browseOpportunities')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
+                            <StateView
+                                state={{ kind: 'empty', reason: 'firstRun' }}
+                                flow="applied"
+                                fill={false}
+                                title={t('deadlines.emptyTitle')}
+                                body={t('deadlines.emptyDescription')}
+                                actionLabel={t('deadlines.browseOpportunities')}
+                                onAction={() => router.push('/opportunities')}
+                            />
                         ) : (
                             <>
                                 <DeadlineSection
