@@ -95,14 +95,16 @@ const DISCOVERY_CARDS = DISCOVERY_CATEGORY_CATALOG.map((category) => ({
 const DISCOVERY_TILE_ICONS = DISCOVERY_TILE_GLYPHS;
 
 // `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
-const OTHER_FEATURES = [
+export const OTHER_FEATURES = [
   {
+    // Group Discussions used to be a single link out to a WhatsApp channel.
+    // It is now an in-app destination; the WhatsApp channel survives as one
+    // dismissible banner inside /discussions rather than as the whole feature.
     id: 'discussion',
     title: 'list.features.discussion.title',
     desc: 'list.features.discussion.desc',
     icon: Users,
-    route: 'https://whatsapp.com/channel/0029VbCHBEVJJhzPcbBboP3y',
-    external: true,
+    route: '/discussions',
     gradient: ['#0EA5E9', '#2563EB'] as const,
   },
   {
