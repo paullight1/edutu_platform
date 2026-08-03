@@ -129,9 +129,18 @@ viewer each stay small enough to test exhaustively.
 RLS: `community_groups`, `community_group_members` and
 `community_group_messages` are `SELECT`-able by members of the group, with
 public groups readable by any signed-in user — these three are what Realtime
-reads. `community_join_requests` and `community_group_forms` are `SELECT`-able
-by the requesting user and the group's owner/mods only. **`community_reports`
-gets no `SELECT` policy at all** — a reporter must never be able to enumerate
+reads. `community_join_requests` is `SELECT`-able by the requesting user and
+the group's owner/mods only.
+
+`community_group_forms` follows the group's own visibility — public group, or
+active member. An earlier draft restricted it to owner/mods, which would have
+made request-to-join groups unjoinable: a prospective joiner has to read the
+screening questions in order to answer them. Visibility controls
+discoverability and `join_policy` controls entry, so a request-to-join group
+is necessarily a public one, and its questions are necessarily readable by the
+people being asked to answer them.
+
+**`community_reports` gets no `SELECT` policy at all** — a reporter must never be able to enumerate
 reports, and members must never see who reported them. It is read exclusively
 by the service role. No table gets an `INSERT`/`UPDATE`/`DELETE` policy,
 because every write goes through the backend.
