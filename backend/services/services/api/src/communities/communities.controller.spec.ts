@@ -112,6 +112,10 @@ describe("CommunitiesController identity", () => {
  * observe is the SERVICE's narrowing rather than a reimplementation of it in
  * the double. (The real adapter applies the hint in SQL so the 50-row cap
  * counts the right rows; that is an efficiency, not the rule.)
+ *
+ * `listMembershipsForUser` likewise returns EVERY row, `banned` included — it
+ * used to filter to the three live statuses, which meant the assertions below
+ * about who is excluded were checking this class rather than the service.
  */
 class ListOnlyStore implements Partial<GroupsStore> {
   groups: CommunityGroup[] = [];
@@ -121,11 +125,7 @@ class ListOnlyStore implements Partial<GroupsStore> {
   async listMembershipsForUser(
     userId: string,
   ): Promise<CommunityGroupMember[]> {
-    return this.members.filter(
-      (row) =>
-        row.userId === userId &&
-        ["active", "invited", "pending"].includes(row.status),
-    );
+    return this.members.filter((row) => row.userId === userId);
   }
 
   async listGroups(filter: GroupListFilter): Promise<CommunityGroup[]> {
@@ -180,7 +180,7 @@ function listSetup() {
 }
 
 describe("CommunitiesController.listGroups mine filter", () => {
-  it("returns only the groups the caller is an ACTIVE member of", async () => {
+  it("returns only the groups the caller has a live membership on", async () => {
     const { store, controller } = listSetup();
     const mine = store.addGroup({ name: "Mine" });
     store.addGroup({ name: "Someone else's" });
@@ -188,25 +188,61 @@ describe("CommunitiesController.listGroups mine filter", () => {
 
     const rows = await controller.listGroups(RAW_SUBJECT, "true");
 
-    expect(rows.map((row) => row.name)).toEqual(["Mine"]);
+    expect(rows.map((row) => row.group.name)).toEqual(["Mine"]);
   });
 
-  it("does NOT count a group the caller merely applied to", async () => {
-    // A `pending` row is an application somebody else has yet to decide. Listing
-    // it under "your groups" tells the applicant they are in when they are not.
+  it("counts a group the caller applied to, MARKED pending", async () => {
+    // This used to be excluded, on the reasoning that listing an undecided
+    // application under "your groups" tells the applicant they are in. The row
+    // now carries `pending`, so the screen says "waiting for approval" instead
+    // of claiming membership — and an application that appears nowhere is an
+    // applicant with no way to see they already applied.
     const { store, controller } = listSetup();
     const applied = store.addGroup({ name: "Applied to" });
     store.addMember(applied.id, RAW_SUBJECT, "pending");
 
-    expect(await controller.listGroups(RAW_SUBJECT, "true")).toEqual([]);
+    const rows = await controller.listGroups(RAW_SUBJECT, "true");
+
+    expect(rows.map((row) => [row.group.name, row.membership?.status])).toEqual(
+      [["Applied to", "pending"]],
+    );
   });
 
-  it("does not count an invitation the caller has not accepted", async () => {
+  it("counts an unaccepted invitation, MARKED invited", async () => {
+    // The dead end this fix closes: a private group cannot be self-joined, so
+    // the `invited` row is the ONLY way in, and while `mine` meant `active` the
+    // invitee had nowhere in the app to find it.
     const { store, controller } = listSetup();
-    const invited = store.addGroup({ name: "Invited to" });
+    const invited = store.addGroup({
+      name: "Invited to",
+      visibility: "private",
+    });
     store.addMember(invited.id, RAW_SUBJECT, "invited");
 
+    const rows = await controller.listGroups(RAW_SUBJECT, "true");
+
+    expect(rows.map((row) => [row.group.name, row.membership?.status])).toEqual(
+      [["Invited to", "invited"]],
+    );
+  });
+
+  it("counts neither a removal nor a ban as a group of theirs", async () => {
+    const { store, controller } = listSetup();
+    const removed = store.addGroup({
+      name: "Removed from",
+      visibility: "private",
+    });
+    const banned = store.addGroup({
+      name: "Banned from",
+      visibility: "private",
+    });
+    store.addMember(removed.id, RAW_SUBJECT, "removed");
+    store.addMember(banned.id, RAW_SUBJECT, "banned");
+
     expect(await controller.listGroups(RAW_SUBJECT, "true")).toEqual([]);
+    // And neither id was offered to the store as visible, so the real adapter's
+    // WHERE clause never unlocks them either.
+    expect(store.lastFilter?.visibleGroupIds).toEqual([]);
   });
 
   it("still browses every public group when mine is absent", async () => {
@@ -217,7 +253,7 @@ describe("CommunitiesController.listGroups mine filter", () => {
 
     const rows = await controller.listGroups(RAW_SUBJECT);
 
-    expect(rows.map((row) => row.name).sort()).toEqual([
+    expect(rows.map((row) => row.group.name).sort()).toEqual([
       "Mine",
       "Someone else's",
     ]);

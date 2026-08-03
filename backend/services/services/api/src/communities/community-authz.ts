@@ -135,6 +135,25 @@ export function canReadGroup(
 }
 
 /**
+ * Does this membership row, on its own, admit its holder to a PRIVATE group?
+ *
+ * The list query has to decide which group ids to unlock before it has the
+ * group rows in hand — it is building the WHERE clause that fetches them — so it
+ * cannot call {@link canReadGroup} per row the way `get` does. This is that same
+ * question asked without the group, and it is DEFINED in terms of `canReadGroup`
+ * rather than restating `active || invited`: the two cannot drift, because there
+ * is only one of them. The whole point of this module is that no rule in this
+ * feature gets a second copy.
+ *
+ * `pending` is false here for the reason `canReadGroup` gives: an unapproved
+ * self-application to a group that has since been made private must not become
+ * a key to it.
+ */
+export function admitsToPrivateGroup(membership: MaybeMembership): boolean {
+  return canReadGroup({ visibility: "private" }, membership);
+}
+
+/**
  * The role this person may administer the group with, or null if they may not.
  *
  * Belt and braces, mirroring the `community_is_owner_or_mod` RLS helper:

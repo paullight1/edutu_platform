@@ -19,6 +19,7 @@ import {
   type CommunityGroupMember,
 } from "../db/schema";
 import {
+  admitsToPrivateGroup,
   canReadGroup,
   canSelfActivate,
   canSelfJoinWithoutInvite,
@@ -93,10 +94,19 @@ export type GroupListFilter = {
    * system — a "your groups" list containing groups the caller has never seen.
    *
    * A SERVICE-level flag: the caller sets this, the service turns it into
-   * `restrictToGroupIds` below. Membership means `active` only, so a group the
-   * caller merely applied to (a `pending` row) is not "theirs" — it is a
-   * request awaiting somebody else's decision, and listing it as a group they
-   * belong to would be the browse screen telling them they are in.
+   * `restrictToGroupIds` below.
+   *
+   * "MINE" IS ANY LIVE RELATIONSHIP: `active`, `invited` or `pending`. It was
+   * `active` alone, on the reasoning that listing an unaccepted invitation or an
+   * undecided application under "your groups" tells people they are in when they
+   * are not. That reasoning was sound while a list row was a bare group and
+   * carried no way to say otherwise — and it left an invitation with nowhere in
+   * the app to appear, since the only other section is public groups and an
+   * invitation is by definition to a private one. Now every row carries its
+   * membership, so the screen renders "Invited" and "Pending" rather than
+   * claiming membership, and the honest answer to "is this group mine?" for a
+   * group whose owner invited me is yes. `removed`/`banned` are not live and
+   * never appear.
    */
   mine?: boolean;
   /**
@@ -108,12 +118,39 @@ export type GroupListFilter = {
    */
   restrictToGroupIds?: string[];
   /**
-   * Group ids the caller is an active member of. The visibility filter has to
+   * Group ids whose privacy the caller's own membership row unlocks — `active`
+   * or `invited`, per `admitsToPrivateGroup`. NOT the same set as `mine`: a
+   * `pending` row is live (so it is "mine") but unlocks nothing (so a private
+   * group stays hidden from an unvetted applicant). The visibility filter has to
    * run in the same query as the LIMIT: filtering other people's private groups
    * out *after* the 50-row cap returns a short page while more public groups
    * are still waiting, which reads to the user as "there is nothing else".
    */
   visibleGroupIds?: string[];
+};
+
+/**
+ * A group as a caller sees it: the row, plus THEIR OWN membership row or null.
+ *
+ * ONE shape for `list` and `get` on purpose. Three Criticals in this feature
+ * were two methods that should agree disagreeing, and a browse list that
+ * described a group differently from the screen it opens is the same bug in
+ * presentation form: the list said "Join", the detail said "Invited". Sharing
+ * the type means a field can only be added to both.
+ *
+ * NOT FLATTENED, for the reason the controller documents on `getGroup`: group
+ * and membership both carry `id` and would collide.
+ *
+ * The membership is returned whatever its status — `removed` and `banned` rows
+ * included, when the group is visible for some other reason (it is public). It
+ * is the caller's own row, so it discloses nothing about anyone else, and
+ * withholding it is what makes a browse screen offer "Join" to somebody the
+ * owners have banned. What `banned` must never do is make a group VISIBLE, and
+ * it does not: it is absent from the id set below.
+ */
+export type GroupWithMembership = {
+  group: CommunityGroup;
+  membership: CommunityGroupMember | null;
 };
 
 export type JoinResult = {
@@ -186,6 +223,11 @@ export interface GroupsStore {
   ): Promise<CommunityGroup | null>;
   /** Browsable groups only: never archived, never past `expires_at`. */
   listGroups(filter: GroupListFilter): Promise<CommunityGroup[]>;
+  /**
+   * EVERY membership row this user has, whatever its status. Filtering here
+   * would move an authorization decision into the persistence layer; `list`
+   * applies `isLiveMembershipStatus` and `admitsToPrivateGroup` itself.
+   */
   listMembershipsForUser(userId: string): Promise<CommunityGroupMember[]>;
   findMembership(
     groupId: string,
@@ -388,21 +430,16 @@ export class DrizzleGroupsStore implements GroupsStore {
   async listMembershipsForUser(
     userId: string,
   ): Promise<CommunityGroupMember[]> {
+    // EVERY row, including `removed` and `banned`. This used to filter to the
+    // three live statuses, which put the visibility decision in the store —
+    // where the service's own filter became unreachable and the spec's double
+    // could only re-assert the store's copy of the rule. The service decides;
+    // this fetches. The row count is bounded by the groups one person has ever
+    // touched.
     return db
       .select()
       .from(communityGroupMembers)
-      .where(
-        and(
-          eq(communityGroupMembers.userId, userId),
-          // 'invited' rides along so a future "your invitations" surface has
-          // the rows; `list` itself still narrows to 'active' only.
-          inArray(communityGroupMembers.status, [
-            "active",
-            "invited",
-            "pending",
-          ]),
-        ),
-      );
+      .where(eq(communityGroupMembers.userId, userId));
   }
 
   async findMembership(
@@ -711,47 +748,69 @@ export class GroupsService {
   }
 
   /**
-   * Public groups, plus any group the caller already belongs to — or, with
-   * `mine: true`, ONLY the groups they belong to.
+   * Public groups, plus every group the caller may read privately — each paired
+   * with the caller's own membership row, or `null` where they have none.
    *
-   * "Belongs to" is `status === 'active'` and nothing else. A `pending` row is
-   * an application somebody else has yet to decide, and an `invited` row is an
-   * offer not yet accepted; neither is membership, and `member_count`,
-   * `countActiveOwners` and the RLS helpers all agree.
+   * WHY THE MEMBERSHIP RIDES ALONG. Returning bare groups made the invitation
+   * flow unreachable. A private group can never be self-joined (see
+   * {@link canSelfJoinWithoutInvite}), so every entry to one runs through an
+   * `invited` row — and an `invited` user was in neither half of this list: the
+   * group is not public, and they were not `active`. The invitation existed in
+   * the database and appeared nowhere in the app. A `pending` applicant had the
+   * matching problem in the other direction: visible, but indistinguishable
+   * from a stranger, so the browse screen could not say "waiting for approval"
+   * and offered them "Join" again.
+   *
+   * THE VISIBILITY RULE IS `canReadGroup`, THE SAME FUNCTION `get` CALLS. That
+   * is the point: a row this list returns is a row `get` will open, and a row it
+   * withholds is a row `get` would 403. In particular `pending` does NOT unlock
+   * a private group here, exactly as it does not there — a public
+   * request-to-join group flipped to private carries a queue of unvetted
+   * applicants, and listing it for them would hand out the existence and roster
+   * of a private group in exchange for asking to join it while it was public.
+   * They keep seeing it while it is public, now marked `pending`.
+   *
+   * `removed` and `banned` unlock nothing: they are absent from the id set,
+   * because a ban that a browse refresh undoes is not a ban.
    */
   async list(
     userId: string,
     filter: GroupListFilter = {},
-  ): Promise<CommunityGroup[]> {
+  ): Promise<GroupWithMembership[]> {
     const memberships = await this.store.listMembershipsForUser(userId);
-    const mine = new Set(
-      memberships
-        .filter((member) => member.status === "active")
-        .map((member) => member.groupId),
+    // Last row wins per group; the table has a unique (group_id, user_id) index,
+    // so there is at most one anyway.
+    const byGroup = new Map<string, CommunityGroupMember>();
+    for (const member of memberships) byGroup.set(member.groupId, member);
+
+    // "Mine" is any LIVE relationship — in it, invited to it, or waiting on it —
+    // via the shared whitelist, so `removed`/`banned` are excluded by being
+    // absent rather than by a denylist a sixth status could slip past.
+    const liveIds = [...byGroup.keys()].filter((groupId) =>
+      isLiveMembershipStatus(byGroup.get(groupId)?.status),
     );
-    const mineIds = [...mine];
-    // Handed to the store so the visibility rule and the 50-row cap are applied
-    // by the same query: filtering afterwards returns a short page while more
-    // public groups are still waiting behind the cap. The post-filter stays as
-    // defence in depth for a store that ignores the hint.
+    // The narrower set: rows that admit their holder to a PRIVATE group. Handed
+    // to the store so the visibility rule and the 50-row cap are applied by the
+    // same query — filtering afterwards returns a short page while more public
+    // groups wait behind the cap. The post-filter below stays as defence in
+    // depth for a store that ignores the hint.
+    const visibleGroupIds = liveIds.filter((groupId) =>
+      admitsToPrivateGroup(byGroup.get(groupId)),
+    );
+
     const rows = await this.store.listGroups({
       ...filter,
-      visibleGroupIds: mineIds,
-      restrictToGroupIds: filter.mine ? mineIds : undefined,
+      visibleGroupIds,
+      restrictToGroupIds: filter.mine ? liveIds : undefined,
     });
-    if (filter.mine) return rows.filter((group) => mine.has(group.id));
-    return rows.filter(
-      (group) => group.visibility === "public" || mine.has(group.id),
-    );
+    const live = new Set(liveIds);
+    return rows
+      .map((group) => ({ group, membership: byGroup.get(group.id) ?? null }))
+      .filter(({ group, membership }) => canReadGroup(group, membership))
+      .filter(({ group }) => !filter.mine || live.has(group.id));
   }
 
-  async get(
-    userId: string,
-    groupId: string,
-  ): Promise<{
-    group: CommunityGroup;
-    membership: CommunityGroupMember | null;
-  }> {
+  async get(userId: string, groupId: string): Promise<GroupWithMembership> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
     // The shared read rule — `MessagesService.list` calls the same function, so

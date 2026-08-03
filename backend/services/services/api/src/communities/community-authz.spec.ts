@@ -1,4 +1,5 @@
 import {
+  admitsToPrivateGroup,
   canModerateGroup,
   canPostInGroup,
   canReadGroup,
@@ -154,6 +155,46 @@ describe("community-authz truth table", () => {
       // later is READABLE by default, so anything more restrictive than public
       // must be added to this predicate at the same time as the column value.
       expect(canReadGroup({ visibility: "unlisted" }, null)).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // admitsToPrivateGroup — the group-less form of `canReadGroup`, used by
+  // `GroupsService.list` to build the id set its query unlocks before it has
+  // any group rows to ask about.
+  // -------------------------------------------------------------------------
+  describe("admitsToPrivateGroup", () => {
+    // Written as data, exactly like the tables above, so this is a second
+    // statement of the rule rather than a re-run of the implementation.
+    const EXPECTED: Record<StatusKey, boolean> = {
+      active: true,
+      invited: true,
+      // The queue-of-applicants case: asking to join a group while it was
+      // public must not become a key to it after an owner makes it private.
+      pending: false,
+      removed: false,
+      banned: false,
+      none: false,
+    };
+
+    it.each(ALL_CASES)("$name", ({ status, role }) => {
+      expect(admitsToPrivateGroup(membership(status, role))).toBe(
+        EXPECTED[status],
+      );
+    });
+
+    it("agrees with canReadGroup on a private group, status by status", () => {
+      // The two must not drift: a list that unlocks a group `get` would refuse
+      // (or hides one `get` would open) is the same class of bug as findings
+      // #1-#3. Checked as an identity across every case, not asserted in prose.
+      for (const { visibility, status, role } of ALL_CASES) {
+        if (visibility !== "private") continue;
+        const row = membership(status, role);
+        expect({ status, admits: admitsToPrivateGroup(row) }).toEqual({
+          status,
+          admits: canReadGroup(group("private"), row),
+        });
+      }
     });
   });
 

@@ -80,6 +80,16 @@ export class CommunitiesController {
   // Groups
   // -------------------------------------------------------------------------
 
+  /**
+   * Returns `{ group, membership }[]` — the SAME shape as `getGroup`, one per
+   * row. The membership is what makes an invitation reachable at all: a private
+   * group cannot be self-joined, so entry is always via an `invited` row, and a
+   * list of bare groups gave the invitee nowhere to see it.
+   *
+   * `mine=true` means "every group I have a live relationship with" — joined,
+   * invited, or applied — not "joined" alone; the membership field lets the
+   * screen label which. See `GroupListFilter.mine`.
+   */
   @Get("groups")
   listGroups(
     @CurrentUser("authId") userId: string,

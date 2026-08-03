@@ -5,9 +5,12 @@ import type {
   CommunityJoinRequest,
   GroupListFilter,
   GroupsStore,
+  GroupWithMembership,
   NewGroupRow,
   NewMemberRow,
 } from "./groups.service";
+import type { MessagesStore } from "./messages.service";
+import { MessagesService } from "./messages.service";
 import {
   GroupCapReachedError,
   GroupsService,
@@ -150,9 +153,16 @@ class FakeGroupsStore implements GroupsStore {
     const now = Date.now();
     const needle = filter.query?.trim().toLowerCase();
     const visible = new Set(filter.visibleGroupIds ?? []);
+    // Honoured, including the empty-array short-circuit, because the real
+    // adapter honours it: a fake that ignored `restrictToGroupIds` would leave
+    // the id set the service builds for `mine` completely unchecked here.
+    const restrict = filter.restrictToGroupIds
+      ? new Set(filter.restrictToGroupIds)
+      : null;
     return (
       this.groups
         .filter((group) => group.archivedAt === null)
+        .filter((group) => !restrict || restrict.has(group.id))
         // Applied BEFORE the slice, exactly as the SQL applies it before LIMIT:
         // a fake that filtered afterwards would hide the short-page bug.
         .filter(
@@ -333,6 +343,31 @@ class FakeGroupsStore implements GroupsStore {
 }
 
 const GROUP_ID = "00000000-0000-4000-8000-000000000001";
+
+/** Group names in a stable order, so assertions read as sets. */
+function names(rows: GroupWithMembership[]): string[] {
+  return rows.map((row) => row.group.name).sort();
+}
+
+/**
+ * The REAL `MessagesService`, reading the same groups and memberships this
+ * spec's store holds. Its `list` and `GroupsService.list` are supposed to
+ * enforce one rule through one function; a hand-rolled stub of the message side
+ * would only prove this file's opinion of that rule.
+ */
+function messagesOver(store: FakeGroupsStore): MessagesService {
+  const adapter: MessagesStore = {
+    findGroup: (groupId) => store.findGroup(groupId),
+    findMembership: (groupId, userId) => store.findMembership(groupId, userId),
+    listMessages: async () => [],
+    findMessage: async () => null,
+    insertMessage: () => {
+      throw new Error("insertMessage should never be reached in these tests");
+    },
+    updateMessage: async () => null,
+  };
+  return new MessagesService(adapter);
+}
 
 function seedGroup(
   store: FakeGroupsStore,
@@ -957,10 +992,13 @@ describe("GroupsService", () => {
       });
       const service = new GroupsService(db);
       const rows = await service.list("user_abc", {});
-      expect(rows.map((row) => row.name).sort()).toEqual([
-        "My own secret",
-        "Public one",
-      ]);
+      expect(names(rows)).toEqual(["My own secret", "Public one"]);
+      // Each row carries the caller's own membership, mirroring `get`.
+      const own = rows.find((row) => row.group.name === "My own secret");
+      expect(own?.membership?.status).toBe("active");
+      expect(
+        rows.find((row) => row.group.name === "Public one")?.membership,
+      ).toBeNull();
     });
 
     it("filters by opportunityId", async () => {
@@ -976,7 +1014,7 @@ describe("GroupsService", () => {
       const rows = await new GroupsService(db).list("user_abc", {
         opportunityId,
       });
-      expect(rows.map((row) => row.name)).toEqual(["Linked"]);
+      expect(names(rows)).toEqual(["Linked"]);
     });
 
     it("matches the query against name and description", async () => {
@@ -996,10 +1034,7 @@ describe("GroupsService", () => {
       const rows = await new GroupsService(db).list("user_abc", {
         query: "CHEVENING",
       });
-      expect(rows.map((row) => row.name).sort()).toEqual([
-        "Chevening applicants",
-        "Scholarship crew",
-      ]);
+      expect(names(rows)).toEqual(["Chevening applicants", "Scholarship crew"]);
     });
 
     it("orders by most recent activity and caps the page at 50", async () => {
@@ -1015,11 +1050,11 @@ describe("GroupsService", () => {
       const service = new GroupsService(db);
       const rows = await service.list("user_abc", {});
       expect(rows).toHaveLength(50);
-      expect(rows[0].name).toBe("Bulk 59");
+      expect(rows[0].group.name).toBe("Bulk 59");
       const capped = await service.list("user_abc", { limit: 500 });
       expect(capped).toHaveLength(50);
       const small = await service.list("user_abc", { limit: 3 });
-      expect(small.map((row) => row.name)).toEqual([
+      expect(small.map((row) => row.group.name)).toEqual([
         "Bulk 59",
         "Bulk 58",
         "Bulk 57",
@@ -1052,7 +1087,7 @@ describe("GroupsService", () => {
       }
       const rows = await new GroupsService(db).list("user_abc", {});
       expect(rows).toHaveLength(LIST_LIMIT);
-      expect(rows.every((row) => row.visibility === "public")).toBe(true);
+      expect(rows.every((row) => row.group.visibility === "public")).toBe(true);
     });
 
     it("leaves expired groups out of the browse feed", async () => {
@@ -1065,7 +1100,199 @@ describe("GroupsService", () => {
         expiresAt: new Date(Date.now() - 60_000),
       });
       const rows = await new GroupsService(db).list("user_abc", {});
-      expect(rows.map((row) => row.name)).toEqual(["Live"]);
+      expect(names(rows)).toEqual(["Live"]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Invitation visibility. A private group can never be self-joined, so every
+  // entry to one runs through an `invited` row — and while `list` returned bare
+  // groups filtered to `active`, that row appeared NOWHERE in the app: the
+  // group is not public, and an invitee is not active. The invitation existed
+  // in the database and was unreachable.
+  // -------------------------------------------------------------------------
+  describe("list — membership visibility", () => {
+    /** A private group owned by somebody else, plus the caller's row on it. */
+    function privateGroupWith(status: string | null) {
+      const db = fakeDb();
+      const group = seedGroup(db, {
+        id: randomUUID(),
+        slug: "invite-only",
+        name: "Invite only",
+        ownerId: "user_owner",
+        visibility: "private",
+      });
+      // A public group alongside it, so "sees nothing" is distinguishable from
+      // "the query returned nothing at all".
+      seedGroup(db, {
+        id: randomUUID(),
+        slug: "open-door",
+        name: "Open door",
+        ownerId: "user_owner",
+      });
+      if (status) {
+        db.members.push({
+          id: randomUUID(),
+          groupId: group.id,
+          userId: "user_guest",
+          role: "member",
+          status,
+          joinedAt: new Date(),
+        });
+      }
+      return { db, group, service: new GroupsService(db) };
+    }
+
+    it("shows an invited user the private group, marked invited", async () => {
+      const { service } = privateGroupWith("invited");
+      const rows = await service.list("user_guest", {});
+      expect(names(rows)).toEqual(["Invite only", "Open door"]);
+      expect(
+        rows.find((row) => row.group.name === "Invite only")?.membership
+          ?.status,
+      ).toBe("invited");
+    });
+
+    it("marks a pending applicant's group pending instead of leaving them looking like a stranger", async () => {
+      const db = fakeDb();
+      const group = seedGroup(db, {
+        id: randomUUID(),
+        slug: "request-to-join",
+        name: "Request to join",
+        ownerId: "user_owner",
+        joinPolicy: "request",
+      });
+      db.members.push({
+        id: randomUUID(),
+        groupId: group.id,
+        userId: "user_guest",
+        role: "member",
+        status: "pending",
+        joinedAt: new Date(),
+      });
+      const rows = await new GroupsService(db).list("user_guest", {});
+      expect(rows.map((row) => row.membership?.status)).toEqual(["pending"]);
+    });
+
+    it("does NOT let a pending application unlock a private group", async () => {
+      // The queue-of-applicants case: a public request-to-join group made
+      // private carries unvetted `pending` rows. Listing it for them would
+      // disclose a private group in exchange for having asked to join while it
+      // was still public — and `get` would 403 on the row `list` handed over.
+      const { service } = privateGroupWith("pending");
+      expect(names(await service.list("user_guest", {}))).toEqual([
+        "Open door",
+      ]);
+    });
+
+    it("does not let a banned user's group reappear in their list", async () => {
+      const { service } = privateGroupWith("banned");
+      expect(names(await service.list("user_guest", {}))).toEqual([
+        "Open door",
+      ]);
+    });
+
+    it("does not show a removed user the group they were removed from", async () => {
+      const { service } = privateGroupWith("removed");
+      expect(names(await service.list("user_guest", {}))).toEqual([
+        "Open door",
+      ]);
+    });
+
+    it("shows a stranger no private group at all", async () => {
+      const { service } = privateGroupWith(null);
+      expect(names(await service.list("user_guest", {}))).toEqual([
+        "Open door",
+      ]);
+    });
+
+    it("still reports a banned user's own status on a group that is public anyway", async () => {
+      // The ban does not hide a public group — `canReadGroup` says a signed-out
+      // stranger could read it, so hiding it buys nothing — but withholding the
+      // row is what makes a browse screen offer "Join" to somebody the owners
+      // have banned.
+      const db = fakeDb();
+      const group = seedGroup(db, {
+        id: randomUUID(),
+        slug: "open-door",
+        name: "Open door",
+        ownerId: "user_owner",
+      });
+      db.members.push({
+        id: randomUUID(),
+        groupId: group.id,
+        userId: "user_guest",
+        role: "member",
+        status: "banned",
+        joinedAt: new Date(),
+      });
+      const rows = await new GroupsService(db).list("user_guest", {});
+      expect(rows.map((row) => row.membership?.status)).toEqual(["banned"]);
+      // ...and it is still not "theirs".
+      expect(
+        await new GroupsService(db).list("user_guest", { mine: true }),
+      ).toEqual([]);
+    });
+
+    it("agrees with get on every group, row by row", async () => {
+      // The failure mode this whole feature keeps producing is two methods that
+      // must agree, disagreeing. Rather than assert that in prose: for each of
+      // the five statuses plus no-row, whatever `list` decides about the private
+      // group, `get` must decide the same.
+      for (const status of [
+        "active",
+        "invited",
+        "pending",
+        "removed",
+        "banned",
+        null,
+      ]) {
+        const { service, group } = privateGroupWith(status);
+        const listed = (await service.list("user_guest", {})).some(
+          (row) => row.group.id === group.id,
+        );
+        const gettable = await service
+          .get("user_guest", group.id)
+          .then(() => true)
+          .catch(() => false);
+        expect({ status, listed }).toEqual({ status, listed: gettable });
+      }
+    });
+
+    it("does not widen message access for anyone it newly lists", async () => {
+      // Being visible in a browse list is not being in the room. The read rule
+      // for messages is `canReadGroup` — the same function `list` filters on —
+      // so a `pending` applicant, who `list` refuses on a private group, is
+      // refused its messages too, and an `invited` user, who `list` shows the
+      // group to, still cannot POST in it until they accept.
+      for (const status of ["pending", "removed", "banned", null]) {
+        const { db, group } = privateGroupWith(status);
+        await expect(
+          messagesOver(db).list("user_guest", group.id),
+        ).rejects.toThrow(/not a member/i);
+      }
+      const { db, group } = privateGroupWith("invited");
+      await expect(
+        messagesOver(db).send("user_guest", group.id, { body: "hello" }),
+      ).rejects.toThrow(/join this group/i);
+    });
+
+    it("counts an invitation and an application as MINE, and a ban as not", async () => {
+      for (const [status, expected] of [
+        ["active", ["Invite only"]],
+        ["invited", ["Invite only"]],
+        // Live, so it is "mine" — but the private group still does not unlock,
+        // so `mine` and the visibility rule compose rather than fight.
+        ["pending", []],
+        ["removed", []],
+        ["banned", []],
+      ] as const) {
+        const { service } = privateGroupWith(status);
+        expect({
+          status,
+          rows: names(await service.list("user_guest", { mine: true })),
+        }).toEqual({ status, rows: expected });
+      }
     });
   });
 
