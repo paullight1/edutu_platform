@@ -108,6 +108,76 @@ export interface MessagesStore {
 export const MESSAGES_STORE = Symbol("MESSAGES_STORE");
 
 // ---------------------------------------------------------------------------
+// Author directory
+// ---------------------------------------------------------------------------
+
+/**
+ * The neutral name a member with no usable profile is shown under.
+ *
+ * ~9 of 43 profile rows in this database carry a `full_name`, so an absent name
+ * is the COMMON case, not the edge case. "Unknown" and an empty bubble both
+ * read as a bug; this reads as a person who has not filled their profile in.
+ *
+ * Exported because `ModerationService`'s block list renders the same people and
+ * must call them the same thing — a name that differs between the chat bubble
+ * and the "Blocked" screen is a name the user cannot match up.
+ */
+export const UNNAMED_MEMBER = "Edutu member";
+
+/**
+ * One profile row, **echoed back under the id that was ASKED for**.
+ *
+ * That echo is the whole design. `profiles.user_id` is declared `uuid` in
+ * `schema.ts` but the LIVE column is `text` and holds the raw Clerk subject in
+ * 47 of 50 rows, with the rest holding the derived uuid from
+ * `toDatabaseUserId`. Matching across both representations is the adapter's job
+ * (it has `public.clerk_id_to_uuid` to do it in SQL); the service must never
+ * have to guess which representation came back, so the adapter returns the
+ * request key, not the stored key.
+ */
+export type AuthorRow = {
+  /** The raw Clerk subject the caller asked about — NOT `profiles.user_id`. */
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+};
+
+/**
+ * Names and avatars for a page of messages.
+ *
+ * A separate boundary from `MessagesStore` on purpose: it is keyed on a
+ * different table with a different id convention, and keeping it apart means a
+ * double for one is not forced to fake the other.
+ */
+export interface AuthorDirectory {
+  /** ONE query for the whole page. Never called per message. */
+  findAuthors(userIds: string[]): Promise<AuthorRow[]>;
+}
+
+/** Token so the module can swap the directory without touching the service. */
+export const AUTHOR_DIRECTORY = Symbol("AUTHOR_DIRECTORY");
+
+/** What the client renders beside a bubble. Nothing else about the person. */
+export type MessageAuthor = {
+  displayName: string;
+  /** Absent for every row in production today; the column exists and is null. */
+  avatarUrl: string | null;
+};
+
+/**
+ * A message plus its author card.
+ *
+ * `author` carries a display name and an avatar and NOTHING ELSE. `profiles`
+ * also holds email, country, school, cgpa and credits; none of it is selected,
+ * so none of it can leak through a spread. The message's own `userId` is
+ * unchanged and still present — it is the key the report and block routes take,
+ * and removing it would break both.
+ */
+export type CommunityMessageWithAuthor = CommunityGroupMessage & {
+  author: MessageAuthor;
+};
+
+// ---------------------------------------------------------------------------
 // Drizzle-backed store
 // ---------------------------------------------------------------------------
 
@@ -227,6 +297,70 @@ export class DrizzleMessagesStore implements MessagesStore {
   }
 }
 
+/**
+ * Reads `profiles` for a page's distinct authors in ONE round trip.
+ *
+ * THE JOIN IS DUAL-KEYED AND THAT IS NOT OPTIONAL. `schema.ts` declares
+ * `profiles.user_id` as `uuid`; the live column is `text`, and it holds the raw
+ * Clerk subject for most rows and the `toDatabaseUserId` uuid for the rest.
+ * `eq(profiles.userId, subject)` type-checks, runs, and returns nothing for the
+ * minority — a silent, partial blank-out that no error would ever surface. This
+ * mirrors `matchProfileUserId` in `common/user-id.ts`, written out here because
+ * the match is against a per-request VALUES list rather than a single column,
+ * and because `clerk_id_to_uuid` has to be applied to BOTH sides: the requested
+ * id is a raw subject and the stored id may already be derived.
+ *
+ * `unnest(array[...])` rather than a query per message: 50 messages from 12
+ * people is one query, not twelve. The array is parameterised, never spliced.
+ */
+export class DrizzleAuthorDirectory implements AuthorDirectory {
+  async findAuthors(userIds: string[]): Promise<AuthorRow[]> {
+    const ids = Array.from(
+      new Set((userIds ?? []).map((id) => (id || "").trim()).filter(Boolean)),
+    );
+    // No authors, no query. This is also what keeps a spec that never lists a
+    // message from touching the database at all.
+    if (ids.length === 0) return [];
+
+    const result = await db.execute(sql`
+      select
+        w.user_id                          as user_id,
+        max(p.full_name)                   as full_name,
+        max(p.avatar_url)                  as avatar_url
+      from unnest(array[${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::text[]) as w(user_id)
+      left join public.profiles p
+        on p.user_id::text = w.user_id
+        or public.clerk_id_to_uuid(p.user_id::text) = public.clerk_id_to_uuid(w.user_id)
+      group by w.user_id
+    `);
+
+    // SELECTS ONLY name AND avatar. `select *` here would put every member's
+    // email in front of every other member the first time somebody spread the
+    // row into a response.
+    return extractRows<{
+      user_id: string;
+      full_name: string | null;
+      avatar_url: string | null;
+    }>(result).map((row) => ({
+      userId: row.user_id,
+      fullName: row.full_name ?? null,
+      avatarUrl: row.avatar_url ?? null,
+    }));
+  }
+}
+
+/** `db.execute` is a pg `QueryResult` on some paths and a bare array on others. */
+function extractRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === "object" && "rows" in result) {
+    return (result as { rows?: T[] }).rows ?? [];
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -251,9 +385,14 @@ export type ListMessagesOptions = {
 @Injectable()
 export class MessagesService {
   private readonly store: MessagesStore;
+  private readonly authors: AuthorDirectory;
 
-  constructor(@Optional() @Inject(MESSAGES_STORE) store?: MessagesStore) {
+  constructor(
+    @Optional() @Inject(MESSAGES_STORE) store?: MessagesStore,
+    @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
+  ) {
     this.store = store ?? new DrizzleMessagesStore();
+    this.authors = authors ?? new DrizzleAuthorDirectory();
   }
 
   /**
@@ -275,7 +414,7 @@ export class MessagesService {
     userId: string,
     groupId: string,
     options: ListMessagesOptions = {},
-  ): Promise<CommunityGroupMessage[]> {
+  ): Promise<CommunityMessageWithAuthor[]> {
     const readerId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, readerId);
@@ -285,18 +424,19 @@ export class MessagesService {
     const before: MessageCursor | null = options.before
       ? { createdAt: options.before, id: options.beforeId }
       : null;
-    return this.store.listMessages(
+    const messages = await this.store.listMessages(
       groupId,
       before,
       this.resolveLimit(options.limit),
     );
+    return this.withAuthors(messages);
   }
 
   async send(
     userId: string,
     groupId: string,
     dto: SendMessageDto,
-  ): Promise<CommunityGroupMessage> {
+  ): Promise<CommunityMessageWithAuthor> {
     const senderId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     if (group.archivedAt) {
@@ -335,7 +475,7 @@ export class MessagesService {
       );
     }
 
-    return this.store.insertMessage(
+    const stored = await this.store.insertMessage(
       {
         groupId,
         userId: senderId,
@@ -347,6 +487,11 @@ export class MessagesService {
       // message, and this row becomes the group's most recent activity.
       { messageCountDelta: 1, touchLastMessageAt: true },
     );
+    // The SAME shape `list` returns. The client appends this response straight
+    // into the page it is already rendering; a message with no `author` would
+    // show the sender's own bubble under the fallback name until they refreshed.
+    const [withAuthor] = await this.withAuthors([stored]);
+    return withAuthor;
   }
 
   /**
@@ -359,7 +504,7 @@ export class MessagesService {
   async softDelete(
     actorId: string,
     messageId: string,
-  ): Promise<CommunityGroupMessage> {
+  ): Promise<CommunityMessageWithAuthor> {
     const acting = this.requireUserId(actorId);
     // `messageId` is the one identifier a client hands straight in, and the
     // column is `uuid`: without this, "abc" reaches Postgres and comes back as
@@ -378,12 +523,60 @@ export class MessagesService {
       deletedBy: acting,
     });
     if (!updated) throw new NotFoundException("That message was not found.");
-    return updated;
+    // A tombstone is folded back into the open page by the client, so it keeps
+    // the author card the row it replaces had.
+    const [withAuthor] = await this.withAuthors([updated]);
+    return withAuthor;
   }
 
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Attaches an author card to every message in a page using ONE directory
+   * call for the page's DISTINCT authors — never one per message. A 50-message
+   * page from a dozen people is one query; the naive shape is twelve to fifty,
+   * each a round trip, on the screen users open most.
+   *
+   * The fallback and the trimming are decided HERE, not in the directory, so a
+   * double cannot supply them on the service's behalf: the store returns the
+   * raw column values and this method turns them into what a bubble renders.
+   */
+  private async withAuthors(
+    messages: CommunityGroupMessage[],
+  ): Promise<CommunityMessageWithAuthor[]> {
+    const distinct = Array.from(
+      new Set(
+        messages
+          .map((message) => (message.userId || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    const rows = distinct.length
+      ? await this.authors.findAuthors(distinct)
+      : [];
+    const byId = new Map(rows.map((row) => [row.userId, row]));
+    return messages.map((message) => ({
+      ...message,
+      author: this.toAuthor(byId.get((message.userId || "").trim())),
+    }));
+  }
+
+  /**
+   * A missing profile row is the COMMON case here, not an error: most members
+   * have never filled a name in. It resolves to a neutral display name rather
+   * than a null the client has to special-case, or a throw that would blank an
+   * entire page of chat over one absent row.
+   */
+  private toAuthor(row: AuthorRow | undefined): MessageAuthor {
+    const displayName = (row?.fullName || "").trim();
+    const avatarUrl = (row?.avatarUrl || "").trim();
+    return {
+      displayName: displayName || UNNAMED_MEMBER,
+      avatarUrl: avatarUrl || null,
+    };
+  }
 
   private async requireGroup(groupId: string): Promise<CommunityGroup> {
     this.assertUuid(groupId, "group");

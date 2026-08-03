@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  BlockedUserRow,
   CommunityGroup,
   CommunityGroupMember,
   CommunityGroupMessage,
@@ -10,6 +11,7 @@ import type {
   OwnerNotifier,
 } from "./moderation.service";
 import { ModerationService } from "./moderation.service";
+import { UNNAMED_MEMBER } from "./messages.service";
 
 /**
  * The store boundary again, and again a dumb applier: it inserts exactly the
@@ -78,6 +80,16 @@ class FakeModerationStore implements ModerationStore {
     return stored;
   }
 
+  /**
+   * Stands in for `profiles`, keyed on the raw subject the production adapter's
+   * dual-key join recovers. Absent means "no profile row", which is the COMMON
+   * case in this database, not the exception.
+   */
+  profiles = new Map<
+    string,
+    { fullName: string | null; avatarUrl: string | null }
+  >();
+
   async insertBlock(row: NewBlockRow): Promise<void> {
     const already = this.blocks.some(
       (existing) =>
@@ -85,6 +97,42 @@ class FakeModerationStore implements ModerationStore {
         existing.blockedId === row.blockedId,
     );
     if (!already) this.blocks.push(row);
+  }
+
+  /**
+   * Reports what is stored and DECIDES NOTHING: no display name, no fallback,
+   * no `resolved` flag. Those are the service's, so the assertions below watch
+   * the service rather than this class.
+   *
+   * `blockedDatabaseId` is a stand-in for the derived uuid the real column
+   * holds; the point is only that it is NOT the subject, so a service that
+   * handed it back in place of `profileUserId` would be caught.
+   */
+  async listBlocks(blockerId: string): Promise<BlockedUserRow[]> {
+    return this.blocks
+      .filter((row) => row.blockerId === blockerId)
+      .map((row) => {
+        const profile = this.profiles.get(row.blockedId);
+        return {
+          blockedDatabaseId: `derived-uuid-of:${row.blockedId}`,
+          profileUserId: profile ? row.blockedId : null,
+          fullName: profile?.fullName ?? null,
+          avatarUrl: profile?.avatarUrl ?? null,
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        };
+      });
+  }
+
+  async deleteBlock(row: NewBlockRow): Promise<boolean> {
+    const before = this.blocks.length;
+    this.blocks = this.blocks.filter(
+      (existing) =>
+        !(
+          existing.blockerId === row.blockerId &&
+          existing.blockedId === row.blockedId
+        ),
+    );
+    return this.blocks.length < before;
   }
 
   // ---- fixture helpers -----------------------------------------------------
@@ -428,5 +476,182 @@ describe("ModerationService.block", () => {
     await expect(service.block(REPORTER, "   ")).rejects.toThrow(
       /who to block/i,
     );
+  });
+});
+
+describe("ModerationService.listBlocks", () => {
+  it("SURVIVES the request that made it — the block is server state, not device state", async () => {
+    // The gap this closes: the chat screen kept blocks in AsyncStorage, so a
+    // reinstall unblocked everybody and the member's other phone never knew.
+    // A block written through one service instance has to be readable through
+    // a completely separate one that shares only the database.
+    const store = new FakeModerationStore();
+    const notifier: OwnerNotifier = {
+      broadcast: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    store.profiles.set(OFFENDER, {
+      fullName: "Ada Nwosu",
+      avatarUrl: "https://cdn.example.test/ada.png",
+    });
+
+    await new ModerationService(store, notifier).block(REPORTER, OFFENDER);
+    const blocks = await new ModerationService(store, notifier).listBlocks(
+      REPORTER,
+    );
+
+    expect(blocks).toEqual([
+      {
+        userId: OFFENDER,
+        displayName: "Ada Nwosu",
+        avatarUrl: "https://cdn.example.test/ada.png",
+        blockedAt: new Date("2026-08-01T00:00:00.000Z"),
+        resolved: true,
+      },
+    ]);
+  });
+
+  it("returns the SUBJECT the client filters messages by, not the stored uuid", async () => {
+    // `user_blocks` is uuid-keyed and `toDatabaseUserId` is one-way, so the
+    // adapter has to join back through `profiles`. Handing the client the uuid
+    // would give it a block it can never match against `message.userId`.
+    const { store, service } = setup();
+    store.profiles.set(OFFENDER, { fullName: "Ada", avatarUrl: null });
+
+    await service.block(REPORTER, OFFENDER);
+    const [blocked] = await service.listBlocks(REPORTER);
+
+    expect(blocked.userId).toBe(OFFENDER);
+    expect(blocked.userId).not.toMatch(/^derived-uuid-of:/);
+  });
+
+  it("names a blocked member with no profile row neutrally", async () => {
+    const { store, service } = setup();
+    await service.block(REPORTER, OFFENDER);
+
+    const [blocked] = await service.listBlocks(REPORTER);
+
+    expect(store.profiles.has(OFFENDER)).toBe(false);
+    expect(blocked.displayName).toBe(UNNAMED_MEMBER);
+    expect(blocked.avatarUrl).toBeNull();
+    // Unresolvable, so the client is told so rather than silently filtering on
+    // a uuid that matches no message.
+    expect(blocked.resolved).toBe(false);
+  });
+
+  it("treats a blank name as no name at all", async () => {
+    const { store, service } = setup();
+    store.profiles.set(OFFENDER, { fullName: "   ", avatarUrl: "  " });
+    await service.block(REPORTER, OFFENDER);
+
+    const [blocked] = await service.listBlocks(REPORTER);
+
+    expect(blocked.displayName).toBe(UNNAMED_MEMBER);
+    expect(blocked.avatarUrl).toBeNull();
+  });
+
+  it("shows each person only their OWN blocks", async () => {
+    // There is deliberately no route that tells somebody who has blocked them.
+    const { service } = setup();
+    await service.block(REPORTER, OFFENDER);
+
+    await expect(service.listBlocks(OFFENDER)).resolves.toEqual([]);
+    await expect(service.listBlocks(STRANGER)).resolves.toEqual([]);
+  });
+
+  it("requires the caller to be signed in", async () => {
+    const { service } = setup();
+    await expect(service.listBlocks("  ")).rejects.toThrow(/signed in/i);
+  });
+});
+
+describe("ModerationService.unblock", () => {
+  // UNBLOCK IS SUPPORTED. Block sits in a row action sheet on a bubble-sized
+  // target next to Report and Delete, and people mis-tap it; because the row
+  // lands in the shared `user_blocks` table, an irreversible mis-tap would hide
+  // that member from roadmap comments too. These tests pin the undo.
+  it("removes the block, and the person stops being blocked", async () => {
+    const { store, service } = setup();
+    await service.block(REPORTER, OFFENDER);
+
+    await expect(service.unblock(REPORTER, OFFENDER)).resolves.toEqual({
+      success: true,
+      blockedUserId: OFFENDER,
+      wasBlocked: true,
+    });
+    expect(store.blocks).toHaveLength(0);
+    await expect(service.listBlocks(REPORTER)).resolves.toEqual([]);
+  });
+
+  it("is not an error when there was nothing to undo", async () => {
+    // Two devices racing the same undo: the loser asked for a state that is
+    // now true, and telling them it failed would be a lie.
+    const { service } = setup();
+    await expect(service.unblock(REPORTER, OFFENDER)).resolves.toMatchObject({
+      success: true,
+      wasBlocked: false,
+    });
+  });
+
+  it("does not unblock somebody else's block", async () => {
+    const { store, service } = setup();
+    await service.block(REPORTER, OFFENDER);
+
+    await expect(service.unblock(STRANGER, OFFENDER)).resolves.toMatchObject({
+      wasBlocked: false,
+    });
+    expect(store.blocks).toHaveLength(1);
+  });
+
+  it("leaves the caller's other blocks alone", async () => {
+    const { store, service } = setup();
+    await service.block(REPORTER, OFFENDER);
+    await service.block(REPORTER, STRANGER);
+
+    await service.unblock(REPORTER, OFFENDER);
+
+    expect(store.blocks).toEqual([
+      { blockerId: REPORTER, blockedId: STRANGER },
+    ]);
+  });
+
+  it("can be re-blocked afterwards", async () => {
+    const { store, service } = setup();
+    await service.block(REPORTER, OFFENDER);
+    await service.unblock(REPORTER, OFFENDER);
+    await service.block(REPORTER, OFFENDER);
+
+    expect(store.blocks).toHaveLength(1);
+  });
+
+  it("asks who, in a sentence", async () => {
+    const { service } = setup();
+    await expect(service.unblock("", OFFENDER)).rejects.toThrow(/signed in/i);
+    await expect(service.unblock(REPORTER, "   ")).rejects.toThrow(
+      /who to unblock/i,
+    );
+  });
+});
+
+describe("block list privacy", () => {
+  it("never leaks a blocked member's email", async () => {
+    // `profiles` also holds email, country, school and cgpa. The adapter
+    // selects two columns; this pins that the SERVICE adds nothing back.
+    const { store, service } = setup();
+    store.profiles.set(OFFENDER, {
+      fullName: "Ada Nwosu",
+      avatarUrl: null,
+    });
+    await service.block(REPORTER, OFFENDER);
+
+    const [blocked] = await service.listBlocks(REPORTER);
+
+    expect(Object.keys(blocked).sort()).toEqual([
+      "avatarUrl",
+      "blockedAt",
+      "displayName",
+      "resolved",
+      "userId",
+    ]);
+    expect(JSON.stringify(blocked)).not.toMatch(/@/);
   });
 });

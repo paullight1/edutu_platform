@@ -52,6 +52,11 @@ const DecisionSchema = z.object({
 });
 type DecisionDto = z.infer<typeof DecisionSchema>;
 
+const BlockSchema = z.object({
+  userId: z.string().trim().min(1, "Tell us who to block."),
+});
+type BlockDto = z.infer<typeof BlockSchema>;
+
 /**
  * EVERY HANDLER TAKES `@CurrentUser("authId")`.
  *
@@ -300,6 +305,43 @@ export class CommunitiesController {
     @Body(new ZodValidationPipe(ReportSchema)) dto: ReportDto,
   ) {
     return this.moderation.report(userId, dto);
+  }
+
+  /**
+   * Stop seeing someone, ON THE SERVER.
+   *
+   * `ModerationService.block` shipped without a route, so the chat screen fell
+   * back to an AsyncStorage list: it died on reinstall, never reached the
+   * member's other device, and was invisible to the backend. These three routes
+   * are what make the block a fact about the account rather than about one
+   * phone — and because they write the shared `user_blocks` table, a block made
+   * in a group applies to that person's roadmap comments too.
+   */
+  @Post("blocks")
+  block(
+    @CurrentUser("authId") userId: string,
+    @Body(new ZodValidationPipe(BlockSchema)) dto: BlockDto,
+  ) {
+    return this.moderation.block(userId, dto.userId);
+  }
+
+  /** The caller's OWN list. There is no route that reveals who blocked them. */
+  @Get("blocks")
+  listBlocks(@CurrentUser("authId") userId: string) {
+    return this.moderation.listBlocks(userId);
+  }
+
+  /**
+   * The undo, and it exists on purpose — see `ModerationService.unblock`.
+   * Block is a bubble-sized touch target beside Report and Delete, and a
+   * mis-tap that could never be reversed would hide a member for good.
+   */
+  @Delete("blocks/:uid")
+  unblock(
+    @CurrentUser("authId") userId: string,
+    @Param("uid") targetUserId: string,
+  ) {
+    return this.moderation.unblock(userId, targetUserId);
   }
 
   // -------------------------------------------------------------------------

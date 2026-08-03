@@ -10,6 +10,8 @@ import type {
   GroupsStore,
 } from "./groups.service";
 import { GroupsService } from "./groups.service";
+import type { ModerationStore } from "./moderation.service";
+import { ModerationService } from "./moderation.service";
 
 const stub = () => ({}) as never;
 
@@ -73,6 +75,9 @@ const HANDLERS: (keyof CommunitiesController)[] = [
   "sendMessage",
   "deleteMessage",
   "report",
+  "block",
+  "listBlocks",
+  "unblock",
 ];
 
 describe("CommunitiesController identity", () => {
@@ -269,6 +274,133 @@ describe("CommunitiesController.listGroups mine filter", () => {
     // And the store is told to restrict to the empty set, so the real adapter
     // short-circuits instead of falling through to every public group.
     expect(store.lastFilter?.restrictToGroupIds).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blocks — the routes that make a block server state
+// ---------------------------------------------------------------------------
+
+/**
+ * The REAL `ModerationService` over a tiny in-memory `user_blocks`. A stub of
+ * the service would only prove that the controller can call a mock; what has to
+ * be true is that a block written through `POST /communities/blocks` is the one
+ * `GET` returns and `DELETE` removes.
+ *
+ * The store applies and reports. Every decision — the returned id, the fallback
+ * name, whether an absent row is an error — belongs to the service.
+ */
+function blocksSetup() {
+  const rows: { blockerId: string; blockedId: string }[] = [];
+  const profiles = new Map<string, string>();
+  const store: ModerationStore = {
+    findGroup: async () => null,
+    findMembership: async () => null,
+    findMessage: async () => null,
+    findOpenReport: async () => null,
+    insertReport: () => {
+      throw new Error("insertReport is not reached by the block routes");
+    },
+    insertBlock: async (row) => {
+      const already = rows.some(
+        (existing) =>
+          existing.blockerId === row.blockerId &&
+          existing.blockedId === row.blockedId,
+      );
+      if (!already) rows.push({ ...row });
+    },
+    listBlocks: async (blockerId) =>
+      rows
+        .filter((row) => row.blockerId === blockerId)
+        .map((row) => ({
+          blockedDatabaseId: `derived-uuid-of:${row.blockedId}`,
+          profileUserId: profiles.has(row.blockedId) ? row.blockedId : null,
+          fullName: profiles.get(row.blockedId) ?? null,
+          avatarUrl: null,
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        })),
+    deleteBlock: async (row) => {
+      const index = rows.findIndex(
+        (existing) =>
+          existing.blockerId === row.blockerId &&
+          existing.blockedId === row.blockedId,
+      );
+      if (index === -1) return false;
+      rows.splice(index, 1);
+      return true;
+    },
+  };
+  const moderation = new ModerationService(store, {
+    broadcast: async () => ({}),
+  });
+  const controller = new CommunitiesController(
+    stub(),
+    stub(),
+    stub(),
+    moderation,
+  );
+  return { rows, profiles, controller };
+}
+
+describe("CommunitiesController block routes", () => {
+  it("persists a block through the route and hands it back on the next read", async () => {
+    // The gap: `ModerationService.block` existed with no route, so the chat
+    // screen kept blocks in AsyncStorage — gone on reinstall, invisible to the
+    // member's other device, unknown to the server.
+    const { controller, profiles } = blocksSetup();
+    profiles.set("user_offender", "Ada Nwosu");
+
+    await controller.block(RAW_SUBJECT, { userId: "user_offender" });
+
+    await expect(controller.listBlocks(RAW_SUBJECT)).resolves.toEqual([
+      {
+        userId: "user_offender",
+        displayName: "Ada Nwosu",
+        avatarUrl: null,
+        blockedAt: new Date("2026-08-01T00:00:00.000Z"),
+        resolved: true,
+      },
+    ]);
+  });
+
+  it("unblocks, and the block is gone", async () => {
+    const { controller } = blocksSetup();
+    await controller.block(RAW_SUBJECT, { userId: "user_offender" });
+
+    await expect(
+      controller.unblock(RAW_SUBJECT, "user_offender"),
+    ).resolves.toMatchObject({ success: true, wasBlocked: true });
+    await expect(controller.listBlocks(RAW_SUBJECT)).resolves.toEqual([]);
+  });
+
+  it("shows a caller only their own blocks", async () => {
+    const { controller } = blocksSetup();
+    await controller.block(RAW_SUBJECT, { userId: "user_offender" });
+
+    await expect(controller.listBlocks("user_someone_else")).resolves.toEqual(
+      [],
+    );
+  });
+
+  it("stores the RAW subject, which is what a message carries", async () => {
+    // A block keyed on the derived uuid would never match `message.userId`.
+    const { rows, controller } = blocksSetup();
+    await controller.block(RAW_SUBJECT, { userId: "user_offender" });
+    expect(rows).toEqual([
+      { blockerId: RAW_SUBJECT, blockedId: "user_offender" },
+    ]);
+  });
+});
+
+describe("block route refusals", () => {
+  it("answers an empty target with a sentence, not a driver error", async () => {
+    // Belt and braces behind `BlockSchema`: the route's pipe rejects this
+    // first in production, but a caller that reaches the service still gets a
+    // sentence rather than a Postgres 22P02 on a uuid cast.
+    const { controller } = blocksSetup();
+    await expect(
+      controller.block(RAW_SUBJECT, { userId: "  " }),
+    ).rejects.toThrow(/who to block/i);
   });
 });
 

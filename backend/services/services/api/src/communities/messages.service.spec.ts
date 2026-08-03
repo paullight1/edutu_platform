@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AuthorDirectory,
+  AuthorRow,
   CommunityGroup,
   CommunityGroupMember,
   CommunityGroupMessage,
@@ -9,7 +11,7 @@ import type {
   MessagesStore,
   NewMessageRow,
 } from "./messages.service";
-import { MessagesService } from "./messages.service";
+import { MessagesService, UNNAMED_MEMBER } from "./messages.service";
 
 /**
  * An in-memory stand-in for the Drizzle-backed store, mirroring
@@ -113,6 +115,37 @@ class FakeMessagesStore implements MessagesStore {
   }
 }
 
+/**
+ * The `profiles` side, and — like the message store — a dumb reader. It holds
+ * the two columns the production adapter selects and hands them back verbatim:
+ * it supplies no fallback name, does no trimming and never invents a row for an
+ * id it does not have. Every one of those is the service's decision, so the
+ * assertions below observe the service.
+ *
+ * `calls` is what makes "ONE query per page" checkable at all.
+ */
+class FakeAuthorDirectory implements AuthorDirectory {
+  /** Keyed on the raw Clerk subject; absent means "no profile row". */
+  profiles = new Map<
+    string,
+    { fullName: string | null; avatarUrl: string | null }
+  >();
+
+  /** Every batch this directory was asked for, in order. */
+  calls: string[][] = [];
+
+  async findAuthors(userIds: string[]): Promise<AuthorRow[]> {
+    this.calls.push([...userIds]);
+    return userIds
+      .filter((id) => this.profiles.has(id))
+      .map((id) => ({
+        userId: id,
+        fullName: this.profiles.get(id)?.fullName ?? null,
+        avatarUrl: this.profiles.get(id)?.avatarUrl ?? null,
+      }));
+  }
+}
+
 const GROUP_ID = "00000000-0000-4000-8000-000000000001";
 const MESSAGE_ID = "00000000-0000-4000-8000-0000000000a1";
 
@@ -180,10 +213,23 @@ function fakeDb(
   return store;
 }
 
+/**
+ * A service wired to both boundaries. Everything here goes through it rather
+ * than `new MessagesService(db)`: a service built without a directory falls
+ * back to the Drizzle one, and any test that lists a message would then open a
+ * real database connection.
+ */
+function messagesService(
+  db: FakeMessagesStore,
+  directory: FakeAuthorDirectory = new FakeAuthorDirectory(),
+): MessagesService {
+  return new MessagesService(db, directory);
+}
+
 describe("MessagesService", () => {
   describe("list", () => {
     it("refuses to list a private group's messages for a non-member", async () => {
-      const service = new MessagesService(
+      const service = messagesService(
         fakeDb({ group: { visibility: "private" } }),
       );
       await expect(service.list("user_stranger", GROUP_ID)).rejects.toThrow(
@@ -193,7 +239,7 @@ describe("MessagesService", () => {
 
     it("lets a signed-in non-member read a public group before joining", async () => {
       const db = fakeDb({ messages: [{ userId: "user_abc" }] });
-      const messages = await new MessagesService(db).list(
+      const messages = await messagesService(db).list(
         "user_stranger",
         GROUP_ID,
       );
@@ -208,7 +254,7 @@ describe("MessagesService", () => {
         messages: [{ userId: "user_abc" }],
       });
       await expect(
-        new MessagesService(db).list("user_abc", GROUP_ID),
+        messagesService(db).list("user_abc", GROUP_ID),
       ).resolves.toHaveLength(1);
     });
 
@@ -220,7 +266,7 @@ describe("MessagesService", () => {
         messages: [{ userId: "user_owner" }],
       });
       await expect(
-        new MessagesService(db).list("user_invitee", GROUP_ID),
+        messagesService(db).list("user_invitee", GROUP_ID),
       ).resolves.toHaveLength(1);
     });
 
@@ -231,21 +277,21 @@ describe("MessagesService", () => {
         messages: [{ userId: "user_owner" }],
       });
       await expect(
-        new MessagesService(db).list("user_applicant", GROUP_ID),
+        messagesService(db).list("user_applicant", GROUP_ID),
       ).rejects.toThrow(/not a member/i);
     });
 
     it("refuses a signed-out reader", async () => {
       await expect(
-        new MessagesService(fakeDb()).list("", GROUP_ID),
+        messagesService(fakeDb()).list("", GROUP_ID),
       ).rejects.toThrow(/signed in/i);
     });
 
     it("clamps the page size, so a negative limit never reaches SQL", async () => {
       const db = fakeDb();
-      await new MessagesService(db).list("user_abc", GROUP_ID, { limit: -1 });
+      await messagesService(db).list("user_abc", GROUP_ID, { limit: -1 });
       expect(db.lastLimit).toBe(1);
-      await new MessagesService(db).list("user_abc", GROUP_ID, { limit: 5000 });
+      await messagesService(db).list("user_abc", GROUP_ID, { limit: 5000 });
       expect(db.lastLimit).toBe(50);
     });
 
@@ -273,7 +319,7 @@ describe("MessagesService", () => {
           },
         ],
       });
-      const service = new MessagesService(db);
+      const service = messagesService(db);
 
       const firstPage = await service.list("user_abc", GROUP_ID, { limit: 1 });
       expect(firstPage[0].id).toBe("00000000-0000-4000-8000-0000000000c3");
@@ -292,7 +338,7 @@ describe("MessagesService", () => {
   describe("send", () => {
     it("rejects a screened message with a human reason and writes nothing", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
-      const service = new MessagesService(db);
+      const service = messagesService(db);
       await expect(
         service.send("user_abc", GROUP_ID, {
           body: "pay me a $50 processing fee, slots are limited",
@@ -305,7 +351,7 @@ describe("MessagesService", () => {
     it("does not put the machine reason in front of the user", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
       await expect(
-        new MessagesService(db).send("user_abc", GROUP_ID, {
+        messagesService(db).send("user_abc", GROUP_ID, {
           body: "pay me a $50 processing fee, slots are limited",
         }),
       ).rejects.not.toThrow(/scam_pattern/);
@@ -313,7 +359,7 @@ describe("MessagesService", () => {
 
     it("stores an allowed message and bumps the group's counters", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
-      const message = await new MessagesService(db).send("user_abc", GROUP_ID, {
+      const message = await messagesService(db).send("user_abc", GROUP_ID, {
         body: "Has anyone heard back about interviews?",
       });
       expect(db.messages).toHaveLength(1);
@@ -328,7 +374,7 @@ describe("MessagesService", () => {
         members: [{ userId: "user_abc" }],
       });
       await expect(
-        new MessagesService(db).send("user_abc", GROUP_ID, { body: "Hello" }),
+        messagesService(db).send("user_abc", GROUP_ID, { body: "Hello" }),
       ).rejects.toThrow(/archived/i);
       expect(db.messages).toHaveLength(0);
     });
@@ -336,7 +382,7 @@ describe("MessagesService", () => {
     it("refuses to let a non-member post in a public group", async () => {
       const db = fakeDb();
       await expect(
-        new MessagesService(db).send("user_stranger", GROUP_ID, {
+        messagesService(db).send("user_stranger", GROUP_ID, {
           body: "Hello",
         }),
       ).rejects.toThrow(/join/i);
@@ -347,7 +393,7 @@ describe("MessagesService", () => {
       const db = fakeDb({
         members: [{ userId: "user_bad", status: "banned" }],
       });
-      const error = await new MessagesService(db)
+      const error = await messagesService(db)
         .send("user_bad", GROUP_ID, { body: "Hello" })
         .catch((caught: Error) => caught);
       // Telling them to join would send them to `join`'s flat refusal.
@@ -358,7 +404,7 @@ describe("MessagesService", () => {
 
     it("tells a caller sending blank text to type something, not that it looks like a scam", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
-      const error = await new MessagesService(db)
+      const error = await messagesService(db)
         .send("user_abc", GROUP_ID, { body: "   " })
         .catch((caught: Error) => caught);
       expect((error as Error).message).toMatch(/type a message/i);
@@ -372,7 +418,7 @@ describe("MessagesService", () => {
         members: [{ userId: "user_abc" }],
         messages: [{ id: MESSAGE_ID, userId: "user_abc" }],
       });
-      await new MessagesService(db).softDelete("user_abc", MESSAGE_ID);
+      await messagesService(db).softDelete("user_abc", MESSAGE_ID);
       expect(db.messages.find((m) => m.id === MESSAGE_ID)).toMatchObject({
         deletedAt: expect.anything(),
         deletedBy: "user_abc",
@@ -384,7 +430,7 @@ describe("MessagesService", () => {
         members: [{ userId: "user_abc" }],
         messages: [{ id: MESSAGE_ID, userId: "user_abc" }],
       });
-      await new MessagesService(db).softDelete("user_abc", MESSAGE_ID);
+      await messagesService(db).softDelete("user_abc", MESSAGE_ID);
       expect(db.messages[0].body).toBe("");
     });
 
@@ -393,7 +439,7 @@ describe("MessagesService", () => {
         members: [{ userId: "user_owner", role: "owner" }],
         messages: [{ id: MESSAGE_ID, userId: "user_other" }],
       });
-      await new MessagesService(db).softDelete("user_owner", MESSAGE_ID);
+      await messagesService(db).softDelete("user_owner", MESSAGE_ID);
       expect(db.messages[0].deletedBy).toBe("user_owner");
     });
 
@@ -403,7 +449,7 @@ describe("MessagesService", () => {
         messages: [{ id: MESSAGE_ID, userId: "user_other" }],
       });
       await expect(
-        new MessagesService(db).softDelete("user_member", MESSAGE_ID),
+        messagesService(db).softDelete("user_member", MESSAGE_ID),
       ).rejects.toThrow(/not allowed/i);
       expect(db.messages[0].body).not.toBe("");
       expect(db.messages[0].deletedAt).toBeNull();
@@ -417,7 +463,7 @@ describe("MessagesService", () => {
         members: [],
         messages: [{ id: MESSAGE_ID, userId: "user_other" }],
       });
-      await new MessagesService(db).softDelete("user_owner", MESSAGE_ID);
+      await messagesService(db).softDelete("user_owner", MESSAGE_ID);
       expect(db.messages[0].deletedBy).toBe("user_owner");
     });
 
@@ -428,7 +474,7 @@ describe("MessagesService", () => {
         messages: [{ id: MESSAGE_ID, userId: "user_other" }],
       });
       await expect(
-        new MessagesService(db).softDelete("user_owner", MESSAGE_ID),
+        messagesService(db).softDelete("user_owner", MESSAGE_ID),
       ).rejects.toThrow(/not allowed/i);
       expect(db.messages[0].deletedAt).toBeNull();
     });
@@ -436,8 +482,221 @@ describe("MessagesService", () => {
     it("answers a non-uuid message id with a sentence, not a Postgres 22P02", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
       await expect(
-        new MessagesService(db).softDelete("user_abc", "abc"),
+        messagesService(db).softDelete("user_abc", "abc"),
       ).rejects.toThrow(/isn't valid/i);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Authors
+  //
+  // A group chat where every message is anonymous is not a group chat. These
+  // pin the name beside the bubble, the ONE query that fetches it, and the two
+  // things that must never travel with it.
+  // -------------------------------------------------------------------------
+
+  describe("authors", () => {
+    it("names the person who sent each message", async () => {
+      const db = fakeDb({
+        messages: [{ userId: "user_ada" }, { userId: "user_bola" }],
+      });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Nwosu",
+        avatarUrl: "https://cdn.example.test/ada.png",
+      });
+      directory.profiles.set("user_bola", {
+        fullName: "Bola Ade",
+        avatarUrl: null,
+      });
+
+      const page = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(
+        page.map((message) => [message.userId, message.author.displayName]),
+      ).toEqual([
+        ["user_ada", "Ada Nwosu"],
+        ["user_bola", "Bola Ade"],
+      ]);
+      expect(page[0].author.avatarUrl).toBe("https://cdn.example.test/ada.png");
+      expect(page[1].author.avatarUrl).toBeNull();
+    });
+
+    it("uses ONE batched query for the page, not one per message", async () => {
+      // Seven messages from three people is one round trip. The naive shape is
+      // seven, on the screen users open most often.
+      const db = fakeDb({
+        messages: [
+          { userId: "user_ada" },
+          { userId: "user_bola" },
+          { userId: "user_ada" },
+          { userId: "user_chidi" },
+          { userId: "user_ada" },
+          { userId: "user_bola" },
+          { userId: "user_chidi" },
+        ],
+      });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", { fullName: "Ada", avatarUrl: null });
+
+      const page = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(page).toHaveLength(7);
+      expect(directory.calls).toHaveLength(1);
+      // And it asked for the DISTINCT authors, not the seven message rows.
+      expect([...directory.calls[0]].sort()).toEqual([
+        "user_ada",
+        "user_bola",
+        "user_chidi",
+      ]);
+    });
+
+    it("does not query at all for an empty page", async () => {
+      const directory = new FakeAuthorDirectory();
+      const page = await messagesService(fakeDb(), directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+      expect(page).toEqual([]);
+      expect(directory.calls).toEqual([]);
+    });
+
+    it("falls back to a neutral name when the sender has no profile row", async () => {
+      // ~9 of 43 profiles in this database carry a name, so this is the COMMON
+      // path. It must render a person, not an error and not a blank bubble.
+      const db = fakeDb({ messages: [{ userId: "user_nameless" }] });
+      const directory = new FakeAuthorDirectory();
+
+      const page = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(page[0].author).toEqual({
+        displayName: UNNAMED_MEMBER,
+        avatarUrl: null,
+      });
+      expect(page[0].body).toBe("Anyone got the referee form?");
+    });
+
+    it("treats a whitespace-only name as no name", async () => {
+      const db = fakeDb({ messages: [{ userId: "user_blank" }] });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_blank", {
+        fullName: "   ",
+        avatarUrl: "   ",
+      });
+
+      const page = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(page[0].author.displayName).toBe(UNNAMED_MEMBER);
+      expect(page[0].author.avatarUrl).toBeNull();
+    });
+
+    it("names one sender without a profile and another with one, on the same page", async () => {
+      const db = fakeDb({
+        messages: [{ userId: "user_ada" }, { userId: "user_nameless" }],
+      });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Nwosu",
+        avatarUrl: null,
+      });
+
+      const page = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(page.map((message) => message.author.displayName)).toEqual([
+        "Ada Nwosu",
+        UNNAMED_MEMBER,
+      ]);
+    });
+
+    it("carries the author on a sent message too, so the sender's own bubble is named", async () => {
+      const db = fakeDb({ members: [{ userId: "user_ada" }] });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Nwosu",
+        avatarUrl: null,
+      });
+
+      const message = await messagesService(db, directory).send(
+        "user_ada",
+        GROUP_ID,
+        { body: "Has anyone heard back about interviews?" },
+      );
+
+      expect(message.author.displayName).toBe("Ada Nwosu");
+    });
+
+    it("carries the author on a tombstone, which replaces a row in the open page", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_ada" }],
+        messages: [{ id: MESSAGE_ID, userId: "user_ada" }],
+      });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Nwosu",
+        avatarUrl: null,
+      });
+
+      const tombstone = await messagesService(db, directory).softDelete(
+        "user_ada",
+        MESSAGE_ID,
+      );
+
+      expect(tombstone.body).toBe("");
+      expect(tombstone.author.displayName).toBe("Ada Nwosu");
+    });
+
+    it("EXPOSES A DISPLAY NAME AND AN AVATAR AND NOTHING ELSE", async () => {
+      // `profiles` also holds email, country, school, cgpa and credits. The
+      // adapter selects two columns; this pins that the service adds nothing
+      // back, so a future `select *` cannot leak through a spread.
+      const db = fakeDb({ messages: [{ userId: "user_ada" }] });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Nwosu",
+        avatarUrl: null,
+      });
+
+      const [message] = await messagesService(db, directory).list(
+        "user_abc",
+        GROUP_ID,
+      );
+
+      expect(Object.keys(message.author).sort()).toEqual([
+        "avatarUrl",
+        "displayName",
+      ]);
+      // No email address anywhere in the payload, in any field.
+      expect(JSON.stringify(message)).not.toMatch(/@/);
+    });
+
+    it("keeps the message's own fields untouched", async () => {
+      // The author is ADDED. `userId` in particular stays: it is the key the
+      // report and block routes take, and the client groups bubbles by it.
+      const db = fakeDb({ messages: [{ userId: "user_ada" }] });
+      const [message] = await messagesService(db).list("user_abc", GROUP_ID);
+
+      expect(message).toMatchObject({
+        id: MESSAGE_ID,
+        groupId: GROUP_ID,
+        userId: "user_ada",
+        kind: "text",
+        deletedAt: null,
+      });
     });
   });
 });
