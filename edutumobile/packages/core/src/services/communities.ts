@@ -106,6 +106,23 @@ export interface CommunityGroupMember {
   joinedAt: string;
 }
 
+/**
+ * Who sent a message, as far as anyone else is allowed to know.
+ *
+ * A display name and an avatar. The backend selects exactly two columns from
+ * `profiles`, so there is nothing else here to render or to leak — no email, no
+ * country, no school.
+ *
+ * `displayName` is NEVER empty: most members in this database have never filled
+ * a name in, and the backend substitutes a neutral one rather than sending null.
+ * Do not add a client-side fallback on top; two different fallbacks is how the
+ * same person ends up named differently in the chat and in the blocked list.
+ */
+export interface MessageAuthor {
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 export interface CommunityMessage {
   id: string;
   groupId: string;
@@ -117,6 +134,14 @@ export interface CommunityMessage {
   createdAt: string;
   deletedAt: string | null;
   deletedBy: string | null;
+  /**
+   * OPTIONAL, and the reason is worth reading: every message from the REST API
+   * carries one, but a message delivered over Supabase Realtime is the raw
+   * `community_group_messages` row and has no author attached — the join lives
+   * in the backend, not in the table. Render the fallback for an absent author
+   * rather than assuming it is there.
+   */
+  author?: MessageAuthor;
 }
 
 /**
@@ -684,6 +709,85 @@ export async function reportTarget(
   return requestCommunityApi<CommunityReport>(
     '/communities/reports',
     { method: 'POST', body: JSON.stringify(input) },
+    getAuthToken,
+  );
+}
+
+/**
+ * Someone the caller has blocked.
+ *
+ * `userId` is what you compare against `message.userId` to hide their messages
+ * — but ONLY when `resolved` is true. `user_blocks` is uuid-keyed while
+ * messages carry the raw Clerk subject, and the backend maps back through
+ * `profiles`; a member with no profile row cannot be mapped, so `userId` is the
+ * stored uuid instead and will match no message. It is still listed, and still
+ * unblockable, because a block the user cannot see is a block they cannot undo.
+ */
+export interface BlockedUser {
+  userId: string;
+  /** Never empty — the backend substitutes a neutral name. */
+  displayName: string;
+  avatarUrl: string | null;
+  blockedAt: string | null;
+  /** False when `userId` is a stored uuid rather than a subject. See above. */
+  resolved: boolean;
+}
+
+/**
+ * Stop seeing someone — **on the server**, not on this phone.
+ *
+ * This replaces the AsyncStorage list the chat screen used to keep. That list
+ * died on reinstall, never reached the member's other device, and the backend
+ * knew nothing about it. This writes the shared `user_blocks` table, so a block
+ * made in a group also applies to that person's roadmap comments.
+ *
+ * Idempotent: blocking somebody already blocked succeeds and changes nothing.
+ */
+export async function blockUser(
+  userId: string,
+  getAuthToken: GetAuthToken,
+): Promise<{ success: boolean; blockedUserId: string }> {
+  return requestCommunityApi<{ success: boolean; blockedUserId: string }>(
+    '/communities/blocks',
+    { method: 'POST', body: JSON.stringify({ userId }) },
+    getAuthToken,
+  );
+}
+
+/**
+ * The caller's OWN block list. There is deliberately no endpoint that tells
+ * somebody who has blocked them.
+ */
+export async function fetchBlockedUsers(
+  getAuthToken: GetAuthToken,
+): Promise<BlockedUser[]> {
+  const result = await requestCommunityApi<BlockedUser[]>(
+    '/communities/blocks',
+    { method: 'GET' },
+    getAuthToken,
+  );
+  return Array.isArray(result) ? result : [];
+}
+
+/**
+ * Undo a block. **Supported on purpose** — Block sits in a row action sheet on
+ * a target the width of a message bubble, right beside Report and Delete, and
+ * people mis-tap it. Offer it wherever Block is offered.
+ *
+ * `wasBlocked: false` is not a failure: it means there was nothing to undo,
+ * which is the state the caller asked for.
+ */
+export async function unblockUser(
+  userId: string,
+  getAuthToken: GetAuthToken,
+): Promise<{ success: boolean; blockedUserId: string; wasBlocked: boolean }> {
+  return requestCommunityApi<{
+    success: boolean;
+    blockedUserId: string;
+    wasBlocked: boolean;
+  }>(
+    `/communities/blocks/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' },
     getAuthToken,
   );
 }
