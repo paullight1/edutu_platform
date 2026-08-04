@@ -5,7 +5,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // module — @Optional() resolves it to undefined at boot. Without the explicit
 // token Nest reads the SupabaseClient paramtype as an unresolvable class
 // dependency and the whole app fails to start (2026-07-23 deploy outage).
-export const APPLICATION_DOCS_SUPABASE_OVERRIDE = Symbol("APPLICATION_DOCS_SUPABASE_OVERRIDE");
+export const APPLICATION_DOCS_SUPABASE_OVERRIDE = Symbol(
+  "APPLICATION_DOCS_SUPABASE_OVERRIDE",
+);
 
 /** Roles a competitive application is expected to carry before submission. */
 export const REQUIRED_ROLES = ["cv", "sop"] as const;
@@ -59,20 +61,39 @@ function mapDocRow(row: Record<string, unknown>): DocRow {
 
 @Injectable()
 export class ApplicationDocumentsService {
-  private readonly supabase: SupabaseClient;
+  private readonly clientOverride?: SupabaseClient;
+  private cachedClient?: SupabaseClient;
 
   // clientOverride lets specs inject a mock; production builds the service-role
   // client from env exactly like ChatService does.
+  //
+  // The client is built LAZILY, on first use, rather than in the constructor.
+  // `createClient` throws `supabaseUrl is required` when SUPABASE_URL is absent,
+  // and Nest instantiates every provider at bootstrap — so an eager call took
+  // down the whole application before it could serve a single request in any
+  // environment without Supabase env vars. That is exactly what the CI e2e suite
+  // is (`AppController (e2e) › / (GET)` fails on this, not on anything it tests)
+  // and what makes a bare `node dist/main.js` smoke test impossible locally.
+  // Deferring it means only the routes that actually touch Supabase fail, and
+  // they fail with a real request behind them.
   constructor(
-    @Optional() @Inject(APPLICATION_DOCS_SUPABASE_OVERRIDE) clientOverride?: SupabaseClient,
+    @Optional()
+    @Inject(APPLICATION_DOCS_SUPABASE_OVERRIDE)
+    clientOverride?: SupabaseClient,
   ) {
-    this.supabase =
-      clientOverride ??
-      createClient(
+    this.clientOverride = clientOverride;
+  }
+
+  private get supabase(): SupabaseClient {
+    if (this.clientOverride) return this.clientOverride;
+    if (!this.cachedClient) {
+      this.cachedClient = createClient(
         process.env.SUPABASE_URL as string,
         process.env.SUPABASE_SERVICE_ROLE_KEY as string,
         { auth: { persistSession: false } },
       );
+    }
+    return this.cachedClient;
   }
 
   /** All of the user's applications with per-application document completeness. */
