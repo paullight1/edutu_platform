@@ -3,6 +3,7 @@
 import ar_auth from './locales/ar/auth.json';
 import ar_chat from './locales/ar/chat.json';
 import ar_common from './locales/ar/common.json';
+import ar_community from './locales/ar/community.json';
 import ar_cv from './locales/ar/cv.json';
 import ar_goals from './locales/ar/goals.json';
 import ar_home from './locales/ar/home.json';
@@ -13,6 +14,7 @@ import ar_settings from './locales/ar/settings.json';
 import en_auth from './locales/en/auth.json';
 import en_chat from './locales/en/chat.json';
 import en_common from './locales/en/common.json';
+import en_community from './locales/en/community.json';
 import en_cv from './locales/en/cv.json';
 import en_goals from './locales/en/goals.json';
 import en_home from './locales/en/home.json';
@@ -23,6 +25,7 @@ import en_settings from './locales/en/settings.json';
 import es_auth from './locales/es/auth.json';
 import es_chat from './locales/es/chat.json';
 import es_common from './locales/es/common.json';
+import es_community from './locales/es/community.json';
 import es_cv from './locales/es/cv.json';
 import es_goals from './locales/es/goals.json';
 import es_home from './locales/es/home.json';
@@ -33,6 +36,7 @@ import es_settings from './locales/es/settings.json';
 import fr_auth from './locales/fr/auth.json';
 import fr_chat from './locales/fr/chat.json';
 import fr_common from './locales/fr/common.json';
+import fr_community from './locales/fr/community.json';
 import fr_cv from './locales/fr/cv.json';
 import fr_goals from './locales/fr/goals.json';
 import fr_home from './locales/fr/home.json';
@@ -43,6 +47,7 @@ import fr_settings from './locales/fr/settings.json';
 import ha_auth from './locales/ha/auth.json';
 import ha_chat from './locales/ha/chat.json';
 import ha_common from './locales/ha/common.json';
+import ha_community from './locales/ha/community.json';
 import ha_cv from './locales/ha/cv.json';
 import ha_goals from './locales/ha/goals.json';
 import ha_home from './locales/ha/home.json';
@@ -53,6 +58,7 @@ import ha_settings from './locales/ha/settings.json';
 import hi_auth from './locales/hi/auth.json';
 import hi_chat from './locales/hi/chat.json';
 import hi_common from './locales/hi/common.json';
+import hi_community from './locales/hi/community.json';
 import hi_cv from './locales/hi/cv.json';
 import hi_goals from './locales/hi/goals.json';
 import hi_home from './locales/hi/home.json';
@@ -63,6 +69,7 @@ import hi_settings from './locales/hi/settings.json';
 import pt_auth from './locales/pt/auth.json';
 import pt_chat from './locales/pt/chat.json';
 import pt_common from './locales/pt/common.json';
+import pt_community from './locales/pt/community.json';
 import pt_cv from './locales/pt/cv.json';
 import pt_goals from './locales/pt/goals.json';
 import pt_home from './locales/pt/home.json';
@@ -73,6 +80,7 @@ import pt_settings from './locales/pt/settings.json';
 import sw_auth from './locales/sw/auth.json';
 import sw_chat from './locales/sw/chat.json';
 import sw_common from './locales/sw/common.json';
+import sw_community from './locales/sw/community.json';
 import sw_cv from './locales/sw/cv.json';
 import sw_goals from './locales/sw/goals.json';
 import sw_home from './locales/sw/home.json';
@@ -83,6 +91,7 @@ import sw_settings from './locales/sw/settings.json';
 import zh_auth from './locales/zh/auth.json';
 import zh_chat from './locales/zh/chat.json';
 import zh_common from './locales/zh/common.json';
+import zh_community from './locales/zh/community.json';
 import zh_cv from './locales/zh/cv.json';
 import zh_goals from './locales/zh/goals.json';
 import zh_home from './locales/zh/home.json';
@@ -96,6 +105,7 @@ export const resources = {
         auth: ar_auth,
         chat: ar_chat,
         common: ar_common,
+        community: ar_community,
         cv: ar_cv,
         goals: ar_goals,
         home: ar_home,
@@ -108,6 +118,7 @@ export const resources = {
         auth: en_auth,
         chat: en_chat,
         common: en_common,
+        community: en_community,
         cv: en_cv,
         goals: en_goals,
         home: en_home,
@@ -120,6 +131,7 @@ export const resources = {
         auth: es_auth,
         chat: es_chat,
         common: es_common,
+        community: es_community,
         cv: es_cv,
         goals: es_goals,
         home: es_home,
@@ -132,6 +144,7 @@ export const resources = {
         auth: fr_auth,
         chat: fr_chat,
         common: fr_common,
+        community: fr_community,
         cv: fr_cv,
         goals: fr_goals,
         home: fr_home,
@@ -144,6 +157,7 @@ export const resources = {
         auth: ha_auth,
         chat: ha_chat,
         common: ha_common,
+        community: ha_community,
         cv: ha_cv,
         goals: ha_goals,
         home: ha_home,
@@ -156,6 +170,7 @@ export const resources = {
         auth: hi_auth,
         chat: hi_chat,
         common: hi_common,
+        community: hi_community,
         cv: hi_cv,
         goals: hi_goals,
         home: hi_home,
@@ -168,6 +183,7 @@ export const resources = {
         auth: pt_auth,
         chat: pt_chat,
         common: pt_common,
+        community: pt_community,
         cv: pt_cv,
         goals: pt_goals,
         home: pt_home,
@@ -180,6 +196,7 @@ export const resources = {
         auth: sw_auth,
         chat: sw_chat,
         common: sw_common,
+        community: sw_community,
         cv: sw_cv,
         goals: sw_goals,
         home: sw_home,
@@ -192,6 +209,7 @@ export const resources = {
         auth: zh_auth,
         chat: zh_chat,
         common: zh_common,
+        community: zh_community,
         cv: zh_cv,
         goals: zh_goals,
         home: zh_home,

@@ -1,0 +1,177 @@
+{
+  "screens": {
+    "browseTitle": "Grupos",
+    "chatTitle": "Chat do grupo",
+    "createTitle": "Criar um grupo",
+    "settingsTitle": "Configurações do grupo",
+    "requestsTitle": "Pedidos para entrar"
+  },
+  "sections": {
+    "yourGroups": "Seus grupos",
+    "forYourSavedOpportunities": "Para oportunidades que você salvou",
+    "discover": "Descobrir grupos",
+    "awaitingApproval": "Aguardando aprovação"
+  },
+  "whatsappBanner": {
+    "title": "Receba novidades no WhatsApp",
+    "body": "Siga o canal deste grupo para lembretes e novidades, mesmo fora do app.",
+    "action": "Entrar no WhatsApp",
+    "dismiss": "Agora não"
+  },
+  "visibility": {
+    "public": "Público",
+    "private": "Privado",
+    "publicDesc": "Qualquer pessoa pode encontrar e ver este grupo",
+    "privateDesc": "Só os membros podem encontrar e ver este grupo"
+  },
+  "joinPolicy": {
+    "open": "Entrada livre",
+    "request": "Entrada por pedido",
+    "openDesc": "Qualquer pessoa pode entrar na hora",
+    "requestDesc": "O dono analisa cada pedido antes de deixar alguém entrar"
+  },
+  "groupState": {
+    "archived": "Arquivado",
+    "archivedReadOnly": "Este grupo está arquivado. Você pode ler mensagens antigas, mas ninguém pode postar.",
+    "archiveWarning": "Arquivar fecha este grupo para sempre — ninguém, nem mesmo você, pode desfazer isso.",
+    "expired": "Encerrado",
+    "expiredDesc": "A oportunidade em torno da qual este grupo foi criado já fechou.",
+    "memberCount_one": "{{count}} membro",
+    "memberCount_other": "{{count}} membros",
+    "archiveConfirm": "Sim, arquivar de vez"
+  },
+  "membership": {
+    "active": "Membro",
+    "invited": "Você foi convidado(a)",
+    "invitedDesc": "O dono convidou você para este grupo. Dê uma olhada antes de decidir.",
+    "pending": "Pedido enviado",
+    "pendingDesc": "Você pediu para entrar. Você entra assim que o dono aprovar.",
+    "removed": "Removido(a)",
+    "removedDesc": "Um dono removeu você deste grupo.",
+    "banned": "Banido(a)",
+    "bannedDesc": "Você foi banido(a) deste grupo e não pode entrar novamente."
+  },
+  "actions": {
+    "join": "Entrar",
+    "leave": "Sair do grupo",
+    "requestToJoin": "Pedir para entrar",
+    "cancelRequest": "Cancelar pedido",
+    "acceptInvite": "Aceitar convite",
+    "declineInvite": "Recusar",
+    "preview": "Pré-visualizar",
+    "approve": "Aprovar",
+    "decline": "Recusar",
+    "archive": "Arquivar grupo",
+    "delete": "Excluir grupo",
+    "viewGroup": "Ver grupo",
+    "createGroup": "Criar grupo",
+    "saveChanges": "Salvar alterações",
+    "groupOptions": "Opções do grupo"
+  },
+  "create": {
+    "nameLabel": "Nome do grupo",
+    "namePlaceholder": "Dê um nome ao seu grupo",
+    "descriptionLabel": "Descrição",
+    "descriptionPlaceholder": "Para que é este grupo?",
+    "opportunityLabel": "Oportunidade vinculada",
+    "opportunityHelper": "Os membros verão esta oportunidade fixada no grupo.",
+    "emojiLabel": "Emoji",
+    "emojiHelper": "Escolha um emoji para representar seu grupo",
+    "visibilityLabel": "Quem pode encontrar este grupo",
+    "joinPolicyLabel": "Quem pode entrar",
+    "nameTooShort": "O nome do grupo precisa de pelo menos 3 caracteres.",
+    "opportunityLockedNote": "Definido na criação do grupo — não dá para mudar para outra oportunidade."
+  },
+  "joinRequestForm": {
+    "title": "Pedir para entrar",
+    "intro": "Conte ao dono por que você gostaria de entrar.",
+    "messageLabel": "Sua mensagem",
+    "messagePlaceholder": "Por que você quer entrar neste grupo?",
+    "submit": "Enviar pedido"
+  },
+  "questionBuilder": {
+    "title": "Perguntas de triagem",
+    "helper": "Faça até 5 perguntas que as pessoas devem responder antes de pedir para entrar.",
+    "addQuestion": "Adicionar pergunta",
+    "questionLabel": "Pergunta",
+    "questionPlaceholder": "O que você quer perguntar?",
+    "typeLabel": "Tipo de resposta",
+    "typeShortText": "Texto curto",
+    "typeLongAnswer": "Resposta longa",
+    "typeSingleChoice": "Escolha única",
+    "optionsLabel": "Opções",
+    "addOption": "Adicionar opção",
+    "requiredLabel": "Obrigatória",
+    "limitReached": "Você atingiu o limite de 5 perguntas.",
+    "labelRequired": "Escreva a pergunta antes de salvar.",
+    "needsTwoOptions": "Uma escolha única precisa de pelo menos 2 opções.",
+    "optionRequired": "Preencha esta opção ou remova-a.",
+    "optionPlaceholder": "Opção",
+    "removeQuestion": "Remover pergunta",
+    "removeOption": "Remover opção"
+  },
+  "chat": {
+    "composerPlaceholder": "Enviar mensagem ao grupo",
+    "send": "Enviar",
+    "messageDeleted": "Esta mensagem foi apagada",
+    "emptyTitle": "Ainda não há mensagens",
+    "emptyBody": "Seja o primeiro a dizer olá e começar a conversa.",
+    "loading": "Carregando mensagens…"
+  },
+  "moderation": {
+    "reportMessage": "Denunciar mensagem",
+    "reportGroup": "Denunciar grupo",
+    "blockUser": "Bloquear usuário",
+    "blockedList": "Pessoas bloqueadas",
+    "unblock": "Desbloquear",
+    "blockedEmpty": "Você não bloqueou ninguém.",
+    "removeMember": "Remover membro",
+    "deleteMessage": "Apagar mensagem",
+    "noToleranceTitle": "Mantenha o respeito",
+    "noToleranceBody": "Golpes, assédio e discurso de ódio tiram você do grupo sem aviso prévio. Seja alguém que as pessoas ficam felizes em ver aqui.",
+    "reportConfirmTitle": "Denunciar esta mensagem?",
+    "reportConfirmBody": "Ela some do seu chat na hora e o dono do grupo é avisado. Ninguém da Edutu analisa.",
+    "reportedNotice": "Você denunciou esta mensagem. Ela está oculta para você e o dono do grupo foi avisado.",
+    "reportGroupConfirmTitle": "Denunciar este grupo?",
+    "reportGroupConfirmBody": "O dono do grupo é avisado. Ninguém da Edutu analisa, então saia do grupo se ele não for para você.",
+    "reportGroupDone": "Denunciado ao dono do grupo.",
+    "blockConfirmTitle": "Bloquear esta pessoa?",
+    "blockConfirmBody": "Você deixa de ver as mensagens dessa pessoa em toda a Edutu. Dá para desfazer em Pessoas bloqueadas, no menu do grupo.",
+    "removeConfirmTitle": "Remover esta pessoa do grupo?",
+    "removeConfirmBody": "Ela perde o acesso ao grupo na hora. As mensagens antigas ficam e você pode convidá-la de volta.",
+    "deleteConfirmTitle": "Excluir esta mensagem?",
+    "deleteConfirmBody": "O texto some para todo mundo, para sempre. Fica um aviso no lugar para o grupo saber que algo foi removido."
+  },
+  "errors": {
+    "notAMember": "Você ainda não é membro deste grupo.",
+    "groupPrivate": "Este grupo é privado. Você precisa de um convite ou de um pedido aprovado para vê-lo.",
+    "groupClosed": "Este grupo foi encerrado e não aceita novos membros.",
+    "groupArchived": "Este grupo está arquivado, então não é mais possível postar.",
+    "groupLimitReached": "Você já está em 2 grupos, o máximo permitido de uma vez. Saia de um para entrar em outro.",
+    "messageRejected": "Essa mensagem não pode ser enviada assim como está — tente remover links, dados de contato ou pedidos de pagamento e envie de novo."
+  },
+  "empty": {
+    "noGroups": "Você ainda não tem grupos. Entre em um a partir de uma oportunidade que salvou, ou crie o seu para reunir pessoas.",
+    "noMessages": "Ainda não há mensagens. Diga olá e comece a conversa.",
+    "noPendingRequests": "Nenhum pedido pendente. Quando alguém pedir para entrar, você vai revisar aqui."
+  },
+  "opportunityEntry": {
+    "label": "Discussão",
+    "none": "Criar um grupo",
+    "openA11y": "Abrir o grupo de discussão {{name}}",
+    "startA11y": "Criar um grupo de discussão para esta oportunidade"
+  },
+  "requests": {
+    "subtitle": "Leia o que escreveram e decida quem entra.",
+    "applicant": "Candidato",
+    "noAnswers": "Este grupo não tinha perguntas.",
+    "noAnswer": "Sem resposta",
+    "declineConfirmTitle": "Recusar este pedido?",
+    "declineConfirmBody": "Ela não entra e não fica sabendo o motivo. Pode pedir de novo depois.",
+    "notAllowed": "Só o dono e os moderadores deste grupo podem revisar os pedidos."
+  },
+  "firstPost": {
+    "badge": "Antes da sua primeira mensagem",
+    "acknowledge": "Entendi"
+  }
+}
