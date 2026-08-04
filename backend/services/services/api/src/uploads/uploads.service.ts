@@ -28,22 +28,36 @@ export type UploadRow = {
 @Injectable()
 export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
-  private readonly supabase: SupabaseClient;
+  private readonly clientOverride?: SupabaseClient;
+  private cachedClient?: SupabaseClient;
 
   // @Optional keeps Nest from trying to resolve SupabaseClient (a plain
   // library class, not a provider) at bootstrap; specs pass a mock directly.
+  //
+  // The client is built LAZILY, on first use. `createClient` throws
+  // `supabaseUrl is required` when SUPABASE_URL is absent, and Nest constructs
+  // every provider at bootstrap — so an eager call here took the whole
+  // application down before it could serve a single request in any environment
+  // without Supabase env vars. That is what fails `AppController (e2e) › / (GET)`
+  // in CI: the e2e never reaches the route it is testing.
   constructor(
     @Optional()
     @Inject("SUPABASE_CLIENT")
     clientOverride?: SupabaseClient,
   ) {
-    this.supabase =
-      clientOverride ??
-      createClient(
+    this.clientOverride = clientOverride;
+  }
+
+  private get supabase(): SupabaseClient {
+    if (this.clientOverride) return this.clientOverride;
+    if (!this.cachedClient) {
+      this.cachedClient = createClient(
         process.env.SUPABASE_URL as string,
         process.env.SUPABASE_SERVICE_ROLE_KEY as string,
         { auth: { persistSession: false } },
       );
+    }
+    return this.cachedClient;
   }
 
   /**

@@ -17,6 +17,12 @@ jest.mock('lucide-react-native', () => {
   const React = require('react');
   const { Text } = require('react-native');
   const icon = (name: string) => () => <Text>{name}</Text>;
+  // EmptyState resolves every icon below by name; a missing entry renders as
+  // `undefined` and fails with "Element type is invalid" rather than anything
+  // meaningful, so keep this list in sync with the component. Keep it
+  // alphabetical too — `Bell` and `ArrowRight` were once appended a second time
+  // at the end of the object, which is a `no-dupe-keys` lint error and, worse,
+  // silently shadows the first entry.
   return {
     AlertCircle: icon('AlertCircle'),
     ArrowRight: icon('ArrowRight'),
@@ -30,11 +36,6 @@ jest.mock('lucide-react-native', () => {
     Target: icon('Target'),
     Wifi: icon('Wifi'),
     WifiOff: icon('WifiOff'),
-    // EmptyState imports these two as well; a missing entry here renders as
-    // `undefined` and fails with "Element type is invalid" rather than
-    // anything meaningful, so keep this list in sync with the component.
-    Bell: icon('Bell'),
-    ArrowRight: icon('ArrowRight'),
   };
 });
 

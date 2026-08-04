@@ -140,17 +140,67 @@ function injectMeta(shell: string, meta: PageMeta): string {
     "index, follow, max-image-preview:large",
   );
 
-  html = setTagValue(html, ogProperty("og:type"), `<meta property="og:type" content="__VALUE__" />`, meta.ogType);
-  html = setTagValue(html, ogProperty("og:url"), `<meta property="og:url" content="__VALUE__" />`, meta.url);
-  html = setTagValue(html, ogProperty("og:title"), `<meta property="og:title" content="__VALUE__" />`, meta.title);
-  html = setTagValue(html, ogProperty("og:description"), `<meta property="og:description" content="__VALUE__" />`, meta.description);
-  html = setTagValue(html, ogProperty("og:image"), `<meta property="og:image" content="__VALUE__" />`, meta.image);
-  html = setTagValue(html, ogProperty("og:image:alt"), `<meta property="og:image:alt" content="__VALUE__" />`, meta.imageAlt);
+  html = setTagValue(
+    html,
+    ogProperty("og:type"),
+    `<meta property="og:type" content="__VALUE__" />`,
+    meta.ogType,
+  );
+  html = setTagValue(
+    html,
+    ogProperty("og:url"),
+    `<meta property="og:url" content="__VALUE__" />`,
+    meta.url,
+  );
+  html = setTagValue(
+    html,
+    ogProperty("og:title"),
+    `<meta property="og:title" content="__VALUE__" />`,
+    meta.title,
+  );
+  html = setTagValue(
+    html,
+    ogProperty("og:description"),
+    `<meta property="og:description" content="__VALUE__" />`,
+    meta.description,
+  );
+  html = setTagValue(
+    html,
+    ogProperty("og:image"),
+    `<meta property="og:image" content="__VALUE__" />`,
+    meta.image,
+  );
+  html = setTagValue(
+    html,
+    ogProperty("og:image:alt"),
+    `<meta property="og:image:alt" content="__VALUE__" />`,
+    meta.imageAlt,
+  );
 
-  html = setTagValue(html, metaName("twitter:title"), `<meta name="twitter:title" content="__VALUE__" />`, meta.title);
-  html = setTagValue(html, metaName("twitter:description"), `<meta name="twitter:description" content="__VALUE__" />`, meta.description);
-  html = setTagValue(html, metaName("twitter:image"), `<meta name="twitter:image" content="__VALUE__" />`, meta.image);
-  html = setTagValue(html, metaName("twitter:image:alt"), `<meta name="twitter:image:alt" content="__VALUE__" />`, meta.imageAlt);
+  html = setTagValue(
+    html,
+    metaName("twitter:title"),
+    `<meta name="twitter:title" content="__VALUE__" />`,
+    meta.title,
+  );
+  html = setTagValue(
+    html,
+    metaName("twitter:description"),
+    `<meta name="twitter:description" content="__VALUE__" />`,
+    meta.description,
+  );
+  html = setTagValue(
+    html,
+    metaName("twitter:image"),
+    `<meta name="twitter:image" content="__VALUE__" />`,
+    meta.image,
+  );
+  html = setTagValue(
+    html,
+    metaName("twitter:image:alt"),
+    `<meta name="twitter:image:alt" content="__VALUE__" />`,
+    meta.imageAlt,
+  );
 
   if (meta.imageDims) {
     html = html.replace(/<\/head>/i, `  ${meta.imageDims}\n</head>`);
@@ -313,7 +363,12 @@ export class OgController {
         "backend/og-shell",
       );
     }
-    return this.html(res, renderPage(meta), cacheControl, "backend/og-fallback");
+    return this.html(
+      res,
+      renderPage(meta),
+      cacheControl,
+      "backend/og-fallback",
+    );
   }
 
   @Public()
