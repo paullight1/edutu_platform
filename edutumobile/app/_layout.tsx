@@ -24,6 +24,7 @@ import { exitGuestMode } from "../lib/guestModeStore";
 import { syncWidgetSuite } from "../lib/widgetSuiteSync";
 import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
 import { getConfig } from "../lib/config";
+import { setCrashReportingUser } from "../lib/crashReporting";
 import { initStoredLanguage } from "../lib/i18n";
 import "../widgets";
 import "../global.css";
@@ -120,6 +121,12 @@ function RootLayoutContent() {
 
         return () => setSupabaseAccessTokenGetter(null);
     }, [getToken]);
+
+    // Attach the Clerk id to crash reports so a single account's failures can be
+    // followed across sessions. Id only — no email or profile data.
+    useEffect(() => {
+        setCrashReportingUser(userId ?? null);
+    }, [userId]);
 
     useEffect(() => {
         void syncWidgetSuite({ userId: userId || undefined, getToken });

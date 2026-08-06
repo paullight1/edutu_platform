@@ -57,6 +57,7 @@ jest.mock('../components/context/ThemeContext', () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       textSecondary: '#64748B',

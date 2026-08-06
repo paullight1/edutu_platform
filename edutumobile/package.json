@@ -37,7 +37,7 @@
       "<rootDir>/node_modules"
     ],
     "moduleNameMapper": {
-      "^expo$": "<rootDir>/empty.js",
+      "^expo$": "<rootDir>/test-utils/expoStub.js",
       "^expo/src/winter/.*$": "<rootDir>/empty.js",
       "^@edutu/core/src/(.*)$": "<rootDir>/packages/core/src/$1",
       "^@edutu/core$": "<rootDir>/packages/core/src/index.ts",
@@ -63,7 +63,7 @@
       "/docs/"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|standard-navigation|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
     ],
     "setupFiles": [
       "./node_modules/react-native-gesture-handler/jestSetup.js"
@@ -79,6 +79,7 @@
     "@hugeicons/react-native": "^1.0.15",
     "@radix-ui/react-slot": "^1.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.45.1",
     "@types/color": "^4.2.0",
     "@types/react": "^19.2.17",

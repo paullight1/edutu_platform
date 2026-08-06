@@ -72,6 +72,10 @@ export default {
       // iPhone-only for v1: the app is portrait-locked and iPad layouts are
       // untested — shipping tablet support invites App Review layout rejections.
       supportsTablet: false,
+      // Informational only: eas.json sets appVersionSource "remote", so EAS
+      // owns the build number and auto-increments it per production build.
+      // (It must be remote — `local` would need EAS to write back into this
+      // file, and it cannot write to a dynamic config.)
       buildNumber: "1",
       deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),

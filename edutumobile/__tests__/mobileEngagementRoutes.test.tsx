@@ -87,6 +87,7 @@ jest.mock('@clerk/clerk-expo', () => ({
 jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       textSecondary: '#64748B',
@@ -585,11 +586,15 @@ describe('mobile engagement routes', () => {
 
     const { getByText } = render(<PaywallScreen />);
 
-    await waitFor(() => expect(getByText('Unlock every opportunity')).toBeTruthy());
+    // The hero is two lines and admin-overridable (paywall.heroLine1/2 from
+    // mobile-control, falling back to these strings); assert the default line 1.
+    await waitFor(() => expect(getByText('Your next opportunity')).toBeTruthy());
     // Offerings fail to load in this environment: once IAP loading settles the
     // CTA renders (disabled) and the unavailable note appears — never an
     // external checkout fallback.
-    await waitFor(() => expect(getByText('Subscribe to premium')).toBeTruthy());
+    // CTA is "Start {plan} — {price}" (also admin-overridable), so match the
+    // stem rather than a full string that moves with pricing.
+    await waitFor(() => expect(getByText(/^Start /)).toBeTruthy());
     expect(
       getByText('Subscriptions are temporarily unavailable. Please try again in a moment.'),
     ).toBeTruthy();

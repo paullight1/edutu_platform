@@ -1,0 +1,47 @@
+{
+  "_comment": "Headlines are authored as explicit lines so the break point is a design decision, not a wrapping accident. Keep each line under ~24 characters or it will wrap a third time and push the device off-canvas.",
+  "shots": [
+    {
+      "id": "01-home",
+      "screen": "Home feed",
+      "headline": ["Find opportunities", "built for you"],
+      "sub": "Verified scholarships, fellowships and grants",
+      "nav": "Launch app — lands on the home tab. Scroll to the top before capturing."
+    },
+    {
+      "id": "02-detail",
+      "screen": "Opportunity detail",
+      "headline": ["Know your", "real chances"],
+      "sub": "See how you fit before you apply",
+      "nav": "Open any opportunity card with a populated match-fit section."
+    },
+    {
+      "id": "03-coach",
+      "screen": "AI Coach",
+      "headline": ["A coach that", "knows your story"],
+      "sub": "Ask anything. Get a plan, not a lecture.",
+      "nav": "Chat tab. Scroll so a full question-and-answer exchange is visible."
+    },
+    {
+      "id": "04-deadlines",
+      "screen": "Saved + deadlines",
+      "headline": ["Never miss", "a deadline"],
+      "sub": "Reminders that actually reach you",
+      "nav": "Deadlines tab, or Saved if it shows more populated rows."
+    },
+    {
+      "id": "05-roadmap",
+      "screen": "Goals / roadmap",
+      "headline": ["Turn a goal", "into a roadmap"],
+      "sub": "Step by step, week by week",
+      "nav": "Goals tab, then open a roadmap with visible steps."
+    },
+    {
+      "id": "06-cv",
+      "screen": "CV builder",
+      "headline": ["Build a CV", "that gets read"],
+      "sub": "AI-assisted, export-ready",
+      "nav": "CV builder. Show the editor with content, not the empty start screen."
+    }
+  ]
+}

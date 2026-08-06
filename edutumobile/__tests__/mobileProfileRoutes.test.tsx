@@ -163,6 +163,7 @@ jest.mock('../components/context/ThemeContext', () => {
       isDark: false,
       packageId: 'default',
       colors: {
+        ...require('../test-utils/themeColors').TEST_THEME_COLORS,
         background: '#FFFFFF',
         foreground: '#111827',
         card: '#FFFFFF',
@@ -406,7 +407,8 @@ describe('mobile profile routes', () => {
     pressNearestTouchTarget(getByText('Theme & app preferences'));
     expect(mockPush).toHaveBeenCalledWith('/profile/settings');
 
-    pressNearestTouchTarget(getByText('Creator Studio'));
+    // Renamed Creator Studio -> Mentor Studio; the route is still /creator-dashboard.
+    pressNearestTouchTarget(getByText('Mentor Studio'));
     expect(mockPush).toHaveBeenCalledWith('/creator-dashboard');
 
     pressNearestTouchTarget(getByText('Log Out'));

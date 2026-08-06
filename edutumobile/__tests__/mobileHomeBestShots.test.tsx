@@ -51,6 +51,7 @@ jest.mock('../components/context/ThemeContext', () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       textSecondary: '#64748B',
@@ -91,11 +92,7 @@ jest.mock('../components/ui/AnimatedPressable', () => {
   };
 });
 
-jest.mock('react-native-svg', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-  return { SvgXml: () => <Text>SvgXml</Text> };
-});
+jest.mock('react-native-svg', () => require('../test-utils/svgMock'));
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -254,8 +251,8 @@ describe('home Best Shots — empty states and dedupe', () => {
     expect(getByText('Complete your profile')).toBeTruthy();
     expect(getByText(/Unlock the matches you can actually win/)).toBeTruthy();
     // The "profile already complete" copy must NOT appear here.
-    expect(queryByText(/Nothing's cleared the bar yet/)).toBeNull();
-    expect(queryByText('Finding your best match')).toBeNull();
+    expect(queryByText(/We'll notify you the moment one clears the bar/)).toBeNull();
+    expect(queryByText('Still searching for your best shot')).toBeNull();
 
     // The whole card is tappable and routes to the profile screen.
     fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
@@ -273,13 +270,13 @@ describe('home Best Shots — empty states and dedupe', () => {
     const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    expect(getByText('Finding your best match')).toBeTruthy();
-    expect(getByText(/Nothing's cleared the bar yet/)).toBeTruthy();
+    expect(getByText('Still searching for your best shot')).toBeTruthy();
+    expect(getByText(/We'll notify you the moment one clears the bar/)).toBeTruthy();
     // Must NOT tell a completed-profile user to complete their profile.
     expect(queryByText('Complete your profile')).toBeNull();
     expect(queryByText(/Unlock the matches you can actually win/)).toBeNull();
 
-    fireEvent.press(getByLabelText('Browse opportunities while we find your best shot'));
+    fireEvent.press(getByLabelText('Still searching for your best shot. We will notify you when one is found. Browse recommendations meanwhile.'));
     expect(mockPush).toHaveBeenCalledWith('/opportunities');
   });
 
@@ -334,7 +331,7 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
     // Best Shots stays empty...
-    expect(getByText('Finding your best match')).toBeTruthy();
+    expect(getByText('Still searching for your best shot')).toBeTruthy();
     // ...while the item still rides the Recommended feed on its feed score,
     // which is exactly what engagement signals are supposed to influence.
     expect(getAllByText('Clicked A Lot')).toHaveLength(1);

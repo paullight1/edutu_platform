@@ -37,6 +37,7 @@ jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({
     isDark: false,
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       card: '#FFFFFF',

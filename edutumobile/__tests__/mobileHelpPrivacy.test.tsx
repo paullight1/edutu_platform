@@ -5,6 +5,7 @@ import { Linking } from 'react-native';
 jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       accent: '#2563EB',
@@ -86,7 +87,10 @@ describe('mobile help and privacy screens', () => {
     await act(async () => {
       pressNearestTouchTarget(getByText('Email Support'));
     });
-    expect(alertOpenUrlSpy).toHaveBeenCalledWith('mailto:support@edutu.org');
+    // support@edutu.org was never a real mailbox — the store-readiness pass
+    // swapped every contact address (here, /privacy and /terms) to the one that
+    // is actually monitored. Apple and Play both check that support contacts work.
+    expect(alertOpenUrlSpy).toHaveBeenCalledWith('mailto:my.edutu@gmail.com');
 
     await act(async () => {
       pressNearestTouchTarget(getByText('Visit Website'));
