@@ -28,6 +28,8 @@ import {
   type AdminUserRecord,
   type AdminUsersResponse,
   type AdminUsersStats,
+  type AdminFunnelStage,
+  type AdminFunnelResponse,
 } from "./admin.dto";
 
 type ProfileRow = typeof profiles.$inferSelect;
@@ -1522,5 +1524,272 @@ export class AdminService {
       );
       return { ...empty, success: false, error: this.errorMessage(error) };
     }
+  }
+
+  private async safeCount(run: () => Promise<unknown>): Promise<number | null> {
+    try {
+      const rows = this.extractRows<{ count?: number }>(await run());
+      return Number(rows[0]?.count ?? 0);
+    } catch (error) {
+      this.logger.error(`funnel count failed: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * SQL fragment: (user_id, created_at) for any real activity, one per union member.
+   * NOTE: ai_usage_events.created_at is `timestamp` (no tz) in the live DB while the
+   * others are `timestamptz`; cast every member to timestamptz so the UNION resolves
+   * to one type. All user_id columns are `text` in the live DB (verified), so the
+   * downstream join `p.user_id = act.user_id` is a valid text-to-text comparison.
+   */
+  private activityUnionSql() {
+    return sql`
+      select user_id, created_at::timestamptz as created_at from user_opportunity_signals
+      union all select user_id, created_at::timestamptz from opportunity_applications
+      union all select user_id, created_at::timestamptz from opportunity_bookmarks
+      union all select user_id, created_at::timestamptz from ai_usage_events
+      union all select user_id, created_at::timestamptz from billing_transactions
+    `;
+  }
+
+  private async buildCohorts(): Promise<AdminFunnelResponse["cohorts"]> {
+    const activity = this.activityUnionSql();
+    try {
+      const rows = this.extractRows<{
+        cohort_week: string;
+        size: number;
+        w1_pct: number | null;
+        w2_pct: number | null;
+        w4_pct: number | null;
+      }>(
+        await db.execute(sql`-- funnel:cohorts
+          with cohort as (
+            select user_id,
+                   date_trunc('week', created_at) as wk,
+                   created_at as signup_at
+            from profiles
+            where created_at >= now() - interval '12 weeks'
+          ),
+          acts as (
+            select c.user_id, c.wk, c.signup_at,
+                   floor(extract(epoch from (a.created_at - c.signup_at)) / 604800)::int as widx
+            from cohort c
+            join (${activity}) a on a.user_id = c.user_id
+          ),
+          per_user as (
+            select c.user_id, c.wk, c.signup_at,
+                   coalesce(bool_or(a.widx = 1), false) as w1,
+                   coalesce(bool_or(a.widx = 2), false) as w2,
+                   coalesce(bool_or(a.widx = 4), false) as w4
+            from cohort c
+            left join acts a on a.user_id = c.user_id
+            group by c.user_id, c.wk, c.signup_at
+          )
+          select to_char(wk, 'IYYY"-W"IW') as cohort_week,
+                 count(*)::int as size,
+                 case when now() >= max(signup_at) + interval '14 days'
+                      then avg((w1)::int) end as w1_pct,
+                 case when now() >= max(signup_at) + interval '21 days'
+                      then avg((w2)::int) end as w2_pct,
+                 case when now() >= max(signup_at) + interval '35 days'
+                      then avg((w4)::int) end as w4_pct
+          from per_user
+          group by wk
+          order by wk desc`),
+      );
+      return rows.map((r) => ({
+        cohortWeek: r.cohort_week,
+        size: Number(r.size),
+        w1Pct: r.w1_pct === null ? null : Number(r.w1_pct),
+        w2Pct: r.w2_pct === null ? null : Number(r.w2_pct),
+        w4Pct: r.w4_pct === null ? null : Number(r.w4_pct),
+      }));
+    } catch (error) {
+      this.logger.error(`funnel cohorts failed: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  async getFunnel(): Promise<AdminFunnelResponse> {
+    const generatedAt = new Date().toISOString();
+    const activity = this.activityUnionSql();
+
+    const [
+      signupTotal,
+      onboardedTotal,
+      activatedTotal,
+      retainedTotal,
+      payingTotal,
+    ] = await Promise.all([
+      this.safeCount(() =>
+        db.execute(sql`-- funnel:signup:total
+        select count(*)::int as count from profiles`),
+      ),
+      this.safeCount(() =>
+        db.execute(sql`-- funnel:onboarded:total
+        select count(*)::int as count from profiles
+        where (preferences->'onboarding'->>'completed')::boolean is true`),
+      ),
+      this.safeCount(() =>
+        db.execute(sql`-- funnel:activated:total
+        select count(distinct user_id)::int as count from (
+          select user_id from opportunity_bookmarks
+          union select user_id from opportunity_applications) a`),
+      ),
+      this.safeCount(() =>
+        db.execute(sql`-- funnel:retained:total
+        select count(distinct act.user_id)::int as count
+        from (${activity}) act
+        join profiles p on p.user_id = act.user_id
+        where act.created_at >= p.created_at + interval '7 days'`),
+      ),
+      this.safeCount(() =>
+        db.execute(sql`-- funnel:paying:total
+        select count(*)::int as count from profiles
+        where is_pro is true and (pro_expires_at is null or pro_expires_at > now())`),
+      ),
+    ]);
+
+    const weekly = async (marker: string, query: any) => {
+      try {
+        const rows = this.extractRows<{
+          this_week?: number;
+          last_week?: number;
+        }>(await db.execute(query));
+        return {
+          newThisWeek: Number(rows[0]?.this_week ?? 0),
+          newLastWeek: Number(rows[0]?.last_week ?? 0),
+        };
+      } catch (error) {
+        this.logger.error(`funnel weekly failed: ${(error as Error).message}`);
+        return { newThisWeek: null, newLastWeek: null };
+      }
+    };
+
+    const [wSignup, wOnboarded, wActivated, wRetained, wPaying] =
+      await Promise.all([
+        weekly(
+          "signup",
+          sql`-- funnel:signup:weekly
+        select
+          count(*) filter (where created_at >= now() - interval '7 days')::int as this_week,
+          count(*) filter (where created_at >= now() - interval '14 days'
+                            and created_at < now() - interval '7 days')::int as last_week
+        from profiles`,
+        ),
+        weekly(
+          "onboarded",
+          sql`-- funnel:onboarded:weekly
+        select
+          count(*) filter (where ts >= now() - interval '7 days')::int as this_week,
+          count(*) filter (where ts >= now() - interval '14 days'
+                            and ts < now() - interval '7 days')::int as last_week
+        from (select (preferences->'onboarding'->>'completedAt')::timestamptz as ts
+              from profiles
+              where (preferences->'onboarding'->>'completed')::boolean is true) o
+        where ts is not null`,
+        ),
+        weekly(
+          "activated",
+          sql`-- funnel:activated:weekly
+        select
+          count(*) filter (where first_at >= now() - interval '7 days')::int as this_week,
+          count(*) filter (where first_at >= now() - interval '14 days'
+                            and first_at < now() - interval '7 days')::int as last_week
+        from (
+          select user_id, min(created_at) as first_at from (
+            select user_id, created_at from opportunity_bookmarks
+            union all select user_id, created_at from opportunity_applications) a
+          group by user_id) f`,
+        ),
+        weekly(
+          "retained",
+          sql`-- funnel:retained:weekly
+        select
+          count(*) filter (where first_ret >= now() - interval '7 days')::int as this_week,
+          count(*) filter (where first_ret >= now() - interval '14 days'
+                            and first_ret < now() - interval '7 days')::int as last_week
+        from (
+          select act.user_id, min(act.created_at) as first_ret
+          from (${activity}) act
+          join profiles p on p.user_id = act.user_id
+          where act.created_at >= p.created_at + interval '7 days'
+          group by act.user_id) r`,
+        ),
+        weekly(
+          "paying",
+          sql`-- funnel:paying:weekly
+        select
+          count(*) filter (where pro_since >= now() - interval '7 days')::int as this_week,
+          count(*) filter (where pro_since >= now() - interval '14 days'
+                            and pro_since < now() - interval '7 days')::int as last_week
+        from profiles where pro_since is not null`,
+        ),
+      ]);
+
+    const conv = (num: number | null, den: number | null): number | null =>
+      num === null || den === null || den === 0 ? null : num / den;
+
+    const stages: AdminFunnelStage[] = [
+      {
+        key: "signup",
+        label: "Signup",
+        total: signupTotal,
+        ...wSignup,
+        convFromPrev: null,
+      },
+      {
+        key: "onboarded",
+        label: "Onboarded",
+        total: onboardedTotal,
+        ...wOnboarded,
+        convFromPrev: conv(onboardedTotal, signupTotal),
+      },
+      {
+        key: "activated",
+        label: "Activated",
+        total: activatedTotal,
+        ...wActivated,
+        convFromPrev: conv(activatedTotal, onboardedTotal),
+      },
+      {
+        key: "retained",
+        label: "Retained",
+        total: retainedTotal,
+        ...wRetained,
+        convFromPrev: conv(retainedTotal, activatedTotal),
+      },
+      {
+        key: "paying",
+        label: "Paying",
+        total: payingTotal,
+        ...wPaying,
+        convFromPrev: conv(payingTotal, retainedTotal),
+      },
+    ];
+
+    let referral: AdminFunnelResponse["referral"] = {
+      invitersTotal: null,
+      invitersThisWeek: null,
+    };
+    try {
+      const rows = this.extractRows<{ total?: number; this_week?: number }>(
+        await db.execute(sql`-- funnel:referral
+          select count(distinct referrer_id)::int as total,
+                 count(distinct referrer_id) filter (
+                   where created_at >= now() - interval '7 days')::int as this_week
+          from referrals`),
+      );
+      referral = {
+        invitersTotal: Number(rows[0]?.total ?? 0),
+        invitersThisWeek: Number(rows[0]?.this_week ?? 0),
+      };
+    } catch (error) {
+      this.logger.error(`funnel referral failed: ${(error as Error).message}`);
+    }
+
+    const cohorts = await this.buildCohorts();
+    return { generatedAt, stages, referral, cohorts };
   }
 }

@@ -67,6 +67,13 @@ function PulsingCrown({ reducedMotion }: { reducedMotion: boolean }) {
     );
 }
 
+/**
+ * CV-specific Pro pitch. It earns its place next to the shared UpgradeSheet
+ * only because of the free-trial affordance below — that is the one thing a
+ * plain /paywall push can't offer. Owners MUST open it through the shared
+ * single-flow guard (`claimFlow()` on UpgradeSheetContext) and release on
+ * close, otherwise it can stack on top of the sheet or the login promo.
+ */
 export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialActivated }: Props) {
     const { t } = useTranslation('cv');
     const { isDark, reducedMotion } = useTheme();

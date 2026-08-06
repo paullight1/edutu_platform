@@ -111,6 +111,8 @@ type RecommendationOpportunity = Partial<OpportunityRow> &
 
 type RankedOpportunity = RecommendationOpportunity & {
   match: number;
+  /** Profile fit only (0-100), free of behavioral/fatigue adjustments. */
+  matchFit: number;
   matchReasons: string[];
   matchRisks: string[];
   aiSummary: string | null;
@@ -489,6 +491,7 @@ export class OpportunityRankingService {
       ai_tags: row.aiTags,
       // Additive contract extensions (clients may ignore them safely).
       match_components: row.matchComponents ?? null,
+      match_fit: row.matchFit,
       match_reason_details: this.toReasonDetails(row),
       engine,
     }));
@@ -563,6 +566,7 @@ export class OpportunityRankingService {
       return {
         id: row.id,
         match_score: ranked.match,
+        match_fit: ranked.matchFit,
         match_reasons: ranked.matchReasons,
         match_risks: matchRisks,
         match_reason_details: this.toReasonDetails(ranked),
@@ -1176,6 +1180,14 @@ export class OpportunityRankingService {
     let matchComponents: RankedOpportunity["matchComponents"];
     let finalReasons: string[];
 
+    // Profile fit alone, with NO behavioral term. `match` is a feed-ordering
+    // score: it carries the signal delta, including the impression-fatigue
+    // penalty (up to -20) applied to items shown repeatedly without
+    // engagement. That penalty must never be read as "you're less competitive
+    // for this" — clients gating on competitiveness (mobile "Best Shots")
+    // use matchFit, which only moves when the profile or the opportunity does.
+    const matchFit = Math.max(0, Math.min(100, Math.round(fit.rawScore)));
+
     if (context.useBlender) {
       const components: ScoreComponents = {
         semantic,
@@ -1210,6 +1222,7 @@ export class OpportunityRankingService {
     return {
       ...(row as RecommendationOpportunity),
       match,
+      matchFit,
       matchReasons: finalReasons,
       matchRisks: risks.slice(0, 3),
       // Honest fields: summary is LLM-written at ingestion; tags come from

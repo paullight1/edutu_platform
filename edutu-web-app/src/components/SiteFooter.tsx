@@ -32,6 +32,7 @@ const columns: FooterColumn[] = [
         links: [
             { label: 'About', to: '/about' },
             { label: 'Our Impact', to: '/impact' },
+            { label: 'Edutu For You', to: '/edutuforyou' },
             { label: 'What We Believe', to: '/what-we-believe' },
             { label: 'Blog', to: '/blog' },
             { label: 'Careers', to: '/careers' },
@@ -51,7 +52,7 @@ const columns: FooterColumn[] = [
 ];
 
 const linkClass =
-    'block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]';
+    'block text-sm text-text-secondary no-underline transition hover:text-brand md:text-sm';
 
 const FooterLinkItem: React.FC<{ link: FooterLink }> = ({ link }) => {
     if (link.external) {
@@ -82,7 +83,7 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
                             <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
                             <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
                         </Link>
-                        <p className="max-w-[20rem] text-[13px] leading-[1.5] text-text-muted md:text-[14px] md:leading-[1.7]">
+                        <p className="max-w-[20rem] text-sm leading-[1.5] text-text-muted md:text-sm md:leading-[1.7]">
                             Find scholarships, jobs, and programs from around the world. We help
                             you plan your next big step.
                         </p>
@@ -90,7 +91,7 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
 
                     {columns.map((column) => (
                         <div key={column.title}>
-                            <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-text-primary md:mb-4 md:text-[12px]">
+                            <h4 className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-primary md:mb-4 md:text-xs">
                                 {column.title}
                             </h4>
                             <div className="space-y-2 md:space-y-3">
@@ -103,7 +104,7 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
                 </div>
 
                 <div className="flex flex-col items-center justify-between border-t border-subtle pt-6 md:flex-row md:pt-8">
-                    <span className="text-[11px] text-text-muted md:text-[12px]">
+                    <span className="text-2xs text-text-muted md:text-xs">
                         © {new Date().getFullYear()} Edutu Inc. All rights reserved. {version}
                     </span>
                     <div className="mt-3 flex items-center gap-4 md:mt-0 md:gap-6">

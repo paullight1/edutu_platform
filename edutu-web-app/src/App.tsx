@@ -51,6 +51,10 @@ const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
 const ImpactPage = lazy(() => import("./components/ImpactPage"));
+const EdutuForYouPage = lazy(() => import("./components/EdutuForYouPage"));
+const EdutuForYouStoryPage = lazy(
+  () => import("./components/EdutuForYouStoryPage"),
+);
 const UpgradePage = lazy(() => import("./components/UpgradePage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
@@ -60,6 +64,7 @@ const TermsPage = lazy(() => import("./components/TermsPage"));
 const CareersPage = lazy(() => import("./components/CareersPage"));
 const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
+const MentorDashboardPage = lazy(() => import("./components/MentorDashboardPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
 const DevelopersLandingPage = lazy(
@@ -545,6 +550,11 @@ function App() {
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/impact" element={<ImpactPage />} />
+      <Route path="/edutuforyou" element={<EdutuForYouPage />} />
+      <Route
+        path="/edutuforyou/stories/:slug"
+        element={<EdutuForYouStoryPage />}
+      />
       <Route path="/upgrade" element={<UpgradePage />} />
       <Route path="/pro" element={<Navigate to="/upgrade" replace />} />
       <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
@@ -595,6 +605,14 @@ function App() {
         element={
           <ProtectedRoute>
             <DeveloperDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mentor/dashboard"
+        element={
+          <ProtectedRoute>
+            <MentorDashboardPage />
           </ProtectedRoute>
         }
       />

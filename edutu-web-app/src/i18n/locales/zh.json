@@ -56,6 +56,16 @@
             "quickActions": "快捷操作"
         }
     },
+    "opportunities": {
+        "rails": {
+            "recommended": "为你推荐",
+            "recommendedSubtitle": "与你的个人资料高度匹配",
+            "latest": "最新上线",
+            "latestSubtitle": "Edutu 上最新的机会",
+            "closing": "即将截止",
+            "closingSubtitle": "截止日期临近——立即申请"
+        }
+    },
     "goals": {
         "title": "目标",
         "createGoal": "创建目标",

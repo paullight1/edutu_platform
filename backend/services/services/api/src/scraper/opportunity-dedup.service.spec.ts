@@ -219,3 +219,98 @@ describe("OpportunityDedupService (no Supabase configured)", () => {
     expect(records[0].status).toBe("active");
   });
 });
+
+describe("OpportunityDedupService.annotateDuplicates — Tier 2", () => {
+  /**
+   * Minimal PostgREST-shaped stub. `.or()` is where Tier 2 narrows candidates;
+   * we just hand back the fixture rows and assert on what the real filter
+   * (Dice similarity + deadline) decides.
+   */
+  const serviceWithRows = (rows: unknown[]) => {
+    const service = new OpportunityDedupService();
+    const builder: Record<string, unknown> = {};
+    for (const method of ["select", "in", "or", "limit", "eq"]) {
+      (builder as any)[method] = jest.fn(() => builder);
+    }
+    (builder as any).then = (resolve: (v: unknown) => unknown) =>
+      resolve({ data: rows, error: null });
+    (service as any).supabase = { from: jest.fn(() => builder) };
+    return service;
+  };
+
+  const existing = {
+    id: "existing-1",
+    canonical_url: "https://sheleadsafrica.org/boostherform",
+    content_fingerprint: "fp-existing",
+    title: "2025 She Leads Africa BoostHer Training Program | Christmas Promo",
+    organization: "She Leads Africa",
+    close_date: null,
+  };
+
+  it("flags a duplicate even when neither row has an organisation", async () => {
+    // The regression this guards: Tier 2 used to look candidates up by
+    // organisation, so a null organiser skipped the record entirely. The
+    // scraper now stores null far more often, and the legacy aggregator cohort
+    // had no organiser at all — that is how visible duplicates survived.
+    const service = serviceWithRows([{ ...existing, organization: null }]);
+    const incoming = {
+      canonical_url: "https://jobs.smartyacad.com/2025-she-leads-africa",
+      content_fingerprint: null,
+      title:
+        "2025 She Leads Africa BoostHer Training Program | Christmas Promo",
+      organization: null,
+      close_date: null,
+    };
+
+    const summary = await service.annotateDuplicates([incoming as any]);
+
+    expect(summary.duplicates).toBe(1);
+    expect((incoming as any).duplicate_of).toBe("existing-1");
+    expect((incoming as any).status).toBe("pending_review");
+    expect((incoming as any).metadata.dedup.matchedBy).toBe("title_deadline");
+  });
+
+  it("still flags when the two rows disagree about the organisation", async () => {
+    const service = serviceWithRows([existing]);
+    const incoming = {
+      canonical_url: "https://jobs.smartyacad.com/2025-she-leads-africa",
+      content_fingerprint: null,
+      title:
+        "2025 She Leads Africa BoostHer Training Program | Christmas Promo",
+      organization: "Program Organizer",
+      close_date: null,
+    };
+
+    const summary = await service.annotateDuplicates([incoming as any]);
+    expect(summary.duplicates).toBe(1);
+  });
+
+  it("leaves a genuinely different opportunity alone", async () => {
+    const service = serviceWithRows([existing]);
+    const incoming = {
+      canonical_url: "https://example.org/other",
+      content_fingerprint: null,
+      title: "Chevening Scholarship 2027 for Postgraduate Study in the UK",
+      organization: null,
+      close_date: null,
+    };
+
+    const summary = await service.annotateDuplicates([incoming as any]);
+    expect(summary.duplicates).toBe(0);
+    expect((incoming as any).duplicate_of).toBeUndefined();
+  });
+
+  it("does not flag the same canonical_url as its own duplicate", async () => {
+    const service = serviceWithRows([existing]);
+    const incoming = {
+      canonical_url: existing.canonical_url,
+      content_fingerprint: null,
+      title: existing.title,
+      organization: null,
+      close_date: null,
+    };
+
+    const summary = await service.annotateDuplicates([incoming as any]);
+    expect(summary.duplicates).toBe(0);
+  });
+});

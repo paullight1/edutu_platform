@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from "react";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import { getPageOgImage, getPageOgImageAlt } from "../lib/pageSeo";
 
 interface SeoProps {
   title: string;
   description: string;
   path?: string;
   image?: string | null;
+  imageAlt?: string;
   type?: "website" | "article";
   noindex?: boolean;
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
@@ -74,12 +76,22 @@ export default function Seo({
   description,
   path = "/opportunities",
   image,
+  imageAlt,
   type = "website",
   noindex = false,
   jsonLd,
 }: SeoProps) {
   const canonicalUrl = toAbsoluteUrl(path);
-  const imageUrl = toAbsoluteUrl(image || getDefaultSeoImage());
+  // Precedence: an explicit per-item image (a blog cover, an opportunity
+  // flyer) → the route's prerendered hero capture → the bare logo. Without the
+  // middle tier every marketing page unfurled with the same generic icon.
+  const imageUrl = toAbsoluteUrl(
+    image || getPageOgImage(path) || getDefaultSeoImage(),
+  );
+  const resolvedImageAlt =
+    imageAlt ??
+    (image ? "Edutu opportunity preview" : getPageOgImageAlt(path)) ??
+    "Edutu";
   const jsonLdString = useMemo(() => {
     if (!jsonLd) {
       return "";
@@ -102,20 +114,29 @@ export default function Seo({
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:image", imageUrl);
-    upsertMeta("property", "og:image:alt", "Edutu opportunity preview");
+    upsertMeta("property", "og:image:alt", resolvedImageAlt);
     upsertMeta("property", "og:site_name", "Edutu");
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", title);
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", imageUrl);
-    upsertMeta("name", "twitter:image:alt", "Edutu opportunity preview");
+    upsertMeta("name", "twitter:image:alt", resolvedImageAlt);
     upsertCanonical(canonicalUrl);
     upsertGoogleSiteVerification();
 
     if (jsonLdString) {
       upsertJsonLd(jsonLdString);
     }
-  }, [canonicalUrl, description, imageUrl, jsonLdString, noindex, title, type]);
+  }, [
+    canonicalUrl,
+    description,
+    imageUrl,
+    resolvedImageAlt,
+    jsonLdString,
+    noindex,
+    title,
+    type,
+  ]);
 
   return null;
 }

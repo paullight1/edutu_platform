@@ -16,6 +16,12 @@ import {
 } from '@edutu/core/src/services/uploads';
 import { useTheme } from '../context/ThemeContext';
 import { withAlpha } from '../ui/BottomScrim';
+import { AiAssistTile } from './AiAssistTile';
+import {
+  CheckmarkCircle02Icon,
+  Alert02Icon,
+  FileUploadIcon,
+} from '../ui/icons';
 import { haptics } from '../../lib/haptics';
 
 const ACCEPTED = [
@@ -33,6 +39,12 @@ type DocumentUploadProps = {
   label?: string;
   /** Called with the upload id once parsing finishes, so the caller can attach it. */
   onUploaded?: (uploadId: string) => void;
+  /**
+   * `button` (default) is the original full-width outlined control. `tile`
+   * renders it as a cell of the opportunity page's AI assist grid so it sits
+   * flush with the win-coach actions instead of forming a fourth, wider row.
+   */
+  variant?: 'button' | 'tile';
 };
 
 /**
@@ -45,6 +57,7 @@ export function DocumentUpload({
   opportunityId,
   label,
   onUploaded,
+  variant = 'button',
 }: DocumentUploadProps) {
   const { t } = useTranslation('chat');
   const { colors } = useTheme();
@@ -100,6 +113,58 @@ export function DocumentUpload({
 
   const busy = state === 'uploading' || state === 'parsing';
 
+  const status = message ? (
+    <Text
+      style={[
+        styles.status,
+        variant === 'tile' && styles.statusTile,
+        {
+          color:
+            state === 'error'
+              ? colors.error
+              : state === 'done'
+                ? colors.success
+                : colors.mutedForeground,
+        },
+      ]}
+      numberOfLines={2}
+    >
+      {message}
+    </Text>
+  ) : null;
+
+  if (variant === 'tile') {
+    return (
+      <View style={styles.tileCell}>
+        <AiAssistTile
+          fill={false}
+          label={busy ? t('winCoach.documentUpload.uploading') : resolvedLabel}
+          // The icon carries the outcome, since a tile has no room for a
+          // second line and the status text below it belongs to the whole grid
+          // rather than this one cell.
+          icon={
+            state === 'done'
+              ? CheckmarkCircle02Icon
+              : state === 'error'
+                ? Alert02Icon
+                : FileUploadIcon
+          }
+          iconColor={
+            state === 'done'
+              ? colors.success
+              : state === 'error'
+                ? colors.error
+                : undefined
+          }
+          busy={busy}
+          onPress={pickAndUpload}
+          accessibilityLabel={resolvedLabel}
+        />
+        {status}
+      </View>
+    );
+  }
+
   return (
     <View>
       <Pressable
@@ -131,24 +196,7 @@ export function DocumentUpload({
           {busy ? t('winCoach.documentUpload.uploading') : resolvedLabel}
         </Text>
       </Pressable>
-      {message ? (
-        <Text
-          style={[
-            styles.status,
-            {
-              color:
-                state === 'error'
-                  ? colors.error
-                  : state === 'done'
-                    ? colors.success
-                    : colors.mutedForeground,
-            },
-          ]}
-          numberOfLines={2}
-        >
-          {message}
-        </Text>
-      ) : null}
+      {status}
     </View>
   );
 }
@@ -171,4 +219,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
   },
+  // One column of the assist grid. `flex: 1` here (not on the tile) keeps the
+  // cell the same width as its neighbour while the tile keeps its fixed height.
+  tileCell: { flex: 1 },
+  statusTile: { fontSize: 11.5, marginTop: 5 },
 });

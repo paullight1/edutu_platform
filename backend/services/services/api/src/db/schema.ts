@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -68,10 +69,28 @@ export const notifications = pgTable(
       .$type<Record<string, unknown>>()
       .default({}),
     createdAt: timestamp("created_at").defaultNow(),
+    // "Seen in the inbox list" — distinct from openedAt below.
     readAt: timestamp("read_at"),
+    // Delivery telemetry: when the push/email actually went out.
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    // When the user tapped the notification itself (not just saw it listed).
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
   },
   (table) => [
     index("notifications_user_created_idx").on(table.userId, table.createdAt),
+    // Per-user per-kind engagement-rate queries (open rate, fatigue windows).
+    index("notifications_user_kind_created_idx").on(
+      table.userId,
+      table.kind,
+      table.createdAt.desc(),
+    ),
+    // Mirrors the partial unique index enforcing sender-built dedupe keys
+    // (partial `where dedupe_key is not null`; see migration
+    // 20260803120000_notification_integrity_and_telemetry.sql).
+    uniqueIndex("notifications_dedupe_unique")
+      .on(table.userId, table.dedupeKey)
+      .where(sql`${table.dedupeKey} is not null`),
   ],
 );
 
@@ -1005,6 +1024,45 @@ export const blogPosts = pgTable(
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type NewBlogPost = typeof blogPosts.$inferInsert;
 
+// Edutu For You — beneficiary impact stories rendered on /edutuforyou.
+//
+// `isComposite` is load-bearing: it drives the attribution line the public page
+// renders under a story. Seeded rows are composites written from user research
+// and illustrated with stock photography. When an admin replaces one with a
+// real, consented story they clear this flag and the disclosure disappears for
+// that story alone. Never default it to false.
+export const impactStories = pgTable(
+  "impact_stories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    age: integer("age"),
+    place: text("place").notNull(),
+    outcome: text("outcome").notNull(),
+    portrait: text("portrait").notNull(),
+    portraitAlt: text("portrait_alt").notNull(),
+    heroImage: text("hero_image").notNull(),
+    heroAlt: text("hero_alt").notNull(),
+    quote: text("quote").notNull(),
+    teaser: text("teaser").notNull(),
+    // [{ heading: string, body: string[] }]
+    chapters: jsonb("chapters").notNull().default([]),
+    // [{ value: string, label: string }]
+    stats: jsonb("stats").notNull().default([]),
+    barrier: text("barrier"),
+    isComposite: boolean("is_composite").notNull().default(true),
+    status: text("status").notNull().default("published"), // 'draft' | 'published'
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("idx_impact_stories_status").on(table.status)],
+);
+
+export type ImpactStory = typeof impactStories.$inferSelect;
+export type NewImpactStory = typeof impactStories.$inferInsert;
+
 // Events announced by admins and shown publicly when published
 export const events = pgTable(
   "events",
@@ -1683,3 +1741,50 @@ export const communityReports = pgTable("community_reports", {
 export type CommunityGroup = typeof communityGroups.$inferSelect;
 export type CommunityGroupMember = typeof communityGroupMembers.$inferSelect;
 export type CommunityGroupMessage = typeof communityGroupMessages.$inferSelect;
+/**
+ * Proposed notifications awaiting scheduling (scheduler v2).
+ *
+ * Senders enqueue a candidate instead of pushing directly;
+ * `NotificationSchedulerService` scores, collapses per entity, applies fatigue
+ * suppression, picks a local send time and only then calls
+ * `NotificationsService.broadcast()`. Mirrors migration
+ * 20260803140000_notification_candidates.sql.
+ */
+export const notificationCandidates = pgTable(
+  "notification_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Canonical uuid user id, matching notifications.user_id. profiles.user_id
+    // is TEXT and dual-keyed, so profile lookups must go via clerk_id_to_uuid.
+    userId: uuid("user_id").notNull(),
+    kind: text("kind").notNull(),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    // Scoring inputs supplied by the proposing sender, both nominally 0..1.
+    urgency: numeric("urgency").notNull().default("0.5"),
+    relevance: numeric("relevance").notNull().default("1.0"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Null = still pending. Set the moment the scheduler takes the candidate.
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("notification_candidates_user_consumed_idx").on(
+      table.userId,
+      table.consumedAt,
+    ),
+    // Partial unique guard so the same pending candidate cannot be enqueued
+    // twice (retries / overlapping cron runs collide instead of double-pushing).
+    uniqueIndex("notification_candidates_pending_unique")
+      .on(table.userId, table.kind, table.entityType, table.entityId)
+      .where(sql`${table.consumedAt} is null`),
+  ],
+);
+
+export type NotificationCandidate = typeof notificationCandidates.$inferSelect;

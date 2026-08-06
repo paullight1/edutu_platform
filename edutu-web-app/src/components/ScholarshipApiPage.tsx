@@ -120,7 +120,7 @@ const methodStyles: Record<Endpoint['method'], string> = {
 function MethodBadge({ method }: { method: Endpoint['method'] }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-md px-2 py-1 font-mono text-[11px] font-bold tracking-wider ring-1 ring-inset ${methodStyles[method]}`}
+      className={`inline-flex shrink-0 items-center rounded-md px-2 py-1 font-mono text-2xs font-semibold tracking-wider ring-1 ring-inset ${methodStyles[method]}`}
     >
       {method}
     </span>
@@ -149,7 +149,7 @@ function CodeWindow({
           <span className="h-3 w-3 rounded-full bg-white/15" />
           <span className="h-3 w-3 rounded-full bg-white/15" />
         </div>
-        <div className="ml-1 truncate font-mono text-[12px] text-slate-400">{label}</div>
+        <div className="ml-1 truncate font-mono text-xs text-slate-400">{label}</div>
         {copyValue ? (
           <div className="ml-auto">
             <CopyButton value={copyValue} />
@@ -250,7 +250,7 @@ const ScholarshipApiPage: React.FC = () => {
                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
-                <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 text-[13px] font-medium text-text-secondary shadow-soft">
+                <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 text-sm font-medium text-text-secondary shadow-soft">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -263,7 +263,7 @@ const ScholarshipApiPage: React.FC = () => {
                   <span className="text-brand">one clean API.</span>
                 </h1>
 
-                <p className="mt-5 max-w-xl text-[16px] leading-[1.7] text-text-secondary sm:text-[17px]">
+                <p className="mt-5 max-w-xl text-base leading-[1.7] text-text-secondary sm:text-lg">
                   The Edutu Scholarship Engine ingests thousands of sources daily and serves
                   scholarships, fellowships, internships and grants as a single normalized feed —
                   the same contract behind our web app, mobile client and admin.
@@ -271,8 +271,8 @@ const ScholarshipApiPage: React.FC = () => {
 
                 {/* base URL */}
                 <div className="mt-7 flex w-full min-w-0 items-center gap-2 rounded-xl border border-subtle bg-surface-layer py-1.5 pl-4 pr-1.5 shadow-soft sm:w-auto sm:max-w-full">
-                  <span className="shrink-0 font-mono text-[13px] text-text-muted">GET</span>
-                  <span className="min-w-0 truncate font-mono text-[13px] text-text-primary">{API_BASE}/opportunities</span>
+                  <span className="shrink-0 font-mono text-sm text-text-muted">GET</span>
+                  <span className="min-w-0 truncate font-mono text-sm text-text-primary">{API_BASE}/opportunities</span>
                   <span className="ml-auto shrink-0 rounded-md text-text-muted">
                     <CopyButtonLight value={`${API_BASE}/opportunities`} />
                   </span>
@@ -281,20 +281,20 @@ const ScholarshipApiPage: React.FC = () => {
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <a
                     href={docsUrl}
-                    className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
                   >
                     Read the docs
                     <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
                   </a>
                   <Link
                     to="/opportunities"
-                    className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-[15px] font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
+                    className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-base font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
                   >
                     Browse the feed
                   </Link>
                 </div>
 
-                <div className="mt-8 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13.5px] text-text-muted">
+                <div className="mt-8 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-text-muted">
                   <span className="font-semibold text-text-secondary">12,480+</span> live opportunities
                   <span aria-hidden="true" className="text-border-strong">·</span>
                   <span className="font-semibold text-text-secondary">31</span> countries
@@ -319,7 +319,7 @@ const ScholarshipApiPage: React.FC = () => {
                   }
                   copyValue={`curl ${API_BASE}/opportunities?category=scholarship -H "Authorization: Bearer sk_live_..."`}
                 >
-                  <pre className="font-mono text-[12.5px] leading-[1.85] text-slate-200 sm:text-[13px]">
+                  <pre className="font-mono text-xs leading-[1.85] text-slate-200 sm:text-sm">
                     {jsonLines.map((line, i) => (
                       <motion.div
                         key={i}
@@ -342,7 +342,7 @@ const ScholarshipApiPage: React.FC = () => {
               <h2 className="font-display text-[clamp(1.7rem,2.6vw,2.5rem)] font-semibold leading-[1.05] tracking-tight text-text-primary">
                 A small, honest API
               </h2>
-              <p className="mt-4 text-[16px] leading-[1.7] text-text-secondary">
+              <p className="mt-4 text-base leading-[1.7] text-text-secondary">
                 No SDK to learn and no surprises. A public read feed, a detail lookup, and two
                 admin sync routes — every response is the same opportunity object.
               </p>
@@ -358,13 +358,13 @@ const ScholarshipApiPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-3">
                     <MethodBadge method={endpoint.method} />
-                    <code className="truncate font-mono text-[13.5px] font-medium text-text-primary">
+                    <code className="truncate font-mono text-sm font-medium text-text-primary">
                       {endpoint.path}
                     </code>
                   </div>
                   <div>
-                    <div className="text-[15px] font-semibold text-text-primary">{endpoint.title}</div>
-                    <p className="mt-0.5 text-[14px] leading-[1.6] text-text-secondary">
+                    <div className="text-base font-semibold text-text-primary">{endpoint.title}</div>
+                    <p className="mt-0.5 text-sm leading-[1.6] text-text-secondary">
                       {endpoint.description}
                     </p>
                   </div>
@@ -381,7 +381,7 @@ const ScholarshipApiPage: React.FC = () => {
                   One shape.
                   <br className="hidden sm:block" /> Every surface.
                 </h2>
-                <p className="mt-4 max-w-lg text-[16px] leading-[1.7] text-text-secondary">
+                <p className="mt-4 max-w-lg text-base leading-[1.7] text-text-secondary">
                   Web, mobile and admin all read the exact same opportunity object. Define the
                   fields once; render them anywhere — no per-client schema translation, ever.
                 </p>
@@ -396,8 +396,8 @@ const ScholarshipApiPage: React.FC = () => {
                         <surface.icon size={18} />
                       </span>
                       <div>
-                        <div className="text-[15px] font-semibold text-text-primary">{surface.title}</div>
-                        <p className="mt-0.5 text-[14px] leading-[1.55] text-text-secondary">
+                        <div className="text-base font-semibold text-text-primary">{surface.title}</div>
+                        <p className="mt-0.5 text-sm leading-[1.55] text-text-secondary">
                           {surface.description}
                         </p>
                       </div>
@@ -414,7 +414,7 @@ const ScholarshipApiPage: React.FC = () => {
                   </span>
                 }
               >
-                <pre className="font-mono text-[12.5px] leading-[1.9] text-slate-200 sm:text-[13px]">
+                <pre className="font-mono text-xs leading-[1.9] text-slate-200 sm:text-sm">
                   {schemaLines.map((line, i) => (
                     <div key={i}>{line}</div>
                   ))}
@@ -430,12 +430,12 @@ const ScholarshipApiPage: React.FC = () => {
                 <h2 className="font-display text-[clamp(1.7rem,2.6vw,2.5rem)] font-semibold leading-[1.05] tracking-tight text-text-primary">
                   Fresh every single day
                 </h2>
-                <p className="mt-4 text-[16px] leading-[1.7] text-text-secondary">
+                <p className="mt-4 text-base leading-[1.7] text-text-secondary">
                   The feed you call is never stale. Behind every request is a pipeline that runs
                   around the clock so opportunities surface before their deadlines.
                 </p>
               </div>
-              <span className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-700 dark:text-emerald-300 sm:self-auto">
+              <span className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300 sm:self-auto">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Last sync · 4 min ago
               </span>
@@ -455,12 +455,12 @@ const ScholarshipApiPage: React.FC = () => {
                     <span className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-brand text-white shadow-elevated ring-8 ring-surface-body">
                       <stage.icon size={22} />
                     </span>
-                    <span className="font-mono text-[13px] font-semibold text-text-muted">{stage.step}</span>
+                    <span className="font-mono text-sm font-semibold text-text-muted">{stage.step}</span>
                   </div>
-                  <h3 className="mt-5 font-display text-[19px] font-semibold tracking-tight text-text-primary">
+                  <h3 className="mt-5 font-display text-lg font-semibold tracking-tight text-text-primary">
                     {stage.title}
                   </h3>
-                  <p className="mt-2 text-[14.5px] leading-[1.6] text-text-secondary">
+                  <p className="mt-2 text-sm leading-[1.6] text-text-secondary">
                     {stage.description}
                   </p>
                 </li>
@@ -475,7 +475,7 @@ const ScholarshipApiPage: React.FC = () => {
                 <h2 className="font-display text-[clamp(1.7rem,2.6vw,2.5rem)] font-semibold leading-[1.05] tracking-tight text-text-primary">
                   Start in one request
                 </h2>
-                <p className="mt-4 max-w-md text-[16px] leading-[1.7] text-text-secondary">
+                <p className="mt-4 max-w-md text-base leading-[1.7] text-text-secondary">
                   Generate a key in the developer dashboard, add it as a bearer token, and call
                   the feed. The docs cover pagination, filters, auth and rate limits.
                 </p>
@@ -483,7 +483,7 @@ const ScholarshipApiPage: React.FC = () => {
                   <a
                     href={docsUrl}
                     aria-label="Open developer docs"
-                    className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
                   >
                     Developer docs
                     <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -491,7 +491,7 @@ const ScholarshipApiPage: React.FC = () => {
                   <Link
                     to="/developers"
                     aria-label="Open the developer dashboard"
-                    className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-[15px] font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
+                    className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-6 py-3.5 text-base font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
                   >
                     Get an API key
                   </Link>
@@ -507,7 +507,7 @@ const ScholarshipApiPage: React.FC = () => {
                 }
                 copyValue={`curl ${API_BASE}/opportunities \\\n  -H "Authorization: Bearer sk_live_edutu"`}
               >
-                <pre className="font-mono text-[12.5px] leading-[1.9] text-slate-200 sm:text-[13px]">
+                <pre className="font-mono text-xs leading-[1.9] text-slate-200 sm:text-sm">
                   <div>
                     <span className="text-slate-500">$</span> <span className="text-sky-300">curl</span>{' '}
                     {API_BASE}/opportunities <span className="text-slate-500">\</span>

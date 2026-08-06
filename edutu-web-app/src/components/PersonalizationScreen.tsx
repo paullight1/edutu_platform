@@ -338,10 +338,10 @@ export default function PersonalizationScreen() {
               className="h-8 w-8 rounded-lg"
             />
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-brand">
+              <p className="text-2xs font-medium uppercase tracking-[0.14em] text-brand">
                 Step {stepIndex + 1} of {STEPS.length}
               </p>
-              <p className="truncate text-sm font-display font-semibold tracking-tight">
+              <p className="truncate text-sm font-display font-semibold">
                 Personalize your feed
               </p>
             </div>
@@ -382,7 +382,7 @@ export default function PersonalizationScreen() {
                   }`}
                 />
                 <span
-                  className={`hidden text-[11px] font-medium sm:block ${
+                  className={`hidden text-2xs font-medium sm:block ${
                     current ? "text-brand" : "text-text-muted"
                   }`}
                 >

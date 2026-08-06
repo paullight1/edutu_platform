@@ -35,7 +35,11 @@ export function GoalCard({
     const daysUntil = (hasDeadline && getDaysUntil) ? getDaysUntil(goal.deadline) : null;
     const isOverdue = daysUntil !== null && daysUntil < 0 && goal.status === 'active';
     const isCompleted = goal.status === 'completed';
-    const priorityConfig = PRIORITY_CONFIG[goal.priority || 'medium'];
+    const priority = goal.priority || 'medium';
+    const priorityConfig = PRIORITY_CONFIG[priority];
+    // Medium is the default every goal is born with, so a "MEDIUM" pill on
+    // every card is pure noise. Only the priorities the user chose get ink.
+    const showPriority = priority !== 'medium';
 
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : '#ffffff';
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
@@ -61,6 +65,8 @@ export function GoalCard({
             <TouchableOpacity
                 onPress={() => router.push(`/goals/${goal.id}`)}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={goal.title}
                 style={[styles.compactCard, { backgroundColor: cardBg, borderColor }]}
             >
                 <View style={styles.compactHeader}>
@@ -92,6 +98,8 @@ export function GoalCard({
         <TouchableOpacity
             onPress={() => router.push(`/goals/${goal.id}`)}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={goal.title}
         >
             <View style={[styles.card, { backgroundColor: cardBg, borderColor: isOverdue ? 'rgba(239, 68, 68, 0.3)' : borderColor }]}>
                 <View style={styles.headerRow}>
@@ -114,11 +122,13 @@ export function GoalCard({
                         )}
                     </View>
 
-                    <View style={[styles.priorityBadge, { backgroundColor: priorityConfig.bg }]}>
-                        <Text style={[styles.priorityText, { color: priorityConfig.color }]}>
-                            {t(`priority.${goal.priority || 'medium'}`)}
-                        </Text>
-                    </View>
+                    {showPriority && (
+                        <View style={[styles.priorityBadge, { backgroundColor: priorityConfig.bg }]}>
+                            <Text style={[styles.priorityText, { color: priorityConfig.color }]}>
+                                {t(`priority.${priority}`)}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={styles.progressContainer}>
@@ -153,8 +163,11 @@ export function GoalCard({
                                     onToggleReminder(goal);
                                 }}
                                 style={[styles.reminderBtn, { backgroundColor: goal.reminder_enabled ? `${colors.accent}15` : 'transparent' }]}
+                                accessibilityRole="button"
+                                accessibilityState={{ checked: !!goal.reminder_enabled }}
+                                accessibilityLabel={t('a11y.toggleReminder', { title: goal.title })}
                             >
-                                <Zap size={14} color={goal.reminder_enabled ? colors.accent : textSecondary} />
+                                <Zap size={16} color={goal.reminder_enabled ? colors.accent : textSecondary} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -171,11 +184,13 @@ export function GoalCard({
                                     }
                                 }}
                                 style={[styles.actionBtn, { backgroundColor: isCompleted ? `${isDark ? '#334155' : '#e2e8f0'}` : colors.accent }]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t(isCompleted ? 'a11y.reopenGoal' : 'a11y.completeGoal', { title: goal.title })}
                             >
                                 {isCompleted ? (
-                                    <RefreshCcw size={16} color={isDark ? 'white' : '#475569'} />
+                                    <RefreshCcw size={18} color={isDark ? 'white' : '#475569'} />
                                 ) : (
-                                    <CheckCircle2 size={16} color="white" />
+                                    <CheckCircle2 size={18} color="white" />
                                 )}
                             </TouchableOpacity>
                         )}
@@ -186,8 +201,10 @@ export function GoalCard({
                                     handleDelete();
                                 }}
                                 style={[styles.actionBtn, { marginLeft: 8, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#fee2e2' }]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('a11y.deleteGoal', { title: goal.title })}
                             >
-                                <Trash2 size={16} color="#ef4444" />
+                                <Trash2 size={18} color="#ef4444" />
                             </TouchableOpacity>
                         )}
                         <View style={[styles.chevronBox, { backgroundColor: `${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }]}>
@@ -348,10 +365,13 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 8,
     },
+    // 40pt: the row-level controls were 34pt, under the touch minimum, and
+    // they sit next to a destructive one.
     actionBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        borderCurve: 'continuous',
         alignItems: 'center',
         justifyContent: 'center',
     },

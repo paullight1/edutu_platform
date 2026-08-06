@@ -37,6 +37,7 @@ import {
 import { Avatar } from '../../../components/ui/Avatar';
 import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
 import { useToast } from '../../../components/context/ToastContext';
+import { SuccessDialog } from '../../../components/ui/SuccessDialog';
 import { useTranslation } from 'react-i18next';
 
 interface ProfileData {
@@ -59,6 +60,7 @@ export default function EditProfileScreen() {
     const [profile, setProfile] = useState<ProfileData>({});
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+    const [savedOpen, setSavedOpen] = useState(false);
 
     const { show: showToast } = useToast();
     const { award } = useCreditRewards(supabase, user?.id || null, {
@@ -166,9 +168,9 @@ export default function EditProfileScreen() {
             }
 
             void award('PROFILE_COMPLETE');
-            Alert.alert(t('common:states.success'), t('edit.saveSuccess'), [
-                { text: t('common:actions.ok'), onPress: () => router.back() }
-            ]);
+            // Was Alert.alert — the OS dialog gave a profile save the same
+            // anonymous grey box as an error, with no mark and no branding.
+            setSavedOpen(true);
         } catch (error) {
             console.error('Error updating profile:', error);
             // Surface the real reason instead of a generic message — a failed
@@ -449,6 +451,18 @@ export default function EditProfileScreen() {
                 value={profile.country}
                 onSelect={(name) => updateField('country', name)}
                 onClose={() => setCountryPickerOpen(false)}
+            />
+
+            <SuccessDialog
+                visible={savedOpen}
+                kind="profile"
+                title={t('common:states.success')}
+                message={t('edit.saveSuccess')}
+                actionLabel={t('common:actions.ok')}
+                onAction={() => {
+                    setSavedOpen(false);
+                    router.back();
+                }}
             />
         </SafeAreaView>
     );

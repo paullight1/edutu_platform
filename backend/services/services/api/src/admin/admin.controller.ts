@@ -22,6 +22,7 @@ import {
   type AdminUsersResponse,
   type AdminAiUsageSummaryResponse,
   type AdminVoiceUsageResponse,
+  type AdminFunnelResponse,
 } from "./admin.dto";
 import { AdminService } from "./admin.service";
 
@@ -81,5 +82,10 @@ export class AdminController {
     @Query("days") days?: string,
   ): Promise<AdminVoiceUsageResponse> {
     return this.adminService.getVoiceUsage(days);
+  }
+
+  @Get("funnel")
+  async getFunnel(): Promise<AdminFunnelResponse> {
+    return this.adminService.getFunnel();
   }
 }

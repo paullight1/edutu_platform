@@ -25,6 +25,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
+import { getMentorDashboard } from '../services/mentor';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 
 interface MentorFormData {
@@ -108,7 +110,7 @@ const LANDING_OPTIONS = [
 
 const MentorPage: React.FC = () => {
     const reduceMotion = useReducedMotion();
-    const { userId, isSignedIn } = useAuth();
+    const { userId, isSignedIn, getToken } = useAuth();
     const { user } = useUser();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -131,6 +133,7 @@ const MentorPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [isApprovedMentor, setIsApprovedMentor] = useState(false);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
 
@@ -146,6 +149,25 @@ const MentorPage: React.FC = () => {
             setFormData(prev => ({ ...prev, email: primaryEmail }));
         }
     }, [formData.email, user]);
+
+    React.useEffect(() => {
+        let active = true;
+        (async () => {
+            if (!isSignedIn) {
+                if (active) setIsApprovedMentor(false);
+                return;
+            }
+            try {
+                const token = await getToken();
+                if (!token) return;
+                await getMentorDashboard(token);
+                if (active) setIsApprovedMentor(true);
+            } catch {
+                if (active) setIsApprovedMentor(false);
+            }
+        })();
+        return () => { active = false; };
+    }, [isSignedIn, getToken]);
 
     const startApplication = () => {
         if (!isSignedIn) {
@@ -370,19 +392,30 @@ const MentorPage: React.FC = () => {
                                 transition={{ delay: 0.15 }}
                                 className="flex flex-col sm:flex-row items-center justify-center gap-4"
                             >
-                                <button
-                                    type="button"
-                                    onClick={startApplication}
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
-                                >
-                                    Become a Mentor <ArrowRight size={16} />
-                                </button>
+                                {!isApprovedMentor && (
+                                    <button
+                                        type="button"
+                                        onClick={startApplication}
+                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                    >
+                                        Become a Mentor <ArrowRight size={16} />
+                                    </button>
+                                )}
                                 <a
                                     href="#options"
                                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold border border-strong bg-surface-layer text-text-primary transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/50"
                                 >
                                     Explore Options <PlayCircle size={16} />
                                 </a>
+                                {isApprovedMentor && (
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/mentor/dashboard')}
+                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                    >
+                                        Go to Mentor Studio <ArrowRight size={16} />
+                                    </button>
+                                )}
                             </motion.div>
                         </div>
                     </motion.section>
@@ -397,10 +430,10 @@ const MentorPage: React.FC = () => {
                     >
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-y border-subtle py-10">
                             {[
-                                { num: '$1,070,304', label: 'Funding opportunities', icon: DollarSign, accentClass: 'text-success' },
-                                { num: '20+', label: 'Verified mentors', icon: Users, accentClass: 'text-brand' },
-                                { num: '8,400+', label: 'Learner impacts', icon: Award, accentClass: 'text-warning' },
-                                { num: '31+', label: 'Countries reached', icon: Globe, accentClass: 'text-accent' },
+                                { num: '85%', label: 'Revenue share you keep', icon: DollarSign, accentClass: 'text-success' },
+                                { num: 'Free', label: 'No cost to apply', icon: Users, accentClass: 'text-brand' },
+                                { num: '2–3 days', label: 'Application review time', icon: Award, accentClass: 'text-warning' },
+                                { num: 'Worldwide', label: 'Open to mentors everywhere', icon: Globe, accentClass: 'text-accent' },
                             ].map((stat) => (
                                 <div
                                     key={stat.label}
@@ -408,7 +441,7 @@ const MentorPage: React.FC = () => {
                                 >
                                     <stat.icon size={22} className={`mx-auto ${stat.accentClass}`} />
                                     <div className={`mt-4 font-display text-2xl md:text-3xl font-semibold ${stat.accentClass}`}>{stat.num}</div>
-                                    <div className="mt-2 text-xs font-bold tracking-[0.16em] uppercase text-text-muted">{stat.label}</div>
+                                    <div className="mt-2 text-xs font-semibold tracking-[0.16em] uppercase text-text-muted">{stat.label}</div>
                                 </div>
                             ))}
                         </div>
@@ -462,7 +495,7 @@ const MentorPage: React.FC = () => {
                         <div className="rounded-3xl border border-subtle p-6 md:p-10 bg-surface-elevated">
                             <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-8 items-center">
                                 <div>
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5 bg-brand/10 text-brand">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5 bg-brand/10 text-brand">
                                         <ShieldCheck size={14} /> Verified mentor flow
                                     </div>
                                     <h2 className="font-display text-2xl font-semibold tracking-tight mb-4 text-text-primary">Apply once. Support learners at scale.</h2>
@@ -561,6 +594,7 @@ const MentorPage: React.FC = () => {
 
     return (
         <div className="min-h-[100dvh] bg-surface-body font-body text-text-primary">
+            <PageSeo path="/mentor" />
             <PublicHeader />
 
             <main className="max-w-[800px] mx-auto px-4 sm:px-6 py-12">
@@ -605,9 +639,9 @@ const MentorPage: React.FC = () => {
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                                 {[
-                                    { num: '10K+', label: 'Learners Helped', icon: Users, accentClass: 'text-brand' },
-                                    { num: '500+', label: 'Mentors Active', icon: Award, accentClass: 'text-violet-500' },
-                                    { num: '85%', label: 'Revenue Share', icon: Star, accentClass: 'text-success' },
+                                    { num: '85%', label: 'You keep 85%', icon: Star, accentClass: 'text-success' },
+                                    { num: 'Free', label: 'No cost to apply', icon: Users, accentClass: 'text-brand' },
+                                    { num: '2–3 days', label: 'Application review', icon: Award, accentClass: 'text-violet-500' },
                                 ].map((stat, i) => (
                                     <motion.div
                                         key={i}
@@ -631,7 +665,7 @@ const MentorPage: React.FC = () => {
                                     <div>
                                         <h3 className="font-display text-base font-semibold mb-1 text-text-primary">Global Impact</h3>
                                         <p className="text-sm leading-relaxed text-text-secondary">
-                                            Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.
+                                            Reach learners wherever they are. Your experience can change someone's life anywhere in the world.
                                         </p>
                                     </div>
                                 </div>
@@ -892,7 +926,7 @@ const MentorPage: React.FC = () => {
                                                 PDF or image showing your scholarship, fellowship, internship, grant, admission, or award confirmation.
                                             </p>
                                             {proofFile && (
-                                                <p className="mt-2 text-xs font-bold text-success">
+                                                <p className="mt-2 text-xs font-semibold text-success">
                                                     {proofFile.name}
                                                 </p>
                                             )}

@@ -180,3 +180,43 @@ export interface AdminAiUsageSummaryResponse {
   perRoute: AdminAiUsageRouteBreakdown[];
   error?: string;
 }
+
+export interface AdminFunnelStage {
+  key: "signup" | "onboarded" | "activated" | "retained" | "paying";
+  label: string;
+  /** Cumulative population currently at this stage. null if the query failed. */
+  total: number | null;
+  /** Users who entered this stage in the last 7 days. */
+  newThisWeek: number | null;
+  /** Users who entered this stage in the 7 days before that. */
+  newLastWeek: number | null;
+  /**
+   * total / previous stage total. Usually in [0,1], but CAN exceed 1.0 because
+   * stages are not strict subsets (e.g. a user can activate without completing
+   * onboarding) — a value >1 is real signal that a stage is reached out of order.
+   * null for signup or when the prior stage total is null/0.
+   */
+  convFromPrev: number | null;
+}
+
+export interface AdminFunnelCohort {
+  /** ISO week label, e.g. "2026-W28". */
+  cohortWeek: string;
+  size: number;
+  /** % of cohort active in relative week 1 / 2 / 4. null if window not yet elapsed. */
+  w1Pct: number | null;
+  w2Pct: number | null;
+  w4Pct: number | null;
+}
+
+export interface AdminFunnelResponse {
+  generatedAt: string;
+  /**
+   * NOTE: stage matching is by user_id string equality across tables that may
+   * use different id namespaces (Clerk vs profile). Cross-namespace users are
+   * undercounted at activated/retained. See plan Global Constraints.
+   */
+  stages: AdminFunnelStage[];
+  referral: { invitersTotal: number | null; invitersThisWeek: number | null };
+  cohorts: AdminFunnelCohort[];
+}

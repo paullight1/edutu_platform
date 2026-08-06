@@ -6,8 +6,60 @@ export interface CVTemplate {
   structure_json: CVStructure;
   is_premium: boolean;
   thumbnail_url?: string;
+  /**
+   * Stable key into the template design registry. DB rows own the copy
+   * (name/description/premium); the slug decides how the document is drawn.
+   */
+  slug?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+/** Where the name/contact block sits and how it is treated. */
+export type CVHeaderStyle = 'left' | 'centered' | 'band' | 'split';
+/** How a section heading is separated from the body. */
+export type CVSectionRule = 'underline' | 'tick' | 'boxed' | 'none';
+/** Vertical rhythm of the whole document. */
+export type CVDensity = 'compact' | 'regular' | 'roomy';
+/** How the skills list is laid out. */
+export type CVSkillStyle = 'chips' | 'inline' | 'bulleted';
+/** Print-safe font families. Anything else risks a substitution in the PDF. */
+export type CVFontFamily = 'sans' | 'serif';
+
+/**
+ * The single source of truth for how a template looks.
+ *
+ * Every renderer — the exported PDF (`buildCVHtml`), the in-app preview, and
+ * the gallery thumbnails — derives its styling from this one object, so a
+ * template can never look one way in the picker and another way on paper.
+ */
+export interface CVTemplateDesign {
+  slug: string;
+  accent: string;
+  /** Low-opacity accent for fills and tints. Must keep body text readable. */
+  accentSoft: string;
+  /**
+   * Two-stop gradient for the gallery card. Part of the spec so the card can
+   * never advertise a colour the document doesn't use.
+   */
+  gradient: [string, string];
+  ink: string;
+  muted: string;
+  bodyFont: CVFontFamily;
+  displayFont: CVFontFamily;
+  headerStyle: CVHeaderStyle;
+  sectionRule: CVSectionRule;
+  sectionCase: 'upper' | 'title';
+  density: CVDensity;
+  skillStyle: CVSkillStyle;
+  /**
+   * True for the most conservative templates: standard section names, no
+   * reversed-out text, no decorative bands. Every template is single-column
+   * and therefore parseable — this flags the extra-safe ones for the badge.
+   */
+  atsPlain: boolean;
+  /** Which sections this template renders, in order. Drives the PDF and the wizard. */
+  sections: CVSectionType[];
 }
 
 export interface CVStructure {

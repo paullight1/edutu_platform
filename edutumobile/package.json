@@ -17,7 +17,7 @@
     "deploy:webhook": "supabase functions deploy revenuecat-webhook"
   },
   "jest": {
-    "preset": "react-native",
+    "preset": "jest-expo",
     "roots": [
       "<rootDir>/app",
       "<rootDir>/components",
@@ -33,11 +33,16 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
     ],
+    "modulePaths": [
+      "<rootDir>/node_modules"
+    ],
     "moduleNameMapper": {
-      "^expo$": "<rootDir>/empty.js",
+      "^expo$": "<rootDir>/test-utils/expoStub.js",
       "^expo/src/winter/.*$": "<rootDir>/empty.js",
       "^@edutu/core/src/(.*)$": "<rootDir>/packages/core/src/$1",
       "^@edutu/core$": "<rootDir>/packages/core/src/index.ts",
+      "^@edutu/ux-state/state$": "<rootDir>/../packages/ux-state/src/state/index.ts",
+      "^@edutu/ux-state/scenes$": "<rootDir>/../packages/ux-state/src/scenes/index.ts",
       "\\.(wav|mp3|m4a|aac)$": "<rootDir>/empty.js"
     },
     "modulePathIgnorePatterns": [
@@ -58,7 +63,7 @@
       "/docs/"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|standard-navigation|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
     ],
     "setupFiles": [
       "./node_modules/react-native-gesture-handler/jestSetup.js"
@@ -67,10 +72,14 @@
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.11",
     "@edutu/core": "file:./packages/core",
+    "@edutu/ux-state": "file:../packages/ux-state",
     "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
+    "@hugeicons/core-free-icons": "^4.2.3",
+    "@hugeicons/react-native": "^1.0.15",
     "@radix-ui/react-slot": "^1.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.45.1",
     "@types/color": "^4.2.0",
     "@types/react": "^19.2.17",
@@ -130,6 +139,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@react-native/jest-preset": "^0.85.3",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/react": "^19.2.0",

@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "要在截止前提醒你吗？",
+      "message": "我们可以在截止日期前几天提醒你，别让这个机会溜走。",
+      "confirm": "提醒我",
+      "dismiss": "不用了"
+    },
     "headerTitle": "机会详情",
     "loading": "正在加载机会…",
     "notFound": "未找到该机会",
@@ -128,6 +134,24 @@
     "addToGoals": "加入我的目标",
     "applyNow": "立即申请",
     "savedLabel": "已收藏",
+    "saveAction": "保存",
+    "fit": {
+      "title": "匹配度",
+      "eyebrow": "Edutu 的判断",
+      "unknown": "尚未评估",
+      "unknownBlurb": "完善你的资料，Edutu 就能为你评估这个机会。",
+      "evidenceHeadline": "Edutu 为何这样判断",
+      "tiers": {
+        "strong": "高度匹配",
+        "strongBlurb": "这与你的资料高度契合——值得认真投入。",
+        "solid": "较好匹配",
+        "solidBlurb": "在大部分关键点上都匹配。请查看下方的差距。",
+        "possible": "可能匹配",
+        "possibleBlurb": "你的部分资料与之契合。在投入前请先阅读申请要求。",
+        "stretch": "有挑战",
+        "stretchBlurb": "比大多数机会更偏离你的资料——如果你真的心动就去申请。"
+      }
+    },
     "alerts": {
       "removedTitle": "已移除",
       "removedMsg": "已从收藏列表移除该机会",
@@ -308,5 +332,63 @@
     "today": "今天",
     "tomorrow": "明天",
     "daysShortLeft": "剩 {{count}} 天"
+  },
+  "alerts": {
+    "title": "提醒",
+    "subtitle": "我们替你盯着机会库",
+    "loading": "正在加载你的提醒…",
+    "settingsA11y": "通知设置",
+    "summary": "正在关注 {{n}} 条",
+    "summaryPaused": "{{n}} 条已暂停",
+    "newAlert": "新建提醒",
+    "delete": "删除",
+    "deleteTitle": "删除这条提醒？",
+    "deleteBody": "你将不再收到与“{{name}}”匹配的新机会通知。",
+    "deleteFailed": "无法删除该提醒，请稍后再试。",
+    "toggleFailed": "无法保存该更改，请稍后再试。",
+    "pushOff": "推送通知已关闭，这些提醒无法送达。点按即可开启。",
+    "empty": {
+      "title": "创建你的第一条提醒",
+      "body": "告诉我们你在找什么。每有新机会上线我们都会检查，匹配时立刻通知你。",
+      "browse": "或者去“发现”看看"
+    },
+    "composer": {
+      "createTitle": "新建提醒",
+      "editTitle": "编辑提醒",
+      "keywordLabel": "关键词",
+      "keywordPlaceholder": "例如：全额资助硕士",
+      "categoryLabel": "类别",
+      "remoteLabel": "仅远程",
+      "nameLabel": "提醒名称",
+      "namePlaceholder": "给这条提醒起个名字",
+      "untitled": "我的提醒",
+      "needCriterion": "请添加关键词、选择类别，或开启“仅远程”。",
+      "cancel": "取消",
+      "save": "保存提醒",
+      "update": "保存更改",
+      "failedTitle": "保存失败",
+      "failedBody": "请检查网络连接后重试。",
+      "limitReached": "最多可保存 {{max}} 条提醒。请先删除一条。"
+    },
+    "card": {
+      "watching": "关注中",
+      "paused": "已暂停",
+      "lastMatch": "上次匹配 {{when}}",
+      "remoteChip": "仅远程",
+      "matchesTotal": "累计匹配：{{n}}",
+      "noMatchesYet": "暂无匹配",
+      "muteA11y": "暂停这条提醒",
+      "unmuteA11y": "恢复这条提醒",
+      "editA11y": "编辑这条提醒",
+      "deleteA11y": "删除这条提醒",
+      "liveCount": "当前匹配：{{n}}",
+      "liveEmpty": "目前还没有匹配的机会——一旦有了我们会通知你。",
+      "liveError": "无法加载匹配结果，请下拉刷新。"
+    },
+    "time": {
+      "justNow": "刚刚",
+      "hours": "{{n}} 小时前",
+      "days": "{{n}} 天前"
+    }
   }
 }

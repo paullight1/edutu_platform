@@ -1,70 +1,73 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Sparkles, Zap } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Loader2, Sparkles, Zap } from 'lucide-react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
 import { createCheckout } from '../../services/billing';
-import { type RemotePricing } from '../../services/mobileControl';
-import { effectivePrice, formatMoney, loadRemotePricing } from '../../lib/proPricing';
+import {
+  FALLBACK_CREDIT_PACKS,
+  PRO_PLANS,
+  effectivePrice,
+  formatMoney,
+  useProPricing,
+} from '../../lib/proPricing';
 
-// Modal-specific display labels; amounts/currency come from admin config (see
-// ../../lib/proPricing). These strings only show while that config loads.
-const FALLBACK_PLANS: Array<{ plan: 'weekly' | 'monthly' | 'yearly'; label: string; price: string; note?: string }> = [
-  { plan: 'weekly', label: 'Pro Weekly', price: '₦2,000' },
-  { plan: 'monthly', label: 'Pro Monthly', price: '₦6,500', note: 'Most popular' },
-  { plan: 'yearly', label: 'Pro Yearly', price: '₦60,000', note: 'Best value' },
-];
-
-const FALLBACK_PACKS: Array<{ credits: number; price: string }> = [
-  { credits: 100, price: '₦1,500' },
-  { credits: 250, price: '₦3,000' },
-  { credits: 700, price: '₦7,000' },
-];
+// This modal is the COMPACT form of the /upgrade page: same plan catalogue,
+// same price source, same badge/highlight language (see ../../lib/proPricing).
+// It intentionally holds NO prices of its own — a hardcoded amount here could
+// disagree with what pay.edutu.org actually charges, so while the shared
+// pricing loads we render a skeleton instead of a number.
 
 export interface UpgradeModalProps {
   open: boolean;
   onClose: () => void;
   /** Optional context line, e.g. the message from a 402/429 response. */
   reason?: string | null;
-  /** Path to return to after Paystack checkout completes. */
+  /** Path to return to after checkout completes. */
   returnTo?: string;
 }
+
+const PriceSkeleton: React.FC = () => (
+  <span
+    aria-label="Loading price"
+    className="mt-0.5 block h-5 w-16 animate-pulse rounded bg-surface-elevated"
+  />
+);
 
 const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, returnTo }) => {
   const { getToken } = useAuth();
   const { user } = useUser();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pricing, setPricing] = useState<RemotePricing | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void loadRemotePricing().then((remote) => {
-      if (!cancelled && remote) setPricing(remote);
-    });
-    return () => { cancelled = true; };
-  }, [open]);
+  // Only fetch while the dialog is actually open; the shared session cache means
+  // reopening it (or visiting /upgrade) never refetches.
+  const { pricing, loading, displayPricing } = useProPricing(open);
+  const showPrices = !loading;
 
-  const proPlans = useMemo(() => {
-    if (!pricing) return FALLBACK_PLANS;
-    return FALLBACK_PLANS.map(({ plan, label, note }) => ({
-      plan,
-      label,
-      note: pricing.promo?.active && pricing.promo.label ? pricing.promo.label : note,
-      price: formatMoney(effectivePrice(pricing, plan), pricing.currency),
-    }));
-  }, [pricing]);
+  const proPlans = useMemo(
+    () =>
+      PRO_PLANS.map((meta) => ({
+        ...meta,
+        badge:
+          displayPricing.promo?.active && displayPricing.promo.label
+            ? displayPricing.promo.label
+            : meta.defaultBadge,
+        price: formatMoney(effectivePrice(displayPricing, meta.plan), displayPricing.currency),
+      })),
+    [displayPricing],
+  );
 
   const creditPacks = useMemo(() => {
     const packs = pricing?.creditPacks?.filter(
       (pack) => typeof pack.credits === 'number' && typeof pack.price === 'number',
     );
-    if (!packs?.length || !pricing) return FALLBACK_PACKS;
-    return packs.slice(0, 3).map((pack) => ({
+    const resolved = packs?.length ? packs.slice(0, 3) : FALLBACK_CREDIT_PACKS;
+    return resolved.map((pack) => ({
       credits: pack.credits,
-      price: formatMoney(pack.price, pricing.currency),
+      price: formatMoney(pack.price, displayPricing.currency),
     }));
-  }, [pricing]);
+  }, [pricing, displayPricing]);
 
   // One-off Season Pass — admin-configured and only offered when signed in (an
   // empty uid must never reach the hosted checkout). Unlike the recurring plans
@@ -94,6 +97,11 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
       const checkout = await createCheckout(token, {
         ...input,
         returnTo: returnTo ?? window.location.pathname,
+        // Plan checkouts go to pay.edutu.org, which identifies the buyer from
+        // these; credit top-ups ignore them and use the bearer token.
+        uid: user?.id,
+        email: user?.primaryEmailAddress?.emailAddress,
+        pricing,
       });
       if (checkout.configured === false || !checkout.authorizationUrl) {
         setError(checkout.message || 'Payments are not configured yet. Please try again later or contact support.');
@@ -124,19 +132,28 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Edutu Pro</h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {proPlans.map(({ plan, label, price, note }) => (
+              {proPlans.map(({ plan, label, cadence, price, badge, highlighted }) => (
                 <button
                   key={plan}
                   type="button"
                   disabled={pendingKey !== null}
                   onClick={() => void startCheckout(`plan-${plan}`, { plan })}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-subtle bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    highlighted
+                      ? 'border-brand bg-surface-layer ring-1 ring-brand/40'
+                      : 'border-subtle bg-surface-layer hover:border-brand hover:bg-surface-elevated'
+                  }`}
                 >
                   <span className="text-sm font-medium text-text-primary">{label}</span>
-                  <span className="text-base font-semibold text-brand">
-                    {pendingKey === `plan-${plan}` ? <Loader2 className="h-4 w-4 animate-spin" aria-label="Starting checkout" /> : price}
-                  </span>
-                  {note ? <span className="text-xs text-text-secondary">{note}</span> : null}
+                  {pendingKey === `plan-${plan}` ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-brand" aria-label="Starting checkout" />
+                  ) : showPrices ? (
+                    <span className="text-base font-semibold text-brand">{price}</span>
+                  ) : (
+                    <PriceSkeleton />
+                  )}
+                  <span className="text-2xs text-text-muted">{cadence}</span>
+                  {badge ? <span className="text-xs text-text-secondary">{badge}</span> : null}
                 </button>
               ))}
             </div>
@@ -178,9 +195,13 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
                   className="flex flex-col items-start gap-1 rounded-xl border border-subtle bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="text-sm font-medium text-text-primary">{credits} credits</span>
-                  <span className="text-base font-semibold text-brand">
-                    {pendingKey === `credits-${credits}` ? <Loader2 className="h-4 w-4 animate-spin" aria-label="Starting checkout" /> : price}
-                  </span>
+                  {pendingKey === `credits-${credits}` ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-brand" aria-label="Starting checkout" />
+                  ) : showPrices ? (
+                    <span className="text-base font-semibold text-brand">{price}</span>
+                  ) : (
+                    <PriceSkeleton />
+                  )}
                 </button>
               ))}
             </div>
@@ -192,9 +213,19 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
             </p>
           ) : null}
 
-          <p className="text-xs text-text-secondary">
-            Payments are processed securely by Paystack. You will be redirected to complete your purchase.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-text-secondary">
+              Payments are processed securely by Paystack. You will be redirected to complete your purchase.
+            </p>
+            <Link
+              to="/upgrade"
+              onClick={onClose}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand no-underline hover:underline"
+            >
+              Compare plans
+              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

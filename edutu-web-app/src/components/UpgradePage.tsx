@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   ArrowRight,
   Check,
@@ -14,14 +14,17 @@ import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
 import { createCheckout, type BillingInterval } from '../services/billing';
-import { type RemotePricing } from '../services/mobileControl';
 import { usePaywall } from '../hooks/usePaywall';
 import {
-  FALLBACK_PRICING,
+  PRO_PLANS,
   effectivePrice,
   formatMoney,
-  loadRemotePricing,
+  useProPricing,
 } from '../lib/proPricing';
+
+// The full-page form of the upgrade surface. It shares its plan catalogue,
+// price source and badge language with the compact UpgradeModal — both read
+// ../lib/proPricing, so a price can never differ between the two.
 
 interface PlanCard {
   plan: BillingInterval;
@@ -70,25 +73,18 @@ const FAQ: Array<{ q: string; a: string }> = [
 
 const UpgradePage: React.FC = () => {
   const { getToken, isSignedIn } = useAuth();
+  const { user } = useUser();
   const { isPro } = usePaywall();
 
-  const [pricing, setPricing] = useState<RemotePricing>(FALLBACK_PRICING);
+  // Shared admin pricing (session-cached, same hook the modal uses). Billing
+  // status is owned by useBillingStatus under PaywallProvider, which already
+  // refetches on mount and on tab focus — so returning from checkout re-checks
+  // Pro without a duplicate request here.
+  const { pricing: remotePricing, loading: pricingLoading, displayPricing: pricing } = useProPricing();
+  const showPrices = !pricingLoading;
+
   const [pendingPlan, setPendingPlan] = useState<BillingInterval | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Pull the latest admin pricing (shared session cache). Billing status is
-  // owned by useBillingStatus under PaywallProvider, which already refetches on
-  // mount and on tab focus — so returning from Paystack re-checks Pro without a
-  // duplicate request here.
-  useEffect(() => {
-    let cancelled = false;
-    void loadRemotePricing().then((remote) => {
-      if (!cancelled && remote) setPricing(remote);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Yearly vs. paying monthly for a year — leaned into as the headline saving.
   const yearlySavingPct = useMemo(() => {
@@ -100,39 +96,27 @@ const UpgradePage: React.FC = () => {
 
   const plans = useMemo<PlanCard[]>(() => {
     const promoLabel = pricing.promo?.active && pricing.promo.label ? pricing.promo.label : undefined;
-    return [
-      {
-        plan: 'weekly',
-        label: 'Weekly',
-        cadence: 'per week',
-        price: formatMoney(effectivePrice(pricing, 'weekly'), pricing.currency),
-        badge: promoLabel,
-        hint: 'Try Pro for a big week — perfect around a deadline.',
-        highlighted: false,
-      },
-      {
-        plan: 'monthly',
-        label: 'Monthly',
-        cadence: 'per month',
-        price: formatMoney(effectivePrice(pricing, 'monthly'), pricing.currency),
-        badge: promoLabel ?? 'Most popular',
-        hint: 'Full access, month to month. Cancel anytime.',
-        highlighted: false,
-      },
-      {
-        plan: 'yearly',
-        label: 'Yearly',
-        cadence: 'per year',
-        price: formatMoney(effectivePrice(pricing, 'yearly'), pricing.currency),
-        badge: promoLabel ?? (yearlySavingPct > 0 ? `Best value · save ${yearlySavingPct}%` : 'Best value'),
+    return PRO_PLANS.map((meta) => {
+      // The "save N%" claim is derived from prices, so it waits for the real
+      // ones too — a fallback-derived percentage would be a guess.
+      const savingBadge =
+        showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
+          ? `Best value · save ${yearlySavingPct}%`
+          : meta.defaultBadge;
+      return {
+        plan: meta.plan,
+        label: meta.longLabel,
+        cadence: meta.cadence,
+        price: formatMoney(effectivePrice(pricing, meta.plan), pricing.currency),
+        badge: promoLabel ?? savingBadge,
         hint:
-          yearlySavingPct > 0
+          showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
             ? `A full year of Pro for roughly ${yearlySavingPct}% less than paying monthly.`
-            : 'A full year of Pro at our best price.',
-        highlighted: true,
-      },
-    ];
-  }, [pricing, yearlySavingPct]);
+            : meta.hint,
+        highlighted: meta.highlighted,
+      };
+    });
+  }, [pricing, yearlySavingPct, showPrices]);
 
   const startCheckout = async (plan: BillingInterval) => {
     if (pendingPlan) return;
@@ -144,7 +128,15 @@ const UpgradePage: React.FC = () => {
         setError('Please sign in to continue to checkout.');
         return;
       }
-      const checkout = await createCheckout(token, { plan, returnTo: '/upgrade' });
+      // Pro plans originate at pay.edutu.org (see services/billing.ts) — it
+      // identifies the buyer from uid/email and re-resolves the amount itself.
+      const checkout = await createCheckout(token, {
+        plan,
+        returnTo: '/upgrade',
+        uid: user?.id,
+        email: user?.primaryEmailAddress?.emailAddress,
+        pricing: remotePricing,
+      });
       if (checkout.configured === false || !checkout.authorizationUrl) {
         setError(
           checkout.message ||
@@ -183,7 +175,7 @@ const UpgradePage: React.FC = () => {
           <div className="relative mx-auto flex w-full max-w-[860px] flex-col items-center text-center">
             <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
               <Sparkles size={14} className="text-brand" aria-hidden="true" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">
                 Edutu Pro
               </span>
             </span>
@@ -191,7 +183,7 @@ const UpgradePage: React.FC = () => {
               Stop scrolling.{' '}
               <span className="text-brand">Start winning.</span>
             </h1>
-            <p className="mt-6 max-w-[620px] text-[17px] leading-relaxed text-text-secondary sm:text-[19px]">
+            <p className="mt-6 max-w-[620px] text-base leading-relaxed text-text-secondary sm:text-lg">
               Edutu Pro unlocks unlimited AI coaching and CV tools in the mobile app, plus access to
               closed and expired opportunities and calendar export here on the web. One scholarship
               or job is worth far more than a whole year of Pro.
@@ -206,17 +198,17 @@ const UpgradePage: React.FC = () => {
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10">
                 <Trophy size={30} className="text-brand" aria-hidden="true" />
               </div>
-              <h2 className="font-display text-[28px] font-semibold tracking-tight text-text-primary sm:text-[34px]">
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
                 You&rsquo;re on Edutu Pro 🎉
               </h2>
-              <p className="mx-auto mt-4 max-w-[440px] text-[16px] leading-relaxed text-text-secondary">
+              <p className="mx-auto mt-4 max-w-[440px] text-base leading-relaxed text-text-secondary">
                 Everything is unlocked — unlimited AI coaching and CV tools on mobile, plus
                 closed-opportunity filters and calendar exports here on the web. Go make the most
                 of it.
               </p>
               <Link
                 to="/dashboard"
-                className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-4 text-[16px] font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-4 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
               >
                 Go to your dashboard
                 <ArrowRight
@@ -245,7 +237,7 @@ const UpgradePage: React.FC = () => {
                     >
                       {card.badge ? (
                         <span
-                          className={`mb-4 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+                          className={`mb-4 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-2xs font-bold uppercase tracking-[0.12em] ${
                             card.highlighted
                               ? 'bg-brand text-white'
                               : 'bg-brand/10 text-brand'
@@ -254,18 +246,25 @@ const UpgradePage: React.FC = () => {
                           {card.badge}
                         </span>
                       ) : null}
-                      <h3 className="font-display text-[20px] font-semibold text-text-primary">
+                      <h3 className="font-display text-xl font-semibold text-text-primary">
                         {card.label}
                       </h3>
                       <div className="mt-3 flex items-baseline gap-1.5">
-                        <span className="font-display text-[34px] font-semibold leading-none text-text-primary">
-                          {card.price}
-                        </span>
-                        <span className="text-[14px] font-medium text-text-muted">
+                        {showPrices ? (
+                          <span className="font-display text-4xl font-semibold leading-none text-text-primary">
+                            {card.price}
+                          </span>
+                        ) : (
+                          <span
+                            aria-label="Loading price"
+                            className="block h-9 w-32 animate-pulse rounded-lg bg-surface-elevated"
+                          />
+                        )}
+                        <span className="text-sm font-medium text-text-muted">
                           {card.cadence}
                         </span>
                       </div>
-                      <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">
+                      <p className="mt-3 text-sm leading-relaxed text-text-secondary">
                         {card.hint}
                       </p>
 
@@ -274,7 +273,7 @@ const UpgradePage: React.FC = () => {
                           type="button"
                           disabled={pendingPlan !== null}
                           onClick={() => void startCheckout(card.plan)}
-                          className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-[15px] font-semibold no-underline transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold no-underline transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
                             card.highlighted
                               ? 'bg-brand text-white shadow-elevated hover:-translate-y-0.5 hover:bg-brand-700'
                               : 'border border-subtle bg-surface-body text-text-primary hover:border-brand/50 hover:text-brand'
@@ -299,7 +298,7 @@ const UpgradePage: React.FC = () => {
                       ) : (
                         <Link
                           to={`/auth?mode=sign-up&redirect=${encodeURIComponent('/upgrade')}`}
-                          className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-[15px] font-semibold no-underline transition-all duration-200 ${
+                          className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold no-underline transition-all duration-200 ${
                             card.highlighted
                               ? 'bg-brand text-white shadow-elevated hover:-translate-y-0.5 hover:bg-brand-700'
                               : 'border border-subtle bg-surface-body text-text-primary hover:border-brand/50 hover:text-brand'
@@ -321,13 +320,13 @@ const UpgradePage: React.FC = () => {
               {error ? (
                 <p
                   role="alert"
-                  className="mx-auto mt-6 max-w-[1080px] rounded-xl border border-subtle bg-surface-elevated px-4 py-3 text-center text-[14px] text-text-secondary"
+                  className="mx-auto mt-6 max-w-[1080px] rounded-xl border border-subtle bg-surface-elevated px-4 py-3 text-center text-sm text-text-secondary"
                 >
                   {error}
                 </p>
               ) : null}
 
-              <p className="mx-auto mt-6 flex max-w-[1080px] items-center justify-center gap-2 text-center text-[13px] text-text-muted">
+              <p className="mx-auto mt-6 flex max-w-[1080px] items-center justify-center gap-2 text-center text-sm text-text-muted">
                 <ShieldCheck size={15} className="text-brand" aria-hidden="true" />
                 Pay by card, mobile money, or bank transfer — processed securely by Paystack.
               </p>
@@ -344,7 +343,7 @@ const UpgradePage: React.FC = () => {
                     Built to help you actually{' '}
                     <span className="text-brand">win the opportunity.</span>
                   </h2>
-                  <p className="mt-4 text-[16.5px] leading-relaxed text-text-secondary">
+                  <p className="mt-4 text-base leading-relaxed text-text-secondary">
                     A single scholarship, grant or job offer is worth far more than a whole year of
                     Pro. Everything here is designed to get you across the finish line.
                   </p>
@@ -359,7 +358,7 @@ const UpgradePage: React.FC = () => {
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10">
                         <Check size={14} className="text-brand" aria-hidden="true" />
                       </span>
-                      <span className="text-[15.5px] leading-snug text-text-primary">
+                      <span className="text-base leading-snug text-text-primary">
                         {benefit}
                       </span>
                     </div>
@@ -384,10 +383,10 @@ const UpgradePage: React.FC = () => {
                       key={item.q}
                       className="rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft"
                     >
-                      <dt className="font-display text-[17px] font-semibold text-text-primary">
+                      <dt className="font-display text-lg font-semibold text-text-primary">
                         {item.q}
                       </dt>
-                      <dd className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                      <dd className="mt-2 text-base leading-relaxed text-text-secondary">
                         {item.a}
                       </dd>
                     </div>
@@ -402,10 +401,10 @@ const UpgradePage: React.FC = () => {
                 <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
                   <CreditCard size={26} className="text-white" aria-hidden="true" />
                 </div>
-                <h2 className="mx-auto max-w-[620px] font-display text-[28px] font-semibold leading-[1.1] tracking-tight text-white sm:text-[40px]">
+                <h2 className="mx-auto max-w-[620px] font-display text-3xl font-semibold text-white sm:text-4xl">
                   Your next opportunity is worth it.
                 </h2>
-                <p className="mx-auto mt-4 max-w-[480px] text-[16px] leading-relaxed text-white/85 sm:text-[18px]">
+                <p className="mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-white/85 sm:text-lg">
                   Go Pro today and give every application your best shot. Card, mobile money or bank
                   transfer — secure checkout via Paystack.
                 </p>
@@ -414,7 +413,7 @@ const UpgradePage: React.FC = () => {
                     type="button"
                     disabled={pendingPlan !== null}
                     onClick={() => void startCheckout('yearly')}
-                    className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-[16px] font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated disabled:cursor-not-allowed disabled:opacity-60"
+                    className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pendingPlan === 'yearly' ? (
                       <>
@@ -435,7 +434,7 @@ const UpgradePage: React.FC = () => {
                 ) : (
                   <Link
                     to={`/auth?mode=sign-up&redirect=${encodeURIComponent('/upgrade')}`}
-                    className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-[16px] font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
+                    className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
                   >
                     Sign in to go Pro
                     <ArrowRight

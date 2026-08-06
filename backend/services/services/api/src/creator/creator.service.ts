@@ -12,10 +12,14 @@ import {
   marketplaceListings,
   marketplaceEnrollments,
   transactions,
+  roadmaps,
 } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { CreatorApplicationDto } from "./dto/creator.dto";
+import { toDatabaseUserId } from "../common/user-id";
+import { isApprovedMentor, deriveMentorStatus } from "../common/mentor-access";
+import { computeMentorStats } from "./mentor-stats";
 
 const PLATFORM_FEE_PERCENT = 15; // Platform takes 15%, creator keeps 85%
 
@@ -293,13 +297,13 @@ export class CreatorService {
   // ─── Creator Dashboard ────────────────────────────────────────────────────
 
   async getCreatorDashboard(userId: string) {
-    // Guard: only approved creators
+    // Guard: approved creators OR approved mentors
     const [profile] = await db
       .select()
       .from(profiles)
       .where(eq(profiles.userId, userId))
       .execute();
-    if (!profile || profile.creatorStatus !== "approved") {
+    if (!isApprovedMentor(profile)) {
       throw new ForbiddenException("Creator access not granted.");
     }
 
@@ -315,9 +319,26 @@ export class CreatorService {
       (sum, l) => sum + (l.enrollmentCount || 0),
       0,
     );
+    const activeListings = myListings.filter(
+      (l) => l.status === "active",
+    ).length;
 
-    // Fetch their earnings from transactions
-    const earningsTx = await db
+    // True lifetime earnings (the old code summed only the last 20 rows).
+    const [earningsTotalRow] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.type, "creator_earning"),
+        ),
+      )
+      .execute();
+    const totalEarnings = Number(earningsTotalRow?.total ?? 0);
+
+    const recentEarnings = await db
       .select()
       .from(transactions)
       .where(
@@ -330,16 +351,57 @@ export class CreatorService {
       .limit(20)
       .execute();
 
-    const totalEarnings = earningsTx.reduce((sum, tx) => sum + tx.amount, 0);
+    // Roadmap aggregates — roadmaps are keyed by the derived uuid.
+    const dbUserId = toDatabaseUserId(userId);
+    const myRoadmaps = await db
+      .select()
+      .from(roadmaps)
+      .where(eq(roadmaps.createdBy, dbUserId))
+      .execute();
+
+    // Only "published" roadmaps count toward the mentor's reach: a "draft"/
+    // "personal"/"archived" roadmap isn't public content, so its enrollment
+    // and rating figures (which should always be 0 in practice, since only
+    // published roadmaps are enrollable/rateable) don't belong in the impact
+    // stats — mirrors the publishedRoadmaps filter below.
+    const publishedRoadmapRows = myRoadmaps.filter(
+      (r) => r.status === "published",
+    );
+    const publishedRoadmaps = publishedRoadmapRows.length;
+    const roadmapEnrollments = publishedRoadmapRows.reduce(
+      (s, r) => s + (r.enrollmentCount ?? 0),
+      0,
+    );
+    const ratingCount = publishedRoadmapRows.reduce(
+      (s, r) => s + (r.ratingCount ?? 0),
+      0,
+    );
+    const ratingSum = publishedRoadmapRows.reduce(
+      (s, r) => s + Number(r.ratingAvg ?? 0) * (r.ratingCount ?? 0),
+      0,
+    );
+
+    const stats = computeMentorStats({
+      publishedRoadmaps,
+      activeListings,
+      roadmapEnrollments,
+      listingEnrollments: totalEnrollments,
+      totalCreditsEarned: totalEarnings,
+      walletBalance: profile?.creditsBalance ?? 0,
+      ratingSum,
+      ratingCount,
+      mentorStatus: deriveMentorStatus(profile),
+    });
 
     return {
       listings: myListings,
       totalListings: myListings.length,
       totalEnrollments,
       totalEarnings,
-      recentEarnings: earningsTx,
+      recentEarnings,
       platformFeePercent: PLATFORM_FEE_PERCENT,
       creatorCutPercent: 100 - PLATFORM_FEE_PERCENT,
+      stats,
     };
   }
 
@@ -351,7 +413,7 @@ export class CreatorService {
       .from(profiles)
       .where(eq(profiles.userId, userId))
       .execute();
-    if (!profile || profile.creatorStatus !== "approved") {
+    if (!profile || !isApprovedMentor(profile)) {
       throw new ForbiddenException("Only approved creators can list items.");
     }
 

@@ -3,7 +3,6 @@ import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
-  Briefcase,
   Calendar,
   CheckCircle2,
   ChevronLeft,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
 import { usePersonalization } from '../hooks/usePersonalization';
+import { InlineError, StateView, showsContent, useScreenState } from './state';
 import PullToRefresh from './ui/PullToRefresh';
 import CelebrationBurst from './ui/CelebrationBurst';
 import { useToast } from './ui/ToastProvider';
@@ -37,6 +37,7 @@ import {
   type ApplicationRecord,
   type ApplicationStatus,
 } from '../services/applications';
+import WebPushPrompt from './WebPushPrompt';
 
 type ApplicationFilter = 'all' | ApplicationStatus;
 
@@ -200,6 +201,9 @@ export default function ApplicationsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // The raw LOAD failure only. Update and delete failures stay message-only:
+  // they are operation failures, not screen states, and become InlineError.
+  const [loadError, setLoadError] = useState<unknown>(null);
   const toast = useToast();
   const { explainOpportunity } = usePersonalization();
 
@@ -267,11 +271,13 @@ export default function ApplicationsPage() {
     if (!user?.id) return;
     setLoading(true);
     setError(null);
+    setLoadError(null);
     try {
       const token = await resolveToken();
       setApplications(await getApplications(user.id, token));
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load applications.');
+    } catch (caught) {
+      setLoadError(caught);
+      setError(caught instanceof Error ? caught.message : 'Unable to load applications.');
     } finally {
       setLoading(false);
     }
@@ -308,6 +314,14 @@ export default function ApplicationsPage() {
       ].some((value) => value.toLowerCase().includes(normalizedQuery));
     });
   }, [applications, filter, query]);
+
+  const filtersActive = Boolean(query.trim()) || filter !== 'all';
+  const screenState = useScreenState({
+    data: visibleApplications,
+    loading,
+    error: loadError,
+    filtersActive,
+  });
 
   const stageCounts = useMemo(() => {
     const counts = new Map<ApplicationStatus, number>();
@@ -401,10 +415,10 @@ export default function ApplicationsPage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {error ? (
-          <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm font-semibold text-danger">
-            {error}
-          </div>
+        {error && showsContent(screenState) ? (
+          // A status update or delete that failed while the list is on screen:
+          // recover in place rather than replacing what the user was reading.
+          <InlineError message={error} onRetry={() => void loadApplications()} />
         ) : null}
 
         {!loading && applications.length > 0 ? (
@@ -445,6 +459,18 @@ export default function ApplicationsPage() {
               })}
             </div>
           </section>
+        ) : null}
+
+        {/* Contextual opt-in: only asked once there is a live pipeline worth
+            being nudged about. Renders nothing when push is unavailable,
+            blocked, already on, or previously dismissed. */}
+        {!loading && applications.length > 0 ? (
+          <WebPushPrompt
+            promptId="applications"
+            title="Get told when it's time to follow up"
+            body="Turn on browser reminders for status nudges and closing dates on the roles you're tracking."
+            className="mb-5"
+          />
         ) : null}
 
         <section className={error && (loading || applications.length === 0) ? 'mt-5' : ''}>
@@ -503,22 +529,14 @@ export default function ApplicationsPage() {
                 <div key={index} className="h-28 animate-pulse rounded-[20px] border border-subtle bg-surface-layer" />
               ))}
             </div>
-          ) : visibleApplications.length === 0 ? (
-            <div className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-10 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-elevated text-text-muted">
-                <Briefcase size={22} />
-              </div>
-              <h2 className="mt-4 text-base font-semibold text-text-primary">No tracked applications</h2>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
-                Open an opportunity and use the application action to add it to this tracker.
-              </p>
-              <button
-                type="button"
-                onClick={() => navigate('/opportunities')}
-                className="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
-              >
-                Browse opportunities
-              </button>
+          ) : !showsContent(screenState) ? (
+            <div className="mt-5 rounded-[20px] border border-subtle bg-surface-layer">
+              <StateView
+                state={screenState}
+                flow="applied"
+                onRetry={() => void loadApplications()}
+                onAction={() => navigate('/opportunities')}
+              />
             </div>
           ) : (
             <div className="mt-5 space-y-3">

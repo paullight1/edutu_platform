@@ -22,6 +22,7 @@ config.resolver.extraNodeModules = {
 // Watch the packages directory for changes
 config.watchFolders = [
     path.resolve(__dirname, "packages/core"),
+    path.resolve(__dirname, "../packages/ux-state"),
 ];
 
 module.exports = config;

@@ -56,7 +56,9 @@
     },
     "sections": {
         "roadmaps": "路线图",
-        "personalGoals": "个人目标"
+        "personalGoals": "个人目标",
+        "roadmapsHint": "你已开始的路线图里的里程碑，都带日期。",
+        "personalGoalsHint": "你自己决定要完成的事，按你自己的期限。"
     },
     "filter": {
         "byStatus": "按状态筛选",
@@ -75,7 +77,13 @@
         },
         "noPersonalGoals": {
             "title": "暂无个人目标",
-            "description": "点击加号图标，添加你的第一个目标。"
+            "description": "点击加号图标，添加你的第一个目标。",
+            "action": "设定第一个目标"
+        },
+        "noMatch": {
+            "title": "没有匹配的内容",
+            "description": "没有目标符合你的搜索或筛选。清除后即可重新看到全部。",
+            "action": "清除搜索"
         }
     },
     "dashboard": {
@@ -93,7 +101,8 @@
             "title": "有机会想分享？",
             "subtitle": "如果你手上有想分享给社区的奖学金、工作或项目，欢迎联系我们",
             "action": "联系我们"
-        }
+        },
+        "subtitleEmpty": "还没有在跟踪任何目标"
     },
     "detail": {
         "title": "目标详情",
@@ -160,14 +169,15 @@
         }
     },
     "allRoadmaps": {
-        "title": "路线图目标",
+        "title": "我的计划",
         "goalCount_one": "{{count}} 个目标",
         "goalCount_other": "{{count}} 个目标",
         "otherGroup": "其他",
         "empty": {
-            "title": "暂无路线图目标",
-            "searchHint": "试着调整搜索条件",
-            "description": "从路线图导入目标，就会显示在这里"
+            "title": "还没有计划",
+            "searchHint": "换个搜索词试试",
+            "description": "开始一条路线，其里程碑会带日期显示在这里。",
+            "action": "浏览路线"
         }
     },
     "myList": {
@@ -318,7 +328,26 @@
             "placeholder": "你喜欢哪些地方？哪些还可以更好？",
             "submit": "提交反馈",
             "thanksTitle": "谢谢你！",
-            "thanksMessage": "你的反馈会让路线图对每个人都更好。"
+            "thanksMessage": "你的反馈会让路线图对每个人都更好。",
+            "failedTitle": "无法保存你的评分"
+        },
+        "started": "已开始",
+        "notRatedYet": "暂无评分",
+        "emptyTitle": "这里还没有内容",
+        "clearFilters": "清除筛选",
+        "continueButton": "继续该路线",
+        "startHint_one": "将 {{count}} 个里程碑加入你的目标并安排提醒。",
+        "startHint_other": "将 {{count}} 个里程碑加入你的目标并安排提醒。",
+        "progressLabel": "已完成 {{total}} 个步骤中的 {{completed}} 个",
+        "adopted": {
+            "progress": "已在你的计划中 — 已完成 {{total}} 个步骤中的 {{completed}} 个。",
+            "inPlan": "该路线已在你的计划中。"
+        },
+        "a11y": {
+            "card": "{{title}}，{{difficulty}} 级路线",
+            "cardStarted": "{{title}}，已开始，已完成 {{total}} 个步骤中的 {{completed}} 个",
+            "cardHint": "打开路线详情",
+            "close": "关闭"
         }
     },
     "templates": {
@@ -356,7 +385,23 @@
         "stepPlan": "{{count}} 步计划",
         "allLevels": "全部水平",
         "defaultCadence": "里程碑提醒将从你的开始日期起安排。",
-        "resourceFallback": "资源"
+        "resourceFallback": "资源",
+        "previewNotice": "当前显示示例路径——无法连接 Edutu。下拉以加载真实内容库。",
+        "previewOnlyTitle": "示例路径",
+        "previewOnlyMessage": "这是离线预览，暂时无法开始。要浏览真实路线吗？",
+        "browseRoadmaps": "浏览路线",
+        "searchPlaceholder": "搜索路径、作者…",
+        "clearSearch": "清除搜索",
+        "emptyTitle": "没有匹配的路径",
+        "emptyMessage": "换个搜索词或分类试试。",
+        "clearFilters": "清除筛选",
+        "remindersOn": "提醒已开启",
+        "remindersOnA11y": "提醒已开启，已安排 {{count}} 条。点按可关闭。",
+        "remindersOnTitle": "提醒已开启",
+        "remindersOnMessage": "该路径已安排 {{count}} 条步骤提醒。",
+        "turnOffReminders": "关闭",
+        "remindersCancelledTitle": "提醒已关闭",
+        "remindersCancelledMessage": "我们不会再就该路径提醒你。"
     },
     "calendar": {
         "title": "我的日历",
@@ -415,5 +460,17 @@
         "today": "今天",
         "milestoneDone": "{{title}}，已完成",
         "removeMilestone": "移除 {{title}}"
+    },
+    "a11y": {
+        "addGoal": "添加目标",
+        "clearSearch": "清除搜索",
+        "openFilters": "筛选目标",
+        "completeGoal": "将“{{title}}”标记为完成",
+        "reopenGoal": "重新打开“{{title}}”",
+        "deleteGoal": "删除“{{title}}”",
+        "toggleReminder": "开启或关闭“{{title}}”的提醒",
+        "statusTab_one": "{{label}}，{{count}} 个目标",
+        "statusTab_other": "{{label}}，{{count}} 个目标",
+        "openSort": "更改排序方式"
     }
 }

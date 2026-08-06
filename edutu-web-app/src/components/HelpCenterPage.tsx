@@ -12,8 +12,10 @@ import {
     Sparkles,
     type LucideIcon,
 } from 'lucide-react';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
+import ContactSupportForm from './ContactSupportForm';
 
 interface HelpCategory {
     icon: LucideIcon;
@@ -70,6 +72,7 @@ const HelpCenterPage: React.FC = () => {
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
+            <PageSeo path="/help" />
             <PublicHeader />
 
             <main className="relative z-10">
@@ -78,12 +81,12 @@ const HelpCenterPage: React.FC = () => {
                     <div className="mx-auto max-w-[820px] text-center">
                         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
                             <LifeBuoy size={14} className="text-brand" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">Help Center</span>
+                            <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">Help Center</span>
                         </div>
                         <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-text-primary sm:text-5xl md:text-6xl">
                             How can we <span className="text-brand">help?</span>
                         </h1>
-                        <p className="mx-auto mt-6 max-w-[560px] text-lg leading-relaxed text-text-secondary">
+                        <p className="mx-auto mt-6 max-w-[560px] text-base leading-relaxed text-text-secondary sm:text-lg">
                             Answers to common questions and quick links to get the most out of Edutu.
                         </p>
                     </div>
@@ -153,7 +156,7 @@ const HelpCenterPage: React.FC = () => {
                         <div className="mb-10 text-center">
                             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
                                 <Sparkles size={14} className="text-brand" />
-                                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">Still stuck?</span>
+                                <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">Still stuck?</span>
                             </div>
                             <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
                                 Get in touch
@@ -162,7 +165,7 @@ const HelpCenterPage: React.FC = () => {
 
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                             <a
-                                href="mailto:support@edutu.org"
+                                href="mailto:my.edutu@gmail.com"
                                 className="flex items-start gap-4 rounded-3xl border border-subtle bg-surface-layer p-8 no-underline shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
                             >
                                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10">
@@ -173,7 +176,7 @@ const HelpCenterPage: React.FC = () => {
                                         Email support
                                     </h3>
                                     <p className="text-sm leading-relaxed text-text-secondary">
-                                        support@edutu.org — we usually reply within a day.
+                                        my.edutu@gmail.com — we usually reply within a day.
                                     </p>
                                 </div>
                             </a>
@@ -193,6 +196,21 @@ const HelpCenterPage: React.FC = () => {
                                     </p>
                                 </div>
                             </Link>
+                        </div>
+
+                        {/* Contact / bug-report form — emails the support inbox */}
+                        <div className="mt-10">
+                            <div className="mb-6 text-center">
+                                <h3 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
+                                    Send us a message
+                                </h3>
+                                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                                    Ask a question or report a bug and we&apos;ll reply by email.
+                                </p>
+                            </div>
+                            <div className="mx-auto max-w-[640px]">
+                                <ContactSupportForm />
+                            </div>
                         </div>
                     </div>
                 </section>

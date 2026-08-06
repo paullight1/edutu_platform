@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
+import { InlineError, StateView, showsContent, useScreenState } from './state';
 import PullToRefresh from "./ui/PullToRefresh";
 import {
   getBookmarks,
@@ -26,6 +27,7 @@ import {
   type Deadline,
   type DeadlinesResponse,
 } from "../services/deadlines";
+import WebPushPrompt from "./WebPushPrompt";
 
 type WorkItemKind = Deadline["type"] | "saved";
 
@@ -179,6 +181,9 @@ export default function DeadlinesPage() {
   const [showMonthGrid, setShowMonthGrid] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The raw failure, so classifyError() can tell an expired session from a
+  // server fault instead of collapsing both into one message.
+  const [loadError, setLoadError] = useState<unknown>(null);
   const weekStripRef = useRef<HTMLDivElement | null>(null);
   const todayChipRef = useRef<HTMLButtonElement | null>(null);
 
@@ -186,10 +191,15 @@ export default function DeadlinesPage() {
     if (!user?.id) return;
     setLoading(true);
     setError(null);
+    setLoadError(null);
     try {
       const token = await getToken().catch(() => null);
       if (!token) {
-        throw new Error("Sign in again to load deadlines.");
+        // Tagged so classifyError() reports `auth`; a bare Error would read as
+        // a server fault and offer a Retry that cannot fix an expired session.
+        throw Object.assign(new Error("Sign in again to load deadlines."), {
+          status: 401,
+        });
       }
 
       const [deadlinesData, bookmarksData] = await Promise.all([
@@ -198,11 +208,10 @@ export default function DeadlinesPage() {
       ]);
       setData(deadlinesData);
       setBookmarks(bookmarksData);
-    } catch (loadError) {
+    } catch (caught) {
+      setLoadError(caught);
       setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load deadlines.",
+        caught instanceof Error ? caught.message : "Unable to load deadlines.",
       );
     } finally {
       setLoading(false);
@@ -238,6 +247,12 @@ export default function DeadlinesPage() {
         return firstDate - secondDate;
       });
   }, [allDeadlines, bookmarks]);
+
+  const screenState = useScreenState({
+    data: datedWorkItems,
+    loading,
+    error: loadError,
+  });
 
   const undatedSavedItems = useMemo(
     () =>
@@ -394,7 +409,7 @@ export default function DeadlinesPage() {
       <div id={groupId} className="scroll-mt-3 lg:scroll-mt-20">
         <div className="sticky top-0 z-10 -mx-4 bg-surface-body/95 px-4 py-2 backdrop-blur lg:top-16">
           <p
-            className={`text-[11px] font-bold uppercase tracking-[0.16em] ${labelClass}`}
+            className={`text-2xs font-semibold uppercase tracking-[0.16em] ${labelClass}`}
           >
             {label}
             <span className="ml-1.5 font-semibold text-text-muted">
@@ -424,7 +439,7 @@ export default function DeadlinesPage() {
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <span
-                  className={`whitespace-nowrap text-xs font-bold ${urgencyTextClass(item.daysUntil)}`}
+                  className={`whitespace-nowrap text-xs font-semibold ${urgencyTextClass(item.daysUntil)}`}
                 >
                   {formatRelativeDeadline(item.daysUntil)}
                 </span>
@@ -458,10 +473,26 @@ export default function DeadlinesPage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
         <main className="mx-auto max-w-3xl px-4 py-5 sm:px-6 lg:py-8">
-          {error ? (
-            <div className="mb-5 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-sm font-semibold text-danger">
-              {error}
-            </div>
+          {error && showsContent(screenState) ? (
+            // Content is already on screen, so recover in place rather than
+            // replacing what the user was reading.
+            <InlineError
+              message={error}
+              onRetry={() => void loadDeadlines()}
+              className="mb-5"
+            />
+          ) : null}
+
+          {/* Contextual opt-in: the single most reminder-worthy screen in the
+              app. Renders nothing when push is unavailable, blocked, already
+              on, or previously dismissed. */}
+          {!loading && datedWorkItems.length > 0 ? (
+            <WebPushPrompt
+              promptId="deadlines"
+              title="Get a nudge before each deadline"
+              body="We'll send a browser reminder 7, 3 and 1 days before your tracked deadlines close."
+              className="mb-5"
+            />
           ) : null}
 
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
@@ -534,7 +565,7 @@ export default function DeadlinesPage() {
                     }`}
                     aria-label={`${formatDate(date.toISOString())}${dayItems.length ? `, ${dayItems.length} deadline${dayItems.length === 1 ? "" : "s"}` : ""}`}
                   >
-                    <span className="text-[10px] font-bold uppercase tracking-wide">
+                    <span className="text-2xs font-semibold uppercase tracking-wide">
                       {date.toLocaleDateString(undefined, { weekday: "short" })}
                     </span>
                     <span className="text-sm font-semibold">{date.getDate()}</span>
@@ -634,7 +665,7 @@ export default function DeadlinesPage() {
                       </button>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+                    <div className="mt-4 grid grid-cols-7 gap-1 text-center text-2xs font-semibold uppercase tracking-[0.12em] text-text-muted">
                       {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
                         <div key={`${day}-${index}`}>{day}</div>
                       ))}
@@ -699,25 +730,14 @@ export default function DeadlinesPage() {
                   />
                 ))}
               </div>
-            ) : datedWorkItems.length === 0 ? (
-              <div className={`mt-4 rounded-[20px] border p-6 text-center ${surfaceClass}`}>
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                  <Clock size={22} />
-                </div>
-                <h3 className="mt-4 text-base font-semibold">
-                  No dated deadlines yet
-                </h3>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
-                  Save or apply to opportunities and their deadlines will show
-                  up here automatically.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/opportunities")}
-                  className="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
-                >
-                  Browse opportunities
-                </button>
+            ) : !showsContent(screenState) ? (
+              <div className={`mt-4 rounded-[20px] border ${surfaceClass}`}>
+                <StateView
+                  state={screenState}
+                  flow="applied"
+                  onRetry={() => void loadDeadlines()}
+                  onAction={() => navigate("/opportunities")}
+                />
               </div>
             ) : (
               <div className="mt-2 space-y-5">

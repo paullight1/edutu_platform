@@ -5,6 +5,56 @@ This guide walks you through setting up RevenueCat for in-app purchases and subs
 
 ---
 
+## ⚠️ CURRENT STATE (verified 2026-08-03) — IAP IS NOT LIVE
+
+Checked against the RevenueCat account and the EAS `production` environment:
+
+- The `edutu` project has **exactly one app: "Test Store"** (`appe18594bb71`). There is **no App Store app and no Play Store app**.
+- Its 4 products (`monthly`, `yearly`, `weekly`, `lifetime`) are **Test Store SKUs**, not real store products.
+- EAS `production` ships `EXPO_PUBLIC_REVENUECAT_API_KEY_IOS/ANDROID = test_…`.
+- `packages/core/src/services/payments.ts` **deliberately blanks any `test_` key when `!__DEV__`**, so a release build behaves as "RevenueCat not configured".
+
+**Consequence:** a production build renders the paywall with a permanently disabled CTA and the line
+*"Subscriptions are temporarily unavailable."* — no crash, but nothing is purchasable. That is an
+App Store Guideline 2.1 rejection risk and zero revenue on either platform.
+
+### The exact sequence to make it real
+
+Steps 1–5 need your Apple Developer and Google Play accounts; nothing in the repo can do them.
+
+1. **App Store Connect** — create the app under bundle id `com.tegm.edutuios`. Note the numeric
+   Apple ID it issues; it is also the value for `EXPO_PUBLIC_IOS_APP_STORE_ID` (used by "Rate Edutu").
+2. **Play Console** — create the app under package `com.edutu.com`.
+3. **Create the subscription products in BOTH consoles.** The paywall offers **three** plans —
+   weekly, monthly, yearly — so create all three, not just the two in the Phase 2 tables below.
+4. **RevenueCat → Project Settings → Apps** — add an **App Store** app (bundle id above, upload the
+   App Store Connect API key / shared secret) and a **Play Store** app (package above, upload the
+   Play service-account JSON). This is what actually creates the `appl_` and `goog_` API keys.
+5. **RevenueCat → Products** — register the real store product ids for each app, attach them to the
+   `pro` entitlement, and add them to the `default` offering as packages.
+
+   **Package identifiers matter more than product ids here.** `app/(app)/paywall.tsx` picks a
+   package by substring: `week` → Weekly card, `month` → Monthly, `year` **or** `annual` → Yearly.
+   RevenueCat's standard `$rc_weekly` / `$rc_monthly` / `$rc_annual` all satisfy this. A custom
+   identifier that contains none of those substrings leaves that card unbuyable.
+
+6. **Move the keys into EAS** (not just `.env` — the build reads EAS):
+   ```bash
+   npx eas env:delete --variable-name EXPO_PUBLIC_REVENUECAT_API_KEY_IOS --environment production
+   npx eas env:delete --variable-name EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID --environment production
+   npx eas env:create --environment production --name EXPO_PUBLIC_REVENUECAT_API_KEY_IOS --value appl_… --visibility sensitive
+   npx eas env:create --environment production --name EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID --value goog_… --visibility sensitive
+   npx eas env:create --environment production --name EXPO_PUBLIC_IOS_APP_STORE_ID --value 1234567890
+   ```
+7. **Verify before submitting.** Build the `production-apk` profile, install it on a real device
+   with a Play licence-tester account, and confirm the paywall shows real prices and the CTA reads
+   *"Start Monthly — …"* rather than the unavailable line. A `test_` key still in place shows up
+   exactly as that unavailable line.
+
+Keep the Test Store app: it is what makes local development work without store setup.
+
+---
+
 ## Prerequisites
 
 1. **RevenueCat Account** — Free at https://app.revenuecat.com

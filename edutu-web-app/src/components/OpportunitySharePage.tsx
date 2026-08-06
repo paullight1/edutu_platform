@@ -90,7 +90,7 @@ export default function OpportunitySharePage() {
               </p>
             ) : null}
 
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+          <p className="text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
             {preview.status}
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">

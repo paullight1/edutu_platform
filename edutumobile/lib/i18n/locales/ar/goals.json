@@ -76,7 +76,9 @@
   },
   "sections": {
     "roadmaps": "خرائط الطريق",
-    "personalGoals": "الأهداف الشخصية"
+    "personalGoals": "الأهداف الشخصية",
+    "roadmapsHint": "محطات من خرائط الطريق التي بدأتها، بمواعيد محددة.",
+    "personalGoalsHint": "أشياء اخترت إنجازها، بمواعيدك أنت."
   },
   "filter": {
     "byStatus": "التصفية حسب الحالة",
@@ -95,7 +97,13 @@
     },
     "noPersonalGoals": {
       "title": "لا توجد أهداف شخصية",
-      "description": "اضغط على أيقونة الإضافة لإضافة هدفك الأول."
+      "description": "اضغط على أيقونة الإضافة لإضافة هدفك الأول.",
+      "action": "حدّد هدفك الأول"
+    },
+    "noMatch": {
+      "title": "لا شيء مطابق",
+      "description": "لا يوجد هدف يطابق بحثك أو التصفية. امسحهما لعرض كل شيء من جديد.",
+      "action": "مسح البحث"
     }
   },
   "dashboard": {
@@ -117,7 +125,8 @@
       "title": "هل لديك فرص للمشاركة؟",
       "subtitle": "تواصل معنا إذا كانت لديك منح دراسية أو وظائف أو برامج ترغب في مشاركتها مع مجتمعنا",
       "action": "تواصل معنا"
-    }
+    },
+    "subtitleEmpty": "لا شيء قيد المتابعة بعد"
   },
   "detail": {
     "title": "تفاصيل الهدف",
@@ -184,7 +193,7 @@
     }
   },
   "allRoadmaps": {
-    "title": "أهداف خرائط الطريق",
+    "title": "خططي",
     "goalCount_zero": "لا أهداف",
     "goalCount_one": "هدف واحد",
     "goalCount_two": "هدفان",
@@ -193,9 +202,10 @@
     "goalCount_other": "{{count}} هدف",
     "otherGroup": "أخرى",
     "empty": {
-      "title": "لا توجد أهداف خرائط طريق",
-      "searchHint": "جرّب تعديل بحثك",
-      "description": "استورد أهدافًا من خارطة طريق لتراها هنا"
+      "title": "لا توجد خطط بعد",
+      "searchHint": "جرّب بحثًا آخر",
+      "description": "ابدأ خطة وستظهر مراحلها هنا كخطوات مؤرّخة.",
+      "action": "تصفح الخطط"
     }
   },
   "myList": {
@@ -378,7 +388,26 @@
       "placeholder": "ما الذي أعجبك أو ما الذي يمكن تحسينه؟",
       "submit": "إرسال الملاحظات",
       "thanksTitle": "شكرًا لك!",
-      "thanksMessage": "ملاحظاتك تساعدنا على تحسين خرائط الطريق للجميع."
+      "thanksMessage": "ملاحظاتك تساعدنا على تحسين خرائط الطريق للجميع.",
+      "failedTitle": "تعذّر حفظ تقييمك"
+    },
+    "started": "تم البدء",
+    "notRatedYet": "لا توجد تقييمات بعد",
+    "emptyTitle": "لا يوجد شيء هنا بعد",
+    "clearFilters": "مسح عوامل التصفية",
+    "continueButton": "متابعة هذه الخطة",
+    "startHint_one": "يضيف {{count}} مرحلة إلى أهدافك ويجدول التذكيرات.",
+    "startHint_other": "يضيف {{count}} مراحل إلى أهدافك ويجدول التذكيرات.",
+    "progressLabel": "اكتملت {{completed}} من {{total}} خطوة",
+    "adopted": {
+      "progress": "ضمن خطتك — اكتملت {{completed}} من {{total}} خطوة.",
+      "inPlan": "هذه الخطة موجودة بالفعل ضمن خطتك."
+    },
+    "a11y": {
+      "card": "{{title}}، خطة بمستوى {{difficulty}}",
+      "cardStarted": "{{title}}، تم البدء، اكتملت {{completed}} من {{total}} خطوة",
+      "cardHint": "يفتح تفاصيل الخطة",
+      "close": "إغلاق"
     }
   },
   "templates": {
@@ -424,7 +453,23 @@
     "stepPlan": "خطة من {{count}} خطوة",
     "allLevels": "جميع المستويات",
     "defaultCadence": "تُجدوَل تذكيرات محطات الإنجاز اعتبارًا من تاريخ بدئك.",
-    "resourceFallback": "مورد"
+    "resourceFallback": "مورد",
+    "previewNotice": "نعرض مسارات نموذجية — تعذّر الوصول إلى Edutu. اسحب للأسفل لتحميل المكتبة الفعلية.",
+    "previewOnlyTitle": "مسار نموذجي",
+    "previewOnlyMessage": "هذه معاينة دون اتصال، لذا لا يوجد ما يمكن بدؤه بعد. هل تريد تصفح الخطط الفعلية؟",
+    "browseRoadmaps": "تصفح الخطط",
+    "searchPlaceholder": "ابحث عن مسارات أو مؤلفين…",
+    "clearSearch": "مسح البحث",
+    "emptyTitle": "لا توجد مسارات مطابقة",
+    "emptyMessage": "جرّب بحثًا أو فئة أخرى.",
+    "clearFilters": "مسح عوامل التصفية",
+    "remindersOn": "التذكيرات مفعّلة",
+    "remindersOnA11y": "التذكيرات مفعّلة، {{count}} مجدولة. اضغط لإيقافها.",
+    "remindersOnTitle": "التذكيرات مفعّلة",
+    "remindersOnMessage": "تمت جدولة {{count}} تذكيرًا لخطوات هذا المسار.",
+    "turnOffReminders": "إيقاف",
+    "remindersCancelledTitle": "تم إيقاف التذكيرات",
+    "remindersCancelledMessage": "لن نذكّرك بهذا المسار بعد الآن."
   },
   "calendar": {
     "title": "تقويمي",
@@ -483,5 +528,21 @@
     "today": "اليوم",
     "milestoneDone": "{{title}}، منجزة",
     "removeMilestone": "إزالة {{title}}"
+  },
+  "a11y": {
+    "addGoal": "إضافة هدف",
+    "clearSearch": "مسح البحث",
+    "openFilters": "تصفية الأهداف",
+    "completeGoal": "وضع علامة مُنجز على \"{{title}}\"",
+    "reopenGoal": "إعادة فتح \"{{title}}\"",
+    "deleteGoal": "حذف \"{{title}}\"",
+    "toggleReminder": "تبديل التذكير لـ \"{{title}}\"",
+    "statusTab_zero": "{{label}}، لا أهداف",
+    "statusTab_one": "{{label}}، هدف واحد",
+    "statusTab_two": "{{label}}، هدفان",
+    "statusTab_few": "{{label}}، {{count}} أهداف",
+    "statusTab_many": "{{label}}، {{count}} هدفًا",
+    "statusTab_other": "{{label}}، {{count}} هدف",
+    "openSort": "تغيير ترتيب العرض"
   }
 }

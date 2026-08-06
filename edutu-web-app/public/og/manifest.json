@@ -1,0 +1,110 @@
+{
+  "generatedFrom": "http://localhost:4173",
+  "width": 1200,
+  "height": 630,
+  "deviceScaleFactor": 2,
+  "format": "jpeg",
+  "quality": 90,
+  "images": [
+    {
+      "path": "/",
+      "slug": "home",
+      "file": "/og/home.jpg"
+    },
+    {
+      "path": "/opportunities",
+      "slug": "opportunities",
+      "file": "/og/opportunities.jpg"
+    },
+    {
+      "path": "/blog",
+      "slug": "blog",
+      "file": "/og/blog.jpg"
+    },
+    {
+      "path": "/community",
+      "slug": "community",
+      "file": "/og/community.jpg"
+    },
+    {
+      "path": "/about",
+      "slug": "about",
+      "file": "/og/about.jpg"
+    },
+    {
+      "path": "/impact",
+      "slug": "impact",
+      "file": "/og/impact.jpg"
+    },
+    {
+      "path": "/edutuforyou",
+      "slug": "edutu-for-you",
+      "file": "/og/edutu-for-you.jpg"
+    },
+    {
+      "path": "/events",
+      "slug": "events",
+      "file": "/og/events.jpg"
+    },
+    {
+      "path": "/download",
+      "slug": "download",
+      "file": "/og/download.jpg"
+    },
+    {
+      "path": "/what-we-believe",
+      "slug": "what-we-believe",
+      "file": "/og/what-we-believe.jpg"
+    },
+    {
+      "path": "/upgrade",
+      "slug": "upgrade",
+      "file": "/og/upgrade.jpg"
+    },
+    {
+      "path": "/mentor",
+      "slug": "mentor",
+      "file": "/og/mentor.jpg"
+    },
+    {
+      "path": "/scholarship-engine",
+      "slug": "scholarship-engine",
+      "file": "/og/scholarship-engine.jpg"
+    },
+    {
+      "path": "/scholarship-api",
+      "slug": "scholarship-api",
+      "file": "/og/scholarship-api.jpg"
+    },
+    {
+      "path": "/developers",
+      "slug": "developers",
+      "file": "/og/developers.jpg"
+    },
+    {
+      "path": "/developers/docs",
+      "slug": "developers-docs",
+      "file": "/og/developers-docs.jpg"
+    },
+    {
+      "path": "/help",
+      "slug": "help",
+      "file": "/og/help.jpg"
+    },
+    {
+      "path": "/careers",
+      "slug": "careers",
+      "file": "/og/careers.jpg"
+    },
+    {
+      "path": "/privacy",
+      "slug": "privacy",
+      "file": "/og/privacy.jpg"
+    },
+    {
+      "path": "/terms",
+      "slug": "terms",
+      "file": "/og/terms.jpg"
+    }
+  ]
+}

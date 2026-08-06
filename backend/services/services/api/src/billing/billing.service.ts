@@ -72,6 +72,12 @@ const normalisedRevenueCte = (rate: number) => sql`
 // Static per-plan metadata only. AMOUNTS come from admin_settings.pricing
 // (single source of truth, editable in the admin monetization screen) so
 // what the paywall shows is exactly what Paystack charges.
+//
+// periodDays MUST stay in lockstep with pay-edutu-org/src/lib/money.ts
+// planDurationDays() — that service is the canonical entitlement writer, and a
+// user can be granted Pro by either path. The grants are deliberately generous
+// (31 / 366, not 30 / 365) so a renewal that lands a few hours late never
+// leaves a paying user briefly locked out.
 const PLAN_META: Record<
   BillingInterval,
   { label: string; envPlanCode: string; periodDays: number }
@@ -84,12 +90,12 @@ const PLAN_META: Record<
   monthly: {
     label: "Edutu Pro Monthly",
     envPlanCode: "PAYSTACK_PLAN_MONTHLY",
-    periodDays: 30,
+    periodDays: 31,
   },
   yearly: {
     label: "Edutu Pro Yearly",
     envPlanCode: "PAYSTACK_PLAN_YEARLY",
-    periodDays: 365,
+    periodDays: 366,
   },
 };
 
@@ -265,6 +271,18 @@ export class BillingService {
     };
   }
 
+  /**
+   * @deprecated SUPERSEDED BY pay.edutu.org.
+   *
+   * pay.edutu.org (the `pay-edutu-org` app) is now the canonical web checkout
+   * and the reference implementation for every Paystack + entitlement write.
+   * New paywall surfaces MUST link there — do not add callers to this method.
+   *
+   * It is kept alive (not deleted, route unchanged) only because live Paystack
+   * transactions initialized through this endpoint may still be in flight, and
+   * their `charge.success` webhooks land on handlePaystackWebhook below. Once
+   * no legacy references remain outstanding this can be retired.
+   */
   async createCheckout(
     userId: string,
     email: string | undefined,
@@ -386,6 +404,19 @@ export class BillingService {
     };
   }
 
+  /**
+   * @deprecated SUPERSEDED BY pay.edutu.org.
+   *
+   * The canonical Paystack webhook handler now lives in `pay-edutu-org`
+   * (src/lib/entitlements.ts grantPro/recordPayment). This duplicate is kept —
+   * endpoint and route intentionally unchanged — because a live Paystack
+   * webhook may still be pointed at POST /billing/webhooks/paystack, and any
+   * charge initialized by the deprecated createCheckout above will report here.
+   * It therefore has to stay correct, not just present.
+   *
+   * Any change to entitlement maths here must be mirrored from grantPro() in
+   * pay-edutu-org — that file is the source of truth, this is the follower.
+   */
   async handlePaystackWebhook(
     rawBody: Buffer,
     payload: any,
@@ -437,13 +468,20 @@ export class BillingService {
       return { received: true };
     }
 
-    const periodEnd = new Date();
-    periodEnd.setDate(periodEnd.getDate() + PLAN_META[plan].periodDays);
-
     const supabase = this.getSupabase();
     if (!supabase) {
       throw new InternalServerErrorException("Supabase is not configured");
     }
+
+    // MONEY-CRITICAL: extend from whatever paid time is still left, never from
+    // "now". This used to be `new Date()` + periodDays, which silently BURNED
+    // paid time — a user with 300 days remaining who renewed (or re-bought)
+    // was reset to 31. Mirrors grantPro() in pay-edutu-org/src/lib/entitlements.
+    const periodStart = new Date();
+    const periodEnd = this.addDays(
+      await this.currentEntitlementFloor(supabase, userId, periodStart),
+      PLAN_META[plan].periodDays,
+    );
 
     await supabase.from("billing_transactions").upsert(
       {
@@ -468,7 +506,11 @@ export class BillingService {
           data.subscription?.subscription_code ?? reference,
         plan,
         status: "active",
-        current_period_start: new Date().toISOString(),
+        current_period_start: periodStart.toISOString(),
+        // Same extended expiry as the entitlement below — all three writes
+        // (subscription, entitlement, profile mirror) must agree or the status
+        // endpoint's `pro_expires_at ?? current_period_end` fallback disagrees
+        // with the row the mobile app actually reads.
         current_period_end: periodEnd.toISOString(),
         metadata: data,
       },
@@ -490,7 +532,7 @@ export class BillingService {
       .from("profiles")
       .update({
         is_pro: true,
-        pro_since: new Date().toISOString(),
+        pro_since: periodStart.toISOString(),
         pro_expires_at: periodEnd.toISOString(),
       })
       .eq("user_id", userId);
@@ -585,6 +627,58 @@ export class BillingService {
       limit ${capped} offset ${skip}
     `);
     return { transactions: (result as { rows?: any[] }).rows ?? [] };
+  }
+
+  // UTC-safe day arithmetic. setUTCDate (not setDate) so a renewal processed
+  // either side of a DST boundary still grants exactly N days — matches
+  // addDays() in pay-edutu-org/src/lib/money.ts.
+  private addDays(from: Date, days: number): Date {
+    const next = new Date(from);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+  }
+
+  /**
+   * The date a new billing period should be measured FROM: the user's existing
+   * unexpired Pro expiry when they still have paid time left, otherwise `now`.
+   *
+   * Only an `active` entitlement whose expires_at is in the future counts —
+   * a revoked/expired row must not resurrect dead time. A failed read falls
+   * back to `now`: granting from today is the safe direction (worst case the
+   * user is short-changed and support can top up) versus inventing time.
+   */
+  private async currentEntitlementFloor(
+    supabase: SupabaseClient,
+    userId: string,
+    now: Date,
+  ): Promise<Date> {
+    try {
+      const { data, error } = await supabase
+        .from("billing_entitlements")
+        .select("status, expires_at")
+        .eq("user_id", userId)
+        .eq("feature_key", "pro")
+        .maybeSingle();
+
+      if (error) {
+        this.logger.warn(
+          `Unable to read existing entitlement for ${userId}; extending from now: ${error.message}`,
+        );
+        return now;
+      }
+
+      if (data?.status !== "active" || !data?.expires_at) return now;
+      const currentExpiry = new Date(data.expires_at);
+      if (Number.isNaN(currentExpiry.getTime())) return now;
+      return currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
+    } catch (err) {
+      this.logger.warn(
+        `Entitlement lookup failed for ${userId}; extending from now: ${
+          err instanceof Error ? err.message : "unknown error"
+        }`,
+      );
+      return now;
+    }
   }
 
   private getSupabase(): SupabaseClient | null {

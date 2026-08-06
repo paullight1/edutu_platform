@@ -18,6 +18,7 @@ import {
     Minus,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
+import { SceneRenderer, StateView, useStateTokens } from '../../components/state';
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
     FadeIn,
@@ -39,6 +40,7 @@ import { Opportunity, type MatchReasonKind } from "@edutu/core/src/types/opportu
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
+import { fetchFeaturedOpportunities, getCachedFeaturedOpportunities } from "@edutu/core/src/services/opportunities";
 import { shareOpportunity } from "../../lib/shareOpportunity";
 import { useGuestMode } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
@@ -1025,14 +1027,15 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
 
 // Shown when no opportunity is featured yet, so the section keeps its place
 // instead of vanishing from the home screen.
-function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: () => void }) {
+function FeaturedEmptyState({ onPress }: { onPress?: () => void }) {
     const { t } = useTranslation('home');
+    const stateTokens = useStateTokens('flow');
     return (
         <AnimatedPressable
             onPress={onPress}
             style={[styles.featuredEmptyCard, {
-                backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F5FF',
-                borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.3)',
+                backgroundColor: stateTokens.wash,
+                borderColor: stateTokens.ring,
             }]}
             entering={FadeInDown.duration(360).springify()}
             hapticFeedback="light"
@@ -1042,19 +1045,19 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
                 card `style` on its outer wrapper but nests children in flex:1
                 column views, so flexDirection on the card style is ignored. */}
             <View style={styles.featuredEmptyRow}>
-                <View style={[styles.featuredEmptyIllus, { backgroundColor: isDark ? 'rgba(99,102,241,0.16)' : 'rgba(99,102,241,0.12)' }]}>
-                    <Star size={22} color="#6366F1" strokeWidth={2.2} fill="#6366F1" />
-                </View>
+                {/* An inline-stage scene, not a hero one: this is a 56px row
+                    and a hero scene here would dwarf the copy beside it. */}
+                <SceneRenderer scene="emptyDiscovery" size={56} />
                 <View style={styles.featuredEmptyBody}>
                     <Text
-                        style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]}
+                        style={[styles.featuredEmptyTitle, { color: stateTokens.title }]}
                         numberOfLines={1}
                         maxFontSizeMultiplier={1.3}
                     >
                         {t('featured.emptyTitle', { defaultValue: 'Featured picks coming soon' })}
                     </Text>
                     <Text
-                        style={[styles.featuredEmptyHint, { color: isDark ? '#94A3B8' : '#64748B' }]}
+                        style={[styles.featuredEmptyHint, { color: stateTokens.body }]}
                         numberOfLines={1}
                         maxFontSizeMultiplier={1.3}
                     >
@@ -1063,8 +1066,8 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
                 </View>
                 {/* Chevron affordance only — the whole card is the tap target, so a
                     labelled "Explore" button would be a redundant second action. */}
-                <View style={[styles.featuredEmptyChevron, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.10)' }]}>
-                    <ChevronRight size={18} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+                <View style={[styles.featuredEmptyChevron, { backgroundColor: stateTokens.wash }]}>
+                    <ChevronRight size={18} color={stateTokens.hue} />
                 </View>
             </View>
         </AnimatedPressable>
@@ -1204,6 +1207,16 @@ const ELIGIBILITY_ONLY_REASON_KINDS = new Set<MatchReasonKind>([
 // We can only judge this from reason *kinds* (labels are translated across 9
 // languages, so string-matching them is unreliable); when no kind data is
 // present we can't classify, so we don't over-filter and keep the item.
+// Competitiveness, as opposed to feed rank. `match` absorbs behavioral
+// signals — notably the impression-fatigue penalty (up to -20) for cards shown
+// repeatedly without a tap — which would let the section erase itself simply
+// because the user kept opening the app. Fit only moves when the profile or
+// the opportunity does. Falls back to `match` for servers that predate the
+// field, and for the offline path where the two are the same number.
+function bestShotScore(o: Opportunity): number {
+    return Math.round(o.matchFit ?? o.match ?? 0);
+}
+
 function hasSubstantiveMatch(o: Opportunity): boolean {
     const details = o.matchReasonDetails;
     if (!details || details.length === 0) return true;
@@ -1223,7 +1236,9 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
         ? textSecondary
         : urgencyColor(deadlineBadge.level);
     const { t } = useTranslation('home');
-    const matchPct = Math.round(item.match ?? 0);
+    // Show the number this card was selected on, so the badge can never
+    // contradict the section's own "you can win this" promise.
+    const matchPct = bestShotScore(item);
     const topReason = item.matchReasons?.[0];
 
     // With artwork the card becomes a dark "poster" in BOTH themes: art up top,
@@ -1323,14 +1338,18 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
 }) {
     const isSearching = variant === 'searching';
     const emptyTitle = isSearching
-        ? "Finding your best match"
+        ? "Still searching for your best shot"
         : "Complete your profile";
+    // Says what is actually happening rather than what the user failed to do:
+    // their profile IS in, nothing has cleared the competitiveness bar yet, and
+    // they do not need to keep checking. The notification promise is real —
+    // the interest-alert engine pushes when a new match lands.
     const emptyDesc = isSearching
-        ? "Nothing's cleared the bar yet — see recommendations below."
+        ? "Your profile's in. We'll notify you the moment one clears the bar — meanwhile, see recommendations below."
         : "Unlock the matches you can actually win.";
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
-        ? "Browse opportunities while we find your best shot"
+        ? "Still searching for your best shot. We will notify you when one is found. Browse recommendations meanwhile."
         : "Complete your profile to unlock your best shots";
 
     return (
@@ -1358,7 +1377,7 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
                     </Text>
                     <Text
                         style={[styles.bestShotEmptyDesc, { color: textSecondary }]}
-                        numberOfLines={2}
+                        numberOfLines={isSearching ? 3 : 2}
                         maxFontSizeMultiplier={1.3}
                     >
                         {emptyDesc}
@@ -1507,7 +1526,13 @@ export default function Dashboard() {
     // an incomplete profile means "we can't score you yet"; with a complete
     // profile it means "we just haven't found a strong match yet" — two very
     // different messages.
-    const { completeness: profileCompleteness } = useProfileCompleteness(supabase, user?.id ?? null);
+    // Clerk metadata is onboarding's primary store; without it a fully
+    // onboarded user reads as incomplete whenever the Supabase sync didn't land.
+    const { completeness: profileCompleteness } = useProfileCompleteness(
+        supabase,
+        user?.id ?? null,
+        (user?.unsafeMetadata as Record<string, any> | undefined) ?? null,
+    );
 
     // "Not interested" target — long-press on a card opens the typed-reason
     // sheet; the chosen reason routes differently in the ranking engine.
@@ -1529,19 +1554,32 @@ export default function Dashboard() {
         () => opportunities
             .filter(
                 (o) =>
-                    Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH &&
+                    bestShotScore(o) >= BEST_SHOT_MIN_MATCH &&
                     hasSubstantiveMatch(o),
             )
-            .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
+            .sort((a, b) => bestShotScore(b) - bestShotScore(a))
             .slice(0, 3),
         [opportunities],
     );
     const bestShotIds = useMemo(() => new Set(bestShots.map((o) => o.id)), [bestShots]);
 
-    // Featured: swipeable auto-scrolling rail, max 10
-    const featuredOpportunities = useMemo(() => {
-        return opportunities.filter(o => o.featured).slice(0, 10);
-    }, [opportunities]);
+    // Featured: swipeable auto-scrolling rail, max 10. Fetched directly rather
+    // than filtered out of the ranked feed — a spotlight is an editorial
+    // choice, and filtering meant any featured item outside this user's
+    // candidate window silently disappeared from the rail.
+    const [featuredOpportunities, setFeaturedOpportunities] = useState<Opportunity[]>([]);
+    useEffect(() => {
+        let isActive = true;
+        void getCachedFeaturedOpportunities().then((cached) => {
+            if (isActive && cached.length > 0) setFeaturedOpportunities(cached);
+        });
+        void fetchFeaturedOpportunities(10).then((rows) => {
+            if (isActive) setFeaturedOpportunities(rows);
+        });
+        return () => {
+            isActive = false;
+        };
+    }, []);
 
     // Other Recommended: the ranked feed minus anything already surfaced as a
     // Best Shot, so the two sections never duplicate cards. Max 10.
@@ -1719,7 +1757,7 @@ export default function Dashboard() {
                                 getAuthToken={getToken}
                             />
                         ) : (
-                            <FeaturedEmptyState isDark={isDark} onPress={() => router.push('/opportunities')} />
+                            <FeaturedEmptyState onPress={() => router.push('/opportunities')} />
                         )}
                     </Animated.View>
                 )}
@@ -1744,7 +1782,7 @@ export default function Dashboard() {
                         recordOpportunityOpen(item.id);
                         router.push(`/opportunities/${item.id}`);
                     }}
-                    onCompleteProfile={() => router.push('/profile')}
+                    onCompleteProfile={() => router.push('/profile/edit')}
                     onBrowse={() => router.push('/opportunities')}
                     getAuthToken={getToken}
                 />
@@ -1820,29 +1858,16 @@ export default function Dashboard() {
 
                 {/* Empty State for No Recommendations */}
                 {otherOpportunities.length === 0 && !opportunitiesLoading && (
-                    <Animated.View entering={FadeInUp.duration(400).delay(200)} style={[styles.emptyStateCard, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF" }]}>
-                        <View style={styles.emptyStateIcon}>
-                            <Target size={32} color="#6366F1" />
-                        </View>
-                        <Text style={[styles.emptyStateTitle, { color: textPrimary }]}>
-                            {t('home.emptyTitle')}
-                        </Text>
-                        <Text style={[styles.emptyStateDesc, { color: textSecondary }]}>
-                            {t('home.emptyDescription')}
-                        </Text>
-                        {/* TouchableOpacity, not AnimatedPressable: the latter's inner
-                            flex:1 Pressable stretches unbounded inside this auto-height
-                            card, painting the CTA over the rest of the screen. */}
-                        <TouchableOpacity
-                            style={styles.emptyStateBtn}
-                            onPress={() => router.push('/opportunities')}
-                            activeOpacity={0.85}
-                            accessibilityRole="button"
-                        >
-                            <Text style={styles.emptyStateBtnText}>{t('home.emptyCta')}</Text>
-                            <ChevronRight size={16} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </Animated.View>
+                    <StateView
+                        state={{ kind: 'empty', reason: 'firstRun' }}
+                        flow="home"
+                        fill={false}
+                        sceneSize={170}
+                        title={t('home.emptyTitle')}
+                        body={t('home.emptyDescription')}
+                        actionLabel={t('home.emptyCta')}
+                        onAction={() => router.push('/opportunities')}
+                    />
                 )}
 
                 <View style={{ height: 100 }} />

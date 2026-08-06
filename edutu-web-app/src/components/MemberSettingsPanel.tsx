@@ -623,7 +623,7 @@ export default function MemberSettingsPanel() {
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {unreadCount > 0 ? (
-              <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
+              <span className="rounded-full bg-brand/10 px-2 py-1 text-2xs font-semibold text-brand">
                 {unreadCount}
               </span>
             ) : null}
@@ -916,7 +916,7 @@ export default function MemberSettingsPanel() {
                         <p className="truncate text-sm font-semibold text-text-primary">
                           {describeSession(session)}
                           {isCurrent ? (
-                            <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">
+                            <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-brand">
                               This device
                             </span>
                           ) : null}

@@ -9,10 +9,12 @@ import {
   View,
 } from 'react-native';
 import { Crown, MessageSquare, RefreshCw, X } from 'lucide-react-native';
+import type { IconSvgElement } from '@hugeicons/react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
 import { withAlpha } from '../ui/BottomScrim';
 import { AiOrbBadge } from '../ui/AiOrbBadge';
+import { AiAssistRow, AiAssistTile } from './AiAssistTile';
 import { haptics } from '../../lib/haptics';
 import type { WinCoachIntent } from '@edutu/core/src/services/chat';
 
@@ -21,6 +23,11 @@ export type AiAction = {
   intent: WinCoachIntent;
   /** The seed message sent to the agent for this action. */
   message: string;
+  /**
+   * Hugeicon for the `tile` variant. Falls back to the AI orb when absent, so
+   * existing `pill` callers need no change.
+   */
+  icon?: IconSvgElement;
 };
 
 /**
@@ -56,6 +63,12 @@ type AiActionBarProps = {
   onOpenInChat?: (threadId: string) => void;
   /** Sends the user to the paywall when the failure is a billing limit. */
   onUpgrade?: () => void;
+  /**
+   * `pill` (default) is the original free-flowing chip row. `tile` renders the
+   * actions as equal cells of the opportunity page's AI assist grid, so they
+   * line up with the sibling rows around them. Requires `icon` on each action.
+   */
+  variant?: 'pill' | 'tile';
 };
 
 /**
@@ -69,6 +82,7 @@ export function AiActionBar({
   onRun,
   onOpenInChat,
   onUpgrade,
+  variant = 'pill',
 }: AiActionBarProps) {
   const { t } = useTranslation('chat');
   const { colors } = useTheme();
@@ -116,41 +130,59 @@ export function AiActionBar({
     }
   };
 
-  return (
-    <View style={styles.row}>
-      {actions.map((action) => {
-        const isRunning = running === action.intent;
-        return (
-          <Pressable
-            key={action.intent}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-            disabled={Boolean(running)}
-            onPress={() => handlePress(action)}
-            style={({ pressed }) => [
-              styles.pill,
-              {
-                // A soft tint of the accent — not `accentLight`, which is a
-                // fully-saturated indigo in the light palette and rendered
-                // primary-on-primary text invisible.
-                backgroundColor: withAlpha(colors.primary, 0.1),
-                borderColor: withAlpha(colors.primary, 0.22),
-                opacity: pressed || (running && !isRunning) ? 0.6 : 1,
-              },
-            ]}
-          >
-            {isRunning ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <AiOrbBadge size={18} />
-            )}
-            <Text style={[styles.pillLabel, { color: colors.primary }]} numberOfLines={1}>
-              {action.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+  const buttons = actions.map((action) => {
+    const isRunning = running === action.intent;
 
+    if (variant === 'tile' && action.icon) {
+      return (
+        <AiAssistTile
+          key={action.intent}
+          label={action.label}
+          icon={action.icon}
+          busy={isRunning}
+          disabled={Boolean(running) && !isRunning}
+          onPress={() => handlePress(action)}
+        />
+      );
+    }
+
+    return (
+      <Pressable
+        key={action.intent}
+        accessibilityRole="button"
+        accessibilityLabel={action.label}
+        disabled={Boolean(running)}
+        onPress={() => handlePress(action)}
+        style={({ pressed }) => [
+          styles.pill,
+          {
+            // A soft tint of the accent — not `accentLight`, which is a
+            // fully-saturated indigo in the light palette and rendered
+            // primary-on-primary text invisible.
+            backgroundColor: withAlpha(colors.primary, 0.1),
+            borderColor: withAlpha(colors.primary, 0.22),
+            opacity: pressed || (running && !isRunning) ? 0.6 : 1,
+          },
+        ]}
+      >
+        {isRunning ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <AiOrbBadge size={18} />
+        )}
+        <Text style={[styles.pillLabel, { color: colors.primary }]} numberOfLines={1}>
+          {action.label}
+        </Text>
+      </Pressable>
+    );
+  });
+
+  // The sheet is deliberately a sibling of the button container, never a child
+  // of it: RN's `Modal` is a real (zero-sized) view in the tree, and inside a
+  // `gap`-spaced flex row it earns a gap of its own, knocking the tile grid
+  // out of alignment with the row beneath it.
+  const sheet = (
+    <>
       <Modal
         visible={sheetOpen}
         transparent
@@ -280,6 +312,22 @@ export function AiActionBar({
           </View>
         </View>
       </Modal>
+    </>
+  );
+
+  if (variant === 'tile') {
+    return (
+      <>
+        <AiAssistRow>{buttons}</AiAssistRow>
+        {sheet}
+      </>
+    );
+  }
+
+  return (
+    <View style={styles.row}>
+      {buttons}
+      {sheet}
     </View>
   );
 }

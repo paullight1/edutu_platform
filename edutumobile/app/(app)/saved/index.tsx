@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Bookmark, Clock, Trash2, ExternalLink, Target, Inbox, AlertCircle } from "lucide-react-native";
+import { Bookmark, Clock, Trash2, ExternalLink, Target, AlertCircle } from "lucide-react-native";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { fetchSavedOpportunities, unsaveOpportunity } from "../../../packages/core/src/services/bookmarks";
@@ -12,7 +12,7 @@ import { getDeadlineBadge, urgencyColor } from "../../../packages/core/src/utils
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { ErrorBoundary } from "../../../components/ui/ErrorBoundary";
-import { EmptyState } from "../../../components/ui/EmptyState";
+import { StateView, useScreenState } from "../../../components/state";
 import { OpportunityCardSkeleton } from "../../../components/ui/Skeleton";
 
 interface SavedOpportunity {
@@ -117,6 +117,16 @@ export default function SavedScreen() {
         return savedOpps;
     }, [savedOpps, filter]);
 
+    // Two different problems that used to look alike: nothing saved at all,
+    // and nothing matching the active tab. The first is an onboarding moment;
+    // the second is a filter result the user can undo.
+    const savedState = useScreenState({ data: savedOpps, loading });
+    const filterState = useScreenState({
+        data: filteredOpps,
+        loading,
+        filtersActive: true,
+    });
+
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchSaved();
@@ -164,8 +174,9 @@ export default function SavedScreen() {
                 }
             >
                 {savedOpps.length === 0 ? (
-                    <EmptyState
-                        variant="saved"
+                    <StateView
+                        state={savedState}
+                        flow="saved"
                         onAction={() => router.push('/opportunities')}
                     />
                 ) : (
@@ -209,12 +220,17 @@ export default function SavedScreen() {
 
                         {/* Saved Opportunities List */}
                         {filteredOpps.length === 0 ? (
-                            <View style={styles.emptyFilterState}>
-                                <Inbox size={32} color={isDark ? '#64748B' : '#94A3B8'} />
-                                <Text style={[styles.emptyFilterText, { color: colors.foreground }]}>
-                                    {t(`filters.none.${filter}`)}
-                                </Text>
-                            </View>
+                            // fill={false} because this sits inside a ScrollView
+                            // and must not claim flex:1; the scene is scaled down
+                            // so it reads as a section note, not a screen takeover.
+                            <StateView
+                                state={filterState}
+                                flow="saved"
+                                fill={false}
+                                sceneSize={140}
+                                title={t(`filters.none.${filter}`)}
+                                body=""
+                            />
                         ) : (
                             filteredOpps.map((opp, index) => (
                                 <Animated.View
@@ -462,15 +478,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '700',
-    },
-    emptyFilterState: {
-        alignItems: 'center',
-        paddingVertical: 40,
-        gap: 12,
-    },
-    emptyFilterText: {
-        fontSize: 16,
-        fontWeight: '600',
     },
     profileStatusBar: {
         flexDirection: 'row',

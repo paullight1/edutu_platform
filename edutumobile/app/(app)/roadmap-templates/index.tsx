@@ -5,10 +5,11 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { ChevronRight, Clock3, Compass, Star, Users } from 'lucide-react-native';
+import { ChevronRight, Clock3, Compass, Search, Star, Users, WifiOff, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +42,12 @@ export default function RoadmapTemplatesScreen() {
     const [templates, setTemplates] = useState<RoadmapTemplate[]>(FALLBACK_TEMPLATES);
     const [refreshing, setRefreshing] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
+    const [search, setSearch] = useState('');
+    // True while the curated offline set is on screen standing in for live
+    // data. Without this the fallback templates rendered with ratings, learner
+    // counts and author roles that looked exactly like real ones — and their
+    // "Start" button silently did nothing.
+    const [isPreviewData, setIsPreviewData] = useState(true);
 
     // Pull-to-refresh keeps its spinner flip here (setState in an event
     // handler is fine), separate from the mount fetch effect below.
@@ -49,7 +56,10 @@ export default function RoadmapTemplatesScreen() {
         try {
             const mapped = await fetchTemplates();
             // Only replace the curated fallback set when the backend returns usable templates.
-            if (mapped.length > 0) setTemplates(mapped);
+            if (mapped.length > 0) {
+                setTemplates(mapped);
+                setIsPreviewData(false);
+            }
         } catch {
             // Offline or backend unavailable — keep the curated fallback set already in state.
         } finally {
@@ -58,16 +68,21 @@ export default function RoadmapTemplatesScreen() {
     }, []);
 
     useEffect(() => {
+        let cancelled = false;
         const loadTemplates = async () => {
             try {
                 const mapped = await fetchTemplates();
                 // Only replace the curated fallback set when the backend returns usable templates.
-                if (mapped.length > 0) setTemplates(mapped);
+                if (mapped.length > 0 && !cancelled) {
+                    setTemplates(mapped);
+                    setIsPreviewData(false);
+                }
             } catch {
                 // Offline or backend unavailable — keep the curated fallback set already in state.
             }
         };
         loadTemplates();
+        return () => { cancelled = true; };
     }, []);
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -83,16 +98,25 @@ export default function RoadmapTemplatesScreen() {
         return Array.from(seen.values());
     }, [templates]);
 
-    const visibleTemplates = useMemo(
-        () => (activeCategory === 'all'
+    const visibleTemplates = useMemo(() => {
+        const byCategory = activeCategory === 'all'
             ? templates
-            : templates.filter((template) => categoryMeta(template.category).key === activeCategory)),
-        [templates, activeCategory],
-    );
+            : templates.filter((template) => categoryMeta(template.category).key === activeCategory);
+        const term = search.trim().toLowerCase();
+        if (!term) return byCategory;
+        return byCategory.filter((template) => (
+            template.title.toLowerCase().includes(term) ||
+            (template.summary || '').toLowerCase().includes(term) ||
+            (template.authorName || '').toLowerCase().includes(term)
+        ));
+    }, [templates, activeCategory, search]);
 
-    const hero = activeCategory === 'all'
-        ? visibleTemplates.find((template) => template.featured && template.coverImage) || visibleTemplates[0]
-        : undefined;
+    // The hero used to appear only under "All", so picking a category collapsed
+    // the layout by ~250px. It now leads whichever set is on screen — and steps
+    // aside while searching, where a ranked flat list reads better.
+    const hero = search.trim()
+        ? undefined
+        : visibleTemplates.find((template) => template.featured && template.coverImage) || visibleTemplates[0];
     const listTemplates = hero ? visibleTemplates.filter((template) => template.id !== hero.id) : visibleTemplates;
 
     const openTemplate = (template: RoadmapTemplate) => {
@@ -170,7 +194,41 @@ export default function RoadmapTemplatesScreen() {
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
                 }
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
             >
+                {isPreviewData && (
+                    <View style={[styles.previewNotice, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }]}>
+                        <WifiOff size={15} color="#B45309" />
+                        <Text style={[styles.previewNoticeText, { color: colors.foreground }]}>
+                            {t('templates.previewNotice')}
+                        </Text>
+                    </View>
+                )}
+
+                <View style={[styles.searchBox, { backgroundColor: cardBg, borderColor }]}>
+                    <Search size={17} color={textSecondary} />
+                    <TextInput
+                        style={[styles.searchInput, { color: colors.foreground }]}
+                        placeholder={t('templates.searchPlaceholder')}
+                        placeholderTextColor={textSecondary}
+                        value={search}
+                        onChangeText={setSearch}
+                        returnKeyType="search"
+                        accessibilityLabel={t('templates.searchPlaceholder')}
+                    />
+                    {search.length > 0 && (
+                        <TouchableOpacity
+                            onPress={() => setSearch('')}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('templates.clearSearch')}
+                        >
+                            <X size={16} color={textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -248,6 +306,21 @@ export default function RoadmapTemplatesScreen() {
                     </Text>
                 </View>
 
+                {visibleTemplates.length === 0 && (
+                    <View style={styles.emptyWrap}>
+                        <Compass size={38} color={textSecondary} />
+                        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>{t('templates.emptyTitle')}</Text>
+                        <Text style={[styles.emptyText, { color: textSecondary }]}>{t('templates.emptyMessage')}</Text>
+                        <TouchableOpacity
+                            style={[styles.emptyAction, { borderColor: colors.primary }]}
+                            onPress={() => { setSearch(''); setActiveCategory('all'); }}
+                            accessibilityRole="button"
+                        >
+                            <Text style={[styles.emptyActionText, { color: colors.primary }]}>{t('templates.clearFilters')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 <View style={styles.list}>
                     {listTemplates.map((template) => {
                         const meta = categoryMeta(template.category);
@@ -307,6 +380,36 @@ const styles = StyleSheet.create({
     screen: { flex: 1 },
     scrollView: { flex: 1 },
     content: { paddingBottom: 40 },
+    previewNotice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 9,
+        marginHorizontal: 16,
+        marginTop: 4,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    previewNoticeText: { flex: 1, fontSize: 12.5, fontWeight: '700', lineHeight: 17 },
+    searchBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingHorizontal: 13,
+        height: 46,
+    },
+    searchInput: { flex: 1, fontSize: 14, fontWeight: '600', height: '100%' },
+    emptyWrap: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 40, gap: 10 },
+    emptyTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+    emptyText: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
+    emptyAction: { marginTop: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 9 },
+    emptyActionText: { fontSize: 12.5, fontWeight: '800' },
     chipsScroll: { marginTop: 4 },
     chipsRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 14 },
     chip: {
@@ -341,7 +444,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 5,
     },
-    featuredBadgeText: { color: '#FDE68A', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+    featuredBadgeText: { color: '#FDE68A', fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
     heroBottom: { gap: 8 },
     heroTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', lineHeight: 26 },
     categoryPill: {
@@ -352,9 +455,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 5,
     },
-    categoryPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.3 },
+    categoryPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
     difficultyPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-    difficultyText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+    difficultyText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -398,7 +501,7 @@ const styles = StyleSheet.create({
     authorInitials: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
     authorCopy: { flexShrink: 1 },
     authorName: { fontSize: 12.5, fontWeight: '800' },
-    authorRole: { fontSize: 10.5, fontWeight: '600', marginTop: 1 },
+    authorRole: { fontSize: 11, fontWeight: '600', marginTop: 1 },
     statsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
     statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     statText: { fontSize: 11, fontWeight: '700' },

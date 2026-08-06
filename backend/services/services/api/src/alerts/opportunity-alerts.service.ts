@@ -39,15 +39,6 @@ interface AlertPick {
   othersCount: number;
 }
 
-interface DeadlinePair {
-  userId: string;
-  opportunityId: string;
-  title: string;
-  daysLeft: number;
-  quietHours: QuietHours;
-  timezone: string | null;
-}
-
 interface DocNudge {
   userId: string;
   applicationId: string;
@@ -70,8 +61,9 @@ const FRESH_WINDOW_HOURS = Number(process.env.ALERTS_FRESH_HOURS || 26);
 const BACKFILL_ENABLED = process.env.ALERTS_BACKFILL !== "false";
 const SCORE_BATCH = 50; // scoreOpportunitiesForUser caps at 50 ids
 const USER_CONCURRENCY = 3;
+// Offsets for the win-coach document nudge only. Deadline reminders proper
+// live in OpportunityDeadlineRemindersService (14/7/3/1/0).
 const DEADLINE_OFFSETS = [1, 3, 7];
-const MAX_DEADLINE_PUSHES_PER_USER = 3;
 
 function alertsEnabled() {
   return process.env.OPPORTUNITY_ALERTS_ENABLED !== "false";
@@ -87,9 +79,17 @@ function alertsEnabled() {
  *    confidence threshold is pushed, capped per day, never repeated
  *    (opportunity_alert_ledger), deferred through quiet hours.
  *
- * 2. Deadline reminders — 7/3/1 days before the deadline of any opportunity
- *    the user saved or applied to. Collapsed into a single summary push when
- *    several fall due on the same day.
+ * 2. Win-coach document nudges — an application whose deadline nears while a
+ *    required document (CV / SOP) is still missing.
+ *
+ * Deadline reminders themselves are NOT sent here. They are owned entirely by
+ * OpportunityDeadlineRemindersService, which pre-schedules a 14/7/3/1/0 ladder
+ * from a wider candidate set. This service used to run its own same-day
+ * 7/3/1 cron off user_opportunity_signals, which meant a user who had both
+ * saved an opportunity and started an application received the same
+ * "deadline-reminder" from three different jobs under three different dedupe
+ * keys. The doc nudge below now enriches that series (via loadNextActions)
+ * and only sends standalone when no reminder is scheduled for the pair.
  */
 @Injectable()
 export class OpportunityAlertsService {
@@ -112,20 +112,6 @@ export class OpportunityAlertsService {
     } catch (error) {
       this.logger.error(
         `Interest alerts run failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  // 07:45 UTC daily.
-  @Cron("45 7 * * *")
-  async runDeadlineRemindersCron() {
-    if (!alertsEnabled()) return;
-    try {
-      const result = await this.runDeadlineReminders();
-      this.logger.log(`Deadline reminders: ${JSON.stringify(result)}`);
-    } catch (error) {
-      this.logger.error(
-        `Deadline reminders run failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -439,12 +425,31 @@ export class OpportunityAlertsService {
     const result = await db.execute(sql`
       select distinct t.user_id as user_id,
              p.quiet_hours as quiet_hours,
-             pr.timezone as timezone,
-             pr.full_name as full_name
+             -- profiles.user_id is text and dual-keyed: some rows hold the raw
+             -- Clerk id, others the derived uuid — match both or half the
+             -- profiles come back null and quiet hours evaluate in UTC.
+             -- Correlated subqueries (not a join) so a dual-keyed match can
+             -- never fan out into duplicate pushes.
+             (
+               select pr.timezone
+               from profiles pr
+               where (pr.user_id = t.user_id::text
+                      or public.clerk_id_to_uuid(pr.user_id)::text = t.user_id::text)
+                 and pr.timezone is not null
+               order by pr.updated_at desc nulls last
+               limit 1
+             ) as timezone,
+             (
+               select pr.full_name
+               from profiles pr
+               where (pr.user_id = t.user_id::text
+                      or public.clerk_id_to_uuid(pr.user_id)::text = t.user_id::text)
+                 and pr.full_name is not null
+               order by pr.updated_at desc nulls last
+               limit 1
+             ) as full_name
       from notification_push_tokens t
       left join notification_preferences p on p.user_id = t.user_id
-      -- profiles.user_id is text in the live schema; tokens.user_id is uuid
-      left join profiles pr on pr.user_id = t.user_id::text
       where coalesce(p.push_notifications, true)
         and coalesce(p.opportunity_alerts, true)
         and (
@@ -482,169 +487,12 @@ export class OpportunityAlertsService {
     }));
   }
 
-  // ─── Deadline reminders ───────────────────────────────────────────────────
-
-  async runDeadlineReminders() {
-    const pairs = await this.getDueDeadlinePairs();
-    if (!pairs.length) return { users: 0, notified: 0 };
-
-    const byUser = new Map<string, DeadlinePair[]>();
-    for (const pair of pairs) {
-      const list = byUser.get(pair.userId) ?? [];
-      list.push(pair);
-      byUser.set(pair.userId, list);
-    }
-
-    let notified = 0;
-
-    await this.forEachWithConcurrency(
-      Array.from(byUser.entries()),
-      USER_CONCURRENCY,
-      async ([userId, userPairs]) => {
-        try {
-          notified += await this.remindUser(userId, userPairs);
-        } catch (error) {
-          this.logger.warn(
-            `Deadline reminder failed for ${userId}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        }
-      },
-    );
-
-    return { users: byUser.size, pairs: pairs.length, notified };
-  }
-
-  private async remindUser(userId: string, pairs: DeadlinePair[]) {
-    const quietHours = pairs[0].quietHours;
-    const scheduledFor = deferForQuietHours(quietHours, pairs[0].timezone);
-    let sent = 0;
-
-    // Too many at once reads as spam — collapse into a single summary push.
-    if (pairs.length > MAX_DEADLINE_PUSHES_PER_USER) {
-      const soonest = pairs.reduce((a, b) =>
-        a.daysLeft <= b.daysLeft ? a : b,
-      );
-      await this.notificationsService.broadcast(userId, {
-        title: "⏰ Deadlines approaching",
-        body: `${pairs.length} of your saved opportunities close soon — the first is "${soonest.title}" ${this.daysPhrase(soonest.daysLeft)}.`,
-        kind: "deadline-reminder",
-        severity: "warning",
-        audience: "specific",
-        targetUserIds: [userId],
-        channels: { inApp: true, push: true, email: false },
-        dedupeKey: `deadline-summary:${userId}:${new Date().toISOString().slice(0, 10)}`,
-        scheduledFor,
-        metadata: {
-          url: "/opportunities",
-          androidChannelId: "deadlines",
-          source: "deadline-reminders",
-        },
-      });
-      sent = 1;
-    } else {
-      for (const pair of pairs) {
-        await this.notificationsService.broadcast(userId, {
-          title: `⏰ Closing ${this.daysPhrase(pair.daysLeft)}`,
-          body: `"${pair.title}" closes ${this.daysPhrase(pair.daysLeft)}. Don't miss it — your application matters.`,
-          kind: "deadline-reminder",
-          severity: pair.daysLeft <= 1 ? "critical" : "warning",
-          audience: "specific",
-          targetUserIds: [userId],
-          channels: { inApp: true, push: true, email: false },
-          dedupeKey: `deadline:${userId}:${pair.opportunityId}:${pair.daysLeft}d`,
-          scheduledFor,
-          metadata: {
-            opportunityId: pair.opportunityId,
-            url: `/opportunities/${pair.opportunityId}`,
-            androidChannelId: "deadlines",
-            daysLeft: pair.daysLeft,
-            source: "deadline-reminders",
-          },
-        });
-        sent += 1;
-      }
-    }
-
-    await db
-      .insert(opportunityAlertLedger)
-      .values(
-        pairs.map((pair) => ({
-          userId,
-          opportunityId: pair.opportunityId,
-          kind: `deadline_${pair.daysLeft}d`,
-        })),
-      )
-      .onConflictDoNothing();
-
-    return sent;
-  }
-
-  /**
-   * (user, opportunity) pairs where the user saved or applied and the
-   * deadline is exactly 1, 3 or 7 days out — minus pairs already reminded at
-   * that offset.
-   */
-  private async getDueDeadlinePairs(): Promise<DeadlinePair[]> {
-    const result = await db.execute(sql`
-      select distinct s.user_id as user_id,
-             o.id as opportunity_id,
-             o.title as title,
-             (o.deadline::date - current_date) as days_left,
-             p.quiet_hours as quiet_hours,
-             pr.timezone as timezone
-      from user_opportunity_signals s
-      join opportunities o on o.id = s.opportunity_id
-      -- signals.user_id is text in the live schema; prefs/ledger user_id is uuid
-      left join notification_preferences p on p.user_id::text = s.user_id
-      left join profiles pr on pr.user_id::text = s.user_id
-      where s.signal_type in ('save', 'apply')
-        and o.status = 'active'
-        and o.deadline is not null
-        and (o.deadline::date - current_date) in (${sql.join(
-          DEADLINE_OFFSETS.map((d) => sql`${d}`),
-          sql`, `,
-        )})
-        and coalesce(p.push_notifications, true)
-        and coalesce(p.deadline_reminders, true)
-        and not exists (
-          select 1 from opportunity_alert_ledger l
-          where l.user_id::text = s.user_id
-            and l.opportunity_id = o.id
-            and l.kind = 'deadline_' || (o.deadline::date - current_date) || 'd'
-        )
-      limit 2000
-    `);
-
-    const rows =
-      (
-        result as unknown as {
-          rows?: Array<{
-            user_id: string;
-            opportunity_id: string;
-            title: string;
-            days_left: number;
-            quiet_hours: QuietHours;
-            timezone: string | null;
-          }>;
-        }
-      ).rows ?? [];
-
-    return rows.map((row) => ({
-      userId: row.user_id,
-      opportunityId: row.opportunity_id,
-      title: row.title,
-      daysLeft: Number(row.days_left),
-      quietHours: row.quiet_hours,
-      timezone: row.timezone,
-    }));
-  }
-
   // ─── Win-coach: incomplete-application nudges ─────────────────────────────
 
-  // After deadline reminders (07:45). Nudges users whose in-flight applications
-  // are missing a required document (CV / SOP) as the deadline nears.
+  // Nudges users whose in-flight applications are missing a required document
+  // (CV / SOP) as the deadline nears AND who have no scheduled deadline
+  // reminder for that opportunity — when one exists it already carries the
+  // missing document as its next action, so a second push is pure duplication.
   @Cron("30 8 * * *")
   async runApplicationDocNudgesCron() {
     if (process.env.AI_WINCOACH_ENABLED === "false") return;
@@ -663,10 +511,11 @@ export class OpportunityAlertsService {
   }
 
   /**
-   * One nudge per application whose deadline is 7/3/1 days out and that is still
-   * missing a required document. Deduped through opportunity_alert_ledger (kind
-   * docs_Nd), quiet-hours deferred, keyed on the same app user id the deadline
-   * reminders use.
+   * One nudge per application whose deadline is 7/3/1 days out, that is still
+   * missing a required document, and that has NO pending deadline reminder
+   * scheduled by OpportunityDeadlineRemindersService. Deduped through
+   * opportunity_alert_ledger (kind docs_Nd), quiet-hours deferred, keyed on the
+   * same app user id the deadline reminders use.
    */
   async scanApplicationCompleteness(): Promise<{
     candidates: number;
@@ -767,7 +616,18 @@ export class OpportunityAlertsService {
              o.title as title,
              (o.deadline::date - current_date) as days_left,
              p.quiet_hours as quiet_hours,
-             pr.timezone as timezone,
+             -- profiles.user_id is dual-keyed (raw Clerk id or derived uuid) —
+             -- match both, via a correlated subquery so it can't fan out rows
+             -- and duplicate doc nudges.
+             (
+               select pr.timezone
+               from profiles pr
+               where (pr.user_id = a.user_id
+                      or public.clerk_id_to_uuid(pr.user_id)::text = a.user_id)
+                 and pr.timezone is not null
+               order by pr.updated_at desc nulls last
+               limit 1
+             ) as timezone,
              not exists (
                select 1 from application_documents d
                where d.application_id = a.id and d.role = 'cv' and d.status <> 'missing'
@@ -779,7 +639,6 @@ export class OpportunityAlertsService {
       from opportunity_applications a
       join opportunities o on o.id = a.opportunity_id
       left join notification_preferences p on p.user_id::text = a.user_id
-      left join profiles pr on pr.user_id::text = a.user_id
       where a.status <> 'submitted'
         and o.status = 'active'
         and o.deadline is not null
@@ -804,6 +663,25 @@ export class OpportunityAlertsService {
           where l.user_id::text = a.user_id
             and l.opportunity_id = o.id
             and l.kind = 'docs_' || (o.deadline::date - current_date) || 'd'
+        )
+        -- ENRICH, DON'T DUPLICATE. OpportunityDeadlineRemindersService
+        -- pre-schedules a reminder series per (user, opportunity) under the
+        -- dedupePrefix 'opp-deadline:<id>', and its next-action line already
+        -- names the missing CV/SOP. If one of those is pending, this standalone
+        -- nudge would be the same message a second time under a different
+        -- dedupe key — exactly the duplication this consolidation removes.
+        -- The queue's metadata.userId is the derived uuid, while
+        -- opportunity_applications.user_id may hold the raw Clerk id, so match
+        -- both representations.
+        and not exists (
+          select 1 from notification_queue q
+          where q.status = 'pending'
+            and q.payload->'metadata'->>'dedupePrefix' = 'opp-deadline:' || o.id::text
+            and (
+              q.payload->'metadata'->>'userId' = a.user_id
+              or q.payload->'metadata'->>'userId'
+                 = public.clerk_id_to_uuid(a.user_id)::text
+            )
         )
       limit 2000
     `);

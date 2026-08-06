@@ -64,4 +64,43 @@ describe("opportunity share text", () => {
     expect(text).toContain("*Apply here:*");
     expect(text).toContain("/opportunity/past");
   });
+
+  it("omits the Deadline row when the opportunity has no deadline", () => {
+    const text = buildOpportunityShareText(
+      {
+        title: "Rolling Community Grant",
+        organization: "Edutu",
+        category: "Grant",
+        summary: "An always-open community grant.",
+      },
+      "/opportunity/rolling",
+    );
+
+    expect(text).not.toContain("*Deadline:*");
+    expect(text).toContain("- *Type:* Grant");
+    expect(text).toContain("*Apply here:*");
+  });
+
+  it("renders a Who Can Apply section from eligibility data", () => {
+    const text = buildOpportunityShareText(
+      {
+        title: "African Youth Fellowship",
+        organization: "Edutu",
+        category: "Fellowship",
+        close_date: "2026-09-30",
+        metadata: {
+          eligibility: [
+            "Open to African nationals aged 18-30",
+            "Must have a completed undergraduate degree",
+          ],
+        },
+      },
+      "/opportunity/ayf",
+    );
+
+    expect(text).toContain("*Who Can Apply:*");
+    expect(text).toContain("- Open to African nationals aged 18-30");
+    expect(text).toContain("- Must have a completed undergraduate degree");
+    expect(text).toContain("- *Deadline:* 30 September 2026");
+  });
 });

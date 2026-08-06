@@ -1,0 +1,105 @@
+/* Domain hue system.
+   Each domain owns a hue; that hue drives its nav icon, section panel accent,
+   KPI card gradient, chart series and badges — so colour always encodes meaning.
+   Blue/green/orange/red gradients are the original Dashboard stat-card values. */
+
+:root {
+  --hue-blue: #0071e3;
+  --hue-blue-soft: rgba(0, 113, 227, 0.12);
+  --hue-blue-grad: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --hue-blue-glow: rgba(0, 113, 227, 0.28);
+
+  --hue-purple: #af52de;
+  --hue-purple-soft: rgba(175, 82, 222, 0.12);
+  --hue-purple-grad: linear-gradient(135deg, #af52de 0%, #8944ab 100%);
+  --hue-purple-glow: rgba(175, 82, 222, 0.28);
+
+  --hue-teal: #00c7be;
+  --hue-teal-soft: rgba(0, 199, 190, 0.12);
+  --hue-teal-grad: linear-gradient(135deg, #00c7be 0%, #00a396 100%);
+  --hue-teal-glow: rgba(0, 199, 190, 0.28);
+
+  --hue-green: #34c759;
+  --hue-green-soft: rgba(52, 199, 89, 0.12);
+  --hue-green-grad: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --hue-green-glow: rgba(52, 199, 89, 0.28);
+
+  --hue-orange: #ff9500;
+  --hue-orange-soft: rgba(255, 149, 0, 0.12);
+  --hue-orange-grad: linear-gradient(135deg, #ff6600 0%, #ff4500 100%);
+  --hue-orange-glow: rgba(255, 149, 0, 0.28);
+
+  --hue-red: #ff3b30;
+  --hue-red-soft: rgba(255, 59, 48, 0.12);
+  --hue-red-grad: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  --hue-red-glow: rgba(255, 59, 48, 0.28);
+
+  --hue-neutral: #8e8e93;
+  --hue-neutral-soft: rgba(142, 142, 147, 0.12);
+  --hue-neutral-grad: linear-gradient(135deg, #8e8e93 0%, #6b6b70 100%);
+  --hue-neutral-glow: rgba(142, 142, 147, 0.22);
+
+  /* Banner surfaces — replaces the hardcoded #fef2f2 / #fffbeb / #f0fdf4
+     in Dashboard.tsx, which rendered white-on-white in dark mode. */
+  --banner-error-bg: rgba(255, 59, 48, 0.08);
+  --banner-error-border: rgba(255, 59, 48, 0.32);
+  --banner-warn-bg: rgba(255, 149, 0, 0.08);
+  --banner-warn-border: rgba(255, 149, 0, 0.32);
+  --banner-success-bg: rgba(52, 199, 89, 0.08);
+  --banner-success-border: rgba(52, 199, 89, 0.32);
+
+  --motion-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark mode: gradients desaturate and glows drop so cards do not bloom on black. */
+[data-theme="dark"] {
+  --hue-blue: #2997ff;
+  --hue-blue-soft: rgba(41, 151, 255, 0.16);
+  --hue-blue-grad: linear-gradient(135deg, #1e51b8 0%, #16368a 100%);
+  --hue-blue-glow: rgba(41, 151, 255, 0.25);
+
+  --hue-purple: #c07ce8;
+  --hue-purple-soft: rgba(192, 124, 232, 0.16);
+  --hue-purple-grad: linear-gradient(135deg, #8b41b0 0%, #6a2f88 100%);
+  --hue-purple-glow: rgba(192, 124, 232, 0.25);
+
+  --hue-teal: #40d9d2;
+  --hue-teal-soft: rgba(64, 217, 210, 0.16);
+  --hue-teal-grad: linear-gradient(135deg, #009c95 0%, #00726d 100%);
+  --hue-teal-glow: rgba(64, 217, 210, 0.25);
+
+  --hue-green: #5ddb7d;
+  --hue-green-soft: rgba(93, 219, 125, 0.16);
+  --hue-green-grad: linear-gradient(135deg, #0d8f64 0%, #076b4b 100%);
+  --hue-green-glow: rgba(93, 219, 125, 0.25);
+
+  --hue-orange: #ffab33;
+  --hue-orange-soft: rgba(255, 171, 51, 0.16);
+  --hue-orange-grad: linear-gradient(135deg, #c95000 0%, #9c3600 100%);
+  --hue-orange-glow: rgba(255, 171, 51, 0.25);
+
+  --hue-red: #ff6961;
+  --hue-red-soft: rgba(255, 105, 97, 0.16);
+  --hue-red-grad: linear-gradient(135deg, #b83434 0%, #8f2020 100%);
+  --hue-red-glow: rgba(255, 105, 97, 0.25);
+
+  --hue-neutral: #a1a1a6;
+  --hue-neutral-soft: rgba(161, 161, 166, 0.16);
+  --hue-neutral-grad: linear-gradient(135deg, #5a5a5f 0%, #3d3d42 100%);
+  --hue-neutral-glow: rgba(161, 161, 166, 0.2);
+
+  --banner-error-bg: rgba(255, 105, 97, 0.14);
+  --banner-error-border: rgba(255, 105, 97, 0.38);
+  --banner-warn-bg: rgba(255, 171, 51, 0.14);
+  --banner-warn-border: rgba(255, 171, 51, 0.38);
+  --banner-success-bg: rgba(93, 219, 125, 0.14);
+  --banner-success-border: rgba(93, 219, 125, 0.38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-base: 1ms;
+  }
+}

@@ -268,7 +268,7 @@ export default function NotificationInbox({
             type="button"
             onClick={() => runAction("refresh", refresh)}
             disabled={busyAction === "refresh"}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-subtle px-2.5 text-xs font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-subtle px-2.5 text-xs font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "refresh" ? (
               <Loader2 size={13} className="animate-spin" />
@@ -281,7 +281,7 @@ export default function NotificationInbox({
             type="button"
             onClick={() => runAction("mark-all", markAllAsRead)}
             disabled={unreadCount === 0 || busyAction === "mark-all"}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-subtle px-2.5 text-xs font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-subtle px-2.5 text-xs font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "mark-all" ? (
               <Loader2 size={13} className="animate-spin" />
@@ -378,7 +378,7 @@ export default function NotificationInbox({
               <button
                 type="button"
                 onClick={() => runAction("refresh-error", refresh)}
-                className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-danger px-3 text-xs font-bold text-white transition hover:bg-danger/90"
+                className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-danger px-3 text-xs font-semibold text-white transition hover:bg-danger/90"
               >
                 <RefreshCcw size={14} />
                 Try again
@@ -433,12 +433,12 @@ export default function NotificationInbox({
                         >
                           {notification.title}
                         </h3>
-                        <span className="shrink-0 text-[11px] font-semibold text-text-muted">
+                        <span className="shrink-0 text-2xs font-semibold text-text-muted">
                           {formatNotificationTime(notification.createdAt)}
                         </span>
                       </div>
                       <p
-                        className={`mt-1 line-clamp-2 text-[13px] leading-5 ${
+                        className={`mt-1 line-clamp-2 text-sm leading-5 ${
                           isUnread ? "text-text-secondary" : "text-text-muted"
                         }`}
                       >

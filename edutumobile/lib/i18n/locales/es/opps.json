@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "¿Quieres un aviso antes del cierre?",
+      "message": "Podemos recordártelo unos días antes de la fecha límite para que no se te pase.",
+      "confirm": "Recordármelo",
+      "dismiss": "No, gracias"
+    },
     "headerTitle": "Detalles de la oportunidad",
     "loading": "Cargando oportunidad...",
     "notFound": "Oportunidad no encontrada",
@@ -128,6 +134,24 @@
     "addToGoals": "Agregar a mis metas",
     "applyNow": "Postular ahora",
     "savedLabel": "Guardada",
+    "saveAction": "Guardar",
+    "fit": {
+      "title": "Tu encaje",
+      "eyebrow": "La lectura de Edutu",
+      "unknown": "Aún sin clasificar",
+      "unknownBlurb": "Completa tu perfil y Edutu podrá clasificar esta oportunidad para ti.",
+      "evidenceHeadline": "Por qué lo dice Edutu",
+      "tiers": {
+        "strong": "Encaje fuerte",
+        "strongBlurb": "Encaja muy bien con tu perfil: vale la pena dedicarle esfuerzo real.",
+        "solid": "Buen encaje",
+        "solidBlurb": "Coincide en casi todo lo que importa. Revisa las brechas abajo.",
+        "possible": "Encaje posible",
+        "possibleBlurb": "Parte de tu perfil encaja. Lee los requisitos antes de comprometerte.",
+        "stretch": "Ambiciosa",
+        "stretchBlurb": "Más lejos de tu perfil que la mayoría: postúlate si de verdad te entusiasma."
+      }
+    },
     "alerts": {
       "removedTitle": "Eliminada",
       "removedMsg": "Oportunidad eliminada de tu lista de guardadas",
@@ -308,5 +332,63 @@
     "today": "Hoy",
     "tomorrow": "Mañana",
     "daysShortLeft": "Quedan {{count}}d"
+  },
+  "alerts": {
+    "title": "Alertas",
+    "subtitle": "Vigilamos el catálogo por ti",
+    "loading": "Cargando tus alertas…",
+    "settingsA11y": "Ajustes de notificaciones",
+    "summary": "Vigilando {{n}}",
+    "summaryPaused": "{{n}} en pausa",
+    "newAlert": "Nueva alerta",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar esta alerta?",
+    "deleteBody": "Dejarás de recibir avisos sobre nuevas coincidencias de “{{name}}”.",
+    "deleteFailed": "No pudimos eliminar esa alerta. Inténtalo de nuevo en un momento.",
+    "toggleFailed": "No pudimos guardar ese cambio. Inténtalo de nuevo en un momento.",
+    "pushOff": "Las notificaciones push están desactivadas, así que estas alertas no pueden llegarte. Toca para activarlas.",
+    "empty": {
+      "title": "Crea tu primera alerta",
+      "body": "Dinos qué buscas. Revisamos cada nueva oportunidad en cuanto llega y te avisamos cuando encaje.",
+      "browse": "O explora Descubrir"
+    },
+    "composer": {
+      "createTitle": "Nueva alerta",
+      "editTitle": "Editar alerta",
+      "keywordLabel": "Palabras clave",
+      "keywordPlaceholder": "ej. máster con beca completa",
+      "categoryLabel": "Categoría",
+      "remoteLabel": "Solo remoto",
+      "nameLabel": "Nombre de la alerta",
+      "namePlaceholder": "Nombra esta alerta",
+      "untitled": "Mi alerta",
+      "needCriterion": "Añade una palabra clave, elige una categoría o activa solo remoto.",
+      "cancel": "Cancelar",
+      "save": "Guardar alerta",
+      "update": "Guardar cambios",
+      "failedTitle": "No se pudo guardar",
+      "failedBody": "Revisa tu conexión e inténtalo de nuevo.",
+      "limitReached": "Puedes tener hasta {{max}} alertas. Elimina una para hacer sitio."
+    },
+    "card": {
+      "watching": "Vigilando",
+      "paused": "En pausa",
+      "lastMatch": "última coincidencia {{when}}",
+      "remoteChip": "Solo remoto",
+      "matchesTotal": "Coincidencias hasta ahora: {{n}}",
+      "noMatchesYet": "Aún sin coincidencias",
+      "muteA11y": "Pausar esta alerta",
+      "unmuteA11y": "Reanudar esta alerta",
+      "editA11y": "Editar esta alerta",
+      "deleteA11y": "Eliminar esta alerta",
+      "liveCount": "Coincidencias ahora mismo: {{n}}",
+      "liveEmpty": "Nada en el catálogo coincide todavía — te avisaremos cuando algo lo haga.",
+      "liveError": "No pudimos cargar las coincidencias. Desliza hacia abajo para actualizar."
+    },
+    "time": {
+      "justNow": "ahora mismo",
+      "hours": "hace {{n}} h",
+      "days": "hace {{n}} d"
+    }
   }
 }

@@ -11,6 +11,7 @@ import {
     moduleForPathname,
 } from '../../lib/appControl';
 import { supabase } from '../../lib/supabase';
+import { usePromptProUpgrade } from '../../lib/upsell';
 import { useTheme } from '../context/ThemeContext';
 import { useAppControl } from '../context/AppControlContext';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
@@ -28,6 +29,9 @@ export function ModuleLockOverlay() {
     const { colors, isDark } = useTheme();
     const { user } = useUser();
     const { t } = useTranslation('misc');
+    // Shared upsell (lib/upsell). This screen IS the pitch, so it opens the
+    // paywall directly instead of stacking another upgrade prompt on top.
+    const promptProUpgrade = usePromptProUpgrade();
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
 
     const moduleKey = moduleForPathname(pathname);
@@ -71,7 +75,7 @@ export function ModuleLockOverlay() {
 
             {isProLock ? (
                 <AnimatedPressable
-                    onPress={() => router.push('/paywall' as never)}
+                    onPress={() => promptProUpgrade({ direct: true })}
                     style={styles.primaryButtonWrapper}
                     hapticFeedback="medium"
                 >

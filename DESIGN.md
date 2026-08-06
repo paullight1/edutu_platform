@@ -37,11 +37,46 @@ win-odds and erodes trust.
 
 ### Typography
 
-One system sans, fixed pt scale (no fluid clamps — RN, consistent DPI).
-Steps: 11 (tab label) · 13 (meta) · 15 (body) · 17 (row title) · 20–24
-(screen title) · 28+ (moment). Weights 600–900 carry hierarchy; 900 is
-dark-mode-only for brand marks (dark-on-light reads heavier at equal weight).
-`numberOfLines` on every string that can grow — titles 2, meta 1.
+**Mobile (RN).** One system sans, fixed pt scale (no fluid clamps — RN,
+consistent DPI). Steps: 11 (tab label) · 13 (meta) · 15 (body) · 17 (row
+title) · 20–24 (screen title) · 28+ (moment). Weights 600–900 carry hierarchy;
+900 is dark-mode-only for brand marks (dark-on-light reads heavier at equal
+weight). `numberOfLines` on every string that can grow — titles 2, meta 1.
+
+**Web.** Two families, split by job. **Outfit** (variable 400–700) is display
+only — hero, page titles, wordmark, `font-display`. **Instrument Sans**
+(variable 400–700) is the UI voice: body, labels, buttons, rows, data. Outfit
+used to carry both, and its geometric forms and low x-height read badly at
+12–15px. Never pair a third family; `JetBrains Mono` is code-only.
+
+The scale is fixed rem, defined once in `tailwind.config.js` — **every step
+ships its own line-height and optical letter-spacing**, so `text-sm` alone is
+correct and needs no `leading-*` / `tracking-*` companion:
+
+| Step | Size | Role |
+|---|---|---|
+| `text-2xs` | 11px | badges, micro-labels |
+| `text-xs` | 12px | meta, captions |
+| `text-sm` | 14px | secondary UI, labels |
+| `text-base` | 16px | body |
+| `text-lg` → `text-7xl` | 18 → 72px | lead, titles, display |
+
+Tracking opens as type shrinks and tightens as it grows; the floor is
+**-0.04em**. Don't hand-add `tracking-tight` to anything ≤ 16px — it fights
+the scale. Arbitrary `text-[Npx]` values are not allowed; pick the nearest step.
+
+Weights are deliberately one notch lighter than the Tailwind defaults —
+`semibold` renders **560**, `bold` **640** (real values: both families load as
+variable fonts). `semibold` was carrying ~660 of the app's ~800 weight
+declarations at 600, which made emphasis meaningless. **Hierarchy comes from
+size, tracking, leading and colour — not from adding ink.** All four
+`.heading-*` helpers sit at the same weight on purpose.
+
+Mobile vs desktop: only *display* steps take a breakpoint step-up
+(`text-3xl sm:text-4xl md:text-5xl`); product UI below that stays fixed so
+panel and card layouts keep their spatial predictability. Lead paragraphs step
+`text-base sm:text-lg` — 18px on a 390px screen falls under the readable
+measure. Body prose is capped with `.measure` (68ch).
 
 ### Shape & depth
 

@@ -1,141 +1,161 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Dimensions,
-  Platform,
+  FlatList,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowRight, BriefcaseBusiness, Check, GraduationCap, Landmark, Plane, Rocket, type LucideIcon } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import Animated, {
-  Easing,
   FadeIn,
-  FadeOut,
-  SlideInDown,
-  SlideOutDown,
+  FadeInDown,
+  interpolate,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../components/context/ThemeContext';
-import { EdutuLogo } from '../components/branding/EdutuLogo';
-import { enterGuestMode } from '../lib/guestModeStore';
+import { OpportunityOrbit } from '../components/onboarding/OpportunityOrbit';
+import { CoachComposer, DeadlineTimeline, MatchStack } from '../components/onboarding/SlideVisuals';
+import {
+  getOnboardingPalette,
+  getSlideTheme,
+  onboardingLayout,
+  onboardingType,
+  type OnboardingPalette,
+  type SlideTheme,
+} from '../components/onboarding/onboardingTokens';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const DISPLAY_FONT = Platform.select({ ios: 'Avenir Next', android: 'sans-serif', default: undefined });
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Slide>);
 
-function OrbitingProgramIcon({
-  icon: Icon,
-  size,
-  radius,
-  phase,
-  speed = 22000,
-  color,
+type SlideId = 'discover' | 'match' | 'coach' | 'deadlines';
+
+interface Slide {
+  id: SlideId;
+  titleKey: string;
+  bodyKey: string;
+  titleFallback: string;
+  bodyFallback: string;
+}
+
+const SLIDES: Slide[] = [
+  {
+    id: 'discover',
+    // Headline reuses the existing welcome.* key so it stays translated; the
+    // body has its own, longer key — the original one-liner left this slide's
+    // text block visibly shorter than the other three.
+    titleKey: 'welcome.title',
+    bodyKey: 'slides.discover.body',
+    titleFallback: 'Find real opportunities',
+    bodyFallback:
+      'Scholarships, jobs, internships and schools from across the world — gathered in one place and kept up to date.',
+  },
+  {
+    id: 'match',
+    titleKey: 'slides.match.title',
+    bodyKey: 'slides.match.body',
+    titleFallback: 'Matched to you,\nnot to everyone',
+    bodyFallback: 'Every opportunity is scored against your profile, so you know where you actually stand.',
+  },
+  {
+    id: 'coach',
+    titleKey: 'slides.coach.title',
+    bodyKey: 'slides.coach.body',
+    titleFallback: 'An AI coach that\nwrites with you',
+    bodyFallback: 'Draft essays, sharpen your CV, and get feedback before you hit submit.',
+  },
+  {
+    id: 'deadlines',
+    titleKey: 'slides.deadlines.title',
+    bodyKey: 'slides.deadlines.body',
+    titleFallback: 'Never miss\na deadline',
+    bodyFallback: 'Reminders that reach you before applications close — not after.',
+  },
+];
+
+function SlideVisual({
+  id,
+  palette,
+  isDark,
+  theme,
 }: {
-  icon: LucideIcon;
-  size: number;
-  radius: number;
-  phase: number;
-  speed?: number;
-  color: string;
+  id: SlideId;
+  palette: OnboardingPalette;
+  isDark: boolean;
+  theme: SlideTheme;
 }) {
-  const progress = useSharedValue(0);
+  switch (id) {
+    case 'discover':
+      return <OpportunityOrbit palette={palette} isDark={isDark} />;
+    case 'match':
+      return <MatchStack palette={palette} isDark={isDark} theme={theme} />;
+    case 'coach':
+      return <CoachComposer palette={palette} isDark={isDark} theme={theme} />;
+    case 'deadlines':
+      return <DeadlineTimeline palette={palette} isDark={isDark} theme={theme} />;
+  }
+}
 
-  useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(Math.PI * 2, {
-        duration: speed,
-        easing: Easing.inOut(Easing.sin),
-      }),
-      -1,
-      false
-    );
-  }, [progress, speed]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    const angle = progress.value + phase;
-    const bounce = Math.sin(progress.value * 2 + phase) * 7;
-
-    return {
-      transform: [
-        { translateX: Math.cos(angle) * radius },
-        { translateY: Math.sin(angle) * radius + bounce },
-        { scale: 1 + Math.sin(progress.value + phase) * 0.035 },
-      ],
-    };
-  });
+/**
+ * One slide's backdrop. All four stack on top of each other and crossfade from
+ * the scroll offset, so the page changes colour continuously as you drag rather
+ * than snapping when the index finally flips.
+ */
+function BackdropLayer({
+  index,
+  scrollX,
+  colors,
+}: {
+  index: number;
+  scrollX: SharedValue<number>;
+  colors: [string, string, string];
+}) {
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      scrollX.value,
+      [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH],
+      [0, 1, 0],
+      'clamp'
+    ),
+  }));
 
   return (
-    <Animated.View
-      style={[
-        styles.programIcon,
-        {
-          width: size,
-          height: size,
-          left: SCREEN_WIDTH / 2 - size / 2,
-          top: SCREEN_WIDTH * 0.57 - size / 2,
-        },
-        animatedStyle,
-      ]}
-    >
-      <Icon color={color} size={Math.round(size * 0.64)} strokeWidth={2.25} />
+    <Animated.View style={[StyleSheet.absoluteFill, style]}>
+      <LinearGradient colors={colors} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
     </Animated.View>
   );
 }
 
-function OrbitalHero() {
-  const { isDark } = useTheme();
-  const ringColor = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.86)';
-
+function Dots({ count, active, palette }: { count: number; active: number; palette: OnboardingPalette }) {
   return (
-    <View style={styles.heroStage}>
-      <View style={[styles.orbitRing, styles.orbitRingOuter, { borderColor: ringColor }]} />
-      <View style={[styles.orbitRing, styles.orbitRingMiddle, { borderColor: ringColor }]} />
-      <View style={[styles.orbitRing, styles.orbitRingInner, { borderColor: ringColor }]} />
-
-      <LinearGradient colors={['#FFFFFF', '#F7FBFF']} style={styles.centerLogo}>
-        <EdutuLogo size={62} frameless />
-      </LinearGradient>
-
-      <OrbitingProgramIcon
-        icon={GraduationCap}
-        size={64}
-        radius={SCREEN_WIDTH * 0.31}
-        phase={0.2}
-        color={isDark ? '#93C5FD' : '#2563EB'}
-      />
-      <OrbitingProgramIcon
-        icon={Plane}
-        size={58}
-        radius={SCREEN_WIDTH * 0.27}
-        phase={1.7}
-        speed={26000}
-        color={isDark ? '#F9A8D4' : '#DB2777'}
-      />
-      <OrbitingProgramIcon
-        icon={Landmark}
-        size={60}
-        radius={SCREEN_WIDTH * 0.33}
-        phase={3.05}
-        speed={24000}
-        color={isDark ? '#FCD34D' : '#B45309'}
-      />
-      <OrbitingProgramIcon
-        icon={BriefcaseBusiness}
-        size={56}
-        radius={SCREEN_WIDTH * 0.24}
-        phase={4.4}
-        speed={28000}
-        color={isDark ? '#86EFAC' : '#059669'}
-      />
-
+    <View style={styles.dots}>
+      {Array.from({ length: count }).map((_, index) => {
+        const isActive = index === active;
+        return (
+          <View
+            key={index}
+            style={[
+              styles.dot,
+              {
+                width: isActive ? 20 : 6,
+                backgroundColor: isActive ? palette.text : palette.textMuted,
+                opacity: isActive ? 1 : 0.35,
+              },
+            ]}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -143,144 +163,125 @@ function OrbitalHero() {
 export default function OnboardingWelcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
+  const { isDark } = useTheme();
   const { t } = useTranslation('auth');
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const listRef = useRef<FlatList<Slide>>(null);
+  const [index, setIndex] = useState(0);
+  const scrollX = useSharedValue(0);
 
-  const handleContinueWithoutLogin = () => {
-    // Preview mode: mark this visitor a guest and drop them into the app. Only
-    // the home screen and opportunity detail are reachable — the (app) layout
-    // raises the auth wall for anything else.
-    enterGuestMode();
-    router.replace('/(app)');
-  };
+  const palette = getOnboardingPalette(isDark);
+  const isLast = index === SLIDES.length - 1;
 
-  const primaryTextColor = isDark ? '#F8FAFC' : '#141217';
-  const mutedTextColor = isDark ? 'rgba(248,250,252,0.66)' : '#858189';
-  const surfaceColor = isDark ? '#111217' : '#FFFFFF';
-  const softButtonColor = isDark ? '#24252B' : '#EFEDEF';
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollX.value = event.contentOffset.x;
+  });
+
+  const goToGetStarted = useCallback(() => {
+    router.push('/get-started');
+  }, [router]);
+
+  const handleContinue = useCallback(() => {
+    if (isLast) {
+      goToGetStarted();
+      return;
+    }
+    const next = index + 1;
+    listRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
+    setIndex(next);
+  }, [goToGetStarted, index, isLast]);
+
+  const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const next = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setIndex(next);
+  }, []);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#07080D' : '#FFFFFF' }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <LinearGradient
-        colors={
-          isDark
-            ? ['#0B1120', '#271B2E', '#101827', '#05070B']
-            : ['#DCEFFA', '#F8E6DD', '#F9EEF7', '#FFFFFF']
-        }
-        locations={[0, 0.38, 0.72, 1]}
-        style={StyleSheet.absoluteFill}
-      />
 
-      <View style={[styles.mainContent, { paddingTop: insets.top + 44 }]}>
-        <OrbitalHero />
+      {SLIDES.map((slide, i) => (
+        <BackdropLayer
+          key={slide.id}
+          index={i}
+          scrollX={scrollX}
+          colors={getSlideTheme(slide.id, isDark).backdrop}
+        />
+      ))}
 
-        <View style={styles.copy}>
-          <Text style={[styles.title, { color: primaryTextColor, fontWeight: isDark ? '800' : '700' }]}>{t('welcome.title')}</Text>
-          <Text style={[styles.helperLine, { color: mutedTextColor }]}>
-            {t('welcome.subtitle')}
-          </Text>
-        </View>
-
+      <View style={[styles.skipRow, { paddingTop: insets.top + 8 }]}>
         <Pressable
-          style={[
-            styles.getStartedButton,
-            {
-              backgroundColor: isDark ? '#F8FAFC' : '#151316',
-              marginBottom: insets.bottom + 20,
-            },
-          ]}
-          onPress={() => setSheetOpen(true)}
+          onPress={goToGetStarted}
+          hitSlop={12}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <Text style={[styles.getStartedText, { color: isDark ? '#111217' : '#FFFFFF' }]}>
-            {t('welcome.getStarted')}
+          <Text style={[styles.skipText, { color: palette.textMuted }]}>
+            {t('slides.skip', { defaultValue: 'Skip' })}
           </Text>
+          <ChevronRight color={palette.textMuted} size={16} strokeWidth={2.5} />
         </Pressable>
       </View>
 
-      {sheetOpen ? (
-        <Animated.View
-          style={styles.sheetOverlay}
-          entering={FadeIn.duration(180)}
-          exiting={FadeOut.duration(160)}
+      <AnimatedFlatList
+        ref={listRef}
+        data={SLIDES}
+        keyExtractor={(slide) => slide.id}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleMomentumEnd}
+        // Every slide is a fixed screen width, so we can skip measurement and
+        // keep scrollToOffset exact on both platforms.
+        getItemLayout={(_, i) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * i, index: i })}
+        renderItem={({ item }) => (
+          <View style={styles.slide}>
+            <SlideVisual
+              id={item.id}
+              palette={palette}
+              isDark={isDark}
+              theme={getSlideTheme(item.id, isDark)}
+            />
+
+            <Animated.View entering={FadeInDown.delay(120).duration(420)} style={styles.copy}>
+              <Text style={[styles.title, { color: palette.text }]}>
+                {t(item.titleKey, { defaultValue: item.titleFallback })}
+              </Text>
+              <Text style={[styles.body, { color: palette.textMuted }]}>
+                {t(item.bodyKey, { defaultValue: item.bodyFallback })}
+              </Text>
+            </Animated.View>
+          </View>
+        )}
+      />
+
+      <Animated.View
+        entering={FadeIn.delay(200)}
+        style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
+      >
+        <Dots count={SLIDES.length} active={index} palette={palette} />
+
+        <Pressable
+          onPress={handleContinue}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.cta,
+            {
+              backgroundColor: palette.ctaBg,
+              shadowColor: palette.shadow,
+              opacity: pressed ? 0.88 : 1,
+              transform: [{ scale: pressed ? 0.985 : 1 }],
+            },
+          ]}
         >
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSheetOpen(false)} />
-          <Animated.View
-            entering={SlideInDown.springify().damping(20).stiffness(200).mass(0.9)}
-            exiting={SlideOutDown.duration(200)}
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: surfaceColor,
-                paddingBottom: Math.max(insets.bottom, 18) + 10,
-              },
-            ]}
-          >
-            <View style={[styles.grabber, { backgroundColor: isDark ? 'rgba(248,250,252,0.16)' : 'rgba(20,18,23,0.14)' }]} />
-
-            <View style={styles.sheetHeader}>
-              <LinearGradient
-                colors={['#2E7BF6', '#1D4ED8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.sheetIcon}
-              >
-                <Rocket color="#FFFFFF" size={32} fill="#FFFFFF" />
-              </LinearGradient>
-            </View>
-
-            <Text style={[styles.sheetTitle, { color: primaryTextColor }]}>{t('welcome.getStarted')}</Text>
-            <Text style={[styles.sheetDescription, { color: mutedTextColor }]}>
-              {t('welcome.sheetDescription')}
-            </Text>
-
-            <View style={styles.trustRow}>
-              <View style={[styles.trustDot, { backgroundColor: isDark ? 'rgba(52,211,153,0.16)' : 'rgba(5,150,105,0.12)' }]}>
-                <Check color={isDark ? '#34D399' : '#059669'} size={13} strokeWidth={3} />
-              </View>
-              <Text style={[styles.trustText, { color: mutedTextColor }]}>
-                {t('welcome.trustLine', { defaultValue: 'Free to start — no card needed' })}
-              </Text>
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.sheetPrimaryButton,
-                { backgroundColor: isDark ? '#F8FAFC' : '#151316', opacity: pressed ? 0.9 : 1 },
-              ]}
-              onPress={() => router.push('/(auth)/sign-up')}
-            >
-              <Text style={[styles.sheetPrimaryText, { color: isDark ? '#111217' : '#FFFFFF' }]}>
-                {t('welcome.createAccount')}
-              </Text>
-              <ArrowRight color={isDark ? '#111217' : '#FFFFFF'} size={22} />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.sheetSecondaryButton,
-                { backgroundColor: softButtonColor, opacity: pressed ? 0.85 : 1 },
-              ]}
-              onPress={() => router.push('/(auth)/sign-in')}
-            >
-              <Text style={[styles.sheetSecondaryText, { color: primaryTextColor }]}>
-                {t('welcome.signIn')}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.sheetGuestButton}
-              onPress={handleContinueWithoutLogin}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.sheetGuestText, { color: mutedTextColor }]}>
-                {t('welcome.continueWithoutLogin', { defaultValue: 'Continue without login' })}
-              </Text>
-              <ArrowRight color={mutedTextColor} size={16} />
-            </Pressable>
-          </Animated.View>
-        </Animated.View>
-      ) : null}
+          <Text style={[styles.ctaText, { color: palette.ctaText }]}>
+            {isLast
+              ? t('welcome.getStarted', { defaultValue: 'Get Started' })
+              : t('slides.continue', { defaultValue: 'Continue' })}
+          </Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -289,200 +290,67 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  mainContent: {
+  skipRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: onboardingLayout.gutter,
+    paddingBottom: 4,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  skipText: {
+    ...onboardingType.skip,
+  },
+  slide: {
+    width: SCREEN_WIDTH,
     flex: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-  },
-  heroStage: {
-    height: SCREEN_WIDTH * 1.02,
-    marginHorizontal: -24,
-    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  orbitRing: {
-    position: 'absolute',
-    borderWidth: 2,
-  },
-  orbitRingOuter: {
-    width: SCREEN_WIDTH * 1.04,
-    height: SCREEN_WIDTH * 1.04,
-    borderRadius: SCREEN_WIDTH * 0.52,
-    top: SCREEN_WIDTH * 0.02,
-    left: -SCREEN_WIDTH * 0.02,
-  },
-  orbitRingMiddle: {
-    width: SCREEN_WIDTH * 0.76,
-    height: SCREEN_WIDTH * 0.76,
-    borderRadius: SCREEN_WIDTH * 0.38,
-    top: SCREEN_WIDTH * 0.16,
-    left: SCREEN_WIDTH * 0.12,
-  },
-  orbitRingInner: {
-    width: SCREEN_WIDTH * 0.46,
-    height: SCREEN_WIDTH * 0.46,
-    borderRadius: SCREEN_WIDTH * 0.23,
-    top: SCREEN_WIDTH * 0.31,
-    left: SCREEN_WIDTH * 0.27,
-  },
-  centerLogo: {
-    width: 96,
-    height: 96,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SCREEN_WIDTH * 0.02,
-    shadowColor: '#1D4ED8',
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.18,
-    shadowRadius: 30,
-    elevation: 14,
-  },
-  programIcon: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: onboardingLayout.gutter,
   },
   copy: {
-    alignItems: 'center',
-    marginTop: -22,
+    marginTop: 8,
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
   },
   title: {
-    maxWidth: 320,
-    fontFamily: DISPLAY_FONT,
-    fontSize: 33,
-    lineHeight: 38,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 0,
+    ...onboardingType.display,
   },
-  helperLine: {
-    marginTop: 10,
-    maxWidth: 272,
-    fontFamily: DISPLAY_FONT,
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: '600',
-    textAlign: 'center',
+  body: {
+    marginTop: 12,
+    maxWidth: 330,
+    ...onboardingType.body,
   },
-  getStartedButton: {
-    height: 64,
-    borderRadius: 32,
+  footer: {
+    paddingHorizontal: onboardingLayout.gutter,
+    paddingTop: 8,
+  },
+  dots: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 28,
-    elevation: 8,
+    gap: 6,
+    marginBottom: 22,
   },
-  getStartedText: {
-    fontFamily: DISPLAY_FONT,
-    fontSize: 19,
-    fontWeight: '800',
-  },
-  sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-  },
-  sheet: {
-    marginHorizontal: 10,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    paddingHorizontal: 28,
-    paddingTop: 14,
-  },
-  grabber: {
-    width: 40,
-    height: 5,
+  dot: {
+    height: 6,
     borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 22,
   },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 22,
-  },
-  sheetIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
+  cta: {
+    height: onboardingLayout.ctaHeight,
+    borderRadius: onboardingLayout.ctaRadius,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1D4ED8',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
     elevation: 8,
   },
-  sheetTitle: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '700',
-  },
-  sheetDescription: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 28,
-    fontWeight: '500',
-  },
-  trustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 18,
-  },
-  trustDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trustText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sheetPrimaryButton: {
-    height: 66,
-    borderRadius: 18,
-    marginTop: 24,
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sheetPrimaryText: {
-    fontSize: 22,
-    fontWeight: '600',
-  },
-  sheetSecondaryButton: {
-    height: 66,
-    borderRadius: 18,
-    marginTop: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sheetSecondaryText: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  sheetGuestButton: {
-    marginTop: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 6,
-  },
-  sheetGuestText: {
-    fontSize: 15,
-    fontWeight: '600',
+  ctaText: {
+    ...onboardingType.cta,
   },
 });

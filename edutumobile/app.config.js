@@ -55,10 +55,15 @@ export default {
     scheme: "edutu",
     privacyPolicyUrl: "https://edutu.org/privacy",
     supportUrl: "https://edutu.org/support",
+    // Must stay in step with the JS splash (app/index.tsx): same mark, same
+    // background. The old splash-icon.jpg was a retired logo on #171a4f, so
+    // every launch flashed the previous branding before the JS splash swapped
+    // it for the current one. A prebuild regenerates the native assets from
+    // here, so changing the committed ios/ assets alone would regress.
     splash: {
-      image: "./assets/splash-icon.jpg",
+      image: "./assets/logo1.png",
       resizeMode: "contain",
-      backgroundColor: "#171a4f"
+      backgroundColor: "#08090D"
     },
     ios: {
       // Must match ios/Edutu.xcodeproj (PRODUCT_BUNDLE_IDENTIFIER) so a
@@ -67,6 +72,10 @@ export default {
       // iPhone-only for v1: the app is portrait-locked and iPad layouts are
       // untested — shipping tablet support invites App Review layout rejections.
       supportsTablet: false,
+      // Informational only: eas.json sets appVersionSource "remote", so EAS
+      // owns the build number and auto-increments it per production build.
+      // (It must be remote — `local` would need EAS to write back into this
+      // file, and it cannot write to a dynamic config.)
       buildNumber: "1",
       deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),

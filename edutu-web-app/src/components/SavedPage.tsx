@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import PullToRefresh from "./ui/PullToRefresh";
-import { EmptyState, ErrorState } from "./ui/EmptyState";
+import { StateView, showsContent, useScreenState } from "./state";
 import { getBookmarks, type BookmarkRecord } from "../services/bookmarks";
 import UrgencyPill from "./opportunity/UrgencyPill";
+import WebPushPrompt from "./WebPushPrompt";
 
 function formatDeadline(value?: string | null) {
   if (!value) return "No deadline";
@@ -32,12 +33,20 @@ export default function SavedPage() {
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The raw failure, kept alongside the message so classifyError() can tell a
+  // 401 from a 500. `error` stays a string because other copy still reads it.
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const resolveToken = useCallback(async () => {
     const token = await getToken().catch(() => null);
     if (!token) {
-      throw new Error(
-        "Your session has expired. Sign in again to view saved opportunities.",
+      // Tagged so classifyError() reports `auth`. A bare Error classifies as
+      // `server`, which would offer a Retry that cannot fix an expired session.
+      throw Object.assign(
+        new Error(
+          "Your session has expired. Sign in again to view saved opportunities.",
+        ),
+        { status: 401 },
       );
     }
     return token;
@@ -47,13 +56,15 @@ export default function SavedPage() {
     if (!user?.id) return;
     setLoading(true);
     setError(null);
+    setLoadError(null);
     try {
       const token = await resolveToken();
       setBookmarks(await getBookmarks(user.id, token));
-    } catch (loadError) {
+    } catch (caught) {
+      setLoadError(caught);
       setError(
-        loadError instanceof Error
-          ? loadError.message
+        caught instanceof Error
+          ? caught.message
           : "Unable to load saved opportunities.",
       );
     } finally {
@@ -64,6 +75,14 @@ export default function SavedPage() {
   useEffect(() => {
     void loadBookmarks();
   }, [loadBookmarks]);
+
+  // One declared state replaces the old error/empty ternary. It also gains the
+  // states this screen never had: offline, and an expired session that says so.
+  const screenState = useScreenState({
+    data: bookmarks,
+    loading,
+    error: loadError,
+  });
 
   const openOpportunity = (opportunityId: string) => {
     if (opportunityId) {
@@ -126,6 +145,18 @@ export default function SavedPage() {
             </div>
           </section>
 
+          {/* Contextual opt-in: only worth asking once there is something saved
+              whose deadline we could remind them about. Hides itself entirely
+              when push is unavailable, blocked, already on, or dismissed. */}
+          {!loading && !error && bookmarks.length > 0 ? (
+            <WebPushPrompt
+              promptId="saved"
+              title="Never miss a saved deadline"
+              body="Turn on browser reminders and we'll nudge you before each saved opportunity closes."
+              className="mt-5"
+            />
+          ) : null}
+
           {loading ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {Array.from({ length: 4 }).map((_, index) => (
@@ -135,23 +166,13 @@ export default function SavedPage() {
                 />
               ))}
             </div>
-          ) : error ? (
+          ) : !showsContent(screenState) ? (
             <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <ErrorState
-                message={error}
+              <StateView
+                state={screenState}
+                flow="saved"
                 onRetry={() => void loadBookmarks()}
-              />
-            </div>
-          ) : bookmarks.length === 0 ? (
-            <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <EmptyState
-                icon={<Bookmark size={32} />}
-                title="No saved opportunities yet"
-                description="Save opportunities from the feed and they'll show up here so you can revisit and apply before deadlines."
-                action={{
-                  label: "Browse opportunities",
-                  onClick: () => navigate("/opportunities"),
-                }}
+                onAction={() => navigate("/opportunities")}
               />
             </div>
           ) : (

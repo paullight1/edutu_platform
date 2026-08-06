@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { createHmac } from "crypto";
 import { BillingService } from "./billing.service";
 import { SettingsService } from "../settings/settings.service";
 import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
@@ -119,6 +120,198 @@ describe("BillingService", () => {
       },
     };
   }
+
+  // ─── Subscription-renewal webhook harness ────────────────────────────────
+  // Captures every write the webhook makes so the tests can assert the exact
+  // expiry that landed in each of the three tables that must agree.
+  type WebhookWrites = {
+    entitlement: any;
+    subscription: any;
+    profile: any;
+  };
+
+  function createWebhookSupabaseMock(existingEntitlement: any) {
+    const writes: WebhookWrites = {
+      entitlement: null,
+      subscription: null,
+      profile: null,
+    };
+
+    // Read chain for the pre-existing entitlement (select→eq→eq→maybeSingle).
+    const readQuery = (result: any): any => ({
+      select: () => readQuery(result),
+      eq: () => readQuery(result),
+      maybeSingle: () => Promise.resolve(result),
+    });
+
+    const supabase = {
+      from: (table: string) => {
+        if (table === "billing_entitlements") {
+          return {
+            ...readQuery({ data: existingEntitlement, error: null }),
+            upsert: (row: any) => {
+              writes.entitlement = row;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        if (table === "billing_subscriptions") {
+          return {
+            upsert: (row: any) => {
+              writes.subscription = row;
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        if (table === "profiles") {
+          return {
+            update: (row: any) => {
+              writes.profile = row;
+              return { eq: () => Promise.resolve({ data: null, error: null }) };
+            },
+          };
+        }
+        return {
+          upsert: () => Promise.resolve({ data: null, error: null }),
+        };
+      },
+    };
+
+    return { supabase, writes };
+  }
+
+  // Drives handlePaystackWebhook with a correctly signed charge.success body.
+  async function runRenewalWebhook(options: {
+    plan: string;
+    existingEntitlement: any;
+  }) {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
+    const payload = {
+      event: "charge.success",
+      data: {
+        reference: "ref_renewal_1",
+        amount: 650000,
+        currency: "NGN",
+        customer: { customer_code: "CUS_1" },
+        metadata: { user_id: "user-1", plan: options.plan, feature: "pro" },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = createHmac("sha512", "sk_test_123")
+      .update(rawBody)
+      .digest("hex");
+
+    const { supabase, writes } = createWebhookSupabaseMock(
+      options.existingEntitlement,
+    );
+    const service = new BillingService(settingsStub);
+    (service as any).supabase = supabase;
+
+    const result = await service.handlePaystackWebhook(
+      rawBody,
+      payload,
+      signature,
+    );
+    return { result, writes };
+  }
+
+  it("EXTENDS an existing entitlement on renewal instead of resetting it", async () => {
+    // 300 days of paid time left — a monthly renewal must land at 300 + 31,
+    // not at 31. This is the money-losing regression this test exists for.
+    const existingExpiry = new Date(Date.now() + 300 * 24 * 3600 * 1000);
+    const { result, writes } = await runRenewalWebhook({
+      plan: "monthly",
+      existingEntitlement: {
+        status: "active",
+        expires_at: existingExpiry.toISOString(),
+      },
+    });
+
+    expect(result).toMatchObject({ received: true });
+
+    const granted = new Date(writes.entitlement.expires_at);
+    const addedDays = Math.round(
+      (granted.getTime() - existingExpiry.getTime()) / (24 * 3600 * 1000),
+    );
+    expect(addedDays).toBe(31);
+    // Sanity: nowhere near the "reset to now + 31" the bug produced.
+    const daysFromNow = Math.round(
+      (granted.getTime() - Date.now()) / (24 * 3600 * 1000),
+    );
+    expect(daysFromNow).toBe(331);
+
+    // All three writes must carry the same extended expiry.
+    expect(writes.subscription.current_period_end).toBe(
+      writes.entitlement.expires_at,
+    );
+    expect(writes.profile.pro_expires_at).toBe(writes.entitlement.expires_at);
+    expect(writes.profile.is_pro).toBe(true);
+  });
+
+  it("extends a weekly renewal by exactly 7 days from the remaining expiry", async () => {
+    const existingExpiry = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+    const { writes } = await runRenewalWebhook({
+      plan: "weekly",
+      existingEntitlement: {
+        status: "active",
+        expires_at: existingExpiry.toISOString(),
+      },
+    });
+
+    const addedDays = Math.round(
+      (new Date(writes.entitlement.expires_at).getTime() -
+        existingExpiry.getTime()) /
+        (24 * 3600 * 1000),
+    );
+    expect(addedDays).toBe(7);
+  });
+
+  it("grants a yearly plan 366 days from now for a first-time subscriber", async () => {
+    const { writes } = await runRenewalWebhook({
+      plan: "yearly",
+      existingEntitlement: null,
+    });
+
+    const daysFromNow = Math.round(
+      (new Date(writes.entitlement.expires_at).getTime() - Date.now()) /
+        (24 * 3600 * 1000),
+    );
+    expect(daysFromNow).toBe(366);
+  });
+
+  it("ignores expired or revoked entitlements and grants from now", async () => {
+    // Revoked row that still carries a future expires_at — dead time must not
+    // be resurrected, so the grant is measured from now.
+    const { writes } = await runRenewalWebhook({
+      plan: "monthly",
+      existingEntitlement: {
+        status: "revoked",
+        expires_at: new Date(Date.now() + 200 * 24 * 3600 * 1000).toISOString(),
+      },
+    });
+
+    const daysFromNow = Math.round(
+      (new Date(writes.entitlement.expires_at).getTime() - Date.now()) /
+        (24 * 3600 * 1000),
+    );
+    expect(daysFromNow).toBe(31);
+  });
+
+  it("grants from now when the stored entitlement already lapsed", async () => {
+    const { writes } = await runRenewalWebhook({
+      plan: "monthly",
+      existingEntitlement: {
+        status: "active",
+        expires_at: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+      },
+    });
+
+    const daysFromNow = Math.round(
+      (new Date(writes.entitlement.expires_at).getTime() - Date.now()) /
+        (24 * 3600 * 1000),
+    );
+    expect(daysFromNow).toBe(31);
+  });
 
   it("initializes an API credits checkout with the correct Paystack metadata", async () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_123";

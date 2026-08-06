@@ -36,6 +36,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Marketing Open Graph captures are ~250 KB each and are only ever
+        // fetched by social crawlers server-side — precaching them would put
+        // several MB of images no user ever sees into every install.
+        globIgnores: ['og/*', '**/og/*'],
         // Adds notificationclick + push handlers on top of the generated SW.
         importScripts: ['sw-custom.js'],
         runtimeCaching: [
@@ -167,6 +171,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@edutu/ux-state': resolve(__dirname, '../packages/ux-state/src'),
+    },
+  },
+  server: {
+    fs: {
+      // The shared UX-state package sits outside this app's root. Without this
+      // the production build succeeds and only `npm run dev` 403s, which is an
+      // easy failure to miss in CI.
+      allow: [resolve(__dirname, '.'), resolve(__dirname, '../packages/ux-state')],
     },
   },
   build: {

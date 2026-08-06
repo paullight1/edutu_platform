@@ -86,7 +86,7 @@ export const ProGate: React.FC<ProGateProps> = ({
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-elevated text-brand shadow-sm">
           <Lock className="h-4 w-4" aria-hidden="true" />
         </span>
-        <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+        <span className="rounded-full bg-brand px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-white">
           {label}
         </span>
       </button>

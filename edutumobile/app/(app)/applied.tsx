@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { StateView } from '../../components/state';
 import {
   APPLICATION_PIPELINE,
   ApplicationStatus,
@@ -30,6 +31,7 @@ import { useAiAction } from "../../hooks/useAiAction";
 import { setVoiceModeThread as setPendingChatThread } from "../../lib/voiceModeStore";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
+import { usePromptProUpgrade } from "../../lib/upsell";
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn', 'no_response'];
 
@@ -264,9 +266,13 @@ export default function AppliedPage() {
     },
     [router],
   );
+  // One shared upsell entry point (lib/upsell). The win-coach sheet already
+  // shows the billing message next to this button, so it goes straight to the
+  // paywall rather than repeating itself in a dialog.
+  const promptProUpgrade = usePromptProUpgrade();
   const goToPaywall = useCallback(() => {
-    router.push('/paywall' as never);
-  }, [router]);
+    promptProUpgrade({ direct: true });
+  }, [promptProUpgrade]);
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
   const [rawLoading, setLoading] = useState(true);
   // Signed-out users have nothing to load — derive instead of synchronously
@@ -650,19 +656,15 @@ export default function AppliedPage() {
   };
 
   const renderEmpty = () => (
-    <View style={styles.emptyState}>
-      <Globe size={48} color={textSecondary} />
-      <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('applied.emptyTitle')}</Text>
-      <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
-        {t('applied.emptySubtitle')}
-      </Text>
-      <TouchableOpacity
-        style={[styles.emptyBtn, { backgroundColor: accentColor }]}
-        onPress={() => router.push('/opportunities')}
-      >
-        <Text style={styles.emptyBtnText}>{t('applied.browseOpportunities')}</Text>
-      </TouchableOpacity>
-    </View>
+    <StateView
+      state={{ kind: 'empty', reason: 'firstRun' }}
+      flow="applied"
+      fill={false}
+      title={t('applied.emptyTitle')}
+      body={t('applied.emptySubtitle')}
+      actionLabel={t('applied.browseOpportunities')}
+      onAction={() => router.push('/opportunities')}
+    />
   );
 
   return (
@@ -675,11 +677,16 @@ export default function AppliedPage() {
         renderItem={renderApplication}
         ListHeaderComponent={renderStatBoard}
         ListEmptyComponent={loading ? null : (applications.length > 0 ? (
-          <View style={styles.filterEmpty}>
-            <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
-              {t('applied.emptyFilter')}
-            </Text>
-          </View>
+          // There ARE applications; the active filter just excludes them all.
+          // A different problem from having none, with a different fix.
+          <StateView
+            state={{ kind: 'empty', reason: 'filtered' }}
+            flow="applied"
+            fill={false}
+            sceneSize={140}
+            title={t('applied.emptyFilter')}
+            body=""
+          />
         ) : renderEmpty())}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}

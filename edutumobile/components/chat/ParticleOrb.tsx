@@ -31,7 +31,8 @@ export type OrbVisualState =
   | 'error';
 
 interface ParticleOrbProps {
-  size: number;
+  /** Ignored when `fill` is set — the canvas then takes its parent's box. */
+  size?: number;
   design: OrbDesign;
   state: OrbVisualState;
   /** 0..1 mic level — swells the orb and fires pulses while listening. */
@@ -91,6 +92,42 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
   function mix(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
   function rgba(c,a){return 'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+','+Math.max(0,Math.min(1,a)).toFixed(3)+')';}
 
+  // ── Shared ambient field ─────────────────────────────────────────────
+  // A state-tinted wash behind whichever design is selected, plus a vignette
+  // in front of it. Two jobs: it stops the room reading as a flat black
+  // rectangle with a sticker in the middle, and it makes the current state
+  // legible peripherally — the whole room shifts colour between listening,
+  // thinking and speaking, which no single label can do. Every design gets
+  // it, so improving it improves all eight.
+  var TINTS={
+    idle:        [110,150,255],
+    muted:       [108,116,132],
+    listening:   [125,211,252],
+    transcribing:[186,160,255],
+    thinking:    [168,120,255],
+    speaking:    [110,231,183],
+    error:       [248,113,113]
+  };
+  var tint=TINTS.idle.slice();
+  function drawAmbient(t){
+    var want=TINTS[state]||TINTS.idle;
+    // Eased toward the target so a state change is a wash, not a hard cut.
+    for(var i=0;i<3;i++)tint[i]+=(want[i]-tint[i])*0.05;
+    var breathe=reduced?1:1+0.05*Math.sin(t*0.85);
+    var rr=R*(2.0*breathe+(state==='listening'?level*0.4:0));
+    var g=ctx.createRadialGradient(CX,CY,R*0.12,CX,CY,rr);
+    g.addColorStop(0,rgba(tint,0.17*cur.bright));
+    g.addColorStop(0.45,rgba(tint,0.065*cur.bright));
+    g.addColorStop(1,rgba(tint,0));
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  }
+  function drawVignette(){
+    var g=ctx.createRadialGradient(CX,CY,Math.min(W,H)*0.32,CX,CY,Math.max(W,H)*0.74);
+    g.addColorStop(0,'rgba(0,0,0,0)');
+    g.addColorStop(1,'rgba(0,0,0,0.55)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  }
+
   // Shared blink timers (robot + blob — only one design renders at a time).
   var nextBlink=2600,blinkEnd=0;
   function blinkScale(now){
@@ -111,6 +148,17 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
     var scl=cur.scale+(state==='listening'?level*0.10:0);
     if(state==='speaking'&&!reduced){scl+=0.05*Math.sin(now/1000*5.4);}
     var cy=Math.cos(rotY),sy=Math.sin(rotY),cxr=Math.cos(rotX),sxr=Math.sin(rotX);
+    // Additive blending: overlapping dots accumulate light, so the cloud
+    // reads as a lit volume instead of flat confetti — and it makes the pass
+    // order-independent, which is why we can skip a per-frame depth sort of
+    // 760 points. The core glow underneath gives it a centre to sit around.
+    ctx.globalCompositeOperation='lighter';
+    var core=ctx.createRadialGradient(CX,CY,0,CX,CY,R*scl*1.15);
+    core.addColorStop(0,rgba(mix(C1,C3,cur.violet),0.20*cur.bright));
+    core.addColorStop(0.6,rgba(mix(C2,C3,cur.violet),0.07*cur.bright));
+    core.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=core;
+    ctx.beginPath();ctx.arc(CX,CY,R*scl*1.15,0,Math.PI*2);ctx.fill();
     for(var i=0;i<N;i++){
       var p=pts[i];
       var x=p.x*cy+p.z*sy, z=-p.x*sy+p.z*cy;
@@ -131,6 +179,7 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
       ctx.fillStyle=rgba(col,alpha);
       ctx.fillRect(px-sz/2,py-sz/2,sz,sz);
     }
+    ctx.globalCompositeOperation='source-over';
     drawPulseRings(true);
   }
 
@@ -472,16 +521,18 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
     for(var j=pulses.length-1;j>=0;j--){
       var pu=pulses[j];
       if(pu.a<=0||pu.r>Math.max(W,H)){pulses.splice(j,1);continue;}
+      // Eased tail — a linear fade pops out of existence at the rim.
+      var pa=Math.pow(pu.a,1.5);
       if(dotted){
         var dots=64;
-        ctx.fillStyle='rgba(147,197,253,'+(pu.a*0.5).toFixed(3)+')';
+        ctx.fillStyle='rgba(147,197,253,'+(pa*0.55).toFixed(3)+')';
         for(var k2=0;k2<dots;k2++){
           var an=(k2/dots)*Math.PI*2+pu.r*0.002;
           ctx.fillRect(CX+Math.cos(an)*pu.r,CY+Math.sin(an)*pu.r,1.6,1.6);
         }
       }else{
         ctx.beginPath();ctx.arc(CX,CY,pu.r,0,Math.PI*2);
-        ctx.strokeStyle='rgba(190,150,253,'+(pu.a*0.35).toFixed(3)+')';
+        ctx.strokeStyle='rgba(190,150,253,'+(pa*0.4).toFixed(3)+')';
         ctx.lineWidth=2;ctx.stroke();
       }
     }
@@ -508,6 +559,7 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
     for(var j=0;j<pulses.length;j++){pulses[j].r+=dt*R*1.4;pulses[j].a-=dt*0.55;}
 
     ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    drawAmbient(t);
     if(design==='ring')drawRing(t,now);
     else if(design==='bubble')drawNebulaSphere(BUBBLE_CFG,t,now);
     else if(design==='crystal')drawNebulaSphere(CRYSTAL_CFG,t,now);
@@ -516,6 +568,7 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
     else if(design==='blob')drawBlob(t,now);
     else if(design==='petals')drawPetals(t,now);
     else drawParticles(t,rotY,rotX,now);
+    drawVignette();
 
     requestAnimationFrame(frame);
   }
@@ -523,7 +576,7 @@ const ORB_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
 })();
 </script></body></html>`;
 
-export function ParticleOrb({ size, design, state, level, reducedMotion, fill = false }: ParticleOrbProps) {
+export function ParticleOrb({ size = 320, design, state, level, reducedMotion, fill = false }: ParticleOrbProps) {
   const webRef = useRef<WebView>(null);
   const readyRef = useRef(false);
 

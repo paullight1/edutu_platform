@@ -26,6 +26,7 @@ import {
 } from '../../lib/pricing';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
 import { useWelcomeModalActive } from '../../lib/welcomeModalStore';
+import { useUpgradeSheet } from '../context/UpgradeSheetContext';
 
 // One impression per calendar day so the ad never nags.
 const LAST_SHOWN_KEY = '@edutu/login_offer_last_shown';
@@ -51,9 +52,15 @@ export function LoginOfferModal() {
     const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
     // Wait out the first-run greeting so the promo never stacks on top of it.
     const welcomeActive = useWelcomeModalActive();
+    // This is an unsolicited ad. If the user is already inside a monetization
+    // surface they opened themselves (the shared upgrade sheet, or a screen's
+    // Pro modal), the promo must stay out of the way rather than stack a
+    // second full-screen paywall pitch on top of it. Narrowed to a boolean so
+    // the effect doesn't depend on the whole context object identity.
+    const upgradeFlowOpen = useUpgradeSheet()?.isUpgradeFlowOpen ?? false;
 
     useEffect(() => {
-        if (!user?.id || proLoading || isPro || welcomeActive) return;
+        if (!user?.id || proLoading || isPro || welcomeActive || upgradeFlowOpen) return;
         let cancelled = false;
 
         const maybeShow = async () => {
@@ -79,7 +86,7 @@ export function LoginOfferModal() {
 
         void maybeShow();
         return () => { cancelled = true; };
-    }, [user?.id, proLoading, isPro, welcomeActive]);
+    }, [user?.id, proLoading, isPro, welcomeActive, upgradeFlowOpen]);
 
     const promoActive = hasPromoDiscount(pricing, 'monthly');
     const regular = pricing.monthlyPrice;
@@ -95,7 +102,11 @@ export function LoginOfferModal() {
         router.push('/paywall' as never);
     };
 
-    if (!visible) return null;
+    // Second half of the suppression: the delayed reveal can land in the same
+    // frame a billing error opens the shared sheet, so yield at render time
+    // too. The once-per-day key is already written by then — the promo simply
+    // forfeits today's impression rather than fighting for the foreground.
+    if (!visible || upgradeFlowOpen) return null;
 
     const accent = '#7C6FE8';
     const textPrimary = isDark ? '#F1F5F9' : '#1E1B33';

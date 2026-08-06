@@ -4,11 +4,24 @@ import { resolve } from 'path';
 
 export default defineConfig({
     plugins: [react()],
+    server: {
+        fs: {
+            // Vitest runs its own Vite server, so the out-of-root package needs
+            // the same allowance the dev server has.
+            allow: [resolve(__dirname, '.'), resolve(__dirname, '../packages/ux-state')],
+        },
+    },
     test: {
         globals: true,
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
-        include: ['**/*.{test,spec}.{ts,tsx}'],
+        // The shared UX-state package has no test runner of its own by design.
+        // Running its suite here is also how we prove it parses under Vite's
+        // toolchain as well as Metro's.
+        include: [
+            '**/*.{test,spec}.{ts,tsx}',
+            '../packages/ux-state/src/**/*.{test,spec}.{ts,tsx}',
+        ],
         exclude: ['node_modules', 'dist', 'android', '.idea'],
         coverage: {
             provider: 'v8',
@@ -35,6 +48,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': resolve(__dirname, './src'),
+            '@edutu/ux-state': resolve(__dirname, '../packages/ux-state/src'),
         },
     },
 });

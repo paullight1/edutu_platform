@@ -117,8 +117,17 @@
     <!-- Warm the API + banner-image origins so first data/image requests skip DNS+TLS setup -->
     <link rel="preconnect" href="https://edutu-platform.onrender.com" crossorigin />
     <link rel="dns-prefetch" href="https://images.pexels.com" />
+    <!-- Loaded here rather than via @import in index.css so the preload
+         scanner finds them immediately.
+
+         Variable axes, not static instances: the weight scale in
+         tailwind.config.js renders at 560/640, which only resolves correctly
+         against a variable file. Requesting ranges also collapses what used to
+         be ten separate weight files (six Outfit + four Mono) into three.
+         Instrument Sans carries UI/body; Outfit is display-only now, so its
+         800/900 masters are gone. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Outfit:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap"
       rel="stylesheet"
     />
 

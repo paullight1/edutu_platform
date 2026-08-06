@@ -1070,7 +1070,10 @@ ${input.message}`;
         [
           `${index + 1}. ${opportunity.title}`,
           `   - Category: ${opportunity.category || "General"}`,
-          `   - Organization: ${opportunity.organization || "Edutu"}`,
+          // Never "Edutu": we list these, we don't run them. An unknown
+          // organiser must read as unknown so the coach can't assert otherwise
+          // — the same no-fabrication rule the rest of this block follows.
+          `   - Organization: ${opportunity.organization || "Not stated — do not guess"}`,
           `   - Location: ${opportunity.location || "Remote / Not specified"}`,
           `   - Deadline: ${this.getOpportunityDeadline(opportunity) || "Not specified"}`,
           `   - Apply: ${this.getOpportunityApplyUrl(opportunity) || "No application link stored"}`,

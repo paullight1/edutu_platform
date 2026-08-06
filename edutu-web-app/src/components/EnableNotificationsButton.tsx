@@ -1,61 +1,31 @@
-import { useCallback, useEffect, useState } from "react";
-import { Bell, BellOff, Loader2 } from "lucide-react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { useAuth as useAppAuth } from "../hooks/useAuth";
-import {
-  getWebPushState,
-  subscribeToWebPush,
-  type WebPushState,
-} from "../lib/webPush";
+import { Bell, Loader2 } from "lucide-react";
+import { useWebPush } from "../hooks/useWebPush";
 
 /**
  * One-tap opt-in for browser push reminders. Renders only when web push is
- * supported, configured (VAPID key present), and not already subscribed — so it
- * quietly disappears once enabled or where push can't work.
+ * supported, configured (VAPID key present), not blocked, and not already
+ * subscribed — so it quietly disappears once enabled or where push can't work.
+ *
+ * Subscription itself lives in `useWebPush` → `src/lib/webPush.ts`; this is
+ * only a trigger surface, invoked from a real click (browsers require a user
+ * gesture for the permission prompt).
  */
 export default function EnableNotificationsButton({
   className = "",
 }: {
   className?: string;
 }) {
-  const { getToken } = useClerkAuth();
-  const { user } = useAppAuth();
-  const [state, setState] = useState<WebPushState | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    void getWebPushState().then(setState);
-  }, []);
-
-  const enable = useCallback(async () => {
-    if (!user?.id) return;
-    setBusy(true);
-    try {
-      const token = await getToken().catch(() => null);
-      const next = await subscribeToWebPush(user.id, token);
-      setState(next);
-      if (next === "denied") {
-        window.alert(
-          "Notifications are blocked in your browser settings. Turn them on there to receive reminders.",
-        );
-      }
-    } catch (error) {
-      console.error("Failed to enable web push", error);
-    } finally {
-      setBusy(false);
-    }
-  }, [getToken, user?.id]);
+  const { state, busy, enable } = useWebPush();
 
   if (
-    !state ||
+    state === null ||
     state === "unsupported" ||
     state === "unconfigured" ||
+    state === "denied" ||
     state === "subscribed"
   ) {
     return null;
   }
-
-  const blocked = state === "denied";
 
   return (
     <button
@@ -66,12 +36,10 @@ export default function EnableNotificationsButton({
     >
       {busy ? (
         <Loader2 size={15} className="animate-spin" />
-      ) : blocked ? (
-        <BellOff size={15} />
       ) : (
         <Bell size={15} />
       )}
-      {blocked ? "Notifications blocked" : "Enable reminders"}
+      Enable reminders
     </button>
   );
 }

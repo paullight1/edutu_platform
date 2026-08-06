@@ -153,7 +153,7 @@ export default function MultiSelectDropdown({
         )}
         <span className="flex shrink-0 items-center gap-2">
           {selected.length > 0 ? (
-            <span className="rounded-full bg-surface-elevated px-2 py-0.5 text-[11px] font-semibold text-text-muted">
+            <span className="rounded-full bg-surface-elevated px-2 py-0.5 text-2xs font-semibold text-text-muted">
               {selected.length}
             </span>
           ) : null}

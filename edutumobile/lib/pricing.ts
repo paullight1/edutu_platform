@@ -251,6 +251,10 @@ export function normalisePaywallContent(payload: unknown): PaywallContent {
       : [],
     accentColor: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '',
     heroStyle: r.heroStyle === 'gradient' ? 'gradient' : 'collage',
+    // All three cadences are live end-to-end (pay.edutu.org's isBillingPlan
+    // accepts 'weekly' and planDurationDays grants it 7 days), so 'weekly' is a
+    // real plan here and not just the "unrecognised value" bucket — it matches
+    // DEFAULT_PAYWALL_CONTENT.defaultPlan and the paywall's initial selection.
     defaultPlan: plan === 'monthly' || plan === 'yearly' ? plan : 'weekly',
   };
 }
@@ -283,6 +287,12 @@ export function hasPromoDiscount(pricing: PricingConfig, plan: BillingPlan): boo
  * Build the pay.edutu.org hosted-checkout URL with the signed-in user's context.
  * pay.edutu.org maps this to a Paystack transaction; its webhook grants the
  * entitlement server-side (the client can never self-grant Pro).
+ *
+ * `plan` goes over verbatim — all three cadences round-trip: pay.edutu.org's
+ * isBillingPlan() accepts 'weekly' | 'monthly' | 'yearly' and planDurationDays()
+ * grants 7 / 31 / 366 days, so a weekly checkout is honoured rather than being
+ * rejected as an unknown plan. Web build only: on iOS/Android the paywall
+ * charges through the store instead (App Store 3.1.1 / Play Payments).
  */
 export function buildCheckoutUrl(
   pricing: PricingConfig,

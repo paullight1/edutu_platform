@@ -5,6 +5,7 @@ import { OgController } from "./og.controller";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { OpportunityShareEnrichService } from "./opportunity-share-enrich.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { AiModule } from "../ai";
 import { SavedSearchesModule } from "../saved-searches/saved-searches.module";
@@ -17,6 +18,7 @@ import { SavedSearchesModule } from "../saved-searches/saved-searches.module";
     OpportunityRankingService,
     OpportunityVerificationService,
     OpportunityShareCardService,
+    OpportunityShareEnrichService,
     OpportunityEmbeddingService,
   ],
   exports: [

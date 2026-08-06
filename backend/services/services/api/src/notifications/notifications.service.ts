@@ -43,6 +43,20 @@ const DEFAULT_CHANNELS = {
 
 const BROADCAST_BATCH_SIZE = 500;
 
+/**
+ * Global per-user push budget.
+ *
+ * Every sender (deadline reminders, doc nudges, saved-search digests, goal and
+ * roadmap reminders, pro-expiry notices, the alerts engine) used to cap itself
+ * in isolation and could not see the others, so a user could be interrupted an
+ * unbounded number of times a day by senders that each believed they were being
+ * conservative. The budget lives at the single chokepoint every push funnels
+ * through — `deliverBroadcast` — so new senders inherit it by construction.
+ */
+const PUSH_BUDGET_ROUTINE_PER_DAY = 1;
+const PUSH_BUDGET_URGENT_PER_DAY = 2;
+const PUSH_BUDGET_PER_WEEK = 5;
+
 // Brevo caps `messageVersions` (individual per-recipient copies) at 1000 per
 // /v3/smtp/email call; larger audiences are sent in successive calls.
 const BREVO_VERSION_LIMIT = 1000;
@@ -195,6 +209,34 @@ export class NotificationsService {
 
     if (!updated) throw new NotFoundException("Notification not found");
     return updated;
+  }
+
+  /**
+   * Stamps `opened_at` for a notification the user tapped. Idempotent (the
+   * FIRST open is the interesting one; a re-open must not move the timestamp)
+   * and deliberately silent — see the controller for why this runs unauthed.
+   * Never throws: telemetry must not surface an error to a client that is only
+   * reporting a tap.
+   */
+  async markOpened(notificationId: string): Promise<void> {
+    if (!notificationId?.trim()) return;
+    try {
+      await db
+        .update(notifications)
+        .set({ openedAt: new Date() })
+        .where(
+          and(
+            eq(notifications.id, notificationId),
+            isNull(notifications.openedAt),
+          ),
+        );
+    } catch (error) {
+      // An invalid uuid raises a cast error — that is a malformed id, not an
+      // outage, and the caller gets 204 either way.
+      this.logger.debug(
+        `markOpened ignored for ${notificationId}: ${this.errorMessage(error)}`,
+      );
+    }
   }
 
   async markAllRead(userId: string) {
@@ -559,6 +601,19 @@ export class NotificationsService {
   }
 
   /**
+   * Normalises a raw `db.execute` result into a row array.
+   *
+   * The node-postgres driver resolves `.execute()` to a pg `QueryResult`
+   * ({ rows, rowCount, ... }) which is NOT iterable, while the postgres-js
+   * driver resolves to a plain array. Iterating the result directly therefore
+   * throws "result is not iterable" against node-postgres — handle both shapes.
+   */
+  private rows<T>(result: unknown): T[] {
+    if (Array.isArray(result)) return result as T[];
+    return (result as { rows?: T[] } | null)?.rows ?? [];
+  }
+
+  /**
    * Resolves delivery preferences + timezone for a batch of users.
    *
    * Users with no `notification_preferences` row fall back to the column
@@ -604,7 +659,7 @@ export class NotificationsService {
         left join notification_preferences p on p.user_id = u.user_id
       `);
 
-      for (const row of result as unknown as Array<{
+      for (const row of this.rows<{
         user_id: string;
         push_notifications: boolean;
         email_notifications: boolean;
@@ -614,7 +669,7 @@ export class NotificationsService {
         achievement_celebrations: boolean;
         quiet_hours: QuietHours;
         timezone: string | null;
-      }>) {
+      }>(result)) {
         prefs.set(row.user_id, {
           pushNotifications: row.push_notifications,
           emailNotifications: row.email_notifications,
@@ -642,9 +697,131 @@ export class NotificationsService {
     return topic ? prefs[topic] : true;
   }
 
+  /**
+   * Whether this notification is allowed the raised daily ceiling.
+   *
+   * "Urgent" is deliberately narrow: an explicit critical severity, or a
+   * deadline that is today/tomorrow. Everything else is routine, including
+   * things that feel important to the sender.
+   */
+  private isUrgentNotification(dto: BroadcastNotificationDto): boolean {
+    if (dto.severity === "critical") return true;
+    const daysLeft = Number((dto.metadata as any)?.daysLeft);
+    return Number.isFinite(daysLeft) && daysLeft <= 1;
+  }
+
+  /**
+   * Counts pushes each user has ACTUALLY received in the rolling 24h/7d windows.
+   *
+   * Counted from `delivered_at`, never `created_at`: an inbox row that no
+   * transport ever accepted did not interrupt anyone, and charging it against
+   * the budget would silence users for notifications they never saw.
+   *
+   * One batched query for the whole recipient list — a per-recipient query
+   * would be N round-trips on a broadcast.
+   */
+  private async loadPushBudgetUsage(
+    userIds: string[],
+  ): Promise<Map<string, { day: number; week: number }>> {
+    const usage = new Map<string, { day: number; week: number }>();
+    if (!userIds.length) return usage;
+
+    for (const batch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
+      const result = await db.execute(sql`
+        select n.user_id                                     as user_id,
+               count(*) filter (
+                 where n.delivered_at >= now() - interval '24 hours'
+               )                                             as day_count,
+               count(*)                                      as week_count
+        from notifications n
+        where n.user_id = any(array[${sql.join(
+          batch.map((id) => sql`${id}`),
+          sql`, `,
+        )}]::uuid[])
+          and n.delivered_at is not null
+          and n.delivered_at >= now() - interval '7 days'
+        group by n.user_id
+      `);
+
+      // `db.execute` resolves to a pg QueryResult OBJECT under node-postgres,
+      // which is not iterable — always unwrap through rows().
+      for (const row of this.rows<{
+        user_id: string;
+        day_count: number | string;
+        week_count: number | string;
+      }>(result)) {
+        usage.set(row.user_id, {
+          day: Number(row.day_count) || 0,
+          week: Number(row.week_count) || 0,
+        });
+      }
+    }
+
+    return usage;
+  }
+
+  /**
+   * Drops recipients who are over their push budget. Applies to the PUSH
+   * channel only — the in-app inbox row is not an interruption and email has
+   * its own consent model — and reports the drop count so the behaviour is
+   * observable rather than invisible.
+   *
+   * FAILS OPEN: if the counting query throws, everyone is let through. Muting
+   * the product because a counting query failed is exactly the failure mode
+   * this workstream exists to eliminate.
+   */
+  private async filterByPushBudget(
+    recipients: BroadcastRecipient[],
+    dto: BroadcastNotificationDto,
+  ): Promise<{ allowed: BroadcastRecipient[]; suppressed: number }> {
+    const unchanged = { allowed: recipients, suppressed: 0 };
+    if (!recipients.length) return unchanged;
+    if (process.env.NOTIFICATION_BUDGET_ENABLED === "false") return unchanged;
+
+    // Two classes of notification bypass fatigue accounting.
+    //
+    // 1. A real operator broadcast (outage, policy change, launch) must reach
+    //    everyone. Note this checks `dto.kind` EXPLICITLY rather than the
+    //    `dto.kind || "admin-broadcast"` fallback used elsewhere in this file,
+    //    and additionally requires a non-`specific` audience. Otherwise any
+    //    internal sender that simply forgot to set `kind` would inherit an
+    //    unlimited push budget — a silent footgun pointing the wrong way. An
+    //    unset kind on a targeted send is budgeted, which is the safe default.
+    // 2. Transactional notices the user paid for or must act on (`system` —
+    //    e.g. Pro expiry). Dropping "your subscription expires tomorrow"
+    //    because two opportunity alerts already went out is indefensible.
+    const isOperatorBroadcast =
+      dto.kind === "admin-broadcast" && dto.audience !== "specific";
+    if (isOperatorBroadcast || dto.kind === "system") return unchanged;
+
+    let usage: Map<string, { day: number; week: number }>;
+    try {
+      usage = await this.loadPushBudgetUsage(
+        recipients.map((recipient) => recipient.userId),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Push budget lookup failed; delivering without a budget check: ${this.errorMessage(error)}`,
+      );
+      return unchanged;
+    }
+
+    const dailyCap = this.isUrgentNotification(dto)
+      ? PUSH_BUDGET_URGENT_PER_DAY
+      : PUSH_BUDGET_ROUTINE_PER_DAY;
+
+    const allowed = recipients.filter((recipient) => {
+      const used = usage.get(recipient.userId);
+      if (!used) return true;
+      return used.day < dailyCap && used.week < PUSH_BUDGET_PER_WEEK;
+    });
+
+    return { allowed, suppressed: recipients.length - allowed.length };
+  }
+
   private async deliverBroadcast(dto: BroadcastNotificationDto) {
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };
-    const recipients = await this.resolveRecipients(dto);
+    let recipients = await this.resolveRecipients(dto);
 
     if (!recipients.length) {
       return {
@@ -658,6 +835,15 @@ export class NotificationsService {
 
     const notificationIds: string[] = [];
     let insertedCount = 0;
+    // Recipients whose in-app row was actually written this call. With a
+    // dedupeKey set, a conflict means "we already told this user this" — see
+    // the push-suppression note below.
+    const insertedUserIds = new Set<string>();
+    // userId -> the inbox row this send corresponds to. Threaded into the push
+    // payload as `notificationId` so a tap can be attributed back to the row
+    // (POST /notifications/:id/opened), which is what makes per-kind open rate
+    // — and therefore fatigue suppression — computable at all.
+    const notificationIdByUser = new Map<string, string>();
 
     if (channels.inApp) {
       for (const batch of this.chunk(recipients, BROADCAST_BATCH_SIZE)) {
@@ -679,10 +865,43 @@ export class NotificationsService {
               },
             })),
           )
-          .returning({ id: notifications.id });
+          // Required by the partial unique index on (user_id, dedupe_key).
+          // Without this a repeated dedupeKey raises a unique violation that
+          // aborts the WHOLE batch — turning a silent duplicate into a hard
+          // failure for every other recipient in the chunk.
+          .onConflictDoNothing()
+          .returning({ id: notifications.id, userId: notifications.userId });
 
         insertedCount += rows.length;
-        notificationIds.push(...rows.map((row) => row.id));
+        for (const row of rows) {
+          notificationIds.push(row.id);
+          insertedUserIds.add(row.userId);
+          notificationIdByUser.set(row.userId, row.id);
+        }
+      }
+    }
+
+    // Dedupe must suppress the interruption, not just the inbox row. When a
+    // dedupeKey is in play and the in-app write conflicted, this user has
+    // already been told — pushing again is the duplicate we are trying to
+    // prevent. Only applies when we actually wrote the inbox rows: the
+    // quiet-hours redelivery path sets inApp:false deliberately (its row was
+    // written by the original broadcast) and must still reach every recipient.
+    if (channels.inApp && dto.dedupeKey) {
+      recipients = recipients.filter((recipient) =>
+        insertedUserIds.has(recipient.userId),
+      );
+      if (!recipients.length) {
+        return {
+          queued: false,
+          recipientCount: 0,
+          insertedCount,
+          push: { sent: 0, skipped: "duplicate (dedupeKey already delivered)" },
+          email: {
+            sent: 0,
+            skipped: "duplicate (dedupeKey already delivered)",
+          },
+        };
       }
     }
 
@@ -690,17 +909,52 @@ export class NotificationsService {
     // the app funnels through this method, so honouring the user's settings
     // once means new senders inherit it instead of having to remember. In-app
     // rows above are deliberately unfiltered — the inbox is not an interruption.
-    const prefs =
-      channels.push || channels.email
-        ? await this.loadDeliveryPreferences(recipients.map((r) => r.userId))
-        : new Map<string, DeliveryPreferences>();
+    //
+    // This lookup FAILS OPEN FOR PUSH: an empty map means
+    // `allowsPush(undefined, kind)` returns true, so every recipient falls back
+    // to the permissive column defaults and still gets their notification. A
+    // preferences outage must not silence the product — that is exactly what
+    // "result is not iterable" did in production, muting every push in the app.
+    // At worst one broadcast ignores a push opt-out; the switch is re-read on
+    // the next send.
+    //
+    // Email FAILS CLOSED. Sending marketing/notification email to someone who
+    // opted out is a compliance breach, not a UX annoyance, and it cannot be
+    // taken back once delivered. An unknown email preference is treated as "no".
+    let prefs = new Map<string, DeliveryPreferences>();
+    let prefsLookupFailed = false;
+    if (channels.push || channels.email) {
+      try {
+        prefs = await this.loadDeliveryPreferences(
+          recipients.map((r) => r.userId),
+        );
+      } catch (error) {
+        prefsLookupFailed = true;
+        this.logger.error(
+          `Delivery preference lookup failed; push falls back to permissive defaults, email suppressed: ${this.errorMessage(error)}`,
+        );
+        prefs = new Map<string, DeliveryPreferences>();
+      }
+    }
+
+    // Users a transport actually accepted the message for. Only these get a
+    // `delivered_at` stamp — "we inserted a row" is not delivery, and treating
+    // it as such would inflate the denominator of every open-rate calculation.
+    const deliveredUserIds = new Set<string>();
 
     let push: Record<string, unknown> = { sent: 0, skipped: "disabled" };
     if (channels.push) {
-      const allowed = recipients.filter((recipient) =>
+      const permitted = recipients.filter((recipient) =>
         this.allowsPush(prefs.get(recipient.userId), dto.kind),
       );
-      const mutedCount = recipients.length - allowed.length;
+      const mutedCount = recipients.length - permitted.length;
+
+      // Global fatigue budget, enforced after the user's own switches and
+      // before quiet-hours deferral. A deferred push is re-checked against the
+      // budget when it is redelivered, which is what we want — its window will
+      // have moved by then.
+      const { allowed, suppressed: budgetSuppressed } =
+        await this.filterByPushBudget(permitted, dto);
 
       // Callers that precompute `scheduledFor` (the alerts engine) already
       // cleared quiet hours, and a redelivery of an already-deferred item must
@@ -722,25 +976,41 @@ export class NotificationsService {
       if (deferred.length) await this.deferPush(deferred, dto);
 
       const sent = deliverNow.length
-        ? await this.sendPush(deliverNow, dto)
-        : { sent: 0, skipped: "all recipients muted or deferred" };
+        ? await this.sendPush(
+            deliverNow,
+            dto,
+            notificationIdByUser,
+            deliveredUserIds,
+          )
+        : { sent: 0, skipped: "all recipients muted, over budget or deferred" };
 
       push = {
         ...sent,
         ...(mutedCount ? { muted: mutedCount } : {}),
+        ...(budgetSuppressed ? { budgetSuppressed } : {}),
         ...(deferred.length ? { deferredForQuietHours: deferred.length } : {}),
       };
     }
 
     let email: Record<string, unknown> = { sent: 0, skipped: "disabled" };
     if (channels.email) {
-      const allowed = recipients.filter(
-        (recipient) =>
-          prefs.get(recipient.userId)?.emailNotifications !== false,
-      );
-      email = allowed.length
-        ? await this.sendEmail(allowed, dto)
-        : { sent: 0, skipped: "all recipients opted out of email" };
+      if (prefsLookupFailed) {
+        // See the fail-closed note above: we cannot prove consent, so we do
+        // not send. The notification still reaches the user in-app and by push.
+        email = {
+          sent: 0,
+          skipped:
+            "preference lookup failed; email suppressed to protect opt-outs",
+        };
+      } else {
+        const allowed = recipients.filter(
+          (recipient) =>
+            prefs.get(recipient.userId)?.emailNotifications !== false,
+        );
+        email = allowed.length
+          ? await this.sendEmail(allowed, dto)
+          : { sent: 0, skipped: "all recipients opted out of email" };
+      }
     }
 
     for (const ids of this.chunk(notificationIds, BROADCAST_BATCH_SIZE)) {
@@ -754,6 +1024,32 @@ export class NotificationsService {
           },
         })
         .where(inArray(notifications.id, ids));
+    }
+
+    // Stamp delivery only for users a transport genuinely accepted. Best-effort:
+    // telemetry must never fail a broadcast that already went out.
+    const deliveredIds = Array.from(deliveredUserIds)
+      .map((userId) => notificationIdByUser.get(userId))
+      .filter((id): id is string => Boolean(id));
+    if (deliveredIds.length) {
+      const deliveredAt = new Date();
+      for (const ids of this.chunk(deliveredIds, BROADCAST_BATCH_SIZE)) {
+        try {
+          await db
+            .update(notifications)
+            .set({ deliveredAt })
+            .where(
+              and(
+                inArray(notifications.id, ids),
+                isNull(notifications.deliveredAt),
+              ),
+            );
+        } catch (error) {
+          this.logger.warn(
+            `Could not stamp delivered_at for ${ids.length} notification(s): ${this.errorMessage(error)}`,
+          );
+        }
+      }
     }
 
     return {
@@ -840,6 +1136,9 @@ export class NotificationsService {
   private async sendExpoPush(
     recipients: Array<{ userId: string }>,
     dto: BroadcastNotificationDto,
+    notificationIdByUser?: Map<string, string>,
+    /** Collects users Expo actually accepted a message for (delivery telemetry). */
+    deliveredUserIds?: Set<string>,
   ) {
     const userIds = Array.from(
       new Set(recipients.map((recipient) => recipient.userId)),
@@ -878,6 +1177,9 @@ export class NotificationsService {
           : undefined;
 
       const messages: ExpoPushMessage[] = [];
+      // Parallel to `messages`: which user each message belongs to, so a
+      // per-ticket result can be attributed back for delivery telemetry.
+      const messageUserIds: string[] = [];
       for (const item of tokens) {
         // A token that isn't even shaped like an Expo token can never work —
         // Expo would reject the whole chunk, so drop it here instead.
@@ -886,6 +1188,7 @@ export class NotificationsService {
           rejected += 1;
           continue;
         }
+        const notificationId = notificationIdByUser?.get(item.userId);
         messages.push({
           to: item.token,
           title: dto.title,
@@ -898,12 +1201,21 @@ export class NotificationsService {
             kind: dto.kind || "admin-broadcast",
             severity: dto.severity || "info",
             ...(dto.metadata || {}),
+            // Lets the client attribute a tap back to the inbox row.
+            ...(notificationId ? { notificationId } : {}),
           },
         });
+        messageUserIds.push(item.userId);
       }
 
       // The SDK chunks to Expo's own per-request limit; don't second-guess it.
+      // Ticket indices are chunk-LOCAL, so track how far through `messages`
+      // (and therefore `messageUserIds`) each chunk starts — otherwise every
+      // chunk after the first attributes its results to the wrong users.
+      let messageOffset = 0;
       for (const chunk of this.expo.chunkPushNotifications(messages)) {
+        const chunkStart = messageOffset;
+        messageOffset += chunk.length;
         try {
           const tickets = await this.expo.sendPushNotificationsAsync(chunk);
 
@@ -914,6 +1226,8 @@ export class NotificationsService {
           tickets.forEach((ticket, index) => {
             if (ticket.status === "ok") {
               sent += 1;
+              const userId = messageUserIds[chunkStart + index];
+              if (userId) deliveredUserIds?.add(userId);
               return;
             }
 
@@ -992,10 +1306,17 @@ export class NotificationsService {
   private async sendPush(
     recipients: Array<{ userId: string }>,
     dto: BroadcastNotificationDto,
+    notificationIdByUser?: Map<string, string>,
+    deliveredUserIds?: Set<string>,
   ) {
     const [expo, web] = await Promise.all([
-      this.sendExpoPush(recipients, dto),
-      this.sendWebPush(recipients, dto),
+      this.sendExpoPush(
+        recipients,
+        dto,
+        notificationIdByUser,
+        deliveredUserIds,
+      ),
+      this.sendWebPush(recipients, dto, notificationIdByUser, deliveredUserIds),
     ]);
     return { sent: (expo.sent || 0) + (web.sent || 0), expo, web };
   }
@@ -1003,6 +1324,8 @@ export class NotificationsService {
   private async sendWebPush(
     recipients: Array<{ userId: string }>,
     dto: BroadcastNotificationDto,
+    notificationIdByUser?: Map<string, string>,
+    deliveredUserIds?: Set<string>,
   ) {
     const webpush = this.getWebpush();
     if (!webpush) return { sent: 0, skipped: "webpush not configured" };
@@ -1012,13 +1335,19 @@ export class NotificationsService {
     );
     if (!userIds.length) return { sent: 0 };
 
-    const payload = JSON.stringify({
-      title: dto.title,
-      body: dto.body,
-      kind: dto.kind || "admin-broadcast",
-      severity: dto.severity || "info",
-      data: dto.metadata || {},
-    });
+    // Built per subscription rather than once: `notificationId` differs by user,
+    // and the service worker needs it to attribute a click back to the row.
+    const buildPayload = (notificationId?: string) =>
+      JSON.stringify({
+        title: dto.title,
+        body: dto.body,
+        kind: dto.kind || "admin-broadcast",
+        severity: dto.severity || "info",
+        data: {
+          ...(dto.metadata || {}),
+          ...(notificationId ? { notificationId } : {}),
+        },
+      });
 
     let sent = 0;
     const failures: string[] = [];
@@ -1040,8 +1369,12 @@ export class NotificationsService {
         if (!subscription?.endpoint) continue;
 
         try {
-          await webpush.sendNotification(subscription, payload);
+          await webpush.sendNotification(
+            subscription,
+            buildPayload(notificationIdByUser?.get(item.userId)),
+          );
           sent += 1;
+          deliveredUserIds?.add(item.userId);
         } catch (error: any) {
           // 404/410 mean the browser subscription is gone — prune it.
           if (error?.statusCode === 404 || error?.statusCode === 410) {

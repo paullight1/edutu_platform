@@ -16,6 +16,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 
@@ -181,6 +182,7 @@ const WhatWeBelievePage: React.FC = () => {
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
+            <PageSeo path="/what-we-believe" />
             <PublicHeader />
 
             <main className="relative z-10">
@@ -194,7 +196,7 @@ const WhatWeBelievePage: React.FC = () => {
                             className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5"
                         >
                             <Sparkles size={14} className="text-brand" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
+                            <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">
                                 What we believe
                             </span>
                         </motion.div>
@@ -214,7 +216,7 @@ const WhatWeBelievePage: React.FC = () => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-                            className="max-w-[720px] text-lg leading-relaxed text-text-secondary"
+                            className="max-w-[720px] text-base leading-relaxed text-text-secondary sm:text-lg"
                         >
                             These are the beliefs behind everything we build. They shape how we design,
                             what we prioritise, and the promise we make to every young person who opens
@@ -343,7 +345,7 @@ const WhatWeBelievePage: React.FC = () => {
                         <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] mb-6 text-white">
                             Maybe this opportunity is for you.
                         </h2>
-                        <p className="max-w-[520px] mx-auto text-lg leading-relaxed mb-10 text-white/80">
+                        <p className="max-w-[520px] mx-auto text-base leading-relaxed mb-10 text-white/80 sm:text-lg">
                             Courage often starts with possibility. Start exploring the opportunities
                             waiting to be discovered.
                         </p>

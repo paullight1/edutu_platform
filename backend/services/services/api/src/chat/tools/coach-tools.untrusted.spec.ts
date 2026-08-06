@@ -114,10 +114,16 @@ describe("untrusted text framing", () => {
     const supabase = {
       from: () => ({
         select: () => ({
+          // The opportunity read.
           eq: () => ({
             maybeSingle: async () => ({
               data: { title: "Some Fellowship", requirements: ["MSc"] },
             }),
+          }),
+          // The profile read: resolveProfileRow queries BOTH id keyings and
+          // picks the raw Clerk-keyed row, so it is `.in()`, not `.eq()`.
+          in: async () => ({
+            data: [{ user_id: "user_1", country: "NG", skills: ["python"] }],
           }),
         }),
       }),

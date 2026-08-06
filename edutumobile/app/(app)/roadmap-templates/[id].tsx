@@ -31,6 +31,7 @@ import {
     Target,
     Users,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { File, Paths } from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
@@ -68,6 +69,9 @@ import {
 
 const HERO_GRADIENT = ['rgba(2,6,23,0.25)', 'rgba(2,6,23,0.05)', 'rgba(2,6,23,0.55)', 'rgba(2,6,23,0.92)'] as const;
 
+/** Where this template's scheduled local-notification ids live, so they can be cancelled later. */
+const reminderStorageKey = (templateId: string) => `edutu_template_reminders_${templateId}`;
+
 const buildDate = (week: number) => {
     const date = new Date();
     date.setDate(date.getDate() + Math.max(1, week) * 7);
@@ -103,6 +107,22 @@ export default function RoadmapTemplateDetailScreen() {
     const [commentRating, setCommentRating] = useState(0);
     const [postingComment, setPostingComment] = useState(false);
     const [starting, setStarting] = useState(false);
+    const [scheduledReminderIds, setScheduledReminderIds] = useState<string[]>([]);
+
+    // Reminders survive app restarts, so their ids have to as well — otherwise
+    // the Bell control forgets they exist and can only ever add more.
+    useEffect(() => {
+        if (!templateId) return;
+        let cancelled = false;
+        AsyncStorage.getItem(reminderStorageKey(templateId))
+            .then((raw) => {
+                if (cancelled || !raw) return;
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) setScheduledReminderIds(parsed.map(String));
+            })
+            .catch(() => { /* no reminders on file */ });
+        return () => { cancelled = true; };
+    }, [templateId]);
 
     useEffect(() => {
         if (!templateId) return;
@@ -219,14 +239,42 @@ export default function RoadmapTemplateDetailScreen() {
         }
     };
 
+    const cancelReminders = async (target: RoadmapTemplate) => {
+        const ids = scheduledReminderIds;
+        await Promise.all(
+            ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => { /* already fired or gone */ })),
+        );
+        setScheduledReminderIds([]);
+        await AsyncStorage.removeItem(reminderStorageKey(target.id)).catch(() => { /* best effort */ });
+        Alert.alert(t('templates.remindersCancelledTitle'), t('templates.remindersCancelledMessage'));
+    };
+
     const scheduleReminders = async (target: RoadmapTemplate) => {
+        // Already on: the same control turns them off. Scheduling eight local
+        // notifications with no way to see or cancel them was a one-way door.
+        if (scheduledReminderIds.length > 0) {
+            Alert.alert(
+                t('templates.remindersOnTitle'),
+                t('templates.remindersOnMessage', { count: scheduledReminderIds.length }),
+                [
+                    { text: t('templates.comments.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                    {
+                        text: t('templates.turnOffReminders'),
+                        style: 'destructive',
+                        onPress: () => { void cancelReminders(target); },
+                    },
+                ],
+            );
+            return;
+        }
+
         const allowed = await notificationService.requestPermissions();
         if (!allowed) {
             Alert.alert(t('templates.notificationsBlockedTitle'), t('templates.notificationsBlockedMessage'));
             return;
         }
 
-        const scheduled = [];
+        const scheduled: string[] = [];
         for (const step of target.steps.slice(0, 8)) {
             const date = buildDate(step.week);
             if (date.getTime() <= Date.now()) continue;
@@ -241,14 +289,25 @@ export default function RoadmapTemplateDetailScreen() {
             scheduled.push(id);
         }
 
+        setScheduledReminderIds(scheduled);
+        await AsyncStorage.setItem(reminderStorageKey(target.id), JSON.stringify(scheduled)).catch(() => { /* best effort */ });
         Alert.alert(t('templates.remindersScheduledTitle'), t('templates.remindersScheduledMessage', { count: scheduled.length }));
     };
 
     const startRoadmap = async (target: RoadmapTemplate) => {
         if (starting) return;
-        // Fallback templates only exist client-side; guide users to the roadmaps hub instead.
+        // Fallback templates only exist client-side, so there is nothing to
+        // adopt. Say so before moving the user — the silent redirect read as
+        // the screen glitching.
         if (target.id.startsWith('fallback-')) {
-            router.push('/roadmaps' as any);
+            Alert.alert(
+                t('templates.previewOnlyTitle'),
+                t('templates.previewOnlyMessage'),
+                [
+                    { text: t('templates.comments.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                    { text: t('templates.browseRoadmaps'), onPress: () => router.push('/roadmaps' as any) },
+                ],
+            );
             return;
         }
         setStarting(true);
@@ -786,12 +845,33 @@ export default function RoadmapTemplateDetailScreen() {
                         <Text style={[styles.iconActionText, { color: colors.foreground }]}>{t('templates.calendar')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.iconAction, { borderColor }]}
+                        style={[
+                            styles.iconAction,
+                            { borderColor: scheduledReminderIds.length > 0 ? accent : borderColor },
+                            scheduledReminderIds.length > 0 && { backgroundColor: accent + '14' },
+                        ]}
                         onPress={() => scheduleReminders(template)}
-                        accessibilityLabel={t('templates.reminders')}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: scheduledReminderIds.length > 0 }}
+                        accessibilityLabel={
+                            scheduledReminderIds.length > 0
+                                ? t('templates.remindersOnA11y', { count: scheduledReminderIds.length })
+                                : t('templates.reminders')
+                        }
                     >
-                        <Bell size={17} color={colors.foreground} />
-                        <Text style={[styles.iconActionText, { color: colors.foreground }]}>{t('templates.reminders')}</Text>
+                        <Bell
+                            size={17}
+                            color={scheduledReminderIds.length > 0 ? accent : colors.foreground}
+                            fill={scheduledReminderIds.length > 0 ? accent : 'transparent'}
+                        />
+                        <Text
+                            style={[
+                                styles.iconActionText,
+                                { color: scheduledReminderIds.length > 0 ? accent : colors.foreground },
+                            ]}
+                        >
+                            {scheduledReminderIds.length > 0 ? t('templates.remindersOn') : t('templates.reminders')}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -831,7 +911,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 5,
     },
-    heroPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.3 },
+    heroPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
     heroTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '900', lineHeight: 28 },
     heroAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     heroAuthorCopy: { flex: 1 },
@@ -861,7 +941,7 @@ const styles = StyleSheet.create({
     statCell: { flex: 1, alignItems: 'center', gap: 3 },
     statDivider: { width: 1, marginVertical: 4 },
     statValue: { fontSize: 13, fontWeight: '900' },
-    statLabel: { fontSize: 10, fontWeight: '700' },
+    statLabel: { fontSize: 11, fontWeight: '700' },
     section: { paddingHorizontal: 16, marginTop: 26 },
     sectionTitle: { fontSize: 17, fontWeight: '900' },
     sectionHint: { fontSize: 12, lineHeight: 17, marginTop: 4 },
@@ -895,7 +975,7 @@ const styles = StyleSheet.create({
     stepMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     stepWeek: { fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
     phasePill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-    phaseText: { fontSize: 9.5, fontWeight: '900' },
+    phaseText: { fontSize: 11, fontWeight: '900' },
     stepTitle: { fontSize: 14.5, fontWeight: '900', lineHeight: 19 },
     stepBody: { marginTop: 10, gap: 9 },
     stepGuidance: { fontSize: 13, lineHeight: 20 },
@@ -926,7 +1006,7 @@ const styles = StyleSheet.create({
     },
     resourceCopy: { flex: 1 },
     resourceTitle: { fontSize: 12.5, fontWeight: '800' },
-    resourceHost: { fontSize: 10.5, fontWeight: '600', marginTop: 1 },
+    resourceHost: { fontSize: 11, fontWeight: '600', marginTop: 1 },
     libraryList: { marginTop: 14, gap: 9 },
     libraryItem: {
         flexDirection: 'row',
@@ -968,7 +1048,7 @@ const styles = StyleSheet.create({
     commentAvatar: { width: 30, height: 30, borderRadius: 15 },
     commentHeaderCopy: { flex: 1 },
     commentAuthor: { fontSize: 12.5, fontWeight: '800' },
-    commentTime: { fontSize: 10.5, fontWeight: '600', marginTop: 1 },
+    commentTime: { fontSize: 11, fontWeight: '600', marginTop: 1 },
     commentMenuButton: { paddingLeft: 6, paddingVertical: 2 },
     commentBody: { fontSize: 12.5, lineHeight: 19, marginTop: 8 },
     actionBar: {
@@ -1002,5 +1082,5 @@ const styles = StyleSheet.create({
         paddingHorizontal: 13,
         gap: 2,
     },
-    iconActionText: { fontSize: 9.5, fontWeight: '800' },
+    iconActionText: { fontSize: 11, fontWeight: '800' },
 });

@@ -9,7 +9,9 @@
       "@edutu/core/hooks/*": ["./packages/core/src/hooks/*.ts"],
       "@edutu/core/types/*": ["./packages/core/src/types/*.ts"],
       "@edutu/core/services/*": ["./packages/core/src/services/*.ts"],
-      "@edutu/core/src/*": ["./packages/core/src/*"]
+      "@edutu/core/src/*": ["./packages/core/src/*"],
+      "@edutu/ux-state/state": ["../packages/ux-state/src/state/index.ts"],
+      "@edutu/ux-state/scenes": ["../packages/ux-state/src/scenes/index.ts"]
     }
   },
   "include": [
@@ -23,6 +25,11 @@
   "exclude": [
     "node_modules",
     "supabase/functions",
-    "__tests__"
+    // Tests are typechecked by Jest's own transform, not by `tsc --noEmit`, and
+    // the repo carries no @types/jest — so app typechecking skips them. The
+    // glob covers colocated suites (components/state/__tests__, lib/__tests__)
+    // as well as the root directory; the bare "__tests__" entry this replaces
+    // matched only the root one.
+    "**/__tests__"
   ]
 }

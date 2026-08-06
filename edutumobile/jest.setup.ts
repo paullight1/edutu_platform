@@ -54,6 +54,12 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedProps: (updater?: () => Record<string, unknown>) => (updater ? updater() : {}),
     useDerivedValue: <T>(updater: () => T) => ({ value: updater() }),
     useReducedMotion: () => false,
+    useAnimatedScrollHandler: (handlers?: unknown) => handlers ?? (() => {}),
+    useAnimatedRef: () => ({ current: null }),
+    useAnimatedReaction: () => {},
+    useScrollViewOffset: () => ({ value: 0 }),
+    scrollTo: () => {},
+    measure: () => null,
     withTiming: <T>(value: T) => value,
     withSpring: <T>(value: T) => value,
     withDelay: (_delay: number, value: unknown) => value,
@@ -67,26 +73,70 @@ jest.mock('react-native-reanimated', () => {
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     runOnUI: (fn: (...args: unknown[]) => unknown) => fn,
     cancelAnimation: () => {},
-    Easing: {
-      linear: jest.fn(),
-      ease: jest.fn(),
-      quad: jest.fn(),
-      cubic: jest.fn(),
-      out: jest.fn((fn) => fn),
-      in: jest.fn((fn) => fn),
-      inOut: jest.fn((fn) => fn),
-    },
+    // Reanimated's Easing splits into easing functions ((t) => number) and
+    // factories that RETURN one (back/elastic/poly/bezier/steps). The modifiers
+    // (in/out/inOut) take an easing function and return one, so a factory that
+    // returned undefined would blow up as `Easing.out(Easing.back(1.4))`.
+    // Identity easing is fine here — withTiming ignores easing in this mock.
+    Easing: (() => {
+      const easingFn = (t: number) => t;
+      const factory = () => easingFn;
+      return {
+        linear: easingFn,
+        ease: easingFn,
+        quad: easingFn,
+        cubic: easingFn,
+        sin: easingFn,
+        circle: easingFn,
+        exp: easingFn,
+        bounce: easingFn,
+        step0: easingFn,
+        step1: easingFn,
+        back: jest.fn(factory),
+        elastic: jest.fn(factory),
+        poly: jest.fn(factory),
+        bezier: jest.fn(() => ({ factory: () => easingFn })),
+        bezierFn: jest.fn(factory),
+        steps: jest.fn(factory),
+        out: jest.fn((fn) => fn),
+        in: jest.fn((fn) => fn),
+        inOut: jest.fn((fn) => fn),
+      };
+    })(),
+    // Layout-animation presets. Keep this list a superset of what the app
+    // imports — a missing one is `undefined`, and the first chained call
+    // (`SlideInDown.duration(...)`) fails as "Cannot read properties of
+    // undefined (reading 'duration')", which points at the component rather
+    // than at this mock.
     FadeIn: reanimatedBuilder,
     FadeInDown: reanimatedBuilder,
     FadeInUp: reanimatedBuilder,
+    FadeInLeft: reanimatedBuilder,
+    FadeInRight: reanimatedBuilder,
     FadeOut: reanimatedBuilder,
     FadeOutUp: reanimatedBuilder,
     FadeOutDown: reanimatedBuilder,
+    FadeOutLeft: reanimatedBuilder,
+    FadeOutRight: reanimatedBuilder,
     Layout: reanimatedBuilder,
+    LayoutGrid: reanimatedBuilder,
     LinearTransition: reanimatedBuilder,
+    CurvedTransition: reanimatedBuilder,
+    FadingTransition: reanimatedBuilder,
+    SequencedTransition: reanimatedBuilder,
+    JumpingTransition: reanimatedBuilder,
     PinwheelIn: reanimatedBuilder,
     ZoomIn: reanimatedBuilder,
+    ZoomOut: reanimatedBuilder,
+    BounceIn: reanimatedBuilder,
+    BounceOut: reanimatedBuilder,
+    SlideInUp: reanimatedBuilder,
+    SlideInDown: reanimatedBuilder,
     SlideInRight: reanimatedBuilder,
+    SlideInLeft: reanimatedBuilder,
+    SlideOutUp: reanimatedBuilder,
+    SlideOutDown: reanimatedBuilder,
+    SlideOutRight: reanimatedBuilder,
     SlideOutLeft: reanimatedBuilder,
   };
 });
@@ -104,9 +154,25 @@ jest.mock('react-native-worklets', () => ({
   useSharedValue: <T>(value: T) => ({ value }),
 }));
 
+// Native crash reporter. lib/crashReporting no-ops without a DSN, so tests
+// never reach these, but the import itself must resolve.
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  captureException: jest.fn(),
+  setUser: jest.fn(),
+  withScope: jest.fn((fn: (scope: unknown) => void) =>
+    fn({ setContext: jest.fn(), setLevel: jest.fn() }),
+  ),
+}));
+
 jest.mock('expo-status-bar', () => ({
   StatusBar: () => null,
+  // The app shell imperatively re-asserts the bar style on theme/route change
+  // (app/_layout.tsx), so the imperative API has to exist, not just the component.
   setStatusBarStyle: jest.fn(),
+  setStatusBarHidden: jest.fn(),
+  setStatusBarBackgroundColor: jest.fn(),
+  setStatusBarTranslucent: jest.fn(),
 }));
 
 jest.mock('expo-glass-effect', () => {

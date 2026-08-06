@@ -100,10 +100,18 @@ export default function MyListScreen() {
         });
     }, [filteredGoals, statusFilter, searchTerm, sortBy]);
 
-    const activeGoals = finalGoals.filter(g => g.status === 'active');
-    const completedGoals = finalGoals.filter(g => g.status === 'completed');
-    const highPriorityGoals = finalGoals.filter(g => g.priority === 'high' && g.status === 'active');
-    const avgProgress = finalGoals.length > 0 ? Math.round(finalGoals.reduce((sum, g) => sum + g.progress, 0) / finalGoals.length) : 0;
+    // Counts describe the *list*, not the current view. Deriving them from
+    // `finalGoals` made the "All" tab collapse to the filtered count the moment
+    // a filter was chosen, and made the Total card shrink while you typed.
+    const activeGoals = useMemo(() => filteredGoals.filter(g => g.status === 'active'), [filteredGoals]);
+    const completedGoals = useMemo(() => filteredGoals.filter(g => g.status === 'completed'), [filteredGoals]);
+    const highPriorityGoals = useMemo(
+        () => filteredGoals.filter(g => g.priority === 'high' && g.status === 'active'),
+        [filteredGoals],
+    );
+    const avgProgress = filteredGoals.length > 0
+        ? Math.round(filteredGoals.reduce((sum, g) => sum + g.progress, 0) / filteredGoals.length)
+        : 0;
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94a3b8' : '#64748b';
@@ -120,7 +128,7 @@ export default function MyListScreen() {
     ];
 
     const statusOptions: { label: string; value: StatusFilter; count: number; icon: any }[] = [
-        { label: t('filter.all'), value: 'all', count: finalGoals.length, icon: Target },
+        { label: t('filter.all'), value: 'all', count: filteredGoals.length, icon: Target },
         { label: t('filter.active'), value: 'active', count: activeGoals.length, icon: Zap },
         { label: t('filter.completed'), value: 'completed', count: completedGoals.length, icon: Trophy },
     ];
@@ -140,10 +148,12 @@ export default function MyListScreen() {
                 showBack
                 right={
                     <TouchableOpacity
-                        onPress={() => router.push('/goals')}
+                        onPress={() => router.push('/goals/add')}
                         style={[styles.headerAction, { backgroundColor: colors.primary + '15' }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('a11y.addGoal')}
                     >
-                        <Plus size={18} color={colors.primary} />
+                        <Plus size={20} color={colors.primary} />
                     </TouchableOpacity>
                 }
             />
@@ -183,7 +193,7 @@ export default function MyListScreen() {
                         <View style={[styles.statIconBox, { backgroundColor: '#3B82F615' }]}>
                             <Target size={18} color="#3B82F6" />
                         </View>
-                        <Text style={[styles.statValue, { color: textPrimary }]}>{finalGoals.length}</Text>
+                        <Text style={[styles.statValue, { color: textPrimary }]}>{filteredGoals.length}</Text>
                         <Text style={[styles.statLabel, { color: textSecondary }]}>{t('stats.total')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.card, borderColor }]}>
@@ -210,9 +220,9 @@ export default function MyListScreen() {
                 </Animated.View>
 
                 {/* CTA Banner for Creating Goals */}
-                {finalGoals.length < 3 && (
+                {filteredGoals.length < 3 && (
                     <AnimatedPressable
-                        onPress={() => router.push('/goals')}
+                        onPress={() => router.push('/goals/add')}
                         style={[styles.ctaBanner, { borderColor }]}
                         entering={FadeInDown.duration(400).delay(200)}
                         hapticFeedback="medium"
@@ -269,8 +279,13 @@ export default function MyListScreen() {
                         onChangeText={setSearchTerm}
                     />
                     {isSearchActive && (
-                        <TouchableOpacity onPress={() => { setSearchTerm(''); setStatusFilter('all'); }} style={styles.clearBtn}>
-                            <X size={16} color={textSecondary} />
+                        <TouchableOpacity
+                            onPress={() => { setSearchTerm(''); setStatusFilter('all'); }}
+                            style={styles.clearBtn}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('a11y.clearSearch')}
+                        >
+                            <X size={18} color={textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -281,6 +296,9 @@ export default function MyListScreen() {
                         <TouchableOpacity
                             key={opt.value}
                             onPress={() => setStatusFilter(opt.value)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: statusFilter === opt.value }}
+                            accessibilityLabel={t('a11y.statusTab', { label: opt.label, count: opt.count })}
                             style={[
                                 styles.statusTab,
                                 {
@@ -315,6 +333,8 @@ export default function MyListScreen() {
                 <TouchableOpacity
                     onPress={() => setShowSortMenu(true)}
                     style={[styles.sortButton, { backgroundColor: inputBg, borderColor }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11y.openSort')}
                 >
                     <ArrowUpDown size={16} color={textSecondary} />
                     <Text style={[styles.sortButtonText, { color: textSecondary }]}>
@@ -355,7 +375,7 @@ export default function MyListScreen() {
                             </Text>
                             {!searchTerm && (
                                 <AnimatedPressable
-                                    onPress={() => router.push('/goals')}
+                                    onPress={() => router.push('/goals/add')}
                                     style={[styles.emptyCtaBtn, { backgroundColor: colors.accent }]}
                                     entering={FadeInUp.duration(400).delay(100)}
                                     hapticFeedback="medium"
@@ -381,13 +401,16 @@ export default function MyListScreen() {
                             return (
                                 <TouchableOpacity
                                     key={opt.value}
-                                    style={[styles.sortMenuItem, isActive && { backgroundColor: `${colors.accent}08` }]}
+                                    style={[styles.sortMenuItem, isActive && { backgroundColor: `${colors.accent}12` }]}
                                     onPress={() => {
                                         setSortBy(opt.value);
                                         setShowSortMenu(false);
                                     }}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: isActive }}
+                                    accessibilityLabel={opt.label}
                                 >
-                                    <Icon size={18} color={isActive ? colors.accent : textSecondary} style={{ marginRight: 12 }} />
+                                    <Icon size={20} color={isActive ? colors.accent : textSecondary} style={{ marginRight: 14 }} />
                                     <Text style={[styles.sortMenuItemText, { color: isActive ? colors.accent : textPrimary }]}>
                                         {opt.label}
                                     </Text>
@@ -679,21 +702,24 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     sortMenuTitle: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: '700',
         marginBottom: 12,
         paddingHorizontal: 4,
     },
+    // 56pt rows: a picker you hit with a thumb, not a mouse.
     sortMenuItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        minHeight: 56,
         paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderRadius: 10,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        borderCurve: 'continuous',
     },
     sortMenuItemText: {
-        fontSize: 15,
-        fontWeight: '500',
+        fontSize: 17,
+        fontWeight: '600',
         flex: 1,
     },
 });

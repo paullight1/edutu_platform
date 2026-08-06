@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
@@ -9,7 +9,6 @@ import {
   Star,
   Users,
   Clock,
-  Map as MapIcon,
   X,
   Check,
   CalendarPlus,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   fetchRoadmaps,
+  fetchMyRoadmapEnrollments,
   adoptRoadmap,
   type BackendRoadmap,
 } from "../services/roadmapApi";
@@ -25,12 +25,15 @@ import { useGoals } from "../hooks/useGoals";
 import { usePaywall } from "../hooks/usePaywall";
 import { useProFeature } from "./ProGate";
 import PullToRefresh from "./ui/PullToRefresh";
-import { EmptyState, ErrorState } from "./ui/EmptyState";
+import { StateView, showsContent, useScreenState } from "./state";
 import Button from "./ui/Button";
 
 interface AdoptionInfo {
   enrollmentId: string;
   goalsCreated: number;
+  /** Steps already ticked off, when the enrollment came from the server. */
+  completedSteps?: number;
+  totalSteps?: number;
 }
 
 const surfaceClass = "border-subtle bg-surface-layer shadow-soft";
@@ -62,7 +65,9 @@ export default function RoadmapsPage() {
 
   const [roadmaps, setRoadmaps] = useState<BackendRoadmap[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // The raw failure rather than a message string: classifyError() reads its
+  // status to tell a 404 from a 500, which a flattened string destroys.
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [selected, setSelected] = useState<BackendRoadmap | null>(null);
@@ -72,23 +77,48 @@ export default function RoadmapsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       setRoadmaps(await fetchRoadmaps({ limit: 40 }));
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load roadmaps.",
-      );
+    } catch (caught) {
+      setLoadError(caught);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Server-backed adoption state. `adoptions` used to be local-only, so the
+  // "Added — 3 milestones tracked" confirmation vanished on reload and the
+  // Start button came back, letting the user adopt the same roadmap twice.
+  const loadEnrollments = useCallback(async () => {
+    try {
+      const token = await getToken().catch(() => null);
+      if (!token) return;
+      const rows = await fetchMyRoadmapEnrollments(token);
+      const next: Record<string, AdoptionInfo> = {};
+      for (const row of rows) {
+        const enrollment = row?.enrollment;
+        const roadmapId = enrollment?.roadmapId ?? enrollment?.roadmap_id;
+        if (!enrollment?.id || !roadmapId) continue;
+        const completed = enrollment.completedSteps ?? enrollment.completed_steps ?? [];
+        next[String(roadmapId)] = {
+          enrollmentId: String(enrollment.id),
+          goalsCreated: 0,
+          completedSteps: Array.isArray(completed) ? completed.length : 0,
+          totalSteps: row.roadmap?.steps?.length ?? 0,
+        };
+      }
+      setAdoptions((prev) => ({ ...next, ...prev }));
+    } catch (enrollmentError) {
+      // Non-critical: the catalog still renders, just without progress marks.
+      console.warn("Could not load roadmap enrollments", enrollmentError);
+    }
+  }, [getToken]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadEnrollments();
+  }, [load, loadEnrollments]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -107,6 +137,17 @@ export default function RoadmapsPage() {
       );
     });
   }, [roadmaps, query, category]);
+
+  // The screen already knows when the user has narrowed the list, which is
+  // exactly what separates a filtered empty from a first-run one — a
+  // distinction the primitive this replaces could not express.
+  const filtersActive = Boolean(query.trim()) || category !== "all";
+  const screenState = useScreenState({
+    data: visible,
+    loading,
+    error: loadError,
+    filtersActive,
+  });
 
   const enroll = useCallback(
     async (roadmap: BackendRoadmap) => {
@@ -198,15 +239,12 @@ export default function RoadmapsPage() {
       >
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-              Roadmaps marketplace
-            </p>
-            <h1 className="mt-1 text-xl font-display font-semibold tracking-tight">
+            <h1 className="text-xl font-display font-semibold tracking-tight">
               Expert roadmaps
             </h1>
             <p className="mt-2 text-sm leading-6 text-text-muted">
-              Enroll in a proven, step-by-step plan and turn a big goal into a
-              schedule you can follow.
+              Start a proven, step-by-step plan. Every milestone lands in your
+              goals with a date and a reminder.
             </p>
 
             <div className="mt-4 flex items-center gap-2 rounded-xl border border-subtle bg-surface-body px-3">
@@ -248,24 +286,17 @@ export default function RoadmapsPage() {
                 />
               ))}
             </div>
-          ) : error ? (
+          ) : !showsContent(screenState) ? (
             <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <ErrorState message={error} onRetry={() => void load()} />
-            </div>
-          ) : visible.length === 0 ? (
-            <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
-              <EmptyState
-                icon={<MapIcon size={32} />}
-                title="No roadmaps found"
-                description="Try a different search or category — new expert roadmaps are added regularly."
-                action={
-                  query || category !== "all"
-                    ? {
-                        label: "Clear filters",
-                        onClick: () => {
-                          setQuery("");
-                          setCategory("all");
-                        },
+              <StateView
+                state={screenState}
+                flow="goals"
+                onRetry={() => void load()}
+                onAction={
+                  filtersActive
+                    ? () => {
+                        setQuery("");
+                        setCategory("all");
                       }
                     : undefined
                 }
@@ -277,6 +308,7 @@ export default function RoadmapsPage() {
                 <RoadmapCard
                   key={roadmap.id}
                   roadmap={roadmap}
+                  adoption={adoptions[roadmap.id]}
                   onOpen={() => setSelected(roadmap)}
                 />
               ))}
@@ -327,20 +359,30 @@ function RatingRow({ roadmap }: { roadmap: BackendRoadmap }) {
 
 function RoadmapCard({
   roadmap,
+  adoption,
   onOpen,
 }: {
   roadmap: BackendRoadmap;
+  adoption?: AdoptionInfo;
   onOpen: () => void;
 }) {
   const cover = str(roadmap.coverImage, roadmap.cover_image);
   const creator = str(roadmap.creatorName, roadmap.creator_name);
   const duration = str(roadmap.estimatedDuration, roadmap.estimated_duration);
   const stepCount = roadmap.steps?.length ?? 0;
+  const total = adoption?.totalSteps || stepCount;
+  const done = adoption?.completedSteps ?? 0;
+  const percent = adoption && total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
     <button
       type="button"
       onClick={onOpen}
+      aria-label={
+        adoption
+          ? `${roadmap.title} — started, ${done} of ${total} steps done`
+          : roadmap.title
+      }
       className={`flex w-full flex-col overflow-hidden rounded-[20px] border text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
     >
       <div className="relative h-28 w-full bg-gradient-to-br from-brand to-brand-700">
@@ -352,21 +394,38 @@ function RoadmapCard({
             className="h-full w-full object-cover"
           />
         )}
-        <span className="absolute left-3 top-3 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-2xs font-semibold text-white backdrop-blur">
           {difficultyLabel(String(roadmap.difficulty))}
         </span>
+        {adoption && (
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-700/90 px-2.5 py-1 text-2xs font-semibold text-white backdrop-blur">
+            <Check size={12} />
+            Started
+          </span>
+        )}
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
-          {String(roadmap.category || "General")}
-        </p>
-        <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
+        <h3 className="line-clamp-2 text-sm font-semibold text-text-primary">
           {roadmap.title}
         </h3>
         <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">
           {roadmap.description}
         </p>
+        {adoption && total > 0 && (
+          <div className="mt-3">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand/15">
+              <div
+                className="h-full rounded-full bg-brand"
+                style={{ width: `${Math.max(percent, 3)}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs font-semibold text-text-secondary tabular-nums">
+              {done} of {total} steps done
+            </p>
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
+          <span className="capitalize">{String(roadmap.category || "General")}</span>
           {duration && (
             <span className="inline-flex items-center gap-1">
               <Clock size={13} />
@@ -411,36 +470,92 @@ function RoadmapDetailModal({
   const duration = str(roadmap.estimatedDuration, roadmap.estimated_duration);
   const creator = str(roadmap.creatorName, roadmap.creator_name);
   const steps = roadmap.steps ?? [];
+  const titleId = `roadmap-modal-${roadmap.id}`;
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Element that had focus before the dialog opened, so focus returns there
+  // on close instead of jumping to the top of the document.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+
+    // Lock the page behind the dialog — without this the body kept scrolling
+    // under the sheet on both desktop wheel and mobile touch.
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+
+      // Keep Tab inside the dialog; a modal that leaks focus to the page
+      // behind it is unusable with a keyboard or a screen reader.
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = overflow;
+      returnFocusRef.current?.focus?.();
+    };
+  }, [onClose]);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+      // Close on a genuine backdrop click only. `onClick` alone fired when a
+      // drag that began inside the sheet happened to end on the scrim, which
+      // discarded the dialog mid-selection.
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="flex max-h-[90dvh] w-full max-w-2xl flex-col rounded-t-[24px] border border-subtle bg-surface-layer shadow-soft sm:rounded-[24px]"
-        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-subtle p-5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+            <h2 id={titleId} className="text-lg font-display font-semibold tracking-tight">
+              {roadmap.title}
+            </h2>
+            <p className="mt-1 text-xs capitalize text-text-muted">
               {String(roadmap.category || "General")} ·{" "}
               {difficultyLabel(String(roadmap.difficulty))}
             </p>
-            <h2 className="mt-1 text-lg font-display font-semibold tracking-tight">
-              {roadmap.title}
-            </h2>
             <div className="mt-2">
               <RatingRow roadmap={roadmap} />
             </div>
           </div>
           <button
+            ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 rounded-lg p-1.5 text-text-muted transition hover:bg-surface-elevated"
+            className="shrink-0 rounded-lg p-1.5 text-text-muted transition hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <X size={18} />
           </button>
@@ -489,7 +604,7 @@ function RoadmapDetailModal({
               <ol className="mt-3 space-y-3">
                 {steps.map((step, index) => (
                   <li key={step.id || index} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand">
                       {index + 1}
                     </span>
                     <div className="min-w-0">
@@ -512,11 +627,13 @@ function RoadmapDetailModal({
         <div className="border-t border-subtle p-4">
           {adoption ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                 <Check size={16} />
                 {adoption.goalsCreated > 0
                   ? `Added — ${adoption.goalsCreated} milestone${adoption.goalsCreated === 1 ? "" : "s"} tracked as goals, reminders scheduled`
-                  : "Added to your plan · reminders scheduled"}
+                  : adoption.totalSteps
+                    ? `In your plan — ${adoption.completedSteps ?? 0} of ${adoption.totalSteps} steps done`
+                    : "Added to your plan · reminders scheduled"}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -534,13 +651,13 @@ function RoadmapDetailModal({
                   )}
                   Add to calendar
                   {calendarLocked ? (
-                    <span className="ml-1 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                    <span className="ml-1 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase leading-none tracking-wide text-brand-700">
                       Pro
                     </span>
                   ) : null}
                 </Button>
                 <Button size="sm" onClick={onViewGoals}>
-                  View goals
+                  Continue in goals
                 </Button>
               </div>
               <p className="text-xs text-text-muted">
@@ -549,21 +666,30 @@ function RoadmapDetailModal({
               </p>
             </div>
           ) : (
-            <Button
-              size="lg"
-              onClick={onEnroll}
-              disabled={enrolling}
-              className="w-full"
-            >
-              {enrolling ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Starting…
-                </>
-              ) : (
-                "Start this roadmap"
-              )}
-            </Button>
+            <>
+              {/* Say what the button does before it does it — starting a roadmap
+                  writes goals and schedules reminders, which was undisclosed. */}
+              <p className="mb-3 text-center text-xs text-text-muted">
+                {steps.length > 0
+                  ? `Adds ${steps.length} milestone${steps.length === 1 ? "" : "s"} to your goals and schedules reminders.`
+                  : "Adds this plan to your goals and schedules reminders."}
+              </p>
+              <Button
+                size="lg"
+                onClick={onEnroll}
+                disabled={enrolling}
+                className="w-full"
+              >
+                {enrolling ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Starting…
+                  </>
+                ) : (
+                  "Start this roadmap"
+                )}
+              </Button>
+            </>
           )}
         </div>
       </div>

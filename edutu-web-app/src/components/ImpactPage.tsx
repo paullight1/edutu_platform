@@ -232,14 +232,14 @@ const SectionHeading: React.FC<{
     </motion.div>
     <motion.h2
       {...reveal}
-      className="mt-4 font-display text-[32px] font-semibold leading-[1.08] tracking-tight text-text-primary sm:text-[44px]"
+      className="mt-4 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-text-primary sm:text-5xl"
     >
       {title}
     </motion.h2>
     {subtitle ? (
       <motion.p
         {...reveal}
-        className={`mt-4 text-[17px] leading-relaxed text-text-secondary sm:text-[19px] ${center ? "mx-auto" : ""} max-w-[640px]`}
+        className={`mt-4 text-lg leading-relaxed text-text-secondary sm:text-lg ${center ? "mx-auto" : ""} max-w-[640px]`}
       >
         {subtitle}
       </motion.p>
@@ -274,20 +274,20 @@ function StoryCard({
               "linear-gradient(180deg, rgba(8,18,36,0.05) 0%, rgba(8,18,36,0.55) 100%)",
           }}
         />
-        <span className="absolute bottom-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand shadow-soft">
+        <span className="absolute bottom-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-[0.12em] text-brand shadow-soft">
           <Sparkles size={12} /> {story.impact}
         </span>
       </div>
       <div className="p-6">
         <Quote size={22} className="text-brand/40" />
-        <p className="mt-2 text-[16px] leading-relaxed text-text-primary">
+        <p className="mt-2 text-base leading-relaxed text-text-primary">
           {story.quote}
         </p>
         <div className="mt-5 border-t border-subtle pt-4">
-          <div className="text-[15px] font-semibold text-text-primary">
+          <div className="text-base font-semibold text-text-primary">
             {story.name}
           </div>
-          <div className="text-[13px] text-text-muted">{story.role}</div>
+          <div className="text-sm text-text-muted">{story.role}</div>
         </div>
       </div>
     </motion.article>
@@ -321,14 +321,14 @@ function GrowthChart({ reveal }: { reveal: Record<string, unknown> }) {
     >
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <div className="text-[13px] font-medium text-text-muted">
+          <div className="text-sm font-medium text-text-muted">
             Young people reached
           </div>
-          <div className="font-display text-[30px] font-semibold text-text-primary">
+          <div className="font-display text-3xl font-semibold text-text-primary">
             67,000+
           </div>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-[12px] font-semibold text-success">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
           <TrendingUp size={13} /> +1,240% since 2021
         </span>
       </div>
@@ -425,17 +425,17 @@ function CategoryBars({ reveal }: { reveal: Record<string, unknown> }) {
       className="rounded-3xl border border-subtle bg-surface-layer p-6 shadow-soft sm:p-8"
     >
       <div className="mb-6">
-        <div className="text-[13px] font-medium text-text-muted">
+        <div className="text-sm font-medium text-text-muted">
           What we surface
         </div>
-        <div className="font-display text-[22px] font-semibold text-text-primary">
+        <div className="font-display text-xl font-semibold text-text-primary">
           Opportunity mix
         </div>
       </div>
       <div className="space-y-4">
         {CATEGORY_MIX.map((c, i) => (
           <div key={c.label}>
-            <div className="mb-1.5 flex items-center justify-between text-[14px]">
+            <div className="mb-1.5 flex items-center justify-between text-sm">
               <span className="font-medium text-text-primary">{c.label}</span>
               <span className="font-semibold text-text-muted">{c.pct}%</span>
             </div>
@@ -507,7 +507,7 @@ const ImpactPage: React.FC = () => {
               className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5"
             >
               <Sparkles size={14} className="text-brand" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">
                 Our Impact
               </span>
             </motion.div>
@@ -526,7 +526,7 @@ const ImpactPage: React.FC = () => {
               initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.15 }}
-              className="mt-6 max-w-[640px] text-[18px] leading-relaxed text-text-secondary sm:text-[20px]"
+              className="mt-6 max-w-[640px] text-base leading-relaxed text-text-secondary sm:text-lg"
             >
               Edutu exists to close Africa's opportunity gap with responsible AI.
               This is not a marketing page — it's the evidence. Real reach, real
@@ -541,7 +541,7 @@ const ImpactPage: React.FC = () => {
             >
               <a
                 href="#impact-glance"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-4 text-[16px] font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-4 text-base font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
               >
                 Explore our impact
                 <ArrowRight
@@ -551,7 +551,7 @@ const ImpactPage: React.FC = () => {
               </a>
               <Link
                 to="/auth?mode=sign-in"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-8 py-4 text-[16px] font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-8 py-4 text-base font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
               >
                 Join our mission
               </Link>
@@ -565,10 +565,10 @@ const ImpactPage: React.FC = () => {
             >
               {TOP100_STATS.map((s) => (
                 <div key={s.label} className="bg-surface-layer px-4 py-5">
-                  <div className="font-display text-[26px] font-semibold text-text-primary sm:text-[30px]">
+                  <div className="font-display text-2xl font-semibold text-text-primary sm:text-3xl">
                     {s.value}
                   </div>
-                  <div className="mt-1 text-[12px] font-medium leading-tight text-text-muted">
+                  <div className="mt-1 text-xs font-medium leading-tight text-text-muted">
                     {s.label}
                   </div>
                 </div>
@@ -596,7 +596,7 @@ const ImpactPage: React.FC = () => {
                 <motion.div {...reveal}>
                   <Link
                     to="/what-we-believe"
-                    className="inline-flex items-center gap-2 rounded-xl border border-subtle px-5 py-3 text-[15px] font-semibold text-text-primary no-underline transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:text-brand"
+                    className="inline-flex items-center gap-2 rounded-xl border border-subtle px-5 py-3 text-base font-semibold text-text-primary no-underline transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:text-brand"
                   >
                     Read what we believe <ArrowUpRight size={16} />
                   </Link>
@@ -616,13 +616,13 @@ const ImpactPage: React.FC = () => {
                         <Icon size={22} />
                       </div>
                       <div>
-                        <div className="font-display text-[28px] font-semibold leading-none text-text-primary">
+                        <div className="font-display text-3xl font-semibold leading-none text-text-primary">
                           {fact.stat}
                         </div>
-                        <div className="mt-1 text-[15px] font-semibold text-text-primary">
+                        <div className="mt-1 text-base font-semibold text-text-primary">
                           {fact.label}
                         </div>
-                        <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
+                        <p className="mt-2 text-sm leading-relaxed text-text-secondary">
                           {fact.body}
                         </p>
                       </div>
@@ -710,7 +710,7 @@ const ImpactPage: React.FC = () => {
                       i % 2 === 0 ? "sm:flex-row" : "sm:flex-row-reverse"
                     }`}
                   >
-                    <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-4 border-surface-body bg-brand text-[12px] font-bold text-white shadow-soft sm:absolute sm:left-1/2 sm:-ml-5">
+                    <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-4 border-surface-body bg-brand text-xs font-semibold text-white shadow-soft sm:absolute sm:left-1/2 sm:-ml-5">
                       {i + 1}
                     </div>
                     <div
@@ -718,13 +718,13 @@ const ImpactPage: React.FC = () => {
                         i % 2 === 0 ? "sm:mr-auto sm:text-right" : "sm:ml-auto"
                       }`}
                     >
-                      <span className="text-[12px] font-bold uppercase tracking-[0.16em] text-brand">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
                         {item.year}
                       </span>
-                      <h3 className="mt-1 font-display text-[20px] font-semibold text-text-primary">
+                      <h3 className="mt-1 font-display text-xl font-semibold text-text-primary">
                         {item.title}
                       </h3>
-                      <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                      <p className="mt-2 text-base leading-relaxed text-text-secondary">
                         {item.body}
                       </p>
                     </div>
@@ -742,11 +742,11 @@ const ImpactPage: React.FC = () => {
               <div className="grid lg:grid-cols-2">
                 <div className="p-8 sm:p-12 lg:p-14">
                   <Eyebrow>Where it began</Eyebrow>
-                  <h2 className="mt-4 font-display text-[30px] font-semibold leading-[1.1] tracking-tight text-text-primary sm:text-[38px]">
+                  <h2 className="mt-4 font-display text-3xl font-semibold text-text-primary sm:text-4xl">
                     Top100 Africa{" "}
                     <span className="text-brand">Future Leaders</span>
                   </h2>
-                  <p className="mt-4 text-[16px] leading-relaxed text-text-secondary">
+                  <p className="mt-4 text-base leading-relaxed text-text-secondary">
                     Edutu grew out of Top100 — a movement that recognised
                     first-class graduates and connected them to global
                     opportunities. It proved something simple and powerful: when
@@ -758,10 +758,10 @@ const ImpactPage: React.FC = () => {
                         key={s.label}
                         className="rounded-2xl border border-subtle bg-surface-body p-4"
                       >
-                        <div className="font-display text-[26px] font-semibold text-text-primary">
+                        <div className="font-display text-2xl font-semibold text-text-primary">
                           {s.value}
                         </div>
-                        <div className="mt-0.5 text-[12px] font-medium leading-tight text-text-muted">
+                        <div className="mt-0.5 text-xs font-medium leading-tight text-text-muted">
                           {s.label}
                         </div>
                       </div>
@@ -830,7 +830,7 @@ const ImpactPage: React.FC = () => {
                         label.textContent = partner.name;
                         label.setAttribute("data-fallback", "true");
                         label.className =
-                          "text-center font-display text-[13px] font-semibold text-text-secondary";
+                          "text-center font-display text-sm font-semibold text-text-secondary";
                         parent.appendChild(label);
                       }
                     }}
@@ -871,10 +871,10 @@ const ImpactPage: React.FC = () => {
                     <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${accent.chip}`}>
                       <Icon size={20} />
                     </div>
-                    <h3 className="font-display text-[18px] font-semibold text-text-primary">
+                    <h3 className="font-display text-lg font-semibold text-text-primary">
                       {item.title}
                     </h3>
-                    <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
+                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
                       {item.body}
                     </p>
                   </motion.div>
@@ -915,12 +915,12 @@ const ImpactPage: React.FC = () => {
                       <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${accent.chip}`}>
                         <Icon size={20} />
                       </div>
-                      <h3 className="font-display text-[17px] font-semibold leading-snug text-text-primary">
+                      <h3 className="font-display text-lg font-semibold leading-snug text-text-primary">
                         {goal.title}
                       </h3>
                     </div>
                     <div className="mt-5">
-                      <div className="mb-1.5 flex items-center justify-between text-[12px] font-semibold">
+                      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
                         <span className="text-text-muted">{goal.label}</span>
                         <span className="text-text-primary">{goal.progress}%</span>
                       </div>
@@ -951,10 +951,10 @@ const ImpactPage: React.FC = () => {
             <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
               <Heart size={26} className="text-white" />
             </div>
-            <h2 className="mx-auto max-w-[720px] font-display text-[30px] font-semibold leading-[1.1] tracking-tight text-white sm:text-[44px]">
+            <h2 className="mx-auto max-w-[720px] font-display text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
               Help us close Africa's opportunity gap
             </h2>
-            <p className="mx-auto mt-5 max-w-[560px] text-[17px] leading-relaxed text-white/85 sm:text-[19px]">
+            <p className="mx-auto mt-5 max-w-[560px] text-lg leading-relaxed text-white/85 sm:text-lg">
               The full story behind our mission is on the record — read the
               flagship research, then join us. One opportunity really can change
               a life.
@@ -963,13 +963,13 @@ const ImpactPage: React.FC = () => {
               <a
                 href={IMPACT_REPORT_PDF}
                 download={IMPACT_REPORT_FILENAME}
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-[16px] font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:w-auto"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:w-auto"
               >
                 <Download size={18} /> Download the report (PDF)
               </a>
               <Link
                 to="/auth?mode=sign-in"
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 px-8 py-4 text-[16px] font-semibold text-white no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/20 sm:w-auto"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 px-8 py-4 text-base font-semibold text-white no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/20 sm:w-auto"
               >
                 Join Edutu
                 <ArrowRight

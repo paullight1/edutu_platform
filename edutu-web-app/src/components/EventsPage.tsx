@@ -13,7 +13,7 @@ import {
 import ImageWithFallback from "./ImageWithFallback";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
-import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import { toAbsoluteUrl } from "../lib/publicSite";
 import { fetchEvents } from "../services/events";
 import type { EdutuEvent } from "../types/event";
 
@@ -250,7 +250,6 @@ export default function EventsPage() {
         title="Edutu events | Scholarships, mentorship and application support"
         description={seoDescription}
         path="/events"
-        image={getDefaultSeoImage()}
         jsonLd={seoJsonLd}
       />
       <PublicEditorialShell mainClassName="max-w-7xl py-5 sm:py-6">

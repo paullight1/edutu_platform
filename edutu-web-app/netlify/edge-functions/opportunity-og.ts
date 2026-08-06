@@ -83,18 +83,16 @@ export default async function handler(request: Request, context: Context) {
   let html = await response.text();
 
   try {
-    const [oppRes, cardRes] = await Promise.all([
-      fetch(`${BACKEND}/opportunities/${encodeURIComponent(id)}`),
-      fetch(`${BACKEND}/opportunities/${encodeURIComponent(id)}/share-card`, {
-        method: "POST",
-      }),
-    ]);
-
+    // Fast path: the opportunity GET is CDN-cached and already hoists the
+    // source flyer + any previously-generated share card, so it usually
+    // carries an image on its own.
+    const oppRes = await fetch(
+      `${BACKEND}/opportunities/${encodeURIComponent(id)}`,
+    );
     const opp = oppRes.ok ? await oppRes.json() : null;
     if (!opp || !opp.id) {
       return new Response(html, response);
     }
-    const card = cardRes.ok ? await cardRes.json() : null;
 
     const title = clean(opp.title) || "Opportunity on Edutu";
     const fullTitle = `${title} | Edutu`;
@@ -110,21 +108,37 @@ export default async function handler(request: Request, context: Context) {
         200,
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
-    // Image priority: the scraped source page's own flyer/poster (its OG image)
-    // → the opportunity's own image → our branded share card → generic Edutu
-    // icon. The real source flyer leads so a shared link unfurls with the bold,
-    // recognisable poster (like the source site itself shows); the branded card
-    // is only a fallback when the opportunity has no picture of its own.
-    const brandedCard = clean(card?.shareCard?.url);
+    // Image priority: the scraped source page's own flyer/poster → the
+    // opportunity's own image → the branded share card. A shared link must
+    // never unfurl with the generic Edutu icon, so when the opportunity has no
+    // image of its own we generate the branded card on demand.
     const sourceImage =
       clean(opp.metadata?.source_image_url) ||
       clean(opp.source_image_url || opp.sourceImageUrl);
-    const image =
-      sourceImage ||
-      clean(opp.image_url || opp.imageUrl) ||
-      clean(opp.share_image_url || opp.shareImageUrl) ||
-      brandedCard ||
-      DEFAULT_IMAGE;
+    const shareCardImage = clean(opp.share_image_url || opp.shareImageUrl);
+    let image =
+      sourceImage || clean(opp.image_url || opp.imageUrl) || shareCardImage;
+    let brandedCard = image && image === shareCardImage ? shareCardImage : "";
+
+    // Only when the opportunity has NO image of its own do we pay for card
+    // generation — this is exactly the case that used to unfurl as the icon.
+    if (!image) {
+      try {
+        const cardRes = await fetch(
+          `${BACKEND}/opportunities/${encodeURIComponent(id)}/share-card`,
+          { method: "POST" },
+        );
+        const card = cardRes.ok ? await cardRes.json() : null;
+        brandedCard = clean(card?.shareCard?.url);
+        image = brandedCard;
+      } catch {
+        // fall through to DEFAULT_IMAGE
+      }
+    }
+
+    if (!image) {
+      image = DEFAULT_IMAGE;
+    }
     const usingBrandedCard = Boolean(brandedCard) && image === brandedCard;
     const pageUrl = `${SITE}/opportunity/${encodeURIComponent(id)}`;
 

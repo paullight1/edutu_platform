@@ -396,6 +396,27 @@ export async function adoptRoadmap(
   );
 }
 
+export interface RoadmapEnrollmentRow {
+  enrollment: {
+    id: string;
+    roadmapId?: string | null;
+    roadmap_id?: string | null;
+    completedSteps?: unknown[] | null;
+    completed_steps?: unknown[] | null;
+  };
+  roadmap?: BackendRoadmap;
+}
+
+/**
+ * Roadmaps this user has already adopted. Without it the catalog has no memory:
+ * every card offers "Start", and adopting twice duplicates the milestone goals
+ * the first adoption created.
+ */
+export async function fetchMyRoadmapEnrollments(token?: string | null): Promise<RoadmapEnrollmentRow[]> {
+  const rows = await request<RoadmapEnrollmentRow[]>('/roadmaps/my-enrollments', {}, token);
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function fetchRoadmapCalendarExport(enrollmentId: string, token?: string | null) {
   return request<RoadmapCalendarExport>(
     `/roadmaps/enrollments/${encodeURIComponent(enrollmentId)}/calendar`,

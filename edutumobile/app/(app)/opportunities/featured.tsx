@@ -1,6 +1,6 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Star } from "lucide-react-native";
@@ -10,7 +10,10 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { OpportunityCard } from "../../../components/home/OpportunityCard";
 import { ShimmerCard } from "../../../components/ui/Shimmer";
 import { supabase } from "../../../lib/supabase";
-import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
+import {
+    fetchFeaturedOpportunities,
+    getCachedFeaturedOpportunities,
+} from "@edutu/core/src/services/opportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
@@ -30,13 +33,33 @@ export default function FeaturedOpportunitiesScreen() {
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
 
-    const { data: opportunities, loading, refresh } = useOpportunities({
-        supabase,
-        userId: user?.id,
-        getAuthToken: getToken,
-    });
+    // Same source as the home rail: the featured endpoint, not a filter over
+    // the personalized feed (which hid spotlights outside a user's ranked
+    // candidate window).
+    const [featured, setFeatured] = useState<Opportunity[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const featured = useMemo(() => opportunities.filter(o => o.featured), [opportunities]);
+    const refresh = useCallback(() => {
+        setLoading(true);
+        return fetchFeaturedOpportunities(50)
+            .then(setFeatured)
+            .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        let isActive = true;
+        void getCachedFeaturedOpportunities().then((cached) => {
+            if (isActive && cached.length > 0) setFeatured(cached);
+        });
+        void fetchFeaturedOpportunities(50).then((rows) => {
+            if (!isActive) return;
+            setFeatured(rows);
+            setLoading(false);
+        });
+        return () => {
+            isActive = false;
+        };
+    }, []);
 
     const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
 

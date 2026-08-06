@@ -34,21 +34,6 @@ function truncate(value: string, max: number): string {
   return `${value.slice(0, max - 1).trimEnd()}…`;
 }
 
-function asRecord(value: unknown): Record<string, any> {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, any>;
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
-
 /** Escape for a double-quoted HTML attribute. */
 function attr(value: string): string {
   return value
@@ -429,7 +414,6 @@ export class OgController {
       );
     }
 
-    const metadata = asRecord(opp.metadata);
     const title = clean(opp.title) || "Opportunity on Edutu";
     const fullTitle = `${title} | Edutu`;
     const description =

@@ -51,7 +51,8 @@ const mockCreateUserCV = jest.fn();
 const mockUpdateUserCV = jest.fn();
 const mockDeleteUserCV = jest.fn();
 const mockShareCV = jest.fn();
-const mockExportCVAsPdf = jest.fn().mockResolvedValue('pdf');
+const mockExportCVAsPdf = jest.fn().mockResolvedValue({ ok: true, mode: 'pdf' });
+const mockExportCVAsText = jest.fn().mockResolvedValue({ ok: true, mode: 'text' });
 const mockGenerateAICVDraft = jest.fn();
 const mockTailorCVForOpportunity = jest.fn();
 const mockUseCVTrial = jest.fn();
@@ -125,6 +126,7 @@ jest.mock('../lib/supabase', () => ({
 
 jest.mock('../lib/exportCv', () => ({
   exportCVAsPdf: (...args: unknown[]) => mockExportCVAsPdf(...args),
+  exportCVAsText: (...args: unknown[]) => mockExportCVAsText(...args),
   buildExportName: () => 'Edutu CV',
 }));
 
@@ -180,6 +182,13 @@ function findTouchable(node: any) {
     throw new Error('Could not find a pressable ancestor');
   }
   return current;
+}
+
+/** Presses a wizard progress dot by its accessibility label (the step title). */
+function jumpToStep(getByLabelText: (label: string) => any, stepTitle: string) {
+  act(() => {
+    findTouchable(getByLabelText(stepTitle)).props.onPress?.();
+  });
 }
 
 function pressByText(getByText: (text: string) => any, label: string) {
@@ -280,15 +289,18 @@ describe('mobile CV builder', () => {
       },
     ];
 
-    const { getByText } = render(<CVBuilderScreen />);
+    const { getByLabelText, getByText } = render(<CVBuilderScreen />);
 
     await waitFor(() => expect(getByText('Modern Professional')).toBeTruthy());
     pressByText(getByText, 'Modern Professional');
 
     pressByText(getByText, 'Use Template');
-    await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
+    // The editor is now a five-step wizard; step one is "Your details".
+    await waitFor(() => expect(getByText('Your details')).toBeTruthy());
 
-    pressByText(getByText, 'Save CV');
+    // Jump straight to the last step via its progress dot, then finish.
+    jumpToStep(getByLabelText, 'Projects & awards');
+    pressByText(getByText, 'Preview & Save');
     await waitFor(() =>
       expect(mockCreateUserCV).toHaveBeenCalledWith(
         mockSupabase,
@@ -300,16 +312,21 @@ describe('mobile CV builder', () => {
       ),
     );
 
-    // Sharing was replaced by a PDF export (lib/exportCv → expo-print/sharing).
-    pressByText(getByText, 'Download PDF');
+    // Export now lives on the preview screen, which "Preview & Save" opens.
+    await waitFor(() => expect(getByText('Back to Edit')).toBeTruthy());
+    pressByText(getByText, 'PDF');
     await waitFor(() =>
       expect(mockExportCVAsPdf).toHaveBeenCalledWith(
         expect.objectContaining({
           template_id: 't-free',
           name: 'My CV',
         }),
-        // Untailored CV → no opportunity context in the export filename.
-        expect.objectContaining({ tailoredTo: undefined }),
+        // Untailored CV → no opportunity context in the export filename, and
+        // the export carries the chosen template's design.
+        expect.objectContaining({
+          tailoredTo: undefined,
+          design: expect.objectContaining({ slug: expect.any(String) }),
+        }),
       ),
     );
   });
@@ -362,14 +379,15 @@ describe('mobile CV builder', () => {
       },
     ];
 
-    const { getByDisplayValue, getByText } = render(<CVBuilderScreen />);
+    const { getByDisplayValue, getByLabelText, getByText } = render(<CVBuilderScreen />);
 
     await waitFor(() => expect(getByText('Draft CV')).toBeTruthy());
     pressByText(getByText, 'Draft CV');
-    await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
+    await waitFor(() => expect(getByText('Your details')).toBeTruthy());
 
     fireEvent.changeText(getByDisplayValue('Draft CV'), 'Scholarship CV');
-    pressByText(getByText, 'Save CV');
+    jumpToStep(getByLabelText, 'Projects & awards');
+    pressByText(getByText, 'Preview & Save');
 
     await waitFor(() =>
       expect(mockUpdateUserCV).toHaveBeenCalledWith(
@@ -442,7 +460,7 @@ describe('mobile CV builder', () => {
         }),
       ),
     );
-    await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
+    await waitFor(() => expect(getByText('Your details')).toBeTruthy());
     // The AI-draft outcome now surfaces as a branded bottom sheet (not a
     // system Alert) with the suggestions as individual rows.
     await waitFor(() => expect(getByText('AI draft ready')).toBeTruthy());

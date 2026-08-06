@@ -85,7 +85,7 @@ export default function AppearanceSettings() {
                   ) : null}
                 </span>
                 <span
-                  className={`text-[11px] font-medium ${
+                  className={`text-2xs font-medium ${
                     active ? "text-text-primary" : "text-text-muted"
                   }`}
                 >

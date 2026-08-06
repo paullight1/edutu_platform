@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "Ungependa kukumbushwa kabla haijafungwa?",
+      "message": "Tunaweza kukukumbusha siku chache kabla ya tarehe ya mwisho ili fursa hii isikupite.",
+      "confirm": "Nikumbushe",
+      "dismiss": "Hapana, asante"
+    },
     "headerTitle": "Maelezo ya Fursa",
     "loading": "Inapakia fursa...",
     "notFound": "Fursa haijapatikana",
@@ -128,6 +134,24 @@
     "addToGoals": "Ongeza kwenye Malengo Yangu",
     "applyNow": "Omba Sasa",
     "savedLabel": "Imehifadhiwa",
+    "saveAction": "Hifadhi",
+    "fit": {
+      "title": "Ulinganifu wako",
+      "eyebrow": "Tathmini ya Edutu",
+      "unknown": "Bado haijapangwa",
+      "unknownBlurb": "Kamilisha wasifu wako ili Edutu iweze kuipanga fursa hii kwa ajili yako.",
+      "evidenceHeadline": "Kwa nini Edutu inasema hivyo",
+      "tiers": {
+        "strong": "Ulinganifu imara",
+        "strongBlurb": "Hii inalingana kwa karibu na wasifu wako — inastahili juhudi za kweli.",
+        "solid": "Ulinganifu mzuri",
+        "solidBlurb": "Inalingana katika mengi yanayohesabika. Angalia mapengo hapa chini.",
+        "possible": "Ulinganifu unaowezekana",
+        "possibleBlurb": "Sehemu ya wasifu wako inalingana. Soma masharti kabla ya kujitolea.",
+        "stretch": "Changamoto",
+        "stretchBlurb": "Iko mbali na wasifu wako kuliko nyingi — omba kama inakusisimua kweli."
+      }
+    },
     "alerts": {
       "removedTitle": "Imeondolewa",
       "removedMsg": "Fursa imeondolewa kwenye orodha ya zilizohifadhiwa",
@@ -308,5 +332,63 @@
     "today": "Leo",
     "tomorrow": "Kesho",
     "daysShortLeft": "Zimebaki siku {{count}}"
+  },
+  "alerts": {
+    "title": "Arifa",
+    "subtitle": "Tunafuatilia fursa kwa niaba yako",
+    "loading": "Inapakia arifa zako…",
+    "settingsA11y": "Mipangilio ya arifa",
+    "summary": "Inafuatilia {{n}}",
+    "summaryPaused": "{{n}} zimesitishwa",
+    "newAlert": "Arifa mpya",
+    "delete": "Futa",
+    "deleteTitle": "Futa arifa hii?",
+    "deleteBody": "Hutapokea tena taarifa kuhusu fursa mpya zinazolingana na “{{name}}”.",
+    "deleteFailed": "Hatukuweza kufuta arifa hiyo. Jaribu tena baada ya muda mfupi.",
+    "toggleFailed": "Hatukuweza kuhifadhi mabadiliko hayo. Jaribu tena baada ya muda mfupi.",
+    "pushOff": "Arifa za push zimezimwa, kwa hivyo arifa hizi haziwezi kukufikia. Gusa ili kuziwasha.",
+    "empty": {
+      "title": "Tengeneza arifa yako ya kwanza",
+      "body": "Tuambie unachotafuta. Tunakagua kila fursa mpya inapowasili na kukujulisha inapokufaa.",
+      "browse": "Au vinjari Gundua"
+    },
+    "composer": {
+      "createTitle": "Arifa mpya",
+      "editTitle": "Hariri arifa",
+      "keywordLabel": "Maneno muhimu",
+      "keywordPlaceholder": "mf. shahada ya uzamili yenye ufadhili kamili",
+      "categoryLabel": "Kategoria",
+      "remoteLabel": "Mtandaoni pekee",
+      "nameLabel": "Jina la arifa",
+      "namePlaceholder": "Ipe arifa hii jina",
+      "untitled": "Arifa yangu",
+      "needCriterion": "Ongeza neno muhimu, chagua kategoria, au washa mtandaoni pekee.",
+      "cancel": "Ghairi",
+      "save": "Hifadhi arifa",
+      "update": "Hifadhi mabadiliko",
+      "failedTitle": "Haikuweza kuhifadhi",
+      "failedBody": "Angalia muunganisho wako kisha ujaribu tena.",
+      "limitReached": "Unaweza kuwa na arifa hadi {{max}}. Futa moja ili kupata nafasi."
+    },
+    "card": {
+      "watching": "Inafuatilia",
+      "paused": "Imesitishwa",
+      "lastMatch": "inayolingana ya mwisho {{when}}",
+      "remoteChip": "Mtandaoni pekee",
+      "matchesTotal": "Zinazolingana hadi sasa: {{n}}",
+      "noMatchesYet": "Hakuna inayolingana bado",
+      "muteA11y": "Sitisha arifa hii",
+      "unmuteA11y": "Endeleza arifa hii",
+      "editA11y": "Hariri arifa hii",
+      "deleteA11y": "Futa arifa hii",
+      "liveCount": "Zinazolingana sasa: {{n}}",
+      "liveEmpty": "Hakuna kitu kwenye orodha kinacholingana na hii bado — tutakujulisha kitakapopatikana.",
+      "liveError": "Hatukuweza kupakia zinazolingana. Vuta chini ili kuonyesha upya."
+    },
+    "time": {
+      "justNow": "sasa hivi",
+      "hours": "saa {{n}} zilizopita",
+      "days": "siku {{n}} zilizopita"
+    }
   }
 }

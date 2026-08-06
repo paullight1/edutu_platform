@@ -40,13 +40,16 @@ import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { setProfileFabHidden } from '../../../lib/navFabStore';
+import { usePromptProUpgrade } from '../../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
 function PremiumButton({ isPro }: { isPro: boolean }) {
-    const router = useRouter();
+    // Shared upsell (lib/upsell). This chip IS the pitch, so it opens the
+    // paywall directly rather than stacking a second upgrade prompt on top.
+    const promptProUpgrade = usePromptProUpgrade();
     const { isDark } = useTheme();
     const { t } = useTranslation('profile');
 
@@ -62,7 +65,7 @@ function PremiumButton({ isPro }: { isPro: boolean }) {
     return (
         <TouchableOpacity
             style={[styles.premiumButton, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}
-            onPress={() => router.push('/paywall')}
+            onPress={() => promptProUpgrade({ direct: true })}
             activeOpacity={0.7}
         >
             <Crown size={16} color="#F59E0B" />
@@ -78,6 +81,8 @@ export default function ProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { t } = useTranslation('profile');
+    // Shared upsell (lib/upsell) — this row is already the pitch, so `direct`.
+    const promptProUpgrade = usePromptProUpgrade();
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     // Set when the user skipped onboarding — we surface a resume card so they
@@ -85,6 +90,7 @@ export default function ProfileScreen() {
     const profilePending = Boolean(user?.unsafeMetadata?.profilePending);
     const { isPro } = useProStatus(supabase, user?.id || null);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isApprovedMentor, setIsApprovedMentor] = useState(false);
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
@@ -133,10 +139,13 @@ export default function ProfileScreen() {
             try {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('role')
+                    .select('role, creator_status, mentor_status')
                     .eq('user_id', toSafeUUID(user.id))
                     .single();
                 setIsAdmin(data?.role === 'admin');
+                setIsApprovedMentor(
+                    data?.creator_status === 'approved' || data?.mentor_status === 'approved',
+                );
             } catch (e) {
                 console.error('Failed to check role:', e);
             }
@@ -148,7 +157,7 @@ export default function ProfileScreen() {
         {
             title: t('view.menu.tools'),
             items: [
-                { id: 'creator', title: t('view.menu.creatorStudio'), desc: t('view.menu.creatorStudioDesc'), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
+                { id: 'creator', title: t('view.menu.mentorStudio', { defaultValue: 'Mentor Studio' }), desc: t('view.menu.mentorStudioDesc', { defaultValue: 'Publish roadmaps & resources, track your impact' }), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
                 { id: 'cv', title: t('view.menu.cvBuilder'), desc: t('view.menu.cvBuilderDesc'), icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
                 { id: 'documents', title: t('view.menu.myDocuments'), desc: t('view.menu.myDocumentsDesc'), icon: FolderOpen, route: '/profile/documents', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
                 { id: 'chat', title: t('view.menu.aiCoach'), desc: t('view.menu.aiCoachDesc'), icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
@@ -255,7 +264,7 @@ export default function ProfileScreen() {
                 {!isPro && (
                     <Animated.View entering={FadeInDown.duration(360)}>
                         <TouchableOpacity
-                            onPress={() => router.push('/paywall')}
+                            onPress={() => promptProUpgrade({ direct: true })}
                             activeOpacity={0.88}
                             style={styles.upgradeLineWrap}
                         >
@@ -277,10 +286,11 @@ export default function ProfileScreen() {
                     </Animated.View>
                 )}
 
-                {/* Become a Creator Banner */}
+                {/* Become a Mentor Banner — hidden once approved */}
+                {!isApprovedMentor && (
                 <TouchableOpacity
                     style={[styles.creatorBanner, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}
-                    onPress={() => router.push('/creator-apply')}
+                    onPress={() => router.push('/mentor-apply')}
                     activeOpacity={0.8}
                 >
                     <View style={[styles.creatorIcon, { backgroundColor: colors.primary }]}>
@@ -288,14 +298,15 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.creatorContent}>
                         <Text style={[styles.creatorTitle, { color: colors.foreground }]}>
-                            {t('view.becomeCreator')}
+                            {t('view.becomeMentor', { defaultValue: 'Become a Mentor' })}
                         </Text>
                         <Text style={[styles.creatorDesc, { color: textSecondary }]}>
-                            {t('view.becomeCreatorDesc')}
+                            {t('view.becomeMentorDesc', { defaultValue: 'Share your roadmaps and earn from your expertise' })}
                         </Text>
                     </View>
                     <ChevronRight size={20} color={colors.primary} />
                 </TouchableOpacity>
+                )}
 
                 {/* Menu Groups */}
                 {menuGroups.map((group, groupIdx) => (

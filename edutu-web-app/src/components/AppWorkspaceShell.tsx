@@ -265,7 +265,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
                   <span className="truncate">{displayName}</span>
                   {isPro ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-brand-700">
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase leading-none tracking-wide text-brand-700">
                       <Sparkles size={9} aria-hidden="true" />
                       Pro
                     </span>
@@ -298,7 +298,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               <Bell size={17} />
               {unreadCount > 0 ? (
                 <span
-                  className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-[9px] font-bold leading-none text-white"
+                  className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-2xs font-semibold leading-none text-white"
                   aria-hidden="true"
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
@@ -486,7 +486,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 <Bell size={20} />
                 {unreadCount > 0 ? (
                   <span
-                    className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-[10px] font-bold leading-none text-white"
+                    className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-2xs font-semibold leading-none text-white"
                     aria-hidden="true"
                   >
                     {unreadCount > 99 ? "99+" : unreadCount}
@@ -569,7 +569,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </NavLink>
 
             <section>
-              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+              <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("navigation.explore")}
               </p>
               <div className="grid gap-2.5">
@@ -593,7 +593,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                         >
                           <Icon size={19} />
                         </span>
-                        <span className="truncate text-[15px] font-semibold">
+                        <span className="truncate text-base font-semibold">
                           {itemLabel}
                         </span>
                       </span>
@@ -605,7 +605,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </section>
 
             <section className="mt-5">
-              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+              <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("workspace.section")}
               </p>
               <div className="grid gap-2.5">
@@ -628,7 +628,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                         >
                           <Icon size={19} />
                         </span>
-                        <span className="truncate text-[15px] font-semibold">
+                        <span className="truncate text-base font-semibold">
                           {t(item.label)}
                         </span>
                       </span>
@@ -645,7 +645,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
                 className={cn(
-                  "flex min-h-[64px] w-full items-center justify-between rounded-[24px] border border-danger/20 bg-danger/10 p-3.5 text-[15px] font-semibold text-danger shadow-sm transition hover:bg-danger/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
+                  "flex min-h-[64px] w-full items-center justify-between rounded-[24px] border border-danger/20 bg-danger/10 p-3.5 text-base font-semibold text-danger shadow-sm transition hover:bg-danger/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
                 )}
               >
                 <span className="flex items-center gap-3">
@@ -687,7 +687,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-semibold transition active:scale-[0.98]",
+                    "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden px-1 text-2xs font-semibold transition active:scale-[0.98]",
                     active
                       ? "text-brand-600"
                       : "text-text-muted hover:text-text-primary",
@@ -710,7 +710,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               type="button"
               onClick={() => setIsMobileMoreOpen((value) => !value)}
               className={cn(
-                "relative flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] font-semibold transition active:scale-[0.98]",
+                "relative flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-2xs font-semibold transition active:scale-[0.98]",
                 isMobileMoreOpen
                   ? "text-brand-600"
                   : "text-text-secondary hover:text-text-primary",

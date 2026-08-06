@@ -31,7 +31,8 @@
   },
   "sections": {
     "yourCvs": "Your CVs",
-    "chooseTemplate": "Choose a Template"
+    "chooseTemplate": "Choose a Template",
+    "chooseTemplateSubtitle": "Each one exports a genuinely different document — tap to see yours in it."
   },
   "alerts": {
     "aiDraftReadyTitle": "AI draft ready",
@@ -51,12 +52,21 @@
     "sharedAsTextMessage": "PDF export was unavailable, so the CV was shared as text instead.",
     "exportFailed": "Failed to export CV",
     "tailoredTitle": "CV tailored — {{score}}% match",
-    "tailorFailed": "Failed to tailor CV for this opportunity."
+    "tailorFailed": "Failed to tailor CV for this opportunity.",
+    "exportFailedTitle": "Couldn't create the PDF",
+    "exportRetry": "Try again",
+    "exportShareAsText": "Share as text",
+    "exportReason": {
+      "render-failed": "Something went wrong while building the document. Try again, or share it as plain text instead.",
+      "sharing-unavailable": "This device can't open the share sheet. You can still share your CV as plain text.",
+      "share-failed": "The share sheet closed before the file was sent. Try again."
+    }
   },
   "toast": {
     "saved": "CV saved successfully!",
     "summaryUpdated": "Summary updated",
-    "summaryUpdatedOffline": "Summary improved offline"
+    "summaryUpdatedOffline": "Summary improved offline",
+    "exported": "PDF ready to share"
   },
   "draftSheet": {
     "nextSteps": "Suggested next steps",
@@ -161,7 +171,8 @@
           "Good for broad applications"
         ]
       }
-    }
+    },
+    "atsSafe": "ATS-safe"
   },
   "linkedInModal": {
     "title": "Build CV with AI",
@@ -333,7 +344,10 @@
       "experience": "Experience",
       "education": "Education",
       "projects": "Projects",
-      "achievements": "Achievements"
+      "achievements": "Achievements",
+      "research": "Research",
+      "publications": "Publications",
+      "references": "References"
     },
     "startFallback": "Start",
     "present": "- Present"
@@ -358,5 +372,168 @@
     "trialCta": "Try Free for 7 Days",
     "secure": "Secure",
     "cancelAnytime": "Cancel anytime"
+  },
+  "wizard": {
+    "stepCounter": "Step {{current}} of {{total}}",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Preview & Save",
+    "saving": "Saving…",
+    "saved": "All changes saved",
+    "unsaved": "Unsaved changes",
+    "preview": "Preview CV",
+    "namePlaceholder": "Name this CV",
+    "nameAccessibility": "CV name",
+    "template": {
+      "none": "No template chosen",
+      "change": "Change"
+    },
+    "steps": {
+      "basics": {
+        "title": "Your details",
+        "description": "How an employer reaches you. Name and email are the only required fields.",
+        "locationHint": "City and country is enough — many programmes filter by region."
+      },
+      "summary": {
+        "title": "Summary & skills",
+        "description": "Two or three sentences on who you are, then the skills you want noticed.",
+        "hint": "Lead with what you do, not what you want. Mention a result if you have one.",
+        "skillsHint": "Aim for at least five. Type a skill and press comma or return."
+      },
+      "experience": {
+        "title": "Experience",
+        "description": "Work, internships and volunteering all count. Most recent first.",
+        "highlightsHint": "One achievement per line. Include a number wherever you can."
+      },
+      "education": {
+        "title": "Education",
+        "description": "Your qualifications, most recent first."
+      },
+      "extras": {
+        "title": "Projects & awards",
+        "description": "The proof behind your claims — anything you built, won or were recognised for."
+      }
+    },
+    "months": {
+      "jan": "Jan",
+      "feb": "Feb",
+      "mar": "Mar",
+      "apr": "Apr",
+      "may": "May",
+      "jun": "Jun",
+      "jul": "Jul",
+      "aug": "Aug",
+      "sep": "Sep",
+      "oct": "Oct",
+      "nov": "Nov",
+      "dec": "Dec"
+    },
+    "dates": {
+      "select": "Select date",
+      "year": "Year",
+      "month": "Month",
+      "clear": "Clear date"
+    },
+    "skills": {
+      "placeholder": "Type a skill, then comma",
+      "remove": "Remove {{skill}}"
+    },
+    "errors": {
+      "nameRequired": "Add your full name — it is the first thing a reviewer looks for.",
+      "emailInvalid": "That email address doesn't look right."
+    },
+    "delete": {
+      "title": "Remove this entry?",
+      "message": "\"{{title}}\" will be removed from your CV.",
+      "cancel": "Keep it",
+      "confirm": "Remove",
+      "removed": "Removed \"{{title}}\"",
+      "undo": "Undo",
+      "action": "Remove {{title}}"
+    }
+  },
+  "health": {
+    "title": "CV Health",
+    "close": "Close",
+    "fix": "Fix",
+    "pillAccessibility": "CV health score {{score}} out of 100",
+    "toFix": "{{count}} to fix",
+    "passing": "{{count}} looking good",
+    "band": {
+      "weak": {
+        "title": "Needs work",
+        "description": "{{count}} things are holding this CV back. Each one is a quick fix."
+      },
+      "fair": {
+        "title": "Nearly there",
+        "description": "The essentials are in place. {{count}} improvements would make it competitive."
+      },
+      "strong": {
+        "title": "Strong CV",
+        "description": "Everything essential checks out. Ready to send."
+      }
+    },
+    "checks": {
+      "fullName": {
+        "pass": "Your full name is on the CV",
+        "fail": "Add your full name"
+      },
+      "email": {
+        "pass": "Contact email looks valid",
+        "fail": "Add a valid email address"
+      },
+      "reachable": {
+        "pass": "You're reachable by phone or location",
+        "fail": "Add a phone number or your location"
+      },
+      "summary": {
+        "pass": "Your summary sets the scene",
+        "fail": "Write a summary of at least 15 words"
+      },
+      "summaryLength": {
+        "pass": "Summary is a readable length",
+        "fail": "Your summary runs to {{words}} words — trim it under 120"
+      },
+      "experience": {
+        "pass": "You've listed experience",
+        "fail": "Add at least one role, internship or volunteer position"
+      },
+      "experienceComplete": {
+        "pass": "Every role has a title, employer and start date",
+        "fail": "{{count}} role(s) are missing a title, employer or start date"
+      },
+      "quantified": {
+        "pass": "Your achievements carry numbers",
+        "fail": "{{count}} bullet(s) have no number — add a figure, percentage or scale"
+      },
+      "education": {
+        "pass": "Education is listed",
+        "fail": "Add your education"
+      },
+      "skills": {
+        "pass": "You've listed enough skills",
+        "fail": "Only {{count}} skill(s) listed — aim for five or more"
+      },
+      "datesParse": {
+        "pass": "All dates are readable",
+        "fail": "{{count}} date(s) can't be read — pick them from the calendar"
+      },
+      "datesOrder": {
+        "pass": "Your dates run in order",
+        "fail": "{{count}} entry(ies) end before they start"
+      },
+      "length": {
+        "pass": "Length is about right",
+        "fail": "This runs to roughly {{pages}} pages — most reviewers prefer one or two"
+      },
+      "templateFit": {
+        "pass": "Your content fits this template",
+        "fail": "This template features {{sections}} — add content or pick another template"
+      }
+    }
+  },
+  "emptyCv": {
+    "title": "No CV yet",
+    "description": "Pick a template below and Edutu walks you through it, one step at a time."
   }
 }

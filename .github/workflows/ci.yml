@@ -117,7 +117,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
-      - run: npx tsc --noEmit
+      # Must be `tsc -b`, not `tsc --noEmit`. tsconfig.json is a solution file
+      # ("files": [] plus references), so --noEmit compiles zero files and the
+      # job passes on any type error. -b builds every referenced project.
+      - run: npx tsc -b
 
   admin-lint:
     name: Admin Lint
@@ -137,6 +140,25 @@ jobs:
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
       - run: npm run lint
+
+  admin-tests:
+    name: Admin Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm test
 
   web-typecheck:
     name: Web TypeCheck

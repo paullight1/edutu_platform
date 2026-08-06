@@ -56,7 +56,9 @@
     },
     "sections": {
         "roadmaps": "Rutas",
-        "personalGoals": "Metas personales"
+        "personalGoals": "Metas personales",
+        "roadmapsHint": "Hitos de las rutas que empezaste, ya con fecha.",
+        "personalGoalsHint": "Cosas que elegiste terminar, con tus propias fechas."
     },
     "filter": {
         "byStatus": "Filtrar por estado",
@@ -75,7 +77,13 @@
         },
         "noPersonalGoals": {
             "title": "Sin metas personales",
-            "description": "Toca el ícono de más para agregar tu primera meta."
+            "description": "Toca el ícono de más para agregar tu primera meta.",
+            "action": "Define tu primera meta"
+        },
+        "noMatch": {
+            "title": "Nada coincide",
+            "description": "Ninguna meta coincide con tu búsqueda o filtro. Bórralos para verlo todo de nuevo.",
+            "action": "Borrar búsqueda"
         }
     },
     "dashboard": {
@@ -93,7 +101,8 @@
             "title": "¿Tienes oportunidades para compartir?",
             "subtitle": "Contáctanos si tienes becas, empleos o programas que quieras compartir con nuestra comunidad",
             "action": "Contáctanos"
-        }
+        },
+        "subtitleEmpty": "Todavía no sigues nada"
     },
     "detail": {
         "title": "Detalles de la meta",
@@ -160,14 +169,15 @@
         }
     },
     "allRoadmaps": {
-        "title": "Metas de rutas",
+        "title": "Mis planes",
         "goalCount_one": "{{count}} meta",
         "goalCount_other": "{{count}} metas",
         "otherGroup": "Otras",
         "empty": {
-            "title": "Sin metas de rutas",
-            "searchHint": "Prueba ajustando tu búsqueda",
-            "description": "Importa metas de una ruta para verlas aquí"
+            "title": "Aún no hay planes",
+            "searchHint": "Prueba otra búsqueda",
+            "description": "Inicia una ruta y sus hitos aparecerán aquí como pasos con fecha.",
+            "action": "Ver rutas"
         }
     },
     "myList": {
@@ -318,7 +328,26 @@
             "placeholder": "¿Qué te gustó o qué se podría mejorar?",
             "submit": "Enviar opinión",
             "thanksTitle": "¡Gracias!",
-            "thanksMessage": "Tu opinión nos ayuda a mejorar las rutas para todos."
+            "thanksMessage": "Tu opinión nos ayuda a mejorar las rutas para todos.",
+            "failedTitle": "No se pudo guardar tu valoración"
+        },
+        "started": "Iniciado",
+        "notRatedYet": "Sin valoraciones",
+        "emptyTitle": "Aún no hay nada aquí",
+        "clearFilters": "Borrar filtros",
+        "continueButton": "Continuar esta ruta",
+        "startHint_one": "Añade {{count}} hito a tus metas y programa recordatorios.",
+        "startHint_other": "Añade {{count}} hitos a tus metas y programa recordatorios.",
+        "progressLabel": "{{completed}} de {{total}} pasos completados",
+        "adopted": {
+            "progress": "En tu plan: {{completed}} de {{total}} pasos completados.",
+            "inPlan": "Esta ruta ya está en tu plan."
+        },
+        "a11y": {
+            "card": "{{title}}, ruta de nivel {{difficulty}}",
+            "cardStarted": "{{title}}, iniciada, {{completed}} de {{total}} pasos completados",
+            "cardHint": "Abre los detalles de la ruta",
+            "close": "Cerrar"
         }
     },
     "templates": {
@@ -356,7 +385,23 @@
         "stepPlan": "Plan de {{count}} pasos",
         "allLevels": "Todos los niveles",
         "defaultCadence": "Recordatorios de hitos programados desde tu fecha de inicio.",
-        "resourceFallback": "Recurso"
+        "resourceFallback": "Recurso",
+        "previewNotice": "Mostrando rutas de ejemplo: no pudimos conectar con Edutu. Desliza para cargar la biblioteca real.",
+        "previewOnlyTitle": "Ruta de ejemplo",
+        "previewOnlyMessage": "Es una vista previa sin conexión, así que aún no hay nada que iniciar. ¿Ver las rutas reales?",
+        "browseRoadmaps": "Ver rutas",
+        "searchPlaceholder": "Buscar rutas, autores…",
+        "clearSearch": "Borrar búsqueda",
+        "emptyTitle": "Ninguna ruta coincide",
+        "emptyMessage": "Prueba otra búsqueda o categoría.",
+        "clearFilters": "Borrar filtros",
+        "remindersOn": "Recordatorios activos",
+        "remindersOnA11y": "Recordatorios activos, {{count}} programados. Toca para desactivar.",
+        "remindersOnTitle": "Recordatorios activos",
+        "remindersOnMessage": "Hay {{count}} recordatorios de pasos programados para esta ruta.",
+        "turnOffReminders": "Desactivar",
+        "remindersCancelledTitle": "Recordatorios desactivados",
+        "remindersCancelledMessage": "Ya no te avisaremos sobre esta ruta."
     },
     "calendar": {
         "title": "Mi calendario",
@@ -415,5 +460,17 @@
         "today": "HOY",
         "milestoneDone": "{{title}}, hecho",
         "removeMilestone": "Eliminar {{title}}"
+    },
+    "a11y": {
+        "addGoal": "Añadir una meta",
+        "clearSearch": "Borrar búsqueda",
+        "openFilters": "Filtrar metas",
+        "completeGoal": "Marcar \"{{title}}\" como terminada",
+        "reopenGoal": "Reabrir \"{{title}}\"",
+        "deleteGoal": "Eliminar \"{{title}}\"",
+        "toggleReminder": "Activar o desactivar el recordatorio de \"{{title}}\"",
+        "statusTab_one": "{{label}}, {{count}} meta",
+        "statusTab_other": "{{label}}, {{count}} metas",
+        "openSort": "Cambiar el orden"
     }
 }

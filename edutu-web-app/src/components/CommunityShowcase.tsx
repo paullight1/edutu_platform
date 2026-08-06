@@ -21,22 +21,25 @@ interface Avatar {
   rotate?: string;
 }
 
-// Graduates in cap & gown (Unsplash), ordered left→right so `offset` traces a
-// smooth centre-high arc. Broken loads fall back to a branded graduation cap.
+// Young African learners — graduates, study sessions, cohort wins (Unsplash),
+// ordered left→right so `offset` traces a smooth centre-high arc. Every source
+// is a portrait crop so the tall cards never letterbox. Broken loads fall back
+// to a branded graduation cap.
+const PORTRAIT = "w=300&h=420&q=80&auto=format&fit=crop";
 const defaultAvatars: Avatar[] = [
-  { src: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=240&q=80&auto=format&fit=crop", offset: 148, rotate: "-rotate-3" },
-  { src: "https://images.unsplash.com/photo-1627556592933-ffe99c1cd9eb?w=240&q=80&auto=format&fit=crop", offset: 96 },
-  { src: "https://images.unsplash.com/photo-1564981797816-1043664bf78d?w=240&q=80&auto=format&fit=crop", offset: 60 },
-  { src: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=240&q=80&auto=format&fit=crop", offset: 36 },
-  { src: "https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=240&q=80&auto=format&fit=crop", offset: 12 },
-  { src: "https://images.unsplash.com/photo-1622397333309-3056849bc70b?w=240&q=80&auto=format&fit=crop", offset: 4 },
-  { src: "https://images.unsplash.com/photo-1627556704302-624286467c65?w=240&q=80&auto=format&fit=crop", offset: 0 },
-  { src: "https://images.unsplash.com/photo-1607013251379-e6eecfffe234?w=240&q=80&auto=format&fit=crop", offset: 6 },
-  { src: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=240&q=80&auto=format&fit=crop", offset: 18 },
-  { src: "https://images.unsplash.com/photo-1535982330050-f1c2fb79ff78?w=240&q=80&auto=format&fit=crop", offset: 40 },
-  { src: "https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=240&q=80&auto=format&fit=crop", offset: 66 },
-  { src: "https://images.unsplash.com/photo-1606761568499-6d2451b23c66?w=240&q=80&auto=format&fit=crop", offset: 100, rotate: "rotate-2" },
-  { src: "https://images.unsplash.com/photo-1598257006458-087169a1f08d?w=240&q=80&auto=format&fit=crop", offset: 146, rotate: "rotate-3" },
+  { src: `https://images.unsplash.com/photo-1770235621081-030607a06cee?${PORTRAIT}`, offset: 148, rotate: "-rotate-3" },
+  { src: `https://images.unsplash.com/photo-1620829813573-7c9e1877706f?${PORTRAIT}`, offset: 96 },
+  { src: `https://images.unsplash.com/photo-1565490129165-bd6a24996c25?${PORTRAIT}`, offset: 60 },
+  { src: `https://images.unsplash.com/photo-1620829813629-45478205c88f?${PORTRAIT}`, offset: 36 },
+  { src: `https://images.unsplash.com/photo-1778824717521-a23599f32d71?${PORTRAIT}`, offset: 12 },
+  { src: `https://images.unsplash.com/photo-1541339907198-e08756dedf3f?${PORTRAIT}`, offset: 4 },
+  { src: `https://images.unsplash.com/photo-1686213011624-8578b598ef0f?${PORTRAIT}`, offset: 0 },
+  { src: `https://images.unsplash.com/photo-1628825453863-ccfe2dcc4c70?${PORTRAIT}`, offset: 6 },
+  { src: `https://images.unsplash.com/photo-1747021941314-4179268d6258?${PORTRAIT}`, offset: 18 },
+  { src: `https://images.unsplash.com/photo-1758525861622-f4e7ac86a2d7?${PORTRAIT}`, offset: 40 },
+  { src: `https://images.unsplash.com/photo-1744880034592-7c64776b2a85?${PORTRAIT}`, offset: 66 },
+  { src: `https://images.unsplash.com/photo-1694175271713-a6e2cc378980?${PORTRAIT}`, offset: 100, rotate: "rotate-2" },
+  { src: `https://images.unsplash.com/photo-1639436926668-2f8b4f32e15a?${PORTRAIT}`, offset: 146, rotate: "rotate-3" },
 ];
 
 interface CommunityShowcaseProps {
@@ -143,7 +146,7 @@ export default function CommunityShowcase({
           <span className="inline-flex items-center rounded-full border border-subtle bg-surface-layer px-3 py-1 text-xs font-semibold text-text-secondary shadow-soft">
             {eyebrow}
           </span>
-          <h2 className="mt-5 font-display text-2xl font-semibold leading-[1.12] tracking-tight sm:text-3xl lg:text-[34px]">
+          <h2 className="mt-5 font-display text-2xl font-semibold leading-[1.12] tracking-tight sm:text-3xl lg:text-4xl">
             <span className="block text-text-primary">{titleLead}</span>
             <span className="block text-text-muted">{titleTail}</span>
           </h2>

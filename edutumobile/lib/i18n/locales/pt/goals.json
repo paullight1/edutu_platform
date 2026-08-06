@@ -56,7 +56,9 @@
     },
     "sections": {
         "roadmaps": "Roteiros",
-        "personalGoals": "Metas pessoais"
+        "personalGoals": "Metas pessoais",
+        "roadmapsHint": "Marcos dos roteiros que você começou, já com data.",
+        "personalGoalsHint": "O que você escolheu terminar, nos seus próprios prazos."
     },
     "filter": {
         "byStatus": "Filtrar por status",
@@ -75,7 +77,13 @@
         },
         "noPersonalGoals": {
             "title": "Nenhuma meta pessoal",
-            "description": "Toque no ícone de mais para adicionar sua primeira meta."
+            "description": "Toque no ícone de mais para adicionar sua primeira meta.",
+            "action": "Defina sua primeira meta"
+        },
+        "noMatch": {
+            "title": "Nada corresponde",
+            "description": "Nenhuma meta corresponde à sua busca ou filtro. Limpe-os para ver tudo de novo.",
+            "action": "Limpar busca"
         }
     },
     "dashboard": {
@@ -93,7 +101,8 @@
             "title": "Tem oportunidades para compartilhar?",
             "subtitle": "Fale com a gente se você tem bolsas, empregos ou programas para compartilhar com nossa comunidade",
             "action": "Fale conosco"
-        }
+        },
+        "subtitleEmpty": "Nada sendo acompanhado ainda"
     },
     "detail": {
         "title": "Detalhes da meta",
@@ -160,14 +169,15 @@
         }
     },
     "allRoadmaps": {
-        "title": "Metas de roteiro",
+        "title": "Meus planos",
         "goalCount_one": "{{count}} meta",
         "goalCount_other": "{{count}} metas",
         "otherGroup": "Outros",
         "empty": {
-            "title": "Nenhuma meta de roteiro",
-            "searchHint": "Tente ajustar sua pesquisa",
-            "description": "Importe metas de um roteiro para vê-las aqui"
+            "title": "Ainda sem planos",
+            "searchHint": "Tente outra busca",
+            "description": "Inicie um roteiro e seus marcos aparecem aqui como etapas com data.",
+            "action": "Ver roteiros"
         }
     },
     "myList": {
@@ -318,7 +328,26 @@
             "placeholder": "O que você gostou ou o que poderia melhorar?",
             "submit": "Enviar feedback",
             "thanksTitle": "Obrigado!",
-            "thanksMessage": "Seu feedback nos ajuda a melhorar os roteiros para todos."
+            "thanksMessage": "Seu feedback nos ajuda a melhorar os roteiros para todos.",
+            "failedTitle": "Não foi possível salvar sua avaliação"
+        },
+        "started": "Iniciado",
+        "notRatedYet": "Ainda sem avaliações",
+        "emptyTitle": "Ainda não há nada aqui",
+        "clearFilters": "Limpar filtros",
+        "continueButton": "Continuar este roteiro",
+        "startHint_one": "Adiciona {{count}} marco às suas metas e agenda lembretes.",
+        "startHint_other": "Adiciona {{count}} marcos às suas metas e agenda lembretes.",
+        "progressLabel": "{{completed}} de {{total}} passos concluídos",
+        "adopted": {
+            "progress": "No seu plano — {{completed}} de {{total}} passos concluídos.",
+            "inPlan": "Este roteiro já está no seu plano."
+        },
+        "a11y": {
+            "card": "{{title}}, roteiro de nível {{difficulty}}",
+            "cardStarted": "{{title}}, iniciado, {{completed}} de {{total}} passos concluídos",
+            "cardHint": "Abre os detalhes do roteiro",
+            "close": "Fechar"
         }
     },
     "templates": {
@@ -356,7 +385,23 @@
         "stepPlan": "Plano de {{count}} etapas",
         "allLevels": "Todos os níveis",
         "defaultCadence": "Lembretes de marcos programados a partir da sua data de início.",
-        "resourceFallback": "Recurso"
+        "resourceFallback": "Recurso",
+        "previewNotice": "Mostrando trilhas de exemplo — não conseguimos acessar a Edutu. Puxe para carregar a biblioteca real.",
+        "previewOnlyTitle": "Trilha de exemplo",
+        "previewOnlyMessage": "É uma prévia offline, então ainda não há o que iniciar. Ver as trilhas reais?",
+        "browseRoadmaps": "Ver roteiros",
+        "searchPlaceholder": "Buscar trilhas, autores…",
+        "clearSearch": "Limpar busca",
+        "emptyTitle": "Nenhuma trilha corresponde",
+        "emptyMessage": "Tente outra busca ou categoria.",
+        "clearFilters": "Limpar filtros",
+        "remindersOn": "Lembretes ativos",
+        "remindersOnA11y": "Lembretes ativos, {{count}} agendados. Toque para desativar.",
+        "remindersOnTitle": "Lembretes ativos",
+        "remindersOnMessage": "Há {{count}} lembretes de etapas agendados para esta trilha.",
+        "turnOffReminders": "Desativar",
+        "remindersCancelledTitle": "Lembretes desativados",
+        "remindersCancelledMessage": "Não vamos mais avisar você sobre esta trilha."
     },
     "calendar": {
         "title": "Meu calendário",
@@ -415,5 +460,17 @@
         "today": "HOJE",
         "milestoneDone": "{{title}}, concluído",
         "removeMilestone": "Remover {{title}}"
+    },
+    "a11y": {
+        "addGoal": "Adicionar meta",
+        "clearSearch": "Limpar busca",
+        "openFilters": "Filtrar metas",
+        "completeGoal": "Marcar \"{{title}}\" como concluída",
+        "reopenGoal": "Reabrir \"{{title}}\"",
+        "deleteGoal": "Excluir \"{{title}}\"",
+        "toggleReminder": "Ligar ou desligar o lembrete de \"{{title}}\"",
+        "statusTab_one": "{{label}}, {{count}} meta",
+        "statusTab_other": "{{label}}, {{count}} metas",
+        "openSort": "Mudar a ordenação"
     }
 }

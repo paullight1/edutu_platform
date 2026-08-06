@@ -10,9 +10,9 @@
         "highFull": "High Priority",
         "mediumFull": "Medium Priority",
         "lowFull": "Low Priority",
-        "highDesc": "Urgent - needs immediate attention",
-        "mediumDesc": "Important - work on it soon",
-        "lowDesc": "Can be done when you have time"
+        "highDesc": "Do it this week — the deadline is close",
+        "mediumDesc": "Matters, but it can wait a few weeks",
+        "lowDesc": "Worth finishing, but nothing is ticking"
     },
     "status": {
         "completed": "Completed",
@@ -43,20 +43,22 @@
     },
     "deleteConfirm": {
         "title": "Delete Goal",
-        "message": "Are you sure you want to delete \"{{title}}\"?"
+        "message": "\"{{title}}\" and the progress you logged against it will be gone. This can't be undone."
     },
     "stats": {
         "active": "Active",
         "completed": "Completed",
-        "roadmaps": "Roadmaps",
-        "completion": "Completion",
+        "roadmaps": "Plan steps",
+        "completion": "Done rate",
         "total": "Total",
         "done": "Done",
         "progress": "Progress"
     },
     "sections": {
-        "roadmaps": "Roadmaps",
-        "personalGoals": "Personal Goals"
+        "roadmaps": "Steps from your plans",
+        "personalGoals": "Goals you set yourself",
+        "roadmapsHint": "Milestones from roadmaps you started, already dated.",
+        "personalGoalsHint": "Things you chose to finish, on your own deadlines."
     },
     "filter": {
         "byStatus": "Filter by Status",
@@ -69,26 +71,33 @@
     },
     "empty": {
         "noRoadmaps": {
-            "title": "No Roadmaps",
-            "description": "Import an opportunity roadmap to see goals here.",
-            "action": "Browse Roadmaps"
+            "title": "No plan steps yet",
+            "description": "Start a roadmap and every milestone lands here as a dated step you can tick off.",
+            "action": "Browse roadmaps"
         },
         "noPersonalGoals": {
-            "title": "No Personal Goals",
-            "description": "Tap the plus icon to add your first goal."
+            "title": "Nothing you've set yourself",
+            "description": "Name the one thing you keep putting off — an essay, an application, a certificate. Give it a date and we'll remind you.",
+            "action": "Set your first goal"
+        },
+        "noMatch": {
+            "title": "Nothing matches",
+            "description": "No goal here matches your search or filter. Clear them to see everything again.",
+            "action": "Clear search"
         }
     },
     "dashboard": {
         "title": "Goals",
-        "subtitle": "{{active}} active · {{rate}}% completed",
-        "searchPlaceholder": "Search your goals...",
-        "upcomingDeadlines": "Upcoming Deadlines",
+        "subtitle": "{{active}} in progress · {{rate}}% finished",
+        "subtitleEmpty": "Nothing tracked yet",
+        "searchPlaceholder": "Search goals and plan steps",
+        "upcomingDeadlines": "Due in the next 3 days",
         "myOpportunities": "My Opportunities",
         "savedSummary": "{{count}} saved",
         "savedSummaryWithUrgent": "{{count}} saved · {{urgent}} urgent",
         "opportunityFallback": "Opportunity",
-        "searchResults_one": "Found {{count}} goal matching \"{{term}}\"",
-        "searchResults_other": "Found {{count}} goals matching \"{{term}}\"",
+        "searchResults_one": "{{count}} goal matches \"{{term}}\"",
+        "searchResults_other": "{{count}} goals match \"{{term}}\"",
         "shareBanner": {
             "title": "Have Opportunities to Share?",
             "subtitle": "Contact us if you have scholarships, jobs, or programs you'd like to share with our community",
@@ -135,12 +144,12 @@
     },
     "add": {
         "title": "Create New Goal",
-        "heading": "Set Your Target",
-        "subheading": "Define your goal and track progress towards achievement.",
-        "titleLabel": "Goal Title",
-        "titlePlaceholder": "What do you want to achieve?",
-        "descriptionLabel": "Description",
-        "descriptionPlaceholder": "Add more details about this goal...",
+        "heading": "What will you finish?",
+        "subheading": "Name one outcome and give it a date. We'll remind you before it's due.",
+        "titleLabel": "The goal",
+        "titlePlaceholder": "e.g. Submit the Chevening application",
+        "descriptionLabel": "What does done look like?",
+        "descriptionPlaceholder": "The steps, links or documents you'll need.",
         "preview": "PREVIEW",
         "pastDate": "Past date",
         "validation": {
@@ -160,29 +169,30 @@
         }
     },
     "allRoadmaps": {
-        "title": "Roadmap Goals",
+        "title": "My plans",
         "goalCount_one": "{{count}} goal",
         "goalCount_other": "{{count}} goals",
         "otherGroup": "Other",
         "empty": {
-            "title": "No roadmap goals",
-            "searchHint": "Try adjusting your search",
-            "description": "Import goals from a roadmap to see them here"
+            "title": "No plans yet",
+            "searchHint": "Try a different search",
+            "description": "Start a roadmap and its milestones show up here as dated steps.",
+            "action": "Browse roadmaps"
         }
     },
     "myList": {
         "title": "My Goals",
         "goalsTracked_one": "{{count}} goal tracked",
         "goalsTracked_other": "{{count}} goals tracked",
-        "heroTitle": "Stay Focused 🎯",
-        "heroCompleted_one": "You've completed {{count}} goal. Keep the momentum going!",
-        "heroCompleted_other": "You've completed {{count}} goals. Keep the momentum going!",
-        "heroEmpty": "Turn your ambitions into achievable goals. Start tracking today!",
-        "ctaTitle": "Create Your First Goal",
-        "ctaSubtitle": "Set targets and track your progress",
-        "highPriorityAlert_one": "{{count}} high-priority goal needs attention",
-        "highPriorityAlert_other": "{{count}} high-priority goals need attention",
-        "searchPlaceholder": "Search goals...",
+        "heroTitle": "What you're finishing",
+        "heroCompleted_one": "{{count}} goal finished. Pick the next one and keep the run going.",
+        "heroCompleted_other": "{{count}} goals finished. Pick the next one and keep the run going.",
+        "heroEmpty": "Nothing here yet. Add the one thing you keep putting off.",
+        "ctaTitle": "Add something you'll actually finish",
+        "ctaSubtitle": "A title and a date is enough to start.",
+        "highPriorityAlert_one": "{{count}} goal is marked do-it-this-week",
+        "highPriorityAlert_other": "{{count}} goals are marked do-it-this-week",
+        "searchPlaceholder": "Search your goals",
         "sortLabel": "Sort: {{label}}",
         "sortBy": "Sort By",
         "sort": {
@@ -194,10 +204,10 @@
             "title": "Title (A-Z)"
         },
         "empty": {
-            "title": "No goals yet",
-            "noMatch": "No matching goals",
-            "searchHint": "Try adjusting your search or filters",
-            "description": "Start by creating your first goal to track progress and stay motivated"
+            "title": "Nothing on your list",
+            "noMatch": "Nothing matches",
+            "searchHint": "Clear your search or filter to see everything again",
+            "description": "Add the one thing you keep putting off. A title and a date is enough to start."
         }
     },
     "roadmaps": {
@@ -318,7 +328,8 @@
             "placeholder": "What did you like or what could be improved?",
             "submit": "Submit Feedback",
             "thanksTitle": "Thank you!",
-            "thanksMessage": "Your feedback helps us improve roadmaps for everyone."
+            "thanksMessage": "Your feedback helps us improve roadmaps for everyone.",
+            "failedTitle": "Couldn't save your rating"
         },
         "myRoadmaps": {
             "title": "My Roadmaps",
@@ -326,6 +337,24 @@
             "personal": "Personal",
             "published": "Published",
             "discover": "Discover roadmaps"
+        },
+        "started": "Started",
+        "notRatedYet": "Not rated yet",
+        "emptyTitle": "Nothing here yet",
+        "clearFilters": "Clear filters",
+        "continueButton": "Continue this roadmap",
+        "startHint_one": "Adds {{count}} milestone to your goals and schedules reminders.",
+        "startHint_other": "Adds {{count}} milestones to your goals and schedules reminders.",
+        "progressLabel": "{{completed}} of {{total}} steps done",
+        "adopted": {
+            "progress": "In your plan — {{completed}} of {{total}} steps done.",
+            "inPlan": "This roadmap is already in your plan."
+        },
+        "a11y": {
+            "card": "{{title}}, {{difficulty}} roadmap",
+            "cardStarted": "{{title}}, started, {{completed}} of {{total}} steps done",
+            "cardHint": "Opens the roadmap details",
+            "close": "Close"
         }
     },
     "templates": {
@@ -423,7 +452,23 @@
         "defaultSummary": "A guided, step-by-step roadmap.",
         "stepPlan": "{{count}}-step plan",
         "allLevels": "All Levels",
-        "resourceFallback": "Resource"
+        "resourceFallback": "Resource",
+        "previewNotice": "Showing sample paths — we couldn't reach Edutu. Pull down to load the live library.",
+        "previewOnlyTitle": "Sample path",
+        "previewOnlyMessage": "This is an offline preview, so there's nothing to start yet. Browse the live roadmaps instead?",
+        "browseRoadmaps": "Browse roadmaps",
+        "searchPlaceholder": "Search paths, authors…",
+        "clearSearch": "Clear search",
+        "emptyTitle": "No paths match",
+        "emptyMessage": "Try a different search or category.",
+        "clearFilters": "Clear filters",
+        "remindersOn": "Reminders on",
+        "remindersOnA11y": "Reminders on, {{count}} scheduled. Tap to turn off.",
+        "remindersOnTitle": "Reminders are on",
+        "remindersOnMessage": "{{count}} step reminders are scheduled for this path.",
+        "turnOffReminders": "Turn off",
+        "remindersCancelledTitle": "Reminders off",
+        "remindersCancelledMessage": "We won't nudge you about this path anymore."
     },
     "calendar": {
         "title": "My Calendar",
@@ -477,6 +522,18 @@
             "intermediate": "Some experience",
             "advanced": "Experienced"
         }
+    },
+    "a11y": {
+        "addGoal": "Add a goal",
+        "clearSearch": "Clear search",
+        "openFilters": "Filter goals",
+        "completeGoal": "Mark \"{{title}}\" as done",
+        "reopenGoal": "Reopen \"{{title}}\"",
+        "deleteGoal": "Delete \"{{title}}\"",
+        "toggleReminder": "Toggle the reminder for \"{{title}}\"",
+        "statusTab_one": "{{label}}, {{count}} goal",
+        "statusTab_other": "{{label}}, {{count}} goals",
+        "openSort": "Change the sort order"
     },
     "timeline": {
         "today": "TODAY",

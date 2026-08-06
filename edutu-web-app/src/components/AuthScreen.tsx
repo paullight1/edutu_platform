@@ -810,7 +810,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </div>
 
           <div className="rounded-[28px] border border-white/25 bg-white/10 p-8 backdrop-blur-sm xl:p-10">
-            <h2 className="font-display text-4xl font-semibold leading-[1.06] tracking-tight text-white xl:text-[52px]">
+            <h2 className="font-display text-4xl font-semibold text-white xl:text-5xl">
               <span className="mr-2 text-2xl align-middle">▶</span>Your gateway
               <br />to global
               <br />opportunities.
@@ -926,7 +926,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       </span>
                     ) : null}
                   </div>
-                  <h1 className="text-[26px] font-display font-semibold tracking-tight text-text-primary">
+                  <h1 className="text-2xl font-display font-semibold tracking-tight text-text-primary">
                     {title}
                   </h1>
                   <p className="mt-2 text-sm leading-5 text-text-secondary">
@@ -1250,7 +1250,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                           <button
                             type="button"
                             onClick={() => resetMode("reset-password")}
-                            className="mt-2 text-xs font-bold text-brand hover:text-brand-700"
+                            className="mt-2 text-xs font-semibold text-brand hover:text-brand-700"
                           >
                             Recover password
                           </button>

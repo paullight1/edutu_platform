@@ -358,7 +358,7 @@ export default function SubmitOpportunityPage() {
 
                     {lastAdminNote && (
                       <div className="mt-3 rounded-xl border border-subtle bg-surface-elevated p-3">
-                        <p className={`text-xs font-bold ${meta.className}`}>
+                        <p className={`text-xs font-semibold ${meta.className}`}>
                           {item.status === 'rejected' ? 'Why it wasn’t accepted' : 'Message from the Edutu team'}
                         </p>
                         <p className="mt-1 text-sm text-text-primary">{lastAdminNote}</p>

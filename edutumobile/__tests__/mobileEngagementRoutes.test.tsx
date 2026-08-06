@@ -87,6 +87,7 @@ jest.mock('@clerk/clerk-expo', () => ({
 jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       textSecondary: '#64748B',
@@ -502,22 +503,25 @@ describe('mobile engagement routes', () => {
     const { getByText } = render(<GoalsDashboard />);
 
     await waitFor(() => expect(getByText('Goals')).toBeTruthy());
-    expect(getByText('0 active · 0% completed')).toBeTruthy();
+    // Copy is outcome-shaped now, and the empty states name what is missing
+    // rather than instructing the user to tap a plus icon this screen lacks.
+    expect(getByText('Nothing tracked yet')).toBeTruthy();
     expect(getByText('My Opportunities')).toBeTruthy();
     expect(getByText('Have Opportunities to Share?')).toBeTruthy();
-    expect(getByText('No Roadmaps')).toBeTruthy();
-    expect(getByText('No Personal Goals')).toBeTruthy();
-    expect(getByText('Browse Roadmaps')).toBeTruthy();
-    expect(getByText('Create Goal')).toBeTruthy();
+    expect(getByText('No plan steps yet')).toBeTruthy();
+    expect(getByText("Nothing you've set yourself")).toBeTruthy();
+    expect(getByText('Browse roadmaps')).toBeTruthy();
+    expect(getByText('Set your first goal')).toBeTruthy();
     expect(getByText('Contact Us')).toBeTruthy();
 
     fireEvent.press(getByText('My Opportunities'));
     expect(mockPush).toHaveBeenCalledWith('/my-opportunities');
 
-    fireEvent.press(getByText('Browse Roadmaps'));
-    expect(mockPush).toHaveBeenCalledWith('/goals/all-roadmaps');
+    // Was '/goals/all-roadmaps' — the same empty list this empty state sits on.
+    fireEvent.press(getByText('Browse roadmaps'));
+    expect(mockPush).toHaveBeenCalledWith('/roadmaps');
 
-    fireEvent.press(getByText('Create Goal'));
+    fireEvent.press(getByText('Set your first goal'));
     expect(mockPush).toHaveBeenCalledWith('/goals/add');
 
     fireEvent.press(getByText('Contact Us'));
@@ -586,7 +590,8 @@ describe('mobile engagement routes', () => {
     // Offerings fail to load in this environment: once IAP loading settles the
     // CTA renders (disabled) and the unavailable note appears — never an
     // external checkout fallback. The CTA copy is now plan-based
-    // ("Start {plan} — {price}") rather than a generic subscribe label.
+    // ("Start {plan} — {price}") rather than a generic subscribe label, so
+    // match the stem rather than a full string that moves with pricing.
     await waitFor(() => expect(getByText(/^Start /)).toBeTruthy());
     expect(
       getByText('Subscriptions are temporarily unavailable. Please try again in a moment.'),

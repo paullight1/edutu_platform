@@ -43,6 +43,7 @@ import {
 import { AiService } from "../ai";
 import { isObjectionable } from "../common/moderation";
 import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
+import { isApprovedMentor } from "../common/mentor-access";
 import { CacheService } from "../common/cache/cache.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
@@ -276,7 +277,7 @@ export class RoadmapsService {
       .from(profiles)
       .where(matchProfileUserId(profiles.userId, dbUserId));
 
-    const isApprovedCreator = profile?.creatorStatus === "approved";
+    const isApprovedCreator = isApprovedMentor(profile);
     const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
 
     if (!isApprovedCreator && !isAdmin) {
@@ -365,7 +366,7 @@ export class RoadmapsService {
         .from(profiles)
         .where(matchProfileUserId(profiles.userId, dbUserId));
 
-      const isApprovedCreator = profile?.creatorStatus === "approved";
+      const isApprovedCreator = isApprovedMentor(profile);
       const isAdmin =
         profile?.role === "admin" || profile?.role === "moderator";
       if (!isApprovedCreator && !isAdmin) {

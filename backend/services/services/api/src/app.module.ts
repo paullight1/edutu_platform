@@ -9,6 +9,7 @@ import { CreatorModule } from "./creator/creator.module";
 import { QuizModule } from "./quiz/quiz.module";
 import { FlashcardsModule } from "./flashcards/flashcards.module";
 import { BlogModule } from "./blog/blog.module";
+import { ImpactStoriesModule } from "./impact-stories/impact-stories.module";
 import { ScraperModule } from "./scraper/scraper.module";
 import { CvModule } from "./cv/cv.module";
 import { RoadmapsModule } from "./roadmaps/roadmaps.module";
@@ -22,8 +23,10 @@ import { MeModule } from "./me/me.module";
 import { ChatModule } from "./chat/chat.module";
 import { SettingsModule } from "./settings/settings.module";
 import { AdminModule } from "./admin/admin.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { HealthModule } from "./health/health.module";
 import { EventsModule } from "./events/events.module";
+import { PageOgModule } from "./og/page-og.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -38,6 +41,7 @@ import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { UploadsModule } from "./uploads/uploads.module";
+import { SupportModule } from "./support/support.module";
 
 @Module({
   imports: [
@@ -58,6 +62,7 @@ import { UploadsModule } from "./uploads/uploads.module";
     QuizModule,
     FlashcardsModule,
     BlogModule,
+    ImpactStoriesModule,
     ScraperModule,
     CvModule,
     RoadmapsModule,
@@ -73,8 +78,10 @@ import { UploadsModule } from "./uploads/uploads.module";
     SettingsModule,
     MonetizationModule,
     AdminModule,
+    AnalyticsModule,
     HealthModule,
     EventsModule,
+    PageOgModule,
     EdutuApiModule,
     DeveloperModule,
     CalendarModule,
@@ -82,6 +89,7 @@ import { UploadsModule } from "./uploads/uploads.module";
     SavedSearchesModule,
     CommunitiesModule,
     AlertsModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [

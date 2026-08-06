@@ -1,10 +1,32 @@
 import { registerPushToken, unregisterPushToken } from "../services/notifications";
+import { getApiBaseUrl } from "./apiBaseUrl";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as
   | string
   | undefined;
 const SW_URL = "/push-sw.js";
 const SW_SCOPE = "/push-sw/";
+
+/**
+ * `public/push-sw.js` is a plain static file — Vite does not inject env into it
+ * and it has no bundler pass, so it cannot read `import.meta.env`. We therefore
+ * pass the API base URL as a query param on the worker's script URL. The script
+ * URL is persisted by the browser with the registration, so the worker can read
+ * it back from `self.location` on every wake-up (including after the SW has been
+ * killed and restarted), which a one-off `postMessage` could not survive.
+ *
+ * The scope stays "/push-sw/", so registration lookups are unaffected. Changing
+ * the API base changes the script URL, which the browser treats as an update.
+ */
+function buildSwUrl(): string {
+  let apiBase = "";
+  try {
+    apiBase = getApiBaseUrl("Web push");
+  } catch {
+    apiBase = "";
+  }
+  return apiBase ? `${SW_URL}?api=${encodeURIComponent(apiBase)}` : SW_URL;
+}
 
 export type WebPushState =
   | "unsupported"
@@ -80,7 +102,7 @@ export async function subscribeToWebPush(
     return permission === "denied" ? "denied" : "prompt";
   }
 
-  const registration = await navigator.serviceWorker.register(SW_URL, {
+  const registration = await navigator.serviceWorker.register(buildSwUrl(), {
     scope: SW_SCOPE,
   });
   await waitForActive(registration);

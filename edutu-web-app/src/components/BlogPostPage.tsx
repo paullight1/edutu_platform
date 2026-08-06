@@ -189,7 +189,7 @@ const BlogPostPage: React.FC = () => {
                 }}
               />
 
-              <h1 className="font-display text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-text-primary text-balance md:text-[2.375rem] md:leading-[1.15]">
+              <h1 className="font-display text-3xl font-semibold text-text-primary text-balance md:text-4xl">
                 {post.title}
               </h1>
 

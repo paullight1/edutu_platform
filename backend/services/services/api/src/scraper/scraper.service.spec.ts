@@ -172,6 +172,79 @@ describe("ScraperService", () => {
     });
   });
 
+  describe("inferOrganizerName", () => {
+    const infer = (item: Record<string, unknown>) =>
+      (service as any).inferOrganizerName(item);
+
+    it("keeps a genuinely extracted organiser", () => {
+      expect(
+        infer({
+          title: "IMF Research Analyst Program 2026",
+          eligibility: { organization: "International Monetary Fund (IMF)" },
+        }),
+      ).toBe("International Monetary Fund (IMF)");
+    });
+
+    it("never infers an organiser from the title itself", () => {
+      // The old non-greedy title-lead match returned "Fully" here.
+      expect(
+        infer({
+          title: "Fully Funded Masters Scholarship in Canada",
+          eligibility: {},
+        }),
+      ).toBeNull();
+      expect(
+        infer({
+          title: "PremiumTrust Bank Graduate Trainee Program 2026",
+          eligibility: {},
+        }),
+      ).toBeNull();
+      expect(infer({ title: "2027 RAVE Scholarship in Germany" })).toBeNull();
+    });
+
+    it("rejects an extracted organiser that only echoes the title", () => {
+      expect(
+        infer({
+          title: "Mastercard Foundation Scholarship Program at Pretoria 2026",
+          eligibility: { organization: "Mastercard Foundation" },
+        }),
+      ).toBeNull();
+    });
+
+    it("rejects aggregator brands before they are substituted away", () => {
+      // scrubPublicText rewrites these to "the official organizer", so the
+      // guard has to see the raw value or it can never match.
+      expect(
+        infer({
+          title: "Some Scholarship 2026",
+          eligibility: { organization: "Opportunities Circle" },
+        }),
+      ).toBeNull();
+      expect(
+        infer({
+          title: "Some Scholarship 2026",
+          eligibility: { organization: "Scholars4Dev" },
+        }),
+      ).toBeNull();
+    });
+
+    it("rejects generic organiser filler", () => {
+      for (const filler of [
+        "the official organizer",
+        "The Official Organiser",
+        "Program Organizer",
+        "organizer",
+      ]) {
+        expect(
+          infer({
+            title: "Some Scholarship 2026",
+            eligibility: { organization: filler },
+          }),
+        ).toBeNull();
+      }
+    });
+  });
+
   describe("public opportunity cleanup", () => {
     it("removes scraper source artifacts from transformed opportunities", () => {
       const transformed = (service as any).transformToOpportunity(
@@ -213,7 +286,10 @@ describe("ScraperService", () => {
       expect(publicText).not.toMatch(
         /dixcoverhubx|smartyacad|by admin|scraped/i,
       );
-      expect(transformed.organization).toBe("The Bridge");
+      // Organiser is null, not "The Bridge": that value only ever came from
+      // slicing the title at "Fully funded", and a title slice is no longer
+      // accepted as an organiser. Null routes the row to re-enrichment.
+      expect(transformed.organization).toBeNull();
       expect(transformed.tags).not.toContain("Scraped");
       expect(transformed.metadata.requirements).toContain(
         "Open to young Nigerians interested in leadership, innovation, and policy.",

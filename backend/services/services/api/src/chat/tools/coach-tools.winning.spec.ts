@@ -69,6 +69,83 @@ describe("win-coach tools", () => {
 });
 
 /**
+ * A fit verdict that ignores the calendar produces a to-do list, not a plan:
+ * "retake IELTS, secure two referees" reads identically whether the user has
+ * three weeks or three days. The runway has to reach the model.
+ */
+describe("analyze_fit is deadline-aware", () => {
+  const OPPORTUNITY_ID = "33333333-3333-4333-8333-333333333333";
+
+  function makeFitService(deadline: string | null) {
+    const generateJson = jest.fn().mockResolvedValue({ verdict: "ok" });
+    const noop = {} as never;
+    const service = new CoachToolsService(
+      noop,
+      noop,
+      noop,
+      noop,
+      {
+        meter: async () => ({ ledgerId: "l1" }),
+        refund: async () => undefined,
+      } as never,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
+      { generateJson } as never,
+    );
+
+    const supabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { title: "Some Fellowship", deadline },
+            }),
+          }),
+          in: async () => ({ data: [{ user_id: "user_1", country: "NG" }] }),
+        }),
+      }),
+    };
+
+    return { service, generateJson, supabase };
+  }
+
+  async function promptFor(deadline: string | null) {
+    const { service, generateJson, supabase } = makeFitService(deadline);
+    await service.execute(
+      "analyze_fit",
+      JSON.stringify({ opportunity_id: OPPORTUNITY_ID }),
+      { userId: "user_1", supabase } as unknown as CoachToolContext,
+    );
+    return generateJson.mock.calls[0][0].prompt as string;
+  }
+
+  it("tells the model how many days are left for an open deadline", async () => {
+    const inTenDays = new Date(
+      Date.now() + 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const prompt = await promptFor(inTenDays);
+    expect(prompt).toMatch(/DEADLINE: (9|10|11) day\(s\) away/);
+    expect(prompt).toContain("soonest-first");
+  });
+
+  it("says so plainly when the deadline has already passed", async () => {
+    const longGone = new Date(
+      Date.now() - 5 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const prompt = await promptFor(longGone);
+    expect(prompt).toContain("CLOSED");
+  });
+
+  it("treats a missing deadline as evergreen rather than inventing one", async () => {
+    const prompt = await promptFor(null);
+    expect(prompt).toContain("none published");
+  });
+});
+
+/**
  * offer_roadmap is a pure signal — the model's language-independent way of
  * saying "this turn is about a plan" before anything is created. It replaces
  * the app's English-only regex, so it must be registered, free of side effects,

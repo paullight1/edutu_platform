@@ -181,7 +181,7 @@ describe('mobile goal collections', () => {
 
     const { getByPlaceholderText, getByText, queryByText } = render(<AllRoadmapsScreen />);
 
-    expect(getByText('Roadmap Goals')).toBeTruthy();
+    expect(getByText('My plans')).toBeTruthy();
     expect(getByText('Mastercard Scholars')).toBeTruthy();
     expect(getByText('Submit Mastercard essay')).toBeTruthy();
     expect(getByText('Gather transcript')).toBeTruthy();
@@ -196,8 +196,8 @@ describe('mobile goal collections', () => {
     expect(queryByText('Submit Mastercard essay')).toBeNull();
 
     fireEvent.changeText(getByPlaceholderText('Search roadmaps...'), 'nothing');
-    expect(getByText('No roadmap goals')).toBeTruthy();
-    expect(getByText('Try adjusting your search')).toBeTruthy();
+    expect(getByText('No plans yet')).toBeTruthy();
+    expect(getByText('Try a different search')).toBeTruthy();
   });
 
   it('filters custom goals by status, opens the sort modal, and routes from the empty CTA', () => {
@@ -244,15 +244,15 @@ describe('mobile goal collections', () => {
 
     expect(getByText('My Goals')).toBeTruthy();
     expect(getAllByText('2').length).toBeGreaterThan(0);
-    expect(getByText(/Stay Focused/)).toBeTruthy();
+    expect(getByText(/What you're finishing/)).toBeTruthy();
     expect(getByText('Update scholarship essay')).toBeTruthy();
     expect(getByText('Review recommendation letter')).toBeTruthy();
 
-    fireEvent.changeText(getByPlaceholderText('Search goals...'), 'essay');
+    fireEvent.changeText(getByPlaceholderText('Search your goals'), 'essay');
     expect(getByText('Update scholarship essay')).toBeTruthy();
     expect(queryByText('Review recommendation letter')).toBeNull();
 
-    fireEvent.changeText(getByPlaceholderText('Search goals...'), '');
+    fireEvent.changeText(getByPlaceholderText('Search your goals'), '');
     pressByText(getByText, 'Completed');
     expect(getByText('Review recommendation letter')).toBeTruthy();
     expect(queryByText('Update scholarship essay')).toBeNull();
@@ -268,9 +268,10 @@ describe('mobile goal collections', () => {
 
     const { getByText } = render(<MyListScreen />);
 
-    expect(getByText('No goals yet')).toBeTruthy();
+    expect(getByText('Nothing on your list')).toBeTruthy();
     pressByText(getByText, 'Create Goal');
 
-    expect(mockPush).toHaveBeenCalledWith('/goals');
+    // The CTA used to land on the goals dashboard, one tap short of the form.
+    expect(mockPush).toHaveBeenCalledWith('/goals/add');
   });
 });

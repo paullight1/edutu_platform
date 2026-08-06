@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -25,7 +25,6 @@ import {
   ExternalLink,
   Share2,
   Bookmark,
-  BookmarkCheck,
   Award,
   Globe,
   TrendingUp,
@@ -62,6 +61,7 @@ import {
   getOpportunityWithStatus,
   getCachedOpportunitiesSnapshot,
   getCachedOpportunity,
+  fetchOpportunityRanking,
 } from "@edutu/core/src/services/opportunities";
 import {
   isOpportunitySaved,
@@ -109,7 +109,7 @@ import {
   ApplicantProfile,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
 import { isAiBillingError } from "@edutu/core/src/services/productApi";
-import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
+import { usePromptProUpgrade } from "../../../lib/upsell";
 import { useStaggeredReveal } from "../../../packages/core/src/hooks/useStaggeredReveal";
 import { RoadmapTimeline } from "../../../components/roadmap/RoadmapTimeline";
 import {
@@ -117,34 +117,23 @@ import {
   type RoadmapIntakeValue,
 } from "../../../components/roadmap/RoadmapIntake";
 import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
-import { notificationService } from "../../../lib/notifications";
+import { registerForPushNotificationsAsync } from "../../../lib/notifications";
+import { canOfferPushOptIn, hasFutureDeadline, markPushOptInAsked } from "../../../lib/pushOptIn";
+import { SuccessDialog } from "../../../components/ui/SuccessDialog";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { AiOrbBadge } from "../../../components/ui/AiOrbBadge";
 import { AiActionBar } from "../../../components/ai/AiActionBar";
+import { accentGradient } from "../../../lib/themeGradient";
 import type { AiAction, AiActionResult } from "../../../components/ai/AiActionBar";
 import { DocumentUpload } from "../../../components/ai/DocumentUpload";
 import { useAiAction } from "../../../hooks/useAiAction";
 // The chat screen consumes this on mount to open a specific thread; it is the
 // only hand-off channel it exposes (named for its first caller, voice mode).
 import { setVoiceModeThread as setPendingChatThread } from "../../../lib/voiceModeStore";
-import Reanimated, {
-  FadeInDown,
-  Easing,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  withDelay,
-} from "react-native-reanimated";
-import Svg, {
-  Defs,
-  RadialGradient,
-  Stop,
-  Circle,
-  Path,
-} from "react-native-svg";
+import { useSharedValue } from "react-native-reanimated";
+
+
 
 // Public Edutu opportunity page. Shares must point here — a branded landing that
 // tracks and routes to Apply — NOT the raw third-party application link.
@@ -386,100 +375,27 @@ async function downloadShareImage(
   }
 }
 
-// Glossy AI orb — purple/blue gradient glass sphere with a frosted 4-point
-// sparkle at its core (echoes the reference "AI" logo). Self-contained: the
-// SVG draws the whole orb, so the FAB behind it stays transparent.
-function AiOrbIcon({ size = 56 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Defs>
-        {/* deep purple body, lighter toward the upper-left */}
-        <RadialGradient id="orbBody" cx="38%" cy="30%" r="78%">
-          <Stop offset="0%" stopColor="#d7cbff" />
-          <Stop offset="38%" stopColor="#9a86f2" />
-          <Stop offset="70%" stopColor="#6d54e6" />
-          <Stop offset="100%" stopColor="#4331c9" />
-        </RadialGradient>
-        {/* electric-blue swirl in the lower-right */}
-        <RadialGradient id="orbBlue" cx="74%" cy="66%" r="46%">
-          <Stop offset="0%" stopColor="#3b82f6" stopOpacity={0.95} />
-          <Stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-        </RadialGradient>
-        {/* glossy top-left sheen */}
-        <RadialGradient id="orbGloss" cx="30%" cy="22%" r="42%">
-          <Stop offset="0%" stopColor="#ffffff" stopOpacity={0.6} />
-          <Stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
-        </RadialGradient>
-        {/* bright rim light at the bottom */}
-        <RadialGradient id="orbRim" cx="50%" cy="50%" r="50%">
-          <Stop offset="82%" stopColor="#ffffff" stopOpacity={0} />
-          <Stop offset="97%" stopColor="#ffffff" stopOpacity={0.5} />
-          <Stop offset="100%" stopColor="#ffffff" stopOpacity={0.1} />
-        </RadialGradient>
-      </Defs>
-
-      <Circle cx="24" cy="24" r="23.5" fill="url(#orbBody)" />
-      <Circle cx="24" cy="24" r="23.5" fill="url(#orbBlue)" />
-      <Circle cx="24" cy="24" r="23.5" fill="url(#orbGloss)" />
-      <Circle cx="24" cy="24" r="23.5" fill="url(#orbRim)" />
-
-      {/* frosted 4-point sparkle */}
-      <Path
-        d="M24 8.5C25.1 18.6 29.4 22.9 39.5 24C29.4 25.1 25.1 29.4 24 39.5C22.9 29.4 18.6 25.1 8.5 24C18.6 22.9 22.9 18.6 24 8.5Z"
-        fill="#ffffff"
-        fillOpacity={0.9}
-      />
-    </Svg>
-  );
-}
-
-// Floating "jump to AI" button — a bouncing gradient AI orb that opens the AI
-// co-pilot (personalized checklist, essay questions, outlines, roadmap…).
-function AiCopilotFab({
-  onPress,
-  label,
-}: {
-  onPress: () => void;
-  label: string;
-}) {
-  const jump = useSharedValue(0);
-
-  useEffect(() => {
-    jump.value = withDelay(
-      700,
-      withRepeat(
-        withSequence(
-          withTiming(-10, { duration: 420, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: 520, easing: Easing.bounce }),
-          withTiming(0, { duration: 900 }), // brief rest between hops
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [jump]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: jump.value }],
-  }));
-
-  return (
-    <Reanimated.View
-      style={[styles.aiFab, animatedStyle]}
-      entering={FadeInDown.duration(400).delay(300)}
-      pointerEvents="box-none"
-    >
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        style={[styles.aiFabBtn, { shadowColor: "#6d54e6" }]}
-      >
-        <AiOrbIcon size={56} />
-      </TouchableOpacity>
-    </Reanimated.View>
-  );
+/**
+ * Fold a ranking onto a freshly-fetched (public, therefore unranked) record.
+ *
+ * Only ever adds: a real score/reason set already on screen must survive a
+ * refetch, and an absent one must not be invented.
+ */
+function mergeRanking<T extends Opportunity | null>(
+  next: T,
+  ranked: Partial<Opportunity> | null | undefined,
+): T {
+  if (!next) return next;
+  if (!ranked || !(ranked.match && ranked.match > 0)) return next;
+  if (next.match && next.match > 0) return next;
+  return {
+    ...next,
+    match: ranked.match,
+    matchFit: ranked.matchFit ?? next.matchFit,
+    matchReasons: ranked.matchReasons?.length ? ranked.matchReasons : next.matchReasons,
+    matchRisks: ranked.matchRisks?.length ? ranked.matchRisks : next.matchRisks,
+    matchReasonDetails: ranked.matchReasonDetails ?? next.matchReasonDetails,
+  };
 }
 
 export default function OpportunityDetailScreen() {
@@ -493,7 +409,9 @@ export default function OpportunityDetailScreen() {
   const { user } = useUser();
   const { getToken, isSignedIn } = useAuth();
   const { isDark, colors } = useTheme();
-  const upgradeSheet = useUpgradeSheet();
+  // Every Pro upsell on this screen goes through the one shared helper
+  // (lib/upsell), which picks the sheet or an alert and owns the paywall route.
+  const promptProUpgrade = usePromptProUpgrade();
   // Win-coach inline actions for this opportunity; a freshly uploaded CV is
   // passed to the fit check so the AI reasons over the user's real document.
   const [winCoachUploadId, setWinCoachUploadId] = useState<string | undefined>(
@@ -518,7 +436,7 @@ export default function OpportunityDetailScreen() {
   // compiler infer a dependency on the whole `user` object.
   const userId = user?.id;
   const userUnsafeMetadata = user?.unsafeMetadata;
-  const { createGoal, updateGoal } = useGoals(supabase, user?.id || null);
+  const { createGoal } = useGoals(supabase, user?.id || null);
   const { credits } = useCredits(supabase, user?.id || null);
   const { isPro } = useProStatus(supabase, user?.id || null);
   const ROADMAP_CREDIT_COST = 10;
@@ -545,7 +463,21 @@ export default function OpportunityDetailScreen() {
     },
     [scrollY],
   );
-  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  // The record as the catalog knows it (no viewer context) and, separately,
+  // this viewer's ranking of it. They arrive from two endpoints in either
+  // order, so they are merged at render rather than folded into one another on
+  // arrival — a ranking that landed before the record used to be dropped.
+  const [rawOpportunity, setRawOpportunity] = useState<Opportunity | null>(null);
+  // Stamped with the id it was computed for, so navigating to a sibling
+  // opportunity can never show the previous one's verdict while the new score
+  // is in flight — and no effect has to reset it.
+  const [ranking, setRanking] = useState<
+    { id: string; value: Partial<Opportunity> } | null
+  >(null);
+  const opportunity = useMemo(
+    () => mergeRanking(rawOpportunity, ranking?.id === id ? ranking.value : null),
+    [rawOpportunity, ranking, id],
+  );
   const [loading, setLoading] = useState(true);
   // True only when the fetch failed for network reasons AND nothing is cached —
   // distinguishes "couldn't load" (retryable) from a definitive "not found".
@@ -618,6 +550,13 @@ export default function OpportunityDetailScreen() {
 
   const viewRecordedRef = useRef(false);
   const [dismissSheetVisible, setDismissSheetVisible] = useState(false);
+  /**
+   * The contextual push opt-in. Raised only right after the user saves an
+   * opportunity that still has a live deadline — that is the one moment where
+   * "let us remind you" is obviously in their interest. Gated by
+   * `canOfferPushOptIn` so it never appears after a denial or a previous ask.
+   */
+  const [pushOptInVisible, setPushOptInVisible] = useState(false);
   /** Set when the detail actually renders content; read at unmount for dwell. */
   const dwellRef = useRef<{ opportunityId: string; startedAt: number } | null>(null);
   const getTokenRef = useRef(getToken);
@@ -648,13 +587,13 @@ export default function OpportunityDetailScreen() {
       try {
         const cachedDetail = await getCachedOpportunity(id);
         if (cachedDetail && !cancelled) {
-          setOpportunity(cachedDetail);
+          setRawOpportunity(cachedDetail);
           setLoading(false);
         } else {
           const snapshot = await getCachedOpportunitiesSnapshot(user?.id);
           const cached = snapshot.find((o) => o.id === id);
           if (cached && !cancelled) {
-            setOpportunity(cached);
+            setRawOpportunity(cached);
             setLoading(false);
           }
         }
@@ -666,7 +605,11 @@ export default function OpportunityDetailScreen() {
         const { opportunity: data, status } = await getOpportunityWithStatus(id, supabase);
         if (!cancelled) {
           if (data) {
-            setOpportunity(data);
+            // GET /opportunities/:id is public and therefore unranked. Merging
+            // rather than replacing keeps a ranking that the cached (feed-
+            // scored) copy already carried instead of blanking the fit panel
+            // back to "Not ranked yet" the moment the fresh record lands.
+            setRawOpportunity((previous) => mergeRanking(data, previous));
           } else if (status === "error") {
             // Network failure with no cached copy: show the retryable error
             // screen instead of the definitive "not found" scaffold.
@@ -689,6 +632,25 @@ export default function OpportunityDetailScreen() {
       cancelled = true;
     };
   }, [id, user?.id, retryNonce]);
+
+  // Hydrate the fit verdict for the signed-in user.
+  //
+  // Without this the detail screen is structurally incapable of ranking
+  // anything: its only source is the public `GET /opportunities/:id`, which
+  // knows nothing about the viewer, so `match` is 0 and every fit surface here
+  // shows "Not ranked yet" no matter how complete the profile is. The batch
+  // scorer runs the same pipeline as the feed, so the tier shown here now
+  // agrees with the card the user tapped.
+  useEffect(() => {
+    if (!id || !isSignedIn) return;
+    let cancelled = false;
+    void fetchOpportunityRanking(id, getToken).then((result) => {
+      if (!cancelled && result) setRanking({ id, value: result });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isSignedIn, getToken]);
 
   useEffect(() => {
     const checkSaved = async () => {
@@ -865,7 +827,16 @@ export default function OpportunityDetailScreen() {
           getToken,
         );
         setBookmarked(true);
-        Alert.alert(t("detail.alerts.savedTitle"), t("detail.alerts.savedMsg"));
+        // A save on a live deadline is the moment push permission is worth
+        // asking for — the dialog doubles as the save confirmation, so the
+        // user gets one interruption instead of two.
+        const offerPush =
+          hasFutureDeadline(opportunity?.deadline) && (await canOfferPushOptIn());
+        if (offerPush) {
+          setPushOptInVisible(true);
+        } else {
+          Alert.alert(t("detail.alerts.savedTitle"), t("detail.alerts.savedMsg"));
+        }
       }
     } catch (error) {
       console.error("Error toggling bookmark:", error);
@@ -874,6 +845,33 @@ export default function OpportunityDetailScreen() {
       setBookmarkLoading(false);
     }
   };
+
+  /**
+   * Accepting the opt-in. `registerForPushNotificationsAsync` is what raises
+   * the OS prompt and, on grant, registers the Android channels (default /
+   * opportunities / deadlines), the notification categories and the device
+   * token — so this path is a complete replacement for the launch-time
+   * registration it took over from, not a partial one.
+   */
+  const handlePushOptInAccept = useCallback(() => {
+    setPushOptInVisible(false);
+    void (async () => {
+      await markPushOptInAsked();
+      try {
+        // Narrowed local (line ~428), not `user?.id`: reading the property
+        // inside the callback makes the compiler infer a dependency on the
+        // whole `user` object and skip optimizing the component.
+        await registerForPushNotificationsAsync(userId, getToken);
+      } catch {
+        // Fail quiet: a save must never be undone by a notification failure.
+      }
+    })();
+  }, [getToken, userId]);
+
+  const handlePushOptInDecline = useCallback(() => {
+    setPushOptInVisible(false);
+    void markPushOptInAsked();
+  }, []);
 
   // "Not interested" — opens the typed-reason sheet instead of a blunt
   // confirm: the reason routes differently in the ranking engine (taste vs
@@ -970,9 +968,11 @@ export default function OpportunityDetailScreen() {
     [router],
   );
 
+  // The win-coach sheet already renders the billing message beside this
+  // button, so the shared upsell goes straight to the paywall here.
   const goToPaywall = useCallback(() => {
-    router.push("/paywall" as never);
-  }, [router]);
+    promptProUpgrade({ direct: true });
+  }, [promptProUpgrade]);
 
   // Continues the win-coach conversation in full chat. It seeds the composer
   // via `prefill` — the same param the coach pushes use — which NEVER
@@ -1078,15 +1078,12 @@ export default function OpportunityDetailScreen() {
     // Pre-flight UX check only — the backend now debits credits itself and
     // answers 402/429 when the user can't afford the action (handled below).
     if (!isPro && credits < ROADMAP_CREDIT_COST) {
-      Alert.alert(
-        t("detail.alerts.insufficientCreditsTitle"),
-        t("detail.alerts.insufficientCreditsMsg", { cost: ROADMAP_CREDIT_COST, credits }),
-        [
-          { text: t("common:actions.cancel"), style: "cancel" },
-          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
-          { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
-        ],
-      );
+      // A credit shortage has two honest exits, so the helper offers both.
+      promptProUpgrade({
+        title: t("detail.alerts.insufficientCreditsTitle"),
+        reason: t("detail.alerts.insufficientCreditsMsg", { cost: ROADMAP_CREDIT_COST, credits }),
+        offerCredits: true,
+      });
       return;
     }
 
@@ -1130,25 +1127,16 @@ export default function OpportunityDetailScreen() {
     } catch (error) {
       // Server billing refusal (402 insufficient credits / 429 fair-use limit).
       if (!isAiBillingError(error)) throw error;
-      // Prefer the shared upgrade bottom sheet; the alert stays as a fallback
-      // if the provider isn't mounted for any reason.
-      if (upgradeSheet) {
-        upgradeSheet.show(error.message);
-      } else {
-        Alert.alert(
-          t("detail.alerts.insufficientCreditsTitle"),
-          error.message,
-          [
-            { text: t("common:actions.cancel"), style: "cancel" },
-            { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
-            { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
-          ],
-        );
-      }
+      // The server's own message is the reason; the helper picks the shared
+      // upgrade sheet, or an alert when no provider is mounted.
+      promptProUpgrade({
+        title: t("detail.alerts.insufficientCreditsTitle"),
+        reason: error.message,
+      });
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [isGuestBrowsing, authWall, opportunity, isPro, credits, getToken, router, intake, userUnsafeMetadata, t, upgradeSheet]);
+  }, [isGuestBrowsing, authWall, opportunity, isPro, credits, getToken, intake, userUnsafeMetadata, t, promptProUpgrade]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;
@@ -1277,21 +1265,10 @@ export default function OpportunityDetailScreen() {
         createdGoals.push(createdGoal);
       }
 
-      for (const goal of createdGoals) {
-        if (goal.deadline) {
-          const nid = await notificationService.scheduleGoalReminder(
-            goal.id,
-            goal.title,
-            goal.deadline,
-          );
-          if (nid) {
-            await updateGoal(goal.id, {
-              notification_id: nid,
-              reminder_enabled: true,
-            });
-          }
-        }
-      }
+      // Reminders are not scheduled locally: each goal is created with
+      // `reminder_enabled` + `reminder_date`, and the backend fans those out at
+      // 7/3/1/0 days in the user's timezone. The local series this used to add
+      // fired on the same days, so every imported goal double-notified.
 
       setShowRoadmapModal(false);
       setBookmarked(true);
@@ -1339,7 +1316,6 @@ export default function OpportunityDetailScreen() {
     selectedChecklistItems,
     id,
     createGoal,
-    updateGoal,
     router,
     t,
   ]);
@@ -1791,7 +1767,9 @@ export default function OpportunityDetailScreen() {
 
           <DecisionStrip
             fitTitle={t("detail.fit.title")}
-            fitLabel={fitLabel}
+            // Unranked → no fit cell. The FitPanel below owns that state and
+            // is the only one of the two that offers a way out of it.
+            fitLabel={matchTier ? fitLabel : null}
             fitBlurb={fitBlurb}
             fitColor={fitColor}
             deadlineTitle={t("detail.deadline")}
@@ -1817,7 +1795,7 @@ export default function OpportunityDetailScreen() {
               colors={
                 nextActionKind === "closed"
                   ? ["#64748B", "#475569"]
-                  : [colors.accent, "#4331C9"]
+                  : accentGradient(colors.accent)
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -1875,10 +1853,18 @@ export default function OpportunityDetailScreen() {
               eyebrow={t("detail.fit.eyebrow")}
               heading={fitLabel}
               blurb={fitBlurb}
+              headline={t("detail.fit.evidenceHeadline")}
               reasons={matchReasons}
               risks={matchRisks}
               reasonsTitle={t("detail.whyMatches")}
               risksTitle={t("detail.thingsToCheck")}
+              // `ranked` was never passed, so it arrived undefined and the panel
+              // took its !ranked branch on EVERY opportunity — the fit verdict
+              // was unreachable in the shipped app. A non-null tier is exactly
+              // the "we have a verdict" signal (getMatchTier returns null for a
+              // missing/zero score), so it drives the variant.
+              ranked={matchTier !== null}
+              onCompleteProfile={() => router.push("/profile/edit")}
             />
           </View>
 
@@ -2316,46 +2302,14 @@ export default function OpportunityDetailScreen() {
             </CollapsibleSection>
           )}
 
-          {/* ── QUIET FOOTER ───────────────────────────────────────────── */}
+          {/* ── QUIET FOOTER ─────────────────────────────────────────────
+              Save and Share used to repeat here. Both already sit in the
+              header, which never scrolls away, and Save additionally sat in
+              the sticky bar — three bookmark controls for one piece of state.
+              What is left is the one action with no home above: dismissal,
+              which is destructive-ish and belongs at the end, not in reach of
+              a thumb resting on the bar. */}
           <View style={[styles.footerActions, { borderTopColor: borderColor }]}>
-            <TouchableOpacity
-              onPress={toggleBookmark}
-              disabled={bookmarkLoading}
-              activeOpacity={0.7}
-              style={styles.footerAction}
-              accessibilityRole="button"
-              accessibilityState={{ selected: bookmarked, busy: bookmarkLoading }}
-            >
-              {bookmarkLoading ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : bookmarked ? (
-                <BookmarkCheck size={18} color={colors.accent} />
-              ) : (
-                <Bookmark size={18} color={textSecondary} />
-              )}
-              <Text
-                style={[
-                  styles.footerActionText,
-                  { color: bookmarked ? colors.accent : textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleShare}
-              activeOpacity={0.7}
-              style={styles.footerAction}
-              accessibilityRole="button"
-            >
-              <Share2 size={18} color={textSecondary} />
-              <Text style={[styles.footerActionText, { color: textSecondary }]}>
-                {t("detail.shareAction")}
-              </Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               onPress={handleNotInterested}
               activeOpacity={0.6}
@@ -2378,28 +2332,16 @@ export default function OpportunityDetailScreen() {
       <StickyApplyBar
         visible={stickyVisible}
         label={nextActionLabel}
-        closed={nextActionKind === "closed"}
-        saved={bookmarked}
-        saveBusy={bookmarkLoading}
-        saveLabel={bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
+        kind={nextActionKind}
         onPress={runNextAction}
-        onToggleSave={toggleBookmark}
       />
 
-      {/* Floating AI co-pilot button — one tap opens all AI recommendations.
-          Parked above the sticky bar so the two never collide. */}
-      {!isClosed && opportunity ? (
-        <AiCopilotFab
-          label={t("detail.copilotCta", { defaultValue: "Apply with Edutu AI" })}
-          onPress={() => {
-            if (isGuestBrowsing) {
-              authWall?.promptAuth('ai');
-              return;
-            }
-            router.push(`/copilot/${opportunity.id}` as never);
-          }}
-        />
-      ) : null}
+      {/* A floating AI orb used to live here, labelled "Apply with Edutu AI" —
+          the exact string already carried by the in-flow primary button and,
+          once scrolled, by the sticky bar. Three routes to one destination,
+          two of them visible at the same time, and the orb overlapped the bar.
+          The co-pilot is reachable from the primary CTA (or from the "or prep
+          with AI" link when the deadline makes applying the better move). */}
 
       {/* AI Roadmap Modal */}
       <Modal
@@ -3604,6 +3546,17 @@ export default function OpportunityDetailScreen() {
         </View>
       )}
 
+      <SuccessDialog
+        visible={pushOptInVisible}
+        kind="deadline"
+        title={t("detail.pushOptIn.title")}
+        message={t("detail.pushOptIn.message")}
+        actionLabel={t("detail.pushOptIn.confirm")}
+        onAction={handlePushOptInAccept}
+        secondaryLabel={t("detail.pushOptIn.dismiss")}
+        onSecondary={handlePushOptInDecline}
+      />
+
       <DismissReasonSheet
         visible={dismissSheetVisible}
         isDark={isDark}
@@ -3761,12 +3714,15 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  // One action now, so it reads as a single quiet inline row rather than a
+  // stranded icon-over-label tile in the middle of the page.
   footerAction: {
     flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
+    gap: 8,
+    paddingVertical: 10,
   },
   footerActionText: { fontSize: 12, fontWeight: "600", textAlign: "center" },
 
@@ -3862,49 +3818,6 @@ const styles = StyleSheet.create({
   },
   askMoreChipText: { fontSize: 13, fontWeight: "700" },
   actionButtonsRow: { flexDirection: "row", gap: 12, marginBottom: 40 },
-  aiFab: {
-    position: "absolute",
-    right: 16,
-    // Clears the sticky action bar (50pt control + padding + home indicator).
-    bottom: 124,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  aiFabBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: "#4331c9",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    elevation: 9,
-  },
-  aiFabEmoji: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  aiFabBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    paddingHorizontal: 6,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.35)",
-  },
-  aiFabBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
   applyButtonWrapper: {
     borderRadius: 18,
     overflow: "hidden",

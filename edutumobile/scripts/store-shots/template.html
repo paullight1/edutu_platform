@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Same families the web app loads, so the listing matches the product. -->
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Outfit:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* Every length is in vw so one stylesheet serves both canvas sizes: the
+     viewport IS the canvas, so 1vw is always 1% of the output width and the
+     whole composition scales proportionally. Only --device-w differs per
+     preset, because the two canvases have different amounts of vertical room. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(180deg, #0F172A 0%, #142A5E 55%, #1D4ED8 100%);
+  }
+
+  .wrap {
+    height: 100%;
+    padding: 8vw 8vw 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .headline {
+    font-family: 'Outfit', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 7.3vw;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    color: #F8FAFC;
+  }
+
+  .sub {
+    margin-top: 2.4vw;
+    font-family: 'Instrument Sans', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 3.4vw;
+    line-height: 1.4;
+    color: #94A3B8;
+    max-width: 78vw;
+  }
+
+  /* The device is deliberately allowed to run off the bottom edge — it reads as
+     a phone continuing past the frame rather than a small picture of a phone. */
+  .device {
+    margin-top: 6vw;
+    width: var(--device-w);
+    flex: none;
+    border: 0.9vw solid #2A3444;
+    border-radius: 6vw;
+    background: #000;
+    overflow: hidden;
+    box-shadow: 0 2vw 6vw rgba(0, 0, 0, 0.45);
+  }
+
+  .device img { width: 100%; display: block; }
+</style>
+<div class="wrap">
+  <h1 class="headline">__HEADLINE__</h1>
+  <p class="sub">__SUB__</p>
+  <div class="device"><img src="__SCREENSHOT__" alt=""></div>
+</div>

@@ -491,6 +491,11 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
   const title = pickStringValue("Untitled opportunity", row.title, row.name);
   // Never fabricate data: when a field is missing we return an empty string
   // and let the UI omit it, rather than rendering generic filler text.
+  //
+  // NOTE: an org that merely repeats the title is NOT stripped here. It stays
+  // on the model because JSON-LD needs it (`hiringOrganization` / `provider`
+  // fall back to "Edutu", which would be a false claim). Whether it is worth
+  // *showing* beside a title is a view decision — see lib/organizationLabel.
   const organization = pickPublicStringValue(
     "",
     metadata.public_organization,

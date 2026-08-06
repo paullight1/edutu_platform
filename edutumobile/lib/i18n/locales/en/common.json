@@ -20,7 +20,8 @@
     "learnMore": "Learn more",
     "getStarted": "Get started",
     "tryAgain": "Try again",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "undo": "Undo"
   },
   "states": {
     "loading": "Loading...",
@@ -190,5 +191,90 @@
     "submittedTitle": "Report received",
     "submittedMessage": "Thanks — our team will review this content.",
     "failed": "Could not submit the report. Please try again."
+  },
+  "screenState": {
+    "loading": {
+      "title": "Getting things ready",
+      "body": "One moment."
+    },
+    "emptyFirstRun": {
+      "title": "Nothing here yet",
+      "body": "Once there's something to show, it'll appear here.",
+      "action": "Get started"
+    },
+    "emptyFiltered": {
+      "title": "No matches for these filters",
+      "body": "Nothing fits every filter you've set. Widen one and you'll likely find something.",
+      "action": "Clear filters"
+    },
+    "partial": {
+      "title": "Showing saved copy",
+      "body": "We couldn't refresh just now, so this is what we had. Updated {{when}}.",
+      "action": "Refresh"
+    },
+    "offline": {
+      "title": "You're offline",
+      "body": "Reconnect and this will load. Anything you've already opened stays available.",
+      "action": "Try again"
+    },
+    "error": {
+      "network": {
+        "title": "Can't reach Edutu",
+        "body": "Your connection dropped on the way. Try again in a moment."
+      },
+      "auth": {
+        "title": "Please sign in again",
+        "body": "Your session expired. Signing back in takes a second and you'll land right back here.",
+        "action": "Sign in"
+      },
+      "notFound": {
+        "title": "This isn't here anymore",
+        "body": "It may have closed or been removed. Have a look at what's open now.",
+        "action": "Browse"
+      },
+      "server": {
+        "title": "Something went wrong on our side",
+        "body": "Not your fault. We've logged it — try again shortly."
+      },
+      "timeout": {
+        "title": "That took too long",
+        "body": "The request timed out before it finished. One more try usually does it."
+      }
+    },
+    "locked": {
+      "pro": {
+        "title": "Part of Edutu Pro",
+        "body": "Upgrade to unlock this and everything else Pro includes.",
+        "action": "See Pro"
+      },
+      "guest": {
+        "title": "Create an account to continue",
+        "body": "This keeps your progress, saves and deadlines tied to you.",
+        "action": "Create account"
+      },
+      "module": {
+        "title": "Temporarily unavailable",
+        "body": "We've paused this section briefly. It'll be back shortly."
+      }
+    },
+    "denied": {
+      "notifications": {
+        "title": "Notifications are off",
+        "body": "Turn them on to get deadline reminders before they pass."
+      },
+      "camera": {
+        "title": "Camera access is off",
+        "body": "Edutu needs the camera to take this photo."
+      },
+      "calendar": {
+        "title": "Calendar access is off",
+        "body": "Allow access and deadlines can sync to your calendar."
+      },
+      "photos": {
+        "title": "Photo access is off",
+        "body": "Allow access to pick an image from your library."
+      },
+      "action": "Open settings"
+    }
   }
 }

@@ -82,6 +82,12 @@
     }
   },
   "detail": {
+    "pushOptIn": {
+      "title": "Un rappel avant la clôture ?",
+      "message": "Nous pouvons vous prévenir quelques jours avant la date limite pour que celle-ci ne vous échappe pas.",
+      "confirm": "Me le rappeler",
+      "dismiss": "Non merci"
+    },
     "headerTitle": "Détails de l'opportunité",
     "loading": "Chargement de l'opportunité...",
     "notFound": "Opportunité introuvable",
@@ -128,6 +134,24 @@
     "addToGoals": "Ajouter à mes objectifs",
     "applyNow": "Postuler",
     "savedLabel": "Enregistrée",
+    "saveAction": "Enregistrer",
+    "fit": {
+      "title": "Votre adéquation",
+      "eyebrow": "L'avis d'Edutu",
+      "unknown": "Pas encore évaluée",
+      "unknownBlurb": "Complétez votre profil et Edutu pourra évaluer cette opportunité pour vous.",
+      "evidenceHeadline": "Pourquoi Edutu le dit",
+      "tiers": {
+        "strong": "Forte adéquation",
+        "strongBlurb": "Cela correspond étroitement à votre profil — cela vaut un vrai effort.",
+        "solid": "Bonne adéquation",
+        "solidBlurb": "Une bonne correspondance sur l'essentiel. Vérifiez les écarts ci-dessous.",
+        "possible": "Adéquation possible",
+        "possibleBlurb": "Une partie de votre profil correspond. Lisez les critères avant de vous engager.",
+        "stretch": "Ambitieuse",
+        "stretchBlurb": "Plus éloignée de votre profil que la plupart — postulez si cela vous enthousiasme vraiment."
+      }
+    },
     "alerts": {
       "removedTitle": "Retirée",
       "removedMsg": "Opportunité retirée de la liste enregistrée",
@@ -308,5 +332,63 @@
     "today": "Aujourd'hui",
     "tomorrow": "Demain",
     "daysShortLeft": "{{count}} j restants"
+  },
+  "alerts": {
+    "title": "Alertes",
+    "subtitle": "Nous surveillons le catalogue à votre place",
+    "loading": "Chargement de vos alertes…",
+    "settingsA11y": "Paramètres de notifications",
+    "summary": "{{n}} suivie(s)",
+    "summaryPaused": "{{n}} en pause",
+    "newAlert": "Nouvelle alerte",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer cette alerte ?",
+    "deleteBody": "Vous ne serez plus averti des nouvelles correspondances pour « {{name}} ».",
+    "deleteFailed": "Impossible de supprimer cette alerte. Réessayez dans un instant.",
+    "toggleFailed": "Impossible d'enregistrer ce changement. Réessayez dans un instant.",
+    "pushOff": "Les notifications push sont désactivées, ces alertes ne peuvent donc pas vous parvenir. Touchez pour les activer.",
+    "empty": {
+      "title": "Créez votre première alerte",
+      "body": "Dites-nous ce que vous cherchez. Nous examinons chaque nouvelle opportunité dès son arrivée et vous prévenons quand elle correspond.",
+      "browse": "Ou parcourez Découvrir"
+    },
+    "composer": {
+      "createTitle": "Nouvelle alerte",
+      "editTitle": "Modifier l'alerte",
+      "keywordLabel": "Mots-clés",
+      "keywordPlaceholder": "ex. master entièrement financé",
+      "categoryLabel": "Catégorie",
+      "remoteLabel": "À distance uniquement",
+      "nameLabel": "Nom de l'alerte",
+      "namePlaceholder": "Nommez cette alerte",
+      "untitled": "Mon alerte",
+      "needCriterion": "Ajoutez un mot-clé, choisissez une catégorie ou activez « à distance uniquement ».",
+      "cancel": "Annuler",
+      "save": "Enregistrer l'alerte",
+      "update": "Enregistrer les modifications",
+      "failedTitle": "Enregistrement impossible",
+      "failedBody": "Vérifiez votre connexion et réessayez.",
+      "limitReached": "Vous pouvez conserver jusqu'à {{max}} alertes. Supprimez-en une pour faire de la place."
+    },
+    "card": {
+      "watching": "Surveillée",
+      "paused": "En pause",
+      "lastMatch": "dernière correspondance {{when}}",
+      "remoteChip": "À distance uniquement",
+      "matchesTotal": "Correspondances jusqu'ici : {{n}}",
+      "noMatchesYet": "Aucune correspondance pour l'instant",
+      "muteA11y": "Mettre cette alerte en pause",
+      "unmuteA11y": "Réactiver cette alerte",
+      "editA11y": "Modifier cette alerte",
+      "deleteA11y": "Supprimer cette alerte",
+      "liveCount": "Correspondances actuelles : {{n}}",
+      "liveEmpty": "Rien dans le catalogue ne correspond encore — nous vous préviendrons dès que ce sera le cas.",
+      "liveError": "Impossible de charger les correspondances. Tirez vers le bas pour actualiser."
+    },
+    "time": {
+      "justNow": "à l'instant",
+      "hours": "il y a {{n}} h",
+      "days": "il y a {{n}} j"
+    }
   }
 }

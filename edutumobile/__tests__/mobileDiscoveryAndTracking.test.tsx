@@ -41,6 +41,7 @@ jest.mock('@clerk/clerk-expo', () => ({
 jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
       background: '#FFFFFF',
       foreground: '#111827',
       textSecondary: '#64748B',
@@ -53,23 +54,7 @@ jest.mock('../components/context/ThemeContext', () => ({
   }),
 }));
 
-jest.mock('react-native-svg', () => {
-  const React = require('react');
-  const { Text, View } = require('react-native');
-  const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
-  return {
-    __esModule: true,
-    default: Passthrough,
-    Svg: Passthrough,
-    Path: () => null,
-    Circle: () => null,
-    Rect: () => null,
-    Defs: Passthrough,
-    LinearGradient: Passthrough,
-    Stop: () => null,
-    SvgXml: ({ xml }: { xml?: string }) => <Text>{xml ? 'SvgXml' : 'SvgXmlEmpty'}</Text>,
-  };
-});
+jest.mock('react-native-svg', () => require('../test-utils/svgMock'));
 
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -241,10 +226,12 @@ jest.mock('../lib/shareOpportunity', () => ({
   shareOpportunity: jest.fn(),
 }));
 
+// These MUST resolve to promises: lib/haptics `fire()` calls `.catch()` on the
+// return value, so a bare jest.fn() (undefined) throws out of a render.
 jest.mock('expo-haptics', () => ({
-  impactAsync: jest.fn(),
-  selectionAsync: jest.fn(),
-  notificationAsync: jest.fn(),
+  impactAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));

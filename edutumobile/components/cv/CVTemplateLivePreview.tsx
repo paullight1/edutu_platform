@@ -1,7 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { CVData, CVEducation, CVExperience, CVHeader } from '@edutu/core/src/types/cv';
+import {
+    CVData,
+    CVEducation,
+    CVExperience,
+    CVHeader,
+    CVTemplate,
+} from '@edutu/core/src/types/cv';
+import { resolveTemplateDesign } from '@edutu/core/src/services/templateDesigns';
 
 // Fixed "paper" palette — a CV page is always light, regardless of app theme
 // (same convention as CVPreview).
@@ -9,18 +16,11 @@ const INK = '#111827';
 const SUB = '#4B5563';
 const META = '#6B7280';
 
-// Accent per template category — kept in one place so the gallery cards and
-// the preview modal always agree.
-const CATEGORY_ACCENTS: Record<string, string> = {
-    academic: '#2563EB',
-    professional: '#0F766E',
-    creative: '#7C3AED',
-    general: '#6366F1',
-};
-
-export function getTemplateAccent(category?: string | null): string {
-    const key = (category || 'general').toLowerCase();
-    return CATEGORY_ACCENTS[key] || CATEGORY_ACCENTS.general;
+// Accent now comes from the template's design spec — the card, the modal
+// preview and the exported PDF all read the same object, so the gallery can
+// never advertise a colour the document doesn't use.
+export function getTemplateAccent(template?: Partial<CVTemplate> | null): string {
+    return resolveTemplateDesign(template).accent;
 }
 
 /**

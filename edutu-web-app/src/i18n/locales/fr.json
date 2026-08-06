@@ -56,6 +56,16 @@
             "quickActions": "Actions Rapides"
         }
     },
+    "opportunities": {
+        "rails": {
+            "recommended": "Recommandées pour vous",
+            "recommendedSubtitle": "Des opportunités qui correspondent bien à votre profil",
+            "latest": "Ajoutées récemment",
+            "latestSubtitle": "Les opportunités les plus récentes sur Edutu",
+            "closing": "Clôture imminente",
+            "closingSubtitle": "Les dates limites approchent — postulez maintenant"
+        }
+    },
     "goals": {
         "title": "Objectifs",
         "createGoal": "Créer un Objectif",

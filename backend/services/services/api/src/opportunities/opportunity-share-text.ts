@@ -123,6 +123,39 @@ function getGains(opportunity: OpportunityRecord): string[] {
     .slice(0, 5);
 }
 
+function getEligibility(opportunity: OpportunityRecord): string[] {
+  const metadata = asRecord(opportunity.metadata);
+
+  // 1. An explicit bullet list (real or AI-filled) wins.
+  const listed = toStringArray(
+    opportunity.eligibility_bullets ??
+      metadata.eligibility_bullets ??
+      (Array.isArray(opportunity.eligibility)
+        ? opportunity.eligibility
+        : Array.isArray(metadata.eligibility)
+          ? metadata.eligibility
+          : undefined),
+  );
+  if (listed.length > 0) {
+    return listed.map((item) => truncateText(item, 120)).slice(0, 3);
+  }
+
+  // 2. Structured eligibility object → a single concise line.
+  const eligibility = asRecord(opportunity.eligibility ?? metadata.eligibility);
+  const countries = eligibility.countries;
+  if (Array.isArray(countries) && countries.length > 0) {
+    const shown = countries
+      .slice(0, 4)
+      .map((c) => cleanText(c))
+      .filter(Boolean);
+    const suffix = countries.length > 4 ? ` +${countries.length - 4} more` : "";
+    if (shown.length)
+      return [`Open to applicants from ${shown.join(", ")}${suffix}`];
+  }
+  const audience = getTargetAudience(opportunity);
+  return audience ? [truncateText(audience, 120)] : [];
+}
+
 export function buildOpportunityPublicShareUrl(
   opportunityId: string,
   baseUrl?: string | null,
@@ -156,10 +189,9 @@ export function buildOpportunityShareText(
   const type = getOpportunityType(opportunity);
   const duration = getDuration(opportunity);
   const audience = getTargetAudience(opportunity);
-  const deadline = formatDeadline(
-    opportunity.close_date || opportunity.deadline,
-  );
+  const rawDeadline = cleanText(opportunity.close_date || opportunity.deadline);
   const gains = getGains(opportunity);
+  const eligibility = getEligibility(opportunity);
 
   const lines: string[] = [`*${title}*`];
 
@@ -171,8 +203,18 @@ export function buildOpportunityShareText(
   if (type) facts.push(`- *Type:* ${type}`);
   if (duration) facts.push(`- *Duration:* ${duration}`);
   if (audience) facts.push(`- *Target Audience:* ${audience}`);
-  facts.push(`- *Deadline:* ${deadline}`);
+  // Deadlines are never fabricated — only shown when the opportunity carries one.
+  if (rawDeadline) facts.push(`- *Deadline:* ${formatDeadline(rawDeadline)}`);
   lines.push("", ...facts);
+
+  if (eligibility.length > 0) {
+    lines.push(
+      "",
+      "*Who Can Apply:*",
+      "",
+      ...eligibility.map((item) => `- ${item}`),
+    );
+  }
 
   if (gains.length > 0) {
     lines.push(

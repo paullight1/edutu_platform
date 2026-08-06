@@ -13,8 +13,7 @@ export class AlertsController {
     return this.alertsService.runInterestAlerts();
   }
 
-  @Post("deadlines/run")
-  runDeadlineReminders() {
-    return this.alertsService.runDeadlineReminders();
-  }
+  // NOTE: there is deliberately no "deadlines/run" route here any more.
+  // Deadline reminders are owned by OpportunityDeadlineRemindersService
+  // (src/notifications) — this service no longer sends them.
 }

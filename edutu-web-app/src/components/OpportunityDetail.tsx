@@ -45,6 +45,10 @@ import ImageWithFallback from "./ImageWithFallback";
 import { getMatchLabel, WhyThisMatches } from "./opportunity/MatchInsights";
 import { recordOpportunitySignal } from "../services/opportunitySignals";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import {
+  isPlaceholderOrganization,
+  organizationLabel,
+} from "../lib/organizationLabel";
 
 const PUBLIC_TAG_BLOCKLIST = new Set([
   "scraped",
@@ -239,9 +243,9 @@ function RelatedOpportunityCard({
       <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
         {opportunity.title}
       </h3>
-      {opportunity.organization ? (
+      {organizationLabel(opportunity.organization, opportunity.title) ? (
         <p className="mt-1 truncate text-xs text-text-muted">
-          {opportunity.organization}
+          {organizationLabel(opportunity.organization, opportunity.title)}
         </p>
       ) : null}
       <div className="mt-auto flex flex-wrap gap-3 pt-3 text-xs text-text-muted">
@@ -350,6 +354,23 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         ? opportunity.stipend
         : null;
 
+    // Structured data must never assert an organisation we can't stand behind.
+    // Falling back to "Edutu" claimed we were the hiring org / provider for
+    // every opportunity we merely list. Placeholder filler ("the official
+    // organizer") is no better, so both collapse to "omit the property".
+    //
+    // Unlike the visible label this keeps an org the title repeats: Google
+    // wants the real body named, and duplication only matters on screen.
+    const schemaOrganization = isPlaceholderOrganization(
+      opportunity.organization,
+    )
+      ? ""
+      : (opportunity.organization ?? "").trim();
+    const schemaOrgProperty = (key: "hiringOrganization" | "provider") =>
+      schemaOrganization
+        ? { [key]: { "@type": "Organization", name: schemaOrganization } }
+        : {};
+
     const employmentKind = getEmploymentKind(opportunity);
 
     // Jobs and internships get schema.org JobPosting (eligible for Google's
@@ -363,10 +384,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           description: seoDescription,
           url: canonicalUrl,
           image: toAbsoluteUrl(seoImage),
-          hiringOrganization: {
-            "@type": "Organization",
-            name: opportunity.organization || "Edutu",
-          },
+          ...schemaOrgProperty("hiringOrganization"),
           ...(getIsoDate(opportunity.createdAt || opportunity.lastUpdated)
             ? {
                 datePosted: getIsoDate(
@@ -418,10 +436,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         url: canonicalUrl,
         image: toAbsoluteUrl(seoImage),
         category: opportunity.category || "Opportunity",
-        provider: {
-          "@type": "Organization",
-          name: opportunity.organization || "Edutu",
-        },
+        ...schemaOrgProperty("provider"),
         ...(deadlineIso
           ? { applicationDeadline: deadlineIso, validThrough: deadlineIso }
           : {}),
@@ -863,9 +878,10 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <h1 className="max-w-3xl break-words font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
                 {opportunity.title}
               </h1>
-              {!embedded && opportunity.organization ? (
-                <p className="max-w-3xl break-words text-lg leading-8 text-text-secondary">
-                  {opportunity.organization}
+              {!embedded &&
+              organizationLabel(opportunity.organization, opportunity.title) ? (
+                <p className="max-w-3xl break-words text-base leading-relaxed text-text-secondary sm:text-lg sm:leading-8">
+                  {organizationLabel(opportunity.organization, opportunity.title)}
                 </p>
               ) : null}
               <div className="max-w-3xl space-y-3 break-words text-base leading-7 text-text-secondary [overflow-wrap:anywhere]">

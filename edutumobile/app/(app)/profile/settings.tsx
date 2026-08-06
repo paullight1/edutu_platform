@@ -56,6 +56,7 @@ import {
     getStoredPushToken,
     resetPushTokenSync,
 } from "../../../lib/notifications";
+import { resetPushOptInAsked } from "../../../lib/pushOptIn";
 import {
     getNotificationPreferences,
     saveNotificationPreferences,
@@ -266,6 +267,10 @@ export default function SettingsScreen() {
                     // if another device keeps the account preference on.
                     if (token) await unregisterPushToken(getToken, token).catch(() => undefined);
                     await resetPushTokenSync();
+                    // Re-arm the contextual opt-in: someone who turned push off
+                    // here should still be offered deadline reminders the next
+                    // time they save something that closes.
+                    await resetPushOptInAsked();
                 });
                 return;
             }

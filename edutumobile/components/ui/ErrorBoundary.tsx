@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AlertTriangle, RefreshCcw, Home } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import i18n from '../../lib/i18n';
+import { reportError } from '../../lib/crashReporting';
 
 // The boundary wraps the app root, so it must render even when providers (or
 // i18n itself) are broken — fall back to hardcoded English in that case.
@@ -33,6 +34,10 @@ class ErrorBoundaryClass extends Component<Props, State> {
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error('ErrorBoundary caught:', error, errorInfo.componentStack);
+        // A render crash the boundary swallows is invisible otherwise: the user
+        // sees the fallback screen and we hear nothing. No-op unless a Sentry
+        // DSN is configured.
+        reportError(error, { componentStack: errorInfo.componentStack });
     }
 
     render() {

@@ -56,7 +56,9 @@
     },
     "sections": {
         "roadmaps": "Parcours",
-        "personalGoals": "Objectifs personnels"
+        "personalGoals": "Objectifs personnels",
+        "roadmapsHint": "Les jalons des parcours que tu as lancés, déjà datés.",
+        "personalGoalsHint": "Ce que tu as choisi de terminer, à tes propres échéances."
     },
     "filter": {
         "byStatus": "Filtrer par statut",
@@ -75,7 +77,13 @@
         },
         "noPersonalGoals": {
             "title": "Aucun objectif personnel",
-            "description": "Touchez l'icône plus pour ajouter votre premier objectif."
+            "description": "Touchez l'icône plus pour ajouter votre premier objectif.",
+            "action": "Fixe ton premier objectif"
+        },
+        "noMatch": {
+            "title": "Aucun résultat",
+            "description": "Aucun objectif ne correspond à ta recherche ou à ton filtre. Efface-les pour tout revoir.",
+            "action": "Effacer la recherche"
         }
     },
     "dashboard": {
@@ -93,7 +101,8 @@
             "title": "Des opportunités à partager ?",
             "subtitle": "Contactez-nous si vous avez des bourses, des emplois ou des programmes à partager avec notre communauté",
             "action": "Nous contacter"
-        }
+        },
+        "subtitleEmpty": "Rien de suivi pour l’instant"
     },
     "detail": {
         "title": "Détails de l'objectif",
@@ -160,14 +169,15 @@
         }
     },
     "allRoadmaps": {
-        "title": "Objectifs de parcours",
+        "title": "Mes plans",
         "goalCount_one": "{{count}} objectif",
         "goalCount_other": "{{count}} objectifs",
         "otherGroup": "Autre",
         "empty": {
-            "title": "Aucun objectif de parcours",
-            "searchHint": "Essayez d'ajuster votre recherche",
-            "description": "Importez des objectifs depuis un parcours pour les voir ici"
+            "title": "Aucun plan pour l'instant",
+            "searchHint": "Essayez une autre recherche",
+            "description": "Démarrez un parcours et ses étapes apparaîtront ici avec leurs dates.",
+            "action": "Voir les parcours"
         }
     },
     "myList": {
@@ -318,7 +328,26 @@
             "placeholder": "Qu'avez-vous aimé ou que pourrait-on améliorer ?",
             "submit": "Envoyer mon avis",
             "thanksTitle": "Merci !",
-            "thanksMessage": "Votre avis nous aide à améliorer les parcours pour tout le monde."
+            "thanksMessage": "Votre avis nous aide à améliorer les parcours pour tout le monde.",
+            "failedTitle": "Impossible d'enregistrer votre note"
+        },
+        "started": "Commencé",
+        "notRatedYet": "Pas encore noté",
+        "emptyTitle": "Rien ici pour l'instant",
+        "clearFilters": "Effacer les filtres",
+        "continueButton": "Continuer ce parcours",
+        "startHint_one": "Ajoute {{count}} étape clé à vos objectifs et programme des rappels.",
+        "startHint_other": "Ajoute {{count}} étapes clés à vos objectifs et programme des rappels.",
+        "progressLabel": "{{completed}} sur {{total}} étapes terminées",
+        "adopted": {
+            "progress": "Dans votre plan : {{completed}} sur {{total}} étapes terminées.",
+            "inPlan": "Ce parcours est déjà dans votre plan."
+        },
+        "a11y": {
+            "card": "{{title}}, parcours de niveau {{difficulty}}",
+            "cardStarted": "{{title}}, commencé, {{completed}} sur {{total}} étapes terminées",
+            "cardHint": "Ouvre les détails du parcours",
+            "close": "Fermer"
         }
     },
     "templates": {
@@ -356,7 +385,23 @@
         "stepPlan": "Plan en {{count}} étapes",
         "allLevels": "Tous niveaux",
         "defaultCadence": "Rappels de jalons programmés à partir de votre date de début.",
-        "resourceFallback": "Ressource"
+        "resourceFallback": "Ressource",
+        "previewNotice": "Parcours d'exemple affichés : Edutu est injoignable. Tirez pour charger la bibliothèque réelle.",
+        "previewOnlyTitle": "Parcours d'exemple",
+        "previewOnlyMessage": "C'est un aperçu hors ligne, il n'y a donc rien à démarrer. Voir les parcours réels ?",
+        "browseRoadmaps": "Voir les parcours",
+        "searchPlaceholder": "Rechercher parcours, auteurs…",
+        "clearSearch": "Effacer la recherche",
+        "emptyTitle": "Aucun parcours ne correspond",
+        "emptyMessage": "Essayez une autre recherche ou catégorie.",
+        "clearFilters": "Effacer les filtres",
+        "remindersOn": "Rappels activés",
+        "remindersOnA11y": "Rappels activés, {{count}} programmés. Touchez pour désactiver.",
+        "remindersOnTitle": "Rappels activés",
+        "remindersOnMessage": "{{count}} rappels d'étapes sont programmés pour ce parcours.",
+        "turnOffReminders": "Désactiver",
+        "remindersCancelledTitle": "Rappels désactivés",
+        "remindersCancelledMessage": "Nous ne vous relancerons plus pour ce parcours."
     },
     "calendar": {
         "title": "Mon calendrier",
@@ -415,5 +460,17 @@
         "today": "AUJOURD'HUI",
         "milestoneDone": "{{title}}, terminé",
         "removeMilestone": "Retirer {{title}}"
+    },
+    "a11y": {
+        "addGoal": "Ajouter un objectif",
+        "clearSearch": "Effacer la recherche",
+        "openFilters": "Filtrer les objectifs",
+        "completeGoal": "Marquer « {{title}} » comme terminé",
+        "reopenGoal": "Rouvrir « {{title}} »",
+        "deleteGoal": "Supprimer « {{title}} »",
+        "toggleReminder": "Activer ou désactiver le rappel de « {{title}} »",
+        "statusTab_one": "{{label}}, {{count}} objectif",
+        "statusTab_other": "{{label}}, {{count}} objectifs",
+        "openSort": "Changer le tri"
     }
 }

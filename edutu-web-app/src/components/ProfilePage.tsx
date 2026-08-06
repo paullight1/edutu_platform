@@ -595,7 +595,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => navigate("/saved")}
-                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                      className="text-2xs font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
                     >
                       Saved
                     </button>
@@ -604,7 +604,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => navigate("/applications")}
-                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                      className="text-2xs font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
                     >
                       Applied
                     </button>
@@ -625,7 +625,7 @@ export default function ProfilePage() {
                       <p className="truncate text-xs font-medium transition-colors group-hover:text-brand">
                         {item.title}
                       </p>
-                      <p className="text-[10px] font-medium text-text-muted">
+                      <p className="text-2xs font-medium text-text-muted">
                         {item.date}
                       </p>
                     </div>
@@ -633,7 +633,7 @@ export default function ProfilePage() {
                 ))}
               </div>
 
-              <div className="mt-5 flex items-center justify-between border-t border-subtle pt-4 text-[10px] font-medium tracking-widest text-text-muted">
+              <div className="mt-5 flex items-center justify-between border-t border-subtle pt-4 text-2xs font-medium tracking-widest text-text-muted">
                 <span>Saved {profileStats.saved ?? 0}</span>
                 <span>Applications {profileStats.applications ?? 0}</span>
               </div>

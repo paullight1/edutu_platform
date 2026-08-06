@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ShieldCheck } from 'lucide-react';
+import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 
@@ -18,13 +19,16 @@ interface LegalDocPageProps {
     lastUpdated: string;
     intro: string;
     sections: LegalSection[];
+    /** Route path, used to resolve prerendered SEO metadata + hero OG image. */
+    seoPath: string;
 }
 
-const LegalDocPage: React.FC<LegalDocPageProps> = ({ eyebrow, title, lastUpdated, intro, sections }) => {
+const LegalDocPage: React.FC<LegalDocPageProps> = ({ eyebrow, title, lastUpdated, intro, sections, seoPath }) => {
     const reduceMotion = useReducedMotion();
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
+            <PageSeo path={seoPath} />
             <PublicHeader />
 
             <main className="relative z-10">
@@ -37,7 +41,7 @@ const LegalDocPage: React.FC<LegalDocPageProps> = ({ eyebrow, title, lastUpdated
                             className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5"
                         >
                             <ShieldCheck size={14} className="text-brand" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">{eyebrow}</span>
+                            <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">{eyebrow}</span>
                         </motion.div>
                         <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-text-primary sm:text-5xl">
                             {title}

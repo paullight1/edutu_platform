@@ -36,3 +36,4 @@
 render.backend.env
 .vercel
 .env*
+.superpowers/

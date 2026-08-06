@@ -1,22 +1,24 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bookmark, BookmarkCheck, ExternalLink, Lock } from 'lucide-react-native';
+import { ExternalLink, Lock, Zap } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
+import { accentGradient } from '../../lib/themeGradient';
 
 type StickyApplyBarProps = {
   visible: boolean;
   label: string;
-  closed: boolean;
-  saved: boolean;
-  saveBusy: boolean;
-  saveLabel: string;
+  /**
+   * Which action the label actually performs. The bar used to draw an
+   * external-link glyph unconditionally, so "Apply with Edutu AI" — an
+   * in-app route — promised to hand the user off to someone else's website.
+   */
+  kind: 'apply' | 'copilot' | 'closed';
   onPress: () => void;
-  onToggleSave: () => void;
 };
 
 /**
@@ -25,21 +27,18 @@ type StickyApplyBarProps = {
  * page. The floating bottom-nav pill is not rendered on this route (the
  * (app) layout classes `/opportunities/{id}` as a subpage), so the bar owns
  * the safe area outright — but it still pads for the home indicator.
+ *
+ * Deliberately ONE control. It carried a save button too, which made three
+ * bookmark toggles for one boolean (header, footer, here) — and the header's
+ * never scrolls away, so the extra copies bought nothing but ambiguity.
  */
-export function StickyApplyBar({
-  visible,
-  label,
-  closed,
-  saved,
-  saveBusy,
-  saveLabel,
-  onPress,
-  onToggleSave,
-}: StickyApplyBarProps) {
+export function StickyApplyBar({ visible, label, kind, onPress }: StickyApplyBarProps) {
   const { colors, isDark, reducedMotion } = useTheme();
   const insets = useSafeAreaInsets();
 
   if (!visible) return null;
+
+  const closed = kind === 'closed';
 
   return (
     <Animated.View
@@ -75,7 +74,11 @@ export function StickyApplyBar({
           style={[styles.primary, closed && styles.primaryClosed]}
         >
           <LinearGradient
-            colors={closed ? ['#64748B', '#475569'] : [colors.accent, '#4331C9']}
+            // Closed keeps a neutral slate ramp (the action is unavailable, so
+            // it must not wear the brand). Live uses a ramp of the user's own
+            // theme accent rather than the old accent→#4331C9, which forced
+            // every palette through the same indigo-violet.
+            colors={closed ? ['#64748B', '#475569'] : accentGradient(colors.accent)}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
@@ -83,6 +86,8 @@ export function StickyApplyBar({
           <View style={styles.primaryInner}>
             {closed ? (
               <Lock size={17} color="#FFFFFF" />
+            ) : kind === 'copilot' ? (
+              <Zap size={17} color="#FFFFFF" />
             ) : (
               <ExternalLink size={17} color="#FFFFFF" />
             )}
@@ -90,30 +95,6 @@ export function StickyApplyBar({
               {label}
             </Text>
           </View>
-        </AnimatedPressable>
-
-        <AnimatedPressable
-          onPress={onToggleSave}
-          disabled={saveBusy}
-          scaleTo={0.94}
-          accessibilityRole="button"
-          accessibilityState={{ selected: saved, busy: saveBusy }}
-          accessibilityLabel={saveLabel}
-          style={[
-            styles.saveBtn,
-            {
-              borderColor: saved ? colors.accent : colors.border,
-              backgroundColor: saved ? `${colors.accent}1F` : 'transparent',
-            },
-          ]}
-        >
-          {saveBusy ? (
-            <ActivityIndicator size="small" color={colors.accent} />
-          ) : saved ? (
-            <BookmarkCheck size={20} color={colors.accent} />
-          ) : (
-            <Bookmark size={20} color={colors.foreground} />
-          )}
         </AnimatedPressable>
       </View>
     </Animated.View>
@@ -147,13 +128,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  saveBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

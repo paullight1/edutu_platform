@@ -13,6 +13,7 @@ export type AiFeature =
   | "opportunities.enhance"
   | "opportunities.extract"
   | "opportunities.rerank"
+  | "opportunities.share_enrich"
   | "embeddings.opportunity"
   | "embeddings.profile"
   | "embeddings.query"

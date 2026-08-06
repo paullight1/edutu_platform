@@ -296,7 +296,11 @@
             "statMentors": "Mentors",
             "statRevenue": "Revenue",
             "info": "Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.",
-            "getStarted": "Get Started"
+            "getStarted": "Get Started",
+            "freeValue": "Free",
+            "statFree": "No cost to apply",
+            "reviewValue": "2–3 days",
+            "statReview": "Application review"
         },
         "motivation": {
             "title": "What motivates you?",

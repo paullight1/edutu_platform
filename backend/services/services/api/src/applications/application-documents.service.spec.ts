@@ -1,8 +1,26 @@
+import { Test } from "@nestjs/testing";
 import {
   ApplicationDocumentsService,
   deriveMissingRoles,
   REQUIRED_ROLES,
 } from "./application-documents.service";
+import { ApplicationDocumentsModule } from "./application-documents.module";
+
+jest.mock("@supabase/supabase-js", () => ({
+  createClient: jest.fn(() => ({})),
+}));
+
+describe("ApplicationDocumentsModule", () => {
+  it("compiles without an explicit supabase client provider", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [ApplicationDocumentsModule],
+    }).compile();
+
+    expect(moduleRef.get(ApplicationDocumentsService)).toBeInstanceOf(
+      ApplicationDocumentsService,
+    );
+  });
+});
 
 describe("deriveMissingRoles", () => {
   it("reports required roles that have no submitted/draft doc", () => {

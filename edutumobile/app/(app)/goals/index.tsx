@@ -29,9 +29,9 @@ import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../components/context/ThemeContext';
+import { StateView } from '../../../components/state';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { supabase } from '../../../lib/supabase';
-import { notificationService } from '../../../lib/notifications';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
 import { useToast } from '../../../components/context/ToastContext';
@@ -52,31 +52,49 @@ const CARD_GAP = 10;
 const GRID_ITEM_WIDTH = (width - 44) / 2;
 
 // ─── Slim Stat Card ──────────────────────────────────────────────────────────
+// `unit` exists because "Completion 33" next to "Active 1" reads as a count of
+// 33 goals. A rate needs its symbol attached to the number.
 function SlimStatCard({
     title,
     value,
+    unit,
     color,
     icon: Icon,
     onPress,
+    selected = false,
 }: {
     title: string;
     value: number;
+    unit?: string;
     color: string;
     icon: any;
     onPress?: () => void;
+    selected?: boolean;
 }) {
     const { isDark } = useTheme();
     return (
         <TouchableOpacity
             onPress={onPress}
-            activeOpacity={0.85}
-            style={[styles.slimStatCard, { backgroundColor: `${color}12`, borderColor: `${color}25` }]}
+            // Only the filter cards are pressable; the read-outs must not fake
+            // an affordance they don't have.
+            disabled={!onPress}
+            activeOpacity={onPress ? 0.85 : 1}
+            accessibilityRole={onPress ? 'button' : 'text'}
+            accessibilityState={onPress ? { selected } : undefined}
+            accessibilityLabel={`${value}${unit ?? ''} ${title}`}
+            style={[
+                styles.slimStatCard,
+                { backgroundColor: `${color}12`, borderColor: selected ? color : `${color}25` },
+                selected && styles.slimStatCardSelected,
+            ]}
         >
             <View style={[styles.statIconCircle, { backgroundColor: `${color}20` }]}>
                 <Icon size={18} color={color} />
             </View>
             <View style={styles.statInfo}>
-                <Text style={[styles.statVal, { color: isDark ? '#f8fafc' : '#0f172a' }]}>{value}</Text>
+                <Text style={[styles.statVal, { color: isDark ? '#f8fafc' : '#0f172a' }]}>
+                    {value}{unit}
+                </Text>
                 <Text style={[styles.statLab, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>{title}</Text>
             </View>
         </TouchableOpacity>
@@ -84,41 +102,6 @@ function SlimStatCard({
 }
 
 // ─── Empty Section Placeholder ───────────────────────────────────────────────
-function EmptySection({
-    title,
-    description,
-    icon: Icon,
-    color,
-    actionLabel,
-    onAction,
-}: {
-    title: string;
-    description: string;
-    icon: any;
-    color: string;
-    actionLabel?: string;
-    onAction?: () => void;
-}) {
-    const { isDark } = useTheme();
-    return (
-        <View style={[styles.emptyBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc' }]}>
-            <View style={[styles.emptyIconCircle, { backgroundColor: `${color}12` }]}>
-                <Icon size={28} color={color} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: isDark ? '#f8fafc' : '#1e293b' }]}>{title}</Text>
-            <Text style={[styles.emptyDesc, { color: isDark ? '#94a3b8' : '#64748b' }]}>{description}</Text>
-            {actionLabel && onAction && (
-                <TouchableOpacity
-                    onPress={onAction}
-                    style={[styles.emptyActionBtn, { backgroundColor: `${color}15` }]}
-                >
-                    <Text style={[styles.emptyActionText, { color }]}>{actionLabel}</Text>
-                </TouchableOpacity>
-            )}
-        </View>
-    );
-}
-
 // ─── My Opportunities Card ───────────────────────────────────────────────────
 function MyOpportunitiesCard({ count, urgentCount }: { count: number; urgentCount: number }) {
     const router = useRouter();
@@ -246,33 +229,12 @@ export default function GoalsDashboard() {
     const router = useRouter();
     const { t } = useTranslation('goals');
 
-    const { goals, updateGoal, deleteGoal } = useGoals(supabase, user?.id || null, {
-        onGoalCreated: async (goal) => {
-            if (goal.deadline) {
-                const nid = await notificationService.scheduleGoalReminder(goal.id, goal.title, goal.deadline);
-                if (nid) {
-                    await updateGoal(goal.id, { notification_id: nid });
-                }
-            }
-        },
-        onGoalUpdated: async (goal) => {
-            if (goal.notification_id) {
-                await notificationService.cancelNotification(goal.notification_id);
-            }
-            if (goal.status === 'active' && goal.deadline) {
-                const nid = await notificationService.scheduleGoalReminder(goal.id, goal.title, goal.deadline);
-                if (nid) {
-                    await updateGoal(goal.id, { notification_id: nid });
-                }
-            }
-        },
-        onGoalDeleted: async (id) => {
-            const goal = goals.find(g => g.id === id);
-            if (goal?.notification_id) {
-                await notificationService.cancelNotification(goal.notification_id);
-            }
-        }
-    });
+    // No local reminder scheduling here. The backend owns goal reminders
+    // (7/3/1/0 days before the deadline, in the user's timezone, honoring their
+    // notification preferences and quiet hours) and keeps them across
+    // reinstalls, so scheduling a second local series on create/update only
+    // produced duplicate notifications on the overlapping days.
+    const { goals, updateGoal, deleteGoal } = useGoals(supabase, user?.id || null);
 
     const { show: showToast } = useToast();
     const { award } = useCreditRewards(supabase, user?.id || null, {
@@ -360,8 +322,10 @@ export default function GoalsDashboard() {
 
     const getDaysUntil = useCallback((deadline: string | null | undefined): number => {
         if (!deadline) return 0;
-        return Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    }, []);
+        // Off the same mount snapshot the rest of the screen uses, so two
+        // badges rendered a second apart can't disagree about "1d left".
+        return Math.ceil((new Date(deadline).getTime() - nowTs) / (1000 * 60 * 60 * 24));
+    }, [nowTs]);
 
     const { filteredGoals } = useFilteredGoals({
         goals,
@@ -380,6 +344,11 @@ export default function GoalsDashboard() {
         total: goals.length,
     }), [goals]);
 
+    // A search or a filter that returns nothing is a different situation from
+    // an empty account, and it needs a different sentence. Without this the
+    // dashboard told users with 20 goals that they had none.
+    const isNarrowed = searchTerm.length > 0 || statusFilter !== 'all';
+
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         await loadBookmarks();
@@ -388,6 +357,11 @@ export default function GoalsDashboard() {
 
     const handleShareBannerDismiss = useCallback(() => {
         setDismissedBanner(true);
+    }, []);
+
+    const clearNarrowing = useCallback(() => {
+        setSearchTerm('');
+        setStatusFilter('all');
     }, []);
 
     const SHARE_OPPORTUNITIES_BANNER: BannerConfig = {
@@ -400,10 +374,10 @@ export default function GoalsDashboard() {
         route: '/help',
     };
 
-    const filterOptions: { label: string; value: GoalStatusFilter; icon: any }[] = [
-        { label: t('filter.allGoals'), value: 'all', icon: Award },
-        { label: t('filter.active'), value: 'active', icon: Target },
-        { label: t('filter.completed'), value: 'completed', icon: CheckCircle2 },
+    const filterOptions: { label: string; value: GoalStatusFilter; icon: any; count: number }[] = [
+        { label: t('filter.allGoals'), value: 'all', icon: Award, count: stats.total },
+        { label: t('filter.active'), value: 'active', icon: Target, count: stats.active },
+        { label: t('filter.completed'), value: 'completed', icon: CheckCircle2, count: stats.completed },
     ];
 
     const textPrimary = colors.foreground;
@@ -418,7 +392,9 @@ export default function GoalsDashboard() {
             <ScreenHeader
                 title={t('dashboard.title')}
                 showBack
-                subtitle={t('dashboard.subtitle', { active: stats.active, rate: completionRate })}
+                subtitle={stats.total === 0
+                    ? t('dashboard.subtitleEmpty')
+                    : t('dashboard.subtitle', { active: stats.active, rate: completionRate })}
             />
 
             <ScrollView
@@ -441,6 +417,7 @@ export default function GoalsDashboard() {
                             value={stats.active}
                             color="#3b82f6"
                             icon={Target}
+                            selected={statusFilter === 'active'}
                             onPress={() => { setStatusFilter(statusFilter === 'active' ? 'all' : 'active'); }}
                         />
                         <SlimStatCard
@@ -448,6 +425,7 @@ export default function GoalsDashboard() {
                             value={stats.completed}
                             color="#10b981"
                             icon={CheckCircle2}
+                            selected={statusFilter === 'completed'}
                             onPress={() => { setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed'); }}
                         />
                     </View>
@@ -457,10 +435,12 @@ export default function GoalsDashboard() {
                             value={stats.roadmap}
                             color="#f59e0b"
                             icon={Map}
+                            onPress={() => router.push('/goals/all-roadmaps')}
                         />
                         <SlimStatCard
                             title={t('stats.completion')}
                             value={completionRate}
+                            unit="%"
                             color={colors.accent}
                             icon={TrendingUp}
                         />
@@ -471,9 +451,9 @@ export default function GoalsDashboard() {
                 <MyOpportunitiesCard
                     count={bookmarkedOpps.length}
                     urgentCount={bookmarkedOpps.filter(o => {
-                        if (!o.closeDate) return 0;
+                        if (!o.closeDate) return false;
                         const days = Math.ceil((new Date(o.closeDate).getTime() - nowTs) / (1000 * 60 * 60 * 24));
-                        return days <= 7 && days >= 0 ? 1 : 0;
+                        return days <= 7 && days >= 0;
                     }).length}
                 />
 
@@ -509,14 +489,21 @@ export default function GoalsDashboard() {
                         onBlur={() => setIsSearchFocused(false)}
                     />
                     {searchTerm.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchTerm('')} style={styles.clearBtn}>
-                            <X size={16} color={textSecondary} />
+                        <TouchableOpacity
+                            onPress={() => setSearchTerm('')}
+                            style={styles.clearBtn}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('a11y.clearSearch')}
+                        >
+                            <X size={18} color={textSecondary} />
                         </TouchableOpacity>
                     )}
                     <View style={[styles.vDivider, { backgroundColor: divider }]} />
                     <TouchableOpacity
                         onPress={() => setShowFilterMenu(true)}
                         style={styles.filterTrigger}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('a11y.openFilters')}
                     >
                         <Filter size={18} color={statusFilter !== 'all' ? colors.accent : textSecondary} />
                         {statusFilter !== 'all' && (
@@ -531,14 +518,37 @@ export default function GoalsDashboard() {
                         <Text style={[styles.activeFilterText, { color: colors.accent }]}>
                             {t('filter.activeLabel', { label: filterOptions.find(f => f.value === statusFilter)?.label })}
                         </Text>
-                        <TouchableOpacity onPress={() => setStatusFilter('all')}>
+                        <TouchableOpacity
+                            onPress={() => setStatusFilter('all')}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('filter.clear')}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
                             <Text style={[styles.clearFilterText, { color: textSecondary }]}>{t('filter.clear')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
+                {/* ── One "nothing matches" block, not one per section ── */}
+                {isNarrowed && filteredGoals.length === 0 && (
+                    <View style={styles.section}>
+                        <StateView
+                            state={{ kind: 'empty', reason: 'filtered' }}
+                            flow="goals"
+                            fill={false}
+                            sceneSize={150}
+                            title={t('empty.noMatch.title')}
+                            body={t('empty.noMatch.description')}
+                            actionLabel={t('empty.noMatch.action')}
+                            onAction={clearNarrowing}
+                        />
+                    </View>
+                )}
+
                 {/* ── Roadmap Section ── */}
-                {(searchTerm || statusFilter === 'all' || roadmapGoals.length > 0) && (
+                {/* Hidden while narrowed-and-empty: the other section holds the
+                    hits, and repeating "nothing matches" twice reads as broken. */}
+                {(roadmapGoals.length > 0 || !isNarrowed) && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
@@ -550,34 +560,43 @@ export default function GoalsDashboard() {
                                     </View>
                                 )}
                             </View>
-                            <TouchableOpacity onPress={() => router.push('/goals/all-roadmaps')}>
+                            <TouchableOpacity
+                                onPress={() => router.push('/goals/all-roadmaps')}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('viewAll')}
+                            >
                                 <Text style={[styles.viewMore, { color: colors.accent }]}>{t('viewAll')}</Text>
                             </TouchableOpacity>
                         </View>
 
                         {roadmapGoals.length > 0 ? (
-                            <View style={styles.grid}>
-                                {roadmapGoals.slice(0, 4).map((goal) => (
-                                    <View key={goal.id} style={{ width: GRID_ITEM_WIDTH }}>
-                                        <GoalCard goal={goal} compact getDaysUntil={getDaysUntil} />
-                                    </View>
-                                ))}
-                            </View>
+                            <>
+                                <Text style={[styles.sectionHint, { color: textSecondary }]}>{t('sections.roadmapsHint')}</Text>
+                                <View style={styles.grid}>
+                                    {roadmapGoals.slice(0, 4).map((goal) => (
+                                        <View key={goal.id} style={{ width: GRID_ITEM_WIDTH }}>
+                                            <GoalCard goal={goal} compact getDaysUntil={getDaysUntil} />
+                                        </View>
+                                    ))}
+                                </View>
+                            </>
                         ) : (
-                            <EmptySection
-                                icon={Map}
-                                color="#f59e0b"
+                            <StateView
+                                state={{ kind: 'empty', reason: 'firstRun' }}
+                                flow="goals"
+                                fill={false}
+                                sceneSize={150}
                                 title={t('empty.noRoadmaps.title')}
-                                description={t('empty.noRoadmaps.description')}
+                                body={t('empty.noRoadmaps.description')}
                                 actionLabel={t('empty.noRoadmaps.action')}
-                                onAction={() => router.push('/goals/all-roadmaps')}
+                                onAction={() => router.push('/roadmaps')}
                             />
                         )}
                     </View>
                 )}
 
                 {/* ── My Personal Goals Section ── */}
-                {(searchTerm || statusFilter === 'all' || personalGoals.length > 0) && (
+                {(personalGoals.length > 0 || !isNarrowed) && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
@@ -589,31 +608,40 @@ export default function GoalsDashboard() {
                                     </View>
                                 )}
                             </View>
-                            <TouchableOpacity onPress={() => router.push('/goals/my-list')}>
+                            <TouchableOpacity
+                                onPress={() => router.push('/goals/my-list')}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('viewAll')}
+                            >
                                 <Text style={[styles.viewMore, { color: colors.accent }]}>{t('viewAll')}</Text>
                             </TouchableOpacity>
                         </View>
 
                         {personalGoals.length > 0 ? (
-                            <View style={styles.listContainer}>
-                                {personalGoals.slice(0, 3).map((goal) => (
-                                    <GoalCard
-                                        key={goal.id}
-                                        goal={goal}
-                                        onComplete={handleCompleteGoal}
-                                        onReopen={async (id) => updateGoal(id, { status: 'active', progress: 0 })}
-                                        onDelete={deleteGoal as any}
-                                        getDaysUntil={getDaysUntil}
-                                    />
-                                ))}
-                            </View>
+                            <>
+                                <Text style={[styles.sectionHint, { color: textSecondary }]}>{t('sections.personalGoalsHint')}</Text>
+                                <View style={styles.listContainer}>
+                                    {personalGoals.slice(0, 3).map((goal) => (
+                                        <GoalCard
+                                            key={goal.id}
+                                            goal={goal}
+                                            onComplete={handleCompleteGoal}
+                                            onReopen={async (id) => updateGoal(id, { status: 'active', progress: 0 })}
+                                            onDelete={deleteGoal as any}
+                                            getDaysUntil={getDaysUntil}
+                                        />
+                                    ))}
+                                </View>
+                            </>
                         ) : (
-                            <EmptySection
-                                icon={Target}
-                                color={colors.accent}
+                            <StateView
+                                state={{ kind: 'empty', reason: 'firstRun' }}
+                                flow="goals"
+                                fill={false}
+                                sceneSize={150}
                                 title={t('empty.noPersonalGoals.title')}
-                                description={t('empty.noPersonalGoals.description')}
-                                actionLabel={t('createGoal')}
+                                body={t('empty.noPersonalGoals.description')}
+                                actionLabel={t('empty.noPersonalGoals.action')}
                                 onAction={() => router.push('/goals/add')}
                             />
                         )}
@@ -629,57 +657,79 @@ export default function GoalsDashboard() {
                     </View>
                 )}
 
-                {/* ── Floating Filter Menu ── */}
-                <Modal
-                    visible={showFilterMenu}
-                    transparent
-                    animationType="fade"
-                    onRequestClose={() => setShowFilterMenu(false)}
-                >
-                    <Pressable
-                        style={styles.modalOverlay}
-                        onPress={() => setShowFilterMenu(false)}
-                    >
-                        <View style={[styles.filterMenu, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
-                            <View style={styles.filterMenuHeader}>
-                                <Text style={[styles.menuTitle, { color: textPrimary }]}>{t('filter.byStatus')}</Text>
-                                {statusFilter !== 'all' && (
-                                    <TouchableOpacity onPress={() => { setStatusFilter('all'); setShowFilterMenu(false); }}>
-                                        <Text style={[styles.clearFilterBtn, { color: colors.accent }]}>{t('filter.clear')}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                            {filterOptions.map((opt) => {
-                                const isActive = statusFilter === opt.value;
-                                const Icon = opt.icon;
-                                return (
-                                    <TouchableOpacity
-                                        key={opt.value}
-                                        style={[styles.menuItem, isActive && { backgroundColor: `${colors.accent}08` }]}
-                                        onPress={() => {
-                                            setStatusFilter(opt.value);
-                                            setShowFilterMenu(false);
-                                        }}
-                                    >
-                                        <View style={[styles.menuRadio, { borderColor: isActive ? colors.accent : textSecondary }]}>
-                                            {isActive && <View style={[styles.radioDot, { backgroundColor: colors.accent }]} />}
-                                        </View>
-                                        <Icon size={18} color={isActive ? colors.accent : textSecondary} style={{ marginRight: 10 }} />
-                                        <Text style={[styles.menuLabel, { color: isActive ? colors.accent : textPrimary }]}>
-                                            {opt.label}
-                                        </Text>
-                                        {isActive && (
-                                            <View style={styles.activeIndicator} />
-                                        )}
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </Pressable>
-                </Modal>
-
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            {/* ── Status Filter Menu ──
+                Lives outside the ScrollView: a Modal nested in scrollable
+                content inherits its layout pass for nothing and makes the
+                backdrop's hit area depend on the scroll offset. */}
+            <Modal
+                visible={showFilterMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowFilterMenu(false)}
+            >
+                <Pressable
+                    style={styles.modalOverlay}
+                    onPress={() => setShowFilterMenu(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common:actions.close')}
+                >
+                    {/* Stop the backdrop press from firing through the sheet. */}
+                    <Pressable
+                        onPress={(e) => e.stopPropagation()}
+                        style={[styles.filterMenu, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                    >
+                        <View style={styles.filterMenuHeader}>
+                            <Text style={[styles.menuTitle, { color: textPrimary }]}>{t('filter.byStatus')}</Text>
+                            {statusFilter !== 'all' && (
+                                <TouchableOpacity
+                                    onPress={() => { setStatusFilter('all'); setShowFilterMenu(false); }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('filter.clear')}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Text style={[styles.clearFilterBtn, { color: colors.accent }]}>{t('filter.clear')}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {filterOptions.map((opt) => {
+                            const isActive = statusFilter === opt.value;
+                            const Icon = opt.icon;
+                            return (
+                                <TouchableOpacity
+                                    key={opt.value}
+                                    style={[styles.menuItem, isActive && { backgroundColor: `${colors.accent}12` }]}
+                                    onPress={() => {
+                                        setStatusFilter(opt.value);
+                                        setShowFilterMenu(false);
+                                    }}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: isActive }}
+                                    accessibilityLabel={t('a11y.statusTab', { label: opt.label, count: opt.count })}
+                                >
+                                    <View style={[styles.menuRadio, { borderColor: isActive ? colors.accent : textSecondary }]}>
+                                        {isActive && <View style={[styles.radioDot, { backgroundColor: colors.accent }]} />}
+                                    </View>
+                                    <Icon size={20} color={isActive ? colors.accent : textSecondary} style={{ marginRight: 12 }} />
+                                    <Text style={[styles.menuLabel, { color: isActive ? colors.accent : textPrimary }]}>
+                                        {opt.label}
+                                    </Text>
+                                    <View style={[
+                                        styles.menuCount,
+                                        { backgroundColor: isActive ? `${colors.accent}1F` : (isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9') },
+                                    ]}>
+                                        <Text style={[styles.menuCountText, { color: isActive ? colors.accent : textSecondary }]}>
+                                            {opt.count}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </Pressable>
+                </Pressable>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -763,11 +813,14 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 80,
         borderRadius: 16,
+        borderCurve: 'continuous',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         borderWidth: 1,
     },
+    // Selection is a state, so it gets the accent border at full weight.
+    slimStatCardSelected: { borderWidth: 2 },
     statIconCircle: {
         width: 36,
         height: 36,
@@ -777,8 +830,10 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     statInfo: { flex: 1 },
-    statVal: { fontSize: 18, fontWeight: 'bold' },
-    statLab: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },
+    statVal: { fontSize: 20, fontWeight: '800' },
+    // 11pt is the scale's floor; 10pt uppercase was below it and unreadable
+    // on the darker packs.
+    statLab: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
 
     // Integrated Search Bar
     searchBar: {
@@ -791,9 +846,9 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     searchInput: { flex: 1, fontSize: 14, height: '100%' },
-    clearBtn: { padding: 6, marginRight: 4 },
-    vDivider: { width: 1, height: 24, marginHorizontal: 12 },
-    filterTrigger: { paddingHorizontal: 4, position: 'relative' },
+    clearBtn: { padding: 8, marginRight: 2 },
+    vDivider: { width: 1, height: 24, marginHorizontal: 10 },
+    filterTrigger: { paddingHorizontal: 8, paddingVertical: 10, position: 'relative' },
     filterDot: {
         position: 'absolute',
         top: -4,
@@ -828,8 +883,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
-    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    sectionTitle: { fontSize: 17, fontWeight: '700' },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 12 },
+    sectionTitle: { fontSize: 17, fontWeight: '700', flexShrink: 1 },
+    // One line telling you where these rows came from — the two sections were
+    // otherwise indistinguishable apart from an icon tint.
+    sectionHint: { fontSize: 13, lineHeight: 18, marginTop: -6, marginBottom: 14 },
     sectionCount: {
         paddingHorizontal: 8,
         paddingVertical: 2,
@@ -856,34 +914,6 @@ const styles = StyleSheet.create({
     },
 
     // Empty State for sections
-    emptyBox: {
-        borderRadius: 20,
-        padding: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
-        borderStyle: 'dashed',
-    },
-    emptyIconCircle: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 16,
-    },
-    emptyTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
-    emptyDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
-    emptyActionBtn: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 10,
-    },
-    emptyActionText: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
 
     // Modal / Filter Menu
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
@@ -903,25 +933,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
     },
-    menuTitle: { fontSize: 18, fontWeight: 'bold' },
-    clearFilterBtn: { fontSize: 14, fontWeight: '600' },
+    menuTitle: { fontSize: 18, fontWeight: '700' },
+    clearFilterBtn: { fontSize: 15, fontWeight: '600' },
+    // 60pt rows with 17pt labels: the old 40pt / 16pt rows sat under the 44pt
+    // touch minimum and three of them read as one dense block.
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 12,
+        marginBottom: 8,
+        minHeight: 60,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderRadius: 16,
+        borderCurve: 'continuous',
     },
-    menuRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-    radioDot: { width: 10, height: 10, borderRadius: 5 },
-    menuLabel: { fontSize: 16, fontWeight: '500', flex: 1 },
-    activeIndicator: {
-        width: 4,
-        height: 20,
-        borderRadius: 2,
-        backgroundColor: '#6366f1',
+    menuRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, marginRight: 14, alignItems: 'center', justifyContent: 'center' },
+    radioDot: { width: 11, height: 11, borderRadius: 6 },
+    menuLabel: { fontSize: 17, fontWeight: '600', flex: 1 },
+    menuCount: {
+        minWidth: 30,
+        paddingHorizontal: 9,
+        paddingVertical: 3,
+        borderRadius: 999,
+        alignItems: 'center',
     },
+    menuCountText: { fontSize: 13, fontWeight: '700' },
 
     // My Opportunities Card
     myOppsCard: {
