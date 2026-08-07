@@ -134,6 +134,10 @@ export const notificationPushTokens = pgTable(
       table.userId,
       table.token,
     ),
+    uniqueIndex("notification_push_tokens_provider_token_unique").on(
+      table.provider,
+      table.token,
+    ),
   ],
 );
 
@@ -1653,6 +1657,8 @@ export const communityGroups = pgTable(
     visibility: text("visibility").default("public").notNull(),
     joinPolicy: text("join_policy").default("open").notNull(),
     coverEmoji: text("cover_emoji").default("💬").notNull(),
+    // Stable API-owned resource URL, never an ephemeral Supabase signed URL.
+    coverImageResourceUrl: text("cover_image_resource_url"),
     accent: text("accent"),
     expiresAt: timestamp("expires_at"),
     archivedAt: timestamp("archived_at"),
@@ -1690,6 +1696,154 @@ export const communityGroupMembers = pgTable(
   ],
 );
 
+export const communityGroupCalls = pgTable(
+  "community_group_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => communityGroups.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    status: text("status").notNull().default("scheduled"),
+    createdBy: text("created_by").notNull(),
+    startedBy: text("started_by"),
+    endedBy: text("ended_by"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    ringExpiresAt: timestamp("ring_expires_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    mediaNodeId: text("media_node_id"),
+    mediaRoomId: text("media_room_id"),
+    failureCode: text("failure_code"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("community_group_calls_one_live_idx")
+      .on(table.groupId)
+      .where(sql`${table.status} in ('starting', 'live')`),
+    index("community_group_calls_history_idx").on(
+      table.groupId,
+      table.scheduledFor.desc(),
+    ),
+    index("community_group_calls_lifecycle_idx").on(
+      table.status,
+      table.scheduledFor,
+    ),
+  ],
+);
+
+export const communityGroupCallParticipants = pgTable(
+  "community_group_call_participants",
+  {
+    callId: uuid("call_id")
+      .notNull()
+      .references(() => communityGroupCalls.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    roleAtStart: text("role_at_start").notNull(),
+    inviteStatus: text("invite_status").notNull().default("pending"),
+    firstNotifiedAt: timestamp("first_notified_at", { withTimezone: true }),
+    firstJoinedAt: timestamp("first_joined_at", { withTimezone: true }),
+    lastJoinedAt: timestamp("last_joined_at", { withTimezone: true }),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    joinReservationJti: text("join_reservation_jti"),
+    joinReservedUntil: timestamp("join_reserved_until", {
+      withTimezone: true,
+    }),
+    joinedCount: integer("joined_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.callId, table.userId] }),
+    index("community_group_call_participants_user_idx").on(
+      table.userId,
+      table.createdAt.desc(),
+    ),
+    index("community_group_call_participants_outcome_idx").on(
+      table.callId,
+      table.inviteStatus,
+    ),
+  ],
+);
+
+export const communityGroupCallEvents = pgTable(
+  "community_group_call_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    callId: uuid("call_id")
+      .notNull()
+      .references(() => communityGroupCalls.id, { onDelete: "cascade" }),
+    actorId: text("actor_id"),
+    type: text("type").notNull(),
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    idempotencyKey: text("idempotency_key"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("community_group_call_events_history_idx").on(
+      table.callId,
+      table.createdAt,
+      table.id,
+    ),
+    uniqueIndex("community_group_call_events_idempotency_idx")
+      .on(table.callId, table.type, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} is not null`),
+  ],
+);
+
+/**
+ * Transactional outbox for the initial ringing side effect. The row is
+ * inserted in the same transaction that moves a call to `live`, then claimed
+ * with a renewable database lease by any API replica.
+ */
+export const communityGroupCallRingJobs = pgTable(
+  "community_group_call_ring_jobs",
+  {
+    callId: uuid("call_id")
+      .primaryKey()
+      .references(() => communityGroupCalls.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseToken: uuid("lease_token"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("community_group_call_ring_jobs_due_idx").on(
+      table.status,
+      table.nextAttemptAt,
+      table.leaseExpiresAt,
+    ),
+  ],
+);
+
 export const communityGroupMessages = pgTable(
   "community_group_messages",
   {
@@ -1699,6 +1853,9 @@ export const communityGroupMessages = pgTable(
     body: text("body").notNull(),
     kind: text("kind").default("text").notNull(),
     opportunityId: uuid("opportunity_id"),
+    callId: uuid("call_id").references(() => communityGroupCalls.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),
     deletedBy: text("deleted_by"),
@@ -1708,6 +1865,9 @@ export const communityGroupMessages = pgTable(
       table.groupId,
       table.createdAt,
     ),
+    uniqueIndex("community_group_messages_call_idx")
+      .on(table.callId)
+      .where(sql`${table.callId} is not null`),
   ],
 );
 
@@ -1741,6 +1901,113 @@ export const communityReports = pgTable("community_reports", {
 export type CommunityGroup = typeof communityGroups.$inferSelect;
 export type CommunityGroupMember = typeof communityGroupMembers.$inferSelect;
 export type CommunityGroupMessage = typeof communityGroupMessages.$inferSelect;
+export type CommunityGroupCall = typeof communityGroupCalls.$inferSelect;
+export type CommunityGroupCallParticipant =
+  typeof communityGroupCallParticipants.$inferSelect;
+export type CommunityGroupCallEvent =
+  typeof communityGroupCallEvents.$inferSelect;
+export type CommunityGroupCallRingJob =
+  typeof communityGroupCallRingJobs.$inferSelect;
+
+// ── Private Community DMs ──────────────────────────────────────────────────
+// These ids are raw Clerk subjects for the same reason as the group discussion
+// tables above. Conversations use a canonical participant ordering so one pair
+// can have at most one relationship, while participant rows keep read/hidden
+// inbox state private to each person.
+export const communityDmConversations = pgTable(
+  "community_dm_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    participantA: text("participant_a").notNull(),
+    participantB: text("participant_b").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("community_dm_conversations_pair_unique").on(
+      table.participantA,
+      table.participantB,
+    ),
+    index("community_dm_conversations_a_activity_idx").on(
+      table.participantA,
+      table.lastMessageAt,
+    ),
+    index("community_dm_conversations_b_activity_idx").on(
+      table.participantB,
+      table.lastMessageAt,
+    ),
+  ],
+);
+
+export const communityDmParticipants = pgTable(
+  "community_dm_participants",
+  {
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communityDmConversations.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.conversationId, table.userId] }),
+    index("community_dm_participants_user_inbox_idx").on(
+      table.userId,
+      table.hiddenAt,
+    ),
+  ],
+);
+
+export const communityDmMessages = pgTable(
+  "community_dm_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communityDmConversations.id, { onDelete: "cascade" }),
+    senderId: text("sender_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("community_dm_messages_history_idx").on(
+      table.conversationId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export const communityDmBlocks = pgTable(
+  "community_dm_blocks",
+  {
+    blockerId: text("blocker_id").notNull(),
+    blockedUserId: text("blocked_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockerId, table.blockedUserId] }),
+    index("community_dm_blocks_blocked_idx").on(table.blockedUserId),
+  ],
+);
+
+export type CommunityDmConversation =
+  typeof communityDmConversations.$inferSelect;
+export type CommunityDmParticipant =
+  typeof communityDmParticipants.$inferSelect;
+export type CommunityDmMessage = typeof communityDmMessages.$inferSelect;
 /**
  * Proposed notifications awaiting scheduling (scheduler v2).
  *

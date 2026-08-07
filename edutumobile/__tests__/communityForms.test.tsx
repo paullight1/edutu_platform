@@ -26,6 +26,8 @@ const mockFetchGroup = jest.fn();
 const mockFetchGroupForm = jest.fn();
 const mockSaveGroupForm = jest.fn();
 const mockGetCachedOpportunity = jest.fn();
+const mockGetCachedOpportunitiesSnapshot = jest.fn();
+const mockFetchOpportunities = jest.fn();
 
 /** Route params are per-test, so the mock reads a mutable object. */
 let mockParams: Record<string, string> = {};
@@ -91,9 +93,11 @@ jest.mock('@edutu/core/src/services/communities', () => {
     saveGroupForm: (...args: unknown[]) => mockSaveGroupForm(...args),
   };
 });
-
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   getCachedOpportunity: (...args: unknown[]) => mockGetCachedOpportunity(...args),
+  getCachedOpportunitiesSnapshot: (...args: unknown[]) =>
+    mockGetCachedOpportunitiesSnapshot(...args),
+  fetchOpportunities: (...args: unknown[]) => mockFetchOpportunities(...args),
 }));
 
 import CreateGroupScreen from '../app/(app)/discussions/new';
@@ -147,6 +151,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {};
   mockGetCachedOpportunity.mockResolvedValue(null);
+  mockGetCachedOpportunitiesSnapshot.mockResolvedValue([]);
+  mockFetchOpportunities.mockResolvedValue([]);
   mockCreateGroup.mockResolvedValue(makeGroup({ id: 'g-new' }));
   mockUpdateGroup.mockResolvedValue(makeGroup());
   mockArchiveGroup.mockResolvedValue(makeGroup({ archivedAt: '2026-08-03T00:00:00.000Z' }));
@@ -237,6 +243,33 @@ describe('create group', () => {
 
     await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
     expect(mockCreateGroup.mock.calls[0][0].opportunityId).toBe('opp-1');
+  });
+
+  it('links only an existing opportunity selected from the real opportunity feed', async () => {
+    const opportunity = {
+      id: 'opp-chevening',
+      title: 'Chevening Scholarship',
+      organization: 'UK Government',
+    };
+    mockGetCachedOpportunitiesSnapshot.mockResolvedValue([opportunity]);
+    mockFetchOpportunities.mockResolvedValue([opportunity]);
+
+    const { getByTestId } = render(<CreateGroupScreen />);
+
+    fireEvent.press(getByTestId('create-group-opportunity-toggle'));
+    const result = await waitFor(() =>
+      getByTestId('create-group-opportunity-opp-chevening'),
+    );
+    fireEvent.press(result);
+    getByTestId('create-group-opportunity-selected');
+
+    fireEvent.changeText(getByTestId('create-group-name'), 'Chevening applicants');
+    fireEvent.press(getByTestId('create-group-submit'));
+
+    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
+    expect(mockCreateGroup.mock.calls[0][0].opportunityId).toBe(
+      'opp-chevening',
+    );
   });
 
   it("shows the server's sentence when the group cap is hit, never a status code", async () => {

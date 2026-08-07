@@ -121,6 +121,15 @@ serve(async (req) => {
 
     const { event: eventData } = event;
     const { data } = eventData;
+    const eventEnvironment = normalizeEnvironment(data.environment);
+    const expectedEnvironment = (Deno.env.get('REVENUECAT_EXPECTED_ENVIRONMENT') || 'production').toLowerCase();
+    const allowSandbox = Deno.env.get('REVENUECAT_ALLOW_SANDBOX') === 'true';
+    if (!eventEnvironment || (eventEnvironment !== expectedEnvironment && !(allowSandbox && eventEnvironment === 'sandbox'))) {
+      return new Response(JSON.stringify({ error: 'RevenueCat event environment is not accepted' }), {
+        status: 400,
+        headers: SECURITY_HEADERS,
+      });
+    }
     const userId = data.app_user_id;
 
     console.log('Received RevenueCat webhook event:', eventData.type, 'id:', eventData.id, 'for user:', userId);
@@ -352,6 +361,31 @@ async function handleSubscriptionExpired(
 ) {
   console.log(`Subscription expired for user ${userId}`);
 
+  // RevenueCat can deliver an old expiration after a renewal. Do not revoke
+  // the user's aggregate entitlement while another provider subscription or
+  // a newer entitlement is still active.
+  const now = new Date();
+  const [{ data: otherActive }, { data: currentEntitlement }] = await Promise.all([
+    supabaseAdmin
+      .from('billing_subscriptions')
+      .select('provider_subscription_id,current_period_end,status')
+      .eq('user_id', userId)
+      .eq('provider', 'revenuecat')
+      .eq('status', 'active')
+      .neq('provider_subscription_id', data.transaction_id),
+    supabaseAdmin
+      .from('billing_entitlements')
+      .select('status,expires_at')
+      .eq('user_id', userId)
+      .eq('feature_key', 'pro')
+      .maybeSingle(),
+  ]);
+  const hasOtherActiveSubscription = (otherActive ?? []).some((row) =>
+    row.current_period_end && new Date(row.current_period_end).getTime() > now.getTime(),
+  );
+  const entitlementStillActive = currentEntitlement?.status === 'active' &&
+    currentEntitlement.expires_at && new Date(currentEntitlement.expires_at).getTime() > now.getTime();
+
   // Update subscription record
   await supabaseAdmin
     .from('subscriptions')
@@ -361,11 +395,12 @@ async function handleSubscriptionExpired(
     })
     .eq('revenuecat_id', data.transaction_id);
 
-  // Sync pro status to false
-  await supabaseAdmin.rpc('sync_subscription_status', {
-    p_user_id: userId,
-    p_is_pro: false,
-  });
+  if (hasOtherActiveSubscription || entitlementStillActive) {
+    console.log(`Ignoring aggregate Pro revocation for superseded expiration ${data.transaction_id}`);
+    return;
+  }
+
+  await supabaseAdmin.rpc('sync_subscription_status', { p_user_id: userId, p_is_pro: false });
 
   await supabaseAdmin
     .from('billing_subscriptions')
@@ -417,27 +452,32 @@ async function handleOneTimePurchase(
       return;
     }
 
-    // Record the purchase FIRST. credit_purchases.transaction_id is uniquely
-    // indexed (migration 018), so a duplicate transaction — even one arriving
-    // under a different event id — fails here BEFORE any credits are granted.
+    // Claim the transaction before granting. A pending row remains retryable if
+    // the credit RPC fails; completed rows are the only rows treated as paid out.
     const { error: purchaseError } = await supabaseAdmin.from('credit_purchases').insert({
       user_id: userId,
       credits_purchased: credits,
-      credits_granted: credits,
-      amount_paid: data.price * 100, // Convert to cents
+      credits_granted: 0,
+      amount_paid: Math.round(data.price * 100), // Convert to minor units
       currency: data.currency,
       product_id: data.product_id,
       store: data.store,
       transaction_id: data.transaction_id,
-      status: 'completed',
-      granted_at: new Date().toISOString(),
+      status: 'pending',
+      granted_at: null,
     });
 
     if (purchaseError) {
       if (purchaseError.code === '23505') {
-        // This transaction was already fulfilled — do not grant again.
-        console.log(`Credit purchase already recorded, skipping grant: ${data.transaction_id}`);
-        return;
+        const { data: existingPurchase } = await supabaseAdmin
+          .from('credit_purchases')
+          .select('user_id,status,credits_granted')
+          .eq('transaction_id', data.transaction_id)
+          .maybeSingle();
+        if (existingPurchase && existingPurchase.user_id !== userId) {
+          throw new Error('RevenueCat transaction is already bound to another user');
+        }
+        if (existingPurchase?.status === 'completed') return;
       }
       throw new Error(`Failed to record credit purchase for ${userId}: ${purchaseError.message}`);
     }
@@ -453,6 +493,12 @@ async function handleOneTimePurchase(
       console.error('Failed to grant purchased credits:', creditError);
       throw new Error(`Credit grant failed for ${userId}: ${creditError.message}`);
     }
+
+    const { error: markCompleteError } = await supabaseAdmin
+      .from('credit_purchases')
+      .update({ credits_granted: credits, status: 'completed', granted_at: new Date().toISOString() })
+      .eq('transaction_id', data.transaction_id);
+    if (markCompleteError) throw new Error(`Failed to finalize credit purchase: ${markCompleteError.message}`);
 
     await supabaseAdmin.from('billing_transactions').upsert({
       user_id: userId,

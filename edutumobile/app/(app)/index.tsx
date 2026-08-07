@@ -64,7 +64,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from "../../lib/discoveryTileGlyphs";
 import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { HomeBlocks } from "../../components/home/HomeBlocks";
+import { CommunityHomePreview } from "../../components/home/CommunityHomePreview";
 import { useTranslation } from "react-i18next";
+import { sceneForState } from "@edutu/ux-state/scenes";
 
 const navScroll = createNavScrollHandler();
 const { width } = Dimensions.get('window');
@@ -1235,7 +1237,6 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     const deadlineColor = deadlineBadge.level === 'none'
         ? textSecondary
         : urgencyColor(deadlineBadge.level);
-    const { t } = useTranslation('home');
     // Show the number this card was selected on, so the badge can never
     // contradict the section's own "you can win this" promise.
     const matchPct = bestShotScore(item);
@@ -1293,7 +1294,7 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
                 <View style={styles.bestShotTopRow}>
                     <View style={styles.bestShotMatchBadge}>
                         <Target size={10} color="#FFFFFF" strokeWidth={2.6} />
-                        <Text style={styles.bestShotMatchText}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
+                        <Text style={styles.bestShotMatchText}>{matchPct}% match</Text>
                     </View>
                     <View style={[styles.deadlineRow, hasImage && styles.bestShotDeadlineChip]}>
                         <View style={[styles.deadlineDot, { backgroundColor: deadlineTextColor }]} />
@@ -1338,18 +1339,14 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
 }) {
     const isSearching = variant === 'searching';
     const emptyTitle = isSearching
-        ? "Still searching for your best shot"
+        ? "No strong match yet"
         : "Complete your profile";
-    // Says what is actually happening rather than what the user failed to do:
-    // their profile IS in, nothing has cleared the competitiveness bar yet, and
-    // they do not need to keep checking. The notification promise is real —
-    // the interest-alert engine pushes when a new match lands.
     const emptyDesc = isSearching
-        ? "Your profile's in. We'll notify you the moment one clears the bar — meanwhile, see recommendations below."
-        : "Unlock the matches you can actually win.";
+        ? "We'll notify you when a better fit appears."
+        : "Get more accurate opportunity matches.";
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
-        ? "Still searching for your best shot. We will notify you when one is found. Browse recommendations meanwhile."
+        ? "No strong match yet. Browse all opportunities."
         : "Complete your profile to unlock your best shots";
 
     return (
@@ -1367,6 +1364,12 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
             scaleTo={0.98}
         >
             <View style={styles.bestShotEmptyRow}>
+                <View style={styles.bestShotEmptyScene} pointerEvents="none">
+                    <SceneRenderer
+                        scene={sceneForState({ kind: 'empty', reason: 'firstRun' }, 'discovery')}
+                        size={66}
+                    />
+                </View>
                 <View style={styles.bestShotEmptyText}>
                     <Text
                         style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}
@@ -1377,7 +1380,7 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
                     </Text>
                     <Text
                         style={[styles.bestShotEmptyDesc, { color: textSecondary }]}
-                        numberOfLines={isSearching ? 3 : 2}
+                        numberOfLines={2}
                         maxFontSizeMultiplier={1.3}
                     >
                         {emptyDesc}
@@ -1687,6 +1690,8 @@ export default function Dashboard() {
                     rails, custom features). Renders nothing when no layout is
                     published, so the built-in sections below are unaffected. */}
                 <HomeBlocks opportunities={opportunities ?? []} />
+
+                <CommunityHomePreview />
 
                 <Animated.View entering={FadeInDown.duration(400).delay(50)}>
                     <View style={styles.sectionHeader}>
@@ -2869,8 +2874,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderRadius: 18,
-        paddingVertical: 16,
-        paddingHorizontal: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
     },
     // The row lives on an inner View, not on the card: AnimatedPressable puts
     // its own Animated.View + Pressable between the style you pass and the
@@ -2880,19 +2885,25 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
+    },
+    bestShotEmptyScene: {
+        width: 68,
+        height: 68,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     bestShotEmptyText: {
         flex: 1,
     },
     bestShotEmptyTitle: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '800',
         lineHeight: 20,
     },
     bestShotEmptyDesc: {
-        fontSize: 12.5,
-        lineHeight: 18,
-        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 2,
     },
 });

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles, Zap } from 'lucide-react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
-import { createCheckout } from '../../services/billing';
+import { broadcastBillingInvalidation, createCheckout } from '../../services/billing';
 import {
   FALLBACK_CREDIT_PACKS,
   PRO_PLANS,
@@ -107,6 +107,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
         setError(checkout.message || 'Payments are not configured yet. Please try again later or contact support.');
         return;
       }
+      broadcastBillingInvalidation();
       window.location.assign(checkout.authorizationUrl);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Unable to start checkout.');

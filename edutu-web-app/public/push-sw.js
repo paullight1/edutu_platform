@@ -23,6 +23,17 @@ const API_BASE = (() => {
   }
 })();
 
+function safeNavigationTarget(candidate, fallback) {
+  if (typeof candidate !== "string") return fallback;
+  try {
+    const target = new URL(candidate, self.location.origin);
+    if (target.origin !== self.location.origin) return fallback;
+    return target.href;
+  } catch (e) {
+    return fallback;
+  }
+}
+
 /* Records a notification open. Expects backend endpoint:
  *   POST {API_BASE}/notifications/{id}/opened
  * which stamps `opened_at` on the notifications row. The endpoint may not exist
@@ -73,7 +84,10 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const target = data.url || "/goals";
+  const target = safeNavigationTarget(
+    data.url,
+    new URL("/goals", self.location.origin).href,
+  );
 
   const focusOrOpen = self.clients
     .matchAll({ type: "window", includeUncontrolled: true })

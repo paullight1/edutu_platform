@@ -29,6 +29,30 @@ function validateEnvironment(): void {
     );
   }
 
+  if (process.env.COMMUNITY_CALLS_ENABLED === "true") {
+    const tokenSecret = process.env.COMMUNITY_CALL_TOKEN_SECRET || "";
+    if (Buffer.byteLength(tokenSecret, "utf8") < 32) {
+      throw new Error(
+        "COMMUNITY_CALL_TOKEN_SECRET must be at least 32 bytes when community calls are enabled.",
+      );
+    }
+    if (!process.env.VOICE_GATEWAY_URL) {
+      throw new Error(
+        "VOICE_GATEWAY_URL is required when community calls are enabled.",
+      );
+    }
+    const participantCap = Number(process.env.COMMUNITY_CALL_PARTICIPANT_CAP);
+    if (
+      !Number.isInteger(participantCap) ||
+      participantCap < 2 ||
+      participantCap > 500
+    ) {
+      throw new Error(
+        "COMMUNITY_CALL_PARTICIPANT_CAP must be a load-tested integer from 2 to 500 when community calls are enabled.",
+      );
+    }
+  }
+
   if (isProd) {
     const missingBilling = requiredForBilling.filter(
       (key) => !process.env[key],
@@ -112,6 +136,7 @@ async function bootstrap() {
       "X-Edutu-API-Key",
       "X-Edutu-Admin-Email",
       "X-Request-Id",
+      "Idempotency-Key",
     ],
     exposedHeaders: [
       "X-Edutu-Request-Id",

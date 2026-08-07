@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edutu Mobile UI Designer"
+  short_description: "Design cohesive, responsive Edutu mobile UI"
+  default_prompt: "Use $edutu-mobile-ui-designer to design or improve an Edutu mobile screen, component, or user flow."

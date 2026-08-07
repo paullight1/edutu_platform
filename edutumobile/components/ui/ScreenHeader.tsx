@@ -9,9 +9,10 @@ interface ScreenHeaderProps {
     showBack?: boolean;
     onBack?: () => void;
     right?: React.ReactNode;
+    titleAccessory?: React.ReactNode;
 }
 
-export function ScreenHeader({ title, subtitle, showBack = false, onBack, right }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, showBack = false, onBack, right, titleAccessory }: ScreenHeaderProps) {
     const router = useRouter();
     const { isDark, colors } = useTheme();
 
@@ -55,6 +56,8 @@ export function ScreenHeader({ title, subtitle, showBack = false, onBack, right 
 
             {/* Spacer when no back button - keeps title position consistent */}
             {!showBack ? <View style={styles.spacer} /> : null}
+
+            {titleAccessory ? <View style={styles.titleAccessory}>{titleAccessory}</View> : null}
 
             <View style={styles.titleContainer}>
                 <Text
@@ -101,6 +104,9 @@ const styles = StyleSheet.create({
     titleContainer: {
         flex: 1,
         paddingHorizontal: 4,
+    },
+    titleAccessory: {
+        marginRight: 8,
     },
     title: {
         fontSize: 17,

@@ -18,6 +18,18 @@ export interface HomeBlock {
 export type CustomFeatureOpenMode = 'webview' | 'external';
 export type CustomFeaturePlacement = 'home' | 'tools' | 'both';
 
+const APPROVED_FEATURE_HOSTS = new Set(['edutu.org', 'www.edutu.org', 'edutu.ai', 'www.edutu.ai']);
+
+export function isApprovedCustomFeatureUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' &&
+      (APPROVED_FEATURE_HOSTS.has(parsed.hostname) || parsed.hostname.endsWith('.edutu.org'));
+  } catch {
+    return false;
+  }
+}
+
 export interface CustomFeature {
   id: string;
   title: string;
@@ -81,7 +93,7 @@ export function normaliseCustomFeatures(payload: unknown): CustomFeature[] {
     const id = asString(record.id).trim();
     const title = asString(record.title).trim();
     const url = asString(record.url).trim();
-    if (!id || !title || !url) continue;
+    if (!id || !title || !url || !isApprovedCustomFeatureUrl(url)) continue;
     if (record.enabled === false) continue;
 
     const openMode: CustomFeatureOpenMode =

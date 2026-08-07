@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edutu Web Review"
+  short_description: "Edutu web app security and UX review"
+  default_prompt: "Use $edutu-web-review to review the Edutu web app changes for security, routing, UX, and performance."

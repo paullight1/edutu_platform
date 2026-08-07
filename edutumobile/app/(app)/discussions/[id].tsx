@@ -16,17 +16,22 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Ban,
+  ChevronRight,
   Clock,
   Flag,
+  Info,
   Lock,
   MessageCircle,
   MoreVertical,
+  Pin,
+  PhoneCall,
   Settings,
   ShieldAlert,
   UserCheck,
 } from 'lucide-react-native';
 import {
   deleteMessage,
+  createCommunityAttachmentUpload,
   fetchBlockedUsers,
   fetchGroup,
   fetchGroupForm,
@@ -34,6 +39,8 @@ import {
   isCommunityApiError,
   joinGroup,
   removeMember,
+  sendMessage,
+  serializeCommunityAttachment,
   reportTarget,
   unblockUser,
   type BlockedUser,
@@ -45,17 +52,22 @@ import {
 } from '@edutu/core/src/services/communities';
 import { resolveAdminRole } from '@edutu/core/src/services/communityAuthz';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { EmptyState } from '../../../components/ui/EmptyState';
+import { StateView } from '../../../components/state';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { MessageBubble } from '../../../components/community/MessageBubble';
 import { Composer } from '../../../components/community/Composer';
+import type { PickedCommunityAttachment } from '../../../components/community/Composer';
+import { uploadPrivateCommunityAsset } from '@edutu/core/src/services/storage';
+import { GroupAvatar } from '../../../components/community/GroupAvatar';
 import {
   FirstPostNotice,
   hasAcknowledgedFirstPost,
 } from '../../../components/community/FirstPostNotice';
 import { useGroupMessages, type LocalMessage } from '../../../hooks/useGroupMessages';
+import { ScheduledCallCard } from '../../../components/community/calls/ScheduledCallCard';
+import { listCommunityCalls, type CommunityCall } from '../../../features/community-calls/api';
 
 /**
  * One group's chat, and the gate in front of it.
@@ -104,6 +116,20 @@ const BLOCKED_KEY = 'edutu:community:blocked';
  * is not one.
  */
 const REPORTED_KEY = 'edutu:community:reportedMessages';
+const PINNED_KEY = 'edutu:community:pinnedMessages';
+const MAX_MESSAGE_LENGTH = 2000;
+
+function replyPrefix(message: LocalMessage): string {
+  const author = message.author?.displayName?.trim() || 'Member';
+  const excerpt = message.body.replace(/\s+/g, ' ').trim().slice(0, 120);
+  return `↪ ${author}: ${excerpt}\n`;
+}
+
+function callIdFromMessage(message: LocalMessage): string | null {
+  if (message.callId) return message.callId;
+  if (message.kind !== 'call') return null;
+  try { const body = JSON.parse(message.body) as { callId?: unknown; call_id?: unknown }; const value = body.callId ?? body.call_id; return typeof value === 'string' ? value : null; } catch { return null; }
+}
 
 /**
  * Stamp this group as read. Read-modify-write on one JSON blob, because the
@@ -188,7 +214,13 @@ export default function GroupChatScreen() {
    * vanish mid-conversation. What this list is for is the next launch.
    */
   const [reportedAtOpen, setReportedAtOpen] = useState<string[]>([]);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<LocalMessage | null>(null);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentProgress, setAttachmentProgress] = useState(0);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const listRef = useRef<FlatList<LocalMessage>>(null);
   /** Set when the group is loaded — see `loadDetail` for why not in render. */
   const [expired, setExpired] = useState(false);
 
@@ -204,6 +236,7 @@ export default function GroupChatScreen() {
    * `pending` most of all.
    */
   const canRead = status === 'active' || status === 'invited';
+  const [communityCalls, setCommunityCalls] = useState<CommunityCall[]>([]);
 
   const messages = useGroupMessages({
     groupId,
@@ -259,6 +292,10 @@ export default function GroupChatScreen() {
       setReportedAtOpen(reportedIds);
     })();
   }, []);
+
+  useEffect(() => {
+    void readIdList(`${PINNED_KEY}:${groupId}`).then(setPinnedIds);
+  }, [groupId]);
 
   // ── The first-post notice ──────────────────────────────────────────────────
   // `null` while the flag is being read. The composer stays shut until the
@@ -318,6 +355,11 @@ export default function GroupChatScreen() {
     [messages.messages, blocked, reportedAtOpen],
   );
 
+  const pinnedMessages = useMemo(
+    () => visibleMessages.filter((message) => pinnedIds.includes(message.id) && !message.deletedAt),
+    [pinnedIds, visibleMessages],
+  );
+
   const handleBlock = useCallback(async (message: CommunityMessage) => {
     if (!message.userId) return;
     // The bubble has already written the block to the server; this is the copy
@@ -328,6 +370,20 @@ export default function GroupChatScreen() {
   const handleUnblock = useCallback(async (userId: string) => {
     setBlocked(await removeFromIdList(BLOCKED_KEY, userId));
   }, []);
+
+  const togglePin = useCallback(async (message: CommunityMessage) => {
+    const key = `${PINNED_KEY}:${groupId}`;
+    const current = await readIdList(key);
+    const next = current.includes(message.id)
+      ? current.filter((id) => id !== message.id)
+      : [...current, message.id];
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      // The message remains usable if local persistence is unavailable.
+    }
+    setPinnedIds(next);
+  }, [groupId]);
 
   const handleReport = useCallback(
     async (message: CommunityMessage) => {
@@ -387,6 +443,13 @@ export default function GroupChatScreen() {
    * meaningless, and a non-member has no room to report from.
    */
   const canReportGroup = isMember && adminRole !== 'owner';
+  const loadCommunityCalls = useCallback(async () => {
+    if (!groupId || !canRead) return;
+    try { setCommunityCalls(await listCommunityCalls(groupId, getToken)); } catch { /* Calls degrade independently from chat. */ }
+  }, [canRead, getToken, groupId]);
+  useFocusEffect(useCallback(() => { void loadCommunityCalls(); }, [loadCommunityCalls]));
+  const highlightedCall = communityCalls.find((call) => call.status === 'live' || call.status === 'starting')
+    ?? communityCalls.find((call) => call.status === 'scheduled') ?? null;
 
   // ── The pending-request signal ─────────────────────────────────────────────
   // Without it an owner has no way to learn that anybody is waiting: nothing
@@ -425,7 +488,8 @@ export default function GroupChatScreen() {
    * until now nothing in the app could undo it. Any member gets the list.
    */
   const canManageBlocks = isMember;
-  const hasMenu = canOpenSettings || canReviewRequests || canReportGroup || canManageBlocks;
+  const canOpenAbout = canRead;
+  const hasMenu = canOpenAbout || canOpenSettings || canReviewRequests || canReportGroup || canManageBlocks || canModerate;
 
   const goTo = useCallback(
     (path: string) => {
@@ -450,10 +514,14 @@ export default function GroupChatScreen() {
     // The composer is disabled while the notice stands; this is the same rule
     // stated where it cannot be routed around.
     if (firstPostBlocked) return;
-    const ok = await messages.send(draft);
+    const body = replyTo ? `${replyPrefix(replyTo)}${draft.trim()}` : draft;
+    const ok = await messages.send(body);
     // Cleared ONLY on success. A screener refusal keeps every character.
-    if (ok) setDraft('');
-  }, [firstPostBlocked, messages, draft]);
+    if (ok) {
+      setDraft('');
+      setReplyTo(null);
+    }
+  }, [firstPostBlocked, messages, draft, replyTo]);
 
   const handleChangeDraft = useCallback(
     (value: string) => {
@@ -462,6 +530,54 @@ export default function GroupChatScreen() {
     },
     [messages],
   );
+
+  const handleAttachment = useCallback(async (attachment: PickedCommunityAttachment) => {
+    if (firstPostBlocked || attachmentUploading) return;
+    setAttachmentUploading(true);
+    setAttachmentProgress(0);
+    setAttachmentError(null);
+    try {
+      const reservation = await createCommunityAttachmentUpload(
+        groupId,
+        {
+          kind: attachment.kind,
+          name: attachment.name,
+          mime: attachment.mime,
+          size: attachment.size,
+        },
+        getToken,
+      );
+      await uploadPrivateCommunityAsset(
+        reservation.uploadUrl,
+        { uri: attachment.uri, type: attachment.mime },
+        setAttachmentProgress,
+      );
+      const body = serializeCommunityAttachment(attachment.kind, {
+        url: reservation.resourceUrl,
+        name: attachment.name,
+        mime: attachment.mime,
+        size: attachment.size,
+        ...(attachment.caption ? { caption: attachment.caption } : {}),
+      });
+      const persisted = await sendMessage(
+        groupId,
+        { kind: attachment.kind, body },
+        getToken,
+      );
+      messages.applyMessage(persisted);
+      setDraft('');
+    } catch (caught) {
+      const message = isCommunityApiError(caught)
+        ? caught.message
+        : caught instanceof Error
+          ? caught.message
+          : 'The attachment could not be sent. Please try again.';
+      setAttachmentError(message);
+      throw new Error(message);
+    } finally {
+      setAttachmentUploading(false);
+    }
+  }, [attachmentUploading, firstPostBlocked, getToken, groupId, messages]);
 
   // ── Posting availability ───────────────────────────────────────────────────
   const archived = !!group?.archivedAt;
@@ -473,10 +589,32 @@ export default function GroupChatScreen() {
       : undefined;
 
   const headerTitle = group?.name ?? t('community:screens.chatTitle');
+  const headerSubtitle = group
+    ? status === 'invited'
+      ? `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'} · Invitation preview`
+      : `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'} · Group chat`
+    : undefined;
+  const composerMaxLength = replyTo
+    ? Math.max(1, MAX_MESSAGE_LENGTH - replyPrefix(replyTo).length)
+    : MAX_MESSAGE_LENGTH;
+
+  const jumpToPinned = useCallback(() => {
+    const target = pinnedMessages[0];
+    if (!target) return;
+    const index = visibleMessages.findIndex((message) => message.id === target.id);
+    if (index >= 0) {
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    }
+  }, [pinnedMessages, visibleMessages]);
 
   const renderItem = useCallback(
-    ({ item }: { item: LocalMessage }) => (
-      <MessageBubble
+    ({ item }: { item: LocalMessage }) => {
+      const callId = callIdFromMessage(item);
+      const transcriptCall = callId ? communityCalls.find((call) => call.id === callId) : null;
+      return transcriptCall ? (
+        <ScheduledCallCard call={transcriptCall} viewerRole={adminRole} onPress={() => router.push(`/discussions/${groupId}/calls/${transcriptCall.id}` as never)} />
+      ) : (
+        <MessageBubble
         message={item}
         own={!!userId && item.userId === userId}
         pending={item.pending}
@@ -487,21 +625,39 @@ export default function GroupChatScreen() {
         // Without this the bubble calls `removeMember` itself and the screen
         // never learns the roster changed.
         onRemoveMember={handleRemoveMember}
-      />
-    ),
-    [userId, canModerate, handleReport, handleBlock, handleDelete, handleRemoveMember],
+        onReply={(message) => setReplyTo(message as LocalMessage)}
+        onPin={togglePin}
+        pinned={pinnedIds.includes(item.id)}
+        />
+      );
+    },
+    [userId, canModerate, handleReport, handleBlock, handleDelete, handleRemoveMember, togglePin, pinnedIds, communityCalls, adminRole, router, groupId],
   );
 
-  const busy = detailLoading || (canRead && messages.loading && visibleMessages.length === 0);
+  // Once group access is known, keep the room chrome and composer mounted
+  // while message history refreshes. Replacing the whole screen with a
+  // skeleton during a background fetch made typed drafts and picker actions
+  // disappear under the user's finger.
+  const busy = detailLoading;
 
   return (
     <SafeAreaView
       style={[styles.screen, { backgroundColor: colors.background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       <ScreenHeader
         title={headerTitle}
+        subtitle={headerSubtitle}
         showBack
+        titleAccessory={group ? (
+          <GroupAvatar
+            testID="chat-group-avatar"
+            resourceUrl={group.coverImageResourceUrl}
+            emoji={group.coverEmoji}
+            size={36}
+            radius={11}
+          />
+        ) : undefined}
         right={
           // ONE affordance, not one button per feature. Settings, the request
           // queue and report-group all live behind this kebab, so the header
@@ -515,7 +671,8 @@ export default function GroupChatScreen() {
               hapticFeedback="selection"
               scaleTo={0.94}
               onPress={() => setMenuOpen((open) => !open)}
-              style={styles.headerAction}
+              hitSlop={8}
+              style={[styles.headerAction, { backgroundColor: colors.card }]}
             >
               <MoreVertical size={20} color={colors.foreground} />
             </AnimatedPressable>
@@ -526,19 +683,39 @@ export default function GroupChatScreen() {
       {menuOpen && hasMenu && (
         <GroupHeaderMenu
           groupId={groupId}
+          canOpenAbout={canOpenAbout}
           canOpenSettings={canOpenSettings}
           canReviewRequests={canReviewRequests}
           canReportGroup={canReportGroup}
           canManageBlocks={canManageBlocks}
+          canScheduleCalls={canModerate}
           pendingRequests={pendingRequests}
           onNavigate={goTo}
           onUnblocked={handleUnblock}
         />
       )}
 
+      {canRead && highlightedCall && (
+        <ScheduledCallCard
+          call={highlightedCall}
+          viewerRole={adminRole}
+          compact
+          onPress={() => router.push(`/discussions/${groupId}/calls/${highlightedCall.id}` as never)}
+        />
+      )}
+
+      {canRead && pinnedMessages.length > 0 && (
+        <PinnedMessageBar
+          count={pinnedMessages.length}
+          message={pinnedMessages[0]!}
+          onPress={jumpToPinned}
+        />
+      )}
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
         {/* Loading is skeleton bubbles in place — never a spinner floating over
             content (DESIGN.md §2). */}
@@ -580,17 +757,36 @@ export default function GroupChatScreen() {
         ) : (
           <>
             {canRead ? (
-              visibleMessages.length === 0 ? (
+              messages.error && visibleMessages.length === 0 ? (
                 <View style={styles.stateWrap}>
-                  <EmptyState
-                    testID="chat-empty"
-                    icon={MessageCircle}
-                    title={t('community:chat.emptyTitle')}
-                    description={t('community:chat.emptyBody')}
-                  />
+                  <View testID="chat-messages-error-state">
+                    <StateView
+                      state={{ kind: 'error', cause: 'network' }}
+                      flow="community"
+                      fill={false}
+                      sceneSize={132}
+                      title="Messages unavailable"
+                      body={messages.error}
+                      onRetry={() => void messages.refresh()}
+                    />
+                  </View>
+                </View>
+              ) : visibleMessages.length === 0 ? (
+                <View style={styles.stateWrap}>
+                  <View testID="chat-empty">
+                    <StateView
+                      state={{ kind: 'empty', reason: 'firstRun' }}
+                      flow="community"
+                      fill={false}
+                      sceneSize={140}
+                      title={t('community:chat.emptyTitle')}
+                      body={t('community:chat.emptyBody')}
+                    />
+                  </View>
                 </View>
               ) : (
                 <FlatList
+                  ref={listRef}
                   testID="chat-list"
                   data={visibleMessages}
                   keyExtractor={(item) => item.id}
@@ -603,6 +799,24 @@ export default function GroupChatScreen() {
                   onEndReached={() => void messages.loadOlder()}
                   contentContainerStyle={styles.listContent}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                  maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                  onScrollToIndexFailed={({ index }) => {
+                    listRef.current?.scrollToOffset({
+                      offset: Math.max(0, index * 70),
+                      animated: true,
+                    });
+                  }}
+                  ListFooterComponent={
+                    messages.loadingMore ? (
+                      <ActivityIndicator
+                        testID="chat-loading-older"
+                        size="small"
+                        color={colors.textSecondary}
+                        style={styles.olderLoader}
+                      />
+                    ) : null
+                  }
                 />
               )
             ) : (
@@ -611,10 +825,25 @@ export default function GroupChatScreen() {
               <View style={styles.flex} />
             )}
 
-            {!!messages.error && canRead && (
-              <Text testID="chat-messages-error" style={[styles.inlineError, { color: colors.error }]}>
-                {messages.error}
-              </Text>
+            {!!messages.error && canRead && visibleMessages.length > 0 && (
+              <View
+                testID="chat-messages-error"
+                accessibilityLiveRegion="polite"
+                style={[styles.historyError, { backgroundColor: `${colors.error}12` }]}
+              >
+                <Text style={[styles.historyErrorText, { color: colors.error }]} numberOfLines={2}>
+                  {messages.error}
+                </Text>
+                <AnimatedPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading messages"
+                  hapticFeedback="selection"
+                  onPress={() => void messages.refresh()}
+                  style={styles.historyRetry}
+                >
+                  <Text style={[styles.historyRetryText, { color: colors.error }]}>Retry</Text>
+                </AnimatedPressable>
+              </View>
             )}
 
             {isMember ? (
@@ -637,6 +866,13 @@ export default function GroupChatScreen() {
                   disabled={postingDisabled || firstPostBlocked}
                   disabledNotice={postingNotice}
                   error={messages.sendError}
+                  replyTo={replyTo ? { body: replyTo.body, author: replyTo.author?.displayName } : null}
+                  onClearReply={() => setReplyTo(null)}
+                  maxLength={composerMaxLength}
+                  onAttachmentSelected={handleAttachment}
+                  attachmentUploading={attachmentUploading}
+                  attachmentProgress={attachmentProgress}
+                  attachmentError={attachmentError}
                 />
               </>
             ) : (
@@ -655,16 +891,59 @@ export default function GroupChatScreen() {
   );
 }
 
+function PinnedMessageBar({
+  count,
+  message,
+  onPress,
+}: {
+  count: number;
+  message: LocalMessage;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const author = message.author?.displayName?.trim() || 'Member';
+  const preview = message.body.replace(/\s+/g, ' ').trim();
+  const label = count === 1 ? 'Pinned message' : `${count} pinned messages`;
+
+  return (
+    <AnimatedPressable
+      testID="chat-pinned-bar"
+      accessibilityRole="button"
+      accessibilityLabel={`${label} from ${author}: ${preview}`}
+      accessibilityHint="Moves to the newest pinned message"
+      hapticFeedback="selection"
+      scaleTo={0.99}
+      onPress={onPress}
+      style={[styles.pinnedBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}
+    >
+      <View style={[styles.pinnedIcon, { backgroundColor: `${colors.accent}18` }]}>
+        <Pin size={15} color={colors.accent} fill={colors.accent} />
+      </View>
+      <View style={styles.pinnedCopy}>
+        <Text style={[styles.pinnedLabel, { color: colors.accent }]} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[styles.pinnedPreview, { color: colors.textSecondary }]} numberOfLines={1}>
+          {author}: {preview}
+        </Text>
+      </View>
+      <ChevronRight size={17} color={colors.textSecondary} />
+    </AnimatedPressable>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The header menu
 // ---------------------------------------------------------------------------
 
 interface GroupHeaderMenuProps {
   groupId: string;
+  canOpenAbout: boolean;
   canOpenSettings: boolean;
   canReviewRequests: boolean;
   canReportGroup: boolean;
   canManageBlocks: boolean;
+  canScheduleCalls: boolean;
   /** `null` when the count is unknown — never rendered as a zero-that-lies. */
   pendingRequests: number | null;
   onNavigate: (path: string) => void;
@@ -686,10 +965,12 @@ interface GroupHeaderMenuProps {
  */
 function GroupHeaderMenu({
   groupId,
+  canOpenAbout,
   canOpenSettings,
   canReviewRequests,
   canReportGroup,
   canManageBlocks,
+  canScheduleCalls,
   pendingRequests,
   onNavigate,
   onUnblocked,
@@ -773,6 +1054,18 @@ function GroupHeaderMenu({
       testID="chat-menu"
       style={[styles.menu, { borderColor: colors.border, backgroundColor: colors.card }]}
     >
+      {canOpenAbout && (
+        <MenuRow
+          testID="chat-menu-about"
+          label={t('community:screens.aboutTitle')}
+          icon={Info}
+          color={colors.textSecondary}
+          labelColor={colors.foreground}
+          disabled={reporting}
+          onPress={() => onNavigate(`/discussions/${groupId}/about`)}
+        />
+      )}
+
       {canOpenSettings && (
         <MenuRow
           testID="chat-menu-settings"
@@ -782,6 +1075,18 @@ function GroupHeaderMenu({
           labelColor={colors.foreground}
           disabled={reporting}
           onPress={() => onNavigate(`/discussions/${groupId}/settings`)}
+        />
+      )}
+
+      {canScheduleCalls && (
+        <MenuRow
+          testID="chat-menu-schedule-call"
+          label={t('community:calls.scheduleTitle')}
+          icon={PhoneCall}
+          color={colors.accent}
+          labelColor={colors.foreground}
+          disabled={reporting}
+          onPress={() => onNavigate(`/discussions/${groupId}/calls/new`)}
         />
       )}
 
@@ -1382,6 +1687,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 14,
+    paddingBottom: 18,
   },
   headerAction: {
     width: 36,
@@ -1389,6 +1695,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
+  },
+  pinnedBar: {
+    minHeight: 58,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  pinnedIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinnedCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  pinnedLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  pinnedPreview: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   menu: {
     marginHorizontal: 16,
@@ -1510,11 +1846,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  inlineError: {
+  historyError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingVertical: 7,
+  },
+  historyErrorText: {
+    flex: 1,
     fontSize: 12,
-    lineHeight: 18,
-    paddingHorizontal: 16,
-    paddingBottom: 6,
+    lineHeight: 17,
+  },
+  historyRetry: {
+    minWidth: 54,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyRetryText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  olderLoader: {
+    paddingVertical: 14,
   },
   retryButton: {
     borderWidth: 1,

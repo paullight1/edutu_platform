@@ -98,9 +98,7 @@ const setupBackButtonHandler = (onBackButton?: () => boolean) => {
         }
 
         // Check if we're at the root/home page
-        const isRootPage = window.location.pathname === '/opportunities' ||
-            window.location.pathname === '/app' ||
-            window.location.pathname === '/';
+        const isRootPage = ['/dashboard', '/app/home', '/app', '/'].includes(window.location.pathname);
 
         if (isRootPage) {
             const now = Date.now();
@@ -138,6 +136,9 @@ const setupKeyboardHandlers = () => {
  * Setup deep link handler for OAuth redirects
  */
 const setupDeepLinkHandler = (onDeepLink: (url: string) => void) => {
+    void App.getLaunchUrl().then((launch) => {
+        if (launch?.url) onDeepLink(launch.url);
+    }).catch(() => undefined);
     App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
         console.log('App opened with URL:', event.url);
         onDeepLink(event.url);

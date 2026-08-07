@@ -13,6 +13,8 @@ import { z } from "zod";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
+  CommunityAttachmentUploadSchema,
+  CommunityGroupImageUploadSchema,
   CreateGroupSchema,
   GroupFormSchema,
   JoinRequestSchema,
@@ -20,6 +22,8 @@ import {
   SendMessageSchema,
   UpdateGroupSchema,
   type CreateGroupDto,
+  type CommunityAttachmentUploadDto,
+  type CommunityGroupImageUploadDto,
   type GroupFormDto,
   type JoinRequestDto,
   type ReportDto,
@@ -123,6 +127,20 @@ export class CommunitiesController {
     return this.groups.get(userId, id);
   }
 
+  /**
+   * The active roster for a readable group. Authorization stays in the service
+   * because this API uses a service-role database connection and therefore
+   * cannot rely on RLS to protect private member lists.
+   */
+  @Get("groups/:id/members")
+  listGroupMembers(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.groups.listMembers(userId, id, this.parseLimit(limit));
+  }
+
   @Post("groups")
   createGroup(
     @CurrentUser("authId") userId: string,
@@ -138,6 +156,16 @@ export class CommunitiesController {
     @Body(new ZodValidationPipe(UpdateGroupSchema)) dto: UpdateGroupDto,
   ) {
     return this.groups.update(userId, id, dto);
+  }
+
+  @Post("groups/:id/cover-image/upload-url")
+  createGroupCoverImageUpload(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(CommunityGroupImageUploadSchema))
+    dto: CommunityGroupImageUploadDto,
+  ) {
+    return this.groups.createCoverImageUpload(userId, id, dto);
   }
 
   /**
@@ -278,6 +306,21 @@ export class CommunitiesController {
     });
   }
 
+  @Get("groups/:id/resources")
+  listResources(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Query("before") before?: string,
+    @Query("beforeId") beforeId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.messages.listResources(userId, id, {
+      before: this.parseBefore(before),
+      beforeId: beforeId?.trim() || undefined,
+      limit: this.parseLimit(limit),
+    });
+  }
+
   @Post("groups/:id/messages")
   sendMessage(
     @CurrentUser("authId") userId: string,
@@ -285,6 +328,31 @@ export class CommunitiesController {
     @Body(new ZodValidationPipe(SendMessageSchema)) dto: SendMessageDto,
   ) {
     return this.messages.send(userId, id, dto);
+  }
+
+  @Post("groups/:id/attachments/upload-url")
+  createAttachmentUpload(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(CommunityAttachmentUploadSchema))
+    dto: CommunityAttachmentUploadDto,
+  ) {
+    return this.messages.createAttachmentUpload(userId, id, dto);
+  }
+
+  @Get("groups/:id/attachments/download-url")
+  getAttachmentDownloadUrl(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Query("path") path: string,
+    @Query("signature") signature: string,
+  ) {
+    return this.messages.getAttachmentDownloadUrl(
+      userId,
+      id,
+      path?.trim() ?? "",
+      signature?.trim() ?? "",
+    );
   }
 
   @Delete("messages/:id")

@@ -29,6 +29,7 @@ import {
   syncAndUpdateOpportunityWidgetSnapshot,
   urgencyTone,
 } from './opportunityWidgetSync';
+import { updateOpportunityWidgetTimeline } from '../widgets/OpportunityWidget';
 import { getWidgetImageUri } from './widgetImageCache';
 import { getWidgetLogoUri } from './widgetLogo';
 
@@ -61,6 +62,32 @@ const CHAT_PROMPTS = [
   'What should I do this week?',
   'Find internships near me',
 ];
+
+/** Remove personalized widget state before a different account uses the device. */
+export async function clearWidgetSuiteData(): Promise<void> {
+  await Promise.all([
+    AsyncStorage.removeItem(DEADLINES_CACHE_KEY),
+    AsyncStorage.removeItem('@edutu_opportunity_widget_snapshot:v1'),
+  ]);
+  try {
+    if (Platform.OS === 'android') {
+      const { File, Paths } = require('expo-file-system') as typeof import('expo-file-system');
+      for (const fileName of [ANDROID_DEADLINES_FILE, ANDROID_TRENDING_FILE, ANDROID_NEWS_FILE]) {
+        const file = new File(Paths.document, fileName);
+        if (file.exists) file.delete();
+      }
+    }
+  } catch {
+    // Best effort; the next timeline refresh replaces stale data.
+  }
+  updateOpportunityWidgetTimeline([]);
+  updateDeadlineWidgetTimeline([]);
+  updateTrendingWidgetTimeline([]);
+  updateTrendingSpotlightWidgetTimeline([]);
+  updateTrendingGridWidgetTimeline([]);
+  updateTrendingTickerWidgetTimeline([]);
+  updateTrendingThumbListWidgetTimeline([]);
+}
 
 function formatCountdown(deadline?: string | null, now?: Date): string {
   const badge = getDeadlineBadge(deadline, now);

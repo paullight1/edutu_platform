@@ -15,7 +15,7 @@ import { RefreshCw } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { useAppControl } from '../../../components/context/AppControlContext';
-import { findCustomFeature } from '../../../lib/homeBlocks';
+import { findCustomFeature, isApprovedCustomFeatureUrl } from '../../../lib/homeBlocks';
 
 /**
  * Renders an admin-defined web-backed feature (the Twitter/X pattern). The
@@ -63,6 +63,8 @@ export default function WebFeatureScreen() {
     // See the WebView usage: this version's WebViewProps type omits renderError,
     // so we pass it through a loosely-typed object spread.
     const errorProps = {
+        originWhitelist: ['https://*'],
+        onShouldStartLoadWithRequest: (request: { url: string }) => isApprovedCustomFeatureUrl(request.url),
         renderError: () => (
             <View style={[styles.centered, { backgroundColor: colors.background }]}>
                 <Text style={[styles.message, { color: colors.foreground }]}>

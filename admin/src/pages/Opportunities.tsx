@@ -10,6 +10,13 @@ import { supabase } from "../lib/supabase";
 import { getAdminAuthHeaders } from "../lib/backend";
 import { exportToCSV } from "../utils/export-csv";
 import {
+  deadlineDisplay,
+  effectiveStatus,
+  formatOpportunityDate,
+  isExpiredOpportunity,
+  isPastDate,
+} from "./opportunities/opportunity-status";
+import {
   Target,
   Plus,
   Trash2,
@@ -269,23 +276,6 @@ function truncateText(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 1).trim()}...`;
 }
 
-function formatOpportunityDate(value?: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function isPastDate(value?: string | null) {
-  if (!value) return false;
-  const date = new Date(value);
-  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
-}
-
 /**
  * Turns a verification outcome into something an admin can act on. A bare
  * "Verified" would be misleading: the check can succeed and still find no date,
@@ -330,44 +320,6 @@ function describeVerification(
     default:
       return "Checked, but the source states no deadline.";
   }
-}
-
-function isExpiredOpportunity(
-  opportunity: Pick<Opportunity, "close_date" | "status">,
-) {
-  return opportunity.status === "closed" || isPastDate(opportunity.close_date);
-}
-
-/**
- * Status as it should be displayed: an "active" row whose deadline already
- * passed reads as closed — the hourly verification job just hasn't flipped
- * it yet, and showing Active next to a red past date is a contradiction.
- */
-function effectiveStatus(
-  opportunity: Pick<Opportunity, "close_date" | "status">,
-) {
-  if (opportunity.status === "active" && isPastDate(opportunity.close_date)) {
-    return "closed" as const;
-  }
-  return opportunity.status;
-}
-
-/**
- * Deadline cell text. Distinguishes a legitimately open-ended opportunity
- * ("Rolling") from a failed extraction ("Unknown"), and marks dates whose
- * year the scraper inferred rather than read from the source.
- */
-function deadlineDisplay(
-  opportunity: Pick<Opportunity, "close_date" | "metadata">,
-) {
-  const formatted = formatOpportunityDate(opportunity.close_date);
-  const confidence = opportunity.metadata?.deadline_confidence as
-    | string
-    | undefined;
-  if (formatted) {
-    return confidence === "inferred" ? `${formatted} (est.)` : formatted;
-  }
-  return confidence === "rolling" ? "Rolling" : "Unknown";
 }
 
 function getPublicAppBaseUrl() {

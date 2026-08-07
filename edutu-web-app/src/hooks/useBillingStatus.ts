@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBillingStatus, type BillingStatus } from '../services/billing';
 
 export function useBillingStatus() {
@@ -7,6 +7,7 @@ export function useBillingStatus() {
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isLoaded) return;
@@ -16,21 +17,33 @@ export function useBillingStatus() {
       return;
     }
 
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
       const token = await getToken();
       if (!token) throw new Error('Unable to read auth token');
-      setStatus(await getBillingStatus(token));
+      const nextStatus = await getBillingStatus(token);
+      if (version === requestVersion.current) setStatus(nextStatus);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load billing status');
+      if (version === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Unable to load billing status');
+      }
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [getToken, isLoaded, isSignedIn]);
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const handleBillingInvalidation = (event: StorageEvent) => {
+      if (event.key === 'edutu:billing-invalidated') void refresh();
+    };
+    window.addEventListener('storage', handleBillingInvalidation);
+    return () => window.removeEventListener('storage', handleBillingInvalidation);
   }, [refresh]);
 
   useEffect(() => {

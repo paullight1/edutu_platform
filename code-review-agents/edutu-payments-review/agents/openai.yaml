@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edutu Payments Review"
+  short_description: "Paystack and RevenueCat billing review"
+  default_prompt: "Use $edutu-payments-review to review Edutu billing changes for money correctness, webhook security, entitlements, and fraud resistance."

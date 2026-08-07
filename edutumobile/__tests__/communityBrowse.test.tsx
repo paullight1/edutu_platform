@@ -266,6 +266,20 @@ describe('browse screen affordances', () => {
     expect(pendingLabel).toBe('Request sent');
     expect(invitedLabel).not.toBe(pendingLabel);
   });
+
+  it('labels a row only when the backend group carries an opportunity id', () => {
+    const linked = render(
+      <GroupRow group={makeGroup({ id: 'linked', opportunityId: 'opp-1' })} />,
+    );
+    linked.getByTestId('group-row-opportunity-linked', { includeHiddenElements: true });
+    linked.unmount();
+
+    const unlinked = render(
+      <GroupRow group={makeGroup({ id: 'unlinked', opportunityId: null })} />,
+    );
+
+    expect(unlinked.queryByTestId('group-row-opportunity-unlinked')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

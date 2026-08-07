@@ -3,7 +3,6 @@ import { SchedulerRegistry } from "@nestjs/schedule";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { CronJob } from "cron";
 import axios from "axios";
-import { HttpsProxyAgent } from "https-proxy-agent";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { pool } from "../db";
@@ -17,387 +16,62 @@ import {
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ScrapeOptions {
-  sourceId?: number;
-  allSources?: boolean;
-  maxPages?: number;
-  /**
-   * Incremental mode (default): skip items whose URL was already processed
-   * within the recheck window and whose opportunity row still exists, and stop
-   * paginating a source once a whole page is already known. Pass false to
-   * force a full re-scrape of every listed item.
-   */
-  incremental?: boolean;
-  /** How the run was triggered — recorded in scrape_logs.run_type. */
-  runType?: "manual" | "scheduled";
-}
-
-/**
- * Live progress event emitted during a scrape run (consumed by the SSE
- * endpoint). Optional — synchronous callers pass no listener.
- */
-export type ScrapeStreamEvent =
-  | { type: "start"; totalSources: number; sources: string[] }
-  | { type: "source-start"; name: string }
-  | { type: "opportunity"; opportunity: unknown }
-  | { type: "source-skip"; name: string; page: number; skipped: number }
-  | {
-      type: "source-done";
-      name: string;
-      itemsFound: number;
-      itemsSkipped?: number;
-      error?: string;
-    }
-  | { type: "control"; state: "paused" | "resumed" | "stopping" };
-
-export type ScrapeEventListener = (event: ScrapeStreamEvent) => void;
-
-/** Live pause/stop control for the single in-flight scrape (advisory-locked). */
-interface ActiveRunControl {
-  paused: boolean;
-  stopRequested: boolean;
-  emit?: ScrapeEventListener;
-}
-
-export interface ScrapeSource {
-  id: number;
-  name: string;
-  url: string;
-  tier: number;
-  category: string;
-  enabled: boolean;
-  priority?: number;
-  parent_id?: number;
-  is_group?: boolean;
-  config?: any; // To hold custom selectors
-}
-
-interface RawItem {
-  title: string;
-  /** URL of the aggregator detail page (used as fallback apply link) */
-  apply_url: string;
-  /** Real provider apply link extracted from the detail page */
-  direct_apply_url?: string | null;
-  /** og:image from the detail page */
-  image_url?: string | null;
-  /** Original (pre-proxy) image URL — kept so duplicate site-default images
-   *  can be detected across items and runs. */
-  source_image_url?: string | null;
-  description?: string;
-  amount?: number | null;
-  deadline?: string | null;
-  location?: string;
-  requirements?: string[];
-  benefits?: string[];
-  application_process?: string[];
-  summary?: string;
-  eligibility?: Record<string, unknown>;
-  /** Whether applying costs money (screening input for the scam gate). */
-  application_fee?: {
-    is_free: boolean | null;
-    amount: number | null;
-    currency: string | null;
-  } | null;
-  /** Scam/legitimacy warning phrases surfaced by the LLM pass. */
-  red_flags?: string[];
-  funding_type?: string;
-  target_region?: string;
-  enrichment_confidence?: number;
-  enrichment_notes?: string[];
-  canonical_category?: string;
-  source: string;
-  source_url: string;
-  source_id?: number;
-}
-
-const boundedString = (max: number) =>
-  z.preprocess(
-    (value) => (value === null ? undefined : value),
-    z
-      .string()
-      .trim()
-      .max(max)
-      .optional()
-      .transform((value) => value || undefined),
-  );
-
-export const DeepSeekExtractionSchema = z.object({
-  summary: boundedString(320),
-  description: boundedString(1800),
-  requirements: z.array(z.string().trim().min(2)).optional().default([]),
-  benefits: z.array(z.string().trim().min(2)).optional().default([]),
-  deadline: z.string().nullable().optional(),
-  application_process: z.array(z.string().trim().min(2)).optional().default([]),
-  // Structured eligibility superset (consumed by the ranking eligibility gate)
-  // while `.passthrough()` keeps legacy free-form keys (level/nationality/field).
-  eligibility: z
-    .object({
-      countries: z.array(z.string()).nullable().optional(),
-      age_min: z.number().nullable().optional(),
-      age_max: z.number().nullable().optional(),
-      degree_levels: z.array(z.string()).nullable().optional(),
-      gender: z.string().nullable().optional(),
-    })
-    .passthrough()
-    .nullable()
-    .optional(),
-  application_fee: z
-    .object({
-      is_free: z.boolean().nullable(),
-      amount: z.number().nullable(),
-      currency: z.string().nullable(),
-    })
-    .nullable()
-    .optional(),
-  red_flags: z.array(z.string()).default([]),
-  funding_type: boundedString(120),
-  target_region: boundedString(120),
-  confidence: z.number().min(0).max(1).optional().default(0),
-  notes: z.array(z.string().trim().min(2)).optional().default([]),
-});
-
-export type DeepSeekExtraction = z.infer<typeof DeepSeekExtractionSchema>;
-
-interface SourceResult {
-  name: string;
-  url: string;
-  status: "success" | "failed" | "skipped";
-  itemsFound: number;
-  itemsSaved: number;
-  /** Items skipped by incremental mode (already processed recently). */
-  itemsSkipped?: number;
-  urlsDiscovered?: number;
-  error?: string;
-  duration?: number;
-  /** Non-fatal issues (e.g. a page that failed after retry) surfaced in job log warnings. */
-  warnings?: string[];
-}
-
-/** Cleanliness report for one scrape run: how much of the output met the
- *  publish contract (complete, verified details) vs. was held for review. */
-export interface RunOutcome {
-  saved: number;
-  published: number;
-  needsReview: number;
-  withDeadline: number;
-  withImage: number;
-  withOrganization: number;
-  withDirectApplyLink: number;
-  duplicateImagesStripped: number;
-  /** Field → count of records missing it (why records were held back). */
-  missingFieldCounts: Record<string, number>;
-}
-
-export interface ScrapeResult {
-  success: boolean;
-  sourcesScraped?: number;
-  totalResults?: number;
-  /** Items skipped across all sources by incremental mode. */
-  itemsSkipped?: number;
-  duration?: number;
-  jobId?: string;
-  sources?: string[];
-  error?: string;
-  sourceResults?: SourceResult[];
-  opportunities?: RawItem[];
-  outcome?: RunOutcome | null;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-// Fixed key for the scrape advisory lock. Any value works as long as it is
-// unique across advisory-lock users in this database; chosen from the private
-// range to avoid collisions with other subsystems.
-const SCRAPE_ADVISORY_LOCK_KEY = 918273645;
-const SCHEDULED_SCRAPE_JOB_NAME = "scheduled-scrape";
-// Cron times are interpreted in this zone. Without it the schedule silently
-// meant server-local time (UTC on Render), which is not what an admin typing
-// "0 0 * * *" expects.
-const SCRAPER_CRON_TIMEZONE = process.env.SCRAPER_CRON_TIMEZONE || "UTC";
-// A crawl that has not finalized in this long lost its process.
-const STALE_RUN_TIMEOUT_MS = 2 * 60 * 60 * 1000;
-
-const BROWSER_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.5",
-  "Cache-Control": "no-cache",
-  Pragma: "no-cache",
-  Referer: "https://www.google.com/",
-  "Sec-Fetch-Dest": "document",
-  "Sec-Fetch-Mode": "navigate",
-  "Sec-Fetch-Site": "none",
-  "Upgrade-Insecure-Requests": "1",
-};
-
-// Optional egress proxy for blocked sources. Cloudflare-protected sites
-// (scholarshipsads, jobs.smartyacad.com) block datacenter IPs like Render's
-// while serving residential traffic fine — set SCRAPER_PROXY_URL to an
-// http(s)://user:pass@host:port proxy and blocked fetches retry through it.
-// Fetches always go direct first; the proxy is only used after a 403 or a
-// detected bot-challenge page, so normal traffic never pays the proxy cost.
-const SCRAPER_PROXY_URL = process.env.SCRAPER_PROXY_URL;
-const scraperProxyAgent = SCRAPER_PROXY_URL
-  ? new HttpsProxyAgent(SCRAPER_PROXY_URL)
-  : null;
-const PROXY_AXIOS_CONFIG = scraperProxyAgent
-  ? {
-      httpAgent: scraperProxyAgent,
-      httpsAgent: scraperProxyAgent,
-      // Disable axios's env-based proxy handling — the agent does the work.
-      proxy: false as const,
-    }
-  : {};
-
-// Reader-relay fallback for IP-reputation blocks. Cloudflare answers Render's
-// datacenter IPs with 403 on sources whose robots.txt allows us — the same URLs
-// return 200 from a residential IP — so the deployed engine harvested nothing
-// while local runs worked. When a fetch is blocked and no SCRAPER_PROXY_URL is
-// configured, it retries through a relay that returns the raw upstream body.
-// `{url}` in the template is replaced with the URL-encoded target; set
-// SCRAPER_FETCH_RELAY_URL="" to turn the fallback off, or point it at your own
-// relay. robots.txt is still honored before any of this runs.
-const SCRAPER_FETCH_RELAY_URL =
-  process.env.SCRAPER_FETCH_RELAY_URL ?? "https://r.jina.ai/{url}";
-const SCRAPER_FETCH_RELAY_TOKEN = process.env.SCRAPER_FETCH_RELAY_TOKEN;
-// Keyless r.jina.ai allows ~20 requests/min, so relay calls are serialized this
-// far apart. Lower it once a token (higher quota) is configured.
-const RELAY_MIN_INTERVAL_MS =
-  Number(process.env.SCRAPER_FETCH_RELAY_MIN_INTERVAL_MS) || 3_200;
-const RELAY_TIMEOUT_MS = 45_000;
-const RELAY_HEADERS: Record<string, string> = {
-  // Ask for the upstream HTML instead of the relay's markdown rendering.
-  "X-Return-Format": "html",
-  ...(SCRAPER_FETCH_RELAY_TOKEN
-    ? { Authorization: `Bearer ${SCRAPER_FETCH_RELAY_TOKEN}` }
-    : {}),
-};
-
-/** How a fetch reaches the target: straight out, via egress proxy, or relayed. */
-type FetchRoute = "direct" | "proxy" | "relay";
-
-const DEFAULT_CONTENT_SELECTORS =
-  'article, .entry-content, .post-content, main, [class*="content"], [class*="article"]';
-const DEEP_TEXT_MAX_CHARS = 10_000;
-const DEEP_FETCH_DELAY_MS = 2_000;
-const LIST_PAGE_DELAY_MS = 1_500;
-const MAX_ITEMS_PER_PAGE = 20;
-const MAX_PAGES_CAP = 5;
-const MAX_BACKOFF_ATTEMPTS = 4;
-const ENRICH_CONCURRENCY = 3;
-// Incremental mode: a processed URL is trusted for this many days before the
-// crawler re-checks it for updates (deadline changes, edits). Override via the
-// scraper_config key "recheck_after_days".
-const DEFAULT_RECHECK_AFTER_DAYS = 3;
-const MIN_DESCRIPTION_CHARS = 240;
-const MIN_PUBLISH_QUALITY_SCORE = 60;
-
-// Currency symbol → ISO code map
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  "€": "EUR",
-  "£": "GBP",
-  $: "USD",
-};
-
-// Months for deadline regex
-const MONTH_PATTERN =
-  "January|February|March|April|May|June|July|August|September|October|November|December";
-
-// Apply button text pattern
-const APPLY_TEXT_RE =
-  /\b(apply|application|apply\s+(now|here|online)|register|registration|official\s+(link|website|portal)|programme?\s+portal|submit|start\s+application|get\s+started)\b/i;
-const GENERIC_LINK_TITLE_RE =
-  /^(read\s+more|learn\s+more|continue\s+reading|view\s+(details|more)|more|apply(\s+(now|here|online))?|click\s+here|visit\s+site|official\s+link|submit)$/i;
-const ROUNDUP_TITLE_RE =
-  /^(top|best)\s+\d+\b|\b(top|best)\s+\d+\s+(scholarships?|grants?|fellowships?|internships?|programs?|programmes?|opportunities?)\b|\b(list|collection|roundup)\s+of\b/i;
-// Mirror of the opportunities_type_check DB constraint — a value outside this
-// set fails the whole batch upsert.
-const ALLOWED_OPPORTUNITY_TYPES = new Set([
-  "internship",
-  "job",
-  "course",
-  "mentorship",
-  "competition",
-  "certification",
-  "fellowship",
-  "scholarship",
-  "bootcamp",
-]);
-
-// Taxonomy/listing segments anywhere in the path (a "/category/<slug>/" page
-// is a listing, never a post), plus utility pages at the end of the path.
-const NON_OPPORTUNITY_URL_RE =
-  /\/(category|tag|author|search)(\/|$)|\/(page(\/\d+)?|privacy-policy|terms|about|contact)\/?$/i;
-const NON_APPLY_URL_RE =
-  /(facebook|twitter|x\.com|linkedin|instagram|youtube|tiktok|whatsapp|telegram|mailto:|tel:|\/feed\/|\/comments?\/|#respond)/i;
-const SCRAPER_ARTIFACT_RE =
-  /\b(?:by\s+admin|posted\s+by|written\s+by|on\s+[a-z]+\s+\d{1,2},\s+20\d{2}|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b/i;
-const SOURCE_BRAND_RE =
-  /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
-/**
- * Organiser strings that name nobody. "the official organizer" is the phrase
- * `scrubPublicText` substitutes for aggregator brands — harmless inside a
- * sentence, useless as a standalone organiser — and "Program Organizer" is a
- * generic default the pipeline used to emit. Both must be treated as absent so
- * the record routes to re-enrichment instead of shipping filler.
- */
-const GENERIC_ORGANIZER_RE =
-  /^(?:the\s+)?(?:official\s+)?(?:program|programme)?\s*organi[sz]er$/i;
-const PUBLIC_TAG_BLOCKLIST = new Set([
-  "scraped",
-  "scraper",
-  "imported",
-  "automation",
-  "source",
-]);
-
-// Category keyword map — matched on word boundaries, never as raw substrings
-// (a bare `includes("ai")` once tagged anything containing "aid"/"training"/
-// "available" as Computer Science).
-const CATEGORY_MAP: Record<string, string[]> = {
-  "Computer Science": [
-    "computer science",
-    "software",
-    "programming",
-    "coding",
-    "data science",
-    "ai",
-    "machine learning",
-  ],
-  Engineering: ["engineering", "mechanical", "electrical", "civil", "chemical"],
-  Business: [
-    "business",
-    "mba",
-    "entrepreneurship",
-    "finance",
-    "accounting",
-    "economics",
-  ],
-  Medical: ["medical", "medicine", "health", "nursing", "pharmacy", "biology"],
-  Arts: ["art", "design", "music", "film", "creative", "writing", "journalism"],
-  Law: ["law", "legal", "jurisprudence", "llm"],
-  Science: ["physics", "chemistry", "mathematics", "research"],
-  Education: ["education", "teaching", "teacher"],
-};
-
-const CATEGORY_PATTERNS: Array<[string, RegExp]> = Object.entries(
-  CATEGORY_MAP,
-).map(([category, keywords]) => [
-  category,
-  new RegExp(
-    `\\b(?:${keywords
-      .map((kw) =>
-        kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"),
-      )
-      .join("|")})\\b`,
-    "i",
-  ),
-]);
+import {
+  DeepSeekExtraction,
+  DeepSeekExtractionSchema,
+  RawItem,
+  RunOutcome,
+  ScrapeEventListener,
+  ScrapeOptions,
+  ScrapeResult,
+  ScrapeSource,
+  SourceResult,
+} from "./scraper.types";
+import { ScraperRunControl } from "./scraper-run-control";
+import { ScraperHttpClient } from "./scraper-http-client";
+import { OpportunityStatusRepository } from "./opportunity-status.repository";
+import { ScrapedUrlIndexRepository } from "./scraped-url-index.repository";
+import {
+  ALLOWED_OPPORTUNITY_TYPES,
+  APPLY_TEXT_RE,
+  BROWSER_HEADERS,
+  CURRENCY_SYMBOLS,
+  DEEP_FETCH_DELAY_MS,
+  DEEP_TEXT_MAX_CHARS,
+  DEFAULT_CONTENT_SELECTORS,
+  DEFAULT_RECHECK_AFTER_DAYS,
+  ENRICH_CONCURRENCY,
+  GENERIC_LINK_TITLE_RE,
+  GENERIC_ORGANIZER_RE,
+  HAS_SCRAPER_PROXY,
+  LIST_PAGE_DELAY_MS,
+  MAX_ITEMS_PER_PAGE,
+  MAX_PAGES_CAP,
+  MIN_DESCRIPTION_CHARS,
+  MIN_PUBLISH_QUALITY_SCORE,
+  MONTH_PATTERN,
+  NON_APPLY_URL_RE,
+  NON_OPPORTUNITY_URL_RE,
+  PUBLIC_TAG_BLOCKLIST,
+  ROUNDUP_TITLE_RE,
+  SCHEDULED_SCRAPE_JOB_NAME,
+  SCRAPE_ADVISORY_LOCK_KEY,
+  SCRAPER_ARTIFACT_RE,
+  SCRAPER_CRON_TIMEZONE,
+  SOURCE_BRAND_RE,
+  STALE_RUN_TIMEOUT_MS,
+} from "./scraper.config";
+import { categorizeOpportunityTitle } from "./scraper-classification";
+export {
+  DeepSeekExtractionSchema,
+  type DeepSeekExtraction,
+  type RunOutcome,
+  type ScrapeEventListener,
+  type ScrapeOptions,
+  type ScrapeResult,
+  type ScrapeSource,
+  type ScrapeStreamEvent,
+} from "./scraper.types";
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -409,10 +83,9 @@ export class ScraperService implements OnModuleInit {
    *  Detects aggregator site-default og:images (same banner on every post)
    *  so each opportunity ends up with its own image or none. */
   private readonly imageClaimsThisRun = new Map<string, string>();
-  /** Hosts that blocked us this run — later fetches skip the wasted direct hit. */
-  private readonly blockedHostsThisRun = new Set<string>();
-  /** Tail of the relay queue; relay calls chain off it to stay under its quota. */
-  private relayGate: Promise<void> = Promise.resolve();
+  private readonly httpClient: ScraperHttpClient;
+  private readonly opportunityStatusRepository: OpportunityStatusRepository;
+  private readonly scrapedUrlIndexRepository: ScrapedUrlIndexRepository;
 
   constructor(
     private schedulerRegistry: SchedulerRegistry,
@@ -422,6 +95,7 @@ export class ScraperService implements OnModuleInit {
     private readonly robotsChecker: RobotsChecker,
     private readonly opportunityDedupService: OpportunityDedupService,
   ) {
+    this.httpClient = new ScraperHttpClient(this.logger);
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -433,6 +107,15 @@ export class ScraperService implements OnModuleInit {
         "Supabase not configured — scraping will use mock data.",
       );
     }
+    this.opportunityStatusRepository = new OpportunityStatusRepository(
+      () => this.supabase,
+      this.logger,
+    );
+    this.scrapedUrlIndexRepository = new ScrapedUrlIndexRepository(
+      () => this.supabase,
+      (url) => this.normalizeUrl(url),
+      this.logger,
+    );
   }
 
   async onModuleInit() {
@@ -675,9 +358,9 @@ export class ScraperService implements OnModuleInit {
         // only the stored intent, and the two drifted apart in production.
         cronArmed: this.isJobScheduled(),
         nextRunAt: this.nextScheduledRunAt(),
-        egressRoute: scraperProxyAgent
+        egressRoute: HAS_SCRAPER_PROXY
           ? "proxy"
-          : this.relayConfigured()
+          : this.httpClient.isRelayConfigured()
             ? "relay-fallback"
             : "direct",
         dataRetentionDays: settings?.data_retention_days ?? null,
@@ -881,51 +564,33 @@ export class ScraperService implements OnModuleInit {
    * manual triggers. Without this, each replica's cron (and overlapping manual
    * runs) would crawl concurrently, duplicating work and AI spend.
    */
-  /** Pause/stop control for the current run (only one runs at a time). */
-  private activeRun: ActiveRunControl | null = null;
+  /** Pause/stop control for the current process's advisory-locked run. */
+  private readonly runControl = new ScraperRunControl();
 
   /** Pause the in-flight scrape — the crawl loop halts between pages/sources. */
   pauseRun(): { ok: boolean; status: string } {
-    if (!this.activeRun || this.activeRun.stopRequested) {
-      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
-    }
-    this.activeRun.paused = true;
-    this.activeRun.emit?.({ type: "control", state: "paused" });
-    return { ok: true, status: "paused" };
+    return this.runControl.pause();
   }
 
   /** Resume a paused scrape. */
   resumeRun(): { ok: boolean; status: string } {
-    if (!this.activeRun || this.activeRun.stopRequested) {
-      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
-    }
-    this.activeRun.paused = false;
-    this.activeRun.emit?.({ type: "control", state: "resumed" });
-    return { ok: true, status: "running" };
+    return this.runControl.resume();
   }
 
   /** Request a graceful stop — the crawl finalizes with partial results. */
   stopRun(): { ok: boolean; status: string } {
-    if (!this.activeRun) return { ok: false, status: "idle" };
-    this.activeRun.stopRequested = true;
-    this.activeRun.paused = false; // release any pause wait so the loop can exit
-    this.activeRun.emit?.({ type: "control", state: "stopping" });
-    return { ok: true, status: "stopping" };
+    return this.runControl.stop();
   }
 
   getRunStatus(): { running: boolean; paused: boolean; stopping: boolean } {
-    return {
-      running: Boolean(this.activeRun),
-      paused: Boolean(this.activeRun?.paused),
-      stopping: Boolean(this.activeRun?.stopRequested),
-    };
+    return this.runControl.status();
   }
 
   /** Block while the run is paused (unless a stop was requested). */
   private async waitWhilePaused(): Promise<void> {
-    while (this.activeRun?.paused && !this.activeRun?.stopRequested) {
-      await this.delay(400);
-    }
+    await this.runControl.waitWhilePaused((milliseconds) =>
+      this.delay(milliseconds),
+    );
   }
 
   async runScraper(
@@ -946,9 +611,9 @@ export class ScraperService implements OnModuleInit {
     // Register pause/stop control only once the advisory lock is held, so a
     // concurrent (lock-losing) call can never clobber the active run's control.
     const lock = await this.withScrapeLock(() => {
-      this.activeRun = { paused: false, stopRequested: false, emit: onEvent };
+      this.runControl.begin(onEvent);
       return this.executeScraperRun(options, onEvent).finally(() => {
-        this.activeRun = null;
+        this.runControl.finish();
       });
     });
 
@@ -1010,7 +675,7 @@ export class ScraperService implements OnModuleInit {
     // Fresh image-uniqueness ledger per run; cross-run duplicates are caught
     // by the metadata.source_image_url check against the database.
     this.imageClaimsThisRun.clear();
-    this.blockedHostsThisRun.clear();
+    this.httpClient.resetRun();
 
     const jobLogId = await this.startJobLog(options);
 
@@ -1654,9 +1319,9 @@ export class ScraperService implements OnModuleInit {
 
     for (const source of sources) {
       // Honor live pause/stop between sources.
-      if (this.activeRun?.stopRequested) break;
+      if (this.runControl.isStopRequested()) break;
       await this.waitWhilePaused();
-      if (this.activeRun?.stopRequested) break;
+      if (this.runControl.isStopRequested()) break;
 
       const sourceStartTime = Date.now();
       let itemsFound = 0;
@@ -1696,9 +1361,9 @@ export class ScraperService implements OnModuleInit {
 
         for (let page = 1; page <= pagesToCrawl; page++) {
           // Honor live pause/stop between pages.
-          if (this.activeRun?.stopRequested) break;
+          if (this.runControl.isStopRequested()) break;
           await this.waitWhilePaused();
-          if (this.activeRun?.stopRequested) break;
+          if (this.runControl.isStopRequested()) break;
 
           const pageUrl = this.buildPageUrl(source.url, page);
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
@@ -1733,7 +1398,7 @@ export class ScraperService implements OnModuleInit {
                   this.logger.warn(
                     `  ↳ No list cards found, trying feed fallback: ${feedUrl}`,
                   );
-                  const feedHtml = await this.fetchHTML(feedUrl);
+                  const feedHtml = await this.httpClient.fetchHtml(feedUrl);
                   basicItems = this.extractItemsFromList(feedHtml, source);
                 }
               }
@@ -1746,13 +1411,14 @@ export class ScraperService implements OnModuleInit {
             // these listings are newest-first, so deeper pages are older still.
             let freshItems = basicItems;
             if (incremental && basicItems.length > 0) {
-              const { fresh, skipped } = await this.partitionKnownItems(
-                basicItems,
-                incremental.recheckAfterDays,
-              );
+              const { fresh, skipped } =
+                await this.scrapedUrlIndexRepository.partitionKnown(
+                  basicItems,
+                  incremental.recheckAfterDays,
+                );
               if (skipped.length > 0) {
                 itemsSkipped += skipped.length;
-                await this.touchSkippedItems(skipped);
+                await this.scrapedUrlIndexRepository.touchSkipped(skipped);
                 onEvent?.({
                   type: "source-skip",
                   name: source.name,
@@ -1772,7 +1438,10 @@ export class ScraperService implements OnModuleInit {
               }
             }
 
-            await this.recordDiscoveredUrls(source, freshItems);
+            await this.scrapedUrlIndexRepository.recordDiscovered(
+              source,
+              freshItems,
+            );
             const enrichedItems = await this.enrichItems(
               freshItems,
               source.config?.content_selectors,
@@ -1889,43 +1558,6 @@ export class ScraperService implements OnModuleInit {
     return { results: allResults, sourceResults, outcome };
   }
 
-  private async recordDiscoveredUrls(
-    source: ScrapeSource,
-    items: RawItem[],
-  ): Promise<void> {
-    if (!this.supabase || items.length === 0) return;
-
-    const now = new Date().toISOString();
-    const rows = Array.from(
-      new Map(
-        items
-          .map((item) => this.normalizeUrl(item.apply_url))
-          .filter(Boolean)
-          .map((url) => [
-            url,
-            {
-              url,
-              source_id: source.id,
-              status: "pending",
-              last_checked: now,
-            },
-          ]),
-      ).values(),
-    );
-
-    if (!rows.length) return;
-
-    const { data, error } = await this.supabase
-      .from("scraped_urls")
-      .upsert(rows, { onConflict: "url", ignoreDuplicates: false });
-
-    if (error) {
-      this.logger.warn(
-        `Could not record discovered URLs for ${source.name}: ${error.message}`,
-      );
-    }
-  }
-
   /** Recheck window (days) for incremental runs, from scraper_config. */
   private async getRecheckAfterDays(): Promise<number> {
     if (!this.supabase) return DEFAULT_RECHECK_AFTER_DAYS;
@@ -1942,156 +1574,6 @@ export class ScraperService implements OnModuleInit {
     } catch {
       return DEFAULT_RECHECK_AFTER_DAYS;
     }
-  }
-
-  /**
-   * Incremental-mode partition: which of a page's items still need the full
-   * deep-fetch + LLM pipeline? An item is skippable only when its URL is
-   * marked processed in scraped_urls within the recheck window AND its
-   * opportunity row still exists — an admin-deleted or retention-purged row
-   * must be re-scraped, not skipped forever while the source still lists it.
-   * Fails open: any error means "enrich everything".
-   */
-  private async partitionKnownItems(
-    items: RawItem[],
-    recheckAfterDays: number,
-  ): Promise<{ fresh: RawItem[]; skipped: RawItem[] }> {
-    if (!this.supabase || items.length === 0) {
-      return { fresh: items, skipped: [] };
-    }
-    try {
-      const urlByItem = new Map<RawItem, string>();
-      for (const item of items) {
-        const url = this.normalizeUrl(item.apply_url);
-        if (url) urlByItem.set(item, url);
-      }
-      const urls = [...new Set(urlByItem.values())];
-      if (urls.length === 0) return { fresh: items, skipped: [] };
-
-      const { data, error } = await this.supabase
-        .from("scraped_urls")
-        .select("url, status, last_checked")
-        .in("url", urls);
-      if (error) throw error;
-
-      const cutoff = Date.now() - recheckAfterDays * 24 * 60 * 60 * 1000;
-      const recentlyProcessed = new Set(
-        (data ?? [])
-          .filter(
-            (row) =>
-              row.status === "processed" &&
-              row.last_checked &&
-              new Date(row.last_checked).getTime() >= cutoff,
-          )
-          .map((row) => row.url),
-      );
-      if (recentlyProcessed.size === 0) return { fresh: items, skipped: [] };
-
-      const candidateApplyUrls = [
-        ...new Set(
-          items
-            .filter((item) => recentlyProcessed.has(urlByItem.get(item) ?? ""))
-            .map((item) => item.apply_url),
-        ),
-      ];
-      const { data: existing, error: existsError } = await this.supabase
-        .from("opportunities")
-        .select("apply_url")
-        .in("apply_url", candidateApplyUrls);
-      if (existsError) throw existsError;
-      const existingApplyUrls = new Set(
-        (existing ?? []).map((row) => row.apply_url),
-      );
-
-      const fresh: RawItem[] = [];
-      const skipped: RawItem[] = [];
-      for (const item of items) {
-        const known =
-          recentlyProcessed.has(urlByItem.get(item) ?? "") &&
-          existingApplyUrls.has(item.apply_url);
-        (known ? skipped : fresh).push(item);
-      }
-      return { fresh, skipped };
-    } catch (e: any) {
-      this.logger.warn(
-        `Incremental skip check failed (enriching everything): ${e.message}`,
-      );
-      return { fresh: items, skipped: [] };
-    }
-  }
-
-  /**
-   * Mark skipped items as seen this run: bump scraped_urls.last_checked (so
-   * the recheck window slides forward) and opportunities.last_seen_at (so
-   * retention and staleness signals know the listing is still live).
-   */
-  private async touchSkippedItems(items: RawItem[]): Promise<void> {
-    if (!this.supabase || items.length === 0) return;
-    const now = new Date().toISOString();
-    const normalizedUrls = [
-      ...new Set(
-        items.map((item) => this.normalizeUrl(item.apply_url)).filter(Boolean),
-      ),
-    ];
-    const applyUrls = [
-      ...new Set(items.map((item) => item.apply_url).filter(Boolean)),
-    ];
-    const [urlUpdate, oppUpdate] = await Promise.all([
-      this.supabase
-        .from("scraped_urls")
-        .update({ last_checked: now })
-        .in("url", normalizedUrls),
-      this.supabase
-        .from("opportunities")
-        .update({ last_seen_at: now })
-        .in("apply_url", applyUrls),
-    ]);
-    if (urlUpdate.error) {
-      this.logger.warn(
-        `Could not bump last_checked for skipped URLs: ${urlUpdate.error.message}`,
-      );
-    }
-    if (oppUpdate.error) {
-      this.logger.warn(
-        `Could not bump last_seen_at for skipped opportunities: ${oppUpdate.error.message}`,
-      );
-    }
-  }
-
-  /**
-   * Statuses of rows that already exist for these canonical_urls, so a
-   * re-scrape upsert never changes the status of an existing row (e.g.
-   * demoting an admin-approved 'active' row back to pending_review).
-   * One IN query per 200 URLs; fails open to an empty map.
-   */
-  private async fetchExistingStatuses(
-    canonicalUrls: string[],
-  ): Promise<Map<string, string>> {
-    const statusByUrl = new Map<string, string>();
-    const urls = canonicalUrls.filter(Boolean);
-    const CHUNK = 200;
-    try {
-      for (let i = 0; i < urls.length; i += CHUNK) {
-        const { data, error } = await this.supabase
-          .from("opportunities")
-          .select("id, canonical_url, status")
-          .in("canonical_url", urls.slice(i, i + CHUNK));
-        if (error) throw error;
-        for (const row of (data as Array<{
-          canonical_url: string | null;
-          status: string | null;
-        }>) ?? []) {
-          if (row.canonical_url && row.status) {
-            statusByUrl.set(row.canonical_url, row.status);
-          }
-        }
-      }
-    } catch (e: any) {
-      this.logger.warn(
-        `Could not fetch existing statuses (statuses may be overwritten this run): ${e.message}`,
-      );
-    }
-    return statusByUrl;
   }
 
   private async persistOpportunities(
@@ -2154,9 +1636,10 @@ export class ScraperService implements OnModuleInit {
     // rows on canonical_url conflict, so an admin-approved 'active' row would
     // be demoted every run by the review gates. Fetch existing statuses (one
     // IN query, chunked) and pin them — gates only apply to NEW rows.
-    const existingStatusByUrl = await this.fetchExistingStatuses(
-      uniqueRecords.map((rec) => rec.canonical_url as string),
-    );
+    const existingStatusByUrl =
+      await this.opportunityStatusRepository.findByCanonicalUrls(
+        uniqueRecords.map((rec) => rec.canonical_url as string),
+      );
     for (const rec of uniqueRecords) {
       const existing = existingStatusByUrl.get(rec.canonical_url as string);
       if (existing !== undefined) rec.status = existing;
@@ -2227,7 +1710,7 @@ export class ScraperService implements OnModuleInit {
           return metadata?.source_url === sr.url;
         }).length;
       });
-      await this.markProcessedUrls(saved);
+      await this.scrapedUrlIndexRepository.markProcessed(saved);
       await this.opportunityShareCardService.ensureShareCardsForOpportunities(
         saved,
       );
@@ -2278,44 +1761,6 @@ export class ScraperService implements OnModuleInit {
     );
 
     return outcome;
-  }
-
-  private async markProcessedUrls(
-    records: Array<{
-      id?: string | null;
-      application_url?: string | null;
-      canonical_url?: string | null;
-      metadata?: Record<string, any> | null;
-    }>,
-  ): Promise<void> {
-    if (!this.supabase || records.length === 0) return;
-
-    await Promise.all(
-      records.map(async (record) => {
-        const url = this.normalizeUrl(
-          record.metadata?.aggregator_url ||
-            record.application_url ||
-            record.canonical_url ||
-            "",
-        );
-        if (!url) return;
-
-        const { error } = await this.supabase
-          .from("scraped_urls")
-          .update({
-            status: "processed",
-            opportunity_id: record.id ?? null,
-            last_checked: new Date().toISOString(),
-          })
-          .eq("url", url);
-
-        if (error) {
-          this.logger.warn(
-            `Could not mark URL processed (${url}): ${error.message}`,
-          );
-        }
-      }),
-    );
   }
 
   // ─── Deep Enrichment ──────────────────────────────────────────────────────
@@ -2446,7 +1891,7 @@ export class ScraperService implements OnModuleInit {
 
     try {
       if (retry === 1) this.logger.log(`  ↳ Deep fetch: ${item.apply_url}`);
-      const html = await this.fetchDeepHTML(item.apply_url);
+      const html = await this.httpClient.fetchDeepHtml(item.apply_url);
 
       // Extract structured data from HTML (all done on same fetched HTML, zero extra requests)
       const sourceHost = new URL(item.apply_url).hostname;
@@ -2467,7 +1912,7 @@ export class ScraperService implements OnModuleInit {
         directApplyUrl !== item.apply_url
       ) {
         try {
-          const applyHtml = await this.fetchDeepHTML(directApplyUrl);
+          const applyHtml = await this.httpClient.fetchDeepHtml(directApplyUrl);
           sourceImageUrl = await this.claimUniqueImage(
             this.extractImageCandidatesFromHTML(applyHtml, directApplyUrl),
             item.apply_url,
@@ -2580,172 +2025,8 @@ export class ScraperService implements OnModuleInit {
     return $(selector).length > 0;
   }
 
-  // ─── HTML Fetching ────────────────────────────────────────────────────────
-
-  private relayConfigured(): boolean {
-    return Boolean(SCRAPER_FETCH_RELAY_URL);
-  }
-
-  private hostOf(url: string): string {
-    try {
-      return new URL(url).hostname.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
-  }
-
-  private buildRelayUrl(url: string): string {
-    const encoded = encodeURIComponent(url);
-    return SCRAPER_FETCH_RELAY_URL.includes("{url}")
-      ? SCRAPER_FETCH_RELAY_URL.replace("{url}", encoded)
-      : `${SCRAPER_FETCH_RELAY_URL}${encoded}`;
-  }
-
-  /** Where to start: a host that already blocked us this run skips `direct`. */
-  private initialFetchRoute(url: string): FetchRoute {
-    if (!this.blockedHostsThisRun.has(this.hostOf(url))) return "direct";
-    if (scraperProxyAgent) return "proxy";
-    return this.relayConfigured() ? "relay" : "direct";
-  }
-
-  /** Next route to try after a block, or null once the options run out. */
-  private nextFetchRoute(current: FetchRoute): FetchRoute | null {
-    if (current === "direct" && scraperProxyAgent) return "proxy";
-    if (current !== "relay" && this.relayConfigured()) return "relay";
-    return null;
-  }
-
-  /** Space relay calls RELAY_MIN_INTERVAL_MS apart so a run stays in quota. */
-  private async throttleRelay(): Promise<void> {
-    const previous = this.relayGate;
-    let release!: () => void;
-    this.relayGate = new Promise<void>((resolve) => (release = resolve));
-    await previous;
-    setTimeout(release, RELAY_MIN_INTERVAL_MS);
-  }
-
-  private async fetchViaRoute(
-    url: string,
-    timeoutMs: number,
-    route: FetchRoute,
-  ) {
-    if (route === "relay") await this.throttleRelay();
-    return axios.get(route === "relay" ? this.buildRelayUrl(url) : url, {
-      timeout:
-        route === "relay" ? Math.max(timeoutMs, RELAY_TIMEOUT_MS) : timeoutMs,
-      headers: route === "relay" ? RELAY_HEADERS : BROWSER_HEADERS,
-      validateStatus: (s) => s < 500,
-      ...(route === "proxy" ? PROXY_AXIOS_CONFIG : {}),
-    });
-  }
-
-  private async fetchWithBackoff(
-    url: string,
-    timeoutMs: number,
-    attempt = 1,
-    route: FetchRoute = this.initialFetchRoute(url),
-  ): Promise<string> {
-    try {
-      const res = await this.fetchViaRoute(url, timeoutMs, route);
-
-      if (res.status === 429) {
-        if (attempt >= MAX_BACKOFF_ATTEMPTS)
-          throw new Error(
-            `Rate-limited after ${MAX_BACKOFF_ATTEMPTS} attempts on ${url}`,
-          );
-        const backoff =
-          this.retryAfterMs(res.headers) ?? Math.pow(2, attempt) * 1_000;
-        this.logger.warn(
-          `  ⏳ 429 on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
-        );
-        await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, route);
-      }
-
-      if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`);
-      // A bot-challenge interstitial is a block wearing an HTTP 200 — parsing
-      // it as content silently yields zero items and hides the real problem.
-      if (
-        typeof res.data === "string" &&
-        this.looksLikeBotChallenge(res.data)
-      ) {
-        throw new Error(`Bot challenge (Cloudflare) for ${url}`);
-      }
-      return res.data;
-    } catch (err: any) {
-      // Blocked (403 or challenge page) → escalate direct → proxy → relay,
-      // and remember the host so the rest of the run skips the doomed hop.
-      if (this.isBlockedFetchError(err)) {
-        const next = this.nextFetchRoute(route);
-        if (next) {
-          this.blockedHostsThisRun.add(this.hostOf(url));
-          this.logger.warn(`  ↳ Blocked on ${url} — retrying via ${next}`);
-          return this.fetchWithBackoff(url, timeoutMs, attempt, next);
-        }
-      }
-      // Retry transient failures: 429, 5xx, and common network errors.
-      // Non-429 4xx responses are never retried.
-      if (this.isRetryableFetchError(err) && attempt < MAX_BACKOFF_ATTEMPTS) {
-        const backoff =
-          this.retryAfterMs(err?.response?.headers) ??
-          Math.pow(2, attempt) * 1_000;
-        const reason = err?.response?.status
-          ? `HTTP ${err.response.status}`
-          : (err?.code ?? "network error");
-        this.logger.warn(
-          `  ⏳ ${reason} on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
-        );
-        await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, route);
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Cloudflare (and similar WAF) browser challenges come back as small HTTP
-   * 200 HTML pages. Size-capped so real article pages never match on an
-   * incidental phrase.
-   */
-  private looksLikeBotChallenge(html: string): boolean {
-    if (!html || html.length > 60_000) return false;
-    return /just a moment|checking your browser|cf-browser-verification|challenge-platform|__cf_chl_|attention required!?\s*[|·]\s*cloudflare|verify you are human/i.test(
-      html,
-    );
-  }
-
-  /** True when the fetch failed because the origin blocked us (vs. transient). */
-  private isBlockedFetchError(err: any): boolean {
-    if (err?.response?.status === 403) return true;
-    const message = String(err?.message ?? "");
-    return /^HTTP 403 /.test(message) || /bot challenge/i.test(message);
-  }
-
-  /** True for errors worth retrying: 429/5xx responses or transient network errors. */
-  private isRetryableFetchError(err: any): boolean {
-    const status = err?.response?.status;
-    if (status === 429 || (typeof status === "number" && status >= 500))
-      return true;
-    return ["ETIMEDOUT", "ECONNABORTED", "ECONNRESET", "EAI_AGAIN"].includes(
-      err?.code,
-    );
-  }
-
-  /** Parse a Retry-After header (seconds or HTTP-date), capped at 60s. */
-  private retryAfterMs(headers: any): number | null {
-    const raw = headers?.["retry-after"] ?? headers?.["Retry-After"];
-    if (raw == null) return null;
-    const secs = Number(raw);
-    if (Number.isFinite(secs) && secs >= 0)
-      return Math.min(secs * 1_000, 60_000);
-    const at = Date.parse(String(raw));
-    if (!Number.isNaN(at))
-      return Math.min(Math.max(at - Date.now(), 0), 60_000);
-    return null;
-  }
-
   private fetchHTML(url: string): Promise<string> {
-    return this.fetchWithBackoff(url, 30_000);
+    return this.httpClient.fetchHtml(url);
   }
 
   private async fetchListHTML(url: string): Promise<string> {
@@ -2761,7 +2042,7 @@ export class ScraperService implements OnModuleInit {
       this.logger.warn(
         `  ↳ HTML blocked (403), using feed fallback: ${feedUrl}`,
       );
-      return this.fetchHTML(feedUrl);
+      return this.httpClient.fetchHtml(feedUrl);
     }
   }
 
@@ -2799,10 +2080,6 @@ export class ScraperService implements OnModuleInit {
     } catch {
       return null;
     }
-  }
-
-  private fetchDeepHTML(url: string): Promise<string> {
-    return this.fetchWithBackoff(url, 15_000);
   }
 
   private extractTextFromHTML(html: string, customSelector?: string): string {
@@ -2966,52 +2243,6 @@ ${text}`;
 
   // ─── List Extraction ─────────────────────────────────────────────────────
 
-  /**
-   * The relay serves a JSON endpoint as an HTML page with the body inside a
-   * <pre> block, so unwrap it and hand callers real JSON. A challenge page has
-   * no <pre> and falls through unchanged, keeping block detection working.
-   */
-  private unwrapRelayJson(data: unknown): unknown {
-    if (typeof data !== "string") return data;
-    const text = data.trim().startsWith("<")
-      ? cheerio.load(data)("pre").first().text()
-      : data;
-    if (!text) return data;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return data;
-    }
-  }
-
-  /**
-   * REST fetch with the same block handling as fetchWithBackoff: a JSON
-   * endpoint answering with a bot-challenge page (HTTP 200 HTML) or 403 is a
-   * block — escalate direct → proxy → relay, and only fail once every route is
-   * exhausted, instead of parsing the challenge as "no posts".
-   */
-  private async fetchRestResponse(
-    url: string,
-    timeoutMs: number,
-    route: FetchRoute = this.initialFetchRoute(url),
-  ): Promise<{ status: number; data: any }> {
-    const res = await this.fetchViaRoute(url, timeoutMs, route);
-    const data = route === "relay" ? this.unwrapRelayJson(res.data) : res.data;
-    const blocked =
-      res.status === 403 ||
-      (typeof data === "string" && this.looksLikeBotChallenge(data));
-    if (blocked) {
-      const next = this.nextFetchRoute(route);
-      if (next) {
-        this.blockedHostsThisRun.add(this.hostOf(url));
-        this.logger.warn(`  ↳ Blocked on ${url} — retrying via ${next}`);
-        return this.fetchRestResponse(url, timeoutMs, next);
-      }
-      throw new Error(`Bot challenge (Cloudflare) or 403 for ${url}`);
-    }
-    return { status: res.status, data };
-  }
-
   private isDixcoverHubSource(source: ScrapeSource): boolean {
     try {
       return (
@@ -3088,7 +2319,10 @@ ${text}`;
     if (!categorySlug) return [];
 
     const categoryUrl = `${sourceUrl.origin}/wp-json/wp/v2/categories?slug=${encodeURIComponent(categorySlug)}`;
-    const categoryResponse = await this.fetchRestResponse(categoryUrl, 15_000);
+    const categoryResponse = await this.httpClient.fetchRestResponse(
+      categoryUrl,
+      15_000,
+    );
 
     if (categoryResponse.status >= 400) {
       throw new Error(`Category REST returned HTTP ${categoryResponse.status}`);
@@ -3098,7 +2332,10 @@ ${text}`;
     if (!categoryId) return [];
 
     const postsUrl = `${sourceUrl.origin}/wp-json/wp/v2/posts?categories=${categoryId}&per_page=${MAX_ITEMS_PER_PAGE}&page=${page}&_embed=1`;
-    const postsResponse = await this.fetchRestResponse(postsUrl, 20_000);
+    const postsResponse = await this.httpClient.fetchRestResponse(
+      postsUrl,
+      20_000,
+    );
 
     if (postsResponse.status === 400 && page > 1) return [];
     if (postsResponse.status >= 400) {
@@ -3161,7 +2398,7 @@ ${text}`;
     const feedUrl = this.toWordPressFeedUrl(source.url);
     if (!feedUrl) return [];
 
-    const html = await this.fetchHTML(feedUrl);
+    const html = await this.httpClient.fetchHtml(feedUrl);
     const allItems = this.extractItemsFromList(html, source, false);
     const start = (page - 1) * MAX_ITEMS_PER_PAGE;
     return allItems.slice(start, start + MAX_ITEMS_PER_PAGE);
@@ -3706,7 +2943,7 @@ ${text}`;
       summary,
       organization,
       category:
-        this.categorize(item.title) ??
+        categorizeOpportunityTitle(item.title) ??
         this.displayCategoryFor(classification.canonicalCategory),
       canonical_category: classification.canonicalCategory,
       close_date: closeDate,
@@ -4455,18 +3692,6 @@ ${text}`;
       text.match(/based\s+in[:\s]*([^\n,]{3,40})/i);
     // No fabricated "Worldwide" default — unknown stays unknown.
     return m ? m[1].trim() : undefined;
-  }
-
-  // Field-of-study is only trusted from the title — descriptions mention
-  // fields incidentally ("transform public health…") and mislabel generic
-  // scholarships.
-  private categorize(title = ""): string | null {
-    for (const [category, pattern] of CATEGORY_PATTERNS) {
-      if (pattern.test(title)) return category;
-    }
-    // No keyword hit — let the caller derive a label from the canonical
-    // classification instead of defaulting to a generic "General".
-    return null;
   }
 
   // ─── Source Status ────────────────────────────────────────────────────────

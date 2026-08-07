@@ -12,13 +12,191 @@ export type CreateGroupDto = z.infer<typeof CreateGroupSchema>;
 
 export const UpdateGroupSchema = CreateGroupSchema.partial().omit({
   opportunityId: true,
+}).extend({
+  coverImageResourceUrl: z.string().url().max(2048).nullable().optional(),
 });
 export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>;
 
-export const SendMessageSchema = z.object({
-  body: z.string().trim().min(1).max(2000),
-  opportunityId: z.string().uuid().optional(),
-});
+export const COMMUNITY_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+export const COMMUNITY_PDF_MIME_TYPE = "application/pdf" as const;
+export const COMMUNITY_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const COMMUNITY_PDF_MAX_BYTES = 10 * 1024 * 1024;
+
+const attachmentDisplayName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  // Display names are rendered back to every member. Reject path-shaped and
+  // control-character names rather than trying to sanitize them differently
+  // on each client.
+  .refine(
+    (name) => !/[\\/\u0000-\u001f\u007f]/.test(name) && name !== "." && name !== "..",
+    "Attachment name is not safe",
+  );
+
+const attachmentCaption = z.string().trim().max(500).optional();
+const attachmentUrl = z
+  .string()
+  .url()
+  .max(2048)
+  .refine((value) => {
+    try {
+      return new URL(value).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Attachment URL must use HTTPS");
+
+export const CommunityImageAttachmentSchema = z
+  .object({
+    url: attachmentUrl,
+    name: attachmentDisplayName.refine(
+      (name) => /\.(?:jpe?g|png|webp)$/i.test(name),
+      "Image name must end in .jpg, .jpeg, .png, or .webp",
+    ),
+    mime: z.enum(COMMUNITY_IMAGE_MIME_TYPES),
+    size: z.number().int().positive().max(COMMUNITY_IMAGE_MAX_BYTES),
+    caption: attachmentCaption,
+  })
+  .strict();
+
+export const CommunityFileAttachmentSchema = z
+  .object({
+    url: attachmentUrl,
+    name: attachmentDisplayName.refine(
+      (name) => /\.pdf$/i.test(name),
+      "File name must end in .pdf",
+    ),
+    mime: z.literal(COMMUNITY_PDF_MIME_TYPE),
+    size: z.number().int().positive().max(COMMUNITY_PDF_MAX_BYTES),
+    caption: attachmentCaption,
+  })
+  .strict();
+
+export type CommunityAttachmentDto =
+  | z.infer<typeof CommunityImageAttachmentSchema>
+  | z.infer<typeof CommunityFileAttachmentSchema>;
+
+export const CommunityAttachmentUploadSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("image"),
+      name: attachmentDisplayName.refine(
+        (name) => /\.(?:jpe?g|png|webp)$/i.test(name),
+        "Image name must end in .jpg, .jpeg, .png, or .webp",
+      ),
+      mime: z.enum(COMMUNITY_IMAGE_MIME_TYPES),
+      size: z.number().int().positive().max(COMMUNITY_IMAGE_MAX_BYTES),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("file"),
+      name: attachmentDisplayName.refine(
+        (name) => /\.pdf$/i.test(name),
+        "File name must end in .pdf",
+      ),
+      mime: z.literal(COMMUNITY_PDF_MIME_TYPE),
+      size: z.number().int().positive().max(COMMUNITY_PDF_MAX_BYTES),
+    })
+    .strict(),
+]);
+export type CommunityAttachmentUploadDto = z.infer<
+  typeof CommunityAttachmentUploadSchema
+>;
+
+/** Group identity images use the same private bucket but can never be PDFs. */
+export const CommunityGroupImageUploadSchema = z
+  .object({
+    kind: z.literal("image"),
+    name: attachmentDisplayName.refine(
+      (name) => /\.(?:jpe?g|png|webp)$/i.test(name),
+      "Image name must end in .jpg, .jpeg, .png, or .webp",
+    ),
+    mime: z.enum(COMMUNITY_IMAGE_MIME_TYPES),
+    size: z.number().int().positive().max(COMMUNITY_IMAGE_MAX_BYTES),
+  })
+  .strict();
+export type CommunityGroupImageUploadDto = z.infer<
+  typeof CommunityGroupImageUploadSchema
+>;
+
+function attachmentBody(
+  schema: typeof CommunityImageAttachmentSchema | typeof CommunityFileAttachmentSchema,
+) {
+  return z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .transform((raw, context) => {
+      let decoded: unknown;
+      try {
+        decoded = JSON.parse(raw);
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "Attachment body must be valid JSON",
+        });
+        return z.NEVER;
+      }
+
+      const parsed = schema.safeParse(decoded);
+      if (!parsed.success) {
+        context.addIssue({
+          code: "custom",
+          message: parsed.error.issues[0]?.message ?? "Attachment metadata is invalid",
+        });
+        return z.NEVER;
+      }
+
+      const canonical = {
+        url: parsed.data.url,
+        name: parsed.data.name,
+        mime: parsed.data.mime,
+        size: parsed.data.size,
+        ...(parsed.data.caption ? { caption: parsed.data.caption } : {}),
+      };
+      return JSON.stringify(canonical);
+    });
+}
+
+const messageOpportunity = z.string().uuid().optional();
+
+const TextMessageSchema = z
+  .object({
+    kind: z.literal("text").optional(),
+    body: z.string().trim().min(1).max(2000),
+    opportunityId: messageOpportunity,
+  })
+  .strict();
+
+const ImageMessageSchema = z
+  .object({
+    kind: z.literal("image"),
+    body: attachmentBody(CommunityImageAttachmentSchema),
+    opportunityId: messageOpportunity,
+  })
+  .strict();
+
+const FileMessageSchema = z
+  .object({
+    kind: z.literal("file"),
+    body: attachmentBody(CommunityFileAttachmentSchema),
+    opportunityId: messageOpportunity,
+  })
+  .strict();
+
+export const SendMessageSchema = z.union([
+  TextMessageSchema,
+  ImageMessageSchema,
+  FileMessageSchema,
+]);
 export type SendMessageDto = z.infer<typeof SendMessageSchema>;
 
 // The constrained question set. Max 5, fixed types — a form builder, not a

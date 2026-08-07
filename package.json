@@ -1,5 +1,13 @@
 {
+  "scripts": {
+    "check:architecture": "node scripts/check-large-file-budgets.mjs"
+  },
   "devDependencies": {
-    "supabase": "^2.98.2"
+    "@types/react": "~19.2.4",
+    "supabase": "^2.98.2",
+    "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "expo": "^57.0.11"
   }
 }

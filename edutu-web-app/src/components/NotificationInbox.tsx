@@ -8,6 +8,8 @@ import {
   CheckCheck,
   Loader2,
   Lock,
+  PhoneCall,
+  PhoneMissed,
   RefreshCcw,
   Settings,
   Target,
@@ -19,6 +21,7 @@ import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../hooks/useNotifications";
 import type { AppNotification } from "../types/notification";
+import { safeInternalAppPath } from "../features/community-calls/deepLinks";
 
 interface NotificationInboxProps {
   isOpen?: boolean;
@@ -44,6 +47,9 @@ const KIND_ICONS: Record<string, { Icon: LucideIcon; color: string }> = {
   "goal-progress": { Icon: Award, color: "#10b981" },
   "opportunity-highlight": { Icon: Users, color: "#3b82f6" },
   "opportunity-alert": { Icon: BellRing, color: "#10b981" },
+  "community-call-reminder": { Icon: PhoneCall, color: "#2563eb" },
+  "community-call-started": { Icon: PhoneCall, color: "#10b981" },
+  "community-call-missed": { Icon: PhoneMissed, color: "#ef4444" },
   "admin-broadcast": { Icon: AlertTriangle, color: "#f59e0b" },
   system: { Icon: Lock, color: "#2563EB" },
 };
@@ -200,8 +206,9 @@ export default function NotificationInbox({
     }
     // Alert-style notifications deep-link to their target via metadata.url —
     // same contract as the mobile app and push payloads.
-    const url = notification.metadata?.url;
-    if (typeof url === "string" && url.startsWith("/")) {
+    const rawUrl = notification.metadata?.url;
+    const url = safeInternalAppPath(rawUrl, "");
+    if (url) {
       if (variant === "modal") {
         onClose?.();
       }

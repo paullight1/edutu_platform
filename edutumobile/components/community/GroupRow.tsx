@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Lock } from 'lucide-react-native';
+import { BriefcaseBusiness, ChevronRight, Lock } from 'lucide-react-native';
 import { FadeInDown } from 'react-native-reanimated';
 import type {
   CommunityGroup,
@@ -10,6 +10,7 @@ import type {
 import { AnimatedPressable } from '../ui/AnimatedPressable';
 import { useTheme } from '../context/ThemeContext';
 import { formatRelativeTime } from '../../lib/utils';
+import { GroupAvatar } from './GroupAvatar';
 
 /**
  * One group as a LIST ROW — the affordance for rooms you are already in or
@@ -36,6 +37,13 @@ interface GroupRowProps {
   disabled?: boolean;
   /** A row waiting on something (accepting an invite, opening) shows a spinner. */
   loading?: boolean;
+  /**
+   * `list` is deliberately borderless so a parent can provide one coherent
+   * list surface. `card` remains available for a standalone row.
+   */
+  variant?: 'list' | 'card';
+  /** Suppresses the separator after the final row in a list surface. */
+  isLast?: boolean;
 }
 
 /**
@@ -61,6 +69,8 @@ export function GroupRow({
   onPress,
   disabled = false,
   loading = false,
+  variant = 'list',
+  isLast = false,
 }: GroupRowProps) {
   const { t } = useTranslation('community');
   const { colors, reducedMotion } = useTheme();
@@ -87,12 +97,27 @@ export function GroupRow({
   }, [group.memberCount, group.lastMessageAt, t]);
 
   const inert = disabled || loading;
+  const linkedOpportunityLabel = group.opportunityId
+    ? t('groupState.linkedOpportunity', { defaultValue: 'Opportunity group' })
+    : null;
+  const membershipLabel = membership ? t(`membership.${membership}`) : null;
+  const accessibilityLabel = [
+    group.name,
+    meta,
+    linkedOpportunityLabel,
+    membershipLabel,
+    group.visibility === 'private' ? t('visibility.private') : null,
+    unread ? t('groupState.unread', { defaultValue: 'Unread messages' }) : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <AnimatedPressable
       testID={`group-row-${group.id}`}
       accessibilityRole="button"
-      accessibilityLabel={group.name}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={t('actions.viewGroup')}
       accessibilityState={{ disabled: inert, busy: loading }}
       disabled={inert}
       onPress={() => onPress?.(group)}
@@ -106,17 +131,28 @@ export function GroupRow({
       }
       style={[
         styles.row,
+        variant === 'card' ? styles.cardRow : styles.listRow,
         {
-          backgroundColor: colors.card,
-          borderColor: unread ? colors.accent : colors.border,
+          backgroundColor: variant === 'card' ? colors.card : 'transparent',
+          borderColor:
+            variant === 'card'
+              ? unread
+                ? colors.accent
+                : colors.border
+              : colors.border,
           opacity: inert ? 0.55 : 1,
         },
+        variant === 'list' && isLast && styles.lastListRow,
       ]}
     >
       <View style={styles.inner}>
-        <View style={[styles.emojiWrap, { backgroundColor: colors.muted }]}>
-          <Text style={styles.emoji}>{group.coverEmoji}</Text>
-        </View>
+        <GroupAvatar
+          testID={`group-row-avatar-${group.id}`}
+          resourceUrl={group.coverImageResourceUrl}
+          emoji={group.coverEmoji}
+          size={42}
+          radius={12}
+        />
 
         <View style={styles.body}>
           <View style={styles.titleRow}>
@@ -133,7 +169,10 @@ export function GroupRow({
             <Text
               style={[
                 styles.name,
-                { color: colors.foreground, fontWeight: unread ? '700' : '600' },
+                {
+                  color: colors.foreground,
+                  fontWeight: unread ? '700' : '600',
+                },
               ]}
               numberOfLines={2}
             >
@@ -143,17 +182,43 @@ export function GroupRow({
               <Lock
                 size={13}
                 color={colors.textSecondary}
-                accessibilityLabel={t('visibility.private')}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               />
             )}
           </View>
 
-          <Text
-            style={[styles.meta, { color: colors.textSecondary }]}
-            numberOfLines={1}
-          >
-            {meta}
-          </Text>
+          <View style={styles.metaRow}>
+            <Text
+              style={[styles.meta, { color: colors.textSecondary }]}
+              numberOfLines={1}
+            >
+              {meta}
+            </Text>
+            {!!linkedOpportunityLabel && (
+              <View
+                testID={`group-row-opportunity-${group.id}`}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={[
+                  styles.opportunityBadge,
+                  { backgroundColor: `${colors.accent}14` },
+                ]}
+              >
+                <BriefcaseBusiness
+                  size={11}
+                  color={colors.accent}
+                  strokeWidth={2.4}
+                />
+                <Text
+                  style={[styles.opportunityLabel, { color: colors.accent }]}
+                  numberOfLines={1}
+                >
+                  {linkedOpportunityLabel}
+                </Text>
+              </View>
+            )}
+          </View>
 
           {membership && (
             <Text
@@ -161,7 +226,7 @@ export function GroupRow({
               style={[styles.membership, { color: membershipColor }]}
               numberOfLines={1}
             >
-              {t(`membership.${membership}`)}
+              {membershipLabel}
             </Text>
           )}
         </View>
@@ -173,7 +238,12 @@ export function GroupRow({
             color={colors.textSecondary}
           />
         ) : (
-          <ChevronRight size={18} color={colors.textSecondary} />
+          <ChevronRight
+            size={18}
+            color={colors.textSecondary}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
         )}
       </View>
     </AnimatedPressable>
@@ -182,9 +252,18 @@ export function GroupRow({
 
 const styles = StyleSheet.create({
   row: {
+    overflow: 'hidden',
+  },
+  cardRow: {
     borderWidth: 1,
-    borderRadius: 14,
-    marginBottom: 10,
+    borderRadius: 16,
+    borderCurve: 'continuous',
+  },
+  listRow: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  lastListRow: {
+    borderBottomWidth: 0,
   },
   inner: {
     flexDirection: 'row',
@@ -192,16 +271,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  emojiWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 20,
   },
   body: {
     flex: 1,
@@ -222,7 +291,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   meta: {
+    flexShrink: 1,
     fontSize: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  opportunityBadge: {
+    maxWidth: 132,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  opportunityLabel: {
+    flexShrink: 1,
+    fontSize: 10,
+    fontWeight: '700',
   },
   membership: {
     fontSize: 12,

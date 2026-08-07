@@ -1,9 +1,12 @@
 internal import Expo
 import React
 import ReactAppDependencyProvider
+import PushKit
+import RNCallKeep
+import RNVoipPushNotification
 
 @main
-class AppDelegate: ExpoAppDelegate {
+class AppDelegate: ExpoAppDelegate, PKPushRegistryDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
@@ -28,7 +31,55 @@ class AppDelegate: ExpoAppDelegate {
       launchOptions: launchOptions)
 #endif
 
+    // Register PushKit before the JS bridge is ready. iOS requires a valid
+    // incoming VoIP push to be reported to CallKit immediately.
+    RNVoipPushNotificationManager.voipRegistration()
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  func pushRegistry(
+    _ registry: PKPushRegistry,
+    didUpdate pushCredentials: PKPushCredentials,
+    for type: PKPushType
+  ) {
+    RNVoipPushNotificationManager.didUpdate(pushCredentials, forType: type.rawValue)
+  }
+
+  func pushRegistry(
+    _ registry: PKPushRegistry,
+    didReceiveIncomingPushWith payload: PKPushPayload,
+    for type: PKPushType,
+    completion: @escaping () -> Void
+  ) {
+    let data = payload.dictionaryPayload
+    let callId = (data["callId"] as? String) ?? (data["call_id"] as? String) ?? ""
+    let groupName = (data["groupName"] as? String) ?? "Edutu community"
+    let title = (data["title"] as? String) ?? "Community voice call"
+    let expiresValue = (data["ringExpiresAt"] as? String) ?? (data["ring_expires_at"] as? String) ?? ""
+    let expiresAt = ISO8601DateFormatter().date(from: expiresValue)
+
+    guard type == .voIP, UUID(uuidString: callId) != nil, let expiresAt, expiresAt > Date() else {
+      completion()
+      return
+    }
+
+    RNVoipPushNotificationManager.addCompletionHandler(callId, completionHandler: completion)
+    RNVoipPushNotificationManager.didReceiveIncomingPush(with: payload, forType: type.rawValue)
+    RNCallKeep.reportNewIncomingCall(
+      callId,
+      handle: groupName,
+      handleType: "generic",
+      hasVideo: false,
+      localizedCallerName: title,
+      supportsHolding: false,
+      supportsDTMF: false,
+      supportsGrouping: false,
+      supportsUngrouping: false,
+      fromPushKit: true,
+      payload: data,
+      withCompletionHandler: nil
+    )
   }
 
   // Linking API

@@ -1,0 +1,14 @@
+flowchart LR
+  Admin[Admin scraper controls] --> API[NestJS API]
+  Mobile[Mobile/Web clients] --> API
+  API --> ScraperService[ScraperService\nworkflow orchestration]
+  ScraperService --> RunControl[ScraperRunControl]
+  ScraperService --> Http[ScraperHttpClient]
+  ScraperService --> StatusRepo[OpportunityStatusRepository]
+  ScraperService --> UrlIndex[ScrapedUrlIndexRepository]
+  Http --> Sources[Opportunity source sites]
+  Http --> Relay[Proxy / reader relay]
+  StatusRepo --> Supabase[(Supabase PostgreSQL)]
+  UrlIndex --> Supabase
+  ScraperService --> Supabase
+  ScraperService --> AI[AI enrichment provider]

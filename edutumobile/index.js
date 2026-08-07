@@ -7,4 +7,7 @@ import "./lib/crashReportingInit";
 // router never mounts — a task defined behind app/_layout.tsx wouldn't exist
 // yet. Importing here defines it at module scope on every launch.
 import "./lib/notificationActionTask";
+// Registers direct-FCM and PushKit handlers before React mounts. The adapter
+// dynamically loads native modules and quietly falls back in Expo Go/Jest.
+import "./features/community-calls/bootstrap";
 import "expo-router/entry";

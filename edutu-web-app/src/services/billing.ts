@@ -137,3 +137,9 @@ export async function createCheckout(
     body: JSON.stringify(backendInput),
   });
 }
+
+/** Notify other tabs after a hosted checkout or payment return completes. */
+export function broadcastBillingInvalidation(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem('edutu:billing-invalidated', String(Date.now()));
+}

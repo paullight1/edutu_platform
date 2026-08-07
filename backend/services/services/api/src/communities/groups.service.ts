@@ -29,7 +29,18 @@ import {
   type MemberRole,
   type MembershipStatus,
 } from "./community-authz";
-import type { CreateGroupDto, UpdateGroupDto } from "./dto/community.dto";
+import type {
+  CommunityGroupImageUploadDto,
+  CreateGroupDto,
+  UpdateGroupDto,
+} from "./dto/community.dto";
+import {
+  AUTHOR_DIRECTORY,
+  DrizzleAuthorDirectory,
+  MessagesService,
+  UNNAMED_MEMBER,
+  type AuthorDirectory,
+} from "./messages.service";
 
 export type { CommunityGroup, CommunityGroupMember };
 /**
@@ -63,6 +74,7 @@ export type NewGroupRow = {
   visibility: string;
   joinPolicy: string;
   coverEmoji: string;
+  coverImageResourceUrl?: string | null;
   expiresAt?: Date | null;
 };
 
@@ -80,6 +92,7 @@ export type GroupPatch = Partial<
     | "visibility"
     | "joinPolicy"
     | "coverEmoji"
+    | "coverImageResourceUrl"
     | "archivedAt"
   >
 >;
@@ -152,6 +165,28 @@ export type GroupWithMembership = {
   group: CommunityGroup;
   membership: CommunityGroupMember | null;
 };
+
+/**
+ * The deliberately small public identity carried by the roster. Profiles hold
+ * considerably more data (email, school, country, CGPA); none of it belongs in
+ * a group member directory, so the service returns only the two fields already
+ * used beside chat messages.
+ */
+export type CommunityMemberSummary = {
+  membership: CommunityGroupMember;
+  profile: {
+    displayName: string;
+    avatarUrl: string | null;
+  };
+};
+
+export type CommunityMemberList = {
+  members: CommunityMemberSummary[];
+  /** True when the bounded response omitted additional active members. */
+  hasMore: boolean;
+};
+
+export const MEMBER_LIST_LIMIT = 100;
 
 export type JoinResult = {
   status: "active" | "pending";
@@ -229,6 +264,15 @@ export interface GroupsStore {
    * applies `isLiveMembershipStatus` and `admitsToPrivateGroup` itself.
    */
   listMembershipsForUser(userId: string): Promise<CommunityGroupMember[]>;
+  /**
+   * Active members only, ordered by responsibility then join date. `limit + 1`
+   * is requested by the service so it can report truncation without a second
+   * count query; the group row already carries the authoritative member count.
+   */
+  listActiveGroupMembers(
+    groupId: string,
+    limit: number,
+  ): Promise<CommunityGroupMember[]>;
   findMembership(
     groupId: string,
     userId: string,
@@ -349,6 +393,7 @@ export class DrizzleGroupsStore implements GroupsStore {
           visibility: group.visibility,
           joinPolicy: group.joinPolicy,
           coverEmoji: group.coverEmoji,
+          coverImageResourceUrl: group.coverImageResourceUrl ?? null,
           expiresAt: group.expiresAt ?? null,
           memberCount: 1,
         })
@@ -440,6 +485,27 @@ export class DrizzleGroupsStore implements GroupsStore {
       .select()
       .from(communityGroupMembers)
       .where(eq(communityGroupMembers.userId, userId));
+  }
+
+  async listActiveGroupMembers(
+    groupId: string,
+    limit: number,
+  ): Promise<CommunityGroupMember[]> {
+    return db
+      .select()
+      .from(communityGroupMembers)
+      .where(
+        and(
+          eq(communityGroupMembers.groupId, groupId),
+          eq(communityGroupMembers.status, "active"),
+        ),
+      )
+      .orderBy(
+        sql`case ${communityGroupMembers.role} when 'owner' then 0 when 'mod' then 1 else 2 end`,
+        communityGroupMembers.joinedAt,
+        communityGroupMembers.id,
+      )
+      .limit(Math.max(1, Math.min(limit, MEMBER_LIST_LIMIT + 1)));
   }
 
   async findMembership(
@@ -671,9 +737,15 @@ export class DrizzleGroupsStore implements GroupsStore {
 export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
   private readonly store: GroupsStore;
+  private readonly authors: AuthorDirectory;
 
-  constructor(@Optional() @Inject(GROUPS_STORE) store?: GroupsStore) {
+  constructor(
+    @Optional() @Inject(GROUPS_STORE) store?: GroupsStore,
+    @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
+    @Optional() private readonly assets?: MessagesService,
+  ) {
     this.store = store ?? new DrizzleGroupsStore();
+    this.authors = authors ?? new DrizzleAuthorDirectory();
   }
 
   // -------------------------------------------------------------------------
@@ -713,6 +785,7 @@ export class GroupsService {
       visibility: dto.visibility,
       joinPolicy: dto.joinPolicy,
       coverEmoji: dto.coverEmoji,
+      coverImageResourceUrl: null,
       expiresAt,
     };
     const owner: NewMemberRow = {
@@ -824,6 +897,58 @@ export class GroupsService {
     return { group, membership };
   }
 
+  /**
+   * A real roster, not a client-side reconstruction from chat messages.
+   *
+   * Visibility deliberately matches `get`: public group rosters are visible
+   * with their public group profile; private rosters require an active member
+   * or standing invite. Pending/removed/banned rows neither unlock a private
+   * group nor appear in the returned roster. Only active rows are listed.
+   */
+  async listMembers(
+    userId: string,
+    groupId: string,
+    limit = MEMBER_LIST_LIMIT,
+  ): Promise<CommunityMemberList> {
+    const group = await this.requireGroup(groupId);
+    const membership = await this.store.findMembership(groupId, userId);
+    if (!canReadGroup(group, membership)) {
+      throw new ForbiddenException(
+        "This group is private. Ask an owner for an invite.",
+      );
+    }
+
+    const resolvedLimit = Math.max(
+      1,
+      Math.min(Math.floor(limit || MEMBER_LIST_LIMIT), MEMBER_LIST_LIMIT),
+    );
+    const rows = await this.store.listActiveGroupMembers(
+      groupId,
+      resolvedLimit + 1,
+    );
+    const visible = rows.slice(0, resolvedLimit);
+    const profiles = visible.length
+      ? await this.authors.findAuthors(visible.map((row) => row.userId))
+      : [];
+    const profileByUser = new Map(profiles.map((row) => [row.userId, row]));
+
+    return {
+      members: visible.map((row) => {
+        const profile = profileByUser.get(row.userId);
+        const displayName = (profile?.fullName || "").trim();
+        const avatarUrl = (profile?.avatarUrl || "").trim();
+        return {
+          membership: row,
+          profile: {
+            displayName: displayName || UNNAMED_MEMBER,
+            avatarUrl: avatarUrl || null,
+          },
+        };
+      }),
+      hasMore: rows.length > resolvedLimit,
+    };
+  }
+
   async update(
     userId: string,
     groupId: string,
@@ -844,10 +969,44 @@ export class GroupsService {
     if (dto.visibility !== undefined) patch.visibility = dto.visibility;
     if (dto.joinPolicy !== undefined) patch.joinPolicy = dto.joinPolicy;
     if (dto.coverEmoji !== undefined) patch.coverEmoji = dto.coverEmoji;
+    if (dto.coverImageResourceUrl !== undefined) {
+      if (dto.coverImageResourceUrl === null) {
+        patch.coverImageResourceUrl = null;
+      } else {
+        if (!this.assets) {
+          throw new BadRequestException(
+            "Group photos are not configured right now.",
+          );
+        }
+        this.assets.assertGroupImageResourceUrl(
+          groupId,
+          dto.coverImageResourceUrl,
+        );
+        patch.coverImageResourceUrl = dto.coverImageResourceUrl;
+      }
+    }
 
     const row = await this.store.updateGroup(groupId, patch);
     if (!row) throw new NotFoundException("That group was not found.");
     return row;
+  }
+
+  /** Reserve a private image upload only after owner/mod authorization. */
+  async createCoverImageUpload(
+    userId: string,
+    groupId: string,
+    dto: CommunityGroupImageUploadDto,
+  ) {
+    const group = await this.requireGroup(groupId);
+    await this.assertCanAdminister(
+      userId,
+      group,
+      "You're not allowed to change this group's photo.",
+    );
+    if (!this.assets) {
+      throw new BadRequestException("Group photos are not configured right now.");
+    }
+    return this.assets.createAttachmentUpload(userId, groupId, dto);
   }
 
   /**

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edutu Mobile Review"
+  short_description: "Expo mobile correctness and release review"
+  default_prompt: "Use $edutu-mobile-review to review the Edutu mobile changes for auth, offline, UX, native, and release risks."

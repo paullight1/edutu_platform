@@ -3,6 +3,9 @@ export type NotificationKind =
   | 'goal-weekly-digest'
   | 'goal-progress'
   | 'opportunity-highlight'
+  | 'community-call-reminder'
+  | 'community-call-started'
+  | 'community-call-missed'
   | 'admin-broadcast'
   | 'system';
 

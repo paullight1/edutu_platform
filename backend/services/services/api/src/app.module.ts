@@ -37,6 +37,8 @@ import { CacheModule } from "./common/cache/cache.module";
 import { CopilotModule } from "./copilot/copilot.module";
 import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
 import { CommunitiesModule } from "./communities/communities.module";
+import { CommunityDmsModule } from "./community-dms/community-dms.module";
+import { CommunityCallsModule } from "./community-calls/community-calls.module";
 import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { DocumentsModule } from "./documents/documents.module";
@@ -88,6 +90,8 @@ import { SupportModule } from "./support/support.module";
     CopilotModule,
     SavedSearchesModule,
     CommunitiesModule,
+    CommunityDmsModule,
+    CommunityCallsModule,
     AlertsModule,
     SupportModule,
   ],

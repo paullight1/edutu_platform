@@ -1,8 +1,8 @@
 name: CI
 
-# Node 20 here is deliberate: it matches the backend's .node-version and
-# Dockerfile, which is what production actually runs. Don't "modernise" it
-# without moving production too, or CI stops testing the real runtime.
+# Node 20 is deliberate for the existing applications: it matches the API's
+# production runtime. The mediasoup voice gateway has a separate Node 22 job
+# because mediasoup 3.24 requires Node 22 or newer.
 
 on:
   push:
@@ -12,6 +12,30 @@ on:
   workflow_dispatch:
 
 jobs:
+  voice-gateway:
+    name: Voice Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/services/services/voice
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/services/services/voice/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      # Exercises the real mediasoup worker and RTC socket binding on the target
+      # Linux runtime; unit tests use an injectable media adapter.
+      - run: npm run test:smoke
+
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -234,3 +258,22 @@ jobs:
           cd edutumobile && npm ci && npm audit --audit-level=high || true
       - run: |
           cd admin && npm ci && npm audit --audit-level=high || true
+
+  security-audit-voice:
+    name: Security Audit — Voice Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend/services/services/voice
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/services/services/voice/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high || true

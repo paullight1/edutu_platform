@@ -29,6 +29,12 @@ function clean(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
 function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1).trimEnd()}…`;
@@ -428,6 +434,7 @@ export class OgController {
         200,
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
+    const metadata = asRecord(opp.metadata);
 
     // Image priority: hosted flyer copy → original source flyer → share image
     // → branded card → generic Edutu icon. `image_url` is the scraper's

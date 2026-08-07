@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Animated, Image, Linking, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@clerk/clerk-expo';
-import { Ban, EyeOff, Flag, Trash2, UserMinus } from 'lucide-react-native';
+import { Ban, EyeOff, FileText, Flag, ImageOff, Pin, Reply, Trash2, UserMinus } from 'lucide-react-native';
 import * as communityApi from '@edutu/core/src/services/communities';
 import type { CommunityMessage } from '@edutu/core/src/services/communities';
+import { parseCommunityAttachment, resolveCommunityAttachmentUrl } from '@edutu/core/src/services/communities';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
 import { useTheme } from '../context/ThemeContext';
 import { formatRelativeTime } from '../../lib/utils';
@@ -48,7 +49,24 @@ import { formatRelativeTime } from '../../lib/utils';
  */
 
 /** Every action the long-press menu can start. */
-type BubbleAction = 'report' | 'block' | 'remove' | 'delete';
+type BubbleAction = 'report' | 'block' | 'remove' | 'delete' | 'pin';
+
+export interface ParsedReplyBody {
+  author: string;
+  excerpt: string;
+  body: string;
+}
+
+/**
+ * Replies are transported as plain message text because the current API has no
+ * reply metadata field. Keep the encoding readable outside this client, while
+ * restoring a proper quote hierarchy when it returns here.
+ */
+export function parseReplyBody(body: string): ParsedReplyBody | null {
+  const match = /^↪ ([^:\n]{1,120}): ([^\n]{1,120})\n([\s\S]+)$/.exec(body);
+  if (!match) return null;
+  return { author: match[1], excerpt: match[2], body: match[3] };
+}
 
 export interface MessageBubbleProps {
   message: CommunityMessage;
@@ -70,6 +88,9 @@ export interface MessageBubbleProps {
   onDelete?: (message: CommunityMessage) => Promise<void> | void;
   /** Optional: the screen may want to refresh its roster after a removal. */
   onRemoveMember?: (message: CommunityMessage) => Promise<void> | void;
+  onReply?: (message: CommunityMessage) => void;
+  onPin?: (message: CommunityMessage) => Promise<void> | void;
+  pinned?: boolean;
 }
 
 export function MessageBubble({
@@ -81,6 +102,9 @@ export function MessageBubble({
   onBlock,
   onDelete,
   onRemoveMember,
+  onReply,
+  onPin,
+  pinned = false,
 }: MessageBubbleProps) {
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
@@ -91,9 +115,74 @@ export function MessageBubble({
   const [busy, setBusy] = useState<BubbleAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
+  const [resolvedAttachmentUrl, setResolvedAttachmentUrl] = useState<string | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [swipeX] = useState(() => new Animated.Value(0));
+  const swipeIndicatorStyle = {
+    opacity: swipeX.interpolate({ inputRange: [0, 10, 48], outputRange: [0, 0.3, 1], extrapolate: 'clamp' }),
+    transform: [{ scale: swipeX.interpolate({ inputRange: [0, 48], outputRange: [0.7, 1], extrapolate: 'clamp' }) }],
+  };
 
   const deleted = !!message.deletedAt;
   const canAct = !deleted && !pending;
+  const canReply = canAct && !!onReply;
+  const attachment = useMemo(
+    () => parseCommunityAttachment(message.kind, message.body),
+    [message.kind, message.body],
+  );
+  const attachmentKind = message.kind === 'image' || message.kind === 'file';
+  const reply = useMemo(
+    () => (message.kind === 'text' ? parseReplyBody(message.body) : null),
+    [message.kind, message.body],
+  );
+  const displayBody = attachment
+    ? attachment.caption || attachment.name
+    : attachmentKind
+      ? 'Attachment unavailable'
+      : reply?.body ?? message.body;
+  const authorName = own ? 'You' : message.author?.displayName?.trim() || 'Member';
+  const messageAccessibilityLabel = `${authorName}. ${
+    reply ? `Replying to ${reply.author}: ${reply.excerpt}. ` : ''
+  }${displayBody}. ${formatRelativeTime(message.createdAt)}${pinned ? '. Pinned' : ''}`;
+
+  const resolveAttachment = useCallback(async () => {
+    if (!attachment) throw new Error('This attachment is unavailable.');
+    if (resolvedAttachmentUrl) return resolvedAttachmentUrl;
+    setAttachmentLoading(true);
+    setAttachmentError(null);
+    try {
+      const resolved = await resolveCommunityAttachmentUrl(attachment.url, getToken);
+      const parsed = new URL(resolved.url);
+      if (parsed.protocol !== 'https:') throw new Error('The download link is not secure.');
+      setResolvedAttachmentUrl(resolved.url);
+      return resolved.url;
+    } catch (caught) {
+      const message_ = caught instanceof Error ? caught.message : 'This attachment is unavailable.';
+      setAttachmentError(message_);
+      throw new Error(message_);
+    } finally {
+      setAttachmentLoading(false);
+    }
+  }, [attachment, getToken, resolvedAttachmentUrl]);
+
+  useEffect(() => {
+    if (message.kind !== 'image' || !attachment) return;
+    void Promise.resolve()
+      .then(resolveAttachment)
+      .catch(() => undefined);
+  }, [attachment, message.kind, resolveAttachment]);
+
+  const openAttachment = useCallback(async () => {
+    try {
+      const url = await resolveAttachment();
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) throw new Error('No app is available to open this attachment.');
+      await Linking.openURL(url);
+    } catch (caught) {
+      setAttachmentError(caught instanceof Error ? caught.message : 'This attachment is unavailable.');
+    }
+  }, [resolveAttachment]);
 
   /**
    * Perform one action. Every branch falls back to calling the API itself when
@@ -131,9 +220,13 @@ export function MessageBubble({
           await communityApi.deleteMessage(message.id, getToken);
           return;
         }
+        case 'pin': {
+          if (onPin) return onPin(message);
+          return;
+        }
       }
     },
-    [message, getToken, onReport, onBlock, onDelete, onRemoveMember],
+    [message, getToken, onReport, onBlock, onDelete, onRemoveMember, onPin],
   );
 
   const run = useCallback(
@@ -176,6 +269,11 @@ export function MessageBubble({
       body: t('community:moderation.reportConfirmBody'),
       label: t('community:moderation.reportMessage'),
     },
+    pin: {
+      title: pinned ? 'Unpin this message?' : 'Pin this message?',
+      body: pinned ? 'It will be removed from your pinned messages.' : 'It will stay easy to find in this group on this device.',
+      label: pinned ? 'Unpin message' : 'Pin message',
+    },
     block: {
       title: t('community:moderation.blockConfirmTitle'),
       body: t('community:moderation.blockConfirmBody'),
@@ -195,6 +293,25 @@ export function MessageBubble({
 
   /** Block, remove and delete take something away; a report does not. */
   const destructive = confirming === 'block' || confirming === 'remove' || confirming === 'delete';
+
+  const finishSwipeReply = useCallback(() => {
+    if (canReply) onReply(message);
+  }, [canReply, message, onReply]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      canReply && gesture.dx > 12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderMove: (_, gesture) => {
+      swipeX.setValue(Math.max(0, Math.min(76, gesture.dx)));
+    },
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dx > 48) finishSwipeReply();
+      Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
+    },
+  }), [canReply, finishSwipeReply, swipeX]);
 
   // ── Reported: hidden from the reporter, at once ────────────────────────────
   // Same shape as a tombstone, because it is the same idea — the row stays so
@@ -250,11 +367,20 @@ export function MessageBubble({
   }
 
   return (
-    <View style={[styles.row, own ? styles.rowOwn : styles.rowOther]}>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.row, own ? styles.rowOwn : styles.rowOther, { transform: [{ translateX: swipeX }] }]}
+      >
+        {canReply && (
+          <Animated.View style={[styles.swipeReply, swipeIndicatorStyle]}>
+            <Reply size={16} color={colors.accent} />
+          </Animated.View>
+        )}
       <AnimatedPressable
         testID={`message-bubble-${message.id}`}
         accessibilityRole="button"
-        accessibilityLabel={message.body}
+        accessibilityLabel={messageAccessibilityLabel}
+        accessibilityHint={canReply ? 'Long press for actions, or swipe right to reply' : 'Long press for message actions'}
         accessibilityState={{ expanded: actionsOpen, busy: pending }}
         hapticFeedback="none"
         scaleTo={0.98}
@@ -274,7 +400,55 @@ export function MessageBubble({
           },
         ]}
       >
-        <Text style={[styles.body, { color: colors.foreground }]}>{message.body}</Text>
+        {!own && (
+          <Text
+            testID={`message-author-${message.id}`}
+            style={[styles.author, { color: colors.accent }]}
+            numberOfLines={1}
+          >
+            {authorName}
+          </Text>
+        )}
+        {reply && (
+          <View
+            testID={`message-reply-context-${message.id}`}
+            style={[styles.replyContext, { borderLeftColor: colors.accent, backgroundColor: colors.background }]}
+          >
+            <Text style={[styles.replyAuthor, { color: colors.accent }]} numberOfLines={1}>
+              {reply.author}
+            </Text>
+            <Text style={[styles.replyExcerpt, { color: colors.textSecondary }]} numberOfLines={2}>
+              {reply.excerpt}
+            </Text>
+          </View>
+        )}
+        {attachment ? (
+          message.kind === 'image' ? (
+            <View testID={`message-image-${message.id}`} style={styles.attachmentWrap}>
+              {resolvedAttachmentUrl ? (
+                <AnimatedPressable accessibilityRole="imagebutton" accessibilityLabel={`Open image ${attachment.name}`} onPress={() => void openAttachment()} hapticFeedback="selection" style={styles.imageButton}>
+                  <Image source={{ uri: resolvedAttachmentUrl }} style={styles.imagePreview} resizeMode="cover" />
+                </AnimatedPressable>
+              ) : attachmentLoading ? (
+                <View style={[styles.imageFallback, { backgroundColor: colors.muted }]}><ActivityIndicator size="small" color={colors.textSecondary} /></View>
+              ) : (
+                <AnimatedPressable accessibilityRole="button" accessibilityLabel="Retry image" onPress={() => void resolveAttachment().catch(() => undefined)} style={[styles.imageFallback, { backgroundColor: colors.muted }]}><ImageOff size={24} color={colors.textSecondary} /></AnimatedPressable>
+              )}
+              {!!attachment.caption && <Text style={[styles.body, { color: colors.foreground }]}>{attachment.caption}</Text>}
+            </View>
+          ) : (
+            <AnimatedPressable testID={`message-file-${message.id}`} accessibilityRole="button" accessibilityLabel={`Open PDF ${attachment.name}`} accessibilityHint="Requests a private download link and opens the document" accessibilityState={{ busy: attachmentLoading }} onPress={() => void openAttachment()} hapticFeedback="selection" style={[styles.fileRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <View style={[styles.fileIcon, { backgroundColor: `${colors.accent}14` }]}><FileText size={20} color={colors.accent} /></View>
+              <View style={styles.fileCopy}><Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>{attachment.name}</Text><Text style={[styles.fileMeta, { color: colors.textSecondary }]}>PDF · {formatBytes(attachment.size)}</Text></View>
+              {attachmentLoading && <ActivityIndicator size="small" color={colors.textSecondary} />}
+            </AnimatedPressable>
+          )
+        ) : attachmentKind ? (
+          <View testID={`message-attachment-invalid-${message.id}`} style={[styles.invalidAttachment, { borderColor: colors.border }]}><ImageOff size={18} color={colors.textSecondary} /><Text style={[styles.fileMeta, { color: colors.textSecondary }]}>Attachment unavailable</Text></View>
+        ) : (
+          <Text style={[styles.body, { color: colors.foreground }]}>{displayBody}</Text>
+        )}
+        {!!attachmentError && <Text testID={`message-attachment-error-${message.id}`} style={[styles.fileMeta, { color: colors.error }]}>{attachmentError}</Text>}
         <View style={styles.metaRow}>
           <Text
             style={[styles.meta, { color: colors.textSecondary }]}
@@ -289,6 +463,7 @@ export function MessageBubble({
               color={colors.textSecondary}
             />
           )}
+          {pinned && <Pin size={12} color={colors.accent} fill={colors.accent} />}
         </View>
       </AnimatedPressable>
 
@@ -372,6 +547,33 @@ export function MessageBubble({
             </View>
           ) : (
             <>
+              {onReply && (
+                <BubbleActionRow
+                  testID={`message-reply-${message.id}`}
+                  label="Reply"
+                  icon={Reply}
+                  color={colors.accent}
+                  labelColor={colors.foreground}
+                  disabled={busy !== null}
+                  onPress={() => {
+                    onReply(message);
+                    setActionsOpen(false);
+                  }}
+                />
+              )}
+
+              {onPin && (
+                <BubbleActionRow
+                  testID={`message-pin-${message.id}`}
+                  label={pinned ? 'Unpin message' : 'Pin message'}
+                  icon={Pin}
+                  color={colors.accent}
+                  labelColor={colors.foreground}
+                  disabled={busy !== null}
+                  onPress={() => setConfirming('pin')}
+                />
+              )}
+
               {!own && (
                 <BubbleActionRow
                   testID={`message-report-${message.id}`}
@@ -434,8 +636,13 @@ export function MessageBubble({
           )}
         </View>
       )}
-    </View>
+      </Animated.View>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** One row of the long-press menu. Icon + label, never icon alone. */
@@ -490,6 +697,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     alignItems: 'flex-start',
   },
+  swipeReply: {
+    position: 'absolute',
+    left: -28,
+    top: 18,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bubble: {
     borderWidth: 1,
     borderRadius: 18,
@@ -508,6 +725,39 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 15,
     lineHeight: 21,
+  },
+  attachmentWrap: { gap: 7 },
+  imageButton: { borderRadius: 12, overflow: 'hidden' },
+  imagePreview: { width: 224, height: 168, borderRadius: 12 },
+  imageFallback: { width: 224, height: 132, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  fileRow: { width: 250, minHeight: 66, borderWidth: 1, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  fileIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  fileCopy: { flex: 1, minWidth: 0, gap: 2 },
+  fileName: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  fileMeta: { fontSize: 11, lineHeight: 15 },
+  invalidAttachment: { minHeight: 48, borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  author: {
+    maxWidth: 220,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 0.1,
+  },
+  replyContext: {
+    borderLeftWidth: 3,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    marginBottom: 2,
+  },
+  replyAuthor: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+  },
+  replyExcerpt: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   metaRow: {
     flexDirection: 'row',

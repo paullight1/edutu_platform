@@ -29,6 +29,7 @@ import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
 import { getDocsUrl, isExternalDocsUrl } from "./lib/apiProductUrls";
 import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
+import { parseEdutuDeepLink } from "./features/community-calls/deepLinks";
 
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
@@ -57,6 +58,9 @@ const EdutuForYouStoryPage = lazy(
 );
 const UpgradePage = lazy(() => import("./components/UpgradePage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
+const CommunityCallPage = lazy(
+  () => import("./features/community-calls/CommunityCallPage"),
+);
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
 const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
@@ -473,16 +477,8 @@ function App() {
         typeof document !== "undefined" &&
         document.documentElement.classList.contains("dark"),
       onDeepLink: (url) => {
-        try {
-          const parsed = new URL(url);
-          const path =
-            parsed.pathname && parsed.pathname !== "/"
-              ? `${parsed.pathname}${parsed.search}${parsed.hash}`
-              : "/dashboard";
-          if (!disposed) navigate(path);
-        } catch {
-          // Malformed deep link — ignore rather than crash.
-        }
+        const path = parseEdutuDeepLink(url);
+        if (!disposed && path) navigate(path);
       },
     });
     return () => {
@@ -567,6 +563,14 @@ function App() {
         element={<Navigate to="/what-we-believe" replace />}
       />
       <Route path="/community" element={<CommunityPage />} />
+      <Route
+        path="/communities/calls/:callId"
+        element={
+          <ProtectedRoute>
+            <CommunityCallPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<BlogPostPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />

@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronRight, Plus, Users } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import {
   fetchGroups,
   isCommunityApiError,
@@ -24,8 +24,7 @@ import {
   type SavedOpportunity,
 } from '@edutu/core/src/services/bookmarks';
 import { supabase } from '../../../lib/supabase';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { EmptyState } from '../../../components/ui/EmptyState';
+import { StateView } from '../../../components/state';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -266,25 +265,10 @@ export default function DiscussionsBrowseScreen() {
   return (
     <SafeAreaView
       style={[styles.screen, { backgroundColor: colors.background }]}
-      edges={['top']}
+      // CommunityHeader owns the top inset on this landing screen. Applying
+      // `top` here as well creates the large dead band below the header.
+      edges={['left', 'right']}
     >
-      <ScreenHeader
-        title={t('community:screens.browseTitle')}
-        showBack
-        right={
-          <AnimatedPressable
-            testID="discussions-create"
-            accessibilityRole="button"
-            accessibilityLabel={t('community:actions.createGroup')}
-            hapticFeedback="medium"
-            onPress={openCreate}
-            style={[styles.headerAction, { backgroundColor: colors.accent }]}
-          >
-            <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
-          </AnimatedPressable>
-        }
-      />
-
       <ScrollView
         testID="discussions-scroll"
         contentContainerStyle={styles.content}
@@ -303,7 +287,10 @@ export default function DiscussionsBrowseScreen() {
             testID="discussions-error"
             style={[
               styles.errorBox,
-              { backgroundColor: `${colors.error}12`, borderColor: colors.error },
+              {
+                backgroundColor: `${colors.error}12`,
+                borderColor: colors.error,
+              },
             ]}
           >
             <Text style={[styles.errorText, { color: colors.error }]}>
@@ -336,44 +323,57 @@ export default function DiscussionsBrowseScreen() {
           <>
             {/* ── 1. Your groups: list rows ────────────────────────────── */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                {t('community:sections.yourGroups')}
-              </Text>
-
               {relationshipRows.length === 0 && pendingRows.length === 0 ? (
-                <EmptyState
-                  testID="discussions-empty"
-                  icon={Users}
-                  title={t('community:empty.noGroups')}
-                  // One line, one CTA (DESIGN.md). EmptyState falls back to a
-                  // generic second sentence when this is empty, so it is held
-                  // blank rather than left undefined.
-                  description=" "
-                  actionLabel={t('community:actions.createGroup')}
-                  onAction={openCreate}
-                />
-              ) : (
-                relationshipRows.map((row, index) => {
-                  const status = statusOf(row);
-                  return (
-                    <GroupRow
-                      key={row.group.id}
-                      group={row.group}
-                      membership={status}
-                      // Unread is about a room you can read. An invitation has
-                      // no history yet as far as the invitee is concerned.
-                      unread={
-                        status === 'active' && isUnread(row.group, lastRead)
-                      }
-                      // Removed or banned: still named, so the state is legible,
-                      // but never a way back in.
-                      disabled={isClosed(status)}
-                      index={index}
-                      onPress={openGroup}
-                    />
-                  );
-                })
-              )}
+                <View testID="discussions-empty">
+                  <StateView
+                    state={{ kind: 'empty', reason: 'firstRun' }}
+                    flow="community"
+                    fill={false}
+                    sceneSize={150}
+                    title={t('community:empty.noGroups')}
+                    body={t('community:empty.noGroupsBody', {
+                      defaultValue:
+                        'Join a group from an opportunity you saved, or start your own.',
+                    })}
+                    actionLabel={t('community:actions.createGroup')}
+                    onAction={openCreate}
+                  />
+                </View>
+              ) : relationshipRows.length > 0 ? (
+                <View
+                  testID="discussions-group-list"
+                  style={[
+                    styles.listSurface,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  {relationshipRows.map((row, index) => {
+                    const status = statusOf(row);
+                    return (
+                      <GroupRow
+                        key={row.group.id}
+                        group={row.group}
+                        membership={status}
+                        // Unread is about a room you can read. An invitation has
+                        // no history yet as far as the invitee is concerned.
+                        unread={
+                          status === 'active' && isUnread(row.group, lastRead)
+                        }
+                        // Removed or banned: still named, so the state is legible,
+                        // but never a way back in.
+                        disabled={isClosed(status)}
+                        index={index}
+                        variant="list"
+                        isLast={index === relationshipRows.length - 1}
+                        onPress={openGroup}
+                      />
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
 
             {/* ── 1b. Applications: a separate list, on purpose ─────────
@@ -387,22 +387,36 @@ export default function DiscussionsBrowseScreen() {
                 >
                   {t('community:sections.awaitingApproval')}
                 </Text>
-                {pendingRows.map((row, index) => (
-                  <GroupRow
-                    key={row.group.id}
-                    group={row.group}
-                    membership="pending"
-                    index={index}
-                    onPress={openGroup}
-                  />
-                ))}
+                <View
+                  style={[
+                    styles.listSurface,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  {pendingRows.map((row, index) => (
+                    <GroupRow
+                      key={row.group.id}
+                      group={row.group}
+                      membership="pending"
+                      index={index}
+                      variant="list"
+                      isLast={index === pendingRows.length - 1}
+                      onPress={openGroup}
+                    />
+                  ))}
+                </View>
               </View>
             )}
 
             {/* ── 2. Saved-opportunity groups: horizontal rail ─────────── */}
             {railRows.length > 0 && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.foreground }]}
+                >
                   {t('community:sections.forYourSavedOpportunities')}
                 </Text>
                 <ScrollView
@@ -434,7 +448,9 @@ export default function DiscussionsBrowseScreen() {
             {/* ── 3. Discover: inline pills, no card chrome ────────────── */}
             {discoverRows.length > 0 && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.foreground }]}
+                >
                   {t('community:sections.discover')}
                 </Text>
                 <View testID="discussions-discover" style={styles.pillWrap}>
@@ -452,7 +468,10 @@ export default function DiscussionsBrowseScreen() {
                       <View style={styles.pillInner}>
                         <Text style={styles.pillEmoji}>{group.coverEmoji}</Text>
                         <Text
-                          style={[styles.pillLabel, { color: colors.foreground }]}
+                          style={[
+                            styles.pillLabel,
+                            { color: colors.foreground },
+                          ]}
                           numberOfLines={1}
                         >
                           {group.name}
@@ -477,18 +496,19 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 48,
+    // CommunityNavigation is taller than the global pill; keep the final
+    // discovery row clear of it on both iOS and Android.
+    paddingBottom: 132,
     gap: 20,
-  },
-  headerAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   section: {
     gap: 12,
+  },
+  listSurface: {
+    borderWidth: 1,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   sectionTitle: {
     fontSize: 17,

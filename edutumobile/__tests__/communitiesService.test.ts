@@ -61,6 +61,48 @@ function lastCall(): [string, RequestInit] {
 }
 
 describe('communities service', () => {
+  it('canonicalizes only supported HTTPS attachment metadata', () => {
+    const {
+      COMMUNITY_IMAGE_MAX_BYTES,
+      parseCommunityAttachment,
+      serializeCommunityAttachment,
+    } = loadCommunities();
+    const body = serializeCommunityAttachment('image', {
+      url: 'https://cdn.edutu.app/photo.webp',
+      name: 'photo.webp',
+      mime: 'image/webp',
+      size: COMMUNITY_IMAGE_MAX_BYTES,
+      caption: '  Draft board  ',
+    });
+
+    expect(JSON.parse(body)).toEqual({
+      url: 'https://cdn.edutu.app/photo.webp',
+      name: 'photo.webp',
+      mime: 'image/webp',
+      size: COMMUNITY_IMAGE_MAX_BYTES,
+      caption: 'Draft board',
+    });
+    expect(
+      parseCommunityAttachment(
+        'file',
+        JSON.stringify({
+          url: 'javascript:alert(1)',
+          name: 'guide.pdf',
+          mime: 'application/pdf',
+          size: 20,
+        }),
+      ),
+    ).toBeNull();
+    expect(() =>
+      serializeCommunityAttachment('image', {
+        url: 'https://cdn.edutu.app/photo.gif',
+        name: 'photo.gif',
+        mime: 'image/gif' as never,
+        size: 10,
+      }),
+    ).toThrow(/JPEG/i);
+  });
+
   beforeEach(() => {
     jest.resetModules();
     mockFetch.mockReset();
@@ -132,6 +174,83 @@ describe('communities service', () => {
     });
   });
 
+  it('reserves a private Community upload through the membership-gated route', async () => {
+    mockFetch.mockResolvedValue(
+      ok({
+        uploadUrl: 'https://storage.example.test/signed-upload',
+        resourceUrl:
+          `${API_BASE}/communities/groups/g1/attachments/download-url?path=p&signature=s`,
+        storagePath: 'groups/g1/user/file.pdf',
+      }),
+    );
+    const { createCommunityAttachmentUpload } = loadCommunities();
+
+    await createCommunityAttachmentUpload(
+      'g1',
+      {
+        kind: 'file',
+        name: 'guide.pdf',
+        mime: 'application/pdf',
+        size: 1024,
+      },
+      getAuthToken,
+    );
+
+    const [url, init] = lastCall();
+    expect(url).toBe(`${API_BASE}/communities/groups/g1/attachments/upload-url`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      kind: 'file',
+      name: 'guide.pdf',
+      mime: 'application/pdf',
+      size: 1024,
+    });
+  });
+
+  it('persists an attachment kind and canonical resource body', async () => {
+    mockFetch.mockResolvedValue(ok({ id: 'm-file', kind: 'file' }));
+    const { sendMessage, serializeCommunityAttachment } = loadCommunities();
+    const body = serializeCommunityAttachment('file', {
+      url:
+        `${API_BASE}/communities/groups/g1/attachments/download-url?path=p&signature=s`,
+      name: 'guide.pdf',
+      mime: 'application/pdf',
+      size: 1024,
+    });
+
+    await sendMessage('g1', { kind: 'file', body }, getAuthToken);
+
+    const [url, init] = lastCall();
+    expect(url).toBe(`${API_BASE}/communities/groups/g1/messages`);
+    expect(JSON.parse(init.body as string)).toEqual({ kind: 'file', body });
+  });
+
+  it('resolves a private resource only through the configured API origin', async () => {
+    mockFetch.mockResolvedValue(
+      ok({ url: 'https://storage.example.test/signed-download', expiresIn: 300 }),
+    );
+    const { resolveCommunityAttachmentUrl } = loadCommunities();
+    const resource =
+      `${API_BASE}/communities/groups/g1/attachments/download-url?path=p&signature=s`;
+
+    await expect(
+      resolveCommunityAttachmentUrl(resource, getAuthToken),
+    ).resolves.toEqual({
+      url: 'https://storage.example.test/signed-download',
+      expiresIn: 300,
+    });
+    expect(lastCall()[0]).toBe(resource);
+
+    mockFetch.mockClear();
+    await expect(
+      resolveCommunityAttachmentUrl(
+        'https://attacker.example/communities/groups/g1/attachments/download-url?path=p',
+        getAuthToken,
+      ),
+    ).rejects.toThrow(/invalid/i);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('forwards beforeId alongside before when paging messages', async () => {
     // THE keyset regression guard. `created_at` is `defaultNow()`, i.e.
     // transaction time, so two rows written in one transaction share an exact
@@ -179,6 +298,66 @@ describe('communities service', () => {
     expect(url).toBe(`${API_BASE}/communities/groups/g1/messages`);
   });
 
+  it('loads a keyset page of canonical group resources', async () => {
+    const resource = {
+      id: 'm-file',
+      groupId: 'g1',
+      kind: 'file' as const,
+      attachment: {
+        url:
+          `${API_BASE}/communities/groups/g1/attachments/download-url?path=p&signature=s`,
+        name: 'application-guide.pdf',
+        mime: 'application/pdf' as const,
+        size: 2048,
+      },
+      sender: {
+        userId: 'user_ada',
+        displayName: 'Ada Student',
+        avatarUrl: null,
+      },
+      createdAt: '2026-08-03T10:00:00.000Z',
+    };
+    mockFetch.mockResolvedValue(
+      ok({
+        resources: [resource],
+        nextCursor: {
+          before: '2026-08-03T10:00:00.000Z',
+          beforeId: 'm-file',
+        },
+      }),
+    );
+    const { fetchGroupResources } = loadCommunities();
+
+    const page = await fetchGroupResources(
+      'g1',
+      {
+        before: new Date('2026-08-03T11:00:00.000Z'),
+        beforeId: 'm-newer',
+        limit: 20,
+      },
+      getAuthToken,
+    );
+
+    const [url, init] = lastCall();
+    expect(url).toBe(
+      `${API_BASE}/communities/groups/g1/resources` +
+        '?before=2026-08-03T11%3A00%3A00.000Z&beforeId=m-newer&limit=20',
+    );
+    expect(init.method).toBe('GET');
+    expect(page.resources).toEqual([resource]);
+    expect(page.nextCursor?.beforeId).toBe('m-file');
+  });
+
+  it('normalizes a skewed resources page instead of exposing invalid pagination', async () => {
+    mockFetch.mockResolvedValue(ok({ resources: null, nextCursor: { before: 42 } }));
+    const { fetchGroupResources } = loadCommunities();
+
+    await expect(
+      fetchGroupResources('g1', {}, getAuthToken),
+    ).resolves.toEqual({ resources: [], nextCursor: null });
+    expect(lastCall()[0]).toBe(`${API_BASE}/communities/groups/g1/resources`);
+  });
+
   it('surfaces the screener rejection as a human message, not a status code', async () => {
     const sentence =
       "That message can't be sent — it reads like it's asking for money, " +
@@ -215,6 +394,29 @@ describe('communities service', () => {
     await expect(fetchGroup('g1', getAuthToken)).rejects.toThrow(
       'This group is private. Ask an owner for an invite.',
     );
+  });
+
+  it('loads the bounded active-member roster from the group members route', async () => {
+    mockFetch.mockResolvedValue(
+      ok({
+        members: [
+          {
+            membership: { userId: 'user_owner', role: 'owner', status: 'active' },
+            profile: { displayName: 'Amina Owner', avatarUrl: null },
+          },
+        ],
+        hasMore: false,
+      }),
+    );
+    const { fetchGroupMembers } = loadCommunities();
+
+    const result = await fetchGroupMembers('g1', getAuthToken, 50);
+
+    const [url, init] = lastCall();
+    expect(url).toBe(`${API_BASE}/communities/groups/g1/members?limit=50`);
+    expect(init.method).toBe('GET');
+    expect(result.members[0].profile.displayName).toBe('Amina Owner');
+    expect(result.hasMore).toBe(false);
   });
 
   it('builds the browse query from mine / opportunityId / query', async () => {

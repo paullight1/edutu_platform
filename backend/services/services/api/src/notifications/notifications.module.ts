@@ -5,6 +5,7 @@ import { OpportunityDeadlineRemindersService } from "./opportunity-deadline-remi
 import { ProExpiryRemindersService } from "./pro-expiry-reminders.service";
 import { ApplicationGhostClosureService } from "./application-ghost-closure.service";
 import { NotificationSchedulerService } from "./scheduler/notification-scheduler.service";
+import { DrizzlePushTokenStore, PUSH_TOKEN_STORE } from "./push-token.store";
 
 @Module({
   controllers: [NotificationsController],
@@ -14,7 +15,8 @@ import { NotificationSchedulerService } from "./scheduler/notification-scheduler
     ProExpiryRemindersService,
     ApplicationGhostClosureService,
     NotificationSchedulerService,
+    { provide: PUSH_TOKEN_STORE, useClass: DrizzlePushTokenStore },
   ],
-  exports: [NotificationsService],
+  exports: [NotificationsService, PUSH_TOKEN_STORE],
 })
 export class NotificationsModule {}

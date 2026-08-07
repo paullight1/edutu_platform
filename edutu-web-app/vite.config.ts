@@ -91,23 +91,6 @@ export default defineConfig({
             },
           },
           {
-            // Everything else on the product API (profile, match-scores,
-            // applications, deadlines…). Network-first so signed-in users get
-            // fresh data online, but fall back to the last successful response
-            // when the network is gone.
-            urlPattern: /^https:\/\/edutu-platform\.onrender\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'edutu-api',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 80,
-                maxAgeSeconds: 60 * 60 * 24, // 1 day
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
             // Static opportunities snapshot used as the offline fallback feed.
             urlPattern: ({ url }) => url.pathname === '/data/opportunities.json',
             handler: 'StaleWhileRevalidate',

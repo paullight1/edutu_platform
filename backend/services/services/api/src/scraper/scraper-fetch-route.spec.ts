@@ -1,14 +1,5 @@
-import { Test, TestingModule } from "@nestjs/testing";
 import axios from "axios";
-import { ScraperService } from "./scraper.service";
-import { SchedulerRegistry } from "@nestjs/schedule";
-import { AiService } from "../ai";
-import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
-import { ScraperAlertsService } from "./scraper-alerts.service";
-import { RobotsChecker } from "./robots-checker";
-import { OpportunityDedupService } from "./opportunity-dedup.service";
-
-jest.mock("../db", () => ({ pool: { connect: jest.fn() }, db: {} }));
+import { ScraperHttpClient } from "./scraper-http-client";
 
 let mockedGet: jest.SpyInstance;
 
@@ -20,26 +11,15 @@ const TARGET = "https://blocked.example.com/list";
  * blocked fetch must fall back to the reader relay rather than report an empty
  * page as a clean run.
  */
-describe("ScraperService fetch routing (direct → relay)", () => {
-  let service: any;
+describe("ScraperHttpClient routing (direct → relay)", () => {
+  let client: ScraperHttpClient;
 
   beforeEach(async () => {
     jest.restoreAllMocks();
     mockedGet = jest.spyOn(axios, "get");
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ScraperService,
-        { provide: SchedulerRegistry, useValue: {} },
-        { provide: AiService, useValue: {} },
-        { provide: OpportunityShareCardService, useValue: {} },
-        { provide: ScraperAlertsService, useValue: {} },
-        { provide: RobotsChecker, useValue: {} },
-        { provide: OpportunityDedupService, useValue: {} },
-      ],
-    }).compile();
-    service = module.get<ScraperService>(ScraperService);
+    client = new ScraperHttpClient({ warn: jest.fn() });
     // The relay throttle spaces calls seconds apart; irrelevant to routing.
-    jest.spyOn(service, "throttleRelay").mockResolvedValue(undefined);
+    jest.spyOn(client as any, "throttleRelay").mockResolvedValue(undefined);
   });
 
   const isRelayCall = (url: string) => url.startsWith(RELAY_PREFIX);
@@ -51,7 +31,7 @@ describe("ScraperService fetch routing (direct → relay)", () => {
         : ({ status: 403, data: "denied" } as any),
     );
 
-    const html = await service.fetchWithBackoff(TARGET, 1_000);
+    const html = await client.fetchHtml(TARGET, 1_000);
 
     expect(html).toBe("<html>relayed</html>");
     expect(mockedGet).toHaveBeenCalledTimes(2);
@@ -67,12 +47,9 @@ describe("ScraperService fetch routing (direct → relay)", () => {
         : ({ status: 403, data: "denied" } as any),
     );
 
-    await service.fetchWithBackoff(TARGET, 1_000);
+    await client.fetchHtml(TARGET, 1_000);
     mockedGet.mockClear();
-    await service.fetchWithBackoff(
-      "https://blocked.example.com/other-page",
-      1_000,
-    );
+    await client.fetchHtml("https://blocked.example.com/other-page", 1_000);
 
     expect(mockedGet).toHaveBeenCalledTimes(1);
     expect(isRelayCall(mockedGet.mock.calls[0][0])).toBe(true);
@@ -84,7 +61,7 @@ describe("ScraperService fetch routing (direct → relay)", () => {
       data: "<html><title>Just a moment...</title>cf-browser-verification</html>",
     } as any);
 
-    await expect(service.fetchWithBackoff(TARGET, 1_000)).rejects.toThrow(
+    await expect(client.fetchHtml(TARGET, 1_000)).rejects.toThrow(
       /Bot challenge/i,
     );
   });
@@ -100,7 +77,7 @@ describe("ScraperService fetch routing (direct → relay)", () => {
         : ({ status: 403, data: "denied" } as any),
     );
 
-    const res = await service.fetchRestResponse(
+    const res = await client.fetchRestResponse(
       "https://blocked.example.com/wp-json/wp/v2/categories?slug=bootcamps",
       1_000,
     );
@@ -115,7 +92,7 @@ describe("ScraperService fetch routing (direct → relay)", () => {
       data: "<html>direct</html>",
     } as any);
 
-    const html = await service.fetchWithBackoff(TARGET, 1_000);
+    const html = await client.fetchHtml(TARGET, 1_000);
 
     expect(html).toBe("<html>direct</html>");
     expect(mockedGet).toHaveBeenCalledTimes(1);

@@ -37,6 +37,11 @@ const mockFetchBlockedUsers = jest.fn();
 const mockUnblockUser = jest.fn();
 const mockUnsubscribe = jest.fn();
 const mockSubscribe = jest.fn();
+const mockCreateAttachmentUpload = jest.fn();
+const mockUploadPrivateCommunityAsset = jest.fn();
+const mockPublicCommunityUpload = jest.fn();
+const mockPickDocument = jest.fn();
+const mockPickImage = jest.fn();
 /**
  * ONE router for the whole suite. It has to be stable across renders: a factory
  * that hands out a fresh `jest.fn()` per call makes every navigation assertion
@@ -141,6 +146,20 @@ jest.mock('../components/context/ThemeContext', () => ({
 
 jest.mock('../lib/supabase', () => ({ supabase: {} }));
 
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: (...args: unknown[]) => mockPickDocument(...args),
+}));
+
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: (...args: unknown[]) => mockPickImage(...args),
+}));
+
+jest.mock('@edutu/core/src/services/storage', () => ({
+  uploadPrivateCommunityAsset: (...args: unknown[]) =>
+    mockUploadPrivateCommunityAsset(...args),
+  uploadCommunityAsset: (...args: unknown[]) => mockPublicCommunityUpload(...args),
+}));
+
 // requireActual keeps the real CommunityApiError so the screener test throws
 // the shape the service really throws.
 jest.mock('@edutu/core/src/services/communities', () => {
@@ -150,6 +169,8 @@ jest.mock('@edutu/core/src/services/communities', () => {
     fetchGroup: (...args: unknown[]) => mockFetchGroup(...args),
     fetchMessages: (...args: unknown[]) => mockFetchMessages(...args),
     sendMessage: (...args: unknown[]) => mockSendMessage(...args),
+    createCommunityAttachmentUpload: (...args: unknown[]) =>
+      mockCreateAttachmentUpload(...args),
     joinGroup: (...args: unknown[]) => mockJoinGroup(...args),
     fetchGroupForm: (...args: unknown[]) => mockFetchGroupForm(...args),
     deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
@@ -287,6 +308,20 @@ beforeEach(async () => {
   });
   mockRemoveMember.mockResolvedValue({ success: true });
   mockReportTarget.mockResolvedValue({ id: 'rep-1' });
+  mockPickDocument.mockResolvedValue({ canceled: true, assets: null });
+  mockPickImage.mockResolvedValue({ canceled: true, assets: null });
+  mockCreateAttachmentUpload.mockResolvedValue({
+    uploadUrl: 'https://storage.example.test/signed-upload',
+    resourceUrl:
+      'https://api.example.test/communities/groups/g1/attachments/download-url?path=p&signature=s',
+    storagePath: 'groups/g1/user/file.pdf',
+  });
+  mockUploadPrivateCommunityAsset.mockImplementation(
+    async (_url: string, _file: unknown, onProgress?: (value: number) => void) => {
+      onProgress?.(0.5);
+      onProgress?.(1);
+    },
+  );
   wireDetail('active');
 });
 
@@ -573,6 +608,66 @@ describe('screened send', () => {
     );
     screen.getByTestId('message-bubble-m-new');
   });
+
+  it('uploads a chosen PDF through the private signed path and persists a file message', async () => {
+    mockPickDocument.mockResolvedValue({
+      canceled: false,
+      assets: [
+        {
+          uri: 'file:///cache/guide.pdf',
+          name: 'guide.pdf',
+          mimeType: 'application/pdf',
+          size: 2048,
+        },
+      ],
+    });
+    mockSendMessage.mockResolvedValue(
+      makeMessage({
+        id: 'm-file',
+        userId: 'user_1',
+        kind: 'file',
+        body: JSON.stringify({
+          url:
+            'https://api.example.test/communities/groups/g1/attachments/download-url?path=p&signature=s',
+          name: 'guide.pdf',
+          mime: 'application/pdf',
+          size: 2048,
+        }),
+      }),
+    );
+
+    const screen = render(<GroupChatScreen />);
+    await waitFor(() => screen.getByTestId('chat-composer-attach'));
+    fireEvent.press(screen.getByTestId('chat-composer-attach'));
+    fireEvent.press(screen.getByTestId('chat-composer-pick-pdf'));
+
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1));
+    expect(mockCreateAttachmentUpload).toHaveBeenCalledWith(
+      'g1',
+      {
+        kind: 'file',
+        name: 'guide.pdf',
+        mime: 'application/pdf',
+        size: 2048,
+      },
+      mockGetToken,
+    );
+    expect(mockUploadPrivateCommunityAsset).toHaveBeenCalledWith(
+      'https://storage.example.test/signed-upload',
+      { uri: 'file:///cache/guide.pdf', type: 'application/pdf' },
+      expect.any(Function),
+    );
+    expect(mockPublicCommunityUpload).not.toHaveBeenCalled();
+    expect(mockSendMessage.mock.calls[0][1]).toMatchObject({ kind: 'file' });
+    expect(JSON.parse(mockSendMessage.mock.calls[0][1].body)).toEqual({
+      url:
+        'https://api.example.test/communities/groups/g1/attachments/download-url?path=p&signature=s',
+      name: 'guide.pdf',
+      mime: 'application/pdf',
+      size: 2048,
+    });
+    await waitFor(() => screen.getByTestId('message-file-m-file'));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -687,6 +782,13 @@ describe('header menu', () => {
     await waitFor(() => screen.getByTestId('chat-menu'));
     return screen;
   }
+
+  it('opens Group info for any active member', async () => {
+    wireRole('member');
+    const screen = await openMenu();
+    fireEvent.press(screen.getByTestId('chat-menu-about'));
+    expect(mockPush).toHaveBeenCalledWith('/discussions/g1/about');
+  });
 
   // ── Settings: owner only ──────────────────────────────────────────────────
 

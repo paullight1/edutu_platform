@@ -9,7 +9,7 @@ import type {
   NewGroupRow,
   NewMemberRow,
 } from "./groups.service";
-import type { MessagesStore } from "./messages.service";
+import type { AuthorDirectory, MessagesStore } from "./messages.service";
 import { MessagesService } from "./messages.service";
 import {
   GroupCapReachedError,
@@ -194,6 +194,21 @@ class FakeGroupsStore implements GroupsStore {
     userId: string,
   ): Promise<CommunityGroupMember[]> {
     return this.members.filter((member) => member.userId === userId);
+  }
+
+  async listActiveGroupMembers(
+    groupId: string,
+    limit: number,
+  ): Promise<CommunityGroupMember[]> {
+    const rank: Record<string, number> = { owner: 0, mod: 1, member: 2 };
+    return this.members
+      .filter((member) => member.groupId === groupId && member.status === "active")
+      .sort(
+        (left, right) =>
+          (rank[left.role] ?? 3) - (rank[right.role] ?? 3) ||
+          left.joinedAt.getTime() - right.joinedAt.getTime(),
+      )
+      .slice(0, limit);
   }
 
   async findMembership(
@@ -963,6 +978,93 @@ describe("GroupsService", () => {
       await expect(
         service.get("user_abc", "00000000-0000-4000-8000-00000000dead"),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("listMembers", () => {
+    const directory: AuthorDirectory = {
+      async findAuthors(userIds) {
+        return userIds
+          .filter((userId) => userId !== "user_without_profile")
+          .map((userId) => ({
+            userId,
+            fullName: userId === "user_owner" ? "Amina Owner" : "Kofi Member",
+            avatarUrl: userId === "user_owner" ? "https://img.test/amina.jpg" : null,
+          }));
+      },
+    };
+
+    it("lists only active members with a minimal public profile", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, visibility: "public" } });
+      await db.upsertMembership({
+        groupId: GROUP_ID,
+        userId: "user_member",
+        role: "mod",
+        status: "active",
+      });
+      await db.upsertMembership({
+        groupId: GROUP_ID,
+        userId: "user_without_profile",
+        role: "member",
+        status: "active",
+      });
+      await db.upsertMembership({
+        groupId: GROUP_ID,
+        userId: "user_departed",
+        role: "member",
+        status: "removed",
+      });
+
+      const result = await new GroupsService(db, directory).listMembers(
+        "user_stranger",
+        GROUP_ID,
+      );
+
+      expect(result.hasMore).toBe(false);
+      expect(result.members.map((row) => row.membership.userId)).toEqual([
+        "user_owner",
+        "user_member",
+        "user_without_profile",
+      ]);
+      expect(result.members[0].profile).toEqual({
+        displayName: "Amina Owner",
+        avatarUrl: "https://img.test/amina.jpg",
+      });
+      expect(result.members[2].profile.displayName).toBe("Edutu member");
+      expect(JSON.stringify(result)).not.toMatch(/email|school|country|cgpa/i);
+    });
+
+    it("protects a private roster with the same visibility rule as the group", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, visibility: "private" } });
+      const service = new GroupsService(db, directory);
+
+      await expect(service.listMembers("user_stranger", GROUP_ID)).rejects.toThrow(
+        /private/i,
+      );
+
+      await service.invite("user_owner", GROUP_ID, "user_invited");
+      await expect(service.listMembers("user_invited", GROUP_ID)).resolves.toMatchObject({
+        members: [{ membership: { userId: "user_owner", status: "active" } }],
+      });
+    });
+
+    it("is bounded and reports when more active members exist", async () => {
+      const db = fakeDb({ group: { id: GROUP_ID, visibility: "public" } });
+      for (const userId of ["user_a", "user_b", "user_c"]) {
+        await db.upsertMembership({
+          groupId: GROUP_ID,
+          userId,
+          role: "member",
+          status: "active",
+        });
+      }
+      const result = await new GroupsService(db, directory).listMembers(
+        "user_stranger",
+        GROUP_ID,
+        2,
+      );
+      expect(result.members).toHaveLength(2);
+      expect(result.hasMore).toBe(true);
     });
   });
 

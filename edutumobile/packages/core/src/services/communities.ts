@@ -86,6 +86,8 @@ export interface CommunityGroup {
   visibility: GroupVisibility;
   joinPolicy: GroupJoinPolicy;
   coverEmoji: string;
+  /** Stable Edutu resource URL; resolve it before passing it to Image. */
+  coverImageResourceUrl?: string | null;
   accent: string | null;
   /** Inherited from the linked opportunity's deadline; the group closes with it. */
   expiresAt: string | null;
@@ -106,6 +108,20 @@ export interface CommunityGroupMember {
   joinedAt: string;
 }
 
+/** The intentionally minimal identity returned by the group roster endpoint. */
+export interface CommunityMemberSummary {
+  membership: CommunityGroupMember;
+  profile: {
+    displayName: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface CommunityMemberList {
+  members: CommunityMemberSummary[];
+  hasMore: boolean;
+}
+
 /**
  * Who sent a message, as far as anyone else is allowed to know.
  *
@@ -123,6 +139,130 @@ export interface MessageAuthor {
   avatarUrl: string | null;
 }
 
+export const COMMUNITY_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export const COMMUNITY_PDF_MIME_TYPE = 'application/pdf' as const;
+export const COMMUNITY_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const COMMUNITY_PDF_MAX_BYTES = 10 * 1024 * 1024;
+
+export type CommunityAttachmentKind = 'image' | 'file';
+export type CommunityImageMime = (typeof COMMUNITY_IMAGE_MIME_TYPES)[number];
+
+/** Canonical JSON persisted in `community_group_messages.body`. */
+export interface CommunityAttachment {
+  url: string;
+  name: string;
+  mime: CommunityImageMime | typeof COMMUNITY_PDF_MIME_TYPE;
+  size: number;
+  caption?: string;
+}
+
+function hasOnlyAttachmentKeys(value: Record<string, unknown>): boolean {
+  return Object.keys(value).every((key) =>
+    ['url', 'name', 'mime', 'size', 'caption'].includes(key),
+  );
+}
+
+function isSafeAttachmentName(name: string): boolean {
+  return (
+    name.length >= 1 &&
+    name.length <= 120 &&
+    name !== '.' &&
+    name !== '..' &&
+    !/[\\/\u0000-\u001f\u007f]/.test(name)
+  );
+}
+
+function isHttpsUrl(value: string): boolean {
+  if (value.length > 2048) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse untrusted REST/Realtime attachment metadata. Invalid rows render as an
+ * unavailable attachment rather than handing an arbitrary URL to Linking or
+ * Image.
+ */
+export function parseCommunityAttachment(
+  kind: string,
+  body: string,
+): CommunityAttachment | null {
+  if (kind !== 'image' && kind !== 'file') return null;
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) return null;
+  const value = decoded as Record<string, unknown>;
+  if (!hasOnlyAttachmentKeys(value)) return null;
+
+  const url = typeof value.url === 'string' ? value.url.trim() : '';
+  const name = typeof value.name === 'string' ? value.name.trim() : '';
+  const mime = typeof value.mime === 'string' ? value.mime.trim().toLowerCase() : '';
+  const size = value.size;
+  const caption = typeof value.caption === 'string' ? value.caption.trim() : undefined;
+
+  if (
+    !isHttpsUrl(url) ||
+    !isSafeAttachmentName(name) ||
+    typeof size !== 'number' ||
+    !Number.isSafeInteger(size) ||
+    size <= 0 ||
+    (caption !== undefined && caption.length > 500)
+  ) {
+    return null;
+  }
+
+  if (kind === 'image') {
+    if (
+      !COMMUNITY_IMAGE_MIME_TYPES.includes(mime as CommunityImageMime) ||
+      size > COMMUNITY_IMAGE_MAX_BYTES ||
+      !/\.(?:jpe?g|png|webp)$/i.test(name)
+    ) {
+      return null;
+    }
+  } else if (
+    mime !== COMMUNITY_PDF_MIME_TYPE ||
+    size > COMMUNITY_PDF_MAX_BYTES ||
+    !/\.pdf$/i.test(name)
+  ) {
+    return null;
+  }
+
+  return {
+    url,
+    name,
+    mime: mime as CommunityAttachment['mime'],
+    size,
+    ...(caption ? { caption } : {}),
+  };
+}
+
+/** Validate and canonicalize an attachment before it crosses the API boundary. */
+export function serializeCommunityAttachment(
+  kind: CommunityAttachmentKind,
+  attachment: CommunityAttachment,
+): string {
+  const body = JSON.stringify(attachment);
+  const parsed = parseCommunityAttachment(kind, body);
+  if (!parsed) {
+    throw new Error(
+      'Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.',
+    );
+  }
+  return JSON.stringify(parsed);
+}
+
 export interface CommunityMessage {
   id: string;
   groupId: string;
@@ -131,6 +271,8 @@ export interface CommunityMessage {
   body: string;
   kind: string;
   opportunityId: string | null;
+  /** Present for durable scheduled/live/ended call transcript cards. */
+  callId?: string | null;
   createdAt: string;
   deletedAt: string | null;
   deletedBy: string | null;
@@ -243,7 +385,9 @@ export interface CreateGroupInput {
 }
 
 /** `opportunityId` is omitted: a group's opportunity link is fixed at creation. */
-export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, 'opportunityId'>;
+export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, 'opportunityId'> & {
+  coverImageResourceUrl?: string | null;
+};
 
 export interface GroupListFilter {
   /**
@@ -277,10 +421,49 @@ export interface MessagePageOptions {
   limit?: number;
 }
 
-export interface SendMessageInput {
-  body: string;
-  opportunityId?: string;
+export interface CommunityGroupResource {
+  id: string;
+  groupId: string;
+  kind: CommunityAttachmentKind;
+  attachment: CommunityAttachment;
+  sender: MessageAuthor & { userId: string };
+  createdAt: string;
 }
+
+export interface CommunityResourceCursor {
+  before: string;
+  beforeId: string;
+}
+
+export interface CommunityResourcesPage {
+  resources: CommunityGroupResource[];
+  nextCursor: CommunityResourceCursor | null;
+}
+
+export type SendMessageInput =
+  | { kind?: 'text'; body: string; opportunityId?: string }
+  | { kind: CommunityAttachmentKind; body: string; opportunityId?: string };
+
+export interface CommunityAttachmentUploadInput {
+  kind: CommunityAttachmentKind;
+  name: string;
+  mime: CommunityAttachment['mime'];
+  size: number;
+}
+
+export interface CommunityAttachmentUploadReservation {
+  uploadUrl: string;
+  resourceUrl: string;
+  storagePath: string;
+}
+
+export type CommunityGroupImageUploadInput = Omit<
+  CommunityAttachmentUploadInput,
+  'kind' | 'mime'
+> & {
+  kind: 'image';
+  mime: CommunityImageMime;
+};
 
 export interface ReportInput {
   targetType: 'message' | 'group';
@@ -452,6 +635,27 @@ export async function fetchGroup(
   );
 }
 
+/**
+ * Active members of a group, ordered owners → admins → members. The backend
+ * enforces group visibility and returns at most 100 rows, with no private
+ * profile fields beyond display name and avatar.
+ */
+export async function fetchGroupMembers(
+  groupId: string,
+  getAuthToken: GetAuthToken,
+  limit = 100,
+): Promise<CommunityMemberList> {
+  const result = await requestCommunityApi<CommunityMemberList>(
+    `/communities/groups/${encodeURIComponent(groupId)}/members${toQuery({ limit })}`,
+    { method: 'GET' },
+    getAuthToken,
+  );
+  return {
+    members: Array.isArray(result?.members) ? result.members : [],
+    hasMore: result?.hasMore === true,
+  };
+}
+
 export async function createGroup(
   input: CreateGroupInput,
   getAuthToken: GetAuthToken,
@@ -474,6 +678,19 @@ export async function updateGroup(
   return requestCommunityApi<CommunityGroup>(
     `/communities/groups/${encodeURIComponent(groupId)}`,
     { method: 'PATCH', body: JSON.stringify(compact({ ...patch })) },
+    getAuthToken,
+  );
+}
+
+/** Reserve a private group photo upload after backend admin authorization. */
+export async function createGroupCoverImageUpload(
+  groupId: string,
+  input: CommunityGroupImageUploadInput,
+  getAuthToken: GetAuthToken,
+): Promise<CommunityAttachmentUploadReservation> {
+  return requestCommunityApi<CommunityAttachmentUploadReservation>(
+    `/communities/groups/${encodeURIComponent(groupId)}/cover-image/upload-url`,
+    { method: 'POST', body: JSON.stringify(input) },
     getAuthToken,
   );
 }
@@ -606,6 +823,39 @@ export async function fetchMessages(
 }
 
 /**
+ * One newest-first page of persisted image/PDF resources.
+ * The attachment URL remains an Edutu API resource URL and must be exchanged
+ * with `resolveCommunityAttachmentUrl` immediately before opening it.
+ */
+export async function fetchGroupResources(
+  groupId: string,
+  options: MessagePageOptions,
+  getAuthToken: GetAuthToken,
+): Promise<CommunityResourcesPage> {
+  const before =
+    options.before instanceof Date ? options.before.toISOString() : options.before;
+  const query = toQuery({
+    before,
+    beforeId: options.beforeId,
+    limit: options.limit,
+  });
+  const result = await requestCommunityApi<CommunityResourcesPage>(
+    `/communities/groups/${encodeURIComponent(groupId)}/resources${query}`,
+    { method: 'GET' },
+    getAuthToken,
+  );
+  return {
+    resources: Array.isArray(result?.resources) ? result.resources : [],
+    nextCursor:
+      result?.nextCursor &&
+      typeof result.nextCursor.before === 'string' &&
+      typeof result.nextCursor.beforeId === 'string'
+        ? result.nextCursor
+        : null,
+  };
+}
+
+/**
  * Post a message.
  *
  * The scam screener can refuse this with a 400 whose body is a sentence written
@@ -619,9 +869,71 @@ export async function sendMessage(
   input: SendMessageInput,
   getAuthToken: GetAuthToken,
 ): Promise<CommunityMessage> {
+  if (input.kind === 'image' || input.kind === 'file') {
+    const attachment = parseCommunityAttachment(input.kind, input.body);
+    if (!attachment) {
+      throw new Error(
+        'Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.',
+      );
+    }
+    const api = new URL(getApiBaseUrl());
+    const resource = new URL(attachment.url);
+    if (
+      resource.origin !== api.origin ||
+      !resource.pathname.startsWith('/communities/groups/') ||
+      !resource.pathname.endsWith('/attachments/download-url')
+    ) {
+      throw new Error('That attachment is not stored securely by Edutu.');
+    }
+  }
   return requestCommunityApi<CommunityMessage>(
     `/communities/groups/${encodeURIComponent(groupId)}/messages`,
     { method: 'POST', body: JSON.stringify(compact({ ...input })) },
+    getAuthToken,
+  );
+}
+
+/** Reserve a private direct-to-storage upload after backend membership checks. */
+export async function createCommunityAttachmentUpload(
+  groupId: string,
+  input: CommunityAttachmentUploadInput,
+  getAuthToken: GetAuthToken,
+): Promise<CommunityAttachmentUploadReservation> {
+  return requestCommunityApi<CommunityAttachmentUploadReservation>(
+    `/communities/groups/${encodeURIComponent(groupId)}/attachments/upload-url`,
+    { method: 'POST', body: JSON.stringify(input) },
+    getAuthToken,
+  );
+}
+
+/**
+ * Resolve an Edutu resource URL to a short-lived private storage URL. The
+ * bearer token is sent only to the configured API origin, never to a URL read
+ * from message JSON without an origin check.
+ */
+export async function resolveCommunityAttachmentUrl(
+  resourceUrl: string,
+  getAuthToken: GetAuthToken,
+): Promise<{ url: string; expiresIn: number }> {
+  let api: URL;
+  let resource: URL;
+  try {
+    api = new URL(getApiBaseUrl());
+    resource = new URL(resourceUrl);
+  } catch {
+    throw new Error('That attachment link is invalid.');
+  }
+  if (
+    resource.protocol !== 'https:' ||
+    resource.origin !== api.origin ||
+    !resource.pathname.startsWith('/communities/groups/') ||
+    !resource.pathname.endsWith('/attachments/download-url')
+  ) {
+    throw new Error('That attachment link is invalid.');
+  }
+  return requestCommunityApi<{ url: string; expiresIn: number }>(
+    `${resource.pathname}${resource.search}`,
+    { method: 'GET' },
     getAuthToken,
   );
 }

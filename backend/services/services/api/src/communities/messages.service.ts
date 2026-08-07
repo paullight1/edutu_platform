@@ -6,7 +6,9 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { toDatabaseUserId } from "../common/user-id";
 import {
@@ -22,7 +24,15 @@ import {
   canPostInGroup,
   canReadGroup,
 } from "./community-authz";
-import type { SendMessageDto } from "./dto/community.dto";
+import {
+  CommunityAttachmentUploadSchema,
+  CommunityFileAttachmentSchema,
+  CommunityImageAttachmentSchema,
+  SendMessageSchema,
+  type CommunityAttachmentDto,
+  type CommunityAttachmentUploadDto,
+  type SendMessageDto,
+} from "./dto/community.dto";
 import { screenMessage } from "./message-screen";
 
 export type { CommunityGroup, CommunityGroupMember, CommunityGroupMessage };
@@ -114,6 +124,12 @@ export interface MessagesStore {
     userId: string,
   ): Promise<CommunityGroupMember | null>;
   listMessages(
+    groupId: string,
+    before: MessageCursor | null,
+    limit: number,
+  ): Promise<CommunityGroupMessage[]>;
+  /** Attachment-only history used by the Resources surface. */
+  listResourceMessages?(
     groupId: string,
     before: MessageCursor | null,
     limit: number,
@@ -311,6 +327,40 @@ export class DrizzleMessagesStore implements MessagesStore {
     );
   }
 
+  async listResourceMessages(
+    groupId: string,
+    before: MessageCursor | null,
+    limit: number,
+  ): Promise<CommunityGroupMessage[]> {
+    const conditions = [
+      eq(communityGroupMessages.groupId, groupId),
+      inArray(communityGroupMessages.kind, ["image", "file"]),
+      isNull(communityGroupMessages.deletedAt),
+    ];
+    if (before) {
+      conditions.push(
+        before.id
+          ? (or(
+              lt(communityGroupMessages.createdAt, before.createdAt),
+              and(
+                eq(communityGroupMessages.createdAt, before.createdAt),
+                lt(communityGroupMessages.id, before.id),
+              ),
+            ) ?? sql`true`)
+          : lt(communityGroupMessages.createdAt, before.createdAt),
+      );
+    }
+    return db
+      .select()
+      .from(communityGroupMessages)
+      .where(and(...conditions))
+      .orderBy(
+        desc(communityGroupMessages.createdAt),
+        desc(communityGroupMessages.id),
+      )
+      .limit(Math.min(limit, FETCH_CEILING));
+  }
+
   async findMessage(messageId: string): Promise<CommunityGroupMessage | null> {
     const [row] = await db
       .select()
@@ -498,6 +548,9 @@ function extractRows<T>(result: unknown): T[] {
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const COMMUNITY_ASSET_BUCKET = "community-assets";
+const COMMUNITY_DOWNLOAD_TTL_SECONDS = 300;
+export const COMMUNITY_STORAGE_CLIENT = Symbol("COMMUNITY_STORAGE_CLIENT");
 
 export type ListMessagesOptions = {
   /** Page boundary: return messages strictly older than this instant. */
@@ -505,6 +558,27 @@ export type ListMessagesOptions = {
   /** The boundary row's id, breaking ties on an identical `before`. */
   beforeId?: string;
   limit?: number;
+};
+
+export type CommunityResourceKind = "image" | "file";
+
+export type CommunityGroupResource = {
+  id: string;
+  groupId: string;
+  kind: CommunityResourceKind;
+  attachment: CommunityAttachmentDto;
+  sender: MessageAuthor & { userId: string };
+  createdAt: Date;
+};
+
+export type CommunityResourceCursor = {
+  before: string;
+  beforeId: string;
+};
+
+export type CommunityResourcesPage = {
+  resources: CommunityGroupResource[];
+  nextCursor: CommunityResourceCursor | null;
 };
 
 /**
@@ -518,11 +592,16 @@ export class MessagesService {
   private readonly store: MessagesStore;
   private readonly authors: AuthorDirectory;
   private readonly blocks: BlockDirectory;
+  private readonly storageOverride?: SupabaseClient;
+  private cachedStorage?: SupabaseClient;
 
   constructor(
     @Optional() @Inject(MESSAGES_STORE) store?: MessagesStore,
     @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
     @Optional() @Inject(BLOCK_DIRECTORY) blocks?: BlockDirectory,
+    @Optional()
+    @Inject(COMMUNITY_STORAGE_CLIENT)
+    storageOverride?: SupabaseClient,
   ) {
     this.store = store ?? new DrizzleMessagesStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
@@ -530,6 +609,113 @@ export class MessagesService {
     // reason ModerationService falls back to a real notifier: a silent no-op
     // here would ship a Block button that records a block and hides nothing.
     this.blocks = blocks ?? new DrizzleBlockDirectory();
+    this.storageOverride = storageOverride;
+  }
+
+  private get storage(): SupabaseClient {
+    if (this.storageOverride) return this.storageOverride;
+    if (!this.cachedStorage) {
+      const url = process.env.SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !key) {
+        throw new BadRequestException(
+          "Community attachments are not configured right now.",
+        );
+      }
+      this.cachedStorage = createClient(url, key, {
+        auth: { persistSession: false },
+      });
+    }
+    return this.cachedStorage;
+  }
+
+  /**
+   * Reserve a direct-to-storage upload after checking posting rights. The
+   * object remains private; the returned resource URL points back to this API,
+   * not to Supabase, and therefore cannot be opened without a fresh membership
+   * check and a short-lived signed download URL.
+   */
+  async createAttachmentUpload(
+    userId: string,
+    groupId: string,
+    input: CommunityAttachmentUploadDto,
+  ): Promise<{
+    uploadUrl: string;
+    resourceUrl: string;
+    storagePath: string;
+  }> {
+    const senderId = this.requireUserId(userId);
+    const validation = CommunityAttachmentUploadSchema.safeParse(input);
+    if (!validation.success) {
+      throw new BadRequestException(
+        "Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.",
+      );
+    }
+
+    const group = await this.requireGroup(groupId);
+    if (group.archivedAt) {
+      throw new BadRequestException(
+        "This group has been archived, so new attachments can't be added.",
+      );
+    }
+    const membership = await this.store.findMembership(groupId, senderId);
+    if (!canPostInGroup(group, membership)) {
+      throw new ForbiddenException(
+        "You need to join this group before you can add an attachment.",
+      );
+    }
+
+    const extension = this.attachmentExtension(validation.data.mime);
+    const storagePath = `groups/${groupId}/${toDatabaseUserId(senderId)}/${randomUUID()}.${extension}`;
+    const { data, error } = await this.storage.storage
+      .from(COMMUNITY_ASSET_BUCKET)
+      .createSignedUploadUrl(storagePath);
+    if (error || !data?.signedUrl) {
+      throw new BadRequestException(
+        "The upload could not be started. Please try again.",
+      );
+    }
+
+    return {
+      uploadUrl: data.signedUrl,
+      resourceUrl: this.buildAttachmentResourceUrl(groupId, storagePath),
+      storagePath,
+    };
+  }
+
+  /** Exchange an authorized resource URL for a five-minute storage URL. */
+  async getAttachmentDownloadUrl(
+    userId: string,
+    groupId: string,
+    storagePath: string,
+    signature: string,
+  ): Promise<{ url: string; expiresIn: number }> {
+    const readerId = this.requireUserId(userId);
+    const group = await this.requireGroup(groupId);
+    const membership = await this.store.findMembership(groupId, readerId);
+    if (!canReadGroup(group, membership)) {
+      throw new ForbiddenException("You're not a member of this group.");
+    }
+    this.assertAttachmentSignature(groupId, storagePath, signature);
+
+    const { data, error } = await this.storage.storage
+      .from(COMMUNITY_ASSET_BUCKET)
+      .createSignedUrl(storagePath, COMMUNITY_DOWNLOAD_TTL_SECONDS);
+    if (error || !data?.signedUrl) {
+      throw new NotFoundException("That attachment is no longer available.");
+    }
+    return { url: data.signedUrl, expiresIn: COMMUNITY_DOWNLOAD_TTL_SECONDS };
+  }
+
+  /** Validate the stable value persisted on a group before it is written. */
+  assertGroupImageResourceUrl(groupId: string, rawUrl: string): void {
+    this.assertAttachmentResourceUrl(groupId, rawUrl);
+    const storagePath = new URL(rawUrl).searchParams.get("path") ?? "";
+    if (!/\.(?:jpg|png|webp)$/i.test(storagePath)) {
+      throw new BadRequestException(
+        "Choose a JPEG, PNG, or WebP image for the group photo.",
+      );
+    }
   }
 
   /**
@@ -613,6 +799,90 @@ export class MessagesService {
     return this.withAuthors(visible.slice(0, limit));
   }
 
+  /**
+   * Lists persisted image/PDF messages as durable group resources.
+   *
+   * The storage object itself remains private. `attachment.url` is the same
+   * signed Edutu resource URL accepted at send-time; opening it still goes
+   * through `getAttachmentDownloadUrl`, which repeats `canReadGroup` and emits
+   * only a five-minute storage URL.
+   */
+  async listResources(
+    userId: string,
+    groupId: string,
+    options: ListMessagesOptions = {},
+  ): Promise<CommunityResourcesPage> {
+    const readerId = this.requireUserId(userId);
+    const group = await this.requireGroup(groupId);
+    const membership = await this.store.findMembership(groupId, readerId);
+    if (!canReadGroup(group, membership)) {
+      throw new ForbiddenException("You're not a member of this group.");
+    }
+
+    const limit = this.resolveLimit(options.limit);
+    const target = limit + 1;
+    const hidden = await this.loadHiddenAuthors(readerId);
+    const fetchSize = Math.min(
+      hidden.size === 0 ? target : target * OVERFETCH_FACTOR,
+      FETCH_CEILING,
+    );
+    let cursor: MessageCursor | null = options.before
+      ? { createdAt: options.before, id: options.beforeId }
+      : null;
+    let exhausted = false;
+    const candidates: Array<{
+      message: CommunityGroupMessage;
+      attachment: CommunityAttachmentDto;
+    }> = [];
+
+    for (let round = 0; round < MAX_FETCH_ROUNDS; round += 1) {
+      const batch = await this.listResourceRows(groupId, cursor, fetchSize);
+      if (batch.length === 0) {
+        exhausted = true;
+        break;
+      }
+      for (const message of batch) {
+        if (message.deletedAt || this.isHidden(message, hidden)) continue;
+        const attachment = this.parseStoredAttachment(groupId, message);
+        if (attachment) candidates.push({ message, attachment });
+      }
+      const last = batch[batch.length - 1];
+      cursor = { createdAt: last.createdAt, id: last.id };
+      exhausted = batch.length < fetchSize;
+      if (exhausted || candidates.length >= target) break;
+    }
+
+    const selected = candidates.slice(0, limit);
+    const withAuthors = await this.withAuthors(
+      selected.map(({ message }) => message),
+    );
+    const resources = selected.map(({ attachment }, index) => {
+      const message = withAuthors[index];
+      return {
+        id: message.id,
+        groupId: message.groupId,
+        kind: message.kind as CommunityResourceKind,
+        attachment,
+        sender: { userId: message.userId, ...message.author },
+        createdAt: message.createdAt,
+      };
+    });
+
+    const hasMore = candidates.length > limit || !exhausted;
+    const boundary = selected[selected.length - 1]?.message ??
+      (hasMore ? cursor && { createdAt: cursor.createdAt, id: cursor.id ?? "" } : null);
+    return {
+      resources,
+      nextCursor:
+        hasMore && boundary?.id
+          ? {
+              before: boundary.createdAt.toISOString(),
+              beforeId: boundary.id,
+            }
+          : null,
+    };
+  }
+
   async send(
     userId: string,
     groupId: string,
@@ -641,12 +911,39 @@ export class MessagesService {
       );
     }
 
+    // Do not rely on the controller pipe as the only validation boundary.
+    // Tests, jobs and future transports can call this service directly, and an
+    // invalid attachment must never become a persisted resource simply because
+    // it bypassed HTTP.
+    const validation = SendMessageSchema.safeParse(dto);
+    if (!validation.success) {
+      if (typeof dto.body === "string" && dto.body.trim().length === 0) {
+        throw new BadRequestException("Type a message before sending it.");
+      }
+      if (dto.kind === "image" || dto.kind === "file") {
+        throw new BadRequestException(
+          "That attachment can't be sent. Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.",
+        );
+      }
+      throw new BadRequestException(
+        "That message can't be sent. Check its length and try again.",
+      );
+    }
+    const message = validation.data;
+    const kind = message.kind ?? "text";
+
     // The screener grades the raw text a member typed, not metadata, so its
     // machine token ("scam_pattern") never reaches them — only a sentence
     // explaining what reads as unsafe, without accusing them of anything.
     // An empty body is a different failure and gets a different sentence: an
     // internal caller posting blank text has not tried to scam anybody.
-    const verdict = screenMessage(dto.body);
+    let screenableBody = message.body;
+    if (kind === "image" || kind === "file") {
+      const attachment = JSON.parse(message.body) as CommunityAttachmentDto;
+      this.assertAttachmentResourceUrl(groupId, attachment.url);
+      screenableBody = attachment.caption ?? "attachment";
+    }
+    const verdict = screenMessage(screenableBody);
     if (!verdict.allowed) {
       if (verdict.reason === "empty") {
         throw new BadRequestException("Type a message before sending it.");
@@ -660,9 +957,9 @@ export class MessagesService {
       {
         groupId,
         userId: senderId,
-        body: dto.body,
-        kind: "text",
-        opportunityId: dto.opportunityId ?? null,
+        body: message.body,
+        kind,
+        opportunityId: message.opportunityId ?? null,
       },
       // The counters are this service's decision, not the adapter's: one more
       // message, and this row becomes the group's most recent activity.
@@ -713,6 +1010,163 @@ export class MessagesService {
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  private attachmentExtension(mime: string): "jpg" | "png" | "webp" | "pdf" {
+    switch (mime) {
+      case "image/jpeg":
+        return "jpg";
+      case "image/png":
+        return "png";
+      case "image/webp":
+        return "webp";
+      case "application/pdf":
+        return "pdf";
+      default:
+        throw new BadRequestException("That attachment type is not supported.");
+    }
+  }
+
+  private attachmentApiBaseUrl(): URL {
+    const raw =
+      process.env.API_PUBLIC_URL ||
+      process.env.RENDER_EXTERNAL_URL ||
+      "https://edutu-platform.onrender.com";
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== "https:") throw new Error("HTTPS required");
+      return url;
+    } catch {
+      throw new BadRequestException(
+        "Community attachments require a configured HTTPS API URL.",
+      );
+    }
+  }
+
+  private attachmentSigningSecret(): string {
+    const secret =
+      process.env.COMMUNITY_ATTACHMENT_SIGNING_SECRET ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!secret) {
+      throw new BadRequestException(
+        "Community attachments are not configured right now.",
+      );
+    }
+    return secret;
+  }
+
+  private signAttachment(groupId: string, storagePath: string): string {
+    return createHmac("sha256", this.attachmentSigningSecret())
+      .update(`${groupId}:${storagePath}`)
+      .digest("base64url");
+  }
+
+  private buildAttachmentResourceUrl(
+    groupId: string,
+    storagePath: string,
+  ): string {
+    const url = new URL(
+      `/communities/groups/${encodeURIComponent(groupId)}/attachments/download-url`,
+      this.attachmentApiBaseUrl(),
+    );
+    url.searchParams.set("path", storagePath);
+    url.searchParams.set("signature", this.signAttachment(groupId, storagePath));
+    return url.toString();
+  }
+
+  private assertAttachmentSignature(
+    groupId: string,
+    storagePath: string,
+    signature: string,
+  ): void {
+    const expectedPrefix = `groups/${groupId}/`;
+    if (
+      !storagePath.startsWith(expectedPrefix) ||
+      storagePath.includes("..") ||
+      !/^groups\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:jpg|png|webp|pdf)$/i.test(
+        storagePath,
+      )
+    ) {
+      throw new BadRequestException("That attachment link is invalid.");
+    }
+
+    const expected = Buffer.from(this.signAttachment(groupId, storagePath));
+    const actual = Buffer.from(signature || "");
+    if (
+      expected.length !== actual.length ||
+      !timingSafeEqual(expected, actual)
+    ) {
+      throw new BadRequestException("That attachment link is invalid.");
+    }
+  }
+
+  private assertAttachmentResourceUrl(groupId: string, rawUrl: string): void {
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException("That attachment link is invalid.");
+    }
+    const base = this.attachmentApiBaseUrl();
+    const expectedPath = `/communities/groups/${encodeURIComponent(groupId)}/attachments/download-url`;
+    if (url.origin !== base.origin || url.pathname !== expectedPath) {
+      throw new BadRequestException(
+        "That attachment can't be sent because it is not stored securely by Edutu.",
+      );
+    }
+    this.assertAttachmentSignature(
+      groupId,
+      url.searchParams.get("path") ?? "",
+      url.searchParams.get("signature") ?? "",
+    );
+  }
+
+  private async listResourceRows(
+    groupId: string,
+    before: MessageCursor | null,
+    limit: number,
+  ): Promise<CommunityGroupMessage[]> {
+    if (this.store.listResourceMessages) {
+      return this.store.listResourceMessages(groupId, before, limit);
+    }
+    // Compatibility path for older injected stores. Production uses the
+    // attachment-filtered query above; this remains bounded by FETCH_CEILING.
+    const rows = await this.store.listMessages(groupId, before, limit);
+    return rows.filter(
+      (message) =>
+        (message.kind === "image" || message.kind === "file") &&
+        !message.deletedAt,
+    );
+  }
+
+  /**
+   * Historical rows are untrusted even though new sends pass the DTO schema.
+   * Skip an invalid row rather than returning an arbitrary URL or failing the
+   * entire Resources screen because one old message predates validation.
+   */
+  private parseStoredAttachment(
+    groupId: string,
+    message: CommunityGroupMessage,
+  ): CommunityAttachmentDto | null {
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(message.body);
+    } catch {
+      return null;
+    }
+    const parsed =
+      message.kind === "image"
+        ? CommunityImageAttachmentSchema.safeParse(decoded)
+        : message.kind === "file"
+          ? CommunityFileAttachmentSchema.safeParse(decoded)
+          : null;
+    if (!parsed?.success) return null;
+    try {
+      this.assertAttachmentResourceUrl(groupId, parsed.data.url);
+    } catch {
+      return null;
+    }
+    return parsed.data;
+  }
 
   /**
    * The set of author ids whose messages this reader must not see.

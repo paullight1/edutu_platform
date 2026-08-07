@@ -16,6 +16,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { AlertTriangle, Lock } from 'lucide-react-native';
 import {
   archiveGroup,
+  createGroupCoverImageUpload,
   fetchGroup,
   fetchGroupForm,
   isCommunityApiError,
@@ -40,6 +41,11 @@ import {
   type DraftQuestion,
 } from '../../../../components/community/QuestionBuilder';
 import { haptics } from '../../../../lib/haptics';
+import { uploadPrivateCommunityAsset } from '@edutu/core/src/services/storage';
+import {
+  GroupImagePicker,
+  type PickedGroupImage,
+} from '../../../../components/community/GroupImagePicker';
 
 /**
  * Group settings — a SCREEN, not a modal (DESIGN.md §5.2). It carries the
@@ -62,7 +68,7 @@ export default function GroupSettingsScreen() {
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
 
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; photoError?: string }>();
   const groupId = typeof params.id === 'string' ? params.id : '';
 
   const [loading, setLoading] = useState(true);
@@ -75,11 +81,18 @@ export default function GroupSettingsScreen() {
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<GroupVisibility>('public');
   const [joinPolicy, setJoinPolicy] = useState<GroupJoinPolicy>('open');
+  const [coverImage, setCoverImage] = useState<PickedGroupImage | null>(null);
+  const [removeCoverImage, setRemoveCoverImage] = useState(false);
+  const [coverImageError, setCoverImageError] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    params.photoError === '1'
+      ? 'Your group was created, but the photo did not upload. Choose it again to retry.'
+      : null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +153,26 @@ export default function GroupSettingsScreen() {
     setSaving(true);
     setError(null);
     try {
+      let coverImageResourceUrl: string | null | undefined;
+      if (coverImage) {
+        const reservation = await createGroupCoverImageUpload(
+          group.id,
+          {
+            kind: 'image',
+            name: coverImage.name,
+            mime: coverImage.mime,
+            size: coverImage.size,
+          },
+          getToken,
+        );
+        await uploadPrivateCommunityAsset(reservation.uploadUrl, {
+          uri: coverImage.uri,
+          type: coverImage.mime,
+        });
+        coverImageResourceUrl = reservation.resourceUrl;
+      } else if (removeCoverImage) {
+        coverImageResourceUrl = null;
+      }
       await updateGroup(
         group.id,
         {
@@ -147,6 +180,7 @@ export default function GroupSettingsScreen() {
           description: description.trim(),
           visibility,
           joinPolicy,
+          coverImageResourceUrl,
         },
         getToken,
       );
@@ -169,6 +203,8 @@ export default function GroupSettingsScreen() {
     joinPolicy,
     formApplies,
     questions,
+    coverImage,
+    removeCoverImage,
     getToken,
     router,
     t,
@@ -237,6 +273,28 @@ export default function GroupSettingsScreen() {
                   </Text>
                 </View>
               )}
+
+              <LabeledField label="Group identity" error={coverImageError ?? undefined}>
+                <GroupImagePicker
+                  testID="group-settings-photo"
+                  resourceUrl={removeCoverImage ? null : group.coverImageResourceUrl}
+                  emoji={group.coverEmoji}
+                  selected={coverImage}
+                  disabled={readOnly}
+                  canRemove
+                  onChange={(image) => {
+                    setCoverImage(image);
+                    setRemoveCoverImage(false);
+                    setCoverImageError(null);
+                  }}
+                  onRemove={() => {
+                    setCoverImage(null);
+                    setRemoveCoverImage(true);
+                    setCoverImageError(null);
+                  }}
+                  onError={setCoverImageError}
+                />
+              </LabeledField>
 
               <LabeledField
                 label={t('community:create.nameLabel')}

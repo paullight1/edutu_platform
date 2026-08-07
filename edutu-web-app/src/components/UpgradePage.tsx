@@ -13,7 +13,7 @@ import {
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
-import { createCheckout, type BillingInterval } from '../services/billing';
+import { broadcastBillingInvalidation, createCheckout, type BillingInterval } from '../services/billing';
 import { usePaywall } from '../hooks/usePaywall';
 import {
   PRO_PLANS,
@@ -144,6 +144,7 @@ const UpgradePage: React.FC = () => {
         );
         return;
       }
+      broadcastBillingInvalidation();
       window.location.assign(checkout.authorizationUrl);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Unable to start checkout.');

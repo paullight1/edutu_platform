@@ -70,6 +70,7 @@ import * as Notifications from 'expo-notifications';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import { clearWidgetSuiteData } from '../../../lib/widgetSuiteSync';
 import { useToast } from '../../../components/context/ToastContext';
 import { useNavStyleSettings, setNavBarStyle, type NavBarStyle } from '../../../lib/navStyleStore';
 
@@ -369,7 +370,9 @@ export default function SettingsScreen() {
     const handleSignOut = () => {
         Alert.alert(t('account.signOut'), t('account.signOutConfirm'), [
             { text: t('common:actions.cancel'), style: 'cancel' },
-            { text: t('account.signOut'), style: 'destructive', onPress: () => signOut() },
+                { text: t('account.signOut'), style: 'destructive', onPress: () => {
+                    void clearWidgetSuiteData().finally(() => signOut());
+                } },
         ]);
     };
 

@@ -74,7 +74,7 @@ export async function showLocalNotification(
 ): Promise<boolean> {
   if (getNotificationPermission() !== "granted") return false;
 
-  const url = options.url ?? "/dashboard";
+  const url = safeNotificationPath(options.url);
   const notificationOptions: NotificationOptions & { data: { url: string } } = {
     body: options.body,
     tag: options.tag,
@@ -101,5 +101,18 @@ export async function showLocalNotification(
     return true;
   } catch {
     return false;
+  }
+}
+
+function safeNotificationPath(candidate?: string): string {
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) {
+    return "/dashboard";
+  }
+  try {
+    const parsed = new URL(candidate, window.location.origin);
+    if (parsed.origin !== window.location.origin) return "/dashboard";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/dashboard";
   }
 }

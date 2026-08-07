@@ -7,6 +7,9 @@ export type NotificationKind =
   | "opportunity-highlight"
   | "opportunity-alert"
   | "deadline-reminder"
+  | "community-call-reminder"
+  | "community-call-started"
+  | "community-call-missed"
   | "admin-broadcast"
   | "system";
 
@@ -84,6 +87,9 @@ export const BroadcastNotificationSchema = z.object({
       "opportunity-highlight",
       "opportunity-alert",
       "deadline-reminder",
+      "community-call-reminder",
+      "community-call-started",
+      "community-call-missed",
       "admin-broadcast",
       "system",
     ])

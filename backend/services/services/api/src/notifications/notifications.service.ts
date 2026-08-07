@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import axios from "axios";
 import { Expo, type ExpoPushMessage } from "expo-server-sdk";
@@ -34,6 +36,11 @@ import type {
   NotificationPreferencesDto,
   RegisterPushTokenDto,
 } from "./dto/notification.dto";
+import {
+  DrizzlePushTokenStore,
+  PUSH_TOKEN_STORE,
+  type PushTokenStore,
+} from "./push-token.store";
 
 const DEFAULT_CHANNELS = {
   inApp: true,
@@ -107,6 +114,13 @@ export class NotificationsService {
   // are unset or the package isn't installed, in which case web push no-ops.
   private webpush: any = null;
   private webpushChecked = false;
+  private readonly pushTokenStore: PushTokenStore;
+
+  constructor(
+    @Optional() @Inject(PUSH_TOKEN_STORE) pushTokenStore?: PushTokenStore,
+  ) {
+    this.pushTokenStore = pushTokenStore ?? new DrizzlePushTokenStore();
+  }
 
   private getWebpush(): any | null {
     if (this.webpushChecked) return this.webpush;
@@ -331,43 +345,7 @@ export class NotificationsService {
     const dbUserId = toDatabaseUserId(userId);
     const token = dto.token.trim();
 
-    const existing = await db
-      .select()
-      .from(notificationPushTokens)
-      .where(
-        and(
-          eq(notificationPushTokens.userId, dbUserId),
-          eq(notificationPushTokens.token, token),
-        ),
-      )
-      .limit(1);
-
-    if (existing[0]) {
-      const [updated] = await db
-        .update(notificationPushTokens)
-        .set({
-          provider: dto.provider || existing[0].provider || "expo",
-          device: dto.device || existing[0].device || {},
-          lastSeenAt: new Date(),
-        })
-        .where(eq(notificationPushTokens.id, existing[0].id))
-        .returning();
-
-      return updated;
-    }
-
-    const [created] = await db
-      .insert(notificationPushTokens)
-      .values({
-        userId: dbUserId,
-        provider: dto.provider || "expo",
-        token,
-        device: dto.device || {},
-        lastSeenAt: new Date(),
-      })
-      .returning();
-
-    return created;
+    return this.pushTokenStore.claim(dbUserId, token, dto);
   }
 
   async unregisterPushToken(userId: string, token: string) {
@@ -792,7 +770,13 @@ export class NotificationsService {
     //    because two opportunity alerts already went out is indefensible.
     const isOperatorBroadcast =
       dto.kind === "admin-broadcast" && dto.audience !== "specific";
-    if (isOperatorBroadcast || dto.kind === "system") return unchanged;
+    if (
+      isOperatorBroadcast ||
+      dto.kind === "system" ||
+      dto.kind === "community-call-started"
+    ) {
+      return unchanged;
+    }
 
     let usage: Map<string, { day: number; week: number }>;
     try {
@@ -966,9 +950,13 @@ export class NotificationsService {
 
       for (const recipient of allowed) {
         const pref = prefs.get(recipient.userId);
-        const at = alreadyDeferred
-          ? undefined
-          : deferForQuietHours(pref?.quietHours ?? null, pref?.timezone);
+        const bypassQuietHours =
+          dto.kind === "community-call-started" ||
+          dto.metadata?.bypassQuietHours === true;
+        const at =
+          alreadyDeferred || bypassQuietHours
+            ? undefined
+            : deferForQuietHours(pref?.quietHours ?? null, pref?.timezone);
         if (at) deferred.push({ recipient, at });
         else deliverNow.push(recipient);
       }
@@ -1175,6 +1163,11 @@ export class NotificationsService {
         typeof dto.metadata?.categoryId === "string"
           ? dto.metadata.categoryId
           : undefined;
+      const requestedTtl = Number(dto.metadata?.pushTtlSeconds);
+      const ttl = Number.isFinite(requestedTtl)
+        ? Math.max(1, Math.min(Math.floor(requestedTtl), 120))
+        : undefined;
+      const expiration = ttl ? Math.floor(Date.now() / 1000) + ttl : undefined;
 
       const messages: ExpoPushMessage[] = [];
       // Parallel to `messages`: which user each message belongs to, so a
@@ -1195,6 +1188,7 @@ export class NotificationsService {
           body: dto.body,
           sound: "default",
           priority: "high",
+          ...(ttl ? { ttl, expiration } : {}),
           channelId,
           ...(categoryId ? { categoryId } : {}),
           data: {
@@ -1309,6 +1303,7 @@ export class NotificationsService {
     notificationIdByUser?: Map<string, string>,
     deliveredUserIds?: Set<string>,
   ) {
+    const expoOnly = dto.metadata?.pushProvider === "expo";
     const [expo, web] = await Promise.all([
       this.sendExpoPush(
         recipients,
@@ -1316,7 +1311,14 @@ export class NotificationsService {
         notificationIdByUser,
         deliveredUserIds,
       ),
-      this.sendWebPush(recipients, dto, notificationIdByUser, deliveredUserIds),
+      expoOnly
+        ? Promise.resolve({ sent: 0, skipped: "expo-only dispatch" })
+        : this.sendWebPush(
+            recipients,
+            dto,
+            notificationIdByUser,
+            deliveredUserIds,
+          ),
     ]);
     return { sent: (expo.sent || 0) + (web.sent || 0), expo, web };
   }

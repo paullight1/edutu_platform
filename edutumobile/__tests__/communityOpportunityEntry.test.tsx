@@ -198,6 +198,7 @@ jest.mock('../lib/supabase', () => ({
 }));
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
+  fetchOpportunityRanking: jest.fn().mockResolvedValue(null),
   getOpportunity: (...args: unknown[]) => mockGetOpportunity(...args),
   getOpportunityWithStatus: async (...args: unknown[]) => {
     const opportunity = await mockGetOpportunity(...args);
@@ -330,7 +331,7 @@ describe('opportunity detail — discussion group row', () => {
 
     pressNearest(getByText('Global Fellowship crew'));
 
-    expect(mockPush).toHaveBeenCalledWith('/discussions/group-9');
+    expect(mockPush).toHaveBeenCalledWith('/discussions/group-9/about');
     // Not the create form — the whole failure this spec exists to catch.
     expect(mockPush).not.toHaveBeenCalledWith(
       expect.objectContaining({ pathname: '/discussions/new' }),
@@ -341,9 +342,9 @@ describe('opportunity detail — discussion group row', () => {
     mockFetchGroups.mockResolvedValue([]);
 
     const { getByText } = render(<OpportunityDetailScreen />);
-    await waitFor(() => expect(getByText('Start a group')).toBeTruthy());
+    await waitFor(() => expect(getByText('Start one')).toBeTruthy());
 
-    pressNearest(getByText('Start a group'));
+    pressNearest(getByText('Start one'));
 
     // Prefilled AND labelled: the create screen renders the opportunity as a
     // locked row, and without the title it would show a raw UUID there.
@@ -358,9 +359,9 @@ describe('opportunity detail — discussion group row', () => {
     mockIsGuest = true;
 
     const { getByText } = render(<OpportunityDetailScreen />);
-    await waitFor(() => expect(getByText('Start a group')).toBeTruthy());
+    await waitFor(() => expect(getByText('Start one')).toBeTruthy());
 
-    pressNearest(getByText('Start a group'));
+    pressNearest(getByText('Start one'));
 
     expect(mockPromptAuth).toHaveBeenCalled();
     // Nothing about discussions may be pushed: a guest landing on a group

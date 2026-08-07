@@ -77,6 +77,9 @@ Deno.serve(async (req) => {
     await deleteFrom('creator-applications', 'user_id');
     await deleteFrom('community_posts', 'user_id');
     await deleteFrom('community_stories', 'user_id');
+    await deleteFrom('community_group_members', 'user_id');
+    await deleteFrom('community_join_requests', 'user_id');
+    await deleteFrom('community_groups', 'owner_id');
     await deleteFrom('marketplace_enrollments', 'user_id');
     await deleteFrom('marketplace_items', 'creator_id');
     await deleteFrom('marketplace_listings', 'seller_id');

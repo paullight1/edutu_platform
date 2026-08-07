@@ -1,0 +1,16 @@
+flowchart LR
+    A[Group admin\nowner or mod] -->|Schedule / start / end| API[NestJS API\nNode 20]
+    M[Group member] -->|Read schedule / request join token| API
+    API -->|Durable call state + invite snapshot| DB[(Supabase Postgres)]
+    API -->|Reminder, ringing, missed-call events| N[Notification service]
+    N --> EX[Expo / Web Push]
+    N --> VP[APNs VoIP / FCM calling push]
+    EX --> M
+    VP --> M
+    API -->|Idempotent prepare/end command| GW[Voice gateway\nNode 22 + WSS]
+    API -->|Short-lived signed join token| M
+    M -->|Signaling + DTLS-SRTP audio| GW
+    GW --> W[mediasoup workers\n1 process per CPU core]
+    W --> R[Router per live call]
+    GW -. room assignment / presence .-> REDIS[(Redis when scaling past one node)]
+    GW -->|Signed lifecycle callbacks| API

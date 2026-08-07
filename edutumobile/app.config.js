@@ -21,7 +21,6 @@ loadLocalEnv();
 
 process.env.EXPO_ROUTER_APP_ROOT = 'app';
 
-const enableAssociatedDomains = process.env.EXPO_ENABLE_ASSOCIATED_DOMAINS === "1";
 
 function resolveGoogleServicesFile() {
   const candidates = [
@@ -78,7 +77,9 @@ export default {
       // file, and it cannot write to a dynamic config.)
       buildNumber: "1",
       deploymentTarget: "16.4",
-      ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),
+      // Universal links are part of the production auth/share contract; do not
+      // make them depend on an optional local environment flag.
+      associatedDomains: ["applinks:edutu.org"],
       // APNs entitlement so remote push works in release builds (EAS still
       // needs a push key configured under this bundle id).
       entitlements: {
@@ -96,7 +97,7 @@ export default {
         // RCTStatusBarManager requires it, and true crashes on launch.
         UIStatusBarStyle: "UIStatusBarStyleLightContent",
         UIViewControllerBasedStatusBarAppearance: false,
-        UIBackgroundModes: ["fetch", "remote-notification", "processing"],
+        UIBackgroundModes: ["fetch", "remote-notification", "processing", "voip"],
         BGTaskSchedulerPermittedIdentifiers: [
           "com.expo.modules.backgroundtask.processing"
         ],
@@ -117,6 +118,14 @@ export default {
       // to initialize and crashes the app on launch.
       package: "com.edutu.com",
       versionCode: 1,
+      permissions: [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#171a4f"
@@ -147,6 +156,9 @@ export default {
     plugins: [
       "expo-router",
       "expo-localization",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "@config-plugins/react-native-webrtc",
       [
         "expo-notifications",
         {

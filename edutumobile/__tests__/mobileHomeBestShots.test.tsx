@@ -249,10 +249,10 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
     expect(getByText('Complete your profile')).toBeTruthy();
-    expect(getByText(/Unlock the matches you can actually win/)).toBeTruthy();
+    expect(getByText(/Get more accurate opportunity matches/)).toBeTruthy();
     // The "profile already complete" copy must NOT appear here.
-    expect(queryByText(/We'll notify you the moment one clears the bar/)).toBeNull();
-    expect(queryByText('Still searching for your best shot')).toBeNull();
+    expect(queryByText(/We'll notify you when a better fit appears/)).toBeNull();
+    expect(queryByText('No strong match yet')).toBeNull();
 
     // The whole card is tappable and routes to the profile screen.
     fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
@@ -270,13 +270,13 @@ describe('home Best Shots — empty states and dedupe', () => {
     const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    expect(getByText('Still searching for your best shot')).toBeTruthy();
-    expect(getByText(/We'll notify you the moment one clears the bar/)).toBeTruthy();
+    expect(getByText('No strong match yet')).toBeTruthy();
+    expect(getByText(/We'll notify you when a better fit appears/)).toBeTruthy();
     // Must NOT tell a completed-profile user to complete their profile.
     expect(queryByText('Complete your profile')).toBeNull();
-    expect(queryByText(/Unlock the matches you can actually win/)).toBeNull();
+    expect(queryByText(/Get more accurate opportunity matches/)).toBeNull();
 
-    fireEvent.press(getByLabelText('Still searching for your best shot. We will notify you when one is found. Browse recommendations meanwhile.'));
+    fireEvent.press(getByLabelText('No strong match yet. Browse all opportunities.'));
     expect(mockPush).toHaveBeenCalledWith('/opportunities');
   });
 
@@ -331,7 +331,7 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
     // Best Shots stays empty...
-    expect(getByText('Still searching for your best shot')).toBeTruthy();
+    expect(getByText('No strong match yet')).toBeTruthy();
     // ...while the item still rides the Recommended feed on its feed score,
     // which is exactly what engagement signals are supposed to influence.
     expect(getAllByText('Clicked A Lot')).toHaveLength(1);

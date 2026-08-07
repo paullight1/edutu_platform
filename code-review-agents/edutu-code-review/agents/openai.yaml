@@ -1,0 +1,4 @@
+interface:
+  display_name: "Edutu Code Review"
+  short_description: "Cross-platform Edutu security and quality review"
+  default_prompt: "Use $edutu-code-review to review the current Edutu changes for correctness, security, maintainability, and performance."

@@ -159,3 +159,14 @@ Apify MCP is configured in `opencode.json` for accessing scraper actors:
 - `paullight/edutu-scraper1`
 - `majestic_fund/the-scholarship-scraper-actor`
 - `fiery_dream/scholarship-intel`
+
+## Code Review Agents
+
+Project-tailored review skills live in `code-review-agents/`:
+
+- `edutu-code-review` — shared cross-platform review contract and Edutu architecture/security context.
+- `edutu-mobile-review` — `edutumobile/` Expo, native, offline, auth, accessibility, and release review.
+- `edutu-web-review` — `edutu-web-app/` React/Vite/Capacitor/PWA security, routing, UX, and performance review.
+- `edutu-payments-review` — Paystack, RevenueCat, webhooks, entitlements, credits, and billing migration review.
+
+For a code review, inspect the diff first, use the shared reviewer, and add the specialist whenever its path or concern is touched. Findings must be evidence-based, severity-ranked (`P0`–`P3`), and include a concrete fix and verification gap. These are review-only agents unless the user explicitly asks for implementation.

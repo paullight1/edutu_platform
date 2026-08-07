@@ -6,7 +6,8 @@ export type DeepLinkRoute =
   | { screen: 'roadmap'; id: string }
   | { screen: 'goal'; id: string }
   | { screen: 'profile' }
-  | { screen: 'chat' };
+  | { screen: 'chat' }
+  | { screen: 'communityCall'; groupId: string; callId: string };
 
 // ─── URL Generation ──────────────────────────────────────────────────────────
 
@@ -22,11 +23,13 @@ export function createShareLink(route: DeepLinkRoute): string {
       return `${DEEP_LINK_PREFIX}profile`;
     case 'chat':
       return `${DEEP_LINK_PREFIX}chat`;
+    case 'communityCall':
+      return `${DEEP_LINK_PREFIX}discussions/${route.groupId}/calls/${route.callId}`;
   }
 }
 
 export function createWebLink(route: DeepLinkRoute): string {
-  const baseUrl = 'https://edutu.ai';
+  const baseUrl = 'https://edutu.org';
   switch (route.screen) {
     case 'opportunity':
       return `${baseUrl}/opportunities/${route.id}`;
@@ -38,6 +41,8 @@ export function createWebLink(route: DeepLinkRoute): string {
       return `${baseUrl}/profile`;
     case 'chat':
       return `${baseUrl}/chat`;
+    case 'communityCall':
+      return `${baseUrl}/discussions/${route.groupId}/calls/${route.callId}`;
   }
 }
 
@@ -57,10 +62,10 @@ export function parseDeepLink(url: string): DeepLinkRoute | null {
     return parsePath(path);
   }
 
-  // Handle https://edutu.ai scheme
+  // Handle the canonical https://edutu.org universal-link domain.
   try {
     const parsedUrl = new URL(url);
-    const isValidDomain = parsedUrl.hostname === 'edutu.ai' || parsedUrl.hostname === 'www.edutu.ai';
+    const isValidDomain = parsedUrl.hostname === 'edutu.org' || parsedUrl.hostname === 'www.edutu.org';
     if (!isValidDomain) return null;
     const path = parsedUrl.pathname.replace(/^\//, '');
     return parsePath(path);
@@ -88,6 +93,10 @@ function parsePath(path: string): DeepLinkRoute | null {
       return { screen: 'profile' };
     case 'chat':
       return { screen: 'chat' };
+    case 'discussions':
+      return parts[2] === 'calls' && parts[1] && parts[3]
+        ? { screen: 'communityCall', groupId: parts[1], callId: parts[3].split('?')[0]! }
+        : null;
     default:
       return null;
   }
@@ -115,5 +124,7 @@ export function getShareMessage(route: DeepLinkRoute, title?: string): string {
       return `Check out my profile on Edutu!\n\n${links.web}`;
     case 'chat':
       return `Chat with Edutu AI!\n\n${links.web}`;
+    case 'communityCall':
+      return title ? `Join "${title}" on Edutu!\n\n${links.web}` : `Join this community voice call on Edutu!\n\n${links.web}`;
   }
 }

@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AuthorDirectory,
   AuthorRow,
@@ -14,6 +15,11 @@ import type {
   NewMessageRow,
 } from "./messages.service";
 import { MessagesService, UNNAMED_MEMBER } from "./messages.service";
+import {
+  COMMUNITY_IMAGE_MAX_BYTES,
+  COMMUNITY_PDF_MAX_BYTES,
+  SendMessageSchema,
+} from "./dto/community.dto";
 
 /**
  * An in-memory stand-in for the Drizzle-backed store, mirroring
@@ -71,6 +77,20 @@ class FakeMessagesStore implements MessagesStore {
         (a, b) =>
           b.createdAt.getTime() - a.createdAt.getTime() ||
           (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+      )
+      .slice(0, limit);
+  }
+
+  async listResourceMessages(
+    groupId: string,
+    before: MessageCursor | null,
+    limit: number,
+  ): Promise<CommunityGroupMessage[]> {
+    return (await this.listMessages(groupId, before, this.messages.length + 1))
+      .filter(
+        (message) =>
+          (message.kind === "image" || message.kind === "file") &&
+          !message.deletedAt,
       )
       .slice(0, limit);
   }
@@ -204,6 +224,47 @@ class FakeBlockDirectory implements BlockDirectory {
 
 const GROUP_ID = "00000000-0000-4000-8000-000000000001";
 const MESSAGE_ID = "00000000-0000-4000-8000-0000000000a1";
+const TEST_ATTACHMENT_ORIGIN = "https://api.edutu.test";
+const TEST_ATTACHMENT_SECRET = "test-community-attachment-secret";
+const TEST_STORAGE_USER = "7aacb321-782f-562f-8e1a-02fa88d11332";
+
+function attachmentResourceUrl(extension: "webp" | "pdf"): string {
+  const path = `groups/${GROUP_ID}/${TEST_STORAGE_USER}/00000000-0000-4000-8000-000000000099.${extension}`;
+  const signature = createHmac("sha256", TEST_ATTACHMENT_SECRET)
+    .update(`${GROUP_ID}:${path}`)
+    .digest("base64url");
+  const url = new URL(
+    `/communities/groups/${GROUP_ID}/attachments/download-url`,
+    TEST_ATTACHMENT_ORIGIN,
+  );
+  url.searchParams.set("path", path);
+  url.searchParams.set("signature", signature);
+  return url.toString();
+}
+
+function makeAttachmentStorage() {
+  const createSignedUploadUrl = jest.fn(async (path: string) => ({
+    data: {
+      signedUrl: `https://storage.edutu.test/upload?path=${encodeURIComponent(path)}`,
+      token: "upload-token",
+      path,
+    },
+    error: null,
+  }));
+  const createSignedUrl = jest.fn(async (path: string, expiresIn: number) => ({
+    data: {
+      signedUrl: `https://storage.edutu.test/download?path=${encodeURIComponent(path)}&ttl=${expiresIn}`,
+    },
+    error: null,
+  }));
+  const from = jest.fn(() => ({ createSignedUploadUrl, createSignedUrl }));
+  return {
+    client: { storage: { from } } as unknown as SupabaseClient,
+    from,
+    createSignedUploadUrl,
+    createSignedUrl,
+  };
+}
 
 type MemberSeed = {
   userId: string;
@@ -279,11 +340,29 @@ function messagesService(
   db: FakeMessagesStore,
   directory: FakeAuthorDirectory = new FakeAuthorDirectory(),
   blocks: FakeBlockDirectory = new FakeBlockDirectory(),
+  storage: SupabaseClient = makeAttachmentStorage().client,
 ): MessagesService {
-  return new MessagesService(db, directory, blocks);
+  return new MessagesService(db, directory, blocks, storage);
 }
 
 describe("MessagesService", () => {
+  const previousApiUrl = process.env.API_PUBLIC_URL;
+  const previousSigningSecret = process.env.COMMUNITY_ATTACHMENT_SIGNING_SECRET;
+
+  beforeAll(() => {
+    process.env.API_PUBLIC_URL = TEST_ATTACHMENT_ORIGIN;
+    process.env.COMMUNITY_ATTACHMENT_SIGNING_SECRET = TEST_ATTACHMENT_SECRET;
+  });
+
+  afterAll(() => {
+    if (previousApiUrl === undefined) delete process.env.API_PUBLIC_URL;
+    else process.env.API_PUBLIC_URL = previousApiUrl;
+    if (previousSigningSecret === undefined) {
+      delete process.env.COMMUNITY_ATTACHMENT_SIGNING_SECRET;
+    } else {
+      process.env.COMMUNITY_ATTACHMENT_SIGNING_SECRET = previousSigningSecret;
+    }
+  });
   describe("list", () => {
     it("refuses to list a private group's messages for a non-member", async () => {
       const service = messagesService(
@@ -392,7 +471,133 @@ describe("MessagesService", () => {
     });
   });
 
+  describe("listResources", () => {
+    const imageBody = JSON.stringify({
+      url: attachmentResourceUrl("webp"),
+      name: "essay-plan.webp",
+      mime: "image/webp",
+      size: 512_000,
+      caption: "My first draft",
+    });
+    const fileBody = JSON.stringify({
+      url: attachmentResourceUrl("pdf"),
+      name: "application-guide.pdf",
+      mime: "application/pdf",
+      size: 2_000_000,
+    });
+
+    it("uses the group read boundary for private resources", async () => {
+      const service = messagesService(
+        fakeDb({
+          group: { visibility: "private" },
+          messages: [{ userId: "user_owner", kind: "file", body: fileBody }],
+        }),
+      );
+
+      await expect(
+        service.listResources("user_stranger", GROUP_ID),
+      ).rejects.toThrow(/not a member/i);
+    });
+
+    it("returns only live canonical attachments with sender and date", async () => {
+      const deletedAt = new Date("2026-08-03T11:00:00.000Z");
+      const db = fakeDb({
+        messages: [
+          { userId: "user_ada", kind: "image", body: imageBody },
+          { userId: "user_bola", kind: "file", body: fileBody },
+          { userId: "user_ada", kind: "text", body: "ordinary message" },
+          {
+            userId: "user_ada",
+            kind: "file",
+            body: fileBody,
+            deletedAt,
+          },
+          { userId: "user_ada", kind: "image", body: "not json" },
+        ],
+      });
+      const directory = new FakeAuthorDirectory();
+      directory.profiles.set("user_ada", {
+        fullName: "Ada Student",
+        avatarUrl: "https://images.example/ada.png",
+      });
+
+      const page = await messagesService(db, directory).listResources(
+        "user_reader",
+        GROUP_ID,
+        { limit: 20 },
+      );
+
+      expect(page.resources).toHaveLength(2);
+      expect(page.resources[0]).toMatchObject({
+        kind: "image",
+        attachment: {
+          name: "essay-plan.webp",
+          mime: "image/webp",
+          size: 512_000,
+          caption: "My first draft",
+        },
+        sender: {
+          userId: "user_ada",
+          displayName: "Ada Student",
+          avatarUrl: "https://images.example/ada.png",
+        },
+      });
+      expect(page.resources[0].createdAt).toBeInstanceOf(Date);
+      expect(page.resources[1].sender.displayName).toBe(UNNAMED_MEMBER);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    it("pages tied timestamps with the message id tiebreak", async () => {
+      const instant = new Date("2026-08-03T10:00:00.000Z");
+      const ids = [
+        "00000000-0000-4000-8000-0000000000c3",
+        "00000000-0000-4000-8000-0000000000b2",
+        "00000000-0000-4000-8000-0000000000a1",
+      ];
+      const db = fakeDb({
+        messages: ids.map((id) => ({
+          id,
+          userId: "user_ada",
+          kind: "file",
+          body: fileBody,
+          createdAt: instant,
+        })),
+      });
+      const service = messagesService(db);
+
+      const first = await service.listResources("user_reader", GROUP_ID, {
+        limit: 1,
+      });
+      expect(first.resources[0].id).toBe(ids[0]);
+      expect(first.nextCursor).toEqual({
+        before: instant.toISOString(),
+        beforeId: ids[0],
+      });
+
+      const second = await service.listResources("user_reader", GROUP_ID, {
+        limit: 1,
+        before: new Date(first.nextCursor!.before),
+        beforeId: first.nextCursor!.beforeId,
+      });
+      expect(second.resources[0].id).toBe(ids[1]);
+    });
+  });
+
   describe("send", () => {
+    const imageBody = JSON.stringify({
+      url: attachmentResourceUrl("webp"),
+      name: "essay-plan.webp",
+      mime: "image/webp",
+      size: 512_000,
+      caption: "My first draft",
+    });
+    const fileBody = JSON.stringify({
+      url: attachmentResourceUrl("pdf"),
+      name: "application-guide.pdf",
+      mime: "application/pdf",
+      size: 2_000_000,
+    });
+
     it("rejects a screened message with a human reason and writes nothing", async () => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
       const service = messagesService(db);
@@ -423,6 +628,89 @@ describe("MessagesService", () => {
       expect(message.userId).toBe("user_abc");
       expect(db.groups[0].messageCount).toBe(1);
       expect(db.groups[0].lastMessageAt).toBeInstanceOf(Date);
+    });
+
+    it.each([
+      ["image" as const, imageBody],
+      ["file" as const, fileBody],
+    ])("persists a validated %s attachment in kind/body", async (kind, body) => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      const message = await messagesService(db).send("user_abc", GROUP_ID, {
+        kind,
+        body,
+      });
+
+      expect(message.kind).toBe(kind);
+      expect(JSON.parse(message.body)).toMatchObject(JSON.parse(body));
+      expect(db.groups[0].messageCount).toBe(1);
+    });
+
+    it.each([
+      ["non-HTTPS URL", { ...JSON.parse(imageBody), url: "http://cdn.test/x.webp" }],
+      ["unsafe name", { ...JSON.parse(imageBody), name: "../secret.webp" }],
+      ["wrong image MIME", { ...JSON.parse(imageBody), mime: "image/gif" }],
+      ["oversized image", { ...JSON.parse(imageBody), size: COMMUNITY_IMAGE_MAX_BYTES + 1 }],
+    ])("rejects image attachment metadata with a %s", async (_case, payload) => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      await expect(
+        messagesService(db).send("user_abc", GROUP_ID, {
+          kind: "image",
+          body: JSON.stringify(payload),
+        } as never),
+      ).rejects.toThrow(/attachment can't be sent/i);
+      expect(db.messages).toHaveLength(0);
+    });
+
+    it.each([
+      ["wrong PDF MIME", { ...JSON.parse(fileBody), mime: "application/zip" }],
+      ["wrong extension", { ...JSON.parse(fileBody), name: "guide.exe" }],
+      ["oversized PDF", { ...JSON.parse(fileBody), size: COMMUNITY_PDF_MAX_BYTES + 1 }],
+      ["extra metadata", { ...JSON.parse(fileBody), executable: true }],
+    ])("rejects file attachment metadata with a %s", async (_case, payload) => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      await expect(
+        messagesService(db).send("user_abc", GROUP_ID, {
+          kind: "file",
+          body: JSON.stringify(payload),
+        } as never),
+      ).rejects.toThrow(/attachment can't be sent/i);
+      expect(db.messages).toHaveLength(0);
+    });
+
+    it("rejects an otherwise valid public attachment URL", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      await expect(
+        messagesService(db).send("user_abc", GROUP_ID, {
+          kind: "file",
+          body: JSON.stringify({
+            ...JSON.parse(fileBody),
+            url: "https://public-files.example/application-guide.pdf",
+          }),
+        }),
+      ).rejects.toThrow(/not stored securely by Edutu/i);
+      expect(db.messages).toHaveLength(0);
+    });
+
+    it("canonicalizes attachment JSON so resource messages have one stable shape", () => {
+      const parsed = SendMessageSchema.parse({
+        kind: "image",
+        body: JSON.stringify({
+          size: 10,
+          mime: "image/png",
+          name: "diagram.png",
+          url: "https://cdn.edutu.app/diagram.png",
+          caption: "  Diagram  ",
+        }),
+      });
+      expect(parsed.body).toBe(
+        JSON.stringify({
+          url: "https://cdn.edutu.app/diagram.png",
+          name: "diagram.png",
+          mime: "image/png",
+          size: 10,
+          caption: "Diagram",
+        }),
+      );
     });
 
     it("refuses to post in an archived group", async () => {
@@ -466,6 +754,127 @@ describe("MessagesService", () => {
         .catch((caught: Error) => caught);
       expect((error as Error).message).toMatch(/type a message/i);
       expect((error as Error).message).not.toMatch(/money/i);
+    });
+  });
+
+  describe("private attachment storage", () => {
+    it("issues a signed upload only to an active group member", async () => {
+      const storage = makeAttachmentStorage();
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      const service = messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        new FakeBlockDirectory(),
+        storage.client,
+      );
+
+      const reservation = await service.createAttachmentUpload(
+        "user_abc",
+        GROUP_ID,
+        {
+          kind: "image",
+          name: "evidence.webp",
+          mime: "image/webp",
+          size: 200,
+        },
+      );
+
+      expect(storage.from).toHaveBeenCalledWith("community-assets");
+      expect(storage.createSignedUploadUrl).toHaveBeenCalledTimes(1);
+      expect(reservation.uploadUrl).toMatch(/^https:\/\/storage\.edutu\.test\/upload/);
+      expect(reservation.resourceUrl).toMatch(
+        /^https:\/\/api\.edutu\.test\/communities\/groups\//,
+      );
+      expect(reservation.resourceUrl).not.toContain("storage.edutu.test");
+    });
+
+    it("does not issue an upload URL to a non-member", async () => {
+      const storage = makeAttachmentStorage();
+      const service = messagesService(
+        fakeDb(),
+        new FakeAuthorDirectory(),
+        new FakeBlockDirectory(),
+        storage.client,
+      );
+      await expect(
+        service.createAttachmentUpload("user_stranger", GROUP_ID, {
+          kind: "file",
+          name: "guide.pdf",
+          mime: "application/pdf",
+          size: 500,
+        }),
+      ).rejects.toThrow(/join/i);
+      expect(storage.createSignedUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it("checks private-group membership before signing a download", async () => {
+      const storage = makeAttachmentStorage();
+      const db = fakeDb({
+        group: { visibility: "private" },
+        members: [{ userId: "user_member" }],
+      });
+      const service = messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        new FakeBlockDirectory(),
+        storage.client,
+      );
+      const reservation = await service.createAttachmentUpload(
+        "user_member",
+        GROUP_ID,
+        {
+          kind: "file",
+          name: "guide.pdf",
+          mime: "application/pdf",
+          size: 500,
+        },
+      );
+      const resource = new URL(reservation.resourceUrl);
+      const path = resource.searchParams.get("path") ?? "";
+      const signature = resource.searchParams.get("signature") ?? "";
+
+      await expect(
+        service.getAttachmentDownloadUrl(
+          "user_stranger",
+          GROUP_ID,
+          path,
+          signature,
+        ),
+      ).rejects.toThrow(/not a member/i);
+      expect(storage.createSignedUrl).not.toHaveBeenCalled();
+
+      await expect(
+        service.getAttachmentDownloadUrl(
+          "user_member",
+          GROUP_ID,
+          path,
+          signature,
+        ),
+      ).resolves.toMatchObject({
+        url: expect.stringMatching(/^https:\/\/storage\.edutu\.test\/download/),
+        expiresIn: 300,
+      });
+      expect(storage.createSignedUrl).toHaveBeenCalledWith(path, 300);
+    });
+
+    it("rejects a tampered storage path before signing a download", async () => {
+      const storage = makeAttachmentStorage();
+      const db = fakeDb({ members: [{ userId: "user_member" }] });
+      const service = messagesService(
+        db,
+        new FakeAuthorDirectory(),
+        new FakeBlockDirectory(),
+        storage.client,
+      );
+      await expect(
+        service.getAttachmentDownloadUrl(
+          "user_member",
+          GROUP_ID,
+          `groups/${GROUP_ID}/${TEST_STORAGE_USER}/00000000-0000-4000-8000-000000000098.pdf`,
+          "tampered",
+        ),
+      ).rejects.toThrow(/invalid/i);
+      expect(storage.createSignedUrl).not.toHaveBeenCalled();
     });
   });
 

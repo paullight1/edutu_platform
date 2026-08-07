@@ -40,6 +40,7 @@ import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { setProfileFabHidden } from '../../../lib/navFabStore';
+import { clearWidgetSuiteData } from '../../../lib/widgetSuiteSync';
 import { usePromptProUpgrade } from '../../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -94,6 +95,10 @@ export default function ProfileScreen() {
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
+    const handleSignOut = async () => {
+        await clearWidgetSuiteData().catch(() => undefined);
+        await signOut();
+    };
 
     // Refetch on every focus so returning from the edit screen shows the
     // values that were just saved (the screen stays mounted behind the stack).
@@ -377,7 +382,7 @@ export default function ProfileScreen() {
 
                 {/* Logout Button */}
                 <TouchableOpacity
-                    onPress={() => signOut()}
+                    onPress={() => { void handleSignOut(); }}
                     activeOpacity={0.7}
                     style={[styles.logoutBtn, {
                         backgroundColor: 'rgba(239,68,68,0.1)',

@@ -6,10 +6,23 @@
  *    can send here later; today notifications are shown from the page).
  */
 
+function safeNavigationTarget(candidate, fallback) {
+  if (typeof candidate !== "string") return fallback;
+  try {
+    const target = new URL(candidate, self.location.origin);
+    if (target.origin !== self.location.origin) return fallback;
+    return target.href;
+  } catch (err) {
+    return fallback;
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl =
-    (event.notification.data && event.notification.data.url) || "/dashboard";
+  const targetUrl = safeNavigationTarget(
+    event.notification.data && event.notification.data.url,
+    new URL("/dashboard", self.location.origin).href,
+  );
 
   event.waitUntil(
     (async () => {
@@ -57,7 +70,7 @@ self.addEventListener("push", (event) => {
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-192x192.png",
     tag: payload.tag,
-    data: { url: payload.url || "/dashboard" },
+    data: { url: safeNavigationTarget(payload.url, "/dashboard") },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));

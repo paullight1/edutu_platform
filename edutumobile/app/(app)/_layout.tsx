@@ -68,6 +68,9 @@ import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { useTranslation } from "react-i18next";
 import { useGuestMode, isGuestAllowedPath } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
+import { CommunityHeader, CommunityNavigation } from "../../components/community/CommunityNavigation";
+import { registerNativeCallingTokenSync, resetNativeCallingTokenSync } from "../../features/community-calls/nativeCall";
+import { getCommunityCallRouteFromNotification } from "../../features/community-calls/notifications";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -1257,7 +1260,13 @@ export default function AppLayout() {
     }, [isDark, pathname]);
 
     useEffect(() => {
-        if (!isSignedIn || !userId || registeredPushUserRef.current === userId) {
+        if (!isSignedIn || !userId) {
+            const previousUserId = registeredPushUserRef.current;
+            registeredPushUserRef.current = null;
+            if (previousUserId) void resetNativeCallingTokenSync(previousUserId);
+            return;
+        }
+        if (registeredPushUserRef.current === userId) {
             return;
         }
 
@@ -1280,6 +1289,9 @@ export default function AppLayout() {
                 // is misconfigured. Swallow it here so it cannot take the
                 // timezone sync below down with it.
             }
+            // Direct FCM and APNs VoIP tokens are separate from Expo tokens.
+            // Optional native loading keeps Expo Go and unsupported builds safe.
+            await registerNativeCallingTokenSync(userId, getToken);
             // Sync the device timezone so proactive alerts honor quiet hours in
             // the user's local time. Idempotent: a no-op after the first launch.
             await syncDeviceTimezone(getToken);
@@ -1330,6 +1342,12 @@ export default function AppLayout() {
                     void saveOpportunity(supabase, userId, opportunityId, getToken);
                 }
                 router.push(`/opportunities/${opportunityId}` as never);
+                return;
+            }
+
+            const callRoute = getCommunityCallRouteFromNotification(data);
+            if (callRoute) {
+                router.push(callRoute.path as never);
                 return;
             }
 
@@ -1389,7 +1407,10 @@ export default function AppLayout() {
 
 
     const activeRoute = getActiveRoute();
-    const hideSharedHeader = activeRoute === "subpage" ||
+    const isCommunityRoute = pathname.includes("/discussions");
+    const communityPath = pathname.replace(/\/$/, '');
+    const isCommunityLanding = ['/discussions', '/discussions/explore', '/discussions/profile', '/discussions/chats'].includes(communityPath);
+    const hideSharedHeader = isCommunityRoute || activeRoute === "subpage" ||
         pathname.includes("chat") ||
         pathname.includes("onboarding") ||
         pathname.includes("referral") ||
@@ -1430,6 +1451,7 @@ export default function AppLayout() {
     const hasOpportunityCategory = activeRoute === "opportunities" && typeof categoryParam === "string" && categoryParam.length > 0;
     const topLevelRoutes = ["home", "opportunities", "roadmaps", "menu"];
     const showBottomNav = topLevelRoutes.includes(activeRoute) &&
+        !isCommunityRoute &&
         !hasOpportunityCategory &&
         !pathname.includes("chat") &&
         !pathname.includes("/cv") &&
@@ -1472,7 +1494,7 @@ export default function AppLayout() {
         <View style={styles.appContainer}>
             <DailyLoginRewards />
             <ReferralRedemption />
-            {!hideSharedHeader && (
+            {isCommunityLanding ? <CommunityHeader /> : !hideSharedHeader && (
                 <AppHeader
                     isDark={isDark}
                     colors={colors}
@@ -1567,6 +1589,12 @@ export default function AppLayout() {
                     />
                 </>
             )}
+
+            {/* Only the four Community roots own the local tab bar. Creation,
+                group chat/info/admin and private-message routes are focused
+                tasks with their own back navigation, so a persistent bar would
+                cover actions and imply unsafe cross-flow exits. */}
+            {isCommunityLanding && <CommunityNavigation />}
 
             <WelcomeHintSystem
                 userId={user?.id}

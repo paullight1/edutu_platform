@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,23 +15,50 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@clerk/clerk-expo';
-import { Lock } from 'lucide-react-native';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import {
+  BriefcaseBusiness,
+  Check,
+  Link2,
+  Lock,
+  Plus,
+  Search,
+  X,
+} from 'lucide-react-native';
 import {
   createGroup,
+  createGroupCoverImageUpload,
   isCommunityApiError,
+  updateGroup,
   type GroupJoinPolicy,
   type GroupVisibility,
 } from '@edutu/core/src/services/communities';
-import { getCachedOpportunity } from '@edutu/core/src/services/opportunities';
+import {
+  fetchOpportunities,
+  getCachedOpportunitiesSnapshot,
+  getCachedOpportunity,
+} from '@edutu/core/src/services/opportunities';
+import type { Opportunity } from '@edutu/core/src/types/opportunity';
+import { supabase } from '../../../lib/supabase';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
-import { ChoiceRow, LabeledField } from '../../../components/community/QuestionBuilder';
+import {
+  ChoiceRow,
+  LabeledField,
+} from '../../../components/community/QuestionBuilder';
 import { haptics } from '../../../lib/haptics';
+import { uploadPrivateCommunityAsset } from '@edutu/core/src/services/storage';
+import {
+  GroupImagePicker,
+  type PickedGroupImage,
+} from '../../../components/community/GroupImagePicker';
 
 /**
  * Start a group — a SCREEN, not a modal.
@@ -57,23 +90,44 @@ const EMOJI_CHOICES = ['💬', '🎓', '🚀', '💼', '🌍', '📚', '🤝', '
 export default function CreateGroupScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
+  const { user } = useUser();
+  const userId = user?.id;
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const opportunityAbortRef = useRef<AbortController | null>(null);
 
   // Arriving from an opportunity fixes that link. A group's opportunity is set
   // at creation and can never move (see UpdateGroupSchema, which omits it), so
   // the field is shown locked rather than as an editable value that silently
   // stops mattering.
-  const params = useLocalSearchParams<{ opportunityId?: string; opportunityTitle?: string }>();
-  const lockedOpportunityId = typeof params.opportunityId === 'string' ? params.opportunityId : null;
+  const params = useLocalSearchParams<{
+    opportunityId?: string;
+    opportunityTitle?: string;
+  }>();
+  const lockedOpportunityId =
+    typeof params.opportunityId === 'string' ? params.opportunityId : null;
 
   const [opportunityTitle, setOpportunityTitle] = useState<string | null>(
-    typeof params.opportunityTitle === 'string' ? params.opportunityTitle : null,
+    typeof params.opportunityTitle === 'string'
+      ? params.opportunityTitle
+      : null,
   );
+  const [selectedOpportunity, setSelectedOpportunity] =
+    useState<Opportunity | null>(null);
+  const [opportunityOptions, setOpportunityOptions] = useState<Opportunity[]>(
+    [],
+  );
+  const [opportunityQuery, setOpportunityQuery] = useState('');
+  const [opportunityPickerOpen, setOpportunityPickerOpen] = useState(false);
+  const [opportunityLoading, setOpportunityLoading] = useState(false);
+  const [opportunityError, setOpportunityError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [coverEmoji, setCoverEmoji] = useState(EMOJI_CHOICES[0]);
+  const [coverImage, setCoverImage] = useState<PickedGroupImage | null>(null);
+  const [coverImageError, setCoverImageError] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<GroupVisibility>('public');
   const [joinPolicy, setJoinPolicy] = useState<GroupJoinPolicy>('open');
   const [submitting, setSubmitting] = useState(false);
@@ -86,7 +140,8 @@ export default function CreateGroupScreen() {
     let cancelled = false;
     void getCachedOpportunity(lockedOpportunityId)
       .then((opportunity) => {
-        if (!cancelled && opportunity?.title) setOpportunityTitle(opportunity.title);
+        if (!cancelled && opportunity?.title)
+          setOpportunityTitle(opportunity.title);
       })
       .catch(() => undefined);
     return () => {
@@ -94,12 +149,86 @@ export default function CreateGroupScreen() {
     };
   }, [lockedOpportunityId, opportunityTitle]);
 
+  useEffect(
+    () => () => {
+      opportunityAbortRef.current?.abort();
+    },
+    [],
+  );
+
+  const loadOpportunityOptions = useCallback(async () => {
+    if (lockedOpportunityId || opportunityLoading) return;
+
+    setOpportunityPickerOpen(true);
+    setOpportunityError(null);
+    setOpportunityLoading(true);
+    opportunityAbortRef.current?.abort();
+    const controller = new AbortController();
+    opportunityAbortRef.current = controller;
+
+    try {
+      const cached = await getCachedOpportunitiesSnapshot(userId);
+      if (controller.signal.aborted) return;
+      if (cached.length > 0) setOpportunityOptions(cached);
+
+      // The existing service revalidates through Edutu's authenticated
+      // opportunity feed. The picker only filters those returned records; it
+      // never invents a title/id pair from free text.
+      if (userId) {
+        const fresh = await fetchOpportunities({
+          supabase,
+          userId,
+          getAuthToken: getToken,
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) setOpportunityOptions(fresh);
+      }
+    } catch (caught) {
+      if (!controller.signal.aborted && opportunityOptions.length === 0) {
+        setOpportunityError(
+          caught instanceof Error ? caught.message : t('common:errors.generic'),
+        );
+      }
+    } finally {
+      if (!controller.signal.aborted) setOpportunityLoading(false);
+    }
+  }, [
+    getToken,
+    lockedOpportunityId,
+    opportunityLoading,
+    opportunityOptions.length,
+    t,
+    userId,
+  ]);
+
+  const matchingOpportunities = useMemo(() => {
+    const query = opportunityQuery.trim().toLocaleLowerCase();
+    const unique = new Map<string, Opportunity>();
+    for (const opportunity of opportunityOptions) {
+      if (!opportunity?.id || !opportunity.title) continue;
+      unique.set(opportunity.id, opportunity);
+    }
+    return Array.from(unique.values())
+      .filter((opportunity) => {
+        if (!query) return true;
+        return `${opportunity.title} ${opportunity.organization}`
+          .toLocaleLowerCase()
+          .includes(query);
+      })
+      .slice(0, 6);
+  }, [opportunityOptions, opportunityQuery]);
+
+  const selectedOpportunityId =
+    lockedOpportunityId ?? selectedOpportunity?.id ?? null;
+
   const trimmedName = name.trim();
-  const nameValid = trimmedName.length >= NAME_MIN && trimmedName.length <= NAME_MAX;
+  const nameValid =
+    trimmedName.length >= NAME_MIN && trimmedName.length <= NAME_MAX;
 
   /** Live, but not pre-emptive: an untouched empty field is not an error yet. */
   const nameError = useMemo(
-    () => (nameTouched && !nameValid ? t('community:create.nameTooShort') : null),
+    () =>
+      nameTouched && !nameValid ? t('community:create.nameTooShort') : null,
     [nameTouched, nameValid, t],
   );
 
@@ -116,13 +245,40 @@ export default function CreateGroupScreen() {
         {
           name: trimmedName,
           description: description.trim() || undefined,
-          opportunityId: lockedOpportunityId ?? undefined,
+          opportunityId: selectedOpportunityId ?? undefined,
           visibility,
           joinPolicy,
           coverEmoji,
         },
         getToken,
       );
+      if (coverImage) {
+        try {
+          const reservation = await createGroupCoverImageUpload(
+            group.id,
+            {
+              kind: 'image',
+              name: coverImage.name,
+              mime: coverImage.mime,
+              size: coverImage.size,
+            },
+            getToken,
+          );
+          await uploadPrivateCommunityAsset(reservation.uploadUrl, {
+            uri: coverImage.uri,
+            type: coverImage.mime,
+          });
+          await updateGroup(
+            group.id,
+            { coverImageResourceUrl: reservation.resourceUrl },
+            getToken,
+          );
+        } catch {
+          haptics.error();
+          router.replace(`/discussions/${group.id}/settings?photoError=1` as never);
+          return;
+        }
+      }
       haptics.success();
       // `replace`, not `push`: the point of creating a group is to be in it, and
       // Back from a group you just made should not return to a spent form.
@@ -132,7 +288,11 @@ export default function CreateGroupScreen() {
       // server wrote for this person to read — including that the way out is
       // archiving, which cannot be undone. Showing a status code throws that
       // away; showing our own paraphrase risks promising a reversal.
-      setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+      setError(
+        isCommunityApiError(caught)
+          ? caught.message
+          : t('common:errors.generic'),
+      );
       haptics.error();
       setSubmitting(false);
     }
@@ -141,17 +301,21 @@ export default function CreateGroupScreen() {
     submitting,
     trimmedName,
     description,
-    lockedOpportunityId,
+    selectedOpportunityId,
     visibility,
     joinPolicy,
     coverEmoji,
+    coverImage,
     getToken,
     router,
     t,
   ]);
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <ScreenHeader title={t('community:screens.createTitle')} showBack />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -161,16 +325,23 @@ export default function CreateGroupScreen() {
           testID="create-group-scroll"
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {!!error && (
             <View
               testID="create-group-error"
               style={[
                 styles.errorBox,
-                { backgroundColor: `${colors.error}12`, borderColor: colors.error },
+                {
+                  backgroundColor: `${colors.error}12`,
+                  borderColor: colors.error,
+                },
               ]}
             >
-              <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={6}>
+              <Text
+                style={[styles.errorText, { color: colors.error }]}
+                numberOfLines={6}
+              >
                 {error}
               </Text>
             </View>
@@ -243,7 +414,11 @@ export default function CreateGroupScreen() {
                   { borderColor: colors.border, backgroundColor: colors.muted },
                 ]}
               >
-                <Lock size={14} color={colors.textSecondary} strokeWidth={2.5} />
+                <Lock
+                  size={14}
+                  color={colors.textSecondary}
+                  strokeWidth={2.5}
+                />
                 <Text
                   testID="create-group-opportunity-title"
                   style={[styles.lockedText, { color: colors.foreground }]}
@@ -255,10 +430,332 @@ export default function CreateGroupScreen() {
             </LabeledField>
           )}
 
+          {!lockedOpportunityId && (
+            <LabeledField
+              label={t('community:create.opportunityLabel')}
+              helper={t('community:create.opportunityHelper')}
+            >
+              {!!selectedOpportunity ? (
+                <View
+                  testID="create-group-opportunity-selected"
+                  style={[
+                    styles.selectedOpportunity,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.accent,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.contextIcon,
+                      { backgroundColor: `${colors.accent}16` },
+                    ]}
+                  >
+                    <BriefcaseBusiness
+                      size={18}
+                      color={colors.accent}
+                      strokeWidth={2.2}
+                    />
+                  </View>
+                  <View style={styles.opportunityCopy}>
+                    <Text
+                      style={[
+                        styles.opportunityTitle,
+                        { color: colors.foreground },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {selectedOpportunity.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.opportunityMeta,
+                        { color: colors.textSecondary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedOpportunity.organization}
+                    </Text>
+                  </View>
+                  <AnimatedPressable
+                    testID="create-group-opportunity-clear"
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove linked opportunity"
+                    hapticFeedback="light"
+                    scaleTo={0.92}
+                    disabled={submitting}
+                    onPress={() => {
+                      setSelectedOpportunity(null);
+                      setOpportunityQuery('');
+                    }}
+                    style={[
+                      styles.iconButton,
+                      { backgroundColor: colors.muted },
+                    ]}
+                  >
+                    <X size={17} color={colors.textSecondary} />
+                  </AnimatedPressable>
+                </View>
+              ) : (
+                <AnimatedPressable
+                  testID="create-group-opportunity-toggle"
+                  accessibilityRole="button"
+                  accessibilityLabel="Link an existing opportunity"
+                  accessibilityState={{ expanded: opportunityPickerOpen }}
+                  hapticFeedback="light"
+                  scaleTo={0.98}
+                  disabled={submitting}
+                  onPress={() => {
+                    if (opportunityPickerOpen) {
+                      opportunityAbortRef.current?.abort();
+                      setOpportunityPickerOpen(false);
+                      setOpportunityLoading(false);
+                    } else {
+                      void loadOpportunityOptions();
+                    }
+                  }}
+                  style={[
+                    styles.linkOpportunityButton,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.contextIcon,
+                      { backgroundColor: colors.muted },
+                    ]}
+                  >
+                    <Link2 size={18} color={colors.accent} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.opportunityCopy}>
+                    <Text
+                      style={[
+                        styles.linkOpportunityTitle,
+                        { color: colors.foreground },
+                      ]}
+                    >
+                      Link an opportunity
+                    </Text>
+                    <Text
+                      style={[
+                        styles.opportunityMeta,
+                        { color: colors.textSecondary },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      Optional · helps applicants find the right group
+                    </Text>
+                  </View>
+                  {opportunityPickerOpen ? (
+                    <X size={18} color={colors.textSecondary} />
+                  ) : (
+                    <Plus size={18} color={colors.accent} />
+                  )}
+                </AnimatedPressable>
+              )}
+
+              {opportunityPickerOpen && !selectedOpportunity && (
+                <View
+                  testID="create-group-opportunity-picker"
+                  style={[
+                    styles.opportunityPicker,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.searchBox,
+                      {
+                        backgroundColor: colors.muted,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Search size={17} color={colors.textSecondary} />
+                    <TextInput
+                      testID="create-group-opportunity-input"
+                      value={opportunityQuery}
+                      onChangeText={setOpportunityQuery}
+                      editable={!submitting}
+                      autoCorrect={false}
+                      placeholder="Search opportunities"
+                      placeholderTextColor={colors.textSecondary}
+                      style={[styles.searchInput, { color: colors.foreground }]}
+                    />
+                  </View>
+
+                  {opportunityLoading && opportunityOptions.length === 0 ? (
+                    <View
+                      testID="create-group-opportunity-loading"
+                      style={styles.opportunityStatus}
+                    >
+                      <ActivityIndicator size="small" color={colors.accent} />
+                      <Text
+                        style={[
+                          styles.opportunityStatusText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        Loading opportunities…
+                      </Text>
+                    </View>
+                  ) : !!opportunityError ? (
+                    <View style={styles.opportunityStatus}>
+                      <Text
+                        style={[
+                          styles.opportunityStatusText,
+                          { color: colors.error },
+                        ]}
+                      >
+                        {opportunityError}
+                      </Text>
+                      <AnimatedPressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common:actions.retry')}
+                        onPress={() => void loadOpportunityOptions()}
+                        style={[
+                          styles.retryLink,
+                          { borderColor: colors.error },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.retryLinkText,
+                            { color: colors.error },
+                          ]}
+                        >
+                          {t('common:actions.retry')}
+                        </Text>
+                      </AnimatedPressable>
+                    </View>
+                  ) : matchingOpportunities.length > 0 ? (
+                    <View style={styles.opportunityResults}>
+                      {matchingOpportunities.map((opportunity, index) => (
+                        <AnimatedPressable
+                          key={opportunity.id}
+                          testID={`create-group-opportunity-${opportunity.id}`}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: false }}
+                          accessibilityLabel={`${opportunity.title}, ${opportunity.organization}`}
+                          hapticFeedback="selection"
+                          scaleTo={0.99}
+                          onPress={() => {
+                            opportunityAbortRef.current?.abort();
+                            setOpportunityLoading(false);
+                            setSelectedOpportunity(opportunity);
+                            setOpportunityPickerOpen(false);
+                            setOpportunityQuery('');
+                          }}
+                          style={[
+                            styles.opportunityResult,
+                            index < matchingOpportunities.length - 1 && {
+                              borderBottomColor: colors.border,
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                            },
+                          ]}
+                        >
+                          <BriefcaseBusiness
+                            size={17}
+                            color={colors.accent}
+                            strokeWidth={2.1}
+                          />
+                          <View style={styles.opportunityCopy}>
+                            <Text
+                              style={[
+                                styles.opportunityTitle,
+                                { color: colors.foreground },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {opportunity.title}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.opportunityMeta,
+                                { color: colors.textSecondary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {opportunity.organization}
+                            </Text>
+                          </View>
+                          <Check size={16} color={colors.border} />
+                        </AnimatedPressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.noOpportunityResults,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      No matching opportunities found.
+                    </Text>
+                  )}
+                </View>
+              )}
+            </LabeledField>
+          )}
+
+          <LabeledField label="Group identity" error={coverImageError ?? undefined}>
+            <GroupImagePicker
+              testID="create-group-photo"
+              emoji={coverEmoji}
+              selected={coverImage}
+              disabled={submitting}
+              onChange={(image) => {
+                setCoverImage(image);
+                setCoverImageError(null);
+              }}
+              onError={setCoverImageError}
+            />
+          </LabeledField>
+
           <LabeledField
             label={t('community:create.emojiLabel')}
             helper={t('community:create.emojiHelper')}
           >
+            <View
+              style={[
+                styles.iconPreview,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconPreviewGlyph,
+                  { backgroundColor: `${colors.accent}14` },
+                ]}
+              >
+                <Text style={styles.iconPreviewEmoji}>{coverEmoji}</Text>
+              </View>
+              <View style={styles.opportunityCopy}>
+                <Text
+                  style={[
+                    styles.iconPreviewTitle,
+                    { color: colors.foreground },
+                  ]}
+                >
+                  Group icon
+                </Text>
+                <Text
+                  style={[
+                    styles.opportunityMeta,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Shown in discovery and chat
+                </Text>
+              </View>
+            </View>
             <View style={styles.emojiRow}>
               {EMOJI_CHOICES.map((emoji) => {
                 const selected = emoji === coverEmoji;
@@ -277,11 +774,23 @@ export default function CreateGroupScreen() {
                       styles.emojiChip,
                       {
                         borderColor: selected ? colors.accent : colors.border,
-                        backgroundColor: colors.card,
+                        backgroundColor: selected
+                          ? `${colors.accent}14`
+                          : colors.card,
                       },
                     ]}
                   >
                     <Text style={styles.emoji}>{emoji}</Text>
+                    {selected && (
+                      <View
+                        style={[
+                          styles.emojiCheck,
+                          { backgroundColor: colors.accent },
+                        ]}
+                      >
+                        <Check size={9} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    )}
                   </AnimatedPressable>
                 );
               })}
@@ -329,7 +838,17 @@ export default function CreateGroupScreen() {
               />
             </View>
           </LabeledField>
-
+        </ScrollView>
+        <View
+          style={[
+            styles.actionDock,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, 12),
+            },
+          ]}
+        >
           <AnimatedPressable
             testID="create-group-submit"
             accessibilityRole="button"
@@ -346,14 +865,21 @@ export default function CreateGroupScreen() {
           >
             <View style={styles.submitInner}>
               {submitting && (
-                <ActivityIndicator testID="create-group-submitting" size="small" color="#FFFFFF" />
+                <ActivityIndicator
+                  testID="create-group-submitting"
+                  size="small"
+                  color="#FFFFFF"
+                />
+              )}
+              {!submitting && (
+                <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
               )}
               <Text style={styles.submitLabel} numberOfLines={1}>
                 {t('community:actions.createGroup')}
               </Text>
             </View>
           </AnimatedPressable>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -368,8 +894,13 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 48,
+    paddingBottom: 32,
     gap: 18,
+  },
+  actionDock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   input: {
     borderWidth: 1,
@@ -398,6 +929,141 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  selectedOpportunity: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderWidth: 1,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    padding: 12,
+  },
+  linkOpportunityButton: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderWidth: 1,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    padding: 12,
+  },
+  contextIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  opportunityCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  opportunityTitle: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  linkOpportunityTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  opportunityMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  opportunityPicker: {
+    borderWidth: 1,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    padding: 10,
+    gap: 8,
+  },
+  searchBox: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 11,
+    paddingHorizontal: 11,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 42,
+    fontSize: 14,
+  },
+  opportunityResults: {
+    overflow: 'hidden',
+  },
+  opportunityResult: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+  },
+  opportunityStatus: {
+    minHeight: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 10,
+  },
+  opportunityStatusText: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  retryLink: {
+    borderWidth: 1,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  retryLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  noOpportunityResults: {
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  iconPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderWidth: 1,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    padding: 12,
+  },
+  iconPreviewGlyph: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPreviewEmoji: {
+    fontSize: 26,
+  },
+  iconPreviewTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   emojiRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -411,9 +1077,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   emoji: {
     fontSize: 20,
+  },
+  emojiCheck: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   choices: {
     gap: 8,

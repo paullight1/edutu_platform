@@ -767,7 +767,10 @@ export default function OpportunityDetailScreen() {
       return;
     }
     if (discussionGroup) {
-      router.push(`/discussions/${discussionGroup.id}` as never);
+      // Land on the group profile first. It carries the linked-opportunity
+      // context, creator identity and independent-support-group disclosure;
+      // opening chat directly would skip all three and could imply affiliation.
+      router.push(`/discussions/${discussionGroup.id}/about` as never);
       return;
     }
     // Prefilled AND locked: a group's opportunity link is fixed at creation
