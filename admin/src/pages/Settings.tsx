@@ -33,6 +33,13 @@ interface WebHeroBanner {
     enabled: boolean;
 }
 
+interface WebAnnouncement {
+    enabled: boolean;
+    text: string;
+    linkUrl: string;
+    linkLabel: string;
+}
+
 const MAX_HERO_BANNERS = 8;
 
 // What the carousel actually renders: ~1200px wide at a 4:1 ratio on desktop,
@@ -116,6 +123,7 @@ interface AdminSettings {
         rateLimitPerMinute: number;
     };
     webContent: {
+        announcement: WebAnnouncement;
         heroBanners: WebHeroBanner[];
     };
     userContent: {
@@ -173,6 +181,12 @@ const defaultSettings: AdminSettings = {
         rateLimitPerMinute: 100,
     },
     webContent: {
+        announcement: {
+            enabled: true,
+            text: 'Help Edutu For You reach 1 million young people with access to global opportunities.',
+            linkUrl: '/edutuforyou',
+            linkLabel: 'See Edutu For You',
+        },
         heroBanners: [],
     },
     userContent: {
@@ -210,6 +224,10 @@ function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminS
             ...(value?.api ?? {}),
         },
         webContent: {
+            announcement: {
+                ...defaultSettings.webContent.announcement,
+                ...(value?.webContent?.announcement ?? {}),
+            },
             heroBanners: (value?.webContent?.heroBanners ?? []).map((banner) => ({
                 ...newHeroBanner(),
                 ...banner,
@@ -281,6 +299,12 @@ const Settings = () => {
                 ),
             },
             webContent: {
+                announcement: {
+                    ...settings.webContent.announcement,
+                    text: settings.webContent.announcement.text.trim(),
+                    linkUrl: settings.webContent.announcement.linkUrl.trim(),
+                    linkLabel: settings.webContent.announcement.linkLabel.trim(),
+                },
                 heroBanners: settings.webContent.heroBanners
                     .map((banner) => ({
                         ...banner,
@@ -448,10 +472,56 @@ const Settings = () => {
     };
 
     const renderWebContentSection = () => {
+        const announcement = settings.webContent.announcement;
         const banners = settings.webContent.heroBanners;
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div className="card" style={{ padding: '24px' }}>
+                    <h3 style={{ margin: '0 0 8px 0', fontSize: '19px', fontWeight: 600 }}>Homepage announcement</h3>
+                    <p style={{ color: 'var(--text-tertiary)', margin: '0 0 20px 0', fontSize: '14px', lineHeight: 1.6 }}>
+                        A short text notification shown directly below the public homepage header.
+                        Edit it here when you want to promote a campaign or important update.
+                    </p>
+
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                        <textarea
+                            className="input-field"
+                            value={announcement.text}
+                            maxLength={240}
+                            rows={3}
+                            placeholder="Announcement text"
+                            onChange={(e) => updateSetting('webContent', 'announcement', { ...announcement, text: e.target.value })}
+                        />
+                        <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'minmax(0, 1fr) minmax(180px, 0.45fr)' }}>
+                            <input
+                                type="text"
+                                className="input-field"
+                                value={announcement.linkUrl}
+                                maxLength={1000}
+                                placeholder="Link URL (e.g. /edutuforyou)"
+                                onChange={(e) => updateSetting('webContent', 'announcement', { ...announcement, linkUrl: e.target.value })}
+                            />
+                            <input
+                                type="text"
+                                className="input-field"
+                                value={announcement.linkLabel}
+                                maxLength={60}
+                                placeholder="Link label"
+                                onChange={(e) => updateSetting('webContent', 'announcement', { ...announcement, linkLabel: e.target.value })}
+                            />
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={announcement.enabled}
+                                onChange={(e) => updateSetting('webContent', 'announcement', { ...announcement, enabled: e.target.checked })}
+                            />
+                            Show announcement on the homepage
+                        </label>
+                    </div>
+                </div>
+
                 <div className="card" style={{ padding: '24px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '8px', flexWrap: 'wrap' }}>
                         <div>

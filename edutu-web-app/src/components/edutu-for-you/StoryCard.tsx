@@ -16,9 +16,9 @@ interface StoryCardProps {
 const StoryCard: React.FC<StoryCardProps> = ({ story }) => (
     <Link
         to={`/edutuforyou/stories/${story.slug}`}
-        className="group flex h-full flex-col overflow-hidden rounded-3xl border border-subtle bg-surface no-underline shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="group flex flex-col overflow-hidden rounded-3xl border border-subtle bg-surface no-underline shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
-        <div className="relative h-64 w-full overflow-hidden sm:h-72">
+        <div className="relative h-52 w-full overflow-hidden min-[420px]:h-56 sm:h-72">
             <ImageWithFallback
                 src={story.portrait}
                 alt={story.portraitAlt}
@@ -29,13 +29,13 @@ const StoryCard: React.FC<StoryCardProps> = ({ story }) => (
             </span>
         </div>
 
-        <div className="flex flex-1 flex-col p-6">
-            <h3 className="font-display text-xl font-semibold text-text-primary">
+        <div className="flex flex-1 flex-col p-5 sm:p-6">
+            <h3 className="font-display text-lg font-semibold text-text-primary sm:text-xl">
                 {story.name}, {story.age}
             </h3>
             <p className="mt-1 text-sm text-text-muted">{story.place}</p>
 
-            <blockquote className="mt-4 text-[1.0625rem] font-medium leading-[1.5] text-text-primary">
+            <blockquote className="mt-4 text-base font-medium leading-[1.5] text-text-primary sm:text-[1.0625rem]">
                 “{story.quote}”
             </blockquote>
 

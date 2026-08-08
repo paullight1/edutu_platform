@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useReducedMotion, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { ArrowRight, ArrowUpRight, Check, Mail, MessageCircle } from 'lucide-react';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
@@ -28,8 +28,6 @@ import {
     PROGRAM_KICKER,
     PROGRAM_NAME,
     PROGRAM_SUBHEAD,
-    REACH_GOAL,
-    REACH_TODAY,
     WHATSAPP_JOIN_URL,
 } from '../lib/edutuForYou';
 import {
@@ -68,14 +66,12 @@ const stagger: Variants = {
     },
 };
 
-const SECTION = 'px-4 py-20 sm:px-6 sm:py-28';
+const SECTION = 'px-4 py-16 sm:px-6 sm:py-28';
 const SHELL = 'mx-auto max-w-[1200px]';
 const TITLE =
-    'font-display text-[1.75rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary sm:text-[2.25rem]';
+    'font-display text-[1.625rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary sm:text-[2.25rem]';
 const LEDE =
-    'mt-4 max-w-[58ch] text-base leading-[1.7] text-text-secondary sm:text-lg';
-
-const PROGRESS_PERCENT = Math.round((REACH_TODAY / REACH_GOAL) * 100);
+    'mt-3 max-w-[58ch] text-[0.9375rem] leading-[1.65] text-text-secondary sm:mt-4 sm:text-lg sm:leading-[1.7]';
 
 const Reveal: React.FC<{ children: React.ReactNode; className?: string }> = ({
     children,
@@ -93,7 +89,6 @@ const Reveal: React.FC<{ children: React.ReactNode; className?: string }> = ({
 );
 
 const EdutuForYouPage: React.FC = () => {
-    const reduceMotion = useReducedMotion();
     const [stories, setStories] = useState<Story[]>(SEED_STORIES);
 
     useEffect(() => {
@@ -114,7 +109,7 @@ const EdutuForYouPage: React.FC = () => {
 
             <main>
                 {/* ─── Hero ─────────────────────────────────────────────── */}
-                <section className="relative isolate overflow-hidden bg-[#0B0F19] px-4 pb-20 pt-24 text-[#F8FAFC] sm:px-6 sm:pb-28 sm:pt-32">
+                <section className="relative isolate overflow-hidden bg-[#0B0F19] px-4 pb-16 pt-20 text-[#F8FAFC] sm:px-6 sm:pb-28 sm:pt-32">
                     <div className="absolute inset-0 -z-10">
                         <ImageWithFallback
                             src={HERO_IMAGE}
@@ -143,25 +138,25 @@ const EdutuForYouPage: React.FC = () => {
 
                             <motion.h1
                                 variants={fadeUp}
-                                className="mt-6 font-display text-[2.25rem] font-bold leading-[1.05] tracking-[-0.025em] text-[#F8FAFC] sm:text-[3.5rem]"
+                                className="mt-5 font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.025em] text-[#F8FAFC] sm:mt-6 sm:text-[3.5rem]"
                             >
                                 {PROGRAM_HEADLINE}
                             </motion.h1>
 
                             <motion.p
                                 variants={fadeUp}
-                                className="mt-6 max-w-[52ch] text-lg leading-[1.6] text-[#CBD5E1]"
+                                className="mt-5 max-w-[52ch] text-base leading-[1.65] text-[#CBD5E1] sm:mt-6 sm:text-lg sm:leading-[1.6]"
                             >
                                 {PROGRAM_SUBHEAD}
                             </motion.p>
 
                             <motion.div
                                 variants={fadeUp}
-                                className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
+                                className="mt-8 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:flex-wrap"
                             >
                                 <a
                                     href={PARTNER_MAILTO}
-                                    className="inline-flex items-center justify-center gap-2 rounded-pill bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+                                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill bg-brand-700 px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 sm:w-auto dark:bg-brand-800 dark:hover:bg-brand-900"
                                 >
                                     <Mail size={18} aria-hidden="true" />
                                     Partner with us
@@ -170,38 +165,13 @@ const EdutuForYouPage: React.FC = () => {
                                     href={WHATSAPP_JOIN_URL}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center gap-2 rounded-pill border border-white/20 px-6 py-3.5 text-base font-semibold text-[#F8FAFC] no-underline transition hover:border-white/40 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+                                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill border border-white/20 px-6 py-3.5 text-base font-semibold text-[#F8FAFC] no-underline transition hover:border-white/40 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 sm:w-auto"
                                 >
                                     <MessageCircle size={18} aria-hidden="true" />
                                     {JOIN_CTA_LABEL}
                                 </a>
                             </motion.div>
 
-                            <motion.div variants={fadeUp} className="mt-12 max-w-[30rem]">
-                                <div className="flex items-baseline justify-between gap-4">
-                                    <span className="font-display text-3xl font-bold tabular-nums">
-                                        {REACH_TODAY.toLocaleString('en-US')}
-                                    </span>
-                                    <span className="text-sm text-[#94A3B8]">
-                                        of {REACH_GOAL.toLocaleString('en-US')} reached
-                                    </span>
-                                </div>
-                                <div
-                                    role="progressbar"
-                                    aria-valuenow={REACH_TODAY}
-                                    aria-valuemin={0}
-                                    aria-valuemax={REACH_GOAL}
-                                    aria-label={`${REACH_TODAY.toLocaleString('en-US')} of ${REACH_GOAL.toLocaleString('en-US')} young people reached`}
-                                    className="mt-3 h-2 w-full overflow-hidden rounded-pill bg-white/10"
-                                >
-                                    <motion.div
-                                        className="h-full rounded-pill bg-gradient-to-r from-brand-400 to-accent-400"
-                                        initial={reduceMotion ? false : { width: 0 }}
-                                        animate={{ width: `${PROGRESS_PERCENT}%` }}
-                                        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
-                                    />
-                                </div>
-                            </motion.div>
                         </motion.div>
                     </div>
                 </section>
@@ -216,12 +186,12 @@ const EdutuForYouPage: React.FC = () => {
                             {GAP_THESIS}
                         </motion.p>
 
-                        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="mt-9 grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 sm:mt-12 sm:gap-5 lg:grid-cols-4">
                             {GAP_STATS.map((stat) => (
                                 <motion.div
                                     key={stat.label}
                                     variants={fadeUp}
-                                    className="flex flex-col rounded-2xl border border-subtle bg-surface-elevated p-6 shadow-soft"
+                                    className="flex flex-col rounded-2xl border border-subtle bg-surface-elevated p-5 shadow-soft sm:p-6"
                                 >
                                     <span className="font-display text-3xl font-bold text-text-primary">
                                         {stat.value}
@@ -240,13 +210,13 @@ const EdutuForYouPage: React.FC = () => {
                             prose is cut back to two sentences. */}
                         <motion.div
                             variants={fadeUp}
-                            className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4"
+                            className="mt-7 grid grid-cols-2 gap-3 min-[420px]:grid-cols-3 sm:mt-8 sm:grid-cols-5 sm:gap-4"
                         >
                             {MOSAIC.map((image, index) => (
                                 <div
                                     key={image.src}
-                                    className={`h-40 overflow-hidden rounded-2xl sm:h-48 ${
-                                        index === 4 ? 'hidden sm:block' : ''
+                                    className={`h-28 overflow-hidden rounded-2xl min-[420px]:h-36 sm:h-48 ${
+                                        index >= 3 ? 'hidden sm:block' : ''
                                     }`}
                                 >
                                     <ImageWithFallback
@@ -277,12 +247,12 @@ const EdutuForYouPage: React.FC = () => {
                             One million, in <span className="text-brand">four steps</span>
                         </motion.h2>
 
-                        <ol className="mt-10 grid list-none gap-5 p-0 sm:grid-cols-2 lg:grid-cols-4">
+                        <ol className="mt-8 grid list-none gap-4 p-0 min-[520px]:grid-cols-2 sm:mt-10 sm:gap-5 lg:grid-cols-4">
                             {MILESTONES.map((milestone) => (
                                 <motion.li
                                     key={milestone.phase}
                                     variants={fadeUp}
-                                    className={`flex flex-col rounded-2xl border p-6 ${
+                                    className={`flex flex-col rounded-2xl border p-5 sm:p-6 ${
                                         milestone.current
                                             ? 'border-brand bg-brand/[0.06]'
                                             : 'border-subtle bg-surface'
@@ -313,7 +283,7 @@ const EdutuForYouPage: React.FC = () => {
                             What the program actually <span className="text-brand">does</span>
                         </motion.h2>
 
-                        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
                             {PILLARS.map((pillar) => {
                                 const Icon = pillar.icon;
                                 return (
@@ -322,14 +292,14 @@ const EdutuForYouPage: React.FC = () => {
                                         variants={fadeUp}
                                         className="flex flex-col overflow-hidden rounded-3xl border border-subtle bg-surface-elevated shadow-soft"
                                     >
-                                        <div className="h-44 w-full overflow-hidden">
+                                        <div className="h-40 w-full overflow-hidden sm:h-44">
                                             <ImageWithFallback
                                                 src={pillar.image}
                                                 alt={pillar.imageAlt}
                                                 className="h-full w-full object-cover"
                                             />
                                         </div>
-                                        <div className="flex flex-1 flex-col p-6">
+                                        <div className="flex flex-1 flex-col p-5 sm:p-6">
                                             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/[0.12] text-brand">
                                                 <Icon size={18} aria-hidden="true" />
                                             </span>
@@ -368,7 +338,7 @@ const EdutuForYouPage: React.FC = () => {
                             Nine young people, nine versions of the same barrier.
                         </motion.p>
 
-                        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
                             {stories.map((story) => (
                                 <motion.div key={story.slug} variants={fadeUp}>
                                     <StoryCard story={story} />
@@ -400,12 +370,12 @@ const EdutuForYouPage: React.FC = () => {
                             {JOIN_ELIGIBILITY}
                         </motion.p>
 
-                        <div className="mt-10 grid gap-5 md:grid-cols-3">
+                        <div className="mt-8 grid gap-4 sm:mt-10 md:grid-cols-3 md:gap-5">
                             {JOIN_STEPS.map((step) => (
                                 <motion.div
                                     key={step.step}
                                     variants={fadeUp}
-                                    className="rounded-2xl border border-subtle bg-surface-elevated p-6"
+                                    className="rounded-2xl border border-subtle bg-surface-elevated p-5 sm:p-6"
                                 >
                                     <span className="font-mono text-sm font-semibold text-brand">
                                         {step.step}
@@ -428,14 +398,14 @@ const EdutuForYouPage: React.FC = () => {
                                 href={WHATSAPP_JOIN_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center gap-2 rounded-pill bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill bg-brand-700 px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto dark:bg-brand-800 dark:hover:bg-brand-900"
                             >
                                 <MessageCircle size={18} aria-hidden="true" />
                                 {JOIN_CTA_LABEL}
                             </a>
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center justify-center gap-2 rounded-pill border border-strong px-6 py-3.5 text-base font-semibold text-text-primary no-underline transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill border border-strong px-6 py-3.5 text-base font-semibold text-text-primary no-underline transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto"
                             >
                                 Browse opportunities
                                 <ArrowRight size={18} aria-hidden="true" />
@@ -454,14 +424,14 @@ const EdutuForYouPage: React.FC = () => {
                             {PARTNER_PITCH}
                         </motion.p>
 
-                        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
                             {PARTNER_LANES.map((lane) => {
                                 const Icon = lane.icon;
                                 return (
                                     <motion.div
                                         key={lane.title}
                                         variants={fadeUp}
-                                        className="rounded-2xl border border-subtle bg-surface p-6"
+                                        className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6"
                                     >
                                         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/[0.12] text-brand">
                                             <Icon size={18} aria-hidden="true" />
@@ -480,7 +450,7 @@ const EdutuForYouPage: React.FC = () => {
                         <motion.div variants={fadeUp} className="mt-8">
                             <a
                                 href={PARTNER_MAILTO}
-                                className="inline-flex items-center justify-center gap-2 rounded-pill bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill bg-brand-700 px-6 py-3.5 text-base font-semibold text-white no-underline transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto dark:bg-brand-800 dark:hover:bg-brand-900"
                             >
                                 <Mail size={18} aria-hidden="true" />
                                 Partner with us
@@ -506,7 +476,7 @@ const EdutuForYouPage: React.FC = () => {
                             Questions, <span className="text-brand">answered</span>
                         </motion.h2>
 
-                        <motion.div variants={fadeUp} className="mt-10">
+                        <motion.div variants={fadeUp} className="mt-8 sm:mt-10">
                             <FaqAccordion items={PROGRAM_FAQ} />
                         </motion.div>
 

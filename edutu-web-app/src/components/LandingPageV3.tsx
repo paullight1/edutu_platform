@@ -5,6 +5,7 @@ import {
     Clock,
     User,
     ChevronDown,
+    Bell,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -17,6 +18,11 @@ import CommunityShowcase from './CommunityShowcase';
 import EdutuForYouBand from './EdutuForYouBand';
 import EventsHomeSection from './EventsHomeSection';
 import { organizationLabel } from '../lib/organizationLabel';
+import {
+    DEFAULT_WEB_ANNOUNCEMENT,
+    fetchWebAnnouncement,
+    type WebAnnouncement,
+} from '../services/webConfig';
 import type { Opportunity } from '../types/opportunity';
 import {
     OpportunityMatchIcon,
@@ -196,6 +202,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [heroWordIndex, setHeroWordIndex] = useState(0);
     const [blogArticles, setBlogArticles] = useState<LandingArticle[]>([]);
     const [blogLoading, setBlogLoading] = useState(true);
+    const [announcement, setAnnouncement] = useState<WebAnnouncement>(
+        DEFAULT_WEB_ANNOUNCEMENT,
+    );
 
     useEffect(() => {
         const controller = new AbortController();
@@ -222,6 +231,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         return () => controller.abort();
     }, []);
 
+    useEffect(() => {
+        let active = true;
+        fetchWebAnnouncement().then((nextAnnouncement) => {
+            if (active) setAnnouncement(nextAnnouncement);
+        });
+        return () => {
+            active = false;
+        };
+    }, []);
+
     // Six, not five: the grid runs three-up on desktop, so five leaves a hole.
     const latestOpportunities = useMemo(
         () => [...opportunities].sort((a, b) => addedAt(b) - addedAt(a)).slice(0, 6),
@@ -230,6 +249,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const showOpportunitySkeletons = opportunitiesLoading && latestOpportunities.length === 0;
     const opportunitiesUnavailable = !opportunitiesLoading && latestOpportunities.length === 0;
     const showBlogSection = blogLoading || blogArticles.length > 0;
+    const announcementUrl = announcement.linkUrl.trim() || '/edutuforyou';
+    const announcementIsExternal = /^https?:\/\//i.test(announcementUrl);
 
     const aboutFeatures: AboutFeature[] = [
         { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: OpportunityMatchIcon, cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', iconColor: '#2455d6', titleColor: '#132a5c', descColor: '#42568c' },
@@ -260,6 +281,45 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         <div className="landing-page min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
             <PageSeo path="/" />
             <PublicHeader fixed onPrimaryAction={onGetStarted} />
+
+            {announcement.enabled && announcement.text ? (
+                <aside
+                    role="status"
+                    className="relative z-20 mt-16 border-b border-brand/15 bg-brand-50/90 px-4 py-3 text-text-primary backdrop-blur dark:bg-brand-950/70 sm:px-6"
+                >
+                    <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 text-sm sm:text-[0.9375rem]">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                            <Bell
+                                size={17}
+                                aria-hidden="true"
+                                className="shrink-0 text-brand-700 dark:text-brand-300"
+                            />
+                            <p className="min-w-0 leading-[1.45] text-text-secondary">
+                                {announcement.text}
+                            </p>
+                        </div>
+                        {announcementIsExternal ? (
+                            <a
+                                href={announcementUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline dark:text-brand-300 dark:hover:text-brand-200"
+                            >
+                                <span className="hidden sm:inline">{announcement.linkLabel}</span>
+                                <ArrowRight size={16} aria-hidden="true" />
+                            </a>
+                        ) : (
+                            <Link
+                                to={announcementUrl}
+                                className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline dark:text-brand-300 dark:hover:text-brand-200"
+                            >
+                                <span className="hidden sm:inline">{announcement.linkLabel}</span>
+                                <ArrowRight size={16} aria-hidden="true" />
+                            </Link>
+                        )}
+                    </div>
+                </aside>
+            ) : null}
 
             <main className="relative z-10">
                 {/* ─── Hero ─────────────────────────────────────────────── */}

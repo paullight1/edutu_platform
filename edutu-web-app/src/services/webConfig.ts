@@ -1,8 +1,8 @@
 import { getApiBaseUrl } from "../lib/apiBaseUrl";
 
 /**
- * Admin-managed content for the web app (admin panel → Settings → Web hero
- * banners), served unauthenticated by the backend. Falls back to [] on any
+ * Admin-managed content for the web app (admin panel → Settings → Web Content),
+ * served unauthenticated by the backend. Falls back to built-in defaults on any
  * failure so callers keep their hardcoded defaults.
  */
 export interface HeroBanner {
@@ -13,6 +13,20 @@ export interface HeroBanner {
   linkUrl?: string;
   enabled: boolean;
 }
+
+export interface WebAnnouncement {
+  enabled: boolean;
+  text: string;
+  linkUrl: string;
+  linkLabel: string;
+}
+
+export const DEFAULT_WEB_ANNOUNCEMENT: WebAnnouncement = {
+  enabled: true,
+  text: "Help Edutu For You reach 1 million young people with access to global opportunities.",
+  linkUrl: "/edutuforyou",
+  linkLabel: "See Edutu For You",
+};
 
 /**
  * Admin-controlled policy for user opportunity submissions (Settings →
@@ -32,7 +46,44 @@ export const DEFAULT_SUBMISSIONS_POLICY: SubmissionsPolicy = {
 };
 
 let cachedBanners: HeroBanner[] | null = null;
+let cachedAnnouncement: WebAnnouncement | null = null;
 let cachedSubmissionsPolicy: SubmissionsPolicy | null = null;
+
+export async function fetchWebAnnouncement(): Promise<WebAnnouncement> {
+  if (cachedAnnouncement) return cachedAnnouncement;
+
+  try {
+    const response = await fetch(
+      `${getApiBaseUrl("Web config API")}/public/web-config`,
+    );
+    if (!response.ok) return DEFAULT_WEB_ANNOUNCEMENT;
+
+    const data = (await response.json()) as {
+      announcement?: Partial<WebAnnouncement>;
+    };
+    const announcement = data?.announcement;
+    if (!announcement || typeof announcement.text !== "string") {
+      return DEFAULT_WEB_ANNOUNCEMENT;
+    }
+
+    const resolved: WebAnnouncement = {
+      enabled: announcement.enabled !== false,
+      text: announcement.text.trim(),
+      linkUrl:
+        typeof announcement.linkUrl === "string"
+          ? announcement.linkUrl.trim()
+          : DEFAULT_WEB_ANNOUNCEMENT.linkUrl,
+      linkLabel:
+        typeof announcement.linkLabel === "string" && announcement.linkLabel.trim()
+          ? announcement.linkLabel.trim()
+          : DEFAULT_WEB_ANNOUNCEMENT.linkLabel,
+    };
+    cachedAnnouncement = resolved;
+    return resolved;
+  } catch {
+    return DEFAULT_WEB_ANNOUNCEMENT;
+  }
+}
 
 export async function fetchSubmissionsPolicy(): Promise<SubmissionsPolicy> {
   if (cachedSubmissionsPolicy) return cachedSubmissionsPolicy;

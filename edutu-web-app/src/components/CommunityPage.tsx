@@ -315,16 +315,15 @@ const CommunityPage: React.FC = () => {
                 <PhotoCard card={heroCards[0]} />
               </div>
 
-              {/* left stacked pair. Mobile order puts both stacked pairs on
-                  the first row and the tall center card full-width beneath —
-                  DOM order would leave half-empty rows on a 2-col grid. */}
+              {/* left stacked pair. On mobile, both stacked pairs form a
+                  compact 2×2 image grid. */}
               <div className="order-1 flex flex-col gap-3 sm:order-none sm:gap-4">
                 <PhotoCard card={heroCards[1]} />
                 <PhotoCard card={heroCards[2]} />
               </div>
 
               {/* center tall card */}
-              <div className="relative order-3 col-span-2 sm:order-none sm:col-span-1">
+              <div className="relative order-3 col-span-2 hidden sm:order-none sm:col-span-1 sm:block">
                 <motion.span
                   aria-hidden
                   animate={reduceMotion ? undefined : { rotate: 360 }}

@@ -38,7 +38,7 @@ const FaqAccordion: React.FC<FaqAccordionProps> = ({ items }) => {
                                 aria-expanded={isOpen}
                                 aria-controls={panelId}
                                 onClick={() => setOpen(isOpen ? null : index)}
-                                className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left font-display text-lg font-semibold text-text-primary transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+                                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left font-display text-base font-semibold text-text-primary transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand sm:px-6 sm:py-5 sm:text-lg"
                             >
                                 {item.question}
                                 <Plus
@@ -63,7 +63,7 @@ const FaqAccordion: React.FC<FaqAccordionProps> = ({ items }) => {
                                     transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                                     className="overflow-hidden"
                                 >
-                                    <p className="px-6 pb-6 text-[0.9375rem] leading-[1.7] text-text-secondary">
+                                    <p className="px-5 pb-5 text-[0.9375rem] leading-[1.7] text-text-secondary sm:px-6 sm:pb-6">
                                         {item.answer}
                                     </p>
                                 </motion.div>
