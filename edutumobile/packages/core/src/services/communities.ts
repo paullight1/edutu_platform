@@ -440,6 +440,26 @@ export interface CommunityResourcesPage {
   nextCursor: CommunityResourceCursor | null;
 }
 
+export interface CommunityProfileContentItem {
+  id: string;
+  title: string;
+  category: string;
+  resources: Array<{
+    id: string;
+    title: string;
+    type: string | null;
+    provider: string | null;
+    url: string | null;
+  }>;
+  likes: number;
+  createdAt: string;
+}
+
+export interface CommunityProfileContentPage {
+  items: CommunityProfileContentItem[];
+  nextCursor: CommunityResourceCursor | null;
+}
+
 export type SendMessageInput =
   | { kind?: 'text'; body: string; opportunityId?: string }
   | { kind: CommunityAttachmentKind; body: string; opportunityId?: string };
@@ -622,6 +642,26 @@ export async function fetchGroups(
     (row): row is GroupWithMembership =>
       !!row && typeof row === 'object' && 'group' in row && !!row.group,
   );
+}
+
+export async function fetchOwnCommunityContent(
+  getAuthToken: GetAuthToken,
+  cursor?: CommunityResourceCursor | null,
+  limit = 30,
+): Promise<CommunityProfileContentPage> {
+  const result = await requestCommunityApi<CommunityProfileContentPage>(
+    `/communities/profile/content${toQuery({
+      before: cursor?.before,
+      beforeId: cursor?.beforeId,
+      limit,
+    })}`,
+    { method: 'GET' },
+    getAuthToken,
+  );
+  return {
+    items: Array.isArray(result?.items) ? result.items : [],
+    nextCursor: result?.nextCursor ?? null,
+  };
 }
 
 export async function fetchGroup(

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { CommunityArchiveCron } from "./archive.cron";
 import { CommunitiesController } from "./communities.controller";
+import { CommunityContentService } from "./content.service";
 import { FormsService } from "./forms.service";
 import { GroupsService } from "./groups.service";
 import { MessagesService } from "./messages.service";
@@ -21,6 +22,7 @@ import { ModerationService } from "./moderation.service";
   controllers: [CommunitiesController],
   providers: [
     GroupsService,
+    CommunityContentService,
     MessagesService,
     FormsService,
     ModerationService,

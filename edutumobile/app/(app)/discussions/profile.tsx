@@ -19,9 +19,11 @@ import {
   Edit3,
 } from 'lucide-react-native';
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
-import { fetchCommunityStories } from '@edutu/core/src/services/community';
-import type { CommunityResource, CommunityStory } from '@edutu/core/src/types/community';
-import { supabase } from '../../../lib/supabase';
+import {
+  fetchOwnCommunityContent,
+  type CommunityProfileContentItem,
+  type CommunityResourceCursor,
+} from '@edutu/core/src/services/communities';
 import { useTheme, type ThemeColors } from '../../../components/context/ThemeContext';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { StateView } from '../../../components/state';
@@ -34,35 +36,55 @@ export default function CommunityProfileScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [profile, setProfile] = useState<BackendProfile | null>(null);
-  const [stories, setStories] = useState<CommunityStory[]>([]);
+  const [stories, setStories] = useState<CommunityProfileContentItem[]>([]);
+  const [contentCursor, setContentCursor] = useState<CommunityResourceCursor | null>(null);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [contentLoadingMore, setContentLoadingMore] = useState(false);
+  const [contentError, setContentError] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeSection, setActiveSection] = useState<'posts' | 'resources'>('posts');
 
   useEffect(() => {
     void fetchProfile(getToken).then(setProfile).catch(() => undefined);
-    void fetchCommunityStories(supabase, { limit: 50, orderBy: 'createdAt' })
-      .then(setStories)
-      .catch(() => undefined);
+    setContentLoading(true);
+    void fetchOwnCommunityContent(getToken)
+      .then((page) => {
+        setStories(page.items);
+        setContentCursor(page.nextCursor);
+        setContentError(false);
+      })
+      .catch(() => setContentError(true))
+      .finally(() => setContentLoading(false));
   }, [getToken]);
 
   const name = profile?.fullName || user?.fullName || 'Your profile';
-  const email = user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ?? '';
-  const ownStories = useMemo(
-    () => stories.filter((story) => {
-      const creatorEmail = story.creator.email?.trim().toLowerCase();
-      if (email && creatorEmail) return creatorEmail === email;
-      return !creatorEmail && story.creator.name.trim().toLowerCase() === name.trim().toLowerCase();
-    }),
-    [email, name, stories],
-  );
   const ownResources = useMemo(
-    () => ownStories.flatMap((story) => story.resources.map((resource) => ({
+    () => stories.flatMap((story) => story.resources.map((resource) => ({
       ...resource,
       rowKey: `${story.id}:${resource.id}`,
       storyTitle: story.title,
     }))),
-    [ownStories],
+    [stories],
   );
+
+  const loadMoreContent = useCallback(async () => {
+    if (!contentCursor || contentLoadingMore) return;
+    setContentLoadingMore(true);
+    try {
+      const page = await fetchOwnCommunityContent(getToken, contentCursor);
+      setStories((current) => {
+        const byId = new Map(current.map((item) => [item.id, item]));
+        page.items.forEach((item) => byId.set(item.id, item));
+        return [...byId.values()];
+      });
+      setContentCursor(page.nextCursor);
+      setContentError(false);
+    } catch {
+      setContentError(true);
+    } finally {
+      setContentLoadingMore(false);
+    }
+  }, [contentCursor, contentLoadingMore, getToken]);
 
   const education = [profile?.major, profile?.school].filter(Boolean).join(' · ');
   const supportingLine = education || profile?.country || 'Learning, building, and meeting people on the same path.';
@@ -176,15 +198,15 @@ export default function CommunityProfileScreen() {
             {activeSection === 'posts' ? 'Your posts' : 'Your resources'}
           </Text>
           <Text style={[styles.sectionMeta, { color: colors.textSecondary }]}>
-            {activeSection === 'posts' ? ownStories.length : ownResources.length}
+            {activeSection === 'posts' ? stories.length : ownResources.length}
           </Text>
         </View>
 
         {activeSection === 'posts' ? (
-          ownStories.length > 0 ? (
+          stories.length > 0 ? (
             <View style={[styles.postList, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              {ownStories.map((story, index) => (
-                <ProfilePost key={story.id} story={story} colors={colors} last={index === ownStories.length - 1} />
+              {stories.map((story, index) => (
+                <ProfilePost key={story.id} story={story} colors={colors} last={index === stories.length - 1} />
               ))}
             </View>
           ) : (
@@ -220,12 +242,27 @@ export default function CommunityProfileScreen() {
             body="Resources attached to your posts will appear here."
           />
         )}
+        {contentLoading ? <ActivityIndicator style={styles.contentProgress} color={colors.accent} /> : null}
+        {contentError ? (
+          <Text accessibilityLiveRegion="polite" style={[styles.contentError, { color: colors.error }]}>Some profile content could not be loaded.</Text>
+        ) : null}
+        {contentCursor ? (
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Load more profile content"
+            disabled={contentLoadingMore}
+            onPress={() => void loadMoreContent()}
+            style={[styles.loadMore, { borderColor: colors.border, opacity: contentLoadingMore ? 0.6 : 1 }]}
+          >
+            {contentLoadingMore ? <ActivityIndicator color={colors.accent} /> : <Text style={[styles.loadMoreText, { color: colors.accent }]}>Load more</Text>}
+          </AnimatedPressable>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-type ProfileResource = CommunityResource & { rowKey: string; storyTitle: string };
+type ProfileResource = CommunityProfileContentItem['resources'][number] & { rowKey: string; storyTitle: string };
 
 function ProfileResourceRow({ resource, colors, last }: { resource: ProfileResource; colors: ThemeColors; last: boolean }) {
   const openResource = () => {
@@ -254,7 +291,7 @@ function ProfileResourceRow({ resource, colors, last }: { resource: ProfileResou
   );
 }
 
-function ProfilePost({ story, colors, last }: { story: CommunityStory; colors: ThemeColors; last: boolean }) {
+function ProfilePost({ story, colors, last }: { story: CommunityProfileContentItem; colors: ThemeColors; last: boolean }) {
   return (
     <View style={[styles.postRow, !last && { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
       <View style={[styles.postMark, { backgroundColor: `${colors.accent}18` }]}>
@@ -263,7 +300,7 @@ function ProfilePost({ story, colors, last }: { story: CommunityStory; colors: T
       <View style={styles.postCopy}>
         <Text style={[styles.postTitle, { color: colors.foreground }]} numberOfLines={2}>{story.title}</Text>
         <Text style={[styles.postMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-          {story.category} · {story.stats.likes ?? 0} likes
+          {story.category} · {story.likes} likes
         </Text>
       </View>
     </View>
@@ -299,4 +336,8 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
   postMeta: { fontSize: 11.5 },
   postsEmpty: { minHeight: 270, paddingTop: 8 },
+  contentProgress: { marginTop: 18 },
+  contentError: { marginTop: 14, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  loadMore: { minHeight: 44, marginTop: 16, borderWidth: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  loadMoreText: { fontSize: 13, fontWeight: '800' },
 });
