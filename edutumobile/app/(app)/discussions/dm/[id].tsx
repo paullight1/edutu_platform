@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -72,7 +72,9 @@ export default function DirectMessageScreen() {
   const sendingLock = useRef(false);
   const managingLock = useRef(false);
 
-  activeConversationIdRef.current = conversationId;
+  useEffect(() => {
+    activeConversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   const load = useCallback(async () => {
     if (!conversationId) {
