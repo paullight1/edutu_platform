@@ -74,6 +74,7 @@ import {
 } from "@edutu/core/src/services/communities";
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { noteRecentlyOpenedOpportunity } from "../../../lib/recentlyOpenedOpportunity";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
@@ -548,7 +549,7 @@ export default function OpportunityDetailScreen() {
     enabled: roadmapStep === "milestones",
   });
 
-  const viewRecordedRef = useRef(false);
+  const viewRecordedRef = useRef<string | null>(null);
   const [dismissSheetVisible, setDismissSheetVisible] = useState(false);
   /**
    * The contextual push opt-in. Raised only right after the user saves an
@@ -662,9 +663,10 @@ export default function OpportunityDetailScreen() {
   }, [getToken, user, id]);
 
   useEffect(() => {
-    if (!id || !opportunity || viewRecordedRef.current) return;
-    viewRecordedRef.current = true;
+    if (!id || !opportunity || viewRecordedRef.current === id) return;
+    viewRecordedRef.current = id;
     dwellRef.current = { opportunityId: id, startedAt: Date.now() };
+    noteRecentlyOpenedOpportunity(opportunity, userId);
     void recordOpportunitySignal(
       {
         opportunityId: id,
@@ -679,7 +681,7 @@ export default function OpportunityDetailScreen() {
       },
       getToken,
     );
-  }, [getToken, id, opportunity]);
+  }, [getToken, id, opportunity, userId]);
 
   // Dwell: time actually spent on the detail is a stronger interest tell than
   // opening it. Sent once on unmount, bucketed (1: 10–30s, 2: 30–90s, 3: 90s+)

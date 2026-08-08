@@ -60,7 +60,7 @@
       "applied": { "title": "Applied", "desc": "Review applications in progress" },
       "deadlines": { "title": "Deadlines", "desc": "Keep submissions on track" },
       "studio": { "title": "Creator Studio", "desc": "Build and share learning content" },
-      "submissions": { "title": "Submit & track", "desc": "Share an opportunity for review" }
+      "submissions": { "title": "Submissions", "desc": "Share an opportunity for review" }
     },
     "buildingMatches": "Building your matches",
     "completeProfile": "Complete your profile",

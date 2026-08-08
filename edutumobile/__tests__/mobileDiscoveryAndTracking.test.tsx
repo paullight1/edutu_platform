@@ -366,19 +366,17 @@ describe('mobile discovery and tracking routes', () => {
     alertSpy.mockClear();
   });
 
-  it('renders the opportunity chooser, for-you rail, and feature shortcuts', async () => {
-    const { getByText, getAllByText } = render(<OpportunitiesScreen />);
+  it('renders the opportunity chooser and focused for-you rail', async () => {
+    const { getByTestId, getByText, getAllByText } = render(<OpportunitiesScreen />);
 
     await waitFor(() => expect(getByText('What are you looking for?')).toBeTruthy());
+    expect(getByTestId('opportunities-cv-advert')).toBeTruthy();
+    expect(getByText('Build your CV')).toBeTruthy();
     expect(getByText('For you')).toBeTruthy();
-    expect(getByText('Other features')).toBeTruthy();
     expect(getByText('Scholarships')).toBeTruthy();
     expect(getByText('Internships')).toBeTruthy();
     expect(getByText('Programs')).toBeTruthy();
     expect(getByText('Fellowships')).toBeTruthy();
-    expect(getByText('Applied')).toBeTruthy();
-    expect(getByText('Deadlines')).toBeTruthy();
-    expect(getByText('Creator Studio')).toBeTruthy();
     expect(getByText('View all')).toBeTruthy();
 
     fireEvent.press(getByText('Programs'));
@@ -389,6 +387,36 @@ describe('mobile discovery and tracking routes', () => {
 
     expect(getAllByText('Global Fellowship').length).toBeGreaterThan(0);
     expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
+
+    fireEvent.press(getByText('Build CV'));
+    expect(mockPush).toHaveBeenCalledWith('/cv');
+  });
+
+  it('continues into the full rotated catalog below the landing sections', async () => {
+    mockOpportunities = Array.from({ length: 20 }, (_, index) => ({
+      id: `opp-endless-${index}`,
+      title: `Endless Opportunity ${index}`,
+      organization: 'Edutu',
+      category: index % 2 === 0 ? 'Fellowship' : 'Scholarship',
+      location: 'Remote',
+      description: `Catalog opportunity ${index}`,
+      deadline: new Date(Date.now() + (index + 10) * 86400000).toISOString(),
+      createdAt: new Date(Date.now() - index * 86400000).toISOString(),
+      image: null,
+      requirements: [],
+      benefits: [],
+      applicationProcess: [],
+      match: 90 - index,
+      featured: false,
+    }));
+
+    const screen = render(<OpportunitiesScreen />);
+    const feed = await waitFor(() => screen.getByTestId('opportunities-feed'));
+    const feedRows = feed.props.data as Array<{ id: string }>;
+
+    expect(screen.getByText('Explore')).toBeTruthy();
+    expect(feedRows).toHaveLength(16);
+    expect(new Set(feedRows.map((item) => item.id)).size).toBe(16);
   });
 
   it('renders the grants category hero, discovery filters, and search/settings menu actions', async () => {

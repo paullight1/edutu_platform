@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Image,
-  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -24,13 +23,10 @@ import {
   ChevronRight,
   Compass,
   BookmarkPlus,
-  LayoutGrid,
-  CheckCircle2,
   Search,
   Target,
   MapPin,
   Clock,
-  TrendingUp,
   X,
   Globe,
   Users,
@@ -38,7 +34,6 @@ import {
   Menu,
   RefreshCw,
   Settings,
-  Inbox,
   Share2,
   ArrowDownWideNarrow,
   Bell,
@@ -46,6 +41,7 @@ import {
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { StateView, useScreenState } from '../../../components/state';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
+import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
@@ -57,12 +53,16 @@ import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { getMatchTier, MATCH_TIER_KEY } from '@edutu/core/src/utils/matchTier';
 import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
-import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type DiscoveryCategoryId } from '../../../lib/discoveryCategories';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from '../../../lib/discoveryTileGlyphs';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
 import { createNavScrollHandler } from '../../../lib/navScrollStore';
+import {
+  createOpportunityRotationSeed,
+  isOpenOpportunity,
+  rotateOpportunityFeed,
+} from '../../../lib/opportunityFeedRotation';
 
 type SortMode = 'recommended' | 'deadline' | 'newest';
 
@@ -93,69 +93,6 @@ const DISCOVERY_CARDS = DISCOVERY_CATEGORY_CATALOG.map((category) => ({
 
 // Distinct glyph + solid gradient per category, shared with the home tiles.
 const DISCOVERY_TILE_ICONS = DISCOVERY_TILE_GLYPHS;
-
-// `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
-export const OTHER_FEATURES = [
-  {
-    // Group Discussions used to be a single link out to a WhatsApp channel.
-    // It is now an in-app destination; the WhatsApp channel survives as one
-    // dismissible banner inside /discussions rather than as the whole feature.
-    id: 'discussion',
-    title: 'list.features.discussion.title',
-    desc: 'list.features.discussion.desc',
-    icon: Users,
-    route: '/discussions',
-    gradient: ['#0EA5E9', '#2563EB'] as const,
-  },
-  {
-    id: 'saved',
-    title: 'list.features.saved.title',
-    desc: 'list.features.saved.desc',
-    icon: BookmarkPlus,
-    route: '/saved',
-    gradient: ['#EC4899', '#DB2777'] as const,
-  },
-  {
-    id: 'applied',
-    title: 'list.features.applied.title',
-    desc: 'list.features.applied.desc',
-    icon: CheckCircle2,
-    route: '/applied',
-    gradient: ['#14B8A6', '#0F766E'] as const,
-  },
-  {
-    id: 'deadlines',
-    title: 'list.features.deadlines.title',
-    desc: 'list.features.deadlines.desc',
-    icon: Clock,
-    route: '/deadlines',
-    gradient: ['#F97316', '#DC2626'] as const,
-  },
-  {
-    id: 'studio',
-    title: 'list.features.studio.title',
-    desc: 'list.features.studio.desc',
-    icon: LayoutGrid,
-    route: '/creator-dashboard',
-    gradient: ['#111827', '#374151'] as const,
-  },
-  {
-    id: 'submissions',
-    title: 'list.features.submissions.title',
-    desc: 'list.features.submissions.desc',
-    icon: Inbox,
-    route: '/opportunities/submissions',
-    gradient: ['#6366F1', '#4338CA'] as const,
-  },
-] satisfies Array<{
-  id: string;
-  title: string;
-  desc: string;
-  icon: React.ComponentType<any>;
-  route: string;
-  external?: boolean;
-  gradient: readonly [string, string];
-}>;
 
 type PersonalizationProfile = {
   country?: string;
@@ -199,18 +136,6 @@ function renderCategoryIcon(category: string, size: number, color: string) {
   return <CategoryIcon size={size} color={color} />;
 }
 
-function shuffleOpportunities(items: Opportunity[], seed: number): Opportunity[] {
-  if (!seed) return items;
-  const copy = [...items];
-  let state = seed * 9301 + 49297;
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    state = (state * 9301 + 49297) % 233280;
-    const j = Math.floor((state / 233280) * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 // Soonest deadline first; expired after active; rolling/none always last.
 function deadlineSortKey(opportunity: Opportunity): number {
   const days = getDeadlineBadge(opportunity.deadline).daysLeft;
@@ -226,15 +151,14 @@ function newestSortKey(opportunity: Partial<Opportunity> & Record<string, any>):
 }
 
 function sortOpportunities(list: Opportunity[], mode: SortMode, seed: number): Opportunity[] {
+  const open = list.filter(isOpenOpportunity);
   if (mode === 'deadline') {
-    return [...list].sort((a, b) => deadlineSortKey(a) - deadlineSortKey(b));
+    return [...open].sort((a, b) => deadlineSortKey(a) - deadlineSortKey(b));
   }
   if (mode === 'newest') {
-    return [...list].sort((a, b) => newestSortKey(b) - newestSortKey(a));
+    return [...open].sort((a, b) => newestSortKey(b) - newestSortKey(a));
   }
-  // Recommended: match desc, but shuffle within same-score tiers so equal
-  // matches don't always show in the same order (stable sort preserves shuffle).
-  return shuffleOpportunities(list, seed).sort((a, b) => (b.match || 0) - (a.match || 0));
+  return rotateOpportunityFeed(open, seed);
 }
 
 function getDiscoveryLabel(id: DiscoveryCategoryId): string {
@@ -383,36 +307,6 @@ function DiscoveryCard({
   );
 }
 
-function FeatureCard({
-  item,
-  onPress,
-  colors,
-}: {
-  item: typeof OTHER_FEATURES[number];
-  onPress: () => void;
-  colors: any;
-}) {
-  const { t } = useTranslation('opps');
-  const Icon = item.icon;
-
-  return (
-    <Pressable onPress={onPress} style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <LinearGradient colors={item.gradient as [string, string]} style={styles.featureCardGradient}>
-        <View style={styles.featureCardTop}>
-          <View style={styles.featureCardIconWrap}>
-            <Icon size={18} color="#FFFFFF" strokeWidth={2} />
-          </View>
-          <ChevronRight size={16} color="rgba(255,255,255,0.92)" />
-        </View>
-        <View style={styles.featureCardBody}>
-          <Text style={styles.featureCardTitle} numberOfLines={1}>{t(item.title)}</Text>
-          <Text style={styles.featureCardDesc} numberOfLines={2}>{t(item.desc)}</Text>
-        </View>
-      </LinearGradient>
-    </Pressable>
-  );
-}
-
 // ─── Skeleton Card (first-load placeholder) ──────────────────────────────────
 function SkeletonCard({ colors }: { colors: any }) {
   const pulse = useAnimatedValue(0.45);
@@ -441,7 +335,7 @@ function SkeletonCard({ colors }: { colors: any }) {
 }
 
 // ─── Detail Card (Grid view for explore) ─────────────────────────────────────
-function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
+function DetailCard({ item, onPress, colors }: { item: Opportunity; onPress: () => void; colors: any }) {
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
@@ -461,11 +355,6 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
           <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
             <Target size={10} color="white" />
             <Text style={styles.detailMatchText}>{t('detail.' + MATCH_TIER_KEY[getMatchTier(item.match ?? 0)])}</Text>
-          </View>
-        )}
-        {deadline.days !== null && deadline.days <= 7 && deadline.days >= 0 && (
-          <View style={[styles.detailUrgentBadge, { backgroundColor: 'rgba(239,68,68,0.85)' }]}>
-            <Text style={styles.detailUrgentText}>{deadline.text}</Text>
           </View>
         )}
       </View>
@@ -494,48 +383,23 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
 
         {/* Meta Info */}
         <View style={styles.detailCardMeta}>
-          <View style={styles.detailMetaItem}>
+          <View style={[styles.detailMetaItem, styles.detailLocationItem]}>
             <MapPin size={12} color={colors.textSecondary} />
             <Text style={[styles.detailMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.isRemote ? t('shared.remote') : item.location?.split(',')[0] || t('shared.worldwide')}
             </Text>
           </View>
-          <View style={[styles.detailMetaItem, { backgroundColor: `${deadline.color}10` }]}>
-            <Clock size={12} color={deadline.color} />
-            <Text style={[styles.detailMetaText, { color: deadline.color }]}>{deadline.text}</Text>
+          {deadline.days !== null ? (
+            <View style={styles.detailMetaItem}>
+              <Clock size={12} color={deadline.color} />
+              <Text style={[styles.detailMetaText, { color: deadline.color }]}>{deadline.text}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}>
+            <ChevronRight size={16} color={accent} />
           </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.detailCardFooter}>
-          {item.stipend && item.stipend > 0 ? (
-            <View style={[styles.detailStipend, { backgroundColor: 'rgba(16,185,129,0.08)' }]}>
-              <TrendingUp size={12} color="#10B981" />
-              <Text style={[styles.detailStipendText, { color: '#10B981' }]}>
-                {item.currency || '$'}{item.stipend >= 1000 ? `${(item.stipend / 1000).toFixed(0)}k` : item.stipend}
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.detailFree, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9' }]}>
-              <Text style={[styles.detailFreeText, { color: colors.textSecondary }]}>{t('list.card.open')}</Text>
-            </View>
-          )}
-          <View style={styles.detailFooterActions}>
-            <Pressable
-              onPress={(event) => {
-                event.stopPropagation();
-                onShare(item);
-              }}
-              hitSlop={8}
-              style={[styles.detailShareBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }]}
-            >
-              <Share2 size={15} color={colors.textSecondary} />
-            </Pressable>
-            <View style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}>
-              <ChevronRight size={16} color={accent} />
-            </View>
-          </View>
-        </View>
       </View>
     </Pressable>
   );
@@ -672,7 +536,7 @@ export default function OpportunitiesScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const searchExpand = useAnimatedValue(0);
   const scrollY = useAnimatedValue(0);
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
   const initialSearchQuery = typeof params.q === 'string' && params.q.trim() ? params.q : '';
   // normalizeDiscoveryCategoryId also maps legacy slugs (singular forms,
@@ -688,7 +552,9 @@ export default function OpportunitiesScreen() {
   const [showSearch, setShowSearch] = useState(Boolean(initialSearchQuery));
   const [showMenu, setShowMenu] = useState(false);
   const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategoryId | null>(normalizedCategoryParam);
-  const [shuffleSeed, setShuffleSeed] = useState(0);
+  // Stable for this mounted screen so cards never jump while the user scrolls.
+  // Remounting or explicitly refreshing creates a new discovery rotation.
+  const [shuffleSeed, setShuffleSeed] = useState(() => createOpportunityRotationSeed());
 
   // Adjust-during-render (React's documented alternative to state-syncing
   // effects): sync search + category state when the route params change.
@@ -875,7 +741,7 @@ export default function OpportunitiesScreen() {
   const forYou = useMemo(() => {
     const ranked = opportunities.filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD);
     const base = ranked.length > 0 ? ranked : opportunities;
-    return shuffleOpportunities(base, shuffleSeed).slice(0, 8);
+    return rotateOpportunityFeed(base, shuffleSeed).slice(0, 8);
   }, [opportunities, shuffleSeed]);
 
   const fullForYou = useMemo(() => {
@@ -883,7 +749,7 @@ export default function OpportunitiesScreen() {
       .filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD)
       .sort((a, b) => (b.match || 0) - (a.match || 0));
     const base = ranked.length > 0 ? ranked : opportunities;
-    return shuffleOpportunities(base, shuffleSeed);
+    return rotateOpportunityFeed(base, shuffleSeed);
   }, [opportunities, shuffleSeed]);
 
   const explore = useMemo(() => {
@@ -905,6 +771,17 @@ export default function OpportunitiesScreen() {
   }, [fullForYou, opportunities, debouncedSearch, selectedDiscoveryCategory, showForYouOnly, sortMode, shuffleSeed]);
 
   const shouldShowChooser = !showForYouOnly && !isCategoryPage;
+  const showDiscoveryLanding = shouldShowChooser && !debouncedSearch.trim();
+  const landingForYouIds = useMemo(
+    () => new Set(forYou.slice(0, 4).map((item) => item.id)),
+    [forYou],
+  );
+  const feedOpportunities = useMemo(
+    () => showDiscoveryLanding
+      ? explore.filter((item) => !landingForYouIds.has(item.id))
+      : explore,
+    [explore, landingForYouIds, showDiscoveryLanding],
+  );
 
   // Warm the image cache for the opportunities most likely to be seen next so
   // their remote banners appear instantly instead of popping in during scroll.
@@ -1012,19 +889,6 @@ export default function OpportunitiesScreen() {
     }
   }, [debouncedSearch, searchTerm, selectedDiscoveryCategory, getToken, router, t]);
 
-  const handleFeaturePress = useCallback((route: string) => {
-    setShowMenu(false);
-    if (route.startsWith('http')) {
-      void Linking.openURL(route);
-      return;
-    }
-    router.push(route as never);
-  }, [router]);
-
-  const handleBroadAdPress = useCallback(() => {
-    router.push('/cv');
-  }, [router]);
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {isCategoryPage ? (
@@ -1066,19 +930,19 @@ export default function OpportunitiesScreen() {
       {showMenu && (
         <View style={[styles.menuSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('search')}>
-            <Search size={16} color={colors.foreground} />
+            <Search size={24} color={colors.foreground} />
             <Text style={[styles.menuItemText, { color: colors.foreground }]}>{showSearch ? t('list.hideSearch') : t('common:actions.search')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('settings')}>
-            <Settings size={16} color={colors.foreground} />
+            <Settings size={24} color={colors.foreground} />
             <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.settings')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('refresh')}>
-            <RefreshCw size={16} color={colors.foreground} />
+            <RefreshCw size={24} color={colors.foreground} />
             <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.refresh')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => void handleSaveSearch()}>
-            <BookmarkPlus size={16} color={colors.accent} />
+            <BookmarkPlus size={24} color={colors.accent} />
             <Text style={[styles.menuItemText, { color: colors.accent }]}>{t('list.saveSearch.menuSave')}</Text>
           </Pressable>
           <Pressable
@@ -1088,7 +952,7 @@ export default function OpportunitiesScreen() {
               router.push('/saved-searches' as never);
             }}
           >
-            <Bell size={16} color={colors.foreground} />
+            <Bell size={24} color={colors.foreground} />
             <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.saveSearch.menuAlerts')}</Text>
           </Pressable>
         </View>
@@ -1128,8 +992,9 @@ export default function OpportunitiesScreen() {
       </Animated.View>
 
       <Animated.FlatList
+        testID="opportunities-feed"
         ref={listRef}
-        data={shouldShowChooser ? [] : explore}
+        data={feedOpportunities}
         keyExtractor={(item) => item.id}
         key={viewMode}
         numColumns={viewMode === 'grid' ? 2 : 1}
@@ -1177,8 +1042,16 @@ export default function OpportunitiesScreen() {
               </View>
             ) : null}
 
-            {shouldShowChooser && (
+            {showDiscoveryLanding && (
               <>
+                <View style={styles.exploreAdvert} testID="opportunities-cv-advert">
+                  <AdBanner
+                    config={BANNER_PRESETS.buildCV}
+                    onPress={() => router.push('/cv' as never)}
+                    showClose={false}
+                  />
+                </View>
+
                 <View style={styles.broadIntro}>
                   <Text style={[styles.broadIntroTitle, { color: colors.foreground }]}>{t('list.whatLookingFor')}</Text>
                   <Text style={[styles.broadIntroBody, { color: colors.textSecondary }]}>
@@ -1200,7 +1073,7 @@ export default function OpportunitiesScreen() {
             )}
 
             {/* For You Section */}
-            {shouldShowChooser && (
+            {showDiscoveryLanding && (
               <>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleRow}>
@@ -1259,48 +1132,18 @@ export default function OpportunitiesScreen() {
                   </View>
                 )}
 
-                <View style={styles.featureHubWrap}>
-                  <View style={styles.sectionHeader}>
-                    <View style={styles.sectionTitleRow}>
-                      <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
-                        <LayoutGrid color={colors.accent} size={16} />
-                      </View>
-                      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('list.otherFeatures')}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.featureGrid}>
-                    {OTHER_FEATURES.map((item) => (
-                      <FeatureCard
-                        key={item.id}
-                        item={item}
-                        colors={colors}
-                        onPress={() => handleFeaturePress(item.route)}
-                      />
-                    ))}
-                  </View>
-                </View>
-
-                <View style={styles.importedAdWrap}>
-                  <AdBanner
-                    config={BANNER_PRESETS.buildCV}
-                    onPress={handleBroadAdPress}
-                    showClose={false}
-                  />
-                </View>
               </>
             )}
 
             {/* Explore Header */}
-            {(showForYouOnly || isCategoryPage) && (
-              <>
+            <>
                 <View style={[styles.sectionHeader, styles.sectionHeaderLarge]}>
                   <View style={styles.sectionTitleRow}>
                     <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
                       <Compass color={colors.accent} size={16} />
                     </View>
                     <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                      {showForYouOnly ? t('list.personalized') : pageTitle}
+                      {showForYouOnly ? t('list.personalized') : isCategoryPage ? pageTitle : t('list.explore')}
                     </Text>
                   </View>
                   <View style={[styles.viewModeWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1339,8 +1182,7 @@ export default function OpportunitiesScreen() {
                     );
                   })}
                 </View>
-              </>
-            )}
+            </>
 
             {error && !loading ? (
               <StateView
@@ -1357,14 +1199,14 @@ export default function OpportunitiesScreen() {
         }
         renderItem={({ item }) => (
           viewMode === 'grid' ? (
-            <DetailCard item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
+            <DetailCard item={item} colors={colors} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
           ) : (
             <ListRow item={item} colors={colors} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
           )
         )}
         ItemSeparatorComponent={() => viewMode === 'list' ? <View style={{ height: 10 }} /> : null}
         ListEmptyComponent={
-          shouldShowChooser ? null : loading ? (
+          showDiscoveryLanding && opportunities.length > 0 && feedOpportunities.length === 0 ? null : loading ? (
             <View style={styles.skeletonGrid}>
               {Array.from({ length: 6 }).map((_, index) => (
                 <SkeletonCard key={`skeleton-${index}`} colors={colors} />
@@ -1434,17 +1276,17 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 20,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 6,
-    minWidth: 150,
+    borderRadius: 24,
+    paddingVertical: 12,
+    width: Math.min(Math.round(width * 0.78), 300),
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  menuItemText: { fontSize: 13, fontWeight: '600' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 58, paddingHorizontal: 22, paddingVertical: 12 },
+  menuItemText: { fontSize: 19, fontWeight: '700' },
   headerSearchWrap: {
     overflow: 'hidden',
     paddingHorizontal: 20,
@@ -1502,6 +1344,10 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     fontWeight: '950',
     letterSpacing: -0.8,
+  },
+  exploreAdvert: {
+    marginTop: 16,
+    marginBottom: 2,
   },
   broadIntro: {
     marginTop: 18,
@@ -1576,63 +1422,6 @@ const styles = StyleSheet.create({
   forYouRail: { paddingBottom: 10, gap: 12, paddingRight: 4 },
   forYouGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   forYouGridCard: { width: CARD_WIDTH, height: 224, marginRight: 0 },
-  importedAdWrap: {
-    marginTop: 22,
-    marginBottom: 26,
-  },
-
-  // Featured Card
-
-  // Feature Hub
-  featureHubWrap: {
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  featureGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  featureCard: {
-    width: (width - 50) / 2,
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  featureCardGradient: {
-    minHeight: 112,
-    padding: 14,
-    justifyContent: 'space-between',
-  },
-  featureCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  featureCardIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  featureCardBody: {
-    gap: 4,
-  },
-  featureCardTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '900',
-  },
-  featureCardDesc: {
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '600',
-  },
-
   // Detail Card (Grid)
   compactCard: { width: CARD_WIDTH, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   compactCardHeader: { height: 84, position: 'relative' },
@@ -1649,24 +1438,16 @@ const styles = StyleSheet.create({
   detailCardImageFallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   detailMatchBadge: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8 },
   detailMatchText: { color: 'white', fontSize: 9, fontWeight: '800' },
-  detailUrgentBadge: { position: 'absolute', top: 8, right: 8, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8 },
-  detailUrgentText: { color: 'white', fontSize: 9, fontWeight: '800' },
   detailCardBody: { padding: 12 },
   detailCategoryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 8 },
   detailCategoryText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
   detailCardTitle: { fontSize: 14, lineHeight: 20, fontWeight: '800', marginBottom: 4 },
   detailCardOrg: { fontSize: 11, marginBottom: 10 },
   detailMatchReason: { fontSize: 10, lineHeight: 13, fontWeight: '700', color: '#10B981', marginTop: -6, marginBottom: 10 },
-  detailCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  detailCardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 },
+  detailLocationItem: { flex: 1, minWidth: 0 },
   detailMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   detailMetaText: { fontSize: 10, fontWeight: '600' },
-  detailCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: 'rgba(128,128,128,0.1)', paddingTop: 10 },
-  detailStipend: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  detailStipendText: { fontSize: 11, fontWeight: '700' },
-  detailFree: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  detailFreeText: { fontSize: 11, fontWeight: '700' },
-  detailFooterActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailShareBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   detailArrow: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
   // List Row
