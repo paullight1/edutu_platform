@@ -72,9 +72,10 @@ describe('normaliseCustomFeatures', () => {
   it('drops features missing id/title/url and disabled ones', () => {
     const features = normaliseCustomFeatures([
       { id: 'f1', title: 'No url', url: '' },
-      { id: '', title: 'No id', url: 'https://x.io' },
-      { id: 'f2', title: 'Off', url: 'https://x.io', enabled: false },
-      { id: 'f3', title: 'Good', url: 'https://x.io' },
+      { id: '', title: 'No id', url: 'https://edutu.org/no-id' },
+      { id: 'f2', title: 'Off', url: 'https://edutu.org/off', enabled: false },
+      { id: 'f3', title: 'Good', url: 'https://edutu.org/good' },
+      { id: 'f4', title: 'Unapproved host', url: 'https://x.io' },
     ]);
     expect(features.map((f) => f.id)).toEqual(['f3']);
   });
@@ -84,7 +85,7 @@ describe('normaliseCustomFeatures', () => {
       {
         id: 'f1',
         title: 'X',
-        url: 'https://x.io',
+        url: 'https://edutu.org/feature',
         openMode: 'iframe',
         placement: 'sidebar',
       },
@@ -96,9 +97,9 @@ describe('normaliseCustomFeatures', () => {
 
 describe('customFeaturesForPlacement + findCustomFeature', () => {
   const features = normaliseCustomFeatures([
-    { id: 'home1', title: 'Home', url: 'https://x.io', placement: 'home' },
-    { id: 'tools1', title: 'Tools', url: 'https://x.io', placement: 'tools' },
-    { id: 'both1', title: 'Both', url: 'https://x.io', placement: 'both' },
+    { id: 'home1', title: 'Home', url: 'https://edutu.org/home', placement: 'home' },
+    { id: 'tools1', title: 'Tools', url: 'https://edutu.org/tools', placement: 'tools' },
+    { id: 'both1', title: 'Both', url: 'https://edutu.org/both', placement: 'both' },
   ]);
 
   it('includes both-placement features in each surface', () => {
