@@ -99,7 +99,12 @@ export type UpdateMemberSettingsDto = z.infer<
 
 export const HomeCategoryTileSchema = z
   .object({
-    id: z.string().trim().min(1).max(64).regex(/^[a-z0-9_-]+$/),
+    id: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_-]+$/),
     size: z.enum(["icon", "card", "long"]),
   })
   .strict();

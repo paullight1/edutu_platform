@@ -115,6 +115,30 @@ function newerSnapshot(
   return Date.parse(remote.updatedAt) > Date.parse(local.updatedAt) ? remote : local;
 }
 
+async function readRemote(
+  getAuthToken: GetAuthToken,
+): Promise<LocalSnapshot | null> {
+  try {
+    return normalizeRemote(await fetchHomeCategoryLayout(getAuthToken));
+  } catch {
+    // The local snapshot remains usable offline. A later mount or explicit
+    // save will retry the backend without blocking the home screen.
+    return null;
+  }
+}
+
+async function pushRemote(
+  getAuthToken: GetAuthToken,
+  snapshot: LocalSnapshot,
+): Promise<LocalSnapshot | null> {
+  try {
+    return normalizeRemote(await updateHomeCategoryLayout(getAuthToken, snapshot));
+  } catch {
+    // Best-effort sync: the versioned local snapshot is the retry source.
+    return null;
+  }
+}
+
 export function useHomeCategories(
   userId?: string | null,
   getAuthToken?: GetAuthToken,
@@ -124,7 +148,10 @@ export function useHomeCategories(
   const [tiles, setTiles] = useState<HomeCategoryTile[]>(DEFAULT_HOME_TILES);
   const [loaded, setLoaded] = useState(false);
   const scopeRef = React.useRef(currentScope);
-  scopeRef.current = currentScope;
+
+  useEffect(() => {
+    scopeRef.current = currentScope;
+  }, [currentScope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +167,7 @@ export function useHomeCategories(
       const [local, remote] = await Promise.all([
         readLocal(userId),
         userId && getAuthToken
-          ? fetchHomeCategoryLayout(getAuthToken).then(normalizeRemote)
+          ? readRemote(getAuthToken)
           : Promise.resolve(null),
       ]);
       const winner = newerSnapshot(local, remote);
@@ -155,9 +182,7 @@ export function useHomeCategories(
         winner === local &&
         (!remote || Date.parse(local.updatedAt) > Date.parse(remote.updatedAt))
       ) {
-        const accepted = normalizeRemote(
-          await updateHomeCategoryLayout(getAuthToken, local),
-        );
+        const accepted = await pushRemote(getAuthToken, local);
         if (
           !cancelled &&
           accepted &&
@@ -185,8 +210,7 @@ export function useHomeCategories(
       setTiles(cleaned);
       void writeLocal(userId, local);
       if (userId && getAuthToken) {
-        void updateHomeCategoryLayout(getAuthToken, local).then((result) => {
-          const accepted = normalizeRemote(result);
+        void pushRemote(getAuthToken, local).then((accepted) => {
           if (
             scopeRef.current === currentScope &&
             accepted &&

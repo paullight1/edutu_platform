@@ -168,3 +168,18 @@ it("pushes a newer local version without allowing an older server value to win",
     expect(mockUpdateHomeCategoryLayout).toHaveBeenCalledWith(getToken, local),
   );
 });
+
+it("keeps the local layout usable when remote loading fails", async () => {
+  const local = {
+    tiles: [{ id: "internships", size: "long" }],
+    updatedAt: "2026-08-08T10:00:00.000Z",
+  };
+  await AsyncStorage.setItem(scopedKey("user-first"), JSON.stringify(local));
+  mockFetchHomeCategoryLayout.mockRejectedValueOnce(new Error("offline"));
+  const getToken = jest.fn().mockResolvedValue("token");
+
+  const hook = renderHook(() => useHomeCategories("user-first", getToken));
+
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  expect(hook.result.current.tiles).toEqual(local.tiles);
+});
