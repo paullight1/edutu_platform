@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { displayIncomingCommunityCall } from './nativeCall';
 
 let bootstrapped = false;
@@ -11,6 +11,11 @@ export async function bootstrapCommunityCallPush(): Promise<void> {
       messaging().onMessage(async (message: { data?: Record<string, string> }) => { if (message.data) await displayIncomingCommunityCall(message.data); });
     } catch { /* Optional native module; Expo push routing remains available. */ }
   } else if (Platform.OS === 'ios') {
+    // `react-native-voip-push-notification` creates a NativeEventEmitter at
+    // module load. Expo Go and builds without the PushKit native module expose
+    // no manager, so importing it would crash the entire JS bundle before the
+    // optional-module fallback can run.
+    if (!NativeModules.RNVoipPushNotificationManager) return;
     try {
       const module = await import('react-native-voip-push-notification'); const voip = module.default ?? module;
       const handle = async (payload: object) => { const data = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {}; await displayIncomingCommunityCall(data); const uuid = [data.uuid, data.callId, data.call_id].find((value): value is string => typeof value === 'string'); if (uuid) voip.onVoipNotificationCompleted(uuid); };

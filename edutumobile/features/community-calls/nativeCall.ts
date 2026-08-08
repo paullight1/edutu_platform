@@ -1,4 +1,4 @@
-import { Linking, Platform } from "react-native";
+import { Linking, NativeModules, Platform } from "react-native";
 import {
   getApiBaseUrl,
   type GetAuthToken,
@@ -251,6 +251,10 @@ export async function registerNativeCallingTokenSync(
       /* Expo Go / unsupported build: ordinary Expo push remains active. */
     }
   } else if (Platform.OS === "ios") {
+    // Keep PushKit optional in Expo Go and development builds that do not
+    // include the VoIP native module. The package's module-scope emitter
+    // otherwise throws before its import can be caught.
+    if (!NativeModules.RNVoipPushNotificationManager) return;
     try {
       const module = await import("react-native-voip-push-notification");
       const voip = module.default ?? module;

@@ -50,7 +50,10 @@ export default {
     runtimeVersion: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
-    userInterfaceStyle: "dark",
+    // The app owns appearance in JS so the Light/Dark/System setting can
+    // change without rebuilding. Keeping this native default automatic also
+    // prevents iOS from forcing light status-bar glyphs over a light screen.
+    userInterfaceStyle: "automatic",
     scheme: "edutu",
     privacyPolicyUrl: "https://edutu.org/privacy",
     supportUrl: "https://edutu.org/support",
@@ -89,11 +92,10 @@ export default {
         usesNonExemptEncryption: false
       },
       infoPlist: {
-        // Dark-first static default so the clock/signal/battery are light
-        // (visible) on our dark chrome before JS asserts the style — and after
-        // iOS reverts to this default on appearance transitions / resume. The
-        // JS layer (expo-status-bar) flips it to dark content at runtime in the
-        // light theme. UIViewControllerBasedStatusBarAppearance MUST stay false:
+        // The committed native splash is dark, so the pre-JS launch default
+        // must be light content or the clock/battery disappear. Once React
+        // mounts, expo-status-bar re-asserts the active Light/Dark/System theme.
+        // UIViewControllerBasedStatusBarAppearance MUST stay false:
         // RCTStatusBarManager requires it, and true crashes on launch.
         UIStatusBarStyle: "UIStatusBarStyleLightContent",
         UIViewControllerBasedStatusBarAppearance: false,
