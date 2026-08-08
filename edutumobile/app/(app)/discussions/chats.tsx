@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -52,6 +52,22 @@ const LAST_READ_KEY = "edutu:discussions:lastRead";
 
 type LastReadMap = Record<string, string>;
 
+type InboxSnapshot = {
+  nextRows?: GroupWithMembership[];
+  nextLastRead: LastReadMap;
+  nextDms?: DmConversationSummary[];
+  nextIncoming?: DmRequestSummary[];
+  nextOutgoing?: DmRequestSummary[];
+  error: string | null;
+  completeFailure: boolean;
+};
+
+function inboxErrorMessage(error: unknown): string {
+  return isCommunityApiError(error) || isCommunityDmApiError(error)
+    ? error.message
+    : "Check your connection and try again.";
+}
+
 async function readLastRead(): Promise<LastReadMap> {
   try {
     const raw = await AsyncStorage.getItem(LAST_READ_KEY);
@@ -97,18 +113,45 @@ export default function CommunityChatsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completeFailure, setCompleteFailure] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const refreshingRef = useRef(false);
+  const busyIdRef = useRef<string | null>(null);
 
-  const queryInbox = useCallback(async () => {
-    const [nextRows, nextLastRead, nextDms, nextIncoming, nextOutgoing] =
-      await Promise.all([
+  const queryInbox = useCallback(async (): Promise<InboxSnapshot> => {
+    const [groupsResult, lastReadResult, dmsResult, incomingResult, outgoingResult] =
+      await Promise.allSettled([
         fetchGroups({ mine: true, limit: 50 }, getToken),
         readLastRead(),
         fetchDmConversations({ limit: 50 }, getToken),
         fetchDmRequests("incoming", { limit: 50 }, getToken),
         fetchDmRequests("outgoing", { limit: 50 }, getToken),
       ]);
-    return { nextRows, nextLastRead, nextDms, nextIncoming, nextOutgoing };
+
+    const apiResults = [groupsResult, dmsResult, incomingResult, outgoingResult];
+    const failures = apiResults.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    const firstFailure = failures[0]?.reason;
+
+    return {
+      nextRows: groupsResult.status === "fulfilled" ? groupsResult.value : undefined,
+      nextLastRead:
+        lastReadResult.status === "fulfilled" ? lastReadResult.value : {},
+      nextDms: dmsResult.status === "fulfilled" ? dmsResult.value : undefined,
+      nextIncoming:
+        incomingResult.status === "fulfilled" ? incomingResult.value : undefined,
+      nextOutgoing:
+        outgoingResult.status === "fulfilled" ? outgoingResult.value : undefined,
+      error:
+        failures.length === 0
+          ? null
+          : failures.length === apiResults.length
+            ? inboxErrorMessage(firstFailure)
+            : `Some conversations couldn't be updated. ${inboxErrorMessage(firstFailure)}`,
+      completeFailure: failures.length === apiResults.length,
+    };
   }, [getToken]);
 
   const applyInbox = useCallback(
@@ -118,13 +161,16 @@ export default function CommunityChatsScreen() {
       nextDms,
       nextIncoming,
       nextOutgoing,
+      error: nextError,
+      completeFailure: nextCompleteFailure,
     }: Awaited<ReturnType<typeof queryInbox>>) => {
-      setRows(nextRows);
+      if (nextRows) setRows(nextRows);
       setLastRead(nextLastRead);
-      setDirectMessages(nextDms);
-      setIncomingRequests(nextIncoming);
-      setOutgoingRequests(nextOutgoing);
-      setError(null);
+      if (nextDms) setDirectMessages(nextDms);
+      if (nextIncoming) setIncomingRequests(nextIncoming);
+      if (nextOutgoing) setOutgoingRequests(nextOutgoing);
+      setError(nextError);
+      setCompleteFailure(nextCompleteFailure);
     },
     [],
   );
@@ -132,43 +178,47 @@ export default function CommunityChatsScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      const requestId = ++requestVersion.current;
       void queryInbox()
         .then((result) => {
-          if (active) applyInbox(result);
+          if (active && requestId === requestVersion.current) applyInbox(result);
         })
         .catch((caught) => {
-          if (!active) return;
-          setError(
-            isCommunityApiError(caught) || isCommunityDmApiError(caught)
-              ? caught.message
-              : "We couldn't load your conversations. Please try again.",
-          );
+          if (!active || requestId !== requestVersion.current) return;
+          setError(inboxErrorMessage(caught));
+          setCompleteFailure(true);
         })
         .finally(() => {
-          if (active) setLoading(false);
+          if (active && requestId === requestVersion.current) setLoading(false);
         });
       return () => {
         active = false;
+        if (requestId === requestVersion.current) requestVersion.current += 1;
       };
     }, [applyInbox, queryInbox]),
   );
 
   const refresh = useCallback(async () => {
-    if (refreshing) return;
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    const requestId = ++requestVersion.current;
     setRefreshing(true);
     try {
-      applyInbox(await queryInbox());
+      const result = await queryInbox();
+      if (requestId === requestVersion.current) applyInbox(result);
     } catch (caught) {
-      setError(
-        isCommunityApiError(caught) || isCommunityDmApiError(caught)
-          ? caught.message
-          : "We couldn't refresh your conversations. Please try again.",
-      );
+      if (requestId === requestVersion.current) {
+        setError(inboxErrorMessage(caught));
+        setCompleteFailure(true);
+      }
     } finally {
+      refreshingRef.current = false;
       setRefreshing(false);
-      setLoading(false);
+      if (requestId === requestVersion.current) {
+        setLoading(false);
+      }
     }
-  }, [applyInbox, queryInbox, refreshing]);
+  }, [applyInbox, queryInbox]);
 
   const invitations = useMemo(
     () =>
@@ -201,13 +251,14 @@ export default function CommunityChatsScreen() {
       request: DmRequestSummary,
       action: "accept" | "decline" | "block",
     ) => {
-      if (busyId) return;
+      if (busyIdRef.current) return;
+      busyIdRef.current = request.id;
       setBusyId(request.id);
       setError(null);
       try {
         if (action === "accept") {
-          await acceptDmRequest(request.id, getToken);
-          openDm(request.id);
+          const accepted = await acceptDmRequest(request.id, getToken);
+          openDm(accepted.id);
         } else if (action === "decline") {
           await declineDmRequest(request.id, getToken);
           setIncomingRequests((current) =>
@@ -226,10 +277,11 @@ export default function CommunityChatsScreen() {
             : "That action could not be completed.",
         );
       } finally {
+        busyIdRef.current = null;
         setBusyId(null);
       }
     },
-    [busyId, getToken, openDm],
+    [getToken, openDm],
   );
 
   const confirmRequestAction = useCallback(
@@ -266,6 +318,8 @@ export default function CommunityChatsScreen() {
             text: "Remove",
             style: "destructive",
             onPress: () => {
+              if (busyIdRef.current) return;
+              busyIdRef.current = conversation.id;
               setBusyId(conversation.id);
               void hideDmConversation(conversation.id, getToken)
                 .then(() =>
@@ -280,7 +334,10 @@ export default function CommunityChatsScreen() {
                       : "Could not remove the conversation.",
                   ),
                 )
-                .finally(() => setBusyId(null));
+                .finally(() => {
+                  busyIdRef.current = null;
+                  setBusyId(null);
+                });
             },
           },
         ],
@@ -314,7 +371,7 @@ export default function CommunityChatsScreen() {
       >
         {loading ? (
           <InboxSkeleton colors={colors} />
-        ) : error && !hasInboxContent ? (
+        ) : completeFailure && error && !hasInboxContent ? (
           <StateView
             state={{ kind: "error", cause: "network" }}
             flow="community"
@@ -333,7 +390,11 @@ export default function CommunityChatsScreen() {
             sceneSize={164}
             style={styles.state}
             title="No conversations yet"
-            body="Message a member or join a community. Private message requests and group conversations will appear here."
+            body={
+              error
+                ? "Some conversation sources are temporarily unavailable. Pull to refresh or try again shortly."
+                : "Message a member or join a community. Private message requests and group conversations will appear here."
+            }
             actionLabel="Explore communities"
             onAction={() => router.push("/discussions/explore" as never)}
           />

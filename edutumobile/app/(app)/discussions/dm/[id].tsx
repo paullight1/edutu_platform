@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MoreHorizontal, Send } from 'lucide-react-native';
 import {
   blockDmUser,
@@ -32,6 +32,16 @@ import { AnimatedPressable } from '../../../../components/ui/AnimatedPressable';
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader';
 
 const PAGE_SIZE = 40;
+const REFRESH_INTERVAL_MS = 10_000;
+
+function mergeDmMessages(current: DmMessage[], incoming: DmMessage[]): DmMessage[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  incoming.forEach((message) => byId.set(message.id, message));
+  return [...byId.values()].sort((a, b) => {
+    const timeDifference = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    return timeDifference || b.id.localeCompare(a.id);
+  });
+}
 
 export default function DirectMessageScreen() {
   const router = useRouter();
@@ -46,34 +56,116 @@ export default function DirectMessageScreen() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   const [sending, setSending] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const loadedConversationId = useRef<string | null>(null);
+  const loadingOlderLock = useRef(false);
+  const lastMarkedMessageId = useRef<string | null>(null);
+  const sendingLock = useRef(false);
+  const managingLock = useRef(false);
 
   const load = useCallback(async () => {
-    if (!conversationId) return;
-    setError(null);
-    try {
-      const [detail, page] = await Promise.all([
-        fetchDmConversation(conversationId, getToken),
-        fetchDmMessages(conversationId, { limit: PAGE_SIZE }, getToken),
-      ]);
-      setConversation(detail);
-      setMessages(page);
-      setHasOlder(page.length === PAGE_SIZE);
-      void markDmConversationRead(conversationId, getToken).catch(() => undefined);
-    } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'This conversation could not be loaded.');
-    } finally {
+    if (!conversationId) {
+      setConversation(null);
+      setMessages([]);
+      setError('This conversation link is invalid.');
       setLoading(false);
+      return;
     }
-  }, [conversationId, getToken]);
 
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+    const routeChanged = loadedConversationId.current !== conversationId;
+    if (routeChanged) {
+      // Conversation state is private to its route. Clear it before the next
+      // request begins so a partial failure can never render person A's
+      // messages beneath person B's name.
+      setLoading(true);
+      setConversation(null);
+      setMessages([]);
+      setBody('');
+      setHasOlder(true);
+      setLoadingOlder(false);
+      setSending(false);
+      setManaging(false);
+      setError(null);
+      lastMarkedMessageId.current = null;
+    }
+
+    const requestId = ++requestVersion.current;
+    const [detailResult, messagesResult] = await Promise.allSettled([
+      fetchDmConversation(conversationId, getToken),
+      fetchDmMessages(conversationId, { limit: PAGE_SIZE }, getToken),
+    ]);
+    if (requestId !== requestVersion.current) return;
+    if (detailResult.status === 'fulfilled') {
+      setConversation(detailResult.value);
+      loadedConversationId.current = conversationId;
+    } else if (routeChanged) {
+      setConversation(null);
+    }
+
+    if (messagesResult.status === 'fulfilled') {
+      const page = messagesResult.value;
+      loadedConversationId.current = conversationId;
+      setMessages((current) => routeChanged ? page : mergeDmMessages(current, page));
+      setHasOlder(page.length === PAGE_SIZE);
+
+      const newestIncoming = page.find((message) => message.senderId !== userId);
+      if (newestIncoming && newestIncoming.id !== lastMarkedMessageId.current) {
+        lastMarkedMessageId.current = newestIncoming.id;
+        void markDmConversationRead(conversationId, getToken).catch(() => {
+          if (lastMarkedMessageId.current === newestIncoming.id) {
+            lastMarkedMessageId.current = null;
+          }
+        });
+      }
+    }
+
+    const failure = detailResult.status === 'rejected'
+      ? detailResult.reason
+      : messagesResult.status === 'rejected'
+        ? messagesResult.reason
+        : null;
+    setError(
+      failure
+        ? isCommunityDmApiError(failure)
+          ? failure.message
+          : 'This conversation could not be loaded.'
+        : null,
+    );
+    setLoading(false);
+  }, [conversationId, getToken, userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+      if (!conversationId) {
+        void load();
+        return () => {
+          active = false;
+          requestVersion.current += 1;
+        };
+      }
+      const refresh = async () => {
+        await load();
+        if (active) refreshTimer = setTimeout(() => void refresh(), REFRESH_INTERVAL_MS);
+      };
+      void refresh();
+      return () => {
+        active = false;
+        if (refreshTimer) clearTimeout(refreshTimer);
+        requestVersion.current += 1;
+      };
+    }, [conversationId, load]),
+  );
 
   const loadOlder = useCallback(async () => {
-    if (!hasOlder || loadingOlder || messages.length === 0) return;
+    if (!hasOlder || loadingOlderLock.current || messages.length === 0) return;
     const oldest = messages[messages.length - 1];
+    const requestId = requestVersion.current;
+    const activeConversationId = conversationId;
+    loadingOlderLock.current = true;
     setLoadingOlder(true);
     try {
       const page = await fetchDmMessages(
@@ -81,49 +173,82 @@ export default function DirectMessageScreen() {
         { before: oldest.createdAt, beforeId: oldest.id, limit: PAGE_SIZE },
         getToken,
       );
-      setMessages((current) => [...current, ...page.filter((row) => !current.some((item) => item.id === row.id))]);
+      if (
+        requestId !== requestVersion.current ||
+        activeConversationId !== loadedConversationId.current
+      ) return;
+      setMessages((current) => mergeDmMessages(current, page));
       setHasOlder(page.length === PAGE_SIZE);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Older messages could not be loaded.');
+      if (
+        requestId === requestVersion.current &&
+        activeConversationId === loadedConversationId.current
+      ) {
+        setError(isCommunityDmApiError(caught) ? caught.message : 'Older messages could not be loaded.');
+      }
     } finally {
-      setLoadingOlder(false);
+      loadingOlderLock.current = false;
+      if (requestId === requestVersion.current) setLoadingOlder(false);
     }
-  }, [conversationId, getToken, hasOlder, loadingOlder, messages]);
+  }, [conversationId, getToken, hasOlder, messages]);
 
   const send = useCallback(async () => {
     const text = body.trim();
-    if (!text || sending || !conversation) return;
+    if (!text || sendingLock.current || !conversation) return;
+    const requestId = requestVersion.current;
+    const activeConversationId = conversation.id;
+    sendingLock.current = true;
     setSending(true);
     setError(null);
     try {
-      const message = await sendDmMessage(conversation.id, text, getToken);
-      setMessages((current) => [message, ...current.filter((row) => row.id !== message.id)]);
+      const message = await sendDmMessage(activeConversationId, text, getToken);
+      if (
+        requestId !== requestVersion.current ||
+        activeConversationId !== loadedConversationId.current
+      ) return;
+      setMessages((current) => mergeDmMessages(current, [message]));
       setBody('');
-      void markDmConversationRead(conversation.id, getToken).catch(() => undefined);
+      void markDmConversationRead(activeConversationId, getToken).catch(() => undefined);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Your message could not be sent.');
+      if (
+        requestId === requestVersion.current &&
+        activeConversationId === loadedConversationId.current
+      ) {
+        setError(isCommunityDmApiError(caught) ? caught.message : 'Your message could not be sent.');
+      }
     } finally {
-      setSending(false);
+      sendingLock.current = false;
+      if (requestId === requestVersion.current) setSending(false);
     }
-  }, [body, conversation, getToken, sending]);
+  }, [body, conversation, getToken]);
 
   const hide = useCallback(async () => {
-    if (!conversation) return;
+    if (!conversation || managingLock.current) return;
+    managingLock.current = true;
+    setManaging(true);
     try {
       await hideDmConversation(conversation.id, getToken);
       router.replace('/discussions/chats' as never);
     } catch (caught) {
       setError(isCommunityDmApiError(caught) ? caught.message : 'Could not remove this conversation.');
+    } finally {
+      managingLock.current = false;
+      setManaging(false);
     }
   }, [conversation, getToken, router]);
 
   const block = useCallback(async () => {
-    if (!conversation) return;
+    if (!conversation || managingLock.current) return;
+    managingLock.current = true;
+    setManaging(true);
     try {
       await blockDmUser(conversation.otherUser.userId, getToken);
       router.replace('/discussions/chats' as never);
     } catch (caught) {
       setError(isCommunityDmApiError(caught) ? caught.message : 'Could not block this member.');
+    } finally {
+      managingLock.current = false;
+      setManaging(false);
     }
   }, [conversation, getToken, router]);
 
@@ -151,8 +276,10 @@ export default function DirectMessageScreen() {
     <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel="Conversation options"
+      accessibilityState={{ disabled: managing, busy: managing }}
+      disabled={managing}
       onPress={openMenu}
-      style={[styles.headerAction, { backgroundColor: colors.muted }]}
+      style={[styles.headerAction, { backgroundColor: colors.muted, opacity: managing ? 0.5 : 1 }]}
     >
       <MoreHorizontal size={20} color={colors.foreground} />
     </AnimatedPressable>
@@ -175,23 +302,30 @@ export default function DirectMessageScreen() {
           <AnimatedPressable onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.accent }]}><Text style={styles.retryText}>Try again</Text></AnimatedPressable>
         </View>
       ) : (
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
           {!!error && <Text accessibilityLiveRegion="polite" style={[styles.inlineError, { color: colors.error, backgroundColor: `${colors.error}12` }]}>{error}</Text>}
-          <FlatList
-            testID="dm-message-list"
-            data={messages}
-            inverted
-            keyExtractor={(item) => item.id}
-            keyboardDismissMode="interactive"
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.messages}
-            onEndReached={() => void loadOlder()}
-            onEndReachedThreshold={0.25}
-            ListFooterComponent={loadingOlder ? <ActivityIndicator style={styles.olderLoader} color={colors.accent} /> : null}
-            renderItem={({ item }) => (
-              <MessageRow message={item} mine={item.senderId === userId} />
-            )}
-          />
+          {messages.length === 0 ? (
+            <View testID="dm-empty-messages" style={styles.emptyMessages}>
+              <Text style={[styles.emptyMessagesTitle, { color: colors.foreground }]}>Start the conversation</Text>
+              <Text style={[styles.emptyMessagesBody, { color: colors.textSecondary }]}>Send a message below. Only you and {conversation.otherUser.displayName} can see it.</Text>
+            </View>
+          ) : (
+            <FlatList
+              testID="dm-message-list"
+              data={messages}
+              inverted
+              keyExtractor={(item) => item.id}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.messages}
+              onEndReached={() => void loadOlder()}
+              onEndReachedThreshold={0.25}
+              ListFooterComponent={loadingOlder ? <ActivityIndicator style={styles.olderLoader} color={colors.accent} /> : null}
+              renderItem={({ item }) => (
+                <MessageRow message={item} mine={item.senderId === userId} />
+              )}
+            />
+          )}
           {conversation.blocked ? (
             <View style={[styles.blockedDock, { borderTopColor: colors.border }]}>
               <Text style={[styles.blockedText, { color: colors.textSecondary }]}>New messages are unavailable because one of you blocked the other.</Text>
@@ -275,10 +409,13 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   time: { marginTop: 3, alignSelf: 'flex-end', fontSize: 10 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'flex-end', gap: 9, paddingHorizontal: 12, paddingVertical: 10 },
-  inputWrap: { flex: 1 },
+  inputWrap: { flex: 1, gap: 3 },
   input: { maxHeight: 120, minHeight: 46, borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingTop: 11, paddingBottom: 10, fontSize: 15, lineHeight: 20 },
-  counter: { position: 'absolute', right: 10, bottom: -17, fontSize: 10 },
+  counter: { alignSelf: 'flex-end', marginRight: 8, fontSize: 10 },
   send: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   blockedDock: { borderTopWidth: StyleSheet.hairlineWidth, padding: 14 },
   blockedText: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  emptyMessages: { flex: 1, minHeight: 240, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  emptyMessagesTitle: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  emptyMessagesBody: { marginTop: 6, fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });

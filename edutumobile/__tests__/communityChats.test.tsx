@@ -127,7 +127,7 @@ beforeEach(async () => {
   mockFetchGroups.mockResolvedValue([]);
   mockFetchDmConversations.mockResolvedValue([]);
   mockFetchDmRequests.mockResolvedValue([]);
-  mockAcceptDmRequest.mockResolvedValue({ id: 'request-1', status: 'accepted' });
+  mockAcceptDmRequest.mockResolvedValue({ id: 'accepted-dm-1', status: 'accepted' });
   mockDeclineDmRequest.mockResolvedValue({ success: true });
   mockBlockDmUser.mockResolvedValue({ success: true });
   mockHideDmConversation.mockResolvedValue({ success: true });
@@ -205,7 +205,20 @@ describe('Community chats inbox', () => {
 
     fireEvent.press(screen.getByLabelText("Accept Tobi's message request"));
     await waitFor(() => expect(mockAcceptDmRequest).toHaveBeenCalledWith('request-1', mockGetToken));
-    expect(mockPush).toHaveBeenCalledWith('/discussions/dm/request-1');
+    expect(mockPush).toHaveBeenCalledWith('/discussions/dm/accepted-dm-1');
+  });
+
+  it('keeps healthy inbox sections visible when one conversation source fails', async () => {
+    mockFetchGroups.mockResolvedValue([
+      row('active', 'Scholarship circle', 'active', '2026-08-01T10:00:00.000Z'),
+    ]);
+    mockFetchDmConversations.mockRejectedValue(new Error('temporary DM outage'));
+
+    const screen = render(<CommunityChatsScreen />);
+
+    await waitFor(() => screen.getByTestId('chat-row-active'));
+    expect(screen.getByTestId('chats-inline-error')).toBeTruthy();
+    expect(screen.queryByText('Conversations unavailable')).toBeNull();
   });
 
   it('exposes the swipe-remove action to assistive technology and hides only this inbox row', async () => {

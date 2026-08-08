@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -34,44 +34,68 @@ export default function NewDirectMessageScreen() {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const sendingLock = useRef(false);
 
   const loadRelationship = useCallback(async () => {
+    const requestId = ++requestVersion.current;
+    setRelationship(undefined);
+    setRelationshipError(null);
     if (!recipientId) {
-      setError('This community member is unavailable.');
+      setRelationshipError('This community member is unavailable.');
       setRelationship(null);
       return;
     }
     try {
       const result = await fetchDmRelationship(recipientId, getToken);
+      if (requestId !== requestVersion.current) return;
       if (result?.status === 'accepted' && result.conversationId) {
         router.replace(`/discussions/dm/${result.conversationId}` as never);
         return;
       }
       setRelationship(result);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Messages are unavailable right now.');
+      if (requestId !== requestVersion.current) return;
+      setRelationshipError(isCommunityDmApiError(caught) ? caught.message : 'Messages are unavailable right now.');
       setRelationship(null);
     }
   }, [getToken, recipientId, router]);
 
   useEffect(() => {
     void Promise.resolve().then(loadRelationship);
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [loadRelationship]);
 
   const send = useCallback(async () => {
     const message = body.trim();
-    if (!recipientId || !message || sending) return;
+    if (!recipientId || !message || sendingLock.current) return;
+    const requestId = requestVersion.current;
+    const activeRecipientId = recipientId;
+    sendingLock.current = true;
     setSending(true);
     setError(null);
     try {
-      await createDmRequest(recipientId, message, getToken);
+      await createDmRequest(activeRecipientId, message, getToken);
+      if (
+        requestId !== requestVersion.current ||
+        activeRecipientId !== recipientId
+      ) return;
       router.replace('/discussions/chats' as never);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Your request could not be sent.');
+      if (
+        requestId === requestVersion.current &&
+        activeRecipientId === recipientId
+      ) {
+        setError(isCommunityDmApiError(caught) ? caught.message : 'Your request could not be sent.');
+      }
     } finally {
-      setSending(false);
+      sendingLock.current = false;
+      if (requestId === requestVersion.current) setSending(false);
     }
-  }, [body, getToken, recipientId, router, sending]);
+  }, [body, getToken, recipientId, router]);
 
   const pending = relationship?.status === 'pending';
   const unavailable = relationship?.blocked || relationship?.status === 'declined';
@@ -81,6 +105,19 @@ export default function NewDirectMessageScreen() {
       <ScreenHeader title={`Message ${name}`} showBack />
       {relationship === undefined ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
+      ) : relationshipError ? (
+        <View style={styles.centerState}>
+          <ShieldOff size={34} color={colors.textSecondary} />
+          <Text style={[styles.stateTitle, { color: colors.foreground }]}>Messages unavailable</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.stateBody, { color: colors.textSecondary }]}>{relationshipError}</Text>
+          <AnimatedPressable
+            accessibilityRole="button"
+            onPress={recipientId ? () => void loadRelationship() : () => router.replace('/discussions/chats' as never)}
+            style={[styles.primary, { backgroundColor: colors.accent }]}
+          >
+            <Text style={styles.primaryText}>{recipientId ? 'Try again' : 'Back to Chats'}</Text>
+          </AnimatedPressable>
+        </View>
       ) : pending || unavailable ? (
         <View style={styles.centerState}>
           {unavailable ? <ShieldOff size={34} color={colors.textSecondary} /> : <Mail size={34} color={colors.accent} />}
@@ -101,7 +138,7 @@ export default function NewDirectMessageScreen() {
           )}
         </View>
       ) : (
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.content}>
             <View style={[styles.notice, { backgroundColor: colors.muted }]}>
               <MessageCircle size={21} color={colors.accent} />
