@@ -1,5 +1,12 @@
 import React, { forwardRef } from 'react';
-import { ViewStyle, StyleProp, View, PressableProps, Pressable as RNPressable , TouchableOpacityProps } from 'react-native';
+import {
+    ViewStyle,
+    StyleProp,
+    View,
+    PressableProps,
+    Pressable as RNPressable,
+    TouchableOpacityProps,
+} from 'react-native';
 import Animated, {
     BaseAnimationBuilder,
     EntryExitAnimationFunction,
@@ -28,8 +35,21 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
     entering?: BaseAnimationBuilder | EntryExitAnimationFunction;
 }
 
+const ReanimatedPressable = Animated.createAnimatedComponent(RNPressable);
+
 export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
-    function AnimatedPressable({ style, hapticFeedback = 'light', scaleTo = 0.96, disabled, onPress, children, entering, ...rest }, ref) {
+    function AnimatedPressable({
+        style,
+        hapticFeedback = 'light',
+        scaleTo = 0.96,
+        disabled,
+        onPress,
+        onPressIn,
+        onPressOut,
+        children,
+        entering,
+        ...rest
+    }, ref) {
         const scale = useSharedValue(1);
 
         const animatedStyle = useAnimatedStyle(() => ({
@@ -42,55 +62,30 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
             haptics[hapticFeedback]();
         };
 
-        if (entering) {
-            return (
-                <Animated.View
-                    ref={ref}
-                    style={style}
-                    entering={entering}
-                >
-                    <Animated.View style={[animatedStyle, { flex: 1 }]}>
-                        <RNPressable
-                            style={{ flex: 1 }}
-                            disabled={disabled}
-                            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                            onPressIn={() => { scale.value = withSpring(scaleTo, { damping: 12, stiffness: 400 }); }}
-                            // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                            onPressOut={() => { scale.value = withSpring(1, { damping: 12, stiffness: 400 }); }}
-                            onPress={(e) => {
-                                triggerHaptic();
-                                onPress?.(e);
-                            }}
-                            {...rest}
-                        >
-                            {children}
-                        </RNPressable>
-                    </Animated.View>
-                </Animated.View>
-            );
-        }
-
         return (
-            <Animated.View
+            <ReanimatedPressable
                 ref={ref}
                 style={[animatedStyle, style]}
+                entering={entering}
+                disabled={disabled}
+                {...rest}
+                onPressIn={(event) => {
+                    // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+                    scale.value = withSpring(scaleTo, { damping: 12, stiffness: 400 });
+                    onPressIn?.(event);
+                }}
+                onPressOut={(event) => {
+                    // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
+                    scale.value = withSpring(1, { damping: 12, stiffness: 400 });
+                    onPressOut?.(event);
+                }}
+                onPress={(event) => {
+                    triggerHaptic();
+                    onPress?.(event);
+                }}
             >
-                <RNPressable
-                    style={{ flex: 1 }}
-                    disabled={disabled}
-                    // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    onPressIn={() => { scale.value = withSpring(scaleTo, { damping: 12, stiffness: 400 }); }}
-                    // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    onPressOut={() => { scale.value = withSpring(1, { damping: 12, stiffness: 400 }); }}
-                    onPress={(e) => {
-                        triggerHaptic();
-                        onPress?.(e);
-                    }}
-                    {...rest}
-                >
-                    {children}
-                </RNPressable>
-            </Animated.View>
+                {children}
+            </ReanimatedPressable>
         );
     }
 );
