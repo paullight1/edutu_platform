@@ -12,6 +12,7 @@ const mockUseInAppUpdatePrompt = jest.fn();
 const mockRecordOpportunitySignal = jest.fn();
 const mockNotificationHaptic = jest.fn();
 const mockRefresh = jest.fn();
+const mockFetchOpportunityDeadlines = jest.fn();
 const mockUnreadCount = 2;
 
 let mockAuthState: {
@@ -20,7 +21,7 @@ let mockAuthState: {
   getToken: jest.Mock;
   userId?: string | null;
 };
-let mockUserState: { user: { id: string; unsafeMetadata?: { onboardingComplete?: boolean } } | null };
+let mockUserState: { user: { id: string; firstName?: string; fullName?: string; imageUrl?: string; unsafeMetadata?: { onboardingComplete?: boolean } } | null };
 let mockPathname = '/';
 let mockSegments = ['(app)', 'index'];
 let mockGlobalSearchParams: Record<string, string | string[]> = {};
@@ -172,12 +173,23 @@ jest.mock('@edutu/core/src/hooks/useNotifications', () => ({
   }),
 }), { virtual: true });
 
+jest.mock('@edutu/core/src/hooks/useProStatus', () => ({
+  useProStatus: () => ({ isPro: true, isLoading: false }),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/services/deadlines', () => ({
+  fetchOpportunityDeadlines: (...args: unknown[]) => mockFetchOpportunityDeadlines(...args),
+}), { virtual: true });
+
 jest.mock('@edutu/core/src/hooks/useOpportunities', () => ({
   useOpportunities: () => ({
     data: mockOpportunitiesData,
     loading: mockOpportunitiesLoading,
     refresh: mockRefresh,
   }),
+}), { virtual: true });
+jest.mock('@edutu/core/src/hooks/useGoals', () => ({
+  useGoals: () => ({ goals: [], isLoading: false }),
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/utils/auth', () => ({
@@ -274,6 +286,12 @@ describe('mobile app shell and home dashboard', () => {
     mockRecordOpportunitySignal.mockClear();
     mockNotificationHaptic.mockClear();
     mockRefresh.mockClear();
+    mockFetchOpportunityDeadlines.mockReset();
+    mockFetchOpportunityDeadlines.mockResolvedValue([
+      { opportunityId: 'deadline-1', daysRemaining: 2 },
+      { opportunityId: 'deadline-2', daysRemaining: 6 },
+      { opportunityId: 'later', daysRemaining: 12 },
+    ]);
     mockAuthState = {
       isLoaded: true,
       isSignedIn: false,
@@ -301,18 +319,50 @@ describe('mobile app shell and home dashboard', () => {
       getToken: jest.fn().mockResolvedValue('token'),
       userId: 'user-1',
     };
-    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockUserState = { user: { id: 'user-1', firstName: 'Amara', fullName: 'Amara Okafor', imageUrl: 'https://example.com/amara.jpg', unsafeMetadata: { onboardingComplete: true } } };
 
-    const { getAllByText, getByText, getByLabelText } = render(<AppLayout />);
+    const { getAllByText, getByText, getByLabelText, getByTestId } = render(<AppLayout />);
 
     await waitFor(() => expect(getAllByText('Home').length).toBeGreaterThan(0));
-    expect(getByText('Discover')).toBeTruthy();
+    expect(String(getByTestId('home-header-greeting').props.children)).toContain('Amara');
+    await waitFor(() => expect(getByText('2 deadlines this week')).toBeTruthy());
+    expect(getByTestId('home-header-verified')).toBeTruthy();
+    expect(getByText('Groups')).toBeTruthy();
+    expect(getByText('Explore')).toBeTruthy();
     expect(getByText('Plan')).toBeTruthy();
-    expect(getByText('Me')).toBeTruthy();
+    expect(getByText('More')).toBeTruthy();
     expect(getByLabelText('Open Edutu AI')).toBeTruthy();
+
+    fireEvent.press(getByText('Groups'));
+    expect(mockPush).toHaveBeenCalledWith('/discussions');
+
+    fireEvent.press(getByLabelText('Open menu'));
+    expect(getByTestId('feature-menu-underlay')).toBeTruthy();
+    expect(getByTestId('feature-menu-page-dismiss', { includeHiddenElements: true })).toBeTruthy();
   });
 
-  it('renders the home dashboard with discovery and quick-action routes', async () => {
+  it('opens Community with Explore, Groups and Chats in its dedicated bottom nav', async () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = '/discussions/chats';
+
+    const { getByLabelText, getByTestId, queryByTestId } = render(<AppLayout />);
+
+    await waitFor(() => expect(getByTestId('community-navigation')).toBeTruthy());
+    expect(getByLabelText('Explore')).toBeTruthy();
+    expect(getByLabelText('Groups')).toBeTruthy();
+    expect(getByLabelText('Chats')).toBeTruthy();
+    expect(getByTestId('community-profile-shortcut')).toBeTruthy();
+    expect(queryByTestId('nav-pill-surface')).toBeNull();
+    expect(queryByTestId('nav-bar-surface')).toBeNull();
+  });
+
+  it('renders the streamlined home dashboard without the relocated quick actions', async () => {
     mockAuthState = {
       isLoaded: true,
       isSignedIn: true,
@@ -321,11 +371,12 @@ describe('mobile app shell and home dashboard', () => {
     };
     mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
 
-    const { getAllByText, getByText } = render(<Dashboard />);
+    const { getAllByText, getByText, queryByText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Explore opportunities')).toBeTruthy());
-    expect(getByText('Quick Actions')).toBeTruthy();
-    expect(getByText('Featured Opportunities')).toBeTruthy();
+    expect(queryByText('Quick Actions')).toBeNull();
+    expect(queryByText('Continue your progress')).toBeNull();
+    expect(getByText('Best matches for you')).toBeTruthy();
     expect(getByText('Recommended Opportunities')).toBeTruthy();
     expect(getAllByText('Global Fellowship').length).toBeGreaterThan(0);
     expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
@@ -333,7 +384,5 @@ describe('mobile app shell and home dashboard', () => {
     fireEvent.press(getByText('Programs'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
 
-    fireEvent.press(getByText('Roadmaps'));
-    expect(mockPush).toHaveBeenCalledWith('/roadmaps');
   });
 });

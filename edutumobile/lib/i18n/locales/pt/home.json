@@ -1,9 +1,10 @@
 {
   "tabs": {
     "home": "Início",
-    "discover": "Descobrir",
+    "chats": "Conversas",
+    "explore": "Explorar",
     "plan": "Planejar",
-    "me": "Eu",
+    "more": "Mais",
     "openEdutuAi": "Abrir Edutu AI",
     "badgeOverflow": "99+",
     "holdForVoice": "Segure para o modo de voz",

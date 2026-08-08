@@ -4,11 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import {
-    Star,
     ChevronRight,
     Target,
-    FileText,
-    Store,
     BookmarkPlus,
     Share2,
     MapPin,
@@ -18,12 +15,11 @@ import {
     Minus,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
-import { SceneRenderer, StateView, useStateTokens } from '../../components/state';
+import { SceneRenderer, StateView } from '../../components/state';
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
     FadeIn,
     FadeInDown,
-    FadeInUp,
     FadeOut,
     runOnJS,
     useAnimatedStyle,
@@ -64,9 +60,17 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from "../../lib/discoveryTileGlyphs";
 import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { HomeBlocks } from "../../components/home/HomeBlocks";
-import { CommunityHomePreview } from "../../components/home/CommunityHomePreview";
 import { useTranslation } from "react-i18next";
 import { sceneForState } from "@edutu/ux-state/scenes";
+import {
+    createOpportunityRotationSeed,
+    rotateOpportunityFeed,
+} from "../../lib/opportunityFeedRotation";
+import {
+    getRecentlyOpenedOpportunity,
+    subscribeToRecentlyOpenedOpportunity,
+    type RecentlyOpenedOpportunity,
+} from "../../lib/recentlyOpenedOpportunity";
 
 const navScroll = createNavScrollHandler();
 const { width } = Dimensions.get('window');
@@ -105,15 +109,6 @@ const EDITOR_TILE_SIZE_STEPS: Array<{ size: DiscoveryTileSize; width: number }> 
 // How far past the narrowest/widest step the finger can stretch a tile —
 // gives the drag an elastic end-stop instead of a hard wall.
 const RESIZE_OVERDRAG = 14;
-
-// ─── Quick Actions Grid Component ─────────────────────────────────────────────
-// `title` holds an i18n key (home namespace); translated at render time.
-const QUICK_ACTIONS = [
-    { id: '2', title: 'home.quickActions.roadmaps', icon: Store, route: '/roadmaps', gradient: ['#F59E0B', '#EF4444'] as [string, string] },
-    { id: '3', title: 'home.quickActions.goals', icon: Target, route: '/goals', gradient: ['#10B981', '#059669'] as [string, string] },
-    { id: '4', title: 'home.quickActions.cvBuilder', icon: FileText, route: '/cv', gradient: ['#3B82F6', '#6366F1'] as [string, string] },
-    { id: '5', title: 'home.quickActions.saved', icon: BookmarkPlus, route: '/saved', gradient: ['#EC4899', '#F43F5E'] as [string, string] },
-];
 
 function getUserLookupIds(userId: string): string[] {
     return Array.from(new Set([userId, toSafeUUID(userId)]));
@@ -721,34 +716,6 @@ function HomeCategoriesEditor({
     );
 }
 
-function QuickActionsGrid({ router }: { router: any }) {
-    const { t } = useTranslation('home');
-    return (
-        <View style={styles.quickActionsContainer}>
-            {QUICK_ACTIONS.map((item, index) => (
-                <AnimatedPressable
-                    key={item.id}
-                    onPress={() => router.push(item.route)}
-                    style={styles.quickActionCard}
-                    entering={FadeInUp.delay(100 + index * 80).duration(400).springify()}
-                    hapticFeedback="medium"
-                    scaleTo={0.92}
-                >
-                    <LinearGradient
-                        colors={item.gradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.quickActionGradient}
-                    >
-                        <item.icon size={28} color="#FFFFFF" strokeWidth={1.5} />
-                    </LinearGradient>
-                    <Text style={styles.quickActionTitle}>{t(item.title)}</Text>
-                </AnimatedPressable>
-            ))}
-        </View>
-    );
-}
-
 // ─── Opportunity Card Component ─────────────────────────────────────────────
 function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#6366F1', onPress, onBookmark, onShare, onNotInterested, bookmarked = false, horizontal = false, index = 0 }: {
     item: Opportunity;
@@ -929,7 +896,7 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
     const imageUri = imageFailed ? undefined : item.image ?? undefined;
     const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
     const deadlineColor = deadlineBadge.level === 'none' ? '#CBD5E1' : urgencyColor(deadlineBadge.level);
-    const matchPct = Math.round(item.match ?? 0);
+    const matchPct = bestShotScore(item);
     const category = (item.category ?? '').trim();
     const orgLabel = (item.organization ?? '').trim();
     const locationLabel = item.isRemote ? t('opportunityCard.remote') : (item.location ?? '').trim();
@@ -971,10 +938,10 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
                 </View>
             </View>
             <View style={[styles.posterBottom, hero && styles.posterBottomHero]}>
-                {matchPct >= 40 && (
+                {matchPct > 0 && (
                     <View style={styles.posterMatchBadge}>
                         <Target size={8} color="#C7D2FE" strokeWidth={2.6} />
-                        <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{t('opportunityCard.' + MATCH_TIER_KEY[getMatchTier(matchPct)])}</Text>
+                        <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{matchPct}% match</Text>
                     </View>
                 )}
                 <Text style={hero ? styles.posterTitleHero : styles.posterTitle} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.title}</Text>
@@ -1027,55 +994,6 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
     );
 }
 
-// Shown when no opportunity is featured yet, so the section keeps its place
-// instead of vanishing from the home screen.
-function FeaturedEmptyState({ onPress }: { onPress?: () => void }) {
-    const { t } = useTranslation('home');
-    const stateTokens = useStateTokens('flow');
-    return (
-        <AnimatedPressable
-            onPress={onPress}
-            style={[styles.featuredEmptyCard, {
-                backgroundColor: stateTokens.wash,
-                borderColor: stateTokens.ring,
-            }]}
-            entering={FadeInDown.duration(360).springify()}
-            hapticFeedback="light"
-            scaleTo={0.98}
-        >
-            {/* Layout MUST live on this inner row: AnimatedPressable puts the
-                card `style` on its outer wrapper but nests children in flex:1
-                column views, so flexDirection on the card style is ignored. */}
-            <View style={styles.featuredEmptyRow}>
-                {/* An inline-stage scene, not a hero one: this is a 56px row
-                    and a hero scene here would dwarf the copy beside it. */}
-                <SceneRenderer scene="emptyDiscovery" size={56} />
-                <View style={styles.featuredEmptyBody}>
-                    <Text
-                        style={[styles.featuredEmptyTitle, { color: stateTokens.title }]}
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={1.3}
-                    >
-                        {t('featured.emptyTitle', { defaultValue: 'Featured picks coming soon' })}
-                    </Text>
-                    <Text
-                        style={[styles.featuredEmptyHint, { color: stateTokens.body }]}
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={1.3}
-                    >
-                        {t('featured.emptyHint', { defaultValue: 'Explore all opportunities' })}
-                    </Text>
-                </View>
-                {/* Chevron affordance only — the whole card is the tap target, so a
-                    labelled "Explore" button would be a redundant second action. */}
-                <View style={[styles.featuredEmptyChevron, { backgroundColor: stateTokens.wash }]}>
-                    <ChevronRight size={18} color={stateTokens.hue} />
-                </View>
-            </View>
-        </AnimatedPressable>
-    );
-}
-
 function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onShare, getAuthToken }: {
     data: Opportunity[];
     isDark: boolean;
@@ -1120,7 +1038,7 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
         return (
             <ImpressionView
                 opportunityId={item.id}
-                surface="home_featured"
+                surface="home_best_for_you"
                 position={0}
                 getAuthToken={getAuthToken}
             >
@@ -1156,7 +1074,7 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
                 renderItem={({ item, index }) => (
                     <ImpressionView
                         opportunityId={item.id}
-                        surface="home_featured"
+                        surface="home_best_for_you"
                         position={index}
                         getAuthToken={getAuthToken}
                     >
@@ -1191,10 +1109,13 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
     );
 }
 
-// ─── Your Best Shots ─────────────────────────────────────────────────────────
-// The product thesis as a UX object: not an infinite feed, but the max-3
-// opportunities the user is genuinely competitive for (match >= 60).
+// ─── Best matches for you ────────────────────────────────────────────────────
+// Keep this focused: the strongest three profile-ranked opportunities belong
+// here while the broader feed remains available in Recommended Opportunities.
 const BEST_SHOT_MIN_MATCH = 60;
+const HOME_BEST_MATCH_LIMIT = 3;
+const HOME_FEATURED_SUPPLEMENT_LIMIT = 1;
+const HOME_RECOMMENDED_RESERVE_LIMIT = 4;
 const BEST_SHOT_CARD_WIDTH = Math.min(Math.round(width * 0.72), 290);
 
 // Reason kinds that only establish *eligibility* (you're allowed to apply)
@@ -1225,7 +1146,7 @@ function hasSubstantiveMatch(o: Opportunity): boolean {
     return details.some((d) => !ELIGIBILITY_ONLY_REASON_KINDS.has(d.kind));
 }
 
-function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index = 0 }: {
+function _BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index = 0 }: {
     item: Opportunity;
     isDark: boolean;
     textPrimary: string;
@@ -1233,7 +1154,7 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     onPress?: () => void;
     index?: number;
 }) {
-    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
+    const deadlineBadge = getDeadlineBadge(item.deadline);
     const deadlineColor = deadlineBadge.level === 'none'
         ? textSecondary
         : urgencyColor(deadlineBadge.level);
@@ -1347,7 +1268,7 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
         ? "No strong match yet. Browse all opportunities."
-        : "Complete your profile to unlock your best shots";
+        : "Complete your profile to unlock your best matches";
 
     return (
         <AnimatedPressable
@@ -1393,24 +1314,31 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
     );
 }
 
-function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile, onBrowse, getAuthToken }: {
-    bestShots: Opportunity[];
+function BestForYouSection({ items, loading, profileComplete, isDark, textPrimary, textSecondary, bookmarkedIds, onOpen, onBookmark, onShare, onCompleteProfile, onBrowse, getAuthToken }: {
+    items: Opportunity[];
     loading: boolean;
     profileComplete: boolean;
     isDark: boolean;
     textPrimary: string;
     textSecondary: string;
+    bookmarkedIds: string[];
     onOpen: (item: Opportunity) => void;
+    onBookmark: (id: string) => void;
+    onShare: (item: Opportunity) => void;
     onCompleteProfile: () => void;
     onBrowse: () => void;
     getAuthToken?: () => Promise<string | null | undefined>;
 }) {
     // While the feed is still loading, don't flash the empty state — wait for
     // real data before rendering anything.
-    if (loading && bestShots.length === 0) return null;
+    if (loading && items.length === 0) return null;
 
     return (
-        <Animated.View entering={FadeInDown.duration(400).delay(80)} style={styles.sectionSpacing}>
+        <Animated.View
+            entering={FadeInDown.duration(400).delay(80)}
+            style={styles.sectionSpacing}
+            testID="best-matches-section"
+        >
             <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleGroup}>
                     <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
@@ -1418,38 +1346,37 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                            Your best shots
+                            Best matches for you
+                        </Text>
+                        <Text style={[styles.sectionSubtitle, { color: textSecondary }]} numberOfLines={1}>
+                            {profileComplete ? 'Ranked from your profile' : 'Complete your profile for sharper matches'}
                         </Text>
                     </View>
                 </View>
+                {items.length > 0 ? (
+                    <AnimatedPressable
+                        onPress={onBrowse}
+                        style={styles.viewMorePill}
+                        hapticFeedback="light"
+                        scaleTo={0.9}
+                        accessibilityLabel="See all opportunities"
+                    >
+                        <View style={styles.viewMorePillInner}>
+                            <ChevronRight size={18} color="#6366F1" />
+                        </View>
+                    </AnimatedPressable>
+                ) : null}
             </View>
-            {bestShots.length > 0 ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.bestShotRail}
-                    snapToInterval={BEST_SHOT_CARD_WIDTH + CARD_GAP}
-                    decelerationRate="fast"
-                >
-                    {bestShots.map((item, idx) => (
-                        <ImpressionView
-                            key={item.id}
-                            opportunityId={item.id}
-                            surface="home_best_shots"
-                            position={idx}
-                            getAuthToken={getAuthToken}
-                        >
-                            <BestShotCard
-                                item={item}
-                                isDark={isDark}
-                                textPrimary={textPrimary}
-                                textSecondary={textSecondary}
-                                index={idx}
-                                onPress={() => onOpen(item)}
-                            />
-                        </ImpressionView>
-                    ))}
-                </ScrollView>
+            {items.length > 0 ? (
+                <FeaturedCarousel
+                    data={items}
+                    isDark={isDark}
+                    bookmarkedIds={bookmarkedIds}
+                    onOpen={onOpen}
+                    onBookmark={onBookmark}
+                    onShare={onShare}
+                    getAuthToken={getAuthToken}
+                />
             ) : (
                 <BestShotEmptySlot
                     isDark={isDark}
@@ -1463,6 +1390,82 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
     );
 }
 
+type HomeFocusModel = {
+    title: string;
+    supporting: string;
+    route: string;
+    cta: string;
+    image: string | null;
+};
+
+function NextMoveCard({ model, isDark, onPress }: { model: HomeFocusModel; isDark: boolean; onPress: () => void }) {
+    const { t } = useTranslation('home');
+    const hasImage = Boolean(model.image);
+    return (
+        <AnimatedPressable
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Continue with ${model.title}. ${model.supporting}`}
+            style={styles.nextMoveCard}
+            testID="recent-opportunity-card"
+            entering={FadeInDown.duration(420).springify()}
+            hapticFeedback="light"
+            scaleTo={0.985}
+        >
+            <View
+                style={[
+                    styles.nextMoveFill,
+                    {
+                        backgroundColor: isDark ? '#102A59' : '#E7F1FF',
+                        borderColor: hasImage
+                            ? 'rgba(255,255,255,0.20)'
+                            : isDark ? 'rgba(56,189,248,0.42)' : 'rgba(37,99,235,0.22)',
+                    },
+                ]}
+            >
+                {hasImage ? (
+                    <Image
+                        source={{ uri: model.image ?? undefined }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                    />
+                ) : null}
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={hasImage
+                        ? ['rgba(3,8,20,0.94)', 'rgba(5,14,34,0.78)', 'rgba(5,14,34,0.42)']
+                        : isDark ? ['#17366F', '#102A59', '#151D45'] : ['#E7F1FF', '#EEF0FF', '#FFFFFF']}
+                    locations={[0, 0.58, 1]}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={StyleSheet.absoluteFill}
+                />
+                {!hasImage ? (
+                    <View style={styles.nextMoveArt} pointerEvents="none">
+                        <View style={[styles.nextMoveOrbit, { borderColor: isDark ? 'rgba(125,211,252,0.28)' : 'rgba(37,99,235,0.16)' }]} />
+                        <View style={[styles.nextMoveArtCore, { backgroundColor: isDark ? 'rgba(14,165,233,0.16)' : 'rgba(37,99,235,0.10)' }]}>
+                            <Target size={28} color={isDark ? '#7DD3FC' : '#2563EB'} strokeWidth={2.2} />
+                        </View>
+                    </View>
+                ) : null}
+                <Text style={[styles.nextMoveEyebrow, { color: hasImage || isDark ? '#7DD3FC' : '#2563EB' }]}>
+                    {t('home.nextMove', { defaultValue: 'YOUR NEXT MOVE' })}
+                </Text>
+                <Text style={[styles.nextMoveTitle, { color: hasImage || isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={2}>
+                    {model.title}
+                </Text>
+                <Text style={[styles.nextMoveSupporting, { color: hasImage || isDark ? '#FBBF24' : '#B45309' }]} numberOfLines={1}>
+                    {model.supporting}
+                </Text>
+                <View style={styles.nextMoveButton}>
+                    <Text style={styles.nextMoveButtonText}>{model.cta}</Text>
+                    <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.4} />
+                </View>
+            </View>
+        </AnimatedPressable>
+    );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
     const { t } = useTranslation('home');
@@ -1471,6 +1474,7 @@ export default function Dashboard() {
     const { getToken, isSignedIn } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const userId = user?.id;
 
     // Guests can open and share opportunities, but saving needs an account.
     const { isGuest } = useGuestMode();
@@ -1482,8 +1486,10 @@ export default function Dashboard() {
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
 
     const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+    const [recentlyOpenedOpportunity, setRecentlyOpenedOpportunity] = useState<RecentlyOpenedOpportunity | null>(null);
+    const [opportunityRotationSeed, setOpportunityRotationSeed] = useState(() => createOpportunityRotationSeed());
     const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
-    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(user?.id);
+    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(userId);
     const homeTileEntries = useMemo(
         () => homeTiles
             .map((tile) => ({ tile, category: getDiscoveryCategory(tile.id) }))
@@ -1493,9 +1499,9 @@ export default function Dashboard() {
 
     useEffect(() => {
         const fetchBookmarks = async () => {
-            if (!user) return;
+            if (!userId) return;
             try {
-                const lookupIds = getUserLookupIds(user.id);
+                const lookupIds = getUserLookupIds(userId);
                 const { data: bookmarks } = await supabase
                     .from('bookmarks')
                     .select('opportunity_id')
@@ -1508,22 +1514,26 @@ export default function Dashboard() {
             }
         };
         fetchBookmarks();
-    }, [user]);
+    }, [userId]);
 
     const syncOpportunityWidget = useCallback(async (freshOpportunities: Opportunity[]) => {
         await syncAndUpdateOpportunityWidgetSnapshot({
-            userId: user?.id,
+            userId,
             opportunities: freshOpportunities,
         });
-    }, [user?.id]);
+    }, [userId]);
 
     // Fetch real opportunities from API (already filtered by backend/core logic)
     const { data: opportunities, loading: opportunitiesLoading, refresh, noteDismissed } = useOpportunities({
         supabase,
-        userId: user?.id,
+        userId,
         getAuthToken: getToken,
         onSyncSnapshot: syncOpportunityWidget,
     });
+    const refreshOpportunities = useCallback(() => {
+        setOpportunityRotationSeed(createOpportunityRotationSeed());
+        refresh();
+    }, [refresh]);
 
     // Profile completeness drives the Best Shots empty state: an empty slot with
     // an incomplete profile means "we can't score you yet"; with a complete
@@ -1531,17 +1541,23 @@ export default function Dashboard() {
     // different messages.
     // Clerk metadata is onboarding's primary store; without it a fully
     // onboarded user reads as incomplete whenever the Supabase sync didn't land.
-    const { completeness: profileCompleteness } = useProfileCompleteness(
+    const { completeness: profileCompleteness, isLoading: profileLoading } = useProfileCompleteness(
         supabase,
-        user?.id ?? null,
+        userId ?? null,
         (user?.unsafeMetadata as Record<string, any> | undefined) ?? null,
     );
+    // `profilePending: false` is written only when onboarding was deliberately
+    // completed. Treat it as immediate evidence while the Supabase-backed
+    // completeness hook hydrates, so a finished user never sees an incorrect
+    // "complete your profile" state on first paint.
+    const profileReady = profileCompleteness.isComplete
+        || user?.unsafeMetadata?.profilePending === false;
 
     // "Not interested" target — long-press on a card opens the typed-reason
     // sheet; the chosen reason routes differently in the ranking engine.
     const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
 
-    const dismissUserId = user?.id;
+    const dismissUserId = userId;
     const handleDismissReason = useCallback((reason: DismissReason) => {
         const target = dismissTarget;
         setDismissTarget(null);
@@ -1550,26 +1566,38 @@ export default function Dashboard() {
         noteDismissed(target.id);
     }, [dismissTarget, dismissUserId, getToken, noteDismissed]);
 
-    // Your Best Shots — the winnable few (match >= 60). Computed here rather
-    // than inside BestShotsSection so the Recommended grid below can exclude
-    // these exact ids and the same card never shows up twice on the home screen.
-    const bestShots = useMemo(
+    // Rank the feed by profile fit rather than the fatigue-adjusted display
+    // score. A completed profile always gets its strongest available matches;
+    // the 60% confidence gate is only used while the profile is incomplete.
+    const rankedMatchCandidates = useMemo(
         () => opportunities
-            .filter(
-                (o) =>
-                    bestShotScore(o) >= BEST_SHOT_MIN_MATCH &&
-                    hasSubstantiveMatch(o),
-            )
-            .sort((a, b) => bestShotScore(b) - bestShotScore(a))
-            .slice(0, 3),
+            .filter(hasSubstantiveMatch)
+            .slice()
+            .sort((a, b) => bestShotScore(b) - bestShotScore(a)),
         [opportunities],
     );
-    const bestShotIds = useMemo(() => new Set(bestShots.map((o) => o.id)), [bestShots]);
 
-    // Featured: swipeable auto-scrolling rail, max 10. Fetched directly rather
-    // than filtered out of the ranked feed — a spotlight is an editorial
-    // choice, and filtering meant any featured item outside this user's
-    // candidate window silently disappeared from the rail.
+    // Reserve a meaningful tail of the main feed for the final Recommended
+    // section. With small feeds, at least one item stays there; with larger
+    // feeds, up to four are protected from the Best Matches rail.
+    const recommendedReserveCount = opportunities.length <= 1
+        ? 0
+        : Math.min(
+            HOME_RECOMMENDED_RESERVE_LIMIT,
+            Math.max(1, Math.floor(opportunities.length / 2)),
+        );
+    const personalizedBestLimit = Math.min(
+        HOME_BEST_MATCH_LIMIT,
+        Math.max(0, opportunities.length - recommendedReserveCount),
+    );
+    const personalizedBestMatches = useMemo(() => {
+        const eligibleCandidates = profileReady
+            ? rankedMatchCandidates
+            : rankedMatchCandidates.filter((item) => bestShotScore(item) >= BEST_SHOT_MIN_MATCH);
+        return eligibleCandidates.slice(0, personalizedBestLimit);
+    }, [personalizedBestLimit, profileReady, rankedMatchCandidates]);
+    // Featured is still fetched from its editorial source, but no longer gets
+    // a standalone Home section. It becomes a fallback/addition to Best for You.
     const [featuredOpportunities, setFeaturedOpportunities] = useState<Opportunity[]>([]);
     useEffect(() => {
         let isActive = true;
@@ -1584,11 +1612,64 @@ export default function Dashboard() {
         };
     }, []);
 
-    // Other Recommended: the ranked feed minus anything already surfaced as a
-    // Best Shot, so the two sections never duplicate cards. Max 10.
+    const opportunityIds = useMemo(
+        () => new Set(opportunities.map((item) => item.id)),
+        [opportunities],
+    );
+    const bestForYou = useMemo(() => {
+        // Only use featured opportunities as a supplement when they are not
+        // already in the personalized feed. A featured feed item that was not
+        // selected as a top match stays available to Recommended instead of
+        // silently consuming its inventory.
+        const featuredSupplement = featuredOpportunities
+            .filter((item) => !opportunityIds.has(item.id))
+            .slice(0, HOME_FEATURED_SUPPLEMENT_LIMIT);
+        const candidates = [...personalizedBestMatches, ...featuredSupplement];
+        const seen = new Set<string>();
+        return candidates.filter((item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+        }).slice(0, HOME_BEST_MATCH_LIMIT + HOME_FEATURED_SUPPLEMENT_LIMIT);
+    }, [featuredOpportunities, opportunityIds, personalizedBestMatches]);
+    const bestForYouIds = useMemo(() => new Set(bestForYou.map((o) => o.id)), [bestForYou]);
+
+    // Recommended remains a separate final section, as requested. Excluding
+    // the merged rail prevents the same opportunity appearing twice on Home.
     const otherOpportunities = useMemo(() => {
-        return opportunities.filter((o) => !bestShotIds.has(o.id)).slice(0, 10);
-    }, [opportunities, bestShotIds]);
+        return rotateOpportunityFeed(
+            opportunities.filter((o) => !bestForYouIds.has(o.id)),
+            opportunityRotationSeed,
+        ).slice(0, 10);
+    }, [opportunities, bestForYouIds, opportunityRotationSeed]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const unsubscribe = subscribeToRecentlyOpenedOpportunity(userId, (opportunity) => {
+            if (!cancelled) setRecentlyOpenedOpportunity(opportunity);
+        });
+        void getRecentlyOpenedOpportunity(userId).then((opportunity) => {
+            if (!cancelled) setRecentlyOpenedOpportunity(opportunity);
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [userId]);
+
+    const nextMove = useMemo<HomeFocusModel | null>(() => {
+        if (!recentlyOpenedOpportunity) return null;
+        const currentOpportunity = opportunities.find(
+            (opportunity) => opportunity.id === recentlyOpenedOpportunity.id,
+        );
+        return {
+            title: recentlyOpenedOpportunity.title,
+            supporting: getDeadlineBadge(recentlyOpenedOpportunity.deadline).label,
+            route: `/opportunities/${recentlyOpenedOpportunity.id}`,
+            cta: t('home.continue', { defaultValue: 'Continue' }),
+            image: recentlyOpenedOpportunity.image ?? currentOpportunity?.image ?? null,
+        };
+    }, [opportunities, recentlyOpenedOpportunity, t]);
 
     const toggleBookmark = async (opportunityId: string) => {
         if (isGuestBrowsing) {
@@ -1677,21 +1758,22 @@ export default function Dashboard() {
                 refreshControl={
                     <RefreshControl
                         refreshing={opportunitiesLoading}
-                        onRefresh={refresh}
+                        onRefresh={refreshOpportunities}
                         tintColor="#6366F1"
                         colors={['#6366F1']}
                     />
                 }
             >
                 {/* Header Spacer - accounts for AppHeader height + safe area */}
-                <View style={{ height: insets.top + 60 }} />
+                <View style={{ height: insets.top + 76 }} />
 
-                {/* Admin-composed home blocks (announcements, promos, curated
-                    rails, custom features). Renders nothing when no layout is
-                    published, so the built-in sections below are unaffected. */}
-                <HomeBlocks opportunities={opportunities ?? []} />
-
-                <CommunityHomePreview />
+                {nextMove ? (
+                    <NextMoveCard
+                        model={nextMove}
+                        isDark={isDark}
+                        onPress={() => router.push(nextMove.route as never)}
+                    />
+                ) : null}
 
                 <Animated.View entering={FadeInDown.duration(400).delay(50)}>
                     <View style={styles.sectionHeader}>
@@ -1721,80 +1803,38 @@ export default function Dashboard() {
                     textSecondary={textSecondary}
                 />
 
-                {/* Featured Opportunities — Netflix-style auto-scrolling rail */}
-                {(featuredOpportunities.length > 0 || !opportunitiesLoading) && (
-                    <Animated.View entering={FadeInDown.duration(400).delay(50)} style={[styles.sectionSpacing, { marginBottom: 18 }]}>
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
-                                <Star size={16} color={colors.accent} fill={colors.accent} />
-                            </View>
-                            <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                                {t('home.featuredOpportunities', { defaultValue: 'Featured Opportunities' })}
-                            </Text>
-                            {/* "View more" only when the section is actually populated
-                                (2+). In the empty state the card carries its own
-                                arrow, so a header arrow would be a redundant second one. */}
-                            {featuredOpportunities.length >= 2 && (
-                                <AnimatedPressable
-                                    onPress={() => router.push('/opportunities/featured')}
-                                    style={styles.viewMorePill}
-                                    hapticFeedback="light"
-                                    scaleTo={0.9}
-                                    accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
-                                >
-                                    <View style={styles.viewMorePillInner}>
-                                        <ChevronRight size={18} color="#6366F1" />
-                                    </View>
-                                </AnimatedPressable>
-                            )}
-                        </View>
-                        {featuredOpportunities.length > 0 ? (
-                            <FeaturedCarousel
-                                data={featuredOpportunities}
-                                isDark={isDark}
-                                bookmarkedIds={bookmarkedIds}
-                                onOpen={(item) => {
-                                    recordOpportunityOpen(item.id);
-                                    router.push(`/opportunities/${item.id}`);
-                                }}
-                                onBookmark={toggleBookmark}
-                                onShare={handleShareOpportunity}
-                                getAuthToken={getToken}
-                            />
-                        ) : (
-                            <FeaturedEmptyState onPress={() => router.push('/opportunities')} />
-                        )}
-                    </Animated.View>
-                )}
-
-                {/* Quick Actions Grid */}
-                <Animated.View entering={FadeInDown.duration(400).delay(150)} style={{ marginTop: 4 }}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.quickActionsTitle')}</Text>
-                    </View>
-                    <QuickActionsGrid router={router} />
-                </Animated.View>
-
-                {/* Your Best Shots — the winnable few, above the general feed */}
-                <BestShotsSection
-                    bestShots={bestShots}
-                    loading={opportunitiesLoading}
-                    profileComplete={profileCompleteness.isComplete}
+                {/* Featured and strongest-fit opportunities now share one
+                    deduplicated promise instead of competing sections. */}
+                <BestForYouSection
+                    items={bestForYou}
+                    loading={opportunitiesLoading || profileLoading}
+                    profileComplete={profileReady}
                     isDark={isDark}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
+                    bookmarkedIds={bookmarkedIds}
                     onOpen={(item) => {
                         recordOpportunityOpen(item.id);
                         router.push(`/opportunities/${item.id}`);
                     }}
+                    onBookmark={toggleBookmark}
+                    onShare={handleShareOpportunity}
                     onCompleteProfile={() => router.push('/profile/edit')}
                     onBrowse={() => router.push('/opportunities')}
                     getAuthToken={getToken}
                 />
 
-                {/* Recommended Opportunities — compact 3-row preview */}
+                {/* Admin-composed announcements and promos follow the stable
+                    Home jobs so they cannot displace the user's next action. */}
+                <HomeBlocks opportunities={opportunities ?? []} />
+
+                {/* Recommended Opportunities remains the final content section. */}
                 {otherOpportunities.length > 0 ? (
-                    <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.sectionSpacing}>
+                    <Animated.View
+                        entering={FadeInDown.duration(400).delay(100)}
+                        style={styles.sectionSpacing}
+                        testID="recommended-opportunities-section"
+                    >
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleGroup}>
                                 <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
@@ -1908,6 +1948,11 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
+    sectionSubtitle: {
+        marginTop: 2,
+        fontSize: 12,
+        fontWeight: '500',
+    },
     filterChip: {
         paddingHorizontal: 16,
         paddingVertical: 8,
@@ -1948,6 +1993,82 @@ const styles = StyleSheet.create({
     },
     sectionSpacing: {
         marginTop: 22,
+    },
+    nextMoveCard: {
+        borderRadius: 18,
+        marginTop: 8,
+        marginBottom: 16,
+    },
+    nextMoveFill: {
+        minHeight: 146,
+        borderRadius: 18,
+        borderWidth: 1,
+        overflow: 'hidden',
+        padding: 14,
+    },
+    nextMoveArt: {
+        position: 'absolute',
+        right: 10,
+        top: 20,
+        width: 84,
+        height: 84,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    nextMoveOrbit: {
+        position: 'absolute',
+        width: 82,
+        height: 52,
+        borderWidth: 1,
+        borderRadius: 60,
+        transform: [{ rotate: '-18deg' }],
+    },
+    nextMoveArtCore: {
+        width: 46,
+        height: 46,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    nextMoveEyebrow: {
+        fontSize: 10,
+        lineHeight: 13,
+        fontWeight: '800',
+        letterSpacing: 1,
+        marginBottom: 6,
+    },
+    nextMoveTitle: {
+        width: '72%',
+        minHeight: 38,
+        fontSize: 17,
+        lineHeight: 20,
+        fontWeight: '900',
+        letterSpacing: -0.3,
+    },
+    nextMoveSupporting: {
+        width: '72%',
+        marginTop: 5,
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '700',
+    },
+    nextMoveButton: {
+        minWidth: 104,
+        minHeight: 38,
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 10,
+        paddingHorizontal: 13,
+        borderRadius: 11,
+        backgroundColor: '#2563EB',
+    },
+    nextMoveButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800',
     },
     discoveryGrid: {
         flexDirection: 'row',
@@ -2302,32 +2423,6 @@ const styles = StyleSheet.create({
     paginationDotActive: {
         backgroundColor: '#6366F1',
         width: 20,
-    },
-    // ─── Quick Actions Grid Styles ──────────────────────────────────────────
-    quickActionsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        gap: 12,
-        marginTop: 8,
-    },
-    quickActionCard: {
-        width: (width - 40 - 48) / 5,
-        alignItems: 'center',
-    },
-    quickActionGradient: {
-        width: 64,
-        height: 64,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    quickActionTitle: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#64748B',
-        textAlign: 'center',
     },
     // ─── Opportunity Card Styles ───────────────────────────────────────────
     opportunityCard: {

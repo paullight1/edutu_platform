@@ -1,9 +1,10 @@
 {
   "tabs": {
     "home": "الرئيسية",
-    "discover": "استكشف",
+    "chats": "الدردشات",
+    "explore": "استكشف",
     "plan": "الخطة",
-    "me": "حسابي",
+    "more": "المزيد",
     "openEdutuAi": "فتح Edutu AI",
     "badgeOverflow": "+99",
     "holdForVoice": "اضغط مطولًا للوضع الصوتي",

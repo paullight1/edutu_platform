@@ -1,9 +1,10 @@
 {
   "tabs": {
     "home": "首页",
-    "discover": "发现",
+    "chats": "聊天",
+    "explore": "探索",
     "plan": "规划",
-    "me": "我的",
+    "more": "更多",
     "openEdutuAi": "打开 Edutu AI",
     "badgeOverflow": "99+",
     "holdForVoice": "长按进入语音模式",

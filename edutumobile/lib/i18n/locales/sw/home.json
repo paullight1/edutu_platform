@@ -1,9 +1,10 @@
 {
   "tabs": {
     "home": "Mwanzo",
-    "discover": "Gundua",
+    "chats": "Gumzo",
+    "explore": "Gundua",
     "plan": "Panga",
-    "me": "Mimi",
+    "more": "Zaidi",
     "openEdutuAi": "Fungua Edutu AI",
     "badgeOverflow": "99+",
     "holdForVoice": "Shikilia kwa hali ya sauti",

@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { Home, Compass, Map, User } from 'lucide-react-native';
+import { Home, Compass, Map, Users, User } from 'lucide-react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { NavBarStyle } from '../lib/navStyleStore';
 
@@ -28,9 +28,10 @@ jest.mock('../lib/voiceModeStore', () => ({
 
 const TABS = [
   { key: 'home', route: '/', label: 'Home', icon: Home },
-  { key: 'opportunities', route: '/opportunities', label: 'Discover', icon: Compass },
+  { key: 'groups', route: '/discussions', label: 'Groups', icon: Users },
+  { key: 'opportunities', route: '/opportunities', label: 'Explore', icon: Compass },
   { key: 'roadmaps', route: '/roadmaps', label: 'Plan', icon: Map },
-  { key: 'menu', route: '/profile', label: 'Me', icon: User },
+  { key: 'menu', route: '/profile', label: 'More', icon: User },
 ];
 
 const COLORS = {
@@ -166,7 +167,7 @@ describe('bottom nav styles', () => {
 
   it.each(['glass', 'fab', 'tabs', 'center'] as const)('%s routes tab taps', async (style) => {
     const { getByLabelText, onTabPress } = await renderNav(style);
-    fireEvent.press(getByLabelText('Discover'));
+    fireEvent.press(getByLabelText('Explore'));
     expect(onTabPress).toHaveBeenCalledWith('opportunities', '/opportunities');
   });
 });

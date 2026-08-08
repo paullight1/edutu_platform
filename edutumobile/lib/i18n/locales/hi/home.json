@@ -1,9 +1,10 @@
 {
   "tabs": {
     "home": "होम",
-    "discover": "खोजें",
+    "chats": "चैट",
+    "explore": "एक्सप्लोर",
     "plan": "प्लान",
-    "me": "मैं",
+    "more": "अधिक",
     "openEdutuAi": "Edutu AI खोलें",
     "badgeOverflow": "99+",
     "holdForVoice": "वॉइस मोड के लिए दबाकर रखें",

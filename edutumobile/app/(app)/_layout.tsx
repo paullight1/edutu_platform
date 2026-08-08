@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated, useAnimatedValue, Dimensions } from "react-native";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { View, Text, TouchableOpacity, Pressable, StyleSheet, Platform, Animated, useAnimatedValue, Dimensions, Image, PanResponder } from "react-native";
 import { Stack, Redirect, useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,14 +8,13 @@ import {
     Compass,
     ShoppingBag,
     Bell,
-    UserCircle,
     BadgeCheck,
-    Crown,
     Plus,
     Pencil,
     Target,
     Route,
     Menu,
+    Users,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
@@ -45,8 +44,7 @@ import {
     isTerminalRedeemStatus,
     PENDING_REFERRAL_KEY,
 } from "@edutu/core/src/services/referrals";
-import { EdutuLogo } from "../../components/branding/EdutuLogo";
-import { FeatureMenu } from "../../components/ui/FeatureMenu";
+import { FeatureMenu, FEATURE_MENU_ANIM_MS, FEATURE_MENU_WIDTH } from "../../components/ui/FeatureMenu";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
 import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
 import { WelcomeModal } from "../../components/ui/WelcomeModal";
@@ -61,6 +59,7 @@ import { registerForPushNotificationsAsync } from "../../lib/notifications";
 import { reportNotificationOpened } from "../../lib/notificationTelemetry";
 import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
 import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
+import { fetchOpportunityDeadlines } from "@edutu/core/src/services/deadlines";
 import { syncDeviceTimezone } from "../../lib/timezoneSync";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
@@ -82,12 +81,21 @@ const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
 const NAV_PILL_HEIGHT = 66;
 // Icons-only height while scroll-compacted (Instagram-style shrink).
 const NAV_PILL_COMPACT_HEIGHT = 48;
+const HEADER_GREETING_ROTATION_MS = 15 * 60 * 1000;
+
+function stableGreetingOffset(value: string) {
+    let hash = 0;
+    for (let index = 0; index < value.length; index += 1) {
+        hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+    }
+    return Math.abs(hash);
+}
 // …and its width. Compacting only the height left the four icons stranded at
 // their expanded spacing, so the bar looked like it had merely lost its labels
 // rather than contracted. 52pt per tab keeps every touch target comfortably
-// above the 44pt minimum while pulling the icons visibly together; navRow is
+// above the 44pt minimum while pulling the five icons visibly together; navRow is
 // right-anchored, so the pill contracts toward the circle instead of drifting.
-const NAV_PILL_COMPACT_WIDTH = Math.min(NAV_PILL_WIDTH, 4 * 52 + 12);
+const NAV_PILL_COMPACT_WIDTH = Math.min(NAV_PILL_WIDTH, 5 * 52 + 12);
 
 // Content height of the full-width bar styles, above the safe-area padding.
 const NAV_BAR_HEIGHT = 58;
@@ -142,7 +150,6 @@ function TabItem({
     label,
     color,
     isActive,
-    highlight,
     badge,
     onPress,
     isDark,
@@ -152,7 +159,6 @@ function TabItem({
     label: string;
     color: string;
     isActive: boolean;
-    highlight?: string;
     badge?: number | "!";
     onPress: () => void;
     isDark: boolean;
@@ -179,56 +185,93 @@ function TabItem({
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={label}
         >
-            {isActive && (
-                <View
-                    pointerEvents="none"
-                    style={[styles.tabActiveBubble, { backgroundColor: highlight }]}
-                />
-            )}
-            <View style={styles.tabIconWrap}>
-                <Icon size={24} color={color} strokeWidth={isActive ? 2.4 : 1.9} />
-                <Badge count={badge} isDark={isDark} />
+            <View style={styles.tabContent}>
+                <View style={styles.tabIconWrap}>
+                    <Icon size={24} color={color} strokeWidth={isActive ? 2.4 : 1.9} />
+                    <Badge count={badge} isDark={isDark} />
+                </View>
+                <ReAnimated.View style={labelStyle}>
+                    <Text
+                        style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
+                        numberOfLines={1}
+                    >
+                        {label}
+                    </Text>
+                </ReAnimated.View>
             </View>
-            <ReAnimated.View style={labelStyle}>
-                <Text
-                    style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
-                    numberOfLines={1}
-                >
-                    {label}
-                </Text>
-            </ReAnimated.View>
         </TouchableOpacity>
     );
 }
 
 // ─── Edutu AI Button ──────────────────────────────────────────────────────────
-function HeaderLogoTitle({
-    color,
-    isDark,
-}: {
-    color: string;
-    isDark: boolean;
-}) {
-    const finalTitle = 'Edutu';
-
-    return (
-        // Lighter in light mode: dark-on-white reads much heavier than
-        // white-on-dark at the same weight, so 900 looked over-bold on light.
-        <Text style={[styles.brandText, { color, fontWeight: isDark ? '900' : '700' }]} numberOfLines={1}>
-            {finalTitle}
-        </Text>
-    );
-}
-
 // ─── Shared App Header ────────────────────────────────────────────────────────
-function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBlock }: { isDark: boolean, colors: any, unreadNotifications: number, guestMode?: boolean, onGuestBlock?: () => void }) {
+function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBlock, onOpenMenu }: { isDark: boolean, colors: any, unreadNotifications: number, guestMode?: boolean, onGuestBlock?: () => void, onOpenMenu: () => void }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const accentColor = colors.accent || "#6366F1";
     const { t } = useTranslation('home');
     const { user } = useUser();
+    const { getToken } = useAuth();
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
-    const [menuOpen, setMenuOpen] = useState(false);
+    const [deadlineSummary, setDeadlineSummary] = useState({ userId: '', count: 0 });
+    const [greetingPeriod, setGreetingPeriod] = useState(() => Math.floor(Date.now() / HEADER_GREETING_ROTATION_MS));
+
+    const firstName = user?.firstName || user?.fullName?.trim().split(/\s+/)[0] || t('header.friend', { defaultValue: 'there' });
+    const hour = new Date().getHours();
+    const timeGreeting = hour < 12
+        ? t('header.goodMorning', { defaultValue: 'Good morning' })
+        : hour < 18
+            ? t('header.goodAfternoon', { defaultValue: 'Good afternoon' })
+            : t('header.goodEvening', { defaultValue: 'Good evening' });
+    const greetingOptions = [
+        { lead: timeGreeting, separator: ', ' },
+        { lead: t('header.hello', { defaultValue: 'Hello' }), separator: ', ' },
+        { lead: t('header.hi', { defaultValue: 'Hi' }), separator: ', ' },
+        { lead: t('header.hey', { defaultValue: 'Hey' }), separator: ', ' },
+        { lead: t('header.xup', { defaultValue: 'Xup' }), separator: ', ' },
+        { lead: t('header.dear', { defaultValue: 'Dear' }), separator: ' ' },
+        { lead: t('header.yo', { defaultValue: 'Yo' }), separator: ', ' },
+        { lead: t('header.whatsGood', { defaultValue: "What's good" }), separator: ', ' },
+        { lead: t('header.welcomeBack', { defaultValue: 'Welcome back' }), separator: ', ' },
+        { lead: t('header.goodToSeeYou', { defaultValue: 'Good to see you' }), separator: ', ' },
+    ];
+    const greetingIndex = (stableGreetingOffset(user?.id || firstName) + greetingPeriod) % greetingOptions.length;
+    const selectedGreeting = greetingOptions[greetingIndex];
+    const greeting = `${selectedGreeting.lead}${selectedGreeting.separator}${firstName}`;
+    const weeklyDeadlines = user?.id === deadlineSummary.userId
+        ? deadlineSummary.count
+        : 0;
+
+    useEffect(() => {
+        const updateGreetingPeriod = () => {
+            setGreetingPeriod(Math.floor(Date.now() / HEADER_GREETING_ROTATION_MS));
+        };
+        const interval = setInterval(updateGreetingPeriod, 60 * 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!user?.id || guestMode) return;
+        void fetchOpportunityDeadlines(supabase, user.id, getToken)
+            .then((rows) => {
+                if (cancelled) return;
+                const unique = new Set(
+                    rows
+                        .filter((row) => row.daysRemaining >= 0 && row.daysRemaining <= 7)
+                        .map((row) => row.opportunityId),
+                );
+                setDeadlineSummary({ userId: user.id, count: unique.size });
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setDeadlineSummary({ userId: user.id, count: 0 });
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [getToken, guestMode, user?.id]);
 
     // For guests every header destination (menu, notifications, upgrade) lives
     // behind the wall — raise it instead of navigating.
@@ -252,7 +295,7 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
             <View style={styles.headerInner}>
                 <View style={styles.brandContainer}>
                     <TouchableOpacity
-                        onPress={guardGuest(() => setMenuOpen(true))}
+                        onPress={guardGuest(onOpenMenu)}
                         activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={t('header.menu', { defaultValue: 'Open menu' })}
@@ -260,30 +303,48 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     >
                         <Menu size={20} color={accentColor} strokeWidth={2} />
                     </TouchableOpacity>
-                    <EdutuLogo size={36} frameless />
-                    <HeaderLogoTitle
-                        color={isDark ? "#FFFFFF" : "#0F172A"}
-                        isDark={isDark}
-                    />
-                    {!proLoading && (isPro ? (
-                        <BadgeCheck
-                            size={18}
-                            color="#FFFFFF"
-                            fill="#3B82F6"
-                            accessibilityLabel={t('header.verified')}
-                        />
-                    ) : (
-                        <TouchableOpacity
-                            onPress={guardGuest(() => router.push('/paywall'))}
-                            activeOpacity={0.75}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('header.upgrade')}
-                            style={[styles.upgradePill, { backgroundColor: isDark ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.12)" }]}
-                        >
-                            <Crown size={13} color="#F59E0B" />
-                            <Text style={styles.upgradePillText}>{t('header.upgrade')}</Text>
-                        </TouchableOpacity>
-                    ))}
+                    <View style={[styles.headerAvatarRing, { borderColor: `${accentColor}80` }]}>
+                        {user?.imageUrl ? (
+                            <Image source={{ uri: user.imageUrl }} style={styles.headerAvatar} />
+                        ) : (
+                            <Text style={styles.headerAvatarFallback}>{firstName.slice(0, 1).toUpperCase()}</Text>
+                        )}
+                    </View>
+                    <View style={styles.homeTitleStack}>
+                        <View style={styles.homeGreetingRow}>
+                            <Text
+                                testID="home-header-greeting"
+                                style={[styles.homeGreetingTitle, { color: colors.foreground }]}
+                                numberOfLines={1}
+                            >
+                                {greeting}
+                            </Text>
+                            {!proLoading && isPro ? (
+                                <View
+                                    testID="home-header-verified"
+                                    accessibilityRole="image"
+                                    accessibilityLabel={t('header.verified')}
+                                >
+                                    <BadgeCheck
+                                        size={15}
+                                        color="#FFFFFF"
+                                        fill="#3B82F6"
+                                    />
+                                </View>
+                            ) : null}
+                        </View>
+                        <View style={styles.homeDeadlineRow}>
+                            <View style={[styles.homeDeadlineDot, { backgroundColor: accentColor }]} />
+                            <Text style={[styles.homeGreetingText, { color: colors.textSecondary }]} numberOfLines={1}>
+                                {weeklyDeadlines === 0
+                                    ? t('header.noDeadlinesThisWeek', { defaultValue: 'No deadlines this week' })
+                                    : t('header.deadlinesThisWeek', {
+                                        count: weeklyDeadlines,
+                                        defaultValue: `${weeklyDeadlines} deadline${weeklyDeadlines === 1 ? '' : 's'} this week`,
+                                    })}
+                            </Text>
+                        </View>
+                    </View>
                 </View>
 
                 <TouchableOpacity
@@ -296,20 +357,14 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                 </TouchableOpacity>
             </View>
 
-            <FeatureMenu
-                visible={menuOpen}
-                onClose={() => setMenuOpen(false)}
-                isDark={isDark}
-                colors={colors}
-            />
         </View>
     );
 }
 
 // ─── Contextual Morphing Nav Circle ──────────────────────────────────────────
 // The detached circle next to the tab pill. Instead of always being the AI
-// button, it morphs per tab: AI (home), tinted AI (Discover), a Plus that
-// creates goals/roadmaps (Plan), and an Edit-profile pencil (Me). On context
+// button, it morphs per tab: AI (home), tinted AI (Explore), a Plus that
+// creates goals/roadmaps (Plan), and an Edit-profile pencil (More). On context
 // change it shrinks/rotates out, then springs back in sliding toward the
 // right-hand corner with the new icon.
 export type NavCircleKind = "ai" | "ai-discover" | "create" | "edit";
@@ -863,17 +918,29 @@ export function BottomNav({
     const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.14)";
     // Specular top highlight — the edge-lit sheen that reads as "glass".
     const specularCol = isDark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.9)";
-    const activeBubble = isDark ? "rgba(129,140,248,0.30)" : "rgba(79,70,229,0.14)";
-
     // Shared glass background for the pill and the detached circle.
     const glassBackground = (rounded: number) =>
         HAS_LIQUID_GLASS ? (
-            <GlassView
-                style={StyleSheet.absoluteFill}
-                glassEffectStyle="regular"
-                isInteractive
-                colorScheme={isDark ? "dark" : "light"}
-            />
+            <>
+                <GlassView
+                    style={StyleSheet.absoluteFill}
+                    glassEffectStyle="regular"
+                    isInteractive
+                    colorScheme={isDark ? "dark" : "light"}
+                />
+                <View
+                    pointerEvents="none"
+                    style={[
+                        StyleSheet.absoluteFillObject,
+                        {
+                            borderRadius: rounded,
+                            borderCurve: "continuous",
+                            borderWidth: 1,
+                            borderColor: borderCol,
+                        },
+                    ]}
+                />
+            </>
         ) : (
             <>
                 <BlurView
@@ -903,7 +970,7 @@ export function BottomNav({
         );
 
     // ── Collapse choreography (iOS Safari-style minimize) ────────────────────
-    // Home shows the full tab pill. On Discover / Plan / Me the pill
+    // Home shows the full tab pill. On Explore / Plan / More the pill
     // compresses toward the right-hand corner: its width springs to zero while
     // the tabs — anchored to the pill's shrinking left edge — slide right and
     // are swallowed one by one by the circle, which swells as it "catches"
@@ -1020,7 +1087,6 @@ export function BottomNav({
                 label={tab.label}
                 color={activeRoute === tab.key ? accent : inactive}
                 isActive={activeRoute === tab.key}
-                highlight={activeBubble}
                 badge={tab.badge}
                 onPress={() => onTabPress(tab.key, tab.route)}
                 isDark={isDark}
@@ -1118,7 +1184,6 @@ export function BottomNav({
                                 label={tab.label}
                                 color={isActive ? accent : inactive}
                                 isActive={isActive}
-                                highlight={activeBubble}
                                 badge={tab.badge}
                                 onPress={() => onTabPress(tab.key, tab.route)}
                                 isDark={isDark}
@@ -1130,8 +1195,8 @@ export function BottomNav({
             </ReAnimated.View>
 
             {/* Detached glass circle — a contextual action that morphs per tab.
-                Home: Edutu AI (tap = chat, hold = voice). Discover: tinted AI.
-                Plan: create goal/roadmap. Me: edit profile (hides on scroll). */}
+                Home: Edutu AI (tap = chat, hold = voice). Explore: tinted AI.
+                Plan: create goal/roadmap. More: edit profile (hides on scroll). */}
             <ReAnimated.View style={circleSwellStyle}>
                 <MorphingNavCircle
                     action={circleAction}
@@ -1235,6 +1300,45 @@ export default function AppLayout() {
     const params = useGlobalSearchParams<{ category?: string }>();
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
     const registeredPushUserRef = React.useRef<string | null>(null);
+    const [featureMenuOpen, setFeatureMenuOpen] = useState(false);
+    const [featureMenuPath, setFeatureMenuPath] = useState(pathname);
+    const featureMenuProgress = useAnimatedValue(0);
+    const featureMenuSwipe = useMemo(() => PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => (
+            (featureMenuOpen || gesture.x0 >= SCREEN_WIDTH - 72)
+            && gesture.dx < -14
+            && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25
+        ),
+        onPanResponderRelease: (_event, gesture) => {
+            const deliberateLeftSwipe = gesture.dx <= -56
+                || (gesture.dx <= -30 && gesture.vx <= -0.45);
+            if (deliberateLeftSwipe) {
+                haptics.light();
+                setFeatureMenuOpen((open) => !open);
+            }
+        },
+    }), [featureMenuOpen]);
+
+    if (featureMenuPath !== pathname) {
+        setFeatureMenuPath(pathname);
+        setFeatureMenuOpen(false);
+    }
+
+    useEffect(() => {
+        Animated.timing(featureMenuProgress, {
+            toValue: featureMenuOpen ? 1 : 0,
+            duration: reducedMotion ? 0 : FEATURE_MENU_ANIM_MS,
+            easing: featureMenuOpen
+                ? Easing.out(Easing.cubic)
+                : Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+        }).start();
+    }, [featureMenuOpen, featureMenuProgress, reducedMotion]);
+
+    const pageTranslateX = featureMenuProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, FEATURE_MENU_WIDTH],
+    });
 
     // Guest ("browse without login") gating. A guest has no Clerk session, so
     // isSignedIn is false; the local flag is what lets them into the app at all.
@@ -1375,6 +1479,15 @@ export default function AppLayout() {
     const getActiveRoute = (): string => {
         const path = pathname.toLowerCase();
         const normalizedPath = path.replace(/\/+$/, '') || '/';
+        const communityLandingRoutes = [
+            '/discussions',
+            '/discussions/explore',
+            '/discussions/profile',
+            '/discussions/chats',
+        ];
+
+        if (communityLandingRoutes.includes(normalizedPath)) return "groups";
+        if (normalizedPath.startsWith("/discussions/")) return "subpage";
 
         if (
             normalizedPath.includes("chat") ||
@@ -1449,11 +1562,10 @@ export default function AppLayout() {
 
     const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
     const hasOpportunityCategory = activeRoute === "opportunities" && typeof categoryParam === "string" && categoryParam.length > 0;
-    const topLevelRoutes = ["home", "opportunities", "roadmaps", "menu"];
+    const topLevelRoutes = ["home", "groups", "opportunities", "roadmaps", "menu"];
     const showBottomNav = topLevelRoutes.includes(activeRoute) &&
         !isCommunityRoute &&
         !hasOpportunityCategory &&
-        !pathname.includes("chat") &&
         !pathname.includes("/cv") &&
         !pathname.includes("referral") &&
         !pathname.includes("paywall");
@@ -1478,9 +1590,10 @@ export default function AppLayout() {
 
     const tabs = [
         { key: "home", route: "/", label: t('tabs.home'), icon: Home, badge: undefined },
-        { key: "opportunities", route: "/opportunities", label: t('tabs.discover'), icon: Compass, badge: undefined },
+        { key: "groups", route: "/discussions", label: t('tabs.groups', { defaultValue: 'Groups' }), icon: Users, badge: undefined },
+        { key: "opportunities", route: "/opportunities", label: t('tabs.explore'), icon: Compass, badge: undefined },
         { key: "roadmaps", route: "/roadmaps", label: t('tabs.plan'), icon: ShoppingBag, badge: undefined },
-        { key: "menu", route: "/profile", label: t('tabs.me'), icon: UserCircle, badge: undefined },
+        { key: "menu", route: "/profile", label: t('tabs.more'), icon: Menu, badge: undefined },
     ];
 
     return (
@@ -1491,9 +1604,26 @@ export default function AppLayout() {
             is where nearly all of this app's feedback originates. */}
         <FeedbackProvider>
         <UpgradeSheetProvider>
-        <View style={styles.appContainer}>
+        <View style={[styles.appContainer, { backgroundColor: colors.background }]}>
             <DailyLoginRewards />
             <ReferralRedemption />
+            <FeatureMenu
+                visible={featureMenuOpen}
+                onClose={() => setFeatureMenuOpen(false)}
+                isDark={isDark}
+                colors={colors}
+            />
+            <Animated.View
+                testID="app-page-surface"
+                {...featureMenuSwipe.panHandlers}
+                style={[
+                    styles.appPageSurface,
+                    {
+                        backgroundColor: colors.background,
+                        transform: [{ translateX: pageTranslateX }],
+                    },
+                ]}
+            >
             {isCommunityLanding ? <CommunityHeader /> : !hideSharedHeader && (
                 <AppHeader
                     isDark={isDark}
@@ -1501,6 +1631,7 @@ export default function AppLayout() {
                     unreadNotifications={unreadCount}
                     guestMode={isGuestBrowsing}
                     onGuestBlock={() => authWall?.promptAuth('browse')}
+                    onOpenMenu={() => setFeatureMenuOpen(true)}
                 />
             )}
 
@@ -1590,11 +1721,22 @@ export default function AppLayout() {
                 </>
             )}
 
-            {/* Only the four Community roots own the local tab bar. Creation,
-                group chat/info/admin and private-message routes are focused
-                tasks with their own back navigation, so a persistent bar would
-                cover actions and imply unsafe cross-flow exits. */}
+            {/* The Groups tab enters the existing Community interface. Its
+                landing screens keep their dedicated bottom navigation, while
+                focused group and DM conversations keep their own back flow. */}
             {isCommunityLanding && <CommunityNavigation />}
+
+            {featureMenuOpen ? (
+                <Pressable
+                    testID="feature-menu-page-dismiss"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('menu.close', { defaultValue: 'Close menu' })}
+                    onPressIn={() => setFeatureMenuOpen(false)}
+                    pointerEvents="auto"
+                    style={styles.featureMenuPageDismiss}
+                />
+            ) : null}
+            </Animated.View>
 
             <WelcomeHintSystem
                 userId={user?.id}
@@ -1628,6 +1770,20 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
     appContainer: {
         flex: 1,
+    },
+    appPageSurface: {
+        flex: 1,
+        zIndex: 1,
+        shadowColor: '#020617',
+        shadowOpacity: 0.28,
+        shadowRadius: 24,
+        shadowOffset: { width: 12, height: 0 },
+        elevation: 18,
+    },
+    featureMenuPageDismiss: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 2000,
+        backgroundColor: 'rgba(2,6,23,0.12)',
     },
     // Sits under navRow (zIndex 998 vs 999) and spans the full width, ignoring
     // navRow's 14pt insets — the fade has to reach the screen edges.
@@ -1791,14 +1947,12 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    tabActiveBubble: {
-        position: "absolute",
-        top: 4,
-        left: 6,
-        right: 6,
-        bottom: 4,
-        borderRadius: 22,
-        borderCurve: "continuous",
+    tabContent: {
+        minWidth: 48,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 5,
+        paddingVertical: 5,
     },
     tabIconWrap: {
         position: "relative",
@@ -1846,67 +2000,96 @@ const styles = StyleSheet.create({
         zIndex: 1000,
     },
     headerInner: {
-        height: 60,
+        height: 76,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
+        gap: 8,
     },
     brandContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
         flex: 1,
-        paddingRight: 12,
+        minWidth: 0,
     },
     homeTitleStack: {
+        flex: 1,
+        minWidth: 0,
         alignItems: 'flex-start',
         justifyContent: 'center',
     },
-    brandText: {
-        fontSize: 21,
-        fontWeight: '900',
-        letterSpacing: 0,
-        flexShrink: 1,
-    },
-    upgradePill: {
+    homeGreetingRow: {
+        maxWidth: '100%',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 9,
-        paddingVertical: 5,
-        borderRadius: 999,
+        gap: 5,
     },
-    upgradePillText: {
-        color: '#F59E0B',
-        fontSize: 12,
+    homeGreetingTitle: {
+        fontSize: 15.5,
+        lineHeight: 20,
         fontWeight: '800',
+        letterSpacing: -0.15,
+        flexShrink: 1,
+    },
+    homeDeadlineRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 2,
+    },
+    homeDeadlineDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
     },
     homeGreetingText: {
-        color: '#94A3B8',
-        fontSize: 12,
+        fontSize: 11,
+        lineHeight: 15,
         fontWeight: '600',
-        marginTop: 1,
+        flexShrink: 1,
+    },
+    headerAvatarRing: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        borderWidth: 2,
+        padding: 2,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#334155',
+    },
+    headerAvatar: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 22,
+    },
+    headerAvatarFallback: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
     },
     menuBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
     },
     bellBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
     },
     bellBadge: {
         position: 'absolute',
-        top: 10,
-        right: 11,
+        top: 8,
+        right: 8,
         width: 8,
         height: 8,
         borderRadius: 4,

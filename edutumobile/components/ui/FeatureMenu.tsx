@@ -2,13 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
-    Modal,
-    Pressable,
     TouchableOpacity,
     ScrollView,
     StyleSheet,
-    Animated, useAnimatedValue,
-    Easing,
     Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,15 +32,13 @@ type FeatureItem = {
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-// Left drawer leaves a sliver of backdrop on the right so it reads as an
-// overlay panel, not a full page swap.
-const DRAWER_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.86), 420);
-const ANIM_MS = 240;
+// The foreground page moves by this amount, revealing the fixed menu beneath.
+export const FEATURE_MENU_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.84), 420);
+export const FEATURE_MENU_ANIM_MS = 260;
 
 /**
- * Left slide-in feature drawer opened from the header hamburger. One tap per
- * feature — a plain navigation directory, deliberately simpler than the tab
- * bar so every corner of the app is reachable from one place.
+ * Fixed left-side underlay menu. The app page animates right above it,
+ * revealing the background layer without floating the menu over content.
  */
 export function FeatureMenu({
     visible,
@@ -65,11 +59,9 @@ export function FeatureMenu({
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
 
-    // Keep the modal mounted through the exit animation: `visible` from the
-    // parent drives the slide, `rendered` unmounts only once it finishes.
+    // Keep the underlay mounted while the foreground page completes its return
+    // animation, otherwise the menu would blink away before the page covers it.
     const [rendered, setRendered] = useState(visible);
-    const translateX = useAnimatedValue(-DRAWER_WIDTH);
-    const backdropOpacity = useAnimatedValue(0);
 
     // Mount the drawer as soon as `visible` flips true — adjust-during-render
     // (React's documented alternative to a state-setting effect). Unmounting
@@ -81,40 +73,10 @@ export function FeatureMenu({
     }
 
     useEffect(() => {
-        if (visible) {
-            Animated.parallel([
-                Animated.timing(translateX, {
-                    toValue: 0,
-                    duration: ANIM_MS,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(backdropOpacity, {
-                    toValue: 1,
-                    duration: ANIM_MS,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        } else {
-            Animated.parallel([
-                Animated.timing(translateX, {
-                    toValue: -DRAWER_WIDTH,
-                    duration: ANIM_MS,
-                    easing: Easing.in(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(backdropOpacity, {
-                    toValue: 0,
-                    duration: ANIM_MS,
-                    easing: Easing.in(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-            ]).start(({ finished }) => {
-                if (finished) setRendered(false);
-            });
-        }
-    }, [visible, translateX, backdropOpacity]);
+        if (visible) return;
+        const timeout = setTimeout(() => setRendered(false), FEATURE_MENU_ANIM_MS);
+        return () => clearTimeout(timeout);
+    }, [visible]);
 
     const items: FeatureItem[] = [
         { key: 'saved', label: t('menu.saved', { defaultValue: 'Saved' }), description: t('menu.savedDesc', { defaultValue: 'Your bookmarked opportunities' }), route: '/saved', Icon: Bookmark, tint: '#F59E0B' },
@@ -128,33 +90,28 @@ export function FeatureMenu({
 
     const openFeature = (route: string) => {
         onClose();
-        // Let the drawer slide out before navigating so the transition is clean.
-        setTimeout(() => router.push(route as never), ANIM_MS);
+        // Let the page cover the underlay before navigating.
+        setTimeout(() => router.push(route as never), FEATURE_MENU_ANIM_MS);
     };
 
-    return (
-        <Modal
-            visible={rendered}
-            animationType="none"
-            transparent
-            onRequestClose={onClose}
-        >
-            <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-            </Animated.View>
+    if (!rendered) return null;
 
-            <Animated.View
-                style={[
-                    styles.drawer,
-                    {
-                        width: DRAWER_WIDTH,
-                        backgroundColor: colors.background,
-                        paddingTop: insets.top + 8,
-                        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                        transform: [{ translateX }],
-                    },
-                ]}
-            >
+    return (
+        <View
+            testID="feature-menu-underlay"
+            accessibilityViewIsModal={visible}
+            importantForAccessibility={visible ? 'yes' : 'no-hide-descendants'}
+            pointerEvents={visible ? 'auto' : 'none'}
+            style={[
+                styles.drawer,
+                {
+                    width: FEATURE_MENU_WIDTH,
+                    backgroundColor: colors.background,
+                    paddingTop: insets.top + 8,
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                },
+            ]}
+        >
                 <View style={styles.sheetHeader}>
                     <View style={styles.sheetBrand}>
                         <EdutuLogo size={30} frameless />
@@ -195,16 +152,11 @@ export function FeatureMenu({
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
-            </Animated.View>
-        </Modal>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(2,6,23,0.5)',
-    },
     drawer: {
         position: 'absolute',
         left: 0,

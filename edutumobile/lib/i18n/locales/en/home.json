@@ -1,9 +1,11 @@
 {
   "tabs": {
     "home": "Home",
-    "discover": "Discover",
+    "groups": "Groups",
+    "chats": "Chats",
+    "explore": "Explore",
     "plan": "Plan",
-    "me": "Me",
+    "more": "More",
     "openEdutuAi": "Open Edutu AI",
     "badgeOverflow": "99+",
     "holdForVoice": "Hold for voice mode",
@@ -36,6 +38,8 @@
     }
   },
   "home": {
+    "nextMove": "YOUR NEXT MOVE",
+    "continue": "Continue",
     "exploreOpportunities": "Explore opportunities",
     "featuredOpportunities": "Featured Opportunities",
     "quickActionsTitle": "Quick Actions",

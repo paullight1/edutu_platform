@@ -1,12 +1,12 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
-// Drives the real home screen (app/(app)/index) through the two Best Shots
-// empty states and the Best-Shots/Recommended dedupe, observing exactly what a
+// Drives the real home screen (app/(app)/index) through the two Best Matches
+// states and the Best-Matches/Recommended allocation, observing exactly what a
 // user would see in each case:
 //   • incomplete profile  -> "Complete profile" prompt
-//   • complete profile, no match >= 60 -> "Browse opportunities" prompt
-//   • a match >= 60 shows once (Best Shots), never duplicated into Recommended
+//   • complete profile -> strongest available matches, even below 60
+//   • the broader feed remains distinct in Recommended Opportunities
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -22,6 +22,7 @@ let mockUserState: { user: { id: string; unsafeMetadata?: { onboardingComplete?:
 let mockOpportunitiesData: Array<any> = [];
 let mockOpportunitiesLoading = false;
 let mockProfileComplete = false;
+let mockRecentlyOpenedOpportunity: Record<string, unknown> | null = null;
 
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -124,6 +125,10 @@ jest.mock('../lib/updatePrompt', () => ({ useInAppUpdatePrompt: () => undefined 
 jest.mock('../lib/opportunityWidgetSync', () => ({
   syncAndUpdateOpportunityWidgetSnapshot: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../lib/recentlyOpenedOpportunity', () => ({
+  getRecentlyOpenedOpportunity: jest.fn(async () => mockRecentlyOpenedOpportunity),
+  subscribeToRecentlyOpenedOpportunity: jest.fn(() => jest.fn()),
+}));
 jest.mock('../lib/notifications', () => ({
   notificationService: {
     requestPermissions: jest.fn().mockResolvedValue(undefined),
@@ -149,6 +154,9 @@ jest.mock('@edutu/core/src/hooks/useOpportunities', () => ({
     refresh: mockRefresh,
     noteDismissed: jest.fn(),
   }),
+}), { virtual: true });
+jest.mock('@edutu/core/src/hooks/useGoals', () => ({
+  useGoals: () => ({ goals: [], isLoading: false }),
 }), { virtual: true });
 
 // The hook under test for the empty-state fix: lets us flip profile
@@ -235,6 +243,30 @@ describe('home Best Shots — empty states and dedupe', () => {
     mockOpportunitiesLoading = false;
     mockOpportunitiesData = [];
     mockProfileComplete = false;
+    mockRecentlyOpenedOpportunity = null;
+  });
+
+  it('shows the compact next-move card only after an opportunity has been opened', async () => {
+    mockRecentlyOpenedOpportunity = {
+      id: 'recent',
+      title: 'Recently Opened Fellowship',
+      deadline: null,
+      openedAt: '2026-08-07T10:00:00.000Z',
+    };
+
+    const { getByTestId, getByText } = render(<Dashboard />);
+
+    await waitFor(() => expect(getByTestId('recent-opportunity-card')).toBeTruthy());
+    expect(getByText('Recently Opened Fellowship')).toBeTruthy();
+    fireEvent.press(getByTestId('recent-opportunity-card'));
+    expect(mockPush).toHaveBeenCalledWith('/opportunities/recent');
+  });
+
+  it('does not show a generic next-move card without an opened opportunity', async () => {
+    const { getByText, queryByTestId } = render(<Dashboard />);
+
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
+    expect(queryByTestId('recent-opportunity-card')).toBeNull();
   });
 
   it('incomplete profile: shows the "Complete profile" prompt, not the searching copy', async () => {
@@ -247,7 +279,7 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
     expect(getByText('Complete your profile')).toBeTruthy();
     expect(getByText(/Get more accurate opportunity matches/)).toBeTruthy();
     // The "profile already complete" copy must NOT appear here.
@@ -255,44 +287,42 @@ describe('home Best Shots — empty states and dedupe', () => {
     expect(queryByText('No strong match yet')).toBeNull();
 
     // The whole card is tappable and routes to the profile screen.
-    fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
+    fireEvent.press(getByLabelText('Complete your profile to unlock your best matches'));
     expect(mockPush).toHaveBeenCalledWith('/profile/edit');
   });
 
-  it('complete profile, no strong match: shows the "Browse opportunities" prompt, not "Complete profile"', async () => {
+  it('complete profile: shows the strongest available matches even when they are below 60', async () => {
     mockProfileComplete = true;
-    // Feed exists but nothing clears 60% -> "still searching", not "complete your profile".
+    // A complete profile has enough signal to rank the available feed. The
+    // strongest item belongs in Best Matches and the second is reserved below.
     mockOpportunitiesData = [
       makeOpp({ id: 'a', title: 'DataCamp Scholarship', match: 53 }),
       makeOpp({ id: 'b', title: 'Graduate Trainee', match: 48 }),
     ];
 
-    const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
+    const { getByText, queryByText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    expect(getByText('No strong match yet')).toBeTruthy();
-    expect(getByText(/We'll notify you when a better fit appears/)).toBeTruthy();
-    // Must NOT tell a completed-profile user to complete their profile.
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
+    expect(getByText('DataCamp Scholarship')).toBeTruthy();
+    expect(getByText('Graduate Trainee')).toBeTruthy();
+    expect(getByText('Ranked from your profile')).toBeTruthy();
+    expect(queryByText('No strong match yet')).toBeNull();
     expect(queryByText('Complete your profile')).toBeNull();
-    expect(queryByText(/Get more accurate opportunity matches/)).toBeNull();
-
-    fireEvent.press(getByLabelText('No strong match yet. Browse all opportunities.'));
-    expect(mockPush).toHaveBeenCalledWith('/opportunities');
   });
 
-  it('dedupe: a match >= 60 shows as a Best Shot and is not duplicated in Recommended', async () => {
+  it('allocates the strongest match once and reserves the next item for Recommended', async () => {
     mockProfileComplete = true;
     mockOpportunitiesData = [
-      // Strong match -> Best Shot. Not featured, so its only possible second
-      // home was the Recommended grid; if deduped it appears exactly once.
+      // Strongest match -> Best Matches. The second item is deliberately
+      // reserved for the broader Recommended section.
       makeOpp({ id: 'strong', title: 'Chevening Scholarship', match: 88, featured: false }),
       makeOpp({ id: 'weak', title: 'Local Bootcamp', match: 40, featured: false }),
     ];
 
     const { getByText, getAllByText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    // Best Shot present exactly once (excluded from Recommended).
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
+    // Best match is present exactly once (excluded from Recommended).
     expect(getAllByText('Chevening Scholarship')).toHaveLength(1);
     // The sub-60 item still shows in Recommended.
     expect(getByText('Local Bootcamp')).toBeTruthy();
@@ -312,28 +342,28 @@ describe('home Best Shots — empty states and dedupe', () => {
 
     const { getByText, getAllByText, queryByText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
     expect(getAllByText('Mandela Fellowship')).toHaveLength(1);
     // And it reports the fit it was chosen on, not the fatigued feed score.
     expect(getByText('72% match')).toBeTruthy();
     expect(queryByText('52% match')).toBeNull();
   });
 
-  // Guard the other direction: a low-fit item that only looks good because of
-  // engagement bonuses is not a "best shot".
-  it('does not promote a low-fit item lifted by engagement signals', async () => {
+  // A complete profile should never produce an empty Best Matches rail merely
+  // because the strongest currently available item is below an arbitrary bar.
+  it('keeps the fit badge honest when the strongest available item has low fit', async () => {
     mockProfileComplete = true;
     mockOpportunitiesData = [
       makeOpp({ id: 'hyped', title: 'Clicked A Lot', match: 88, matchFit: 35 }),
     ];
 
-    const { getByText, getAllByText } = render(<Dashboard />);
+    const { getByText, getAllByText, queryByText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
-    // Best Shots stays empty...
-    expect(getByText('No strong match yet')).toBeTruthy();
-    // ...while the item still rides the Recommended feed on its feed score,
-    // which is exactly what engagement signals are supposed to influence.
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
+    // A completed profile still gets its strongest available candidate. The
+    // fit badge remains honest even when behavior lifted the feed score.
+    expect(queryByText('No strong match yet')).toBeNull();
+    expect(getByText('35% match')).toBeTruthy();
     expect(getAllByText('Clicked A Lot')).toHaveLength(1);
   });
 });
