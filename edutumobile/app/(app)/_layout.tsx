@@ -1314,7 +1314,10 @@ export default function AppLayout() {
                 || (gesture.dx <= -30 && gesture.vx <= -0.45);
             if (deliberateLeftSwipe) {
                 haptics.light();
-                setFeatureMenuOpen((open) => !open);
+                // A left swipe closes an open left drawer and opens it only
+                // when the gesture began from the opposite screen edge. Do
+                // not toggle after the overlay has already handled a tap.
+                setFeatureMenuOpen(featureMenuOpen ? false : true);
             }
         },
     }), [featureMenuOpen]);
@@ -1731,7 +1734,7 @@ export default function AppLayout() {
                     testID="feature-menu-page-dismiss"
                     accessibilityRole="button"
                     accessibilityLabel={t('menu.close', { defaultValue: 'Close menu' })}
-                    onPressIn={() => setFeatureMenuOpen(false)}
+                    onPress={() => setFeatureMenuOpen(false)}
                     pointerEvents="auto"
                     style={styles.featureMenuPageDismiss}
                 />

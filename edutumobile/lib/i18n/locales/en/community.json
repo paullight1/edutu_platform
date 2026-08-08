@@ -171,6 +171,8 @@
     "deleteConfirmBody": "The text is gone for everyone, permanently. A note stays in its place so the group knows something was removed."
   },
   "errors": {
+    "mineRefreshTitle": "Your groups couldn't refresh",
+    "mineRefreshFailed": "Your groups are temporarily unavailable. Pull down to try again.",
     "notAMember": "You're not a member of this group yet.",
     "groupPrivate": "This group is private. You'll need an invite or an approved request to see it.",
     "groupClosed": "This group has closed and isn't accepting new members.",

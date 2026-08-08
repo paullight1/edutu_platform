@@ -478,6 +478,23 @@ describe('empty and error states', () => {
     expect(queryByTestId('discussions-error')).toBeNull();
   });
 
+  it('never reports no groups when the owned-groups request failed', async () => {
+    mockFetchGroups.mockImplementation((filter: { mine?: boolean }) =>
+      filter.mine
+        ? Promise.reject(new Error('temporary ownership failure'))
+        : Promise.resolve([makeRow(DISCOVER)]),
+    );
+
+    const { getByTestId, queryByTestId, getByText } = render(
+      <DiscussionsBrowseScreen />,
+    );
+
+    await waitFor(() => getByTestId('discussions-mine-warning'));
+    getByText("Your groups couldn't refresh");
+    expect(queryByTestId('discussions-empty')).toBeNull();
+    expect(getByTestId('discussions-discover')).toBeTruthy();
+  });
+
   it('teaches with an icon, one line and one CTA rather than a bare sentence', async () => {
     const { getByTestId, getByText } = render(<DiscussionsBrowseScreen />);
 

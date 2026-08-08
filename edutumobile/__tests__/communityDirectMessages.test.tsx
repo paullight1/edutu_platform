@@ -183,6 +183,102 @@ describe('direct-message screens', () => {
     expect(screen.queryByText('Old private history')).toBeNull();
   });
 
+  it('finishes sending when a background refresh starts mid-request', async () => {
+    jest.useFakeTimers();
+    let resolveSend: (message: unknown) => void = () => undefined;
+    const pendingSend = new Promise((resolve) => {
+      resolveSend = resolve;
+    });
+    mockSendMessage.mockImplementationOnce(() => pendingSend);
+
+    try {
+      const screen = render(<DirectMessageScreen />);
+      await act(async () => Promise.resolve());
+      await act(async () => Promise.resolve());
+
+      fireEvent.changeText(screen.getByTestId('dm-composer-input'), 'Hello Amina');
+      fireEvent.press(screen.getByTestId('dm-send'));
+      expect(screen.getByTestId('dm-send').props.accessibilityState.busy).toBe(true);
+
+      await act(async () => {
+        jest.advanceTimersByTime(10_000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        resolveSend({
+          id: 'sent-1',
+          conversationId: 'dm-1',
+          senderId: 'user-1',
+          body: 'Hello Amina',
+          createdAt: '2026-08-01T09:04:00.000Z',
+          sender: { userId: 'user-1', displayName: 'Me', avatarUrl: null },
+        });
+        await pendingSend;
+      });
+
+      expect(screen.getByTestId('dm-send').props.accessibilityState.busy).toBe(false);
+      screen.getByText('Hello Amina');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('finishes loading older messages when a background refresh starts mid-request', async () => {
+    jest.useFakeTimers();
+    let resolveOlder: (messages: unknown[]) => void = () => undefined;
+    const pendingOlder = new Promise<unknown[]>((resolve) => {
+      resolveOlder = resolve;
+    });
+    const firstPage = Array.from({ length: 40 }, (_, index) => ({
+      id: `page-message-${index}`,
+      conversationId: 'dm-1',
+      senderId: 'user-2',
+      body: `Page message ${index}`,
+      createdAt: `2026-08-01T08:${String(59 - index).padStart(2, '0')}:00.000Z`,
+      sender: conversation.otherUser,
+    }));
+    mockFetchMessages
+      .mockResolvedValueOnce(firstPage)
+      .mockImplementationOnce(() => pendingOlder)
+      .mockResolvedValueOnce([]);
+
+    try {
+      const screen = render(<DirectMessageScreen />);
+      await act(async () => Promise.resolve());
+      await act(async () => Promise.resolve());
+      act(() => screen.getByTestId('dm-message-list').props.onEndReached());
+      expect(screen.getByTestId('dm-loading-older')).toBeTruthy();
+
+      await act(async () => {
+        jest.advanceTimersByTime(10_000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        resolveOlder([{
+          id: 'older-1',
+          conversationId: 'dm-1',
+          senderId: 'user-2',
+          body: 'Earlier message',
+          createdAt: '2026-07-31T08:00:00.000Z',
+          sender: conversation.otherUser,
+        }]);
+        await pendingOlder;
+      });
+
+      expect(screen.queryByTestId('dm-loading-older')).toBeNull();
+      expect(mockFetchMessages).toHaveBeenCalledWith(
+        'dm-1',
+        expect.objectContaining({ beforeId: expect.any(String), limit: 40 }),
+        mockGetToken,
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('does not expose the request composer when the relationship check fails', async () => {
     mockParams = { userId: 'user-2', name: 'Amina' };
     mockFetchRelationship.mockRejectedValue(new Error('offline'));

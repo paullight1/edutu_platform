@@ -109,6 +109,8 @@ export default function DiscussionsBrowseScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mineAvailable, setMineAvailable] = useState(false);
+  const [mineError, setMineError] = useState<string | null>(null);
   // `{ group, membership }` rows, not bare groups: `mine` now means every group
   // the caller has a live relationship with — joined, invited, or applied — and
   // only the membership tells those apart.
@@ -140,7 +142,21 @@ export default function DiscussionsBrowseScreen() {
 
     if (!mountedRef.current || requestId !== requestIdRef.current) return;
 
-    if (mineResult.status === 'fulfilled') setMine(mineResult.value);
+    if (mineResult.status === 'fulfilled') {
+      setMine(mineResult.value);
+      setMineAvailable(true);
+      setMineError(null);
+    } else {
+      // Keep the last known owned-group rows. A failed ownership query is
+      // unknown state, never proof that the user has no groups.
+      setMineError(
+        visibleResult.status === 'fulfilled'
+          ? isCommunityApiError(mineResult.reason)
+            ? mineResult.reason.message
+            : t('community:errors.mineRefreshFailed')
+          : null,
+      );
+    }
     if (visibleResult.status === 'fulfilled') setVisible(visibleResult.value);
 
     if (
@@ -388,7 +404,23 @@ export default function DiscussionsBrowseScreen() {
           <>
             {/* ── 1. Your groups: list rows ────────────────────────────── */}
             <View style={styles.section}>
-              {relationshipRows.length === 0 && pendingRows.length === 0 ? (
+              {mineError ? (
+                <View
+                  testID="discussions-mine-warning"
+                  style={[
+                    styles.mineWarning,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.mineWarningTitle, { color: colors.foreground }]}>
+                    {t('community:errors.mineRefreshTitle')}
+                  </Text>
+                  <Text style={[styles.mineWarningBody, { color: colors.textSecondary }]}>
+                    {mineError}
+                  </Text>
+                </View>
+              ) : null}
+              {mineAvailable && relationshipRows.length === 0 && pendingRows.length === 0 ? (
                 <View testID="discussions-empty">
                   <StateView
                     state={{ kind: 'empty', reason: 'firstRun' }}
@@ -611,6 +643,21 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     lineHeight: 19,
+  },
+  mineWarning: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 3,
+  },
+  mineWarningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  mineWarningBody: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   retryButton: {
     borderWidth: 1,

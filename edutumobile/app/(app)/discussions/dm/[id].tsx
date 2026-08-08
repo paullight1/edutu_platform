@@ -58,12 +58,19 @@ export default function DirectMessageScreen() {
   const [sending, setSending] = useState(false);
   const [managing, setManaging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requestVersion = useRef(0);
+  // Background refreshes may supersede one another, but they must never
+  // invalidate a send or pagination request. Route identity is tracked
+  // separately so only leaving this conversation can discard those results.
+  const loadRequestVersion = useRef(0);
+  const activeConversationIdRef = useRef(conversationId);
+  const screenActiveRef = useRef(false);
   const loadedConversationId = useRef<string | null>(null);
   const loadingOlderLock = useRef(false);
   const lastMarkedMessageId = useRef<string | null>(null);
   const sendingLock = useRef(false);
   const managingLock = useRef(false);
+
+  activeConversationIdRef.current = conversationId;
 
   const load = useCallback(async () => {
     if (!conversationId) {
@@ -91,12 +98,16 @@ export default function DirectMessageScreen() {
       lastMarkedMessageId.current = null;
     }
 
-    const requestId = ++requestVersion.current;
+    const requestId = ++loadRequestVersion.current;
     const [detailResult, messagesResult] = await Promise.allSettled([
       fetchDmConversation(conversationId, getToken),
       fetchDmMessages(conversationId, { limit: PAGE_SIZE }, getToken),
     ]);
-    if (requestId !== requestVersion.current) return;
+    if (
+      !screenActiveRef.current ||
+      activeConversationIdRef.current !== conversationId ||
+      requestId !== loadRequestVersion.current
+    ) return;
     if (detailResult.status === 'fulfilled') {
       setConversation(detailResult.value);
       loadedConversationId.current = conversationId;
@@ -139,12 +150,14 @@ export default function DirectMessageScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      screenActiveRef.current = true;
       let refreshTimer: ReturnType<typeof setTimeout> | undefined;
       if (!conversationId) {
         void load();
         return () => {
           active = false;
-          requestVersion.current += 1;
+          screenActiveRef.current = false;
+          loadRequestVersion.current += 1;
         };
       }
       const refresh = async () => {
@@ -154,8 +167,9 @@ export default function DirectMessageScreen() {
       void refresh();
       return () => {
         active = false;
+        screenActiveRef.current = false;
         if (refreshTimer) clearTimeout(refreshTimer);
-        requestVersion.current += 1;
+        loadRequestVersion.current += 1;
       };
     }, [conversationId, load]),
   );
@@ -163,7 +177,6 @@ export default function DirectMessageScreen() {
   const loadOlder = useCallback(async () => {
     if (!hasOlder || loadingOlderLock.current || messages.length === 0) return;
     const oldest = messages[messages.length - 1];
-    const requestId = requestVersion.current;
     const activeConversationId = conversationId;
     loadingOlderLock.current = true;
     setLoadingOlder(true);
@@ -174,28 +187,32 @@ export default function DirectMessageScreen() {
         getToken,
       );
       if (
-        requestId !== requestVersion.current ||
+        !screenActiveRef.current ||
+        activeConversationId !== activeConversationIdRef.current ||
         activeConversationId !== loadedConversationId.current
       ) return;
       setMessages((current) => mergeDmMessages(current, page));
       setHasOlder(page.length === PAGE_SIZE);
     } catch (caught) {
       if (
-        requestId === requestVersion.current &&
+        screenActiveRef.current &&
+        activeConversationId === activeConversationIdRef.current &&
         activeConversationId === loadedConversationId.current
       ) {
         setError(isCommunityDmApiError(caught) ? caught.message : 'Older messages could not be loaded.');
       }
     } finally {
       loadingOlderLock.current = false;
-      if (requestId === requestVersion.current) setLoadingOlder(false);
+      if (
+        screenActiveRef.current &&
+        activeConversationId === activeConversationIdRef.current
+      ) setLoadingOlder(false);
     }
   }, [conversationId, getToken, hasOlder, messages]);
 
   const send = useCallback(async () => {
     const text = body.trim();
     if (!text || sendingLock.current || !conversation) return;
-    const requestId = requestVersion.current;
     const activeConversationId = conversation.id;
     sendingLock.current = true;
     setSending(true);
@@ -203,7 +220,8 @@ export default function DirectMessageScreen() {
     try {
       const message = await sendDmMessage(activeConversationId, text, getToken);
       if (
-        requestId !== requestVersion.current ||
+        !screenActiveRef.current ||
+        activeConversationId !== activeConversationIdRef.current ||
         activeConversationId !== loadedConversationId.current
       ) return;
       setMessages((current) => mergeDmMessages(current, [message]));
@@ -211,14 +229,18 @@ export default function DirectMessageScreen() {
       void markDmConversationRead(activeConversationId, getToken).catch(() => undefined);
     } catch (caught) {
       if (
-        requestId === requestVersion.current &&
+        screenActiveRef.current &&
+        activeConversationId === activeConversationIdRef.current &&
         activeConversationId === loadedConversationId.current
       ) {
         setError(isCommunityDmApiError(caught) ? caught.message : 'Your message could not be sent.');
       }
     } finally {
       sendingLock.current = false;
-      if (requestId === requestVersion.current) setSending(false);
+      if (
+        screenActiveRef.current &&
+        activeConversationId === activeConversationIdRef.current
+      ) setSending(false);
     }
   }, [body, conversation, getToken]);
 
@@ -320,7 +342,7 @@ export default function DirectMessageScreen() {
               contentContainerStyle={styles.messages}
               onEndReached={() => void loadOlder()}
               onEndReachedThreshold={0.25}
-              ListFooterComponent={loadingOlder ? <ActivityIndicator style={styles.olderLoader} color={colors.accent} /> : null}
+              ListFooterComponent={loadingOlder ? <ActivityIndicator testID="dm-loading-older" style={styles.olderLoader} color={colors.accent} /> : null}
               renderItem={({ item }) => (
                 <MessageRow message={item} mine={item.senderId === userId} />
               )}
