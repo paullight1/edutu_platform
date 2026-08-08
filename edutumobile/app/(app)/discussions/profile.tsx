@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import {
   BookOpen,
@@ -35,6 +36,7 @@ export default function CommunityProfileScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useTranslation('community');
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [stories, setStories] = useState<CommunityProfileContentItem[]>([]);
   const [contentCursor, setContentCursor] = useState<CommunityResourceCursor | null>(null);
@@ -57,7 +59,7 @@ export default function CommunityProfileScreen() {
       .finally(() => setContentLoading(false));
   }, [getToken]);
 
-  const name = profile?.fullName || user?.fullName || 'Your profile';
+  const name = profile?.fullName || user?.fullName || t('profile.yourProfile');
   const ownResources = useMemo(
     () => stories.flatMap((story) => story.resources.map((resource) => ({
       ...resource,
@@ -87,7 +89,7 @@ export default function CommunityProfileScreen() {
   }, [contentCursor, contentLoadingMore, getToken]);
 
   const education = [profile?.major, profile?.school].filter(Boolean).join(' · ');
-  const supportingLine = education || profile?.country || 'Learning, building, and meeting people on the same path.';
+  const supportingLine = education || profile?.country || t('profile.supportingLine');
   const initials = name
     .split(' ')
     .filter(Boolean)
@@ -102,7 +104,7 @@ export default function CommunityProfileScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Photo access needed', 'Allow photo access to choose a profile picture.');
+        Alert.alert(t('profile.photoPermissionTitle'), t('profile.photoPermissionBody'));
         return;
       }
 
@@ -116,7 +118,7 @@ export default function CommunityProfileScreen() {
 
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > MAX_AVATAR_BYTES) {
-        Alert.alert('Image is too large', 'Choose an image smaller than 5 MB.');
+        Alert.alert(t('profile.photoTooLargeTitle'), t('profile.photoTooLargeBody'));
         return;
       }
 
@@ -124,11 +126,11 @@ export default function CommunityProfileScreen() {
       await user.setProfileImage({ file: asset.uri });
       await user.reload();
     } catch {
-      Alert.alert('Could not update photo', 'Please try another image or try again later.');
+      Alert.alert(t('profile.photoFailedTitle'), t('profile.photoFailedBody'));
     } finally {
       setUploadingAvatar(false);
     }
-  }, [uploadingAvatar, user]);
+  }, [t, uploadingAvatar, user]);
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['left', 'right']}>
@@ -136,7 +138,7 @@ export default function CommunityProfileScreen() {
         <View style={styles.identity}>
           <AnimatedPressable
             accessibilityRole="button"
-            accessibilityLabel="Change profile photo"
+            accessibilityLabel={t('profile.changePhoto')}
             onPress={() => void changePhoto()}
             disabled={uploadingAvatar}
             style={styles.avatarButton}
@@ -158,13 +160,13 @@ export default function CommunityProfileScreen() {
 
           <AnimatedPressable
             accessibilityRole="button"
-            accessibilityLabel="Edit profile"
+            accessibilityLabel={t('profile.editProfile')}
             onPress={() => router.push('/profile/edit' as never)}
             style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.card }]}
           >
             <View style={styles.buttonInner}>
               <Edit3 size={16} color={colors.foreground} />
-              <Text style={[styles.editText, { color: colors.foreground }]}>Edit profile</Text>
+              <Text style={[styles.editText, { color: colors.foreground }]}>{t('profile.editProfile')}</Text>
             </View>
           </AnimatedPressable>
         </View>
@@ -172,7 +174,7 @@ export default function CommunityProfileScreen() {
         <View style={[styles.sectionSwitcher, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {(['posts', 'resources'] as const).map((section) => {
             const selected = activeSection === section;
-            const label = section === 'posts' ? 'Posts' : 'Resources';
+            const label = section === 'posts' ? t('profile.posts') : t('profile.resources');
             return (
               <AnimatedPressable
                 key={section}
@@ -195,14 +197,18 @@ export default function CommunityProfileScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            {activeSection === 'posts' ? 'Your posts' : 'Your resources'}
+            {activeSection === 'posts' ? t('profile.yourPosts') : t('profile.yourResources')}
           </Text>
           <Text style={[styles.sectionMeta, { color: colors.textSecondary }]}>
             {activeSection === 'posts' ? stories.length : ownResources.length}
           </Text>
         </View>
 
-        {activeSection === 'posts' ? (
+        {contentLoading && stories.length === 0 ? (
+          <View style={styles.initialContentLoading}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : activeSection === 'posts' ? (
           stories.length > 0 ? (
             <View style={[styles.postList, { borderColor: colors.border, backgroundColor: colors.card }]}>
               {stories.map((story, index) => (
@@ -216,8 +222,8 @@ export default function CommunityProfileScreen() {
               fill={false}
               sceneSize={136}
               style={styles.postsEmpty}
-              title="No posts yet"
-              body="Your shared roadmaps and wins will appear here."
+              title={t('profile.noPosts')}
+              body={t('profile.noPostsBody')}
             />
           )
         ) : ownResources.length > 0 ? (
@@ -238,23 +244,23 @@ export default function CommunityProfileScreen() {
             fill={false}
             sceneSize={136}
             style={styles.postsEmpty}
-            title="No resources yet"
-            body="Resources attached to your posts will appear here."
+            title={t('profile.noResources')}
+            body={t('profile.noResourcesBody')}
           />
         )}
-        {contentLoading ? <ActivityIndicator style={styles.contentProgress} color={colors.accent} /> : null}
+        {contentLoading && stories.length > 0 ? <ActivityIndicator style={styles.contentProgress} color={colors.accent} /> : null}
         {contentError ? (
-          <Text accessibilityLiveRegion="polite" style={[styles.contentError, { color: colors.error }]}>Some profile content could not be loaded.</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.contentError, { color: colors.error }]}>{t('profile.contentError')}</Text>
         ) : null}
         {contentCursor ? (
           <AnimatedPressable
             accessibilityRole="button"
-            accessibilityLabel="Load more profile content"
+            accessibilityLabel={t('profile.loadMoreA11y')}
             disabled={contentLoadingMore}
             onPress={() => void loadMoreContent()}
             style={[styles.loadMore, { borderColor: colors.border, opacity: contentLoadingMore ? 0.6 : 1 }]}
           >
-            {contentLoadingMore ? <ActivityIndicator color={colors.accent} /> : <Text style={[styles.loadMoreText, { color: colors.accent }]}>Load more</Text>}
+            {contentLoadingMore ? <ActivityIndicator color={colors.accent} /> : <Text style={[styles.loadMoreText, { color: colors.accent }]}>{t('profile.loadMore')}</Text>}
           </AnimatedPressable>
         ) : null}
       </ScrollView>
@@ -336,6 +342,7 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
   postMeta: { fontSize: 11.5 },
   postsEmpty: { minHeight: 270, paddingTop: 8 },
+  initialContentLoading: { minHeight: 270, alignItems: 'center', justifyContent: 'center' },
   contentProgress: { marginTop: 18 },
   contentError: { marginTop: 14, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   loadMore: { minHeight: 44, marginTop: 16, borderWidth: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },

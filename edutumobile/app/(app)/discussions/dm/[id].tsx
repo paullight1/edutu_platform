@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MoreHorizontal, Send } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import {
   blockDmUser,
   DM_MESSAGE_MAX_LENGTH,
@@ -47,6 +48,7 @@ export default function DirectMessageScreen() {
   const router = useRouter();
   const { getToken, userId } = useAuth();
   const { colors } = useTheme();
+  const { t } = useTranslation(['community', 'common']);
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const conversationId = Array.isArray(params.id) ? params.id[0] ?? '' : params.id ?? '';
   const [conversation, setConversation] = useState<DmConversationDetail | null>(null);
@@ -76,7 +78,7 @@ export default function DirectMessageScreen() {
     if (!conversationId) {
       setConversation(null);
       setMessages([]);
-      setError('This conversation link is invalid.');
+      setError(t('community:dm.invalidLink'));
       setLoading(false);
       return;
     }
@@ -141,11 +143,11 @@ export default function DirectMessageScreen() {
       failure
         ? isCommunityDmApiError(failure)
           ? failure.message
-          : 'This conversation could not be loaded.'
+          : t('community:dm.loadFailed')
         : null,
     );
     setLoading(false);
-  }, [conversationId, getToken, userId]);
+  }, [conversationId, getToken, t, userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -199,7 +201,7 @@ export default function DirectMessageScreen() {
         activeConversationId === activeConversationIdRef.current &&
         activeConversationId === loadedConversationId.current
       ) {
-        setError(isCommunityDmApiError(caught) ? caught.message : 'Older messages could not be loaded.');
+        setError(isCommunityDmApiError(caught) ? caught.message : t('community:dm.olderFailed'));
       }
     } finally {
       loadingOlderLock.current = false;
@@ -208,7 +210,7 @@ export default function DirectMessageScreen() {
         activeConversationId === activeConversationIdRef.current
       ) setLoadingOlder(false);
     }
-  }, [conversationId, getToken, hasOlder, messages]);
+  }, [conversationId, getToken, hasOlder, messages, t]);
 
   const send = useCallback(async () => {
     const text = body.trim();
@@ -233,7 +235,7 @@ export default function DirectMessageScreen() {
         activeConversationId === activeConversationIdRef.current &&
         activeConversationId === loadedConversationId.current
       ) {
-        setError(isCommunityDmApiError(caught) ? caught.message : 'Your message could not be sent.');
+        setError(isCommunityDmApiError(caught) ? caught.message : t('community:dm.sendFailed'));
       }
     } finally {
       sendingLock.current = false;
@@ -242,7 +244,7 @@ export default function DirectMessageScreen() {
         activeConversationId === activeConversationIdRef.current
       ) setSending(false);
     }
-  }, [body, conversation, getToken]);
+  }, [body, conversation, getToken, t]);
 
   const hide = useCallback(async () => {
     if (!conversation || managingLock.current) return;
@@ -252,12 +254,12 @@ export default function DirectMessageScreen() {
       await hideDmConversation(conversation.id, getToken);
       router.replace('/discussions/chats' as never);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Could not remove this conversation.');
+      setError(isCommunityDmApiError(caught) ? caught.message : t('community:dm.removeFailed'));
     } finally {
       managingLock.current = false;
       setManaging(false);
     }
-  }, [conversation, getToken, router]);
+  }, [conversation, getToken, router, t]);
 
   const block = useCallback(async () => {
     if (!conversation || managingLock.current) return;
@@ -267,37 +269,37 @@ export default function DirectMessageScreen() {
       await blockDmUser(conversation.otherUser.userId, getToken);
       router.replace('/discussions/chats' as never);
     } catch (caught) {
-      setError(isCommunityDmApiError(caught) ? caught.message : 'Could not block this member.');
+      setError(isCommunityDmApiError(caught) ? caught.message : t('community:dm.blockFailed'));
     } finally {
       managingLock.current = false;
       setManaging(false);
     }
-  }, [conversation, getToken, router]);
+  }, [conversation, getToken, router, t]);
 
   const openMenu = useCallback(() => {
     if (!conversation) return;
-    Alert.alert(conversation.otherUser.displayName, 'Manage this private conversation.', [
-      { text: 'Remove from my inbox', onPress: () => void hide() },
+    Alert.alert(conversation.otherUser.displayName, t('community:dm.manage'), [
+      { text: t('community:dm.removeInbox'), onPress: () => void hide() },
       {
-        text: `Block ${conversation.otherUser.displayName}`,
+        text: t('community:dm.blockPerson', { name: conversation.otherUser.displayName }),
         style: 'destructive',
         onPress: () => Alert.alert(
-          `Block ${conversation.otherUser.displayName}?`,
-          'Neither of you will be able to send new private messages.',
+          t('community:dm.blockPersonTitle', { name: conversation.otherUser.displayName }),
+          t('community:dm.blockPersonBody'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Block', style: 'destructive', onPress: () => void block() },
+            { text: t('common:actions.cancel'), style: 'cancel' },
+            { text: t('community:dm.block'), style: 'destructive', onPress: () => void block() },
           ],
         ),
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common:actions.cancel'), style: 'cancel' },
     ]);
-  }, [block, conversation, hide]);
+  }, [block, conversation, hide, t]);
 
   const headerRight = conversation ? (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel="Conversation options"
+      accessibilityLabel={t('community:dm.options')}
       accessibilityState={{ disabled: managing, busy: managing }}
       disabled={managing}
       onPress={openMenu}
@@ -310,8 +312,8 @@ export default function DirectMessageScreen() {
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <ScreenHeader
-        title={conversation?.otherUser.displayName ?? 'Private message'}
-        subtitle={conversation?.blocked ? 'Messaging unavailable' : 'Private conversation'}
+        title={conversation?.otherUser.displayName ?? t('community:dm.privateMessage')}
+        subtitle={conversation?.blocked ? t('community:dm.unavailable') : t('community:dm.privateConversation')}
         showBack
         right={headerRight}
       />
@@ -319,17 +321,17 @@ export default function DirectMessageScreen() {
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
       ) : !conversation ? (
         <View style={styles.centerState}>
-          <Text style={[styles.stateTitle, { color: colors.foreground }]}>Conversation unavailable</Text>
+          <Text style={[styles.stateTitle, { color: colors.foreground }]}>{t('community:dm.conversationUnavailable')}</Text>
           <Text style={[styles.stateBody, { color: colors.textSecondary }]}>{error}</Text>
-          <AnimatedPressable onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.accent }]}><Text style={styles.retryText}>Try again</Text></AnimatedPressable>
+          <AnimatedPressable onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.accent }]}><Text style={styles.retryText}>{t('common:actions.retry')}</Text></AnimatedPressable>
         </View>
       ) : (
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
           {!!error && <Text accessibilityLiveRegion="polite" style={[styles.inlineError, { color: colors.error, backgroundColor: `${colors.error}12` }]}>{error}</Text>}
           {messages.length === 0 ? (
             <View testID="dm-empty-messages" style={styles.emptyMessages}>
-              <Text style={[styles.emptyMessagesTitle, { color: colors.foreground }]}>Start the conversation</Text>
-              <Text style={[styles.emptyMessagesBody, { color: colors.textSecondary }]}>Send a message below. Only you and {conversation.otherUser.displayName} can see it.</Text>
+              <Text style={[styles.emptyMessagesTitle, { color: colors.foreground }]}>{t('community:dm.startConversation')}</Text>
+              <Text style={[styles.emptyMessagesBody, { color: colors.textSecondary }]}>{t('community:dm.emptyBody', { name: conversation.otherUser.displayName })}</Text>
             </View>
           ) : (
             <FlatList
@@ -350,7 +352,7 @@ export default function DirectMessageScreen() {
           )}
           {conversation.blocked ? (
             <View style={[styles.blockedDock, { borderTopColor: colors.border }]}>
-              <Text style={[styles.blockedText, { color: colors.textSecondary }]}>New messages are unavailable because one of you blocked the other.</Text>
+              <Text style={[styles.blockedText, { color: colors.textSecondary }]}>{t('community:dm.blockedBody')}</Text>
             </View>
           ) : (
             <View style={[styles.composer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
@@ -359,7 +361,7 @@ export default function DirectMessageScreen() {
                   testID="dm-composer-input"
                   value={body}
                   onChangeText={setBody}
-                  placeholder="Message"
+                  placeholder={t('community:dm.messagePlaceholder')}
                   placeholderTextColor={colors.textSecondary}
                   multiline
                   maxLength={DM_MESSAGE_MAX_LENGTH}
@@ -370,7 +372,7 @@ export default function DirectMessageScreen() {
               <AnimatedPressable
                 testID="dm-send"
                 accessibilityRole="button"
-                accessibilityLabel="Send message"
+                accessibilityLabel={t('community:dm.send')}
                 accessibilityState={{ disabled: !body.trim() || sending, busy: sending }}
                 disabled={!body.trim() || sending}
                 onPress={() => void send()}

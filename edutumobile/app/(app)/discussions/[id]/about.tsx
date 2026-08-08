@@ -349,22 +349,22 @@ export default function GroupAboutScreen() {
                 />
               )}
 
-              <Section title="Community guidelines" icon={ShieldCheck}>
+              <Section title={t("community:about.guidelinesTitle")} icon={ShieldCheck}>
                 <GuidelineRow
                   number={1}
-                  label="Be respectful, useful, and supportive."
+                  label={t("community:about.guidelineRespect")}
                 />
                 <GuidelineRow
                   number={2}
-                  label="Share verified opportunities and resources—no spam."
+                  label={t("community:about.guidelineVerified")}
                 />
                 <GuidelineRow
                   number={3}
-                  label="Protect personal details and application documents."
+                  label={t("community:about.guidelinePrivacy")}
                 />
                 <GuidelineRow
                   number={4}
-                  label="Keep posts relevant to this community's goal."
+                  label={t("community:about.guidelineRelevant")}
                 />
               </Section>
 
@@ -384,15 +384,15 @@ export default function GroupAboutScreen() {
                 <RouteRow
                   testID="group-about-open-chat"
                   icon={MessageCircle}
-                  title="Open posts"
-                  body="Read the latest updates and join the conversation."
+                  title={t("community:about.openPosts")}
+                  body={t("community:about.openPostsBody")}
                   onPress={() =>
                     router.push(`/discussions/${group.id}` as never)
                   }
                 />
               </Section>
 
-              <Section title="Organizers & members" icon={Users}>
+              <Section title={t("community:about.peopleTitle")} icon={Users}>
                 <Text
                   style={[styles.sectionBody, { color: colors.textSecondary }]}
                 >
@@ -484,7 +484,7 @@ export default function GroupAboutScreen() {
                       { color: colors.textSecondary },
                     ]}
                   >
-                    Loading shared resources…
+                    {t("community:about.resourcesLoading")}
                   </Text>
                 </View>
               ) : resources.length > 0 ? (
@@ -532,8 +532,7 @@ export default function GroupAboutScreen() {
                         { color: colors.textSecondary },
                       ]}
                     >
-                      Share a PDF or image in Posts and it will appear here for
-                      members.
+                      {t("community:about.resourcesEmptyBody")}
                     </Text>
                   </View>
                 </View>
@@ -542,7 +541,7 @@ export default function GroupAboutScreen() {
                 <AnimatedPressable
                   testID="group-resources-load-older"
                   accessibilityRole="button"
-                  accessibilityLabel="Load older group resources"
+                  accessibilityLabel={t("community:about.resourcesLoadMoreA11y")}
                   accessibilityState={{
                     busy: resourcesLoadingMore,
                     disabled: resourcesLoadingMore,
@@ -563,7 +562,7 @@ export default function GroupAboutScreen() {
                         { color: colors.accent },
                       ]}
                     >
-                      Load older resources
+                      {t("community:about.resourcesLoadMore")}
                     </Text>
                   )}
                 </AnimatedPressable>
@@ -582,7 +581,7 @@ export default function GroupAboutScreen() {
                   </Text>
                   <AnimatedPressable
                     accessibilityRole="button"
-                    accessibilityLabel="Retry loading group resources"
+                    accessibilityLabel={t("community:about.resourcesRetryA11y")}
                     onPress={() => void load()}
                     style={[
                       styles.resourceRetry,
@@ -595,7 +594,7 @@ export default function GroupAboutScreen() {
                         { color: colors.error },
                       ]}
                     >
-                      Retry
+                      {t("common:actions.retry")}
                     </Text>
                   </AnimatedPressable>
                 </View>
@@ -869,7 +868,7 @@ function MemberRow({
             <AnimatedPressable
               testID={`group-member-message-${row.membership.userId}`}
               accessibilityRole="button"
-              accessibilityLabel={`Message ${name}`}
+              accessibilityLabel={t("about.messageMemberA11y", { name })}
               onPress={onMessage}
               style={[
                 styles.messageAction,
@@ -880,7 +879,7 @@ function MemberRow({
               <Text
                 style={[styles.messageActionText, { color: colors.accent }]}
               >
-                Message
+                {t("about.messageMember")}
               </Text>
             </AnimatedPressable>
           )}
@@ -888,7 +887,7 @@ function MemberRow({
             <AnimatedPressable
               testID={`group-member-role-${row.membership.userId}`}
               accessibilityRole="button"
-              accessibilityLabel={`${action}: ${name}`}
+              accessibilityLabel={t("about.memberActionA11y", { action, name })}
               accessibilityState={{ busy, disabled: busy }}
               disabled={busy}
               onPress={onChange}
@@ -918,14 +917,18 @@ function ResourceRow({
   opening: boolean;
   onOpen: () => void;
 }) {
+  const { t } = useTranslation("community");
   const { colors } = useTheme();
   const Icon = resource.kind === "image" ? ImageIcon : FileText;
   return (
     <AnimatedPressable
       testID={`group-resource-${resource.id}`}
       accessibilityRole="button"
-      accessibilityLabel={`Open ${resource.kind === "image" ? "image" : "PDF"} ${resource.attachment.name}`}
-      accessibilityHint="Requests a private download link before opening"
+      accessibilityLabel={t("about.openResourceA11y", {
+        type: resource.kind === "image" ? t("about.image") : t("about.pdf"),
+        name: resource.attachment.name,
+      })}
+      accessibilityHint={t("about.openResourceHint")}
       accessibilityState={{ busy: opening, disabled: opening }}
       disabled={opening}
       onPress={onOpen}

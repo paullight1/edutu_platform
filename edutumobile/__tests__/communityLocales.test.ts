@@ -55,6 +55,25 @@ function leaves(obj: unknown, prefix = ''): string[] {
   return Array.from(new Set(out)).sort();
 }
 
+function leafValues(
+  obj: unknown,
+  prefix = '',
+  output: Record<string, string> = {},
+): Record<string, string> {
+  if (obj === null || typeof obj !== 'object') {
+    output[prefix] = String(obj ?? '');
+    return output;
+  }
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    leafValues(value, prefix ? `${prefix}.${key}` : key, output);
+  }
+  return output;
+}
+
+function placeholders(value: string): string[] {
+  return Array.from(value.matchAll(/\{\{[^}]+\}\}/g), (match) => match[0]).sort();
+}
+
 describe('community i18n namespace — nine-locale parity', () => {
   const base = leaves(LOCALES.en);
 
@@ -68,6 +87,32 @@ describe('community i18n namespace — nine-locale parity', () => {
       const missing = base.filter((k) => !cur.includes(k));
       const extra = cur.filter((k) => !base.includes(k));
       expect({ lang, missing, extra }).toEqual({ lang, missing: [], extra: [] });
+    });
+
+    it(`preserves ${lang} interpolation placeholders`, () => {
+      const baseValues = leafValues(LOCALES.en);
+      const localeValues = leafValues(LOCALES[lang]);
+      const mismatches = Object.entries(baseValues).flatMap(([key, value]) => {
+        const reviewedKey =
+          key.startsWith('dm.') ||
+          key.startsWith('inbox.') ||
+          key.startsWith('profile.') ||
+          [
+            'about.memberActionA11y',
+            'about.messageMemberA11y',
+            'about.openResourceA11y',
+          ].includes(key);
+        if (!reviewedKey) return [];
+        // Plural categories vary by locale. Key parity normalizes those above;
+        // compare placeholders only for exact leaf variants both files carry.
+        if (!(key in localeValues)) return [];
+        const expected = placeholders(value);
+        const received = placeholders(localeValues[key] ?? '');
+        return JSON.stringify(expected) === JSON.stringify(received)
+          ? []
+          : [{ key, expected, received }];
+      });
+      expect(mismatches).toEqual([]);
     });
   }
 });

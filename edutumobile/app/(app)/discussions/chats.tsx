@@ -13,6 +13,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
   Mail,
@@ -62,10 +63,10 @@ type InboxSnapshot = {
   completeFailure: boolean;
 };
 
-function inboxErrorMessage(error: unknown): string {
+function inboxErrorMessage(error: unknown, fallback: string): string {
   return isCommunityApiError(error) || isCommunityDmApiError(error)
     ? error.message
-    : "Check your connection and try again.";
+    : fallback;
 }
 
 async function readLastRead(): Promise<LastReadMap> {
@@ -99,6 +100,7 @@ export default function CommunityChatsScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const { colors } = useTheme();
+  const { t } = useTranslation(["community", "common"]);
   const [rows, setRows] = useState<GroupWithMembership[]>([]);
   const [directMessages, setDirectMessages] = useState<DmConversationSummary[]>(
     [],
@@ -148,11 +150,13 @@ export default function CommunityChatsScreen() {
         failures.length === 0
           ? null
           : failures.length === apiResults.length
-            ? inboxErrorMessage(firstFailure)
-            : `Some conversations couldn't be updated. ${inboxErrorMessage(firstFailure)}`,
+            ? inboxErrorMessage(firstFailure, t("community:inbox.networkError"))
+            : t("community:inbox.partialError", {
+                error: inboxErrorMessage(firstFailure, t("community:inbox.networkError")),
+              }),
       completeFailure: failures.length === apiResults.length,
     };
-  }, [getToken]);
+  }, [getToken, t]);
 
   const applyInbox = useCallback(
     ({
@@ -185,7 +189,7 @@ export default function CommunityChatsScreen() {
         })
         .catch((caught) => {
           if (!active || requestId !== requestVersion.current) return;
-          setError(inboxErrorMessage(caught));
+          setError(inboxErrorMessage(caught, t("community:inbox.networkError")));
           setCompleteFailure(true);
         })
         .finally(() => {
@@ -195,7 +199,7 @@ export default function CommunityChatsScreen() {
         active = false;
         if (requestId === requestVersion.current) requestVersion.current += 1;
       };
-    }, [applyInbox, queryInbox]),
+    }, [applyInbox, queryInbox, t]),
   );
 
   const refresh = useCallback(async () => {
@@ -208,7 +212,7 @@ export default function CommunityChatsScreen() {
       if (requestId === requestVersion.current) applyInbox(result);
     } catch (caught) {
       if (requestId === requestVersion.current) {
-        setError(inboxErrorMessage(caught));
+        setError(inboxErrorMessage(caught, t("community:inbox.networkError")));
         setCompleteFailure(true);
       }
     } finally {
@@ -218,7 +222,7 @@ export default function CommunityChatsScreen() {
         setLoading(false);
       }
     }
-  }, [applyInbox, queryInbox]);
+  }, [applyInbox, queryInbox, t]);
 
   const invitations = useMemo(
     () =>
@@ -274,14 +278,14 @@ export default function CommunityChatsScreen() {
         setError(
           isCommunityDmApiError(caught)
             ? caught.message
-            : "That action could not be completed.",
+            : t("community:inbox.actionFailed"),
         );
       } finally {
         busyIdRef.current = null;
         setBusyId(null);
       }
     },
-    [getToken, openDm],
+    [getToken, openDm, t],
   );
 
   const confirmRequestAction = useCallback(
@@ -289,33 +293,33 @@ export default function CommunityChatsScreen() {
       const blocking = action === "block";
       Alert.alert(
         blocking
-          ? `Block ${request.otherUser.displayName}?`
-          : "Decline message request?",
+          ? t("community:inbox.blockTitle", { name: request.otherUser.displayName })
+          : t("community:inbox.declineTitle"),
         blocking
-          ? "They will not be able to send you private messages. You can unblock them later."
-          : "The sender will not be able to continue this conversation.",
+          ? t("community:inbox.blockBody")
+          : t("community:inbox.declineBody"),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("common:actions.cancel"), style: "cancel" },
           {
-            text: blocking ? "Block" : "Decline",
+            text: blocking ? t("community:dm.block") : t("community:inbox.decline"),
             style: "destructive",
             onPress: () => void runRequestAction(request, action),
           },
         ],
       );
     },
-    [runRequestAction],
+    [runRequestAction, t],
   );
 
   const confirmHide = useCallback(
     (conversation: DmConversationSummary) => {
       Alert.alert(
-        "Remove from your inbox?",
-        "This only hides the conversation for you. It does not delete the other person’s history, and a new message will bring it back.",
+        t("community:inbox.removeTitle"),
+        t("community:inbox.removeBody"),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("common:actions.cancel"), style: "cancel" },
           {
-            text: "Remove",
+            text: t("community:inbox.remove"),
             style: "destructive",
             onPress: () => {
               if (busyIdRef.current) return;
@@ -331,7 +335,7 @@ export default function CommunityChatsScreen() {
                   setError(
                     isCommunityDmApiError(caught)
                       ? caught.message
-                      : "Could not remove the conversation.",
+                      : t("community:dm.removeFailed"),
                   ),
                 )
                 .finally(() => {
@@ -343,7 +347,7 @@ export default function CommunityChatsScreen() {
         ],
       );
     },
-    [getToken],
+    [getToken, t],
   );
 
   const hasInboxContent =
@@ -378,7 +382,7 @@ export default function CommunityChatsScreen() {
             fill={false}
             sceneSize={154}
             style={styles.state}
-            title="Conversations unavailable"
+            title={t("community:inbox.unavailable")}
             body={error}
             onRetry={() => void refresh()}
           />
@@ -389,13 +393,13 @@ export default function CommunityChatsScreen() {
             fill={false}
             sceneSize={164}
             style={styles.state}
-            title="No conversations yet"
+            title={t("community:inbox.emptyTitle")}
             body={
               error
-                ? "Some conversation sources are temporarily unavailable. Pull to refresh or try again shortly."
-                : "Message a member or join a community. Private message requests and group conversations will appear here."
+                ? t("community:inbox.emptyPartial")
+                : t("community:inbox.emptyBody")
             }
-            actionLabel="Explore communities"
+            actionLabel={t("community:inbox.explore")}
             onAction={() => router.push("/discussions/explore" as never)}
           />
         ) : (
@@ -414,14 +418,14 @@ export default function CommunityChatsScreen() {
                 </Text>
                 <AnimatedPressable
                   accessibilityRole="button"
-                  accessibilityLabel="Retry loading conversations"
+                  accessibilityLabel={t("community:inbox.retryA11y")}
                   onPress={() => void refresh()}
                   style={styles.inlineRetry}
                 >
                   <Text
                     style={[styles.inlineRetryText, { color: colors.error }]}
                   >
-                    Retry
+                    {t("common:actions.retry")}
                   </Text>
                 </AnimatedPressable>
               </View>
@@ -431,13 +435,13 @@ export default function CommunityChatsScreen() {
               <View testID="dm-requests" style={styles.section}>
                 <SectionLabel
                   icon={Mail}
-                  label="Message requests"
+                  label={t("community:inbox.requests")}
                   color={colors.accent}
                 />
                 <Text
                   style={[styles.sectionHint, { color: colors.textSecondary }]}
                 >
-                  Read the first message before choosing who can contact you.
+                  {t("community:inbox.requestsHint")}
                 </Text>
                 <View style={[styles.list, { backgroundColor: colors.card }]}>
                   {incomingRequests.map((request, index) => (
@@ -460,13 +464,13 @@ export default function CommunityChatsScreen() {
               <View testID="direct-conversations" style={styles.section}>
                 <SectionLabel
                   icon={UserRound}
-                  label="Private messages"
+                  label={t("community:inbox.privateMessages")}
                   color={colors.foreground}
                 />
                 <Text
                   style={[styles.sectionHint, { color: colors.textSecondary }]}
                 >
-                  Only you and the other person can see these messages.
+                  {t("community:inbox.privateHint")}
                 </Text>
                 <View style={[styles.list, { backgroundColor: colors.card }]}>
                   {directMessages.map((conversation, index) => (
@@ -488,7 +492,7 @@ export default function CommunityChatsScreen() {
               <View testID="sent-dm-requests" style={styles.section}>
                 <SectionLabel
                   icon={Mail}
-                  label="Sent requests"
+                  label={t("community:inbox.sentRequests")}
                   color={colors.textSecondary}
                 />
                 <View style={[styles.list, { backgroundColor: colors.card }]}>
@@ -508,7 +512,7 @@ export default function CommunityChatsScreen() {
               <View testID="chat-invitations" style={styles.section}>
                 <SectionLabel
                   icon={Mail}
-                  label="Invitations"
+                  label={t("community:inbox.invitations")}
                   color={colors.accent}
                 />
                 <View style={[styles.list, { backgroundColor: colors.card }]}>
@@ -530,13 +534,13 @@ export default function CommunityChatsScreen() {
             <View testID="group-conversations" style={styles.section}>
               <SectionLabel
                 icon={MessageCircle}
-                label="Group conversations"
+                label={t("community:inbox.groupConversations")}
                 color={colors.foreground}
               />
               <Text
                 style={[styles.sectionHint, { color: colors.textSecondary }]}
               >
-                Messages here are visible to the whole group.
+                {t("community:inbox.groupHint")}
               </Text>
               {conversations.length > 0 ? (
                 <View style={[styles.list, { backgroundColor: colors.card }]}>
@@ -565,7 +569,7 @@ export default function CommunityChatsScreen() {
                       { color: colors.textSecondary },
                     ]}
                   >
-                    Accept an invitation or join a community to begin.
+                    {t("community:inbox.groupEmpty")}
                   </Text>
                 </View>
               )}
@@ -609,13 +613,14 @@ function ConversationRow({
   colors: ThemeColors;
   onPress: () => void;
 }) {
+  const { t } = useTranslation('community');
   const activity = group.lastMessageAt
     ? formatRelativeTime(group.lastMessageAt)
-    : "No messages yet";
-  const countCopy = `${formatCompactNumber(group.memberCount)} ${group.memberCount === 1 ? "member" : "members"}`;
+    : t("inbox.noMessages");
+  const countCopy = t("inbox.memberCount", { count: group.memberCount, formatted: formatCompactNumber(group.memberCount) });
   const accessibilityLabel = invited
-    ? `${group.name}, group invitation, ${countCopy}`
-    : `${group.name}, ${unread ? "unread messages, " : ""}${countCopy}, ${activity}`;
+    ? t("inbox.invitationA11y", { name: group.name, count: countCopy })
+    : t("inbox.groupA11y", { name: group.name, unread: unread ? t("inbox.unread") : "", count: countCopy, activity });
 
   return (
     <AnimatedPressable
@@ -624,8 +629,8 @@ function ConversationRow({
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={
         invited
-          ? "Opens the invitation preview"
-          : "Opens the group conversation"
+          ? t("inbox.invitationHint")
+          : t("inbox.groupOpenHint")
       }
       onPress={onPress}
       hapticFeedback="selection"
@@ -671,8 +676,8 @@ function ConversationRow({
             numberOfLines={1}
           >
             {invited
-              ? `You're invited · ${countCopy}`
-              : `${countCopy} · ${formatCompactNumber(group.messageCount)} messages`}
+              ? t("inbox.invitedPreview", { count: countCopy })
+              : t("inbox.messageCount", { count: group.messageCount, members: countCopy, formatted: formatCompactNumber(group.messageCount) })}
           </Text>
         </View>
 
@@ -684,7 +689,7 @@ function ConversationRow({
             ]}
             numberOfLines={1}
           >
-            {invited ? "Review" : activity}
+            {invited ? t("inbox.review") : activity}
           </Text>
           <ChevronRight size={17} color={colors.textSecondary} />
         </View>
@@ -710,6 +715,7 @@ function RequestRow({
   onDecline: () => void;
   onBlock: () => void;
 }) {
+  const { t } = useTranslation('community');
   return (
     <View
       style={[
@@ -719,7 +725,7 @@ function RequestRow({
           borderBottomWidth: StyleSheet.hairlineWidth,
         },
       ]}
-      accessibilityLabel={`Message request from ${request.otherUser.displayName}: ${request.firstMessage.body}`}
+      accessibilityLabel={t("inbox.requestA11y", { name: request.otherUser.displayName, message: request.firstMessage.body })}
     >
       <View style={styles.requestHeader}>
         <PersonAvatar profile={request.otherUser} colors={colors} />
@@ -736,7 +742,7 @@ function RequestRow({
         </View>
         <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={`Block ${request.otherUser.displayName}`}
+          accessibilityLabel={t("dm.blockPerson", { name: request.otherUser.displayName })}
           disabled={busy}
           onPress={onBlock}
           style={styles.iconAction}
@@ -753,7 +759,7 @@ function RequestRow({
       <View style={styles.requestActions}>
         <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={`Decline ${request.otherUser.displayName}'s message request`}
+          accessibilityLabel={t("inbox.declineA11y", { name: request.otherUser.displayName })}
           accessibilityState={{ disabled: busy, busy }}
           disabled={busy}
           onPress={onDecline}
@@ -762,18 +768,18 @@ function RequestRow({
           <Text
             style={[styles.requestButtonText, { color: colors.foreground }]}
           >
-            Decline
+            {t("inbox.decline")}
           </Text>
         </AnimatedPressable>
         <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={`Accept ${request.otherUser.displayName}'s message request`}
+          accessibilityLabel={t("inbox.acceptA11y", { name: request.otherUser.displayName })}
           accessibilityState={{ disabled: busy, busy }}
           disabled={busy}
           onPress={onAccept}
           style={[styles.requestButton, { backgroundColor: colors.accent }]}
         >
-          <Text style={styles.acceptText}>{busy ? "Working…" : "Accept"}</Text>
+          <Text style={styles.acceptText}>{busy ? t("inbox.working") : t("inbox.accept")}</Text>
         </AnimatedPressable>
       </View>
     </View>
@@ -795,6 +801,7 @@ function DirectMessageRow({
   onPress: () => void;
   onHide: () => void;
 }) {
+  const { t } = useTranslation('community');
   const unread = conversation.unreadCount > 0;
   return (
     <Swipeable
@@ -804,13 +811,13 @@ function DirectMessageRow({
       renderRightActions={() => (
         <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={`Remove conversation with ${conversation.otherUser.displayName} from your inbox`}
+          accessibilityLabel={t("inbox.removePersonA11y", { name: conversation.otherUser.displayName })}
           disabled={busy}
           onPress={onHide}
           style={[styles.swipeRemove, { backgroundColor: colors.error }]}
         >
           <Trash2 size={18} color="#FFFFFF" />
-          <Text style={styles.swipeRemoveText}>Remove</Text>
+          <Text style={styles.swipeRemoveText}>{t("inbox.remove")}</Text>
         </AnimatedPressable>
       )}
     >
@@ -827,11 +834,11 @@ function DirectMessageRow({
         <AnimatedPressable
           testID={`dm-row-${conversation.id}`}
           accessibilityRole="button"
-          accessibilityLabel={`${conversation.otherUser.displayName}, ${unread ? `${conversation.unreadCount} unread, ` : ""}${conversation.lastMessage.body}`}
-          accessibilityHint="Swipe left to remove this conversation from your inbox."
+          accessibilityLabel={t("inbox.dmA11y", { name: conversation.otherUser.displayName, unread: unread ? t("inbox.unreadCount", { count: conversation.unreadCount }) : "", message: conversation.lastMessage.body })}
+          accessibilityHint={t("inbox.removeHint")}
           accessibilityActions={[
-            { name: "activate", label: "Open" },
-            { name: "delete", label: "Remove from inbox" },
+            { name: "activate", label: t("inbox.open") },
+            { name: "delete", label: t("inbox.removeInbox") },
           ]}
           onAccessibilityAction={(event) => {
             if (event.nativeEvent.actionName === "delete") onHide();
@@ -889,6 +896,7 @@ function PendingRequestRow({
   last: boolean;
   colors: ThemeColors;
 }) {
+  const { t } = useTranslation('community');
   return (
     <View
       style={[
@@ -911,7 +919,7 @@ function PendingRequestRow({
           style={[styles.preview, { color: colors.textSecondary }]}
           numberOfLines={1}
         >
-          Waiting for a response · {request.firstMessage.body}
+          {t("inbox.waitingResponse", { message: request.firstMessage.body })}
         </Text>
       </View>
     </View>
@@ -948,11 +956,12 @@ function initials(name: string): string {
 }
 
 function InboxSkeleton({ colors }: { colors: ThemeColors }) {
+  const { t } = useTranslation('community');
   return (
     <View
       testID="chats-loading"
       style={styles.skeletons}
-      accessibilityLabel="Loading conversations"
+      accessibilityLabel={t("inbox.loading")}
     >
       <Skeleton height={18} width="42%" borderRadius={7} />
       {[0, 1, 2].map((key) => (
