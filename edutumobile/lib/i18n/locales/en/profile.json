@@ -1,6 +1,6 @@
 {
   "view": {
-    "title": "Profile",
+    "title": "More",
     "premium": "Premium",
     "userFallback": "User",
     "notSet": "Not set",
@@ -33,7 +33,7 @@
       "mentorStudioDesc": "Publish roadmaps & resources, track your impact",
       "cvBuilder": "CV Builder",
       "cvBuilderDesc": "Professional profile builder",
-      "myDocuments": "My Documents",
+      "myDocuments": "Documents",
       "myDocumentsDesc": "CVs & files you've uploaded",
       "aiCoach": "AI Coach",
       "aiCoachDesc": "Get personalized guidance",

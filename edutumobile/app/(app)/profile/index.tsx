@@ -25,12 +25,13 @@ import {
     Crown,
     Users,
     Wrench,
-    FolderOpen,
     Megaphone,
     Zap,
     Tag,
     BadgeCheck,
     Gift,
+    Store,
+    BookmarkPlus,
 } from 'lucide-react-native';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -44,8 +45,49 @@ import { clearWidgetSuiteData } from '../../../lib/widgetSuiteSync';
 import { usePromptProUpgrade } from '../../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
+import { MoreFeatureHub } from '../../../components/more/MoreFeatureHub';
+
+const MORE_QUICK_ACTIONS = [
+    { id: 'roadmaps', title: 'home.quickActions.roadmaps', icon: Store, route: '/roadmaps', gradient: ['#F59E0B', '#EF4444'] as [string, string] },
+    { id: 'goals', title: 'home.quickActions.goals', icon: Target, route: '/goals', gradient: ['#10B981', '#059669'] as [string, string] },
+    { id: 'cv', title: 'home.quickActions.cvBuilder', icon: FileText, route: '/cv', gradient: ['#3B82F6', '#6366F1'] as [string, string] },
+    { id: 'saved', title: 'home.quickActions.saved', icon: BookmarkPlus, route: '/saved', gradient: ['#EC4899', '#F43F5E'] as [string, string] },
+];
+
+function MoreQuickActions({ onNavigate }: { onNavigate: (route: string) => void }) {
+    const { t } = useTranslation('home');
+    return (
+        <View style={styles.quickActionsSection} testID="more-quick-actions">
+            <Text style={styles.quickActionsHeading}>{t('home.quickActionsTitle')}</Text>
+            <View style={styles.quickActionsGrid}>
+                {MORE_QUICK_ACTIONS.map((item, index) => (
+                    <AnimatedPressable
+                        key={item.id}
+                        onPress={() => onNavigate(item.route)}
+                        style={styles.quickActionCard}
+                        entering={FadeInUp.delay(80 + index * 70).duration(380).springify()}
+                        hapticFeedback="medium"
+                        scaleTo={0.92}
+                        accessibilityLabel={t(item.title)}
+                    >
+                        <LinearGradient
+                            colors={item.gradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.quickActionGradient}
+                        >
+                            <item.icon size={28} color="#FFFFFF" strokeWidth={1.5} />
+                        </LinearGradient>
+                        <Text style={styles.quickActionTitle}>{t(item.title)}</Text>
+                    </AnimatedPressable>
+                ))}
+            </View>
+        </View>
+    );
+}
 
 function PremiumButton({ isPro }: { isPro: boolean }) {
     // Shared upsell (lib/upsell). This chip IS the pitch, so it opens the
@@ -163,9 +205,6 @@ export default function ProfileScreen() {
             title: t('view.menu.tools'),
             items: [
                 { id: 'creator', title: t('view.menu.mentorStudio', { defaultValue: 'Mentor Studio' }), desc: t('view.menu.mentorStudioDesc', { defaultValue: 'Publish roadmaps & resources, track your impact' }), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
-                { id: 'cv', title: t('view.menu.cvBuilder'), desc: t('view.menu.cvBuilderDesc'), icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
-                { id: 'documents', title: t('view.menu.myDocuments'), desc: t('view.menu.myDocumentsDesc'), icon: FolderOpen, route: '/profile/documents', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
-                { id: 'chat', title: t('view.menu.aiCoach'), desc: t('view.menu.aiCoachDesc'), icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
                 { id: 'referrals', title: t('view.menu.inviteFriends', { defaultValue: 'Invite friends' }), desc: t('view.menu.inviteFriendsDesc', { defaultValue: 'Earn 10 credits per friend' }), icon: Gift, route: '/referrals', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
             ]
         },
@@ -264,6 +303,9 @@ export default function ProfileScreen() {
                         </TouchableOpacity>
                     </Animated.View>
                 )}
+
+                <MoreQuickActions onNavigate={(route) => router.push(route as never)} />
+                <MoreFeatureHub />
 
                 {/* Upgrade to Premium — single line; the paywall does the selling. */}
                 {!isPro && (
@@ -457,6 +499,40 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+    },
+    quickActionsSection: {
+        marginBottom: 24,
+    },
+    quickActionsHeading: {
+        color: '#64748B',
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 14,
+    },
+    quickActionsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    quickActionCard: {
+        width: '22%',
+        alignItems: 'center',
+    },
+    quickActionGradient: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    quickActionTitle: {
+        color: '#64748B',
+        fontSize: 12,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     completeProfileCard: {
         flexDirection: 'row',
