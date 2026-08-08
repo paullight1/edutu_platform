@@ -1289,6 +1289,10 @@ function ReferralRedemption() {
 }
 
 // ─── Root Layout ──────────────────────────────────────────────────────────────
+export function featureMenuStateAfterLeftSwipe(menuWasOpen: boolean): boolean {
+    return !menuWasOpen;
+}
+
 export default function AppLayout() {
     const { t } = useTranslation('home');
     const { isSignedIn, isLoaded, getToken, userId } = useAuth();
@@ -1317,7 +1321,7 @@ export default function AppLayout() {
                 // A left swipe closes an open left drawer and opens it only
                 // when the gesture began from the opposite screen edge. Do
                 // not toggle after the overlay has already handled a tap.
-                setFeatureMenuOpen(featureMenuOpen ? false : true);
+                setFeatureMenuOpen(featureMenuStateAfterLeftSwipe(featureMenuOpen));
             }
         },
     }), [featureMenuOpen]);

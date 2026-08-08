@@ -218,7 +218,9 @@ jest.mock('../cache', () => ({
 }));
 jest.mock('../global.css', () => ({}), { virtual: true });
 
-const AppLayout = require('../app/(app)/_layout').default;
+const appLayoutModule = require('../app/(app)/_layout') as typeof import('../app/(app)/_layout');
+const AppLayout = appLayoutModule.default;
+const { featureMenuStateAfterLeftSwipe } = appLayoutModule;
 const Dashboard = require('../app/(app)/index').default;
 
 type Opportunity = {
@@ -274,6 +276,11 @@ const testOpportunities: Opportunity[] = [
 ];
 
 describe('mobile app shell and home dashboard', () => {
+  it('resolves a left swipe from the gesture-start drawer state', () => {
+    expect(featureMenuStateAfterLeftSwipe(true)).toBe(false);
+    expect(featureMenuStateAfterLeftSwipe(false)).toBe(true);
+  });
+
   beforeEach(() => {
     mockReplace.mockClear();
     mockPush.mockClear();
