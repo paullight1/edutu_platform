@@ -199,7 +199,13 @@ class ListOnlyStore implements Partial<GroupsStore> {
 function listSetup() {
   const store = new ListOnlyStore();
   const groups = new GroupsService(store as unknown as GroupsStore);
-  const controller = new CommunitiesController(groups, stub(), stub(), stub(), stub());
+  const controller = new CommunitiesController(
+    groups,
+    stub(),
+    stub(),
+    stub(),
+    stub(),
+  );
   return { store, groups, controller };
 }
 

@@ -47,16 +47,32 @@ export default function CommunityProfileScreen() {
   const [activeSection, setActiveSection] = useState<'posts' | 'resources'>('posts');
 
   useEffect(() => {
-    void fetchProfile(getToken).then(setProfile).catch(() => undefined);
-    setContentLoading(true);
-    void fetchOwnCommunityContent(getToken)
-      .then((page) => {
-        setStories(page.items);
-        setContentCursor(page.nextCursor);
+    let active = true;
+    const loadProfile = async () => {
+      // Defer the loading transition so the effect remains an external-data
+      // synchronization boundary instead of causing a synchronous rerender.
+      await Promise.resolve();
+      if (!active) return;
+      setContentLoading(true);
+      const [profileResult, contentResult] = await Promise.allSettled([
+        fetchProfile(getToken),
+        fetchOwnCommunityContent(getToken),
+      ]);
+      if (!active) return;
+      if (profileResult.status === 'fulfilled') setProfile(profileResult.value);
+      if (contentResult.status === 'fulfilled') {
+        setStories(contentResult.value.items);
+        setContentCursor(contentResult.value.nextCursor);
         setContentError(false);
-      })
-      .catch(() => setContentError(true))
-      .finally(() => setContentLoading(false));
+      } else {
+        setContentError(true);
+      }
+      setContentLoading(false);
+    };
+    void loadProfile();
+    return () => {
+      active = false;
+    };
   }, [getToken]);
 
   const name = profile?.fullName || user?.fullName || t('profile.yourProfile');

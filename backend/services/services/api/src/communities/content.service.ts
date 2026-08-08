@@ -27,6 +27,9 @@ type RawContentRow = {
   id: string;
 };
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -80,8 +83,7 @@ export function mapCommunityProfileContentRow(
   return {
     id: String(result.id),
     title: asText(row.title) ?? "Untitled post",
-    category:
-      asText(row.category) ?? asText(metadata.category) ?? "Community",
+    category: asText(row.category) ?? asText(metadata.category) ?? "Community",
     resources,
     likes:
       typeof row.likes === "number"
@@ -109,8 +111,18 @@ export class CommunityContentService {
   ) {
     const databaseId = toDatabaseUserId(authId);
     const limit = Math.min(Math.max(options.limit ?? 30, 1), 50);
-    if ((options.before && !options.beforeId) || (!options.before && options.beforeId)) {
-      throw new BadRequestException("That page of community content isn't valid.");
+    if (
+      (options.before && !options.beforeId) ||
+      (!options.before && options.beforeId)
+    ) {
+      throw new BadRequestException(
+        "That page of community content isn't valid.",
+      );
+    }
+    if (options.beforeId && !UUID_PATTERN.test(options.beforeId)) {
+      throw new BadRequestException(
+        "That page of community content isn't valid.",
+      );
     }
     const before = options.before?.toISOString() ?? null;
     const beforeId = options.beforeId ?? null;
