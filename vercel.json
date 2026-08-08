@@ -13,6 +13,22 @@
   },
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "https://edutu-platform.onrender.com/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://edutu-platform.onrender.com/robots.txt"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/index.html"
+    },
+    {
       "source": "/opportunity/:id",
       "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
     },

@@ -128,6 +128,24 @@ function normaliseEvent(row) {
   };
 }
 
+function normaliseBlogPost(row) {
+  if (!row || typeof row !== "object" || !row.slug) {
+    return null;
+  }
+
+  return {
+    slug: String(row.slug),
+    updatedAt:
+      row.updated_at ||
+      row.updatedAt ||
+      row.published_at ||
+      row.publishedAt ||
+      row.created_at ||
+      row.createdAt ||
+      null,
+  };
+}
+
 async function readSnapshotOpportunities() {
   try {
     const contents = await readFile(snapshotPath, "utf8");
@@ -212,6 +230,32 @@ async function fetchBackendEvents() {
   }
 }
 
+async function fetchBackendBlogPosts() {
+  if (!apiBaseUrl || typeof fetch !== "function") {
+    return [];
+  }
+
+  try {
+    const url = new URL("/blog", apiBaseUrl);
+    url.searchParams.set("status", "published");
+    url.searchParams.set("limit", "100");
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return extractRows(await response.json())
+      .map(normaliseBlogPost)
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function mergeOpportunities(...groups) {
   const merged = new Map();
 
@@ -254,12 +298,17 @@ function renderUrl({ loc, lastmod, changefreq, priority }) {
 }
 
 async function main() {
-  const [snapshotOpportunities, backendOpportunities, backendEvents] =
-    await Promise.all([
-      readSnapshotOpportunities(),
-      fetchBackendOpportunities(),
-      fetchBackendEvents(),
-    ]);
+  const [
+    snapshotOpportunities,
+    backendOpportunities,
+    backendEvents,
+    backendBlogPosts,
+  ] = await Promise.all([
+    readSnapshotOpportunities(),
+    fetchBackendOpportunities(),
+    fetchBackendEvents(),
+    fetchBackendBlogPosts(),
+  ]);
   const opportunities = mergeOpportunities(
     snapshotOpportunities,
     backendOpportunities,
@@ -283,6 +332,12 @@ async function main() {
       lastmod: today,
       changefreq: "daily",
       priority: "0.9",
+    },
+    {
+      loc: toAbsoluteUrl("/blog"),
+      lastmod: toLastmod(backendBlogPosts[0]?.updatedAt),
+      changefreq: "weekly",
+      priority: "0.8",
     },
     // Impact program landing page. NOTE: the other marketing routes
     // (/about, /impact, /community, …) are still missing from this list —
@@ -313,6 +368,12 @@ async function main() {
       loc: toAbsoluteUrl(`/events/${encodeURIComponent(event.slug)}`),
       lastmod: toLastmod(event.updatedAt),
       changefreq: "weekly",
+      priority: "0.7",
+    })),
+    ...backendBlogPosts.map((post) => ({
+      loc: toAbsoluteUrl(`/blog/${encodeURIComponent(post.slug)}`),
+      lastmod: toLastmod(post.updatedAt),
+      changefreq: "monthly",
       priority: "0.7",
     })),
   ];

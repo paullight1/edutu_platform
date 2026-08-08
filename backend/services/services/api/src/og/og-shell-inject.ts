@@ -118,6 +118,17 @@ export function injectIntoShell(
     );
   }
 
+  // The SPA replaces this fallback when it boots. Until then, search crawlers
+  // and no-JS readers still receive the article's real copy instead of an
+  // empty root node that depends on a second API request.
+  if (meta.articleBody) {
+    const fallback = `<article style="font-family:system-ui,-apple-system,sans-serif;max-width:720px;margin:48px auto;padding:0 20px;line-height:1.7"><h1>${textContent(meta.title)}</h1><p>${textContent(meta.description)}</p><p>${textContent(meta.articleBody)}</p></article>`;
+    html = html.replace(
+      /<div\s+id=["']root["']\s*>\s*<\/div>/i,
+      `<div id="root">${fallback}</div>`,
+    );
+  }
+
   return html.replace(
     "</head>",
     `  <meta name="${OG_INJECTED_MARKER}" content="1" />\n</head>`,

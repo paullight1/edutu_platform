@@ -76,10 +76,10 @@ export const PAGE_SEO = [
   {
     path: "/blog",
     slug: "blog",
-    title: "Blog — Edutu",
+    title: "Scholarship & Career Guides for African Students | Edutu",
     description:
-      "Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities.",
-    imageAlt: "The Edutu blog",
+      "Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu.",
+    imageAlt: "Edutu scholarship and career guides for African students",
     settleMs: 1500,
   },
   {

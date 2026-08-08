@@ -4,6 +4,7 @@ import { AppService } from "./app.service";
 import { Public } from "./auth";
 import { OpportunitiesService } from "./opportunities/opportunities.service";
 import { EventsService } from "./events/events.service";
+import { BlogService } from "./blog/blog.service";
 
 function escapeXml(value: string): string {
   return value
@@ -45,6 +46,7 @@ export class AppController {
     private readonly appService: AppService,
     private readonly opportunitiesService: OpportunitiesService,
     private readonly eventsService: EventsService,
+    private readonly blogService: BlogService,
   ) {}
 
   @Get()
@@ -65,9 +67,10 @@ export class AppController {
     const baseUrl = this.opportunitiesService.getPublicAppBaseUrl();
     const toAbsoluteUrl = (pathname: string) =>
       new URL(pathname, `${baseUrl}/`).toString();
-    const [opportunities, events] = await Promise.all([
+    const [opportunities, events, blogPosts] = await Promise.all([
       this.opportunitiesService.listSitemapOpportunities(),
       this.eventsService.listSitemapEvents(),
+      this.blogService.listSitemapPosts(),
     ]);
     const today = new Date().toISOString().slice(0, 10);
     const urls = [
@@ -89,6 +92,20 @@ export class AppController {
         changefreq: "daily",
         priority: "0.9",
       },
+      {
+        loc: toAbsoluteUrl("/blog"),
+        lastmod: toLastmod(
+          blogPosts[0]?.updatedAt ?? blogPosts[0]?.publishedAt,
+        ),
+        changefreq: "weekly",
+        priority: "0.8",
+      },
+      ...blogPosts.map((post) => ({
+        loc: toAbsoluteUrl(`/blog/${encodeURIComponent(post.slug)}`),
+        lastmod: toLastmod(post.updatedAt ?? post.publishedAt),
+        changefreq: "monthly",
+        priority: "0.7",
+      })),
       ...opportunities.map((opportunity) => ({
         loc: toAbsoluteUrl(
           `/opportunity/${encodeURIComponent(opportunity.id)}`,

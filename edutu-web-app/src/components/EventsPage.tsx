@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -6,14 +6,16 @@ import {
   Calendar,
   Clock3,
   MapPin,
-  RefreshCw,
   Search,
   X,
 } from "lucide-react";
 import ImageWithFallback from "./ImageWithFallback";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
+import PullToRefresh from "./ui/PullToRefresh";
 import { toAbsoluteUrl } from "../lib/publicSite";
+import logger from "../lib/logger";
+import { captureMessage } from "../lib/sentry";
 import { fetchEvents } from "../services/events";
 import type { EdutuEvent } from "../types/event";
 
@@ -162,29 +164,43 @@ export default function EventsPage() {
   const reduceMotion = useReducedMotion();
   const [events, setEvents] = useState<EdutuEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const loadEvents = async (signal?: AbortSignal) => {
-    setLoading(true);
-    setError(null);
+  const loadEvents = useCallback(
+    async (
+      signal?: AbortSignal,
+      options: { background?: boolean } = {},
+    ) => {
+      if (!options.background) setLoading(true);
+      setError(null);
 
-    try {
-      const data = await fetchEvents({ signal, limit: 100 });
-      setEvents(data);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Could not load events");
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  };
+      try {
+        const data = await fetchEvents({ signal, limit: 100 });
+        setEvents(data);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        const resolvedError =
+          err instanceof Error ? err : new Error("Could not load events");
+        setError(resolvedError);
+        logger.error("[events] request failed", resolvedError);
+        captureMessage("Events API request failed", "warning", {
+          message: resolvedError.message,
+          online:
+            typeof navigator === "undefined" ? undefined : navigator.onLine,
+        });
+      } finally {
+        if (!signal?.aborted && !options.background) setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void loadEvents(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadEvents]);
 
   const filteredEvents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -245,40 +261,37 @@ export default function EventsPage() {
   );
 
   return (
-    <>
+    <PullToRefresh
+      onRefresh={() => loadEvents(undefined, { background: true })}
+      disabled={loading}
+      className="min-h-[100dvh]"
+    >
       <Seo
         title="Edutu events | Scholarships, mentorship and application support"
         description={seoDescription}
         path="/events"
         jsonLd={seoJsonLd}
       />
-      <PublicEditorialShell mainClassName="max-w-7xl py-5 sm:py-6">
-        <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
+      <PublicEditorialShell mainClassName="max-w-7xl pb-10 pt-8 sm:pb-14 sm:pt-10">
+        <section className="max-w-3xl">
+          <div className="flex items-center gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
               Events
             </p>
-            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-              Upcoming Edutu events
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-text-secondary">
-              Join workshops, mentorship sessions, and live announcements from
-              the Edutu team.
-            </p>
+            <span className="text-xs text-text-muted sm:hidden">
+              Pull down to refresh
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void loadEvents()}
-            disabled={loading}
-            className="inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-subtle hover:border-brand/40 disabled:cursor-not-allowed disabled:opacity-60 transition-all duration-300"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Upcoming Edutu events
+          </h1>
+          <p className="mt-3 max-w-2xl text-pretty text-base leading-7 text-text-secondary">
+            Join workshops, mentorship sessions, and live announcements from
+            the Edutu team.
+          </p>
         </section>
 
-        <section className="rounded-2xl border border-subtle bg-surface-layer p-4">
+        <section aria-label="Search events" className="mt-8 max-w-2xl">
           <div className="relative">
             <Search
               size={18}
@@ -290,7 +303,7 @@ export default function EventsPage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by title, location, or topic"
-              className="h-11 w-full rounded-xl border border-subtle bg-surface-elevated/60 pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:bg-surface-layer"
+              className="h-12 w-full rounded-2xl border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary shadow-soft outline-none transition focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/15"
             />
             {searchTerm ? (
               <button
@@ -305,13 +318,15 @@ export default function EventsPage() {
           </div>
         </section>
 
-        {error ? (
-          <section className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5">
-            <h2 className="font-display text-lg font-semibold tracking-tight text-danger">
-              Unable to load events
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">{error}</p>
-          </section>
+        {import.meta.env.DEV && error ? (
+          <details className="mt-5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text-secondary">
+            <summary className="cursor-pointer font-semibold text-text-primary">
+              Events API diagnostic
+            </summary>
+            <code className="mt-2 block break-words text-xs">
+              {error.message}
+            </code>
+          </details>
         ) : null}
 
         {loading ? (
@@ -335,16 +350,29 @@ export default function EventsPage() {
             ))}
           </section>
         ) : (
-          <section className="mt-6 rounded-2xl border border-subtle bg-surface-layer p-10 text-center">
-            <h2 className="font-display text-2xl font-semibold tracking-tight">
-              No events found
+          <section
+            aria-live="polite"
+            className="mt-10 border-t border-subtle py-14 text-center sm:py-20"
+          >
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+              <Calendar size={21} />
+            </div>
+            <h2 className="mt-5 font-display text-xl font-semibold tracking-tight sm:text-2xl">
+              {searchTerm ? "No matching events" : "New events are on the way"}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-text-secondary">
-              Check back soon or clear your search to see all announced events.
+              {searchTerm
+                ? "Try a different title, location, or topic."
+                : "We’ll add upcoming workshops and mentorship sessions here as soon as they’re announced."}
             </p>
+            {!searchTerm ? (
+              <p className="mt-3 text-xs font-medium text-text-muted sm:hidden">
+                Pull down anytime to check again.
+              </p>
+            ) : null}
           </section>
         )}
       </PublicEditorialShell>
-    </>
+    </PullToRefresh>
   );
 }

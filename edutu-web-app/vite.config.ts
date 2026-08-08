@@ -39,7 +39,14 @@ export default defineConfig({
         // Marketing Open Graph captures are ~250 KB each and are only ever
         // fetched by social crawlers server-side — precaching them would put
         // several MB of images no user ever sees into every install.
-        globIgnores: ['og/*', '**/og/*'],
+        globIgnores: [
+          'og/*',
+          '**/og/*',
+          // This editorial illustration is served normally but is too large
+          // for Workbox's 2 MiB precache ceiling. Keeping it out of install
+          // avoids failing the entire production build.
+          'illustrations/beliefs-sheet*.png',
+        ],
         // Adds notificationclick + push handlers on top of the generated SW.
         importScripts: ['sw-custom.js'],
         runtimeCaching: [
@@ -63,6 +70,7 @@ export default defineConfig({
               if (url.origin !== 'https://edutu-platform.onrender.com') return false;
               const p = url.pathname;
               if (p === '/blog' || p.startsWith('/blog/')) return true;
+              if (p === '/events' || p.startsWith('/events/')) return true;
               if (p === '/roadmaps/templates') return true;
               if (p === '/opportunities' || p === '/opportunities/search') return true;
               // /opportunities/:id and /opportunities/:id/share-pdf only.

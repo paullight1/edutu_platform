@@ -31,10 +31,10 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
   },
   "/blog": {
     slug: "blog",
-    title: "Blog — Edutu",
-    description: "Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities.",
+    title: "Scholarship & Career Guides for African Students | Edutu",
+    description: "Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu.",
     image: "https://www.edutu.org/og/blog.jpg",
-    imageAlt: "The Edutu blog",
+    imageAlt: "Edutu scholarship and career guides for African students",
   },
   "/community": {
     slug: "community",

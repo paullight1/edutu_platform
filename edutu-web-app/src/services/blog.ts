@@ -68,11 +68,14 @@ export async function fetchPostBySlug(
   slug: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<BlogPost> {
-  const response = await fetch(buildBlogUrl(`/blog/slug/${encodeURIComponent(slug)}`), {
-    method: "GET",
-    signal: options.signal,
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetch(
+    buildBlogUrl(`/blog/slug/${encodeURIComponent(slug)}`),
+    {
+      method: "GET",
+      signal: options.signal,
+      headers: { Accept: "application/json" },
+    },
+  );
 
   if (response.status === 404) {
     throw new Error("NOT_FOUND");
@@ -101,48 +104,4 @@ export function formatPostDate(iso: string | null | undefined): string {
     month: "short",
     day: "numeric",
   });
-}
-
-const MS_PER_DAY = 86_400_000;
-
-/** Stable 0..1 value hashed from a string id (FNV-1a) — deterministic per post. */
-function hashUnit(id: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < id.length; i += 1) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return ((hash >>> 0) % 1000) / 1000;
-}
-
-/**
- * A display-only publish date, spread across the past several months so the
- * feed reads as an established, steadily-published blog rather than a batch of
- * posts stamped on one day.
- *
- * `rank` is the post's newest-first position in the list (0 = most recent) and
- * drives even, well-spaced spacing. On surfaces with no list context (a detail
- * page, a related card), omit it and a stable per-post hash stands in. A few
- * days of hashed jitter keep the dates from looking mechanical.
- */
-export function agedPublishDate(
-  post: { id: string },
-  rank?: number,
-): Date {
-  const jitterDays = Math.round(hashUnit(post.id) * 8); // 0..8
-  const position = rank ?? Math.round(hashUnit(`${post.id}:rank`) * 7); // 0..7
-  const daysAgo = 18 + position * 33 + jitterDays; // ~3wk, then ~+1 month each
-  return new Date(Date.now() - daysAgo * MS_PER_DAY);
-}
-
-/** Human "time ago" label, e.g. "3 weeks ago", "4 months ago". */
-export function relativeDateLabel(date: Date): string {
-  const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / MS_PER_DAY));
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 10) return `${days} days ago`;
-  if (days < 45) return `${Math.round(days / 7)} weeks ago`;
-  if (days < 365) return `${Math.max(1, Math.round(days / 30))} months ago`;
-  const years = Math.round(days / 365);
-  return `${years} year${years > 1 ? "s" : ""} ago`;
 }

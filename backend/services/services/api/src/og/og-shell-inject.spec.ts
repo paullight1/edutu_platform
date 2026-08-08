@@ -30,6 +30,7 @@ const META: OgPageMeta = {
   url: "https://www.edutu.org/blog/why-we-built-edutu",
   ogType: "article",
   ctaLabel: "Read this post on Edutu →",
+  articleBody: "The full article copy is crawlable before JavaScript runs.",
 };
 
 describe("injectIntoShell", () => {
@@ -71,7 +72,10 @@ describe("injectIntoShell", () => {
     expect(html).toContain(
       '<script type="module" src="/assets/index-abc123.js"></script>',
     );
-    expect(html).toContain('<div id="root"></div>');
+    expect(html).toContain('<div id="root"><article');
+    expect(html).toContain(
+      "The full article copy is crawlable before JavaScript runs.",
+    );
   });
 
   it("drops inherited image dimensions when the item's are unknown", () => {
