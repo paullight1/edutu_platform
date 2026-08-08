@@ -159,14 +159,21 @@ class FakeGroupsStore implements GroupsStore {
     const restrict = filter.restrictToGroupIds
       ? new Set(filter.restrictToGroupIds)
       : null;
+    const isOwned = (group: CommunityGroup) =>
+      group.ownerId === filter.includeOwnedBy;
     return (
       this.groups
         .filter((group) => group.archivedAt === null)
-        .filter((group) => !restrict || restrict.has(group.id))
+        .filter(
+          (group) => !restrict || restrict.has(group.id) || isOwned(group),
+        )
         // Applied BEFORE the slice, exactly as the SQL applies it before LIMIT:
         // a fake that filtered afterwards would hide the short-page bug.
         .filter(
-          (group) => group.visibility === "public" || visible.has(group.id),
+          (group) =>
+            group.visibility === "public" ||
+            visible.has(group.id) ||
+            isOwned(group),
         )
         .filter((group) => !group.expiresAt || group.expiresAt.getTime() > now)
         .filter(
@@ -1069,6 +1076,25 @@ describe("GroupsService", () => {
   });
 
   describe("list", () => {
+    it("keeps an owned group visible when a legacy owner membership row is missing", async () => {
+      const db = fakeDb();
+      const owned = seedGroup(db, {
+        id: randomUUID(),
+        slug: "legacy-owned",
+        name: "My earlier group",
+        ownerId: "user_abc",
+        visibility: "private",
+      });
+      db.members = db.members.filter((row) => row.groupId !== owned.id);
+
+      const rows = await new GroupsService(db).list("user_abc", {
+        mine: true,
+      });
+
+      expect(rows.map((row) => row.group.id)).toEqual([owned.id]);
+      expect(rows[0].membership).toBeNull();
+    });
+
     it("returns public groups plus the caller's own private ones", async () => {
       const db = fakeDb();
       seedGroup(db, {

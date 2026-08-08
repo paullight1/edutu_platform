@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,15 +14,13 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
+  BookOpen,
   Camera,
-  ChevronRight,
   Edit3,
-  MessageCircle,
-  UserPlus,
 } from 'lucide-react-native';
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { fetchCommunityStories } from '@edutu/core/src/services/community';
-import type { CommunityStory } from '@edutu/core/src/types/community';
+import type { CommunityResource, CommunityStory } from '@edutu/core/src/types/community';
 import { supabase } from '../../../lib/supabase';
 import { useTheme, type ThemeColors } from '../../../components/context/ThemeContext';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
@@ -37,6 +36,7 @@ export default function CommunityProfileScreen() {
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [stories, setStories] = useState<CommunityStory[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [activeSection, setActiveSection] = useState<'posts' | 'resources'>('posts');
 
   useEffect(() => {
     void fetchProfile(getToken).then(setProfile).catch(() => undefined);
@@ -54,6 +54,14 @@ export default function CommunityProfileScreen() {
       return !creatorEmail && story.creator.name.trim().toLowerCase() === name.trim().toLowerCase();
     }),
     [email, name, stories],
+  );
+  const ownResources = useMemo(
+    () => ownStories.flatMap((story) => story.resources.map((resource) => ({
+      ...resource,
+      rowKey: `${story.id}:${resource.id}`,
+      storyTitle: story.title,
+    }))),
+    [ownStories],
   );
 
   const education = [profile?.major, profile?.school].filter(Boolean).join(' · ');
@@ -139,36 +147,66 @@ export default function CommunityProfileScreen() {
           </AnimatedPressable>
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Connect</Text>
-          <Text style={[styles.sectionMeta, { color: colors.textSecondary }]}>Your community</Text>
-        </View>
-        <View style={styles.actionGrid}>
-          <ProfileAction
-            icon={MessageCircle}
-            title="Messages"
-            body="Private chats and requests"
-            colors={colors}
-            onPress={() => router.push('/discussions/chats' as never)}
-          />
-          <ProfileAction
-            icon={UserPlus}
-            title="Find people"
-            body="Discover groups and members"
-            colors={colors}
-            onPress={() => router.push('/discussions/explore' as never)}
-          />
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Your posts</Text>
-          <Text style={[styles.sectionMeta, { color: colors.textSecondary }]}>{ownStories.length}</Text>
+        <View style={[styles.sectionSwitcher, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {(['posts', 'resources'] as const).map((section) => {
+            const selected = activeSection === section;
+            const label = section === 'posts' ? 'Posts' : 'Resources';
+            return (
+              <AnimatedPressable
+                key={section}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={label}
+                onPress={() => setActiveSection(section)}
+                style={[
+                  styles.sectionTab,
+                  selected && { backgroundColor: `${colors.accent}20` },
+                ]}
+              >
+                <Text style={[styles.sectionTabText, { color: selected ? colors.accent : colors.textSecondary }]}>
+                  {label}
+                </Text>
+              </AnimatedPressable>
+            );
+          })}
         </View>
 
-        {ownStories.length > 0 ? (
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            {activeSection === 'posts' ? 'Your posts' : 'Your resources'}
+          </Text>
+          <Text style={[styles.sectionMeta, { color: colors.textSecondary }]}>
+            {activeSection === 'posts' ? ownStories.length : ownResources.length}
+          </Text>
+        </View>
+
+        {activeSection === 'posts' ? (
+          ownStories.length > 0 ? (
+            <View style={[styles.postList, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              {ownStories.map((story, index) => (
+                <ProfilePost key={story.id} story={story} colors={colors} last={index === ownStories.length - 1} />
+              ))}
+            </View>
+          ) : (
+            <StateView
+              state={{ kind: 'empty', reason: 'firstRun' }}
+              flow="community"
+              fill={false}
+              sceneSize={136}
+              style={styles.postsEmpty}
+              title="No posts yet"
+              body="Your shared roadmaps and wins will appear here."
+            />
+          )
+        ) : ownResources.length > 0 ? (
           <View style={[styles.postList, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            {ownStories.map((story, index) => (
-              <ProfilePost key={story.id} story={story} colors={colors} last={index === ownStories.length - 1} />
+            {ownResources.map((resource, index) => (
+              <ProfileResourceRow
+                key={resource.rowKey}
+                resource={resource}
+                colors={colors}
+                last={index === ownResources.length - 1}
+              />
             ))}
           </View>
         ) : (
@@ -178,8 +216,8 @@ export default function CommunityProfileScreen() {
             fill={false}
             sceneSize={136}
             style={styles.postsEmpty}
-            title="No posts yet"
-            body="Your shared roadmaps, resources, and wins will appear here."
+            title="No resources yet"
+            body="Resources attached to your posts will appear here."
           />
         )}
       </ScrollView>
@@ -187,35 +225,30 @@ export default function CommunityProfileScreen() {
   );
 }
 
-function ProfileAction({
-  icon: Icon,
-  title,
-  body,
-  colors,
-  onPress,
-}: {
-  icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
-  title: string;
-  body: string;
-  colors: ThemeColors;
-  onPress: () => void;
-}) {
+type ProfileResource = CommunityResource & { rowKey: string; storyTitle: string };
+
+function ProfileResourceRow({ resource, colors, last }: { resource: ProfileResource; colors: ThemeColors; last: boolean }) {
+  const openResource = () => {
+    if (resource.url) void Linking.openURL(resource.url).catch(() => undefined);
+  };
+
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${body}`}
-      onPress={onPress}
-      style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      accessibilityLabel={`${resource.title}. ${resource.provider || resource.storyTitle}`}
+      accessibilityState={{ disabled: !resource.url }}
+      disabled={!resource.url}
+      onPress={openResource}
+      style={[styles.resourceRow, !last && { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth }]}
     >
-      <View style={styles.actionInner}>
-        <View style={[styles.actionIcon, { backgroundColor: `${colors.accent}18` }]}>
-          <Icon size={20} color={colors.accent} strokeWidth={2.2} />
-        </View>
-        <View style={styles.actionCopy}>
-          <Text style={[styles.actionTitle, { color: colors.foreground }]}>{title}</Text>
-          <Text style={[styles.actionBody, { color: colors.textSecondary }]} numberOfLines={2}>{body}</Text>
-        </View>
-        <ChevronRight size={17} color={colors.textSecondary} />
+      <View style={[styles.postMark, { backgroundColor: `${colors.accent}18` }]}>
+        <BookOpen size={18} color={colors.accent} strokeWidth={2.2} />
+      </View>
+      <View style={styles.postCopy}>
+        <Text style={[styles.postTitle, { color: colors.foreground }]} numberOfLines={2}>{resource.title}</Text>
+        <Text style={[styles.postMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+          {resource.provider || resource.type || resource.storyTitle}
+        </Text>
       </View>
     </AnimatedPressable>
   );
@@ -251,18 +284,15 @@ const styles = StyleSheet.create({
   editButton: { width: 154, minHeight: 42, marginTop: 17, borderWidth: 1, borderRadius: 13 },
   buttonInner: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   editText: { fontSize: 13, fontWeight: '800' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 10, marginBottom: 11 },
+  sectionSwitcher: { flexDirection: 'row', padding: 4, borderWidth: 1, borderRadius: 15, marginBottom: 18 },
+  sectionTab: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  sectionTabText: { fontSize: 13, fontWeight: '800' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 11 },
   sectionTitle: { fontSize: 18, lineHeight: 24, fontWeight: '800', letterSpacing: -0.25 },
   sectionMeta: { fontSize: 12, fontWeight: '700' },
-  actionGrid: { flexDirection: 'row', gap: 10, marginBottom: 22 },
-  actionCard: { flex: 1, minHeight: 126, borderWidth: 1, borderRadius: 18 },
-  actionInner: { flex: 1, padding: 14, justifyContent: 'space-between' },
-  actionIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  actionCopy: { gap: 3, marginTop: 12, paddingRight: 10 },
-  actionTitle: { fontSize: 14, fontWeight: '800' },
-  actionBody: { fontSize: 11.5, lineHeight: 16 },
   postList: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, overflow: 'hidden' },
   postRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
+  resourceRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
   postMark: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   postMarkText: { fontSize: 16, fontWeight: '800' },
   postCopy: { flex: 1, gap: 3 },

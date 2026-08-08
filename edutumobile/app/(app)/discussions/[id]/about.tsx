@@ -48,6 +48,7 @@ import { AnimatedPressable } from "../../../../components/ui/AnimatedPressable";
 import { Skeleton } from "../../../../components/ui/Skeleton";
 import { useTheme } from "../../../../components/context/ThemeContext";
 import { GroupAvatar } from "../../../../components/community/GroupAvatar";
+import { GroupContentTabs } from "../../../../components/community/GroupContentTabs";
 
 type PendingRole = { member: CommunityMemberSummary; role: "mod" | "member" };
 
@@ -60,10 +61,15 @@ export default function GroupAboutScreen() {
   const { getToken, userId } = useAuth();
   const { t } = useTranslation(["community", "common"]);
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    tab?: string | string[];
+  }>();
   const groupId = Array.isArray(params.id)
     ? (params.id[0] ?? "")
     : (params.id ?? "");
+  const requestedTab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
+  const activeTab = requestedTab === "resources" ? "resources" : "about";
 
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<CommunityGroup | null>(null);
@@ -263,7 +269,17 @@ export default function GroupAboutScreen() {
       style={[styles.screen, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <ScreenHeader title={t("community:screens.aboutTitle")} showBack />
+      <ScreenHeader
+        title={
+          group?.name ??
+          (activeTab === "resources"
+            ? t("community:about.resourcesTitle")
+            : t("community:screens.aboutTitle"))
+        }
+        showBack
+      />
+
+      {!!group && <GroupContentTabs groupId={groupId} active={activeTab} />}
 
       {loading ? (
         <View testID="group-about-loading" style={styles.loading}>
@@ -303,239 +319,291 @@ export default function GroupAboutScreen() {
         >
           <GroupHero group={group} membership={membership} />
 
-          <View style={styles.metrics}>
-            <Metric
-              icon={Users}
-              value={String(group.memberCount)}
-              label={t("community:about.members")}
-            />
-            <Metric
-              icon={MessageCircle}
-              value={String(group.messageCount)}
-              label={t("community:about.messages")}
-            />
-            <Metric
-              icon={CalendarDays}
-              value={formatShortDate(group.createdAt)}
-              label={t("community:about.created")}
-            />
-          </View>
+          {activeTab === "about" && (
+            <>
+              <View style={styles.metrics}>
+                <Metric
+                  icon={Users}
+                  value={String(group.memberCount)}
+                  label={t("community:about.members")}
+                />
+                <Metric
+                  icon={MessageCircle}
+                  value={String(group.messageCount)}
+                  label={t("community:about.messages")}
+                />
+                <Metric
+                  icon={CalendarDays}
+                  value={formatShortDate(group.createdAt)}
+                  label={t("community:about.created")}
+                />
+              </View>
 
-          {!!group.opportunityId && (
-            <LinkedOpportunity
-              group={group}
-              opportunity={opportunity}
-              unavailable={opportunityUnavailable}
-              creatorName={creatorName}
-              onOpen={() => setDisclosureOpen(true)}
-            />
+              {!!group.opportunityId && (
+                <LinkedOpportunity
+                  group={group}
+                  opportunity={opportunity}
+                  unavailable={opportunityUnavailable}
+                  creatorName={creatorName}
+                  onOpen={() => setDisclosureOpen(true)}
+                />
+              )}
+
+              <Section title="Community guidelines" icon={ShieldCheck}>
+                <GuidelineRow
+                  number={1}
+                  label="Be respectful, useful, and supportive."
+                />
+                <GuidelineRow
+                  number={2}
+                  label="Share verified opportunities and resources—no spam."
+                />
+                <GuidelineRow
+                  number={3}
+                  label="Protect personal details and application documents."
+                />
+                <GuidelineRow
+                  number={4}
+                  label="Keep posts relevant to this community's goal."
+                />
+              </Section>
+
+              <Section
+                title={t("community:about.historyTitle")}
+                icon={MessageCircle}
+              >
+                <Text
+                  style={[styles.sectionBody, { color: colors.textSecondary }]}
+                >
+                  {group.lastMessageAt
+                    ? t("community:about.lastActive", {
+                        date: formatLongDate(group.lastMessageAt),
+                      })
+                    : t("community:about.noActivity")}
+                </Text>
+                <RouteRow
+                  testID="group-about-open-chat"
+                  icon={MessageCircle}
+                  title="Open posts"
+                  body="Read the latest updates and join the conversation."
+                  onPress={() =>
+                    router.push(`/discussions/${group.id}` as never)
+                  }
+                />
+              </Section>
+
+              <Section title="Organizers & members" icon={Users}>
+                <Text
+                  style={[styles.sectionBody, { color: colors.textSecondary }]}
+                >
+                  {t("community:about.peopleSummary", {
+                    admins: admins.length,
+                    members: group.memberCount,
+                  })}
+                </Text>
+
+                {!!roleError && (
+                  <View
+                    style={[styles.inlineError, { borderColor: colors.error }]}
+                  >
+                    <Text
+                      style={[styles.inlineErrorText, { color: colors.error }]}
+                    >
+                      {roleError}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={[styles.roster, { borderColor: colors.border }]}>
+                  {members.map((row, index) => {
+                    const role = row.membership.role;
+                    const canChange =
+                      isOwner &&
+                      role !== "owner" &&
+                      row.membership.userId !== userId &&
+                      row.membership.status === "active";
+                    const canMessage =
+                      row.membership.userId !== userId &&
+                      row.membership.status === "active";
+                    const nextRole: "mod" | "member" =
+                      role === "mod" ? "member" : "mod";
+                    return (
+                      <React.Fragment key={row.membership.id}>
+                        {index > 0 && (
+                          <View
+                            style={[
+                              styles.divider,
+                              { backgroundColor: colors.border },
+                            ]}
+                          />
+                        )}
+                        <MemberRow
+                          row={row}
+                          creator={row.membership.userId === group.ownerId}
+                          canChange={canChange}
+                          canMessage={canMessage}
+                          busy={changingUserId === row.membership.userId}
+                          onChange={() =>
+                            setPendingRole({ member: row, role: nextRole })
+                          }
+                          onMessage={() =>
+                            router.push(
+                              `/discussions/dm/new?userId=${encodeURIComponent(row.membership.userId)}&name=${encodeURIComponent(row.profile.displayName)}` as never,
+                            )
+                          }
+                        />
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+                {hasMoreMembers && (
+                  <Text
+                    style={[styles.footnote, { color: colors.textSecondary }]}
+                  >
+                    {t("community:about.memberLimitNote")}
+                  </Text>
+                )}
+              </Section>
+            </>
           )}
 
-          <Section
-            title={t("community:about.historyTitle")}
-            icon={MessageCircle}
-          >
-            <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
-              {group.lastMessageAt
-                ? t("community:about.lastActive", {
-                    date: formatLongDate(group.lastMessageAt),
-                  })
-                : t("community:about.noActivity")}
-            </Text>
-            <RouteRow
-              testID="group-about-open-chat"
-              icon={MessageCircle}
-              title={t("community:about.openChat")}
-              body={t("community:about.openChatBody")}
-              onPress={() => router.push(`/discussions/${group.id}` as never)}
-            />
-          </Section>
-
-          <Section title={t("community:about.peopleTitle")} icon={Users}>
-            <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
-              {t("community:about.peopleSummary", {
-                admins: admins.length,
-                members: group.memberCount,
-              })}
-            </Text>
-
-            {!!roleError && (
-              <View style={[styles.inlineError, { borderColor: colors.error }]}>
-                <Text style={[styles.inlineErrorText, { color: colors.error }]}>
-                  {roleError}
-                </Text>
-              </View>
-            )}
-
-            <View style={[styles.roster, { borderColor: colors.border }]}>
-              {members.map((row, index) => {
-                const role = row.membership.role;
-                const canChange =
-                  isOwner &&
-                  role !== "owner" &&
-                  row.membership.userId !== userId &&
-                  row.membership.status === "active";
-                const canMessage =
-                  row.membership.userId !== userId &&
-                  row.membership.status === "active";
-                const nextRole: "mod" | "member" =
-                  role === "mod" ? "member" : "mod";
-                return (
-                  <React.Fragment key={row.membership.id}>
-                    {index > 0 && (
-                      <View
-                        style={[
-                          styles.divider,
-                          { backgroundColor: colors.border },
-                        ]}
-                      />
-                    )}
-                    <MemberRow
-                      row={row}
-                      creator={row.membership.userId === group.ownerId}
-                      canChange={canChange}
-                      canMessage={canMessage}
-                      busy={changingUserId === row.membership.userId}
-                      onChange={() =>
-                        setPendingRole({ member: row, role: nextRole })
-                      }
-                      onMessage={() =>
-                        router.push(
-                          `/discussions/dm/new?userId=${encodeURIComponent(row.membership.userId)}&name=${encodeURIComponent(row.profile.displayName)}` as never,
-                        )
-                      }
-                    />
-                  </React.Fragment>
-                );
-              })}
-            </View>
-            {hasMoreMembers && (
-              <Text style={[styles.footnote, { color: colors.textSecondary }]}>
-                {t("community:about.memberLimitNote")}
-              </Text>
-            )}
-          </Section>
-
-          <Section title={t("community:about.resourcesTitle")} icon={FileText}>
-            {resourcesLoading ? (
-              <View
-                testID="group-resources-loading"
-                style={styles.resourceLoading}
-              >
-                <ActivityIndicator size="small" color={colors.accent} />
-                <Text
-                  style={[styles.resourceBody, { color: colors.textSecondary }]}
+          {activeTab === "resources" && (
+            <Section
+              title={t("community:about.resourcesTitle")}
+              icon={FileText}
+            >
+              {resourcesLoading ? (
+                <View
+                  testID="group-resources-loading"
+                  style={styles.resourceLoading}
                 >
-                  Loading shared resources…
-                </Text>
-              </View>
-            ) : resources.length > 0 ? (
-              <View
-                style={[styles.resourceList, { borderColor: colors.border }]}
-              >
-                {resources.map((resource, index) => (
-                  <React.Fragment key={resource.id}>
-                    {index > 0 && (
-                      <View
-                        style={[
-                          styles.divider,
-                          { backgroundColor: colors.border },
-                        ]}
-                      />
-                    )}
-                    <ResourceRow
-                      resource={resource}
-                      opening={openingResourceId === resource.id}
-                      onOpen={() => void openResource(resource)}
-                    />
-                  </React.Fragment>
-                ))}
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.resourceEmpty,
-                  { backgroundColor: colors.muted },
-                ]}
-              >
-                <FileText size={26} color={colors.textSecondary} />
-                <View style={styles.flex}>
-                  <Text
-                    style={[styles.resourceTitle, { color: colors.foreground }]}
-                  >
-                    {t("community:about.resourcesEmpty")}
-                  </Text>
+                  <ActivityIndicator size="small" color={colors.accent} />
                   <Text
                     style={[
                       styles.resourceBody,
                       { color: colors.textSecondary },
                     ]}
                   >
-                    Share a PDF or image in chat and it will appear here for
-                    members.
+                    Loading shared resources…
                   </Text>
                 </View>
-              </View>
-            )}
-            {!!resourceCursor && (
-              <AnimatedPressable
-                testID="group-resources-load-older"
-                accessibilityRole="button"
-                accessibilityLabel="Load older group resources"
-                accessibilityState={{
-                  busy: resourcesLoadingMore,
-                  disabled: resourcesLoadingMore,
-                }}
-                disabled={resourcesLoadingMore}
-                onPress={() => void loadOlderResources()}
-                style={[
-                  styles.loadOlderResources,
-                  { borderColor: colors.border },
-                ]}
-              >
-                {resourcesLoadingMore ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
+              ) : resources.length > 0 ? (
+                <View
+                  style={[styles.resourceList, { borderColor: colors.border }]}
+                >
+                  {resources.map((resource, index) => (
+                    <React.Fragment key={resource.id}>
+                      {index > 0 && (
+                        <View
+                          style={[
+                            styles.divider,
+                            { backgroundColor: colors.border },
+                          ]}
+                        />
+                      )}
+                      <ResourceRow
+                        resource={resource}
+                        opening={openingResourceId === resource.id}
+                        onOpen={() => void openResource(resource)}
+                      />
+                    </React.Fragment>
+                  ))}
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.resourceEmpty,
+                    { backgroundColor: colors.muted },
+                  ]}
+                >
+                  <FileText size={26} color={colors.textSecondary} />
+                  <View style={styles.flex}>
+                    <Text
+                      style={[
+                        styles.resourceTitle,
+                        { color: colors.foreground },
+                      ]}
+                    >
+                      {t("community:about.resourcesEmpty")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.resourceBody,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Share a PDF or image in Posts and it will appear here for
+                      members.
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {!!resourceCursor && (
+                <AnimatedPressable
+                  testID="group-resources-load-older"
+                  accessibilityRole="button"
+                  accessibilityLabel="Load older group resources"
+                  accessibilityState={{
+                    busy: resourcesLoadingMore,
+                    disabled: resourcesLoadingMore,
+                  }}
+                  disabled={resourcesLoadingMore}
+                  onPress={() => void loadOlderResources()}
+                  style={[
+                    styles.loadOlderResources,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  {resourcesLoadingMore ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.loadOlderResourcesText,
+                        { color: colors.accent },
+                      ]}
+                    >
+                      Load older resources
+                    </Text>
+                  )}
+                </AnimatedPressable>
+              )}
+              {!!resourceError && (
+                <View
+                  style={[
+                    styles.resourceErrorRow,
+                    { backgroundColor: `${colors.error}10` },
+                  ]}
+                >
                   <Text
+                    style={[styles.resourceErrorText, { color: colors.error }]}
+                  >
+                    {resourceError}
+                  </Text>
+                  <AnimatedPressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading group resources"
+                    onPress={() => void load()}
                     style={[
-                      styles.loadOlderResourcesText,
-                      { color: colors.accent },
+                      styles.resourceRetry,
+                      { borderColor: colors.error },
                     ]}
                   >
-                    Load older resources
-                  </Text>
-                )}
-              </AnimatedPressable>
-            )}
-            {!!resourceError && (
-              <View
-                style={[
-                  styles.resourceErrorRow,
-                  { backgroundColor: `${colors.error}10` },
-                ]}
-              >
-                <Text
-                  style={[styles.resourceErrorText, { color: colors.error }]}
-                >
-                  {resourceError}
-                </Text>
-                <AnimatedPressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry loading group resources"
-                  onPress={() => void load()}
-                  style={[styles.resourceRetry, { borderColor: colors.error }]}
-                >
-                  <Text
-                    style={[styles.resourceRetryText, { color: colors.error }]}
-                  >
-                    Retry
-                  </Text>
-                </AnimatedPressable>
-              </View>
-            )}
-          </Section>
+                    <Text
+                      style={[
+                        styles.resourceRetryText,
+                        { color: colors.error },
+                      ]}
+                    >
+                      Retry
+                    </Text>
+                  </AnimatedPressable>
+                </View>
+              )}
+            </Section>
+          )}
 
-          {(isOwner || isAdmin) && (
+          {activeTab === "about" && (isOwner || isAdmin) && (
             <Section title={t("community:about.adminTools")} icon={ShieldCheck}>
               <View style={[styles.routeList, { borderColor: colors.border }]}>
                 <RouteRow
@@ -601,29 +669,54 @@ function GroupHero({
   const { t } = useTranslation("community");
   const { colors } = useTheme();
   return (
-    <View style={styles.hero}>
-      <GroupAvatar
-        testID="group-about-avatar"
-        resourceUrl={group.coverImageResourceUrl}
-        emoji={group.coverEmoji}
-        size={88}
-        radius={26}
-        style={[styles.groupMark, { borderColor: colors.border }]}
-      />
-      <Text style={[styles.groupName, { color: colors.foreground }]}>
-        {group.name}
-      </Text>
-      <View style={styles.badges}>
-        <Pill
-          icon={group.visibility === "private" ? LockKeyhole : Users}
-          label={t(`visibility.${group.visibility}`)}
+    <View style={styles.heroBlock}>
+      <View style={styles.hero}>
+        <GroupAvatar
+          testID="group-about-avatar"
+          resourceUrl={group.coverImageResourceUrl}
+          emoji={group.coverEmoji}
+          size={72}
+          radius={20}
+          style={[styles.groupMark, { borderColor: colors.border }]}
         />
-        {!!membership?.role && (
-          <Pill icon={ShieldCheck} label={roleLabel(membership.role, t)} />
-        )}
+        <View style={styles.heroCopy}>
+          <Text style={[styles.groupName, { color: colors.foreground }]}>
+            {group.name}
+          </Text>
+          <Text style={[styles.heroMembers, { color: colors.textSecondary }]}>
+            {group.memberCount} {group.memberCount === 1 ? "member" : "members"}
+          </Text>
+          <View style={styles.badges}>
+            <Pill
+              icon={group.visibility === "private" ? LockKeyhole : Users}
+              label={t(`visibility.${group.visibility}`)}
+            />
+            {!!membership?.role && (
+              <Pill icon={ShieldCheck} label={roleLabel(membership.role, t)} />
+            )}
+          </View>
+        </View>
       </View>
       <Text style={[styles.description, { color: colors.textSecondary }]}>
         {group.description || t("about.noDescription")}
+      </Text>
+    </View>
+  );
+}
+
+function GuidelineRow({ number, label }: { number: number; label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.guidelineRow}>
+      <View style={[styles.guidelineNumber, { backgroundColor: colors.muted }]}>
+        <Text
+          style={[styles.guidelineNumberText, { color: colors.foreground }]}
+        >
+          {number}
+        </Text>
+      </View>
+      <Text style={[styles.guidelineLabel, { color: colors.foreground }]}>
+        {label}
       </Text>
     </View>
   );
@@ -1211,7 +1304,7 @@ function formatFileSize(bytes: number): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 16, paddingBottom: 52, gap: 14 },
+  content: { paddingHorizontal: 18, paddingBottom: 52, gap: 14 },
   loading: { padding: 16, gap: 14 },
   centerState: {
     flex: 1,
@@ -1222,24 +1315,21 @@ const styles = StyleSheet.create({
   },
   stateTitle: { fontSize: 20, fontWeight: "800", textAlign: "center" },
   stateBody: { fontSize: 14, lineHeight: 21, textAlign: "center" },
-  hero: {
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 10,
-  },
+  heroBlock: { paddingVertical: 18, gap: 12 },
+  hero: { flexDirection: "row", alignItems: "center", gap: 14 },
+  heroCopy: { flex: 1, minWidth: 0, gap: 3 },
   groupMark: { borderWidth: 1 },
   groupName: {
-    fontSize: 25,
-    lineHeight: 31,
+    fontSize: 21,
+    lineHeight: 26,
     fontWeight: "800",
-    textAlign: "center",
     letterSpacing: -0.5,
   },
+  heroMembers: { fontSize: 13, lineHeight: 18, fontWeight: "700" },
   badges: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
+    marginTop: 3,
     gap: 8,
   },
   pill: {
@@ -1252,9 +1342,8 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 12, fontWeight: "700" },
   description: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 21,
     maxWidth: 520,
   },
   metrics: { flexDirection: "row", gap: 8 },
@@ -1280,6 +1369,21 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: "800", letterSpacing: -0.2 },
   sectionBody: { fontSize: 14, lineHeight: 21 },
+  guidelineRow: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  guidelineNumber: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guidelineNumberText: { fontSize: 13, fontWeight: "900" },
+  guidelineLabel: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: "600" },
   opportunityName: { fontSize: 18, lineHeight: 24, fontWeight: "800" },
   opportunityOrg: { marginTop: -7, fontSize: 13, lineHeight: 18 },
   opportunityFacts: {

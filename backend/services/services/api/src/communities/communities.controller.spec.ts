@@ -141,9 +141,22 @@ class ListOnlyStore implements Partial<GroupsStore> {
   async listGroups(filter: GroupListFilter): Promise<CommunityGroup[]> {
     this.lastFilter = filter;
     const visible = new Set(filter.visibleGroupIds ?? []);
-    return this.groups.filter(
-      (group) => group.visibility === "public" || visible.has(group.id),
-    );
+    const restricted = filter.restrictToGroupIds
+      ? new Set(filter.restrictToGroupIds)
+      : null;
+    return this.groups
+      .filter(
+        (group) =>
+          !restricted ||
+          restricted.has(group.id) ||
+          group.ownerId === filter.includeOwnedBy,
+      )
+      .filter(
+        (group) =>
+          group.visibility === "public" ||
+          visible.has(group.id) ||
+          group.ownerId === filter.includeOwnedBy,
+      );
   }
 
   addGroup(overrides: Partial<CommunityGroup> = {}): CommunityGroup {
@@ -190,6 +203,20 @@ function listSetup() {
 }
 
 describe("CommunitiesController.listGroups mine filter", () => {
+  it("returns a group created by the caller even when its owner membership row is missing", async () => {
+    const { store, controller } = listSetup();
+    const owned = store.addGroup({
+      name: "Created earlier",
+      ownerId: RAW_SUBJECT,
+      visibility: "private",
+    });
+
+    const rows = await controller.listGroups(RAW_SUBJECT, "true");
+
+    expect(rows.map((row) => row.group.id)).toEqual([owned.id]);
+    expect(rows[0].membership).toBeNull();
+  });
+
   it("returns only the groups the caller has a live membership on", async () => {
     const { store, controller } = listSetup();
     const mine = store.addGroup({ name: "Mine" });

@@ -1,17 +1,24 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Plus } from 'lucide-react-native';
 import {
   fetchGroups,
   isCommunityApiError,
@@ -97,6 +104,7 @@ export default function DiscussionsBrowseScreen() {
   const { user } = useUser();
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,22 +116,38 @@ export default function DiscussionsBrowseScreen() {
   const [visible, setVisible] = useState<GroupWithMembership[]>([]);
   const [saved, setSaved] = useState<SavedOpportunity[]>([]);
   const [lastRead, setLastRead] = useState<LastReadMap>({});
+  const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
+  const initialLoadFinishedRef = useRef(false);
+  const getTokenRef = useRef(getToken);
 
   const userId = user?.id ?? null;
 
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+
   const load = useCallback(async () => {
-    setError(null);
-    try {
-      // Two calls, not one filtered client-side: the backend caps the list at
-      // 50 rows, so asking for "mine" separately guarantees a group you belong
-      // to can never be pushed off the page by public ones.
-      const [mineRows, visibleRows] = await Promise.all([
-        fetchGroups({ mine: true, limit: 50 }, getToken),
-        fetchGroups({ limit: 50 }, getToken),
-      ]);
-      setMine(mineRows);
-      setVisible(visibleRows);
-    } catch (caught) {
+    const requestId = ++requestIdRef.current;
+    const tokenProvider = getTokenRef.current;
+
+    // Settle independently: a transient Discover failure must not erase the
+    // caller's own groups, and an older request must not overwrite a refresh.
+    const [mineResult, visibleResult] = await Promise.allSettled([
+      fetchGroups({ mine: true, limit: 50 }, tokenProvider),
+      fetchGroups({ limit: 50 }, tokenProvider),
+    ]);
+
+    if (!mountedRef.current || requestId !== requestIdRef.current) return;
+
+    if (mineResult.status === 'fulfilled') setMine(mineResult.value);
+    if (visibleResult.status === 'fulfilled') setVisible(visibleResult.value);
+
+    if (
+      mineResult.status === 'rejected' &&
+      visibleResult.status === 'rejected'
+    ) {
+      const caught = mineResult.reason ?? visibleResult.reason;
       // The server writes these sentences for the member to read and act on
       // ("You're already in 2 groups…"). Showing a status code instead throws
       // that away — see the header of services/communities.ts.
@@ -132,31 +156,66 @@ export default function DiscussionsBrowseScreen() {
           ? caught.message
           : t('common:errors.generic'),
       );
+    } else {
+      // Do not clear the red bar at retry start and make it blink. It leaves
+      // only after at least one group source has actually recovered.
+      setError(null);
     }
 
     // Bookmarks degrade to [] rather than throwing, and a failure here only
     // costs the rail — so it must never blank out the groups above it.
     if (userId) {
       try {
-        setSaved(await fetchSavedOpportunities(supabase, userId, getToken));
+        const savedRows = await fetchSavedOpportunities(
+          supabase,
+          userId,
+          tokenProvider,
+        );
+        if (mountedRef.current && requestId === requestIdRef.current) {
+          setSaved(savedRows);
+        }
       } catch {
-        setSaved([]);
+        if (mountedRef.current && requestId === requestIdRef.current) {
+          setSaved([]);
+        }
       }
     }
 
-    setLastRead(await readLastRead());
-  }, [getToken, userId, t]);
+    const latestLastRead = await readLastRead();
+    if (mountedRef.current && requestId === requestIdRef.current) {
+      setLastRead(latestLastRead);
+    }
+  }, [userId, t]);
 
   useEffect(() => {
+    mountedRef.current = true;
     const run = async () => {
       try {
         await load();
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          initialLoadFinishedRef.current = true;
+          setLoading(false);
+        }
       }
     };
     void run();
+
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+    };
   }, [load]);
+
+  // Expo keeps this route mounted beneath create/detail screens. Revalidate
+  // when Groups becomes active again so a new group replaces the stale empty
+  // state immediately.
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoadFinishedRef.current) return;
+      void load();
+    }, [load]),
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -296,18 +355,24 @@ export default function DiscussionsBrowseScreen() {
             <Text style={[styles.errorText, { color: colors.error }]}>
               {error}
             </Text>
-            <AnimatedPressable
+            <Pressable
               testID="discussions-retry"
               accessibilityRole="button"
               accessibilityLabel={t('common:actions.retry')}
               onPress={handleRefresh}
               disabled={refreshing}
-              style={[styles.retryButton, { borderColor: colors.error }]}
+              style={({ pressed }) => [
+                styles.retryButton,
+                {
+                  borderColor: colors.error,
+                  opacity: pressed || refreshing ? 0.7 : 1,
+                },
+              ]}
             >
               <Text style={[styles.retryLabel, { color: colors.error }]}>
                 {t('common:actions.retry')}
               </Text>
-            </AnimatedPressable>
+            </Pressable>
           </View>
         )}
 
@@ -486,6 +551,25 @@ export default function DiscussionsBrowseScreen() {
           </>
         )}
       </ScrollView>
+      {relationshipRows.length > 0 || pendingRows.length > 0 ? (
+        <AnimatedPressable
+          testID="discussions-create"
+          accessibilityRole="button"
+          accessibilityLabel={t('community:actions.createGroup')}
+          onPress={openCreate}
+          hapticFeedback="medium"
+          scaleTo={0.92}
+          style={[
+            styles.createFab,
+            {
+              bottom: insets.bottom + 72,
+              backgroundColor: colors.accent,
+            },
+          ]}
+        >
+          <Plus size={25} color="#FFFFFF" strokeWidth={2.4} />
+        </AnimatedPressable>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -564,5 +648,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     maxWidth: 160,
+  },
+  createFab: {
+    position: 'absolute',
+    right: 20,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
   },
 });

@@ -10,6 +10,30 @@
     "requestsTitle": "Join requests",
     "aboutTitle": "Group info"
   },
+  "navigation": {
+    "eyebrow": "COMMUNITY",
+    "backHome": "Back to Edutu home",
+    "profileSettings": "Profile settings"
+  },
+  "contentTabs": {
+    "posts": "Posts",
+    "resources": "Resources",
+    "about": "About"
+  },
+  "discovery": {
+    "title": "Discover communities",
+    "subtitle": "Find people preparing for the same opportunities and goals.",
+    "emptyTitle": "No communities to discover yet",
+    "emptyBody": "New opportunity groups will appear here as people start them.",
+    "checkAgain": "Check again",
+    "fallbackDescription": "Opportunity support and shared progress",
+    "memberCount_one": "{{formatted}} member",
+    "memberCount_other": "{{formatted}} members",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "showMoreA11y": "Show more communities",
+    "showLessA11y": "Show fewer communities"
+  },
   "sections": {
     "yourGroups": "Your groups",
     "forYourSavedOpportunities": "For opportunities you saved",

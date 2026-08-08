@@ -131,6 +131,13 @@ export type GroupListFilter = {
    */
   restrictToGroupIds?: string[];
   /**
+   * Always include groups whose canonical `owner_id` matches this user. Older
+   * groups can predate the transactional owner-membership insert, and a
+   * missing derived membership row must not make a creator lose their group.
+   * Explicit `removed`/`banned` rows are still rejected by the service.
+   */
+  includeOwnedBy?: string;
+  /**
    * Group ids whose privacy the caller's own membership row unlocks — `active`
    * or `invited`, per `admitsToPrivateGroup`. NOT the same set as `mine`: a
    * `pending` row is live (so it is "mine") but unlocks nothing (so a private
@@ -449,18 +456,34 @@ export class DrizzleGroupsStore implements GroupsStore {
     // visibility rule is: narrowing after the 50-row cap would return a page
     // that is short of the caller's own groups because public ones filled it.
     if (filter.restrictToGroupIds) {
-      if (filter.restrictToGroupIds.length === 0) return [];
-      conditions.push(inArray(communityGroups.id, filter.restrictToGroupIds));
+      const owned = filter.includeOwnedBy
+        ? eq(communityGroups.ownerId, filter.includeOwnedBy)
+        : null;
+      if (filter.restrictToGroupIds.length === 0) {
+        if (!owned) return [];
+        conditions.push(owned);
+      } else {
+        const restricted = inArray(
+          communityGroups.id,
+          filter.restrictToGroupIds,
+        );
+        conditions.push(owned ? or(restricted, owned)! : restricted);
+      }
     }
     // Visibility filtered here rather than after the fetch, so the LIMIT counts
     // rows the caller can actually see.
     const visible = filter.visibleGroupIds ?? [];
     const isPublic = eq(communityGroups.visibility, "public");
-    conditions.push(
-      visible.length
-        ? or(isPublic, inArray(communityGroups.id, visible))!
-        : isPublic,
-    );
+    const visibilityConditions = [isPublic];
+    if (visible.length) {
+      visibilityConditions.push(inArray(communityGroups.id, visible));
+    }
+    if (filter.includeOwnedBy) {
+      visibilityConditions.push(
+        eq(communityGroups.ownerId, filter.includeOwnedBy),
+      );
+    }
+    conditions.push(or(...visibilityConditions)!);
     return db
       .select()
       .from(communityGroups)
@@ -875,12 +898,24 @@ export class GroupsService {
       ...filter,
       visibleGroupIds,
       restrictToGroupIds: filter.mine ? liveIds : undefined,
+      includeOwnedBy: userId,
     });
     const live = new Set(liveIds);
     return rows
       .map((group) => ({ group, membership: byGroup.get(group.id) ?? null }))
-      .filter(({ group, membership }) => canReadGroup(group, membership))
-      .filter(({ group }) => !filter.mine || live.has(group.id));
+      .filter(
+        ({ group, membership }) =>
+          (group.ownerId === userId &&
+            !isDepartedStatus(membership?.status)) ||
+          canReadGroup(group, membership),
+      )
+      .filter(
+        ({ group, membership }) =>
+          !filter.mine ||
+          live.has(group.id) ||
+          (group.ownerId === userId &&
+            !isDepartedStatus(membership?.status)),
+      );
   }
 
   async get(userId: string, groupId: string): Promise<GroupWithMembership> {
@@ -889,7 +924,13 @@ export class GroupsService {
     // The shared read rule — `MessagesService.list` calls the same function, so
     // the group and its messages cannot disagree about who may see them. See
     // community-authz.ts for why `invited` reads and `pending` does not.
-    if (!canReadGroup(group, membership)) {
+    if (
+      !canReadGroup(group, membership) &&
+      !(
+        group.ownerId === userId &&
+        !isDepartedStatus(membership?.status)
+      )
+    ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );
@@ -912,7 +953,13 @@ export class GroupsService {
   ): Promise<CommunityMemberList> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    if (!canReadGroup(group, membership)) {
+    if (
+      !canReadGroup(group, membership) &&
+      !(
+        group.ownerId === userId &&
+        !isDepartedStatus(membership?.status)
+      )
+    ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );

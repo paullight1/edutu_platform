@@ -1,50 +1,53 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@clerk/clerk-expo';
-import { Flame, Star, Users } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
+import { useTranslation } from "react-i18next";
+import { ChevronRight, LockKeyhole, Users } from "lucide-react-native";
 import {
   fetchGroups,
+  type CommunityGroup,
   type GroupWithMembership,
-} from '@edutu/core/src/services/communities';
-import { fetchCommunityStories } from '@edutu/core/src/services/community';
-import type { CommunityStory } from '@edutu/core/src/types/community';
-import { supabase } from '../../../lib/supabase';
-import { useTheme } from '../../../components/context/ThemeContext';
-import { StateView } from '../../../components/state';
-import { GroupRow } from '../../../components/community/GroupRow';
-import { Skeleton } from '../../../components/ui/Skeleton';
+} from "@edutu/core/src/services/communities";
+import {
+  useTheme,
+  type ThemeColors,
+} from "../../../components/context/ThemeContext";
+import { StateView } from "../../../components/state";
+import { GroupAvatar } from "../../../components/community/GroupAvatar";
+import { Skeleton } from "../../../components/ui/Skeleton";
+import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
+
+const PREVIEW_COUNT = 3;
 
 export default function CommunityExploreScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
+  const { t, i18n } = useTranslation("community");
   const { colors } = useTheme();
   const [rows, setRows] = useState<GroupWithMembership[]>([]);
-  const [stories, setStories] = useState<CommunityStory[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(false);
-    const [groupResult, storyResult] = await Promise.allSettled([
-      fetchGroups({ limit: 50 }, getToken),
-      fetchCommunityStories(supabase, { limit: 12, orderBy: 'featuredRank' }),
-    ]);
-    if (groupResult.status === 'fulfilled')
-      setRows(groupResult.value.filter((row) => !row.group.archivedAt));
-    if (storyResult.status === 'fulfilled') setStories(storyResult.value);
-    setLoadError(
-      groupResult.status === 'rejected' && storyResult.status === 'rejected',
-    );
-    setLoading(false);
+    try {
+      const result = await fetchGroups({ limit: 50 }, getToken);
+      setRows(result.filter((row) => !row.group.archivedAt));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [getToken]);
 
   useEffect(() => {
@@ -57,35 +60,19 @@ export default function CommunityExploreScreen() {
     };
   }, [load]);
 
-  const trending = useMemo(
+  const ranked = useMemo(
     () =>
       rows
         .slice()
         .sort(
           (a, b) =>
             b.group.messageCount - a.group.messageCount ||
-            b.group.memberCount - a.group.memberCount,
-        )
-        .slice(0, 4),
+            b.group.memberCount - a.group.memberCount ||
+            b.group.createdAt.localeCompare(a.group.createdAt),
+        ),
     [rows],
   );
-  const featured = useMemo(
-    () => stories.filter((story) => story.featured).slice(0, 4),
-    [stories],
-  );
-  const people = useMemo(() => {
-    const seen = new Set<string>();
-    return stories
-      .filter((story) => {
-        const name = story.creator.name.trim();
-        if (!name || seen.has(name)) return false;
-        seen.add(name);
-        return true;
-      })
-      .slice(0, 4);
-  }, [stories]);
-  const hasContent =
-    trending.length > 0 || featured.length > 0 || people.length > 0;
+  const visibleRows = showAll ? ranked : ranked.slice(0, PREVIEW_COUNT);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -96,18 +83,14 @@ export default function CommunityExploreScreen() {
     }
   }, [load]);
 
-  const openGroup = useCallback(
-    (groupId: string) => router.push(`/discussions/${groupId}` as never),
-    [router],
-  );
-
   return (
     <SafeAreaView
       style={[styles.screen, { backgroundColor: colors.background }]}
-      edges={['left', 'right']}
+      edges={["left", "right"]}
     >
       <ScrollView
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -116,301 +99,251 @@ export default function CommunityExploreScreen() {
           />
         }
       >
+        <View style={styles.intro}>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            {t("discovery.title")}
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t("discovery.subtitle")}
+          </Text>
+        </View>
+
         {loading ? (
           <View style={styles.skeletons}>
-            <Skeleton height={88} borderRadius={18} />
-            <Skeleton height={88} borderRadius={18} />
+            {[0, 1, 2].map((key) => (
+              <Skeleton key={key} height={112} borderRadius={18} />
+            ))}
           </View>
         ) : loadError ? (
           <StateView
-            state={{ kind: 'error', cause: 'network' }}
+            state={{ kind: "error", cause: "network" }}
             flow="community"
             fill={false}
-            sceneSize={190}
+            sceneSize={170}
             style={styles.largeState}
             onRetry={() => void refresh()}
           />
-        ) : !hasContent ? (
+        ) : ranked.length === 0 ? (
           <StateView
-            state={{ kind: 'empty', reason: 'firstRun' }}
+            state={{ kind: "empty", reason: "firstRun" }}
             flow="community"
             fill={false}
-            sceneSize={200}
+            sceneSize={180}
             style={styles.largeState}
-            title="Nothing to explore yet"
-            body="Active groups, featured posts, and people to meet will appear here as the community grows."
-            actionLabel="Check again"
+            title={t("discovery.emptyTitle")}
+            body={t("discovery.emptyBody")}
+            actionLabel={t("discovery.checkAgain")}
             onAction={() => void refresh()}
           />
         ) : (
-          <>
-            <SectionHeading
-              icon={Flame}
-              title="Trending communities"
-              color={colors.accent}
-              textColor={colors.foreground}
-            />
-            <View
-              style={[
-                styles.groupList,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              {trending.length ? (
-                trending.map((row, index) => (
-                  <GroupRow
-                    key={row.group.id}
-                    group={row.group}
-                    membership={row.membership?.status ?? null}
-                    index={index}
-                    variant="list"
-                    isLast={index === trending.length - 1}
-                    onPress={(group) => openGroup(group.id)}
+          <View>
+            {visibleRows.map((row, index) => (
+              <ExploreGroupRow
+                key={row.group.id}
+                group={row.group}
+                colors={colors}
+                memberLabel={t("discovery.memberCount", {
+                  count: row.group.memberCount,
+                  formatted: formatMemberCount(
+                    row.group.memberCount,
+                    i18n.resolvedLanguage ?? i18n.language,
+                  ),
+                })}
+                fallbackDescription={t("discovery.fallbackDescription")}
+                last={
+                  index === visibleRows.length - 1 &&
+                  (showAll || ranked.length <= PREVIEW_COUNT)
+                }
+                onPress={() =>
+                  router.push(`/discussions/${row.group.id}` as never)
+                }
+              />
+            ))}
+            {ranked.length > PREVIEW_COUNT ? (
+              <AnimatedPressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showAll
+                    ? t("discovery.showLessA11y")
+                    : t("discovery.showMoreA11y")
+                }
+                onPress={() => setShowAll((current) => !current)}
+                style={[styles.showMore, { borderTopColor: colors.border }]}
+              >
+                <View style={styles.showMoreContent}>
+                  <Users size={19} color={colors.accent} />
+                  <Text
+                    style={[styles.showMoreText, { color: colors.accent }]}
+                  >
+                    {showAll
+                      ? t("discovery.showLess")
+                      : t("discovery.showMore")}
+                  </Text>
+                  <ChevronRight
+                    size={18}
+                    color={colors.accent}
+                    style={showAll ? styles.chevronUp : undefined}
                   />
-                ))
-              ) : (
-                <EmptyLine
-                  text="Trending groups will appear here as people start conversations."
-                  color={colors.textSecondary}
-                />
-              )}
-            </View>
-
-            <SectionHeading
-              icon={Star}
-              title="Featured from the community"
-              color={colors.warning}
-              textColor={colors.foreground}
-            />
-            <View style={styles.featureList}>
-              {featured.length ? (
-                featured.map((story) => (
-                  <FeaturedStory key={story.id} story={story} colors={colors} />
-                ))
-              ) : (
-                <EmptyLine
-                  text="Featured roadmaps and resources are coming soon."
-                  color={colors.textSecondary}
-                />
-              )}
-            </View>
-
-            <SectionHeading
-              icon={Users}
-              title="People to meet"
-              color={colors.success}
-              textColor={colors.foreground}
-            />
-            <View style={styles.peopleList}>
-              {people.length ? (
-                people.map((person) => (
-                  <PersonRow
-                    key={person.creator.name}
-                    name={person.creator.name}
-                    title={person.creator.title}
-                    colors={colors}
-                  />
-                ))
-              ) : (
-                <EmptyLine
-                  text="People you can follow will appear as community profiles grow."
-                  color={colors.textSecondary}
-                />
-              )}
-            </View>
-          </>
+                </View>
+              </AnimatedPressable>
+            ) : null}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function SectionHeading({
-  icon: Icon,
-  title,
-  color,
-  textColor,
-}: {
-  icon: React.ComponentType<{ size: number; color: string }>;
-  title: string;
-  color: string;
-  textColor: string;
-}) {
-  return (
-    <View style={styles.sectionHeading}>
-      <View style={[styles.sectionIcon, { backgroundColor: `${color}18` }]}>
-        <Icon size={18} color={color} />
-      </View>
-      <Text style={[styles.sectionTitle, { color: textColor }]}>{title}</Text>
-    </View>
-  );
-}
-
-type ExploreColors = ReturnType<typeof useTheme>['colors'];
-
-function FeaturedStory({
-  story,
+function ExploreGroupRow({
+  group,
   colors,
+  memberLabel,
+  fallbackDescription,
+  last,
+  onPress,
 }: {
-  story: CommunityStory;
-  colors: ExploreColors;
+  group: CommunityGroup;
+  colors: ThemeColors;
+  memberLabel: string;
+  fallbackDescription: string;
+  last: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View
-      accessibilityRole="text"
-      accessibilityLabel={`${story.title}, by ${story.creator.name}`}
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={`${group.name}, ${memberLabel}`}
+      onPress={onPress}
+      hapticFeedback="selection"
+      scaleTo={0.985}
       style={[
-        styles.featuredStory,
-        { backgroundColor: colors.card, borderColor: colors.border },
+        styles.groupRow,
+        !last && {
+          borderBottomColor: colors.border,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+        },
       ]}
     >
-      <View style={styles.storyCopy}>
-        <Text style={[styles.storyCategory, { color: colors.accent }]}>
-          {story.category}
-        </Text>
-        <Text
-          style={[styles.storyTitle, { color: colors.foreground }]}
-          numberOfLines={2}
-        >
-          {story.title}
-        </Text>
-        <Text
-          style={[styles.storyMeta, { color: colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          {story.creator.name} · {story.stats.likes ?? 0} likes
-        </Text>
+      <View testID={`community-row-${group.id}`} style={styles.groupRowContent}>
+        <GroupAvatar
+          resourceUrl={group.coverImageResourceUrl}
+          emoji={group.coverEmoji}
+          size={82}
+          radius={22}
+        />
+        <View style={styles.groupCopy}>
+          <View style={styles.groupTitleRow}>
+            <Text
+              style={[styles.groupTitle, { color: colors.foreground }]}
+              numberOfLines={2}
+            >
+              {group.name}
+            </Text>
+            {group.visibility === "private" ? (
+              <LockKeyhole size={13} color={colors.textSecondary} />
+            ) : null}
+          </View>
+          <Text
+            style={[styles.groupPurpose, { color: colors.textSecondary }]}
+            numberOfLines={1}
+          >
+            {group.description || fallbackDescription}
+          </Text>
+          <View style={styles.memberLine}>
+            <View
+              style={[
+                styles.memberIndicator,
+                { backgroundColor: `${colors.accent}16` },
+              ]}
+            >
+              <Users size={14} color={colors.accent} />
+            </View>
+            <Text
+              style={[styles.memberCount, { color: colors.textSecondary }]}
+            >
+              {memberLabel}
+            </Text>
+          </View>
+        </View>
+        <ChevronRight size={20} color={colors.accent} />
       </View>
-    </View>
+    </AnimatedPressable>
   );
 }
 
-function PersonRow({
-  name,
-  title,
-  colors,
-}: {
-  name: string;
-  title?: string;
-  colors: ExploreColors;
-}) {
-  return (
-    <View
-      style={[
-        styles.personRow,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <View style={[styles.avatar, { backgroundColor: `${colors.accent}22` }]}>
-        <Text style={[styles.avatarText, { color: colors.accent }]}>
-          {name.slice(0, 1).toUpperCase()}
-        </Text>
-      </View>
-      <View style={styles.personCopy}>
-        <Text
-          style={[styles.personName, { color: colors.foreground }]}
-          numberOfLines={1}
-        >
-          {name}
-        </Text>
-        <Text
-          style={[styles.personTitle, { color: colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          {title || 'Community member'}
-        </Text>
-      </View>
-      <View
-        accessibilityRole="text"
-        accessibilityLabel={`Following ${name} will be available soon`}
-        style={[
-          styles.followButton,
-          { borderColor: colors.border, opacity: 0.55 },
-        ]}
-      >
-        <Text style={[styles.followText, { color: colors.textSecondary }]}>
-          Soon
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function EmptyLine({ text, color }: { text: string; color: string }) {
-  return <Text style={[styles.emptyLine, { color }]}>{text}</Text>;
+function formatMemberCount(count: number, language: string): string {
+  try {
+    return new Intl.NumberFormat(language, {
+      notation: count >= 1000 ? "compact" : "standard",
+      maximumFractionDigits: 1,
+    }).format(count);
+  } catch {
+    return String(count);
+  }
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 132, gap: 16 },
-  largeState: { minHeight: 470 },
-  skeletons: { gap: 10 },
-  sectionHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 132 },
+  intro: { marginBottom: 14 },
+  title: {
+    fontSize: 27,
+    lineHeight: 33,
+    fontWeight: "900",
+    letterSpacing: -0.7,
+  },
+  subtitle: { marginTop: 5, maxWidth: 330, fontSize: 13, lineHeight: 19 },
+  skeletons: { gap: 12 },
+  // Keep the empty state compact on short phones. A fixed 450dp minimum made
+  // the illustration and copy center in a very tall block, pushing the CTA
+  // toward the tab bar and leaving the page looking broken.
+  largeState: {
+    paddingVertical: 24,
+  },
+  groupRow: {
+    minHeight: 126,
+    paddingVertical: 16,
+  },
+  groupRowContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  groupCopy: { flex: 1, minWidth: 0 },
+  groupTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  groupTitle: {
+    flexShrink: 1,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  groupPurpose: { marginTop: 5, fontSize: 12, lineHeight: 17 },
+  memberLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 11,
+  },
+  memberIndicator: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberCount: { fontSize: 12, fontWeight: "700" },
+  showMore: {
+    minHeight: 58,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  showMoreContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    marginTop: 10,
   },
-  sectionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: { flex: 1, fontSize: 18, lineHeight: 23, fontWeight: '700' },
-  groupList: {
-    borderWidth: 1,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  featureList: { gap: 9 },
-  featuredStory: {
-    borderWidth: 1,
-    borderRadius: 16,
-    borderCurve: 'continuous',
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  storyCopy: { flex: 1, gap: 5 },
-  storyCategory: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.9,
-    textTransform: 'uppercase',
-  },
-  storyTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700' },
-  storyMeta: { fontSize: 12 },
-  peopleList: { gap: 9 },
-  personRow: {
-    borderWidth: 1,
-    borderRadius: 16,
-    borderCurve: 'continuous',
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { fontSize: 17, fontWeight: '800' },
-  personCopy: { flex: 1, gap: 2 },
-  personName: { fontSize: 14, fontWeight: '800' },
-  personTitle: { fontSize: 12 },
-  followButton: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-  },
-  followText: { fontSize: 12, fontWeight: '800' },
-  emptyLine: { fontSize: 13, lineHeight: 19, padding: 16 },
+  showMoreText: { flex: 1, fontSize: 15, fontWeight: "800" },
+  chevronUp: { transform: [{ rotate: "-90deg" }] },
 });

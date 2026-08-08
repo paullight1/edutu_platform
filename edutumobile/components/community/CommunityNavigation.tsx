@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,7 +9,6 @@ import {
   ArrowLeft,
   Compass,
   MessageCircle,
-  Plus,
   Settings,
   UserCircle,
   Users,
@@ -21,9 +19,10 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../context/ThemeContext";
 
 /**
- * Community-only chrome. It intentionally does not reuse the global app tabs:
- * a conversation is a focused mode, and leaving it should be an explicit,
- * legible action rather than an accidental tab switch.
+ * Community-only chrome. The global Groups tab is the entry point, then this
+ * dedicated navigation owns Explore, Groups and Chats. Profile lives in the
+ * header so it stays reachable without competing with the primary destinations.
+ * Conversation routes stay focused and keep explicit back navigation.
  */
 export function CommunityHeader() {
   const router = useRouter();
@@ -49,22 +48,6 @@ export function CommunityHeader() {
           ? t("screens.profileTitle")
           : t("screens.browseTitle");
 
-  const contextualAction =
-    page === "groups"
-      ? {
-          label: t("actions.createGroup"),
-          icon: Plus,
-          onPress: () => router.push("/discussions/new" as never),
-        }
-      : page === "profile"
-        ? {
-            label: "Profile settings",
-            icon: Settings,
-            onPress: () => router.push("/profile/settings" as never),
-          }
-        : null;
-  const ActionIcon = contextualAction?.icon;
-
   return (
     <View
       style={[
@@ -79,7 +62,7 @@ export function CommunityHeader() {
     >
       <TouchableOpacity
         accessibilityRole="button"
-        accessibilityLabel="Back to Edutu home"
+        accessibilityLabel={t("navigation.backHome")}
         onPress={() => router.replace("/(app)" as never)}
         style={[
           styles.back,
@@ -90,7 +73,7 @@ export function CommunityHeader() {
       </TouchableOpacity>
       <View style={styles.titleWrap}>
         <Text style={[styles.eyebrow, { color: colors.accent }]}>
-          COMMUNITY
+          {t("navigation.eyebrow")}
         </Text>
         <Text
           style={[styles.title, { color: colors.foreground }]}
@@ -99,31 +82,25 @@ export function CommunityHeader() {
           {title}
         </Text>
       </View>
-      {contextualAction && ActionIcon ? (
+      <View style={styles.headerActions}>
         <TouchableOpacity
-          testID={
-            page === "groups"
-              ? "discussions-create"
-              : "community-profile-settings"
-          }
+          testID={page === "profile" ? "community-profile-settings" : "community-profile-shortcut"}
           accessibilityRole="button"
-          accessibilityLabel={contextualAction.label}
-          onPress={contextualAction.onPress}
-          style={[
-            styles.activity,
-            {
-              backgroundColor: page === "groups" ? colors.accent : colors.muted,
-            },
-          ]}
+          accessibilityLabel={
+            page === "profile"
+              ? t("navigation.profileSettings")
+              : t("screens.profileTitle")
+          }
+          onPress={() => router.push((page === "profile" ? "/profile/settings" : "/discussions/profile") as never)}
+          style={[styles.activity, { backgroundColor: colors.muted }]}
         >
-          <ActionIcon
-            size={19}
-            color={page === "groups" ? "#FFFFFF" : colors.foreground}
-          />
+          {page === "profile" ? (
+            <Settings size={19} color={colors.foreground} />
+          ) : (
+            <UserCircle size={20} color={colors.foreground} />
+          )}
         </TouchableOpacity>
-      ) : (
-        <View style={styles.actionSpacer} />
-      )}
+      </View>
     </View>
   );
 }
@@ -133,19 +110,13 @@ export function CommunityNavigation() {
   const pathname = usePathname();
   const { t } = useTranslation("community");
   const { colors, isDark } = useTheme();
-  const isGroups =
-    pathname === "/discussions" || pathname.includes("/discussions/");
-  const isExplore = pathname.includes("/discussions/explore");
-  const isChats = pathname.includes("/discussions/chats");
-  const isProfile = pathname.includes("/discussions/profile");
+  const insets = useSafeAreaInsets();
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  const isGroups = normalizedPath === "/discussions";
+  const isExplore = normalizedPath === "/discussions/explore";
+  const isChats = normalizedPath === "/discussions/chats";
 
   const items = [
-    {
-      label: t("screens.browseTitle"),
-      icon: Users,
-      active: isGroups && !isExplore && !isChats && !isProfile,
-      onPress: () => router.replace("/discussions" as never),
-    },
     {
       label: t("screens.exploreTitle"),
       icon: Compass,
@@ -153,21 +124,22 @@ export function CommunityNavigation() {
       onPress: () => router.replace("/discussions/explore" as never),
     },
     {
+      label: t("screens.browseTitle"),
+      icon: Users,
+      active: isGroups,
+      onPress: () => router.replace("/discussions" as never),
+    },
+    {
       label: t("screens.chatsTitle"),
       icon: MessageCircle,
       active: isChats,
       onPress: () => router.replace("/discussions/chats" as never),
     },
-    {
-      label: t("screens.profileTitle"),
-      icon: UserCircle,
-      active: isProfile,
-      onPress: () => router.replace("/discussions/profile" as never),
-    },
   ];
 
   return (
     <View
+      testID="community-navigation"
       style={[
         styles.nav,
         {
@@ -175,6 +147,8 @@ export function CommunityNavigation() {
             ? "rgba(15,23,42,0.97)"
             : "rgba(255,255,255,0.97)",
           borderTopColor: colors.border,
+          height: 58 + insets.bottom,
+          paddingBottom: insets.bottom,
         },
       ]}
     >
@@ -239,20 +213,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionSpacer: { width: 38, height: 38 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   nav: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    height: Platform.OS === "ios" ? 86 : 70,
-    paddingBottom: Platform.OS === "ios" ? 18 : 4,
+    height: 58,
+    paddingTop: 4,
     paddingHorizontal: 8,
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 12,
+    zIndex: 20,
   },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
   iconBubble: {

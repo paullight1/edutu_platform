@@ -860,7 +860,10 @@ export default function CreateGroupScreen() {
             onPress={handleSubmit}
             style={[
               styles.submit,
-              { backgroundColor: colors.accent, opacity: canSubmit ? 1 : 0.5 },
+              {
+                backgroundColor: canSubmit ? colors.accent : `${colors.accent}55`,
+                borderColor: canSubmit ? `${colors.accent}CC` : `${colors.accent}30`,
+              },
             ]}
           >
             <View style={styles.submitInner}>
@@ -872,7 +875,7 @@ export default function CreateGroupScreen() {
                 />
               )}
               {!submitting && (
-                <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
+                <Check size={19} color="#FFFFFF" strokeWidth={2.7} />
               )}
               <Text style={styles.submitLabel} numberOfLines={1}>
                 {t('community:actions.createGroup')}
@@ -900,7 +903,12 @@ const styles = StyleSheet.create({
   actionDock: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 14,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: -5 },
+    elevation: 12,
   },
   input: {
     borderWidth: 1,
@@ -1096,10 +1104,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submit: {
-    borderRadius: 14,
+    minHeight: 56,
+    borderRadius: 17,
     borderCurve: 'continuous',
-    paddingVertical: 14,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   submitInner: {
     flexDirection: 'row',
@@ -1109,8 +1119,9 @@ const styles = StyleSheet.create({
   },
   submitLabel: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.1,
   },
   errorBox: {
     borderWidth: 1,

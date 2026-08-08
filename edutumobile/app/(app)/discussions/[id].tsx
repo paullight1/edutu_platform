@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,12 +14,12 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Ban,
   ChevronRight,
@@ -28,7 +34,7 @@ import {
   Settings,
   ShieldAlert,
   UserCheck,
-} from 'lucide-react-native';
+} from "lucide-react-native";
 import {
   deleteMessage,
   createCommunityAttachmentUpload,
@@ -49,25 +55,32 @@ import {
   type GroupQuestion,
   type JoinRequestAnswer,
   type MembershipStatus,
-} from '@edutu/core/src/services/communities';
-import { resolveAdminRole } from '@edutu/core/src/services/communityAuthz';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { StateView } from '../../../components/state';
-import { Skeleton } from '../../../components/ui/Skeleton';
-import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
-import { useTheme } from '../../../components/context/ThemeContext';
-import { MessageBubble } from '../../../components/community/MessageBubble';
-import { Composer } from '../../../components/community/Composer';
-import type { PickedCommunityAttachment } from '../../../components/community/Composer';
-import { uploadPrivateCommunityAsset } from '@edutu/core/src/services/storage';
-import { GroupAvatar } from '../../../components/community/GroupAvatar';
+} from "@edutu/core/src/services/communities";
+import { resolveAdminRole } from "@edutu/core/src/services/communityAuthz";
+import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { StateView } from "../../../components/state";
+import { Skeleton } from "../../../components/ui/Skeleton";
+import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
+import { useTheme } from "../../../components/context/ThemeContext";
+import { MessageBubble } from "../../../components/community/MessageBubble";
+import { Composer } from "../../../components/community/Composer";
+import type { PickedCommunityAttachment } from "../../../components/community/Composer";
+import { uploadPrivateCommunityAsset } from "@edutu/core/src/services/storage";
+import { GroupAvatar } from "../../../components/community/GroupAvatar";
+import { GroupContentTabs } from "../../../components/community/GroupContentTabs";
 import {
   FirstPostNotice,
   hasAcknowledgedFirstPost,
-} from '../../../components/community/FirstPostNotice';
-import { useGroupMessages, type LocalMessage } from '../../../hooks/useGroupMessages';
-import { ScheduledCallCard } from '../../../components/community/calls/ScheduledCallCard';
-import { listCommunityCalls, type CommunityCall } from '../../../features/community-calls/api';
+} from "../../../components/community/FirstPostNotice";
+import {
+  useGroupMessages,
+  type LocalMessage,
+} from "../../../hooks/useGroupMessages";
+import { ScheduledCallCard } from "../../../components/community/calls/ScheduledCallCard";
+import {
+  listCommunityCalls,
+  type CommunityCall,
+} from "../../../features/community-calls/api";
 
 /**
  * One group's chat, and the gate in front of it.
@@ -97,13 +110,13 @@ import { listCommunityCalls, type CommunityCall } from '../../../features/commun
  * reader of the same contract, and the key is asserted in the test suite, so a
  * shared module would only add indirection to a five-character string.
  */
-const LAST_READ_KEY = 'edutu:discussions:lastRead';
+const LAST_READ_KEY = "edutu:discussions:lastRead";
 
 /**
  * The device's copy of the caller's block list, mirroring the server's
  * `user_blocks`. See `visibleMessages` for why the client keeps one at all.
  */
-const BLOCKED_KEY = 'edutu:community:blocked';
+const BLOCKED_KEY = "edutu:community:blocked";
 
 /**
  * Ids of messages this reader has reported.
@@ -115,33 +128,47 @@ const BLOCKED_KEY = 'edutu:community:blocked';
  * the report did nothing. Hiding is a promise; a promise that lasts one session
  * is not one.
  */
-const REPORTED_KEY = 'edutu:community:reportedMessages';
-const PINNED_KEY = 'edutu:community:pinnedMessages';
+const REPORTED_KEY = "edutu:community:reportedMessages";
+const PINNED_KEY = "edutu:community:pinnedMessages";
 const MAX_MESSAGE_LENGTH = 2000;
 
 function replyPrefix(message: LocalMessage): string {
-  const author = message.author?.displayName?.trim() || 'Member';
-  const excerpt = message.body.replace(/\s+/g, ' ').trim().slice(0, 120);
+  const author = message.author?.displayName?.trim() || "Member";
+  const excerpt = message.body.replace(/\s+/g, " ").trim().slice(0, 120);
   return `↪ ${author}: ${excerpt}\n`;
 }
 
 function callIdFromMessage(message: LocalMessage): string | null {
   if (message.callId) return message.callId;
-  if (message.kind !== 'call') return null;
-  try { const body = JSON.parse(message.body) as { callId?: unknown; call_id?: unknown }; const value = body.callId ?? body.call_id; return typeof value === 'string' ? value : null; } catch { return null; }
+  if (message.kind !== "call") return null;
+  try {
+    const body = JSON.parse(message.body) as {
+      callId?: unknown;
+      call_id?: unknown;
+    };
+    const value = body.callId ?? body.call_id;
+    return typeof value === "string" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Stamp this group as read. Read-modify-write on one JSON blob, because the
  * browse screen reads every group's mark in a single `getItem`.
  */
-export async function markGroupRead(groupId: string, at: string): Promise<void> {
+export async function markGroupRead(
+  groupId: string,
+  at: string,
+): Promise<void> {
   if (!groupId) return;
   try {
     const raw = await AsyncStorage.getItem(LAST_READ_KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : {};
     const map: Record<string, string> =
-      parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+      parsed && typeof parsed === "object"
+        ? (parsed as Record<string, string>)
+        : {};
     map[groupId] = at;
     await AsyncStorage.setItem(LAST_READ_KEY, JSON.stringify(map));
   } catch {
@@ -163,7 +190,9 @@ async function readIdList(key: string): Promise<string[]> {
   try {
     const raw = await AsyncStorage.getItem(key);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === "string")
+      : [];
   } catch {
     return [];
   }
@@ -192,11 +221,13 @@ async function removeFromIdList(key: string, id: string): Promise<string[]> {
 
 export default function GroupChatScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
-  const groupId = Array.isArray(params.id) ? (params.id[0] ?? '') : (params.id ?? '');
+  const groupId = Array.isArray(params.id)
+    ? (params.id[0] ?? "")
+    : (params.id ?? "");
 
   const { getToken } = useAuth();
   const { user } = useUser();
-  const { t } = useTranslation(['community', 'common']);
+  const { t } = useTranslation(["community", "common"]);
   const { colors } = useTheme();
   const router = useRouter();
 
@@ -215,7 +246,7 @@ export default function GroupChatScreen() {
    */
   const [reportedAtOpen, setReportedAtOpen] = useState<string[]>([]);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<LocalMessage | null>(null);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentProgress, setAttachmentProgress] = useState(0);
@@ -229,13 +260,13 @@ export default function GroupChatScreen() {
   const status: MembershipStatus | null = membership?.status ?? null;
 
   /** Only an active member chats. */
-  const isMember = status === 'active';
+  const isMember = status === "active";
   /**
    * An invitee previews the room before deciding — that preview is the entire
    * value of an invitation. Everybody else below `active` reads nothing, and
    * `pending` most of all.
    */
-  const canRead = status === 'active' || status === 'invited';
+  const canRead = status === "active" || status === "invited";
   const [communityCalls, setCommunityCalls] = useState<CommunityCall[]>([]);
 
   const messages = useGroupMessages({
@@ -263,7 +294,9 @@ export default function GroupChatScreen() {
       // "This group is private. Ask an owner for an invite." is the server's
       // sentence and the only useful thing to say here.
       setDetailError(
-        isCommunityApiError(caught) ? caught.message : t('common:errors.generic'),
+        isCommunityApiError(caught)
+          ? caught.message
+          : t("common:errors.generic"),
       );
     }
   }, [groupId, getToken, t]);
@@ -302,7 +335,9 @@ export default function GroupChatScreen() {
   // answer is known, so the gate can never be beaten by being fast: a first
   // post that slips out during a disk read is exactly the post the App Store
   // requires the notice in front of.
-  const [firstPostAcknowledged, setFirstPostAcknowledged] = useState<boolean | null>(null);
+  const [firstPostAcknowledged, setFirstPostAcknowledged] = useState<
+    boolean | null
+  >(null);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -350,13 +385,17 @@ export default function GroupChatScreen() {
         ? messages.messages
         : messages.messages.filter(
             (message) =>
-              !blocked.includes(message.userId) && !reportedAtOpen.includes(message.id),
+              !blocked.includes(message.userId) &&
+              !reportedAtOpen.includes(message.id),
           ),
     [messages.messages, blocked, reportedAtOpen],
   );
 
   const pinnedMessages = useMemo(
-    () => visibleMessages.filter((message) => pinnedIds.includes(message.id) && !message.deletedAt),
+    () =>
+      visibleMessages.filter(
+        (message) => pinnedIds.includes(message.id) && !message.deletedAt,
+      ),
     [pinnedIds, visibleMessages],
   );
 
@@ -371,24 +410,31 @@ export default function GroupChatScreen() {
     setBlocked(await removeFromIdList(BLOCKED_KEY, userId));
   }, []);
 
-  const togglePin = useCallback(async (message: CommunityMessage) => {
-    const key = `${PINNED_KEY}:${groupId}`;
-    const current = await readIdList(key);
-    const next = current.includes(message.id)
-      ? current.filter((id) => id !== message.id)
-      : [...current, message.id];
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify(next));
-    } catch {
-      // The message remains usable if local persistence is unavailable.
-    }
-    setPinnedIds(next);
-  }, [groupId]);
+  const togglePin = useCallback(
+    async (message: CommunityMessage) => {
+      const key = `${PINNED_KEY}:${groupId}`;
+      const current = await readIdList(key);
+      const next = current.includes(message.id)
+        ? current.filter((id) => id !== message.id)
+        : [...current, message.id];
+      try {
+        await AsyncStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // The message remains usable if local persistence is unavailable.
+      }
+      setPinnedIds(next);
+    },
+    [groupId],
+  );
 
   const handleReport = useCallback(
     async (message: CommunityMessage) => {
       await reportTarget(
-        { targetType: 'message', targetId: message.id, reason: 'member_report' },
+        {
+          targetType: "message",
+          targetId: message.id,
+          reason: "member_report",
+        },
         getToken,
       );
       // Recorded, not applied — `reportedAtOpen` is the next launch's filter.
@@ -432,7 +478,7 @@ export default function GroupChatScreen() {
 
   const canModerate = adminRole !== null;
   /** Settings holds the group's identity and the screening form: owner only. */
-  const canOpenSettings = adminRole === 'owner';
+  const canOpenSettings = adminRole === "owner";
   /**
    * Owner OR mod. A mod who cannot open the one queue they exist to review is a
    * cosmetic role, which is exactly what an earlier review found.
@@ -442,14 +488,26 @@ export default function GroupChatScreen() {
    * Any active member who is not the owner. Reporting your own group is
    * meaningless, and a non-member has no room to report from.
    */
-  const canReportGroup = isMember && adminRole !== 'owner';
+  const canReportGroup = isMember && adminRole !== "owner";
   const loadCommunityCalls = useCallback(async () => {
     if (!groupId || !canRead) return;
-    try { setCommunityCalls(await listCommunityCalls(groupId, getToken)); } catch { /* Calls degrade independently from chat. */ }
+    try {
+      setCommunityCalls(await listCommunityCalls(groupId, getToken));
+    } catch {
+      /* Calls degrade independently from chat. */
+    }
   }, [canRead, getToken, groupId]);
-  useFocusEffect(useCallback(() => { void loadCommunityCalls(); }, [loadCommunityCalls]));
-  const highlightedCall = communityCalls.find((call) => call.status === 'live' || call.status === 'starting')
-    ?? communityCalls.find((call) => call.status === 'scheduled') ?? null;
+  useFocusEffect(
+    useCallback(() => {
+      void loadCommunityCalls();
+    }, [loadCommunityCalls]),
+  );
+  const highlightedCall =
+    communityCalls.find(
+      (call) => call.status === "live" || call.status === "starting",
+    ) ??
+    communityCalls.find((call) => call.status === "scheduled") ??
+    null;
 
   // ── The pending-request signal ─────────────────────────────────────────────
   // Without it an owner has no way to learn that anybody is waiting: nothing
@@ -469,7 +527,9 @@ export default function GroupChatScreen() {
         try {
           const rows = await fetchJoinRequests(groupId, getToken);
           if (!cancelled) {
-            setPendingRequests(rows.filter((row) => row.status === 'pending').length);
+            setPendingRequests(
+              rows.filter((row) => row.status === "pending").length,
+            );
           }
         } catch {
           // A badge is a nicety. It must never surface as an error on a chat.
@@ -489,7 +549,13 @@ export default function GroupChatScreen() {
    */
   const canManageBlocks = isMember;
   const canOpenAbout = canRead;
-  const hasMenu = canOpenAbout || canOpenSettings || canReviewRequests || canReportGroup || canManageBlocks || canModerate;
+  const hasMenu =
+    canOpenAbout ||
+    canOpenSettings ||
+    canReviewRequests ||
+    canReportGroup ||
+    canManageBlocks ||
+    canModerate;
 
   const goTo = useCallback(
     (path: string) => {
@@ -518,7 +584,7 @@ export default function GroupChatScreen() {
     const ok = await messages.send(body);
     // Cleared ONLY on success. A screener refusal keeps every character.
     if (ok) {
-      setDraft('');
+      setDraft("");
       setReplyTo(null);
     }
   }, [firstPostBlocked, messages, draft, replyTo]);
@@ -531,68 +597,71 @@ export default function GroupChatScreen() {
     [messages],
   );
 
-  const handleAttachment = useCallback(async (attachment: PickedCommunityAttachment) => {
-    if (firstPostBlocked || attachmentUploading) return;
-    setAttachmentUploading(true);
-    setAttachmentProgress(0);
-    setAttachmentError(null);
-    try {
-      const reservation = await createCommunityAttachmentUpload(
-        groupId,
-        {
-          kind: attachment.kind,
+  const handleAttachment = useCallback(
+    async (attachment: PickedCommunityAttachment) => {
+      if (firstPostBlocked || attachmentUploading) return;
+      setAttachmentUploading(true);
+      setAttachmentProgress(0);
+      setAttachmentError(null);
+      try {
+        const reservation = await createCommunityAttachmentUpload(
+          groupId,
+          {
+            kind: attachment.kind,
+            name: attachment.name,
+            mime: attachment.mime,
+            size: attachment.size,
+          },
+          getToken,
+        );
+        await uploadPrivateCommunityAsset(
+          reservation.uploadUrl,
+          { uri: attachment.uri, type: attachment.mime },
+          setAttachmentProgress,
+        );
+        const body = serializeCommunityAttachment(attachment.kind, {
+          url: reservation.resourceUrl,
           name: attachment.name,
           mime: attachment.mime,
           size: attachment.size,
-        },
-        getToken,
-      );
-      await uploadPrivateCommunityAsset(
-        reservation.uploadUrl,
-        { uri: attachment.uri, type: attachment.mime },
-        setAttachmentProgress,
-      );
-      const body = serializeCommunityAttachment(attachment.kind, {
-        url: reservation.resourceUrl,
-        name: attachment.name,
-        mime: attachment.mime,
-        size: attachment.size,
-        ...(attachment.caption ? { caption: attachment.caption } : {}),
-      });
-      const persisted = await sendMessage(
-        groupId,
-        { kind: attachment.kind, body },
-        getToken,
-      );
-      messages.applyMessage(persisted);
-      setDraft('');
-    } catch (caught) {
-      const message = isCommunityApiError(caught)
-        ? caught.message
-        : caught instanceof Error
+          ...(attachment.caption ? { caption: attachment.caption } : {}),
+        });
+        const persisted = await sendMessage(
+          groupId,
+          { kind: attachment.kind, body },
+          getToken,
+        );
+        messages.applyMessage(persisted);
+        setDraft("");
+      } catch (caught) {
+        const message = isCommunityApiError(caught)
           ? caught.message
-          : 'The attachment could not be sent. Please try again.';
-      setAttachmentError(message);
-      throw new Error(message);
-    } finally {
-      setAttachmentUploading(false);
-    }
-  }, [attachmentUploading, firstPostBlocked, getToken, groupId, messages]);
+          : caught instanceof Error
+            ? caught.message
+            : "The attachment could not be sent. Please try again.";
+        setAttachmentError(message);
+        throw new Error(message);
+      } finally {
+        setAttachmentUploading(false);
+      }
+    },
+    [attachmentUploading, firstPostBlocked, getToken, groupId, messages],
+  );
 
   // ── Posting availability ───────────────────────────────────────────────────
   const archived = !!group?.archivedAt;
   const postingDisabled = archived || expired;
   const postingNotice = archived
-    ? t('community:groupState.archivedReadOnly')
+    ? t("community:groupState.archivedReadOnly")
     : expired
-      ? t('community:groupState.expiredDesc')
+      ? t("community:groupState.expiredDesc")
       : undefined;
 
-  const headerTitle = group?.name ?? t('community:screens.chatTitle');
+  const headerTitle = group?.name ?? t("community:screens.chatTitle");
   const headerSubtitle = group
-    ? status === 'invited'
-      ? `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'} · Invitation preview`
-      : `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'} · Group chat`
+    ? status === "invited"
+      ? `${group.memberCount} ${group.memberCount === 1 ? "member" : "members"} · Invitation preview`
+      : `${group.memberCount} ${group.memberCount === 1 ? "member" : "members"} · Posts`
     : undefined;
   const composerMaxLength = replyTo
     ? Math.max(1, MAX_MESSAGE_LENGTH - replyPrefix(replyTo).length)
@@ -601,37 +670,66 @@ export default function GroupChatScreen() {
   const jumpToPinned = useCallback(() => {
     const target = pinnedMessages[0];
     if (!target) return;
-    const index = visibleMessages.findIndex((message) => message.id === target.id);
+    const index = visibleMessages.findIndex(
+      (message) => message.id === target.id,
+    );
     if (index >= 0) {
-      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      listRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.5,
+      });
     }
   }, [pinnedMessages, visibleMessages]);
 
   const renderItem = useCallback(
     ({ item }: { item: LocalMessage }) => {
       const callId = callIdFromMessage(item);
-      const transcriptCall = callId ? communityCalls.find((call) => call.id === callId) : null;
+      const transcriptCall = callId
+        ? communityCalls.find((call) => call.id === callId)
+        : null;
       return transcriptCall ? (
-        <ScheduledCallCard call={transcriptCall} viewerRole={adminRole} onPress={() => router.push(`/discussions/${groupId}/calls/${transcriptCall.id}` as never)} />
+        <ScheduledCallCard
+          call={transcriptCall}
+          viewerRole={adminRole}
+          onPress={() =>
+            router.push(
+              `/discussions/${groupId}/calls/${transcriptCall.id}` as never,
+            )
+          }
+        />
       ) : (
         <MessageBubble
-        message={item}
-        own={!!userId && item.userId === userId}
-        pending={item.pending}
-        canDelete={(!!userId && item.userId === userId) || canModerate}
-        onReport={handleReport}
-        onBlock={handleBlock}
-        onDelete={handleDelete}
-        // Without this the bubble calls `removeMember` itself and the screen
-        // never learns the roster changed.
-        onRemoveMember={handleRemoveMember}
-        onReply={(message) => setReplyTo(message as LocalMessage)}
-        onPin={togglePin}
-        pinned={pinnedIds.includes(item.id)}
+          message={item}
+          own={!!userId && item.userId === userId}
+          pending={item.pending}
+          canDelete={(!!userId && item.userId === userId) || canModerate}
+          onReport={handleReport}
+          onBlock={handleBlock}
+          onDelete={handleDelete}
+          // Without this the bubble calls `removeMember` itself and the screen
+          // never learns the roster changed.
+          onRemoveMember={handleRemoveMember}
+          onReply={(message) => setReplyTo(message as LocalMessage)}
+          onPin={togglePin}
+          pinned={pinnedIds.includes(item.id)}
         />
       );
     },
-    [userId, canModerate, handleReport, handleBlock, handleDelete, handleRemoveMember, togglePin, pinnedIds, communityCalls, adminRole, router, groupId],
+    [
+      userId,
+      canModerate,
+      handleReport,
+      handleBlock,
+      handleDelete,
+      handleRemoveMember,
+      togglePin,
+      pinnedIds,
+      communityCalls,
+      adminRole,
+      router,
+      groupId,
+    ],
   );
 
   // Once group access is known, keep the room chrome and composer mounted
@@ -643,21 +741,23 @@ export default function GroupChatScreen() {
   return (
     <SafeAreaView
       style={[styles.screen, { backgroundColor: colors.background }]}
-      edges={['top', 'bottom']}
+      edges={["top", "bottom"]}
     >
       <ScreenHeader
         title={headerTitle}
         subtitle={headerSubtitle}
         showBack
-        titleAccessory={group ? (
-          <GroupAvatar
-            testID="chat-group-avatar"
-            resourceUrl={group.coverImageResourceUrl}
-            emoji={group.coverEmoji}
-            size={36}
-            radius={11}
-          />
-        ) : undefined}
+        titleAccessory={
+          group ? (
+            <GroupAvatar
+              testID="chat-group-avatar"
+              resourceUrl={group.coverImageResourceUrl}
+              emoji={group.coverEmoji}
+              size={36}
+              radius={11}
+            />
+          ) : undefined
+        }
         right={
           // ONE affordance, not one button per feature. Settings, the request
           // queue and report-group all live behind this kebab, so the header
@@ -666,7 +766,7 @@ export default function GroupChatScreen() {
             <AnimatedPressable
               testID="chat-menu-trigger"
               accessibilityRole="button"
-              accessibilityLabel={t('community:actions.groupOptions')}
+              accessibilityLabel={t("community:actions.groupOptions")}
               accessibilityState={{ expanded: menuOpen }}
               hapticFeedback="selection"
               scaleTo={0.94}
@@ -695,12 +795,20 @@ export default function GroupChatScreen() {
         />
       )}
 
+      {group && canRead && (
+        <GroupContentTabs groupId={groupId} active="posts" />
+      )}
+
       {canRead && highlightedCall && (
         <ScheduledCallCard
           call={highlightedCall}
           viewerRole={adminRole}
           compact
-          onPress={() => router.push(`/discussions/${groupId}/calls/${highlightedCall.id}` as never)}
+          onPress={() =>
+            router.push(
+              `/discussions/${groupId}/calls/${highlightedCall.id}` as never,
+            )
+          }
         />
       )}
 
@@ -714,7 +822,7 @@ export default function GroupChatScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
         {/* Loading is skeleton bubbles in place — never a spinner floating over
@@ -725,7 +833,7 @@ export default function GroupChatScreen() {
               <Skeleton
                 key={key}
                 height={54}
-                width={key % 2 === 0 ? '72%' : '58%'}
+                width={key % 2 === 0 ? "72%" : "58%"}
                 borderRadius={18}
                 style={key % 2 === 0 ? styles.skelLeft : styles.skelRight}
               />
@@ -737,19 +845,24 @@ export default function GroupChatScreen() {
               testID="chat-error"
               style={[
                 styles.errorBox,
-                { borderColor: colors.error, backgroundColor: `${colors.error}12` },
+                {
+                  borderColor: colors.error,
+                  backgroundColor: `${colors.error}12`,
+                },
               ]}
             >
-              <Text style={[styles.errorText, { color: colors.error }]}>{detailError}</Text>
+              <Text style={[styles.errorText, { color: colors.error }]}>
+                {detailError}
+              </Text>
               <AnimatedPressable
                 testID="chat-error-retry"
                 accessibilityRole="button"
-                accessibilityLabel={t('common:actions.retry')}
+                accessibilityLabel={t("common:actions.retry")}
                 onPress={() => void loadDetail()}
                 style={[styles.retryButton, { borderColor: colors.error }]}
               >
                 <Text style={[styles.retryLabel, { color: colors.error }]}>
-                  {t('common:actions.retry')}
+                  {t("common:actions.retry")}
                 </Text>
               </AnimatedPressable>
             </View>
@@ -761,7 +874,7 @@ export default function GroupChatScreen() {
                 <View style={styles.stateWrap}>
                   <View testID="chat-messages-error-state">
                     <StateView
-                      state={{ kind: 'error', cause: 'network' }}
+                      state={{ kind: "error", cause: "network" }}
                       flow="community"
                       fill={false}
                       sceneSize={132}
@@ -775,12 +888,12 @@ export default function GroupChatScreen() {
                 <View style={styles.stateWrap}>
                   <View testID="chat-empty">
                     <StateView
-                      state={{ kind: 'empty', reason: 'firstRun' }}
+                      state={{ kind: "empty", reason: "firstRun" }}
                       flow="community"
                       fill={false}
                       sceneSize={140}
-                      title={t('community:chat.emptyTitle')}
-                      body={t('community:chat.emptyBody')}
+                      title={t("community:chat.emptyTitle")}
+                      body={t("community:chat.emptyBody")}
                     />
                   </View>
                 </View>
@@ -799,7 +912,9 @@ export default function GroupChatScreen() {
                   onEndReached={() => void messages.loadOlder()}
                   contentContainerStyle={styles.listContent}
                   keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                  keyboardDismissMode={
+                    Platform.OS === "ios" ? "interactive" : "on-drag"
+                  }
                   maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                   onScrollToIndexFailed={({ index }) => {
                     listRef.current?.scrollToOffset({
@@ -829,9 +944,15 @@ export default function GroupChatScreen() {
               <View
                 testID="chat-messages-error"
                 accessibilityLiveRegion="polite"
-                style={[styles.historyError, { backgroundColor: `${colors.error}12` }]}
+                style={[
+                  styles.historyError,
+                  { backgroundColor: `${colors.error}12` },
+                ]}
               >
-                <Text style={[styles.historyErrorText, { color: colors.error }]} numberOfLines={2}>
+                <Text
+                  style={[styles.historyErrorText, { color: colors.error }]}
+                  numberOfLines={2}
+                >
                   {messages.error}
                 </Text>
                 <AnimatedPressable
@@ -841,7 +962,11 @@ export default function GroupChatScreen() {
                   onPress={() => void messages.refresh()}
                   style={styles.historyRetry}
                 >
-                  <Text style={[styles.historyRetryText, { color: colors.error }]}>Retry</Text>
+                  <Text
+                    style={[styles.historyRetryText, { color: colors.error }]}
+                  >
+                    Retry
+                  </Text>
                 </AnimatedPressable>
               </View>
             )}
@@ -866,7 +991,14 @@ export default function GroupChatScreen() {
                   disabled={postingDisabled || firstPostBlocked}
                   disabledNotice={postingNotice}
                   error={messages.sendError}
-                  replyTo={replyTo ? { body: replyTo.body, author: replyTo.author?.displayName } : null}
+                  replyTo={
+                    replyTo
+                      ? {
+                          body: replyTo.body,
+                          author: replyTo.author?.displayName,
+                        }
+                      : null
+                  }
                   onClearReply={() => setReplyTo(null)}
                   maxLength={composerMaxLength}
                   onAttachmentSelected={handleAttachment}
@@ -879,8 +1011,8 @@ export default function GroupChatScreen() {
               <JoinGate
                 groupId={groupId}
                 status={status}
-                joinPolicy={group?.joinPolicy ?? 'open'}
-                visibility={group?.visibility ?? 'public'}
+                joinPolicy={group?.joinPolicy ?? "open"}
+                visibility={group?.visibility ?? "public"}
                 onJoined={loadDetail}
               />
             )}
@@ -901,9 +1033,9 @@ function PinnedMessageBar({
   onPress: () => void;
 }) {
   const { colors } = useTheme();
-  const author = message.author?.displayName?.trim() || 'Member';
-  const preview = message.body.replace(/\s+/g, ' ').trim();
-  const label = count === 1 ? 'Pinned message' : `${count} pinned messages`;
+  const author = message.author?.displayName?.trim() || "Member";
+  const preview = message.body.replace(/\s+/g, " ").trim();
+  const label = count === 1 ? "Pinned message" : `${count} pinned messages`;
 
   return (
     <AnimatedPressable
@@ -914,16 +1046,27 @@ function PinnedMessageBar({
       hapticFeedback="selection"
       scaleTo={0.99}
       onPress={onPress}
-      style={[styles.pinnedBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}
+      style={[
+        styles.pinnedBar,
+        { borderBottomColor: colors.border, backgroundColor: colors.card },
+      ]}
     >
-      <View style={[styles.pinnedIcon, { backgroundColor: `${colors.accent}18` }]}>
+      <View
+        style={[styles.pinnedIcon, { backgroundColor: `${colors.accent}18` }]}
+      >
         <Pin size={15} color={colors.accent} fill={colors.accent} />
       </View>
       <View style={styles.pinnedCopy}>
-        <Text style={[styles.pinnedLabel, { color: colors.accent }]} numberOfLines={1}>
+        <Text
+          style={[styles.pinnedLabel, { color: colors.accent }]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
-        <Text style={[styles.pinnedPreview, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[styles.pinnedPreview, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
           {author}: {preview}
         </Text>
       </View>
@@ -975,7 +1118,7 @@ function GroupHeaderMenu({
   onNavigate,
   onUnblocked,
 }: GroupHeaderMenuProps) {
-  const { t } = useTranslation(['community', 'common']);
+  const { t } = useTranslation(["community", "common"]);
   const { colors } = useTheme();
   const { getToken } = useAuth();
 
@@ -1001,7 +1144,11 @@ function GroupHeaderMenu({
     try {
       setBlocks(await fetchBlockedUsers(getToken));
     } catch (caught) {
-      setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+      setError(
+        isCommunityApiError(caught)
+          ? caught.message
+          : t("common:errors.generic"),
+      );
       setBlocks([]);
     } finally {
       setBlocksLoading(false);
@@ -1022,7 +1169,11 @@ function GroupHeaderMenu({
           (previous ?? []).filter((entry) => entry.userId !== userId),
         );
       } catch (caught) {
-        setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+        setError(
+          isCommunityApiError(caught)
+            ? caught.message
+            : t("common:errors.generic"),
+        );
       } finally {
         setUnblocking(null);
       }
@@ -1036,14 +1187,18 @@ function GroupHeaderMenu({
     setError(null);
     try {
       await reportTarget(
-        { targetType: 'group', targetId: groupId, reason: 'member_report' },
+        { targetType: "group", targetId: groupId, reason: "member_report" },
         getToken,
       );
       setReported(true);
       setConfirmingReport(false);
     } catch (caught) {
       // The server's sentence, never a status code.
-      setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+      setError(
+        isCommunityApiError(caught)
+          ? caught.message
+          : t("common:errors.generic"),
+      );
     } finally {
       setReporting(false);
     }
@@ -1052,12 +1207,15 @@ function GroupHeaderMenu({
   return (
     <View
       testID="chat-menu"
-      style={[styles.menu, { borderColor: colors.border, backgroundColor: colors.card }]}
+      style={[
+        styles.menu,
+        { borderColor: colors.border, backgroundColor: colors.card },
+      ]}
     >
       {canOpenAbout && (
         <MenuRow
           testID="chat-menu-about"
-          label={t('community:screens.aboutTitle')}
+          label={t("community:screens.aboutTitle")}
           icon={Info}
           color={colors.textSecondary}
           labelColor={colors.foreground}
@@ -1069,7 +1227,7 @@ function GroupHeaderMenu({
       {canOpenSettings && (
         <MenuRow
           testID="chat-menu-settings"
-          label={t('community:screens.settingsTitle')}
+          label={t("community:screens.settingsTitle")}
           icon={Settings}
           color={colors.textSecondary}
           labelColor={colors.foreground}
@@ -1081,7 +1239,7 @@ function GroupHeaderMenu({
       {canScheduleCalls && (
         <MenuRow
           testID="chat-menu-schedule-call"
-          label={t('community:calls.scheduleTitle')}
+          label={t("community:calls.scheduleTitle")}
           icon={PhoneCall}
           color={colors.accent}
           labelColor={colors.foreground}
@@ -1093,12 +1251,14 @@ function GroupHeaderMenu({
       {canReviewRequests && (
         <MenuRow
           testID="chat-menu-requests"
-          label={t('community:screens.requestsTitle')}
+          label={t("community:screens.requestsTitle")}
           icon={UserCheck}
           color={colors.textSecondary}
           labelColor={colors.foreground}
           disabled={reporting}
-          badge={pendingRequests && pendingRequests > 0 ? pendingRequests : null}
+          badge={
+            pendingRequests && pendingRequests > 0 ? pendingRequests : null
+          }
           onPress={() => onNavigate(`/discussions/${groupId}/requests`)}
         />
       )}
@@ -1106,7 +1266,7 @@ function GroupHeaderMenu({
       {canManageBlocks && !blocksOpen && (
         <MenuRow
           testID="chat-menu-blocked"
-          label={t('community:moderation.blockedList')}
+          label={t("community:moderation.blockedList")}
           icon={Ban}
           color={colors.textSecondary}
           labelColor={colors.foreground}
@@ -1118,7 +1278,7 @@ function GroupHeaderMenu({
       {canManageBlocks && blocksOpen && (
         <View testID="chat-menu-blocked-panel" style={styles.menuConfirm}>
           <Text style={[styles.menuConfirmTitle, { color: colors.foreground }]}>
-            {t('community:moderation.blockedList')}
+            {t("community:moderation.blockedList")}
           </Text>
 
           {blocksLoading && (
@@ -1134,7 +1294,7 @@ function GroupHeaderMenu({
               testID="chat-menu-blocked-empty"
               style={[styles.menuConfirmBody, { color: colors.textSecondary }]}
             >
-              {t('community:moderation.blockedEmpty')}
+              {t("community:moderation.blockedEmpty")}
             </Text>
           )}
 
@@ -1149,7 +1309,7 @@ function GroupHeaderMenu({
               <AnimatedPressable
                 testID={`chat-menu-unblock-${entry.userId}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${t('community:moderation.unblock')}, ${entry.displayName}`}
+                accessibilityLabel={`${t("community:moderation.unblock")}, ${entry.displayName}`}
                 accessibilityState={{
                   disabled: unblocking !== null,
                   busy: unblocking === entry.userId,
@@ -1160,7 +1320,10 @@ function GroupHeaderMenu({
                 onPress={() => void submitUnblock(entry.userId)}
                 style={[
                   styles.blockedAction,
-                  { borderColor: colors.border, opacity: unblocking !== null ? 0.6 : 1 },
+                  {
+                    borderColor: colors.border,
+                    opacity: unblocking !== null ? 0.6 : 1,
+                  },
                 ]}
               >
                 {unblocking === entry.userId ? (
@@ -1171,10 +1334,13 @@ function GroupHeaderMenu({
                   />
                 ) : (
                   <Text
-                    style={[styles.menuConfirmLabel, { color: colors.foreground }]}
+                    style={[
+                      styles.menuConfirmLabel,
+                      { color: colors.foreground },
+                    ]}
                     numberOfLines={1}
                   >
-                    {t('community:moderation.unblock')}
+                    {t("community:moderation.unblock")}
                   </Text>
                 )}
               </AnimatedPressable>
@@ -1184,7 +1350,7 @@ function GroupHeaderMenu({
           <AnimatedPressable
             testID="chat-menu-blocked-close"
             accessibilityRole="button"
-            accessibilityLabel={t('common:actions.close')}
+            accessibilityLabel={t("common:actions.close")}
             accessibilityState={{ disabled: unblocking !== null }}
             disabled={unblocking !== null}
             hapticFeedback="selection"
@@ -1196,7 +1362,7 @@ function GroupHeaderMenu({
               style={[styles.menuConfirmLabel, { color: colors.foreground }]}
               numberOfLines={1}
             >
-              {t('common:actions.close')}
+              {t("common:actions.close")}
             </Text>
           </AnimatedPressable>
         </View>
@@ -1207,36 +1373,46 @@ function GroupHeaderMenu({
           // The second step states what a report does and does not do, because
           // nobody at Edutu reviews it — the owner is told, and that is all.
           <View testID="chat-menu-report-confirm" style={styles.menuConfirm}>
-            <Text style={[styles.menuConfirmTitle, { color: colors.foreground }]}>
-              {t('community:moderation.reportGroupConfirmTitle')}
+            <Text
+              style={[styles.menuConfirmTitle, { color: colors.foreground }]}
+            >
+              {t("community:moderation.reportGroupConfirmTitle")}
             </Text>
-            <Text style={[styles.menuConfirmBody, { color: colors.textSecondary }]}>
-              {t('community:moderation.reportGroupConfirmBody')}
+            <Text
+              style={[styles.menuConfirmBody, { color: colors.textSecondary }]}
+            >
+              {t("community:moderation.reportGroupConfirmBody")}
             </Text>
             <View style={styles.menuConfirmRow}>
               <AnimatedPressable
                 testID="chat-menu-report-cancel"
                 accessibilityRole="button"
-                accessibilityLabel={t('common:actions.cancel')}
+                accessibilityLabel={t("common:actions.cancel")}
                 accessibilityState={{ disabled: reporting }}
                 disabled={reporting}
                 hapticFeedback="selection"
                 scaleTo={0.97}
                 onPress={() => setConfirmingReport(false)}
-                style={[styles.menuConfirmButton, { borderColor: colors.border }]}
+                style={[
+                  styles.menuConfirmButton,
+                  { borderColor: colors.border },
+                ]}
               >
                 <Text
-                  style={[styles.menuConfirmLabel, { color: colors.foreground }]}
+                  style={[
+                    styles.menuConfirmLabel,
+                    { color: colors.foreground },
+                  ]}
                   numberOfLines={1}
                 >
-                  {t('common:actions.cancel')}
+                  {t("common:actions.cancel")}
                 </Text>
               </AnimatedPressable>
 
               <AnimatedPressable
                 testID="chat-menu-report-submit"
                 accessibilityRole="button"
-                accessibilityLabel={t('community:moderation.reportGroup')}
+                accessibilityLabel={t("community:moderation.reportGroup")}
                 accessibilityState={{ disabled: reporting, busy: reporting }}
                 disabled={reporting}
                 hapticFeedback="medium"
@@ -1262,7 +1438,7 @@ function GroupHeaderMenu({
                     style={[styles.menuConfirmLabel, { color: colors.error }]}
                     numberOfLines={1}
                   >
-                    {t('community:moderation.reportGroup')}
+                    {t("community:moderation.reportGroup")}
                   </Text>
                 )}
               </AnimatedPressable>
@@ -1275,8 +1451,8 @@ function GroupHeaderMenu({
             testID="chat-menu-report-group"
             label={
               reported
-                ? t('community:moderation.reportGroupDone')
-                : t('community:moderation.reportGroup')
+                ? t("community:moderation.reportGroupDone")
+                : t("community:moderation.reportGroup")
             }
             icon={Flag}
             color={reported ? colors.textSecondary : colors.error}
@@ -1287,7 +1463,10 @@ function GroupHeaderMenu({
         ))}
 
       {!!error && (
-        <Text testID="chat-menu-error" style={[styles.menuError, { color: colors.error }]}>
+        <Text
+          testID="chat-menu-error"
+          style={[styles.menuError, { color: colors.error }]}
+        >
           {error}
         </Text>
       )}
@@ -1331,7 +1510,10 @@ function MenuRow({
     >
       <View style={styles.menuRowInner}>
         <Icon size={16} color={color} />
-        <Text style={[styles.menuRowLabel, { color: labelColor }]} numberOfLines={1}>
+        <Text
+          style={[styles.menuRowLabel, { color: labelColor }]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
         {badge ? (
@@ -1356,26 +1538,32 @@ function MenuRow({
 interface JoinGateProps {
   groupId: string;
   status: MembershipStatus | null;
-  joinPolicy: 'open' | 'request';
-  visibility: 'public' | 'private';
+  joinPolicy: "open" | "request";
+  visibility: "public" | "private";
   onJoined: () => Promise<void> | void;
 }
 
-function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGateProps) {
-  const { t } = useTranslation(['community', 'common']);
+function JoinGate({
+  groupId,
+  status,
+  joinPolicy,
+  visibility,
+  onJoined,
+}: JoinGateProps) {
+  const { t } = useTranslation(["community", "common"]);
   const { colors } = useTheme();
   const { getToken } = useAuth();
 
   const [formOpen, setFormOpen] = useState(false);
   const [questions, setQuestions] = useState<GroupQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /** `banned` is terminal; `pending` waits. Neither is offered a way through. */
-  const terminal = status === 'banned';
-  const waiting = status === 'pending';
+  const terminal = status === "banned";
+  const waiting = status === "pending";
 
   const submit = useCallback(
     async (payload: JoinRequestAnswer[]) => {
@@ -1386,7 +1574,11 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
         await joinGroup(groupId, payload, getToken);
         await onJoined();
       } catch (caught) {
-        setError(isCommunityApiError(caught) ? caught.message : t('common:errors.generic'));
+        setError(
+          isCommunityApiError(caught)
+            ? caught.message
+            : t("common:errors.generic"),
+        );
       } finally {
         setBusy(false);
       }
@@ -1410,57 +1602,78 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
   const submitForm = useCallback(() => {
     const payload: JoinRequestAnswer[] =
       questions && questions.length > 0
-        ? questions.map((question) => ({ id: question.id, value: answers[question.id] ?? '' }))
+        ? questions.map((question) => ({
+            id: question.id,
+            value: answers[question.id] ?? "",
+          }))
         : note.trim()
-          ? [{ id: 'message', value: note.trim() }]
+          ? [{ id: "message", value: note.trim() }]
           : [];
     void submit(payload);
   }, [questions, answers, note, submit]);
 
   const headline =
-    status === 'invited'
-      ? t('community:membership.invited')
-      : status === 'pending'
-        ? t('community:membership.pending')
-        : status === 'removed'
-          ? t('community:membership.removed')
-          : status === 'banned'
-            ? t('community:membership.banned')
-            : visibility === 'private'
-              ? t('community:visibility.private')
-              : t('community:joinPolicy.' + joinPolicy);
+    status === "invited"
+      ? t("community:membership.invited")
+      : status === "pending"
+        ? t("community:membership.pending")
+        : status === "removed"
+          ? t("community:membership.removed")
+          : status === "banned"
+            ? t("community:membership.banned")
+            : visibility === "private"
+              ? t("community:visibility.private")
+              : t("community:joinPolicy." + joinPolicy);
 
   const explanation =
-    status === 'invited'
-      ? t('community:membership.invitedDesc')
-      : status === 'pending'
-        ? t('community:membership.pendingDesc')
-        : status === 'removed'
-          ? t('community:membership.removedDesc')
-          : status === 'banned'
-            ? t('community:membership.bannedDesc')
-            : visibility === 'private'
-              ? t('community:errors.groupPrivate')
-              : t('community:joinPolicy.' + joinPolicy + 'Desc');
+    status === "invited"
+      ? t("community:membership.invitedDesc")
+      : status === "pending"
+        ? t("community:membership.pendingDesc")
+        : status === "removed"
+          ? t("community:membership.removedDesc")
+          : status === "banned"
+            ? t("community:membership.bannedDesc")
+            : visibility === "private"
+              ? t("community:errors.groupPrivate")
+              : t("community:joinPolicy." + joinPolicy + "Desc");
 
-  const Icon = terminal ? ShieldAlert : waiting ? Clock : visibility === 'private' ? Lock : MessageCircle;
+  const Icon = terminal
+    ? ShieldAlert
+    : waiting
+      ? Clock
+      : visibility === "private"
+        ? Lock
+        : MessageCircle;
 
   /** Only an invitee, and anyone with no standing, is offered a way in. */
-  const showAccept = status === 'invited';
-  const showJoin = (status === null || status === 'removed') && joinPolicy === 'open';
+  const showAccept = status === "invited";
+  const showJoin =
+    (status === null || status === "removed") && joinPolicy === "open";
   const showRequest =
-    (status === null || status === 'removed') && joinPolicy === 'request' && visibility === 'public';
+    (status === null || status === "removed") &&
+    joinPolicy === "request" &&
+    visibility === "public";
 
   return (
     <View
       testID="chat-gate"
-      style={[styles.gate, { borderTopColor: colors.border, backgroundColor: colors.background }]}
+      style={[
+        styles.gate,
+        { borderTopColor: colors.border, backgroundColor: colors.background },
+      ]}
     >
       <View style={styles.gateHead}>
-        <Icon size={18} color={terminal ? colors.error : colors.textSecondary} />
+        <Icon
+          size={18}
+          color={terminal ? colors.error : colors.textSecondary}
+        />
         <Text
           testID="chat-gate-headline"
-          style={[styles.gateTitle, { color: terminal ? colors.error : colors.foreground }]}
+          style={[
+            styles.gateTitle,
+            { color: terminal ? colors.error : colors.foreground },
+          ]}
           numberOfLines={2}
         >
           {headline}
@@ -1475,7 +1688,10 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
       </Text>
 
       {!!error && (
-        <Text testID="chat-gate-error" style={[styles.gateBody, { color: colors.error }]}>
+        <Text
+          testID="chat-gate-error"
+          style={[styles.gateBody, { color: colors.error }]}
+        >
           {error}
         </Text>
       )}
@@ -1483,15 +1699,19 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
       {/* The house rules, stated before somebody joins rather than after they
           are removed. */}
       {(showAccept || showJoin || showRequest) && (
-        <Text style={[styles.gateRules, { color: colors.textSecondary }]} numberOfLines={4}>
-          {t('community:moderation.noToleranceTitle')} — {t('community:moderation.noToleranceBody')}
+        <Text
+          style={[styles.gateRules, { color: colors.textSecondary }]}
+          numberOfLines={4}
+        >
+          {t("community:moderation.noToleranceTitle")} —{" "}
+          {t("community:moderation.noToleranceBody")}
         </Text>
       )}
 
       {showAccept && (
         <GateButton
           testID="chat-gate-accept"
-          label={t('community:actions.acceptInvite')}
+          label={t("community:actions.acceptInvite")}
           busy={busy}
           onPress={() => void submit([])}
         />
@@ -1500,7 +1720,7 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
       {showJoin && (
         <GateButton
           testID="chat-gate-join"
-          label={t('community:actions.join')}
+          label={t("community:actions.join")}
           busy={busy}
           onPress={() => void submit([])}
         />
@@ -1509,7 +1729,7 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
       {showRequest && !formOpen && (
         <GateButton
           testID="chat-gate-request"
-          label={t('community:actions.requestToJoin')}
+          label={t("community:actions.requestToJoin")}
           busy={busy}
           onPress={() => void openForm()}
         />
@@ -1519,22 +1739,28 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
       {showRequest && formOpen && (
         <View
           testID="chat-request-form"
-          style={[styles.form, { borderColor: colors.border, backgroundColor: colors.card }]}
+          style={[
+            styles.form,
+            { borderColor: colors.border, backgroundColor: colors.card },
+          ]}
         >
           <Text style={[styles.formTitle, { color: colors.foreground }]}>
-            {t('community:joinRequestForm.title')}
+            {t("community:joinRequestForm.title")}
           </Text>
           <Text style={[styles.formIntro, { color: colors.textSecondary }]}>
-            {t('community:joinRequestForm.intro')}
+            {t("community:joinRequestForm.intro")}
           </Text>
 
           {questions && questions.length > 0 ? (
             questions.map((question) => (
               <View key={question.id} style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: colors.foreground }]} numberOfLines={2}>
+                <Text
+                  style={[styles.fieldLabel, { color: colors.foreground }]}
+                  numberOfLines={2}
+                >
                   {question.label}
                 </Text>
-                {question.type === 'single_select' ? (
+                {question.type === "single_select" ? (
                   <View style={styles.options}>
                     {question.options.map((option) => {
                       const selected = answers[question.id] === option;
@@ -1548,20 +1774,31 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
                           hapticFeedback="selection"
                           scaleTo={0.97}
                           onPress={() =>
-                            setAnswers((previous) => ({ ...previous, [question.id]: option }))
+                            setAnswers((previous) => ({
+                              ...previous,
+                              [question.id]: option,
+                            }))
                           }
                           style={[
                             styles.option,
                             {
-                              borderColor: selected ? colors.accent : colors.border,
-                              backgroundColor: selected ? `${colors.accent}14` : 'transparent',
+                              borderColor: selected
+                                ? colors.accent
+                                : colors.border,
+                              backgroundColor: selected
+                                ? `${colors.accent}14`
+                                : "transparent",
                             },
                           ]}
                         >
                           <Text
                             style={[
                               styles.optionLabel,
-                              { color: selected ? colors.accent : colors.foreground },
+                              {
+                                color: selected
+                                  ? colors.accent
+                                  : colors.foreground,
+                              },
                             ]}
                             numberOfLines={1}
                           >
@@ -1574,12 +1811,17 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
                 ) : (
                   <GateInput
                     testID={`chat-request-answer-${question.id}`}
-                    value={answers[question.id] ?? ''}
+                    value={answers[question.id] ?? ""}
                     onChangeText={(value) =>
-                      setAnswers((previous) => ({ ...previous, [question.id]: value }))
+                      setAnswers((previous) => ({
+                        ...previous,
+                        [question.id]: value,
+                      }))
                     }
-                    placeholder={t('community:joinRequestForm.messagePlaceholder')}
-                    multiline={question.type === 'long_text'}
+                    placeholder={t(
+                      "community:joinRequestForm.messagePlaceholder",
+                    )}
+                    multiline={question.type === "long_text"}
                   />
                 )}
               </View>
@@ -1587,13 +1829,13 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
           ) : (
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-                {t('community:joinRequestForm.messageLabel')}
+                {t("community:joinRequestForm.messageLabel")}
               </Text>
               <GateInput
                 testID="chat-request-note"
                 value={note}
                 onChangeText={setNote}
-                placeholder={t('community:joinRequestForm.messagePlaceholder')}
+                placeholder={t("community:joinRequestForm.messagePlaceholder")}
                 multiline
               />
             </View>
@@ -1601,7 +1843,7 @@ function JoinGate({ groupId, status, joinPolicy, visibility, onJoined }: JoinGat
 
           <GateButton
             testID="chat-request-submit"
-            label={t('community:joinRequestForm.submit')}
+            label={t("community:joinRequestForm.submit")}
             busy={busy}
             onPress={submitForm}
           />
@@ -1632,7 +1874,10 @@ function GateButton({
       disabled={busy}
       hapticFeedback="medium"
       onPress={onPress}
-      style={[styles.cta, { backgroundColor: colors.accent, opacity: busy ? 0.6 : 1 }]}
+      style={[
+        styles.cta,
+        { backgroundColor: colors.accent, opacity: busy ? 0.6 : 1 },
+      ]}
     >
       <Text style={styles.ctaLabel} numberOfLines={1}>
         {label}
@@ -1692,15 +1937,15 @@ const styles = StyleSheet.create({
   headerAction: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 10,
   },
   pinnedBar: {
     minHeight: 58,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -1709,8 +1954,8 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pinnedCopy: {
     flex: 1,
@@ -1719,7 +1964,7 @@ const styles = StyleSheet.create({
   },
   pinnedLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 0.2,
   },
   pinnedPreview: {
@@ -1731,15 +1976,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderRadius: 12,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
+    borderCurve: "continuous",
+    overflow: "hidden",
   },
   menuRow: {
     minHeight: 44,
   },
   menuRowInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 11,
@@ -1747,20 +1992,20 @@ const styles = StyleSheet.create({
   menuRowLabel: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   menuBadge: {
     minWidth: 22,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   menuBadgeLabel: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   menuConfirm: {
     padding: 12,
@@ -1768,49 +2013,49 @@ const styles = StyleSheet.create({
   },
   menuConfirmTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   menuConfirmBody: {
     fontSize: 12,
     lineHeight: 18,
   },
   menuConfirmRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   menuConfirmButton: {
     flex: 1,
     borderWidth: 1,
     borderRadius: 10,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
   },
   menuConfirmLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   blockedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     minHeight: 38,
   },
   blockedName: {
     flex: 1,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   blockedAction: {
     borderWidth: 1,
     borderRadius: 10,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     minHeight: 34,
     minWidth: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
   },
   menuError: {
@@ -1824,31 +2069,31 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   skelLeft: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   skelRight: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   stateWrap: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 20,
   },
   errorBox: {
     borderWidth: 1,
     borderRadius: 14,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: 14,
     gap: 10,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   errorText: {
     fontSize: 13,
     lineHeight: 19,
   },
   historyError: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingLeft: 16,
     paddingRight: 8,
@@ -1862,12 +2107,12 @@ const styles = StyleSheet.create({
   historyRetry: {
     minWidth: 54,
     minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   historyRetryText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   olderLoader: {
     paddingVertical: 14,
@@ -1880,7 +2125,7 @@ const styles = StyleSheet.create({
   },
   retryLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   gate: {
     borderTopWidth: 1,
@@ -1888,14 +2133,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   gateHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   gateTitle: {
     flex: 1,
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   gateBody: {
     fontSize: 13,
@@ -1907,28 +2152,28 @@ const styles = StyleSheet.create({
   },
   cta: {
     borderRadius: 14,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     minHeight: 46,
   },
   ctaLabel: {
     flex: 1,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '700',
-    textAlign: 'center',
-    textAlignVertical: 'center',
+    fontWeight: "700",
+    textAlign: "center",
+    textAlignVertical: "center",
     lineHeight: 46,
   },
   form: {
     borderWidth: 1,
     borderRadius: 14,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: 14,
     gap: 10,
   },
   formTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   formIntro: {
     fontSize: 13,
@@ -1939,19 +2184,19 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
     borderWidth: 1,
     borderRadius: 12,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
   },
   options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   option: {
@@ -1960,7 +2205,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     paddingHorizontal: 12,
     paddingVertical: 7,
   },

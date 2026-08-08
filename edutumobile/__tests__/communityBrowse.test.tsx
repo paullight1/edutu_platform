@@ -18,11 +18,14 @@ const mockGetToken = jest.fn().mockResolvedValue('token');
 const mockFetchGroups = jest.fn();
 const mockFetchSavedOpportunities = jest.fn();
 const mockOpenURL = jest.fn().mockResolvedValue(undefined);
+let mockFocusCallback: (() => void) | undefined;
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({}),
-  useFocusEffect: () => undefined,
+  useFocusEffect: (callback: () => void) => {
+    mockFocusCallback = callback;
+  },
 }));
 
 jest.mock('@clerk/clerk-expo', () => ({
@@ -171,23 +174,21 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockFetchSavedOpportunities.mockResolvedValue([]);
   wireGroups([], []);
+  mockFocusCallback = undefined;
 });
 
 // ---------------------------------------------------------------------------
-// The tile
+// Main navigation ownership
 // ---------------------------------------------------------------------------
 
-describe('Discover tile', () => {
-  it('routes in-app to /discussions instead of out to WhatsApp', () => {
-    const { OTHER_FEATURES } = require('../app/(app)/opportunities/index');
-    const tile = OTHER_FEATURES.find(
+describe('Chats tab ownership', () => {
+  it('does not duplicate Community in the More feature grid', () => {
+    const { MORE_FEATURES } = require('../lib/moreFeatures');
+    const tile = MORE_FEATURES.find(
       (feature: { id: string }) => feature.id === 'discussion',
     );
 
-    expect(tile).toBeDefined();
-    expect(tile.route).toBe('/discussions');
-    expect(tile.external).toBeFalsy();
-    expect(tile.route).not.toMatch(/^https?:/);
+    expect(tile).toBeUndefined();
   });
 });
 
@@ -196,6 +197,34 @@ describe('Discover tile', () => {
 // ---------------------------------------------------------------------------
 
 describe('browse screen affordances', () => {
+  it('refreshes when Groups regains focus so a newly created group appears', async () => {
+    const created = makeGroup({
+      id: 'created-1',
+      name: 'A group I created',
+      ownerId: 'user_1',
+    });
+    const { getByTestId } = render(<DiscussionsBrowseScreen />);
+    await waitFor(() => getByTestId('discussions-empty'));
+
+    wireGroups([makeRow(created, 'active')], []);
+    mockFocusCallback?.();
+
+    await waitFor(() => getByTestId(`group-row-${created.id}`));
+  });
+
+  it('shows an owned group even if its legacy membership row is missing', async () => {
+    const owned = makeGroup({
+      id: 'legacy-owned',
+      name: 'My earlier group',
+      ownerId: 'user_1',
+    });
+    wireGroups([makeRow(owned)], []);
+
+    const { getByTestId } = render(<DiscussionsBrowseScreen />);
+
+    await waitFor(() => getByTestId(`group-row-${owned.id}`));
+  });
+
   it('renders your groups as rows, saved-opportunity groups as a rail, and discovery inline — three different components', async () => {
     wireGroups(
       [makeRow(MINE, 'active')],
@@ -434,6 +463,21 @@ describe('WhatsApp banner', () => {
 // ---------------------------------------------------------------------------
 
 describe('empty and error states', () => {
+  it('keeps Your groups usable when only the Discover request fails', async () => {
+    mockFetchGroups.mockImplementation((filter: { mine?: boolean }) =>
+      filter.mine
+        ? Promise.resolve([makeRow(MINE, 'active')])
+        : Promise.reject(new Error('temporary browse failure')),
+    );
+
+    const { getByTestId, queryByTestId } = render(
+      <DiscussionsBrowseScreen />,
+    );
+
+    await waitFor(() => getByTestId(`group-row-${MINE.id}`));
+    expect(queryByTestId('discussions-error')).toBeNull();
+  });
+
   it('teaches with an icon, one line and one CTA rather than a bare sentence', async () => {
     const { getByTestId, getByText } = render(<DiscussionsBrowseScreen />);
 
