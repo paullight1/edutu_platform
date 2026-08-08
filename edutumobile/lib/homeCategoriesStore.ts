@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
-import { toSafeUUID } from '@edutu/core/src/utils/auth';
+import {
+  fetchHomeCategoryLayout,
+  updateHomeCategoryLayout,
+  type HomeCategoryLayoutSnapshot,
+} from '@edutu/core/src/services/profile';
+import type { GetAuthToken } from '@edutu/core/src/services/productApi';
 import {
   DEFAULT_HOME_TILES,
   sanitizeHomeTiles,
@@ -14,19 +18,35 @@ const STORAGE_KEY_V1 = 'edutu.homeCategories.v1';
 const STORAGE_KEY_V2 = 'edutu.homeCategories.v2';
 const STORAGE_KEY_V3_PREFIX = 'edutu.homeCategories.v3';
 const LEGACY_MIGRATION_CLAIM_KEY = 'edutu.homeCategories.v3.legacyClaimed';
+const UNVERSIONED_TIMESTAMP = new Date(0).toISOString();
+
+type LocalSnapshot = {
+  tiles: HomeCategoryTile[];
+  updatedAt: string;
+};
 
 function scopedStorageKey(userId?: string | null): string {
   return `${STORAGE_KEY_V3_PREFIX}.${userId || 'guest'}`;
 }
 
-function lookupIds(userId: string): string[] {
-  return Array.from(new Set([userId, toSafeUUID(userId)]));
+function snapshotFromUnknown(value: unknown): LocalSnapshot | null {
+  if (Array.isArray(value)) {
+    return { tiles: sanitizeHomeTiles(value), updatedAt: UNVERSIONED_TIMESTAMP };
+  }
+  if (!value || typeof value !== 'object') return null;
+  const record = value as { tiles?: unknown; updatedAt?: unknown };
+  if (!Array.isArray(record.tiles)) return null;
+  const parsedTimestamp =
+    typeof record.updatedAt === 'string' && Number.isFinite(Date.parse(record.updatedAt))
+      ? record.updatedAt
+      : UNVERSIONED_TIMESTAMP;
+  return { tiles: sanitizeHomeTiles(record.tiles), updatedAt: parsedTimestamp };
 }
 
-async function readLocal(userId?: string | null): Promise<HomeCategoryTile[] | null> {
+async function readLocal(userId?: string | null): Promise<LocalSnapshot | null> {
   try {
     const scoped = await AsyncStorage.getItem(scopedStorageKey(userId));
-    if (scoped) return sanitizeHomeTiles(JSON.parse(scoped));
+    if (scoped) return snapshotFromUnknown(JSON.parse(scoped));
     // Auth can briefly report no user while Clerk restores its session. Do not
     // let that transient guest scope claim a signed-in user's legacy layout.
     if (!userId) return null;
@@ -41,7 +61,10 @@ async function readLocal(userId?: string | null): Promise<HomeCategoryTile[] | n
     const rawV1 = await AsyncStorage.getItem(STORAGE_KEY_V1);
     const legacy = rawV2 ?? rawV1;
     if (legacy) {
-      const migrated = sanitizeHomeTiles(JSON.parse(legacy));
+      const migrated: LocalSnapshot = {
+        tiles: sanitizeHomeTiles(JSON.parse(legacy)),
+        updatedAt: UNVERSIONED_TIMESTAMP,
+      };
       // Persist the scoped copy before removing the source so a storage failure
       // cannot discard the user's layout midway through migration.
       await AsyncStorage.setItem(scopedStorageKey(userId), JSON.stringify(migrated));
@@ -61,70 +84,47 @@ async function readLocal(userId?: string | null): Promise<HomeCategoryTile[] | n
   }
 }
 
-async function writeLocal(userId: string | null | undefined, tiles: HomeCategoryTile[]): Promise<void> {
+async function writeLocal(
+  userId: string | null | undefined,
+  snapshot: LocalSnapshot,
+): Promise<void> {
   try {
-    await AsyncStorage.setItem(scopedStorageKey(userId), JSON.stringify(tiles));
+    await AsyncStorage.setItem(scopedStorageKey(userId), JSON.stringify(snapshot));
   } catch {
     // Local cache only — safe to ignore.
   }
 }
 
-async function readRemote(userId: string): Promise<HomeCategoryTile[] | null> {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_id, preferences')
-      .in('user_id', lookupIds(userId));
-    if (error || !data?.length) return null;
-    // Prefer the layout (sizes + order); fall back to the legacy id list.
-    const layoutRow = data.find((r: any) => Array.isArray(r?.preferences?.home_categories_layout));
-    if (layoutRow) return sanitizeHomeTiles(layoutRow.preferences.home_categories_layout);
-    const legacyRow = data.find((r: any) => Array.isArray(r?.preferences?.home_categories));
-    if (legacyRow) return sanitizeHomeTiles(legacyRow.preferences.home_categories);
-    return null;
-  } catch {
-    return null;
-  }
+function normalizeRemote(snapshot: HomeCategoryLayoutSnapshot | null): LocalSnapshot | null {
+  if (!snapshot?.tiles?.length) return null;
+  return {
+    tiles: sanitizeHomeTiles(snapshot.tiles),
+    updatedAt:
+      snapshot.updatedAt && Number.isFinite(Date.parse(snapshot.updatedAt))
+        ? snapshot.updatedAt
+        : UNVERSIONED_TIMESTAMP,
+  };
 }
 
-async function writeRemote(userId: string, tiles: HomeCategoryTile[]): Promise<void> {
-  try {
-    const ids = lookupIds(userId);
-    // Keep the legacy plain-id key in sync so older builds still honour the
-    // selection (they just render everything card-sized).
-    const patch = {
-      home_categories: tiles.map((tile) => tile.id),
-      home_categories_layout: tiles,
-    };
-    const { data } = await supabase
-      .from('profiles')
-      .select('user_id, preferences')
-      .in('user_id', ids);
-    if (data?.length) {
-      // Merge so other preference keys survive the write.
-      await Promise.all(
-        data.map((row: any) =>
-          supabase
-            .from('profiles')
-            .update({ preferences: { ...(row.preferences ?? {}), ...patch } })
-            .eq('user_id', row.user_id),
-        ),
-      );
-    } else {
-      await supabase
-        .from('profiles')
-        .upsert({ user_id: userId, preferences: patch }, { onConflict: 'user_id' });
-    }
-  } catch {
-    // Remote sync is best-effort; the local cache already holds the choice.
-  }
+function newerSnapshot(
+  local: LocalSnapshot | null,
+  remote: LocalSnapshot | null,
+): LocalSnapshot | null {
+  if (!local) return remote;
+  if (!remote) return local;
+  return Date.parse(remote.updatedAt) > Date.parse(local.updatedAt) ? remote : local;
 }
 
-export function useHomeCategories(userId?: string | null) {
+export function useHomeCategories(
+  userId?: string | null,
+  getAuthToken?: GetAuthToken,
+) {
   const currentScope = scopedStorageKey(userId);
   const [stateScope, setStateScope] = useState(currentScope);
   const [tiles, setTiles] = useState<HomeCategoryTile[]>(DEFAULT_HOME_TILES);
   const [loaded, setLoaded] = useState(false);
+  const scopeRef = React.useRef(currentScope);
+  scopeRef.current = currentScope;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,18 +137,34 @@ export function useHomeCategories(userId?: string | null) {
       setStateScope(currentScope);
       setTiles(DEFAULT_HOME_TILES);
       setLoaded(false);
-      const local = await readLocal(userId);
-      if (local) {
-        if (!cancelled) setTiles(local);
-        await writeLocal(userId, local);
-        // Local is authoritative on this device. Re-sync it instead of letting
-        // a failed or delayed older remote write undo the user's latest order.
-        if (userId) void writeRemote(userId, local);
-      } else if (userId) {
-        const remote = await readRemote(userId);
-        if (!cancelled && remote) {
-          setTiles(remote);
-          await writeLocal(userId, remote);
+      const [local, remote] = await Promise.all([
+        readLocal(userId),
+        userId && getAuthToken
+          ? fetchHomeCategoryLayout(getAuthToken).then(normalizeRemote)
+          : Promise.resolve(null),
+      ]);
+      const winner = newerSnapshot(local, remote);
+      if (!cancelled && winner) {
+        setTiles(winner.tiles);
+        await writeLocal(userId, winner);
+      }
+      if (
+        userId &&
+        getAuthToken &&
+        local &&
+        winner === local &&
+        (!remote || Date.parse(local.updatedAt) > Date.parse(remote.updatedAt))
+      ) {
+        const accepted = normalizeRemote(
+          await updateHomeCategoryLayout(getAuthToken, local),
+        );
+        if (
+          !cancelled &&
+          accepted &&
+          Date.parse(accepted.updatedAt) > Date.parse(local.updatedAt)
+        ) {
+          setTiles(accepted.tiles);
+          await writeLocal(userId, accepted);
         }
       }
       if (!cancelled) setLoaded(true);
@@ -156,17 +172,33 @@ export function useHomeCategories(userId?: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [currentScope, userId]);
+  }, [currentScope, getAuthToken, userId]);
 
   const save = useCallback(
     (next: HomeCategoryTile[]) => {
       const cleaned = sanitizeHomeTiles(next);
+      const local: LocalSnapshot = {
+        tiles: cleaned,
+        updatedAt: new Date().toISOString(),
+      };
       setStateScope(currentScope);
       setTiles(cleaned);
-      void writeLocal(userId, cleaned);
-      if (userId) void writeRemote(userId, cleaned);
+      void writeLocal(userId, local);
+      if (userId && getAuthToken) {
+        void updateHomeCategoryLayout(getAuthToken, local).then((result) => {
+          const accepted = normalizeRemote(result);
+          if (
+            scopeRef.current === currentScope &&
+            accepted &&
+            Date.parse(accepted.updatedAt) > Date.parse(local.updatedAt)
+          ) {
+            setTiles(accepted.tiles);
+            void writeLocal(userId, accepted);
+          }
+        });
+      }
     },
-    [currentScope, userId],
+    [currentScope, getAuthToken, userId],
   );
 
   return {

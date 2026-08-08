@@ -1489,7 +1489,7 @@ export default function Dashboard() {
     const [recentlyOpenedOpportunity, setRecentlyOpenedOpportunity] = useState<RecentlyOpenedOpportunity | null>(null);
     const [opportunityRotationSeed, setOpportunityRotationSeed] = useState(() => createOpportunityRotationSeed());
     const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
-    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(userId);
+    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(userId, getToken);
     const homeTileEntries = useMemo(
         () => homeTiles
             .map((tile) => ({ tile, category: getDiscoveryCategory(tile.id) }))

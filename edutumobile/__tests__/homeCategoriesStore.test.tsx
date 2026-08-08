@@ -7,9 +7,18 @@ const mockFrom = jest.fn(() => ({
   select: mockSelect,
   upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
 }));
+const mockFetchHomeCategoryLayout = jest.fn();
+const mockUpdateHomeCategoryLayout = jest.fn();
 
 jest.mock("../lib/supabase", () => ({
   supabase: { from: (...args: unknown[]) => mockFrom(...args) },
+}));
+
+jest.mock("@edutu/core/src/services/profile", () => ({
+  fetchHomeCategoryLayout: (...args: unknown[]) =>
+    mockFetchHomeCategoryLayout(...args),
+  updateHomeCategoryLayout: (...args: unknown[]) =>
+    mockUpdateHomeCategoryLayout(...args),
 }));
 
 const { useHomeCategories } = require("../lib/homeCategoriesStore") as typeof import("../lib/homeCategoriesStore");
@@ -20,6 +29,8 @@ const scopedKey = (userId: string) => `edutu.homeCategories.v3.${userId}`;
 beforeEach(async () => {
   jest.clearAllMocks();
   mockIn.mockResolvedValue({ data: [], error: null });
+  mockFetchHomeCategoryLayout.mockResolvedValue(null);
+  mockUpdateHomeCategoryLayout.mockResolvedValue(null);
   await AsyncStorage.clear();
 });
 
@@ -105,4 +116,55 @@ it("clears the previous account's in-memory layout when identity changes", async
     "programs",
     "internships",
   ]);
+});
+
+it("uses the newest version across local and remote layouts", async () => {
+  await AsyncStorage.setItem(
+    scopedKey("user-first"),
+    JSON.stringify({
+      tiles: [{ id: "programs", size: "card" }],
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    }),
+  );
+  mockFetchHomeCategoryLayout.mockResolvedValue({
+    tiles: [{ id: "internships", size: "icon" }],
+    updatedAt: "2026-08-02T10:00:00.000Z",
+  });
+  const getToken = jest.fn().mockResolvedValue("token");
+
+  const hook = renderHook(() =>
+    useHomeCategories("user-first", getToken),
+  );
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+
+  expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual([
+    "internships",
+  ]);
+  expect(mockUpdateHomeCategoryLayout).not.toHaveBeenCalled();
+  expect(JSON.parse((await AsyncStorage.getItem(scopedKey("user-first")))!))
+    .toMatchObject({ updatedAt: "2026-08-02T10:00:00.000Z" });
+});
+
+it("pushes a newer local version without allowing an older server value to win", async () => {
+  const local = {
+    tiles: [{ id: "programs", size: "card" }],
+    updatedAt: "2026-08-03T10:00:00.000Z",
+  };
+  await AsyncStorage.setItem(scopedKey("user-first"), JSON.stringify(local));
+  mockFetchHomeCategoryLayout.mockResolvedValue({
+    tiles: [{ id: "internships", size: "icon" }],
+    updatedAt: "2026-08-02T10:00:00.000Z",
+  });
+  mockUpdateHomeCategoryLayout.mockResolvedValue(local);
+  const getToken = jest.fn().mockResolvedValue("token");
+
+  const hook = renderHook(() =>
+    useHomeCategories("user-first", getToken),
+  );
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+
+  expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual(["programs"]);
+  await waitFor(() =>
+    expect(mockUpdateHomeCategoryLayout).toHaveBeenCalledWith(getToken, local),
+  );
 });

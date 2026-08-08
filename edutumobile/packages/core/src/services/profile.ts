@@ -47,6 +47,11 @@ export interface ProfileUpdateInput {
   timezone?: string | null;
 }
 
+export interface HomeCategoryLayoutSnapshot {
+  tiles: Array<{ id: string; size: 'icon' | 'card' | 'long' }>;
+  updatedAt: string | null;
+}
+
 /**
  * Load the signed-in user's profile via the backend product API. The backend
  * keys profiles by `toDatabaseUserId(clerkId)` under service_role, so this is
@@ -72,6 +77,27 @@ export async function updateProfile(
   return requestProductApi<BackendProfile>(
     '/profile',
     { method: 'PATCH', body: JSON.stringify(updates) },
+    getAuthToken,
+  );
+}
+
+export async function fetchHomeCategoryLayout(
+  getAuthToken: GetAuthToken,
+): Promise<HomeCategoryLayoutSnapshot | null> {
+  return requestProductApi<HomeCategoryLayoutSnapshot>(
+    '/profile/preferences/home-categories',
+    { method: 'GET' },
+    getAuthToken,
+  );
+}
+
+export async function updateHomeCategoryLayout(
+  getAuthToken: GetAuthToken,
+  snapshot: { tiles: HomeCategoryLayoutSnapshot['tiles']; updatedAt: string },
+): Promise<HomeCategoryLayoutSnapshot | null> {
+  return requestProductApi<HomeCategoryLayoutSnapshot>(
+    '/profile/preferences/home-categories',
+    { method: 'PATCH', body: JSON.stringify(snapshot) },
     getAuthToken,
   );
 }

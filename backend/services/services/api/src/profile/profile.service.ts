@@ -11,6 +11,7 @@ import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { MeService } from "../me/me.service";
 import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import type {
+  UpdateHomeCategoryLayoutDto,
   UpdateMemberSettingsDto,
   UpdateProfileDto,
 } from "./dto/profile.dto";
@@ -112,6 +113,56 @@ export class ProfileService {
   async getMemberSettings(user: AuthenticatedProfileUser) {
     const profile = await this.findOrCreateProfile(this.profileKey(user), user);
     return this.normalizeSettings(profile.settings);
+  }
+
+  async getHomeCategoryLayout(user: AuthenticatedProfileUser) {
+    const profile = await this.findOrCreateProfile(this.profileKey(user), user);
+    return this.normalizeHomeCategoryLayout(profile.preferences);
+  }
+
+  async updateHomeCategoryLayout(
+    user: AuthenticatedProfileUser,
+    dto: UpdateHomeCategoryLayoutDto,
+  ) {
+    const profileKey = this.profileKey(user);
+    await this.findOrCreateProfile(profileKey, user);
+
+    // The timestamp comparison and write happen under one lock. Two devices
+    // can save concurrently without the slower, older request winning merely
+    // because it reached Postgres last.
+    return db.transaction(async (tx) => {
+      const [profile] = await tx
+        .select()
+        .from(profiles)
+        .where(eq(profiles.userId, profileKey))
+        .for("update");
+      if (!profile) throw new NotFoundException("Profile not found");
+
+      const current = this.normalizeHomeCategoryLayout(profile.preferences);
+      if (
+        current.updatedAt &&
+        Date.parse(current.updatedAt) > Date.parse(dto.updatedAt)
+      ) {
+        return current;
+      }
+
+      const preferences = this.asRecord(profile.preferences);
+      const nextPreferences = {
+        ...preferences,
+        // Keep the old id-only field current for builds released before the
+        // responsive tile layout existed.
+        home_categories: dto.tiles.map((tile) => tile.id),
+        home_categories_layout: dto.tiles,
+        home_categories_updated_at: dto.updatedAt,
+      };
+      const [updated] = await tx
+        .update(profiles)
+        .set({ preferences: nextPreferences, updatedAt: new Date() })
+        .where(eq(profiles.userId, profileKey))
+        .returning();
+
+      return this.normalizeHomeCategoryLayout(updated.preferences);
+    });
   }
 
   async updateMemberSettings(
@@ -414,6 +465,31 @@ export class ProfileService {
       updatedAt:
         typeof raw.updatedAt === "string" ? raw.updatedAt : defaults.updatedAt,
     };
+  }
+
+  private normalizeHomeCategoryLayout(value: unknown) {
+    const preferences = this.asRecord(value);
+    const rawTiles = Array.isArray(preferences.home_categories_layout)
+      ? preferences.home_categories_layout
+      : Array.isArray(preferences.home_categories)
+        ? preferences.home_categories.map((id) => ({ id, size: "icon" }))
+        : [];
+    const seen = new Set<string>();
+    const tiles = rawTiles.flatMap((value) => {
+      const row = this.asRecord(value);
+      const id = typeof row.id === "string" ? row.id.trim() : "";
+      const size =
+        row.size === "card" || row.size === "long" ? row.size : "icon";
+      if (!/^[a-z0-9_-]{1,64}$/.test(id) || seen.has(id)) return [];
+      seen.add(id);
+      return [{ id, size }];
+    });
+    const updatedAt =
+      typeof preferences.home_categories_updated_at === "string" &&
+      Number.isFinite(Date.parse(preferences.home_categories_updated_at))
+        ? preferences.home_categories_updated_at
+        : null;
+    return { tiles, updatedAt };
   }
 
   private async updateServerSecuritySettings(
