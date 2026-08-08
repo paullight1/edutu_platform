@@ -2073,7 +2073,9 @@ const styles = StyleSheet.create({
     discoveryGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: CARD_GAP,
+        alignItems: 'flex-start',
+        columnGap: CARD_GAP,
+        rowGap: CARD_GAP,
         marginBottom: 16,
     },
     discoveryCard: {
