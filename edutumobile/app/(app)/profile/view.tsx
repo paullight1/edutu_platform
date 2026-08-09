@@ -29,7 +29,7 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
-import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
+import { fetchProfile, fetchSupabaseProfile, getCachedProfileName, isPlaceholderProfileName, type BackendProfile } from '@edutu/core/src/services/profile';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import i18n from '../../../lib/i18n';
@@ -116,6 +116,9 @@ export default function ProfileViewScreen() {
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const { isPro } = useProStatus(supabase, user?.id || null);
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
+    const cachedProfileName = user?.id ? getCachedProfileName(user.id) : null;
+    const displayProfileName = savedProfile?.fullName?.trim() || cachedProfileName ||
+        (!isPlaceholderProfileName(user?.fullName) ? user?.fullName : null) || t('view.userFallback');
     const [appliedRows, setAppliedRows] = useState<AppliedRow[]>([]);
     const [profileStats, setProfileStats] = useState({
         activeGoals: 0,
@@ -136,7 +139,9 @@ export default function ProfileViewScreen() {
             let cancelled = false;
             const loadSavedProfile = async () => {
                 if (!userId) return;
-                const data = await fetchProfile(getToken);
+                const data =
+                    await fetchSupabaseProfile(supabase, getUserLookupIds(userId)) ??
+                    await fetchProfile(getToken);
                 if (data && !cancelled) setSavedProfile(data);
             };
             loadSavedProfile();
@@ -262,7 +267,7 @@ export default function ProfileViewScreen() {
                         <View style={styles.userInfo}>
                             <View style={styles.userNameRow}>
                                 <Text style={[styles.userName, { color: colors.foreground }]}>
-                                    {user?.fullName || t('view.userFallback')}
+                                    {displayProfileName}
                                 </Text>
                                 {isPro && (
                                     <BadgeCheck

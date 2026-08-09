@@ -27,6 +27,7 @@ let mockSegments = ['(app)', 'index'];
 let mockGlobalSearchParams: Record<string, string | string[]> = {};
 let mockOpportunitiesData: Array<any> = [];
 let mockOpportunitiesLoading = false;
+let mockProfileData: Array<{ user_id: string; full_name?: string | null }> = [];
 const mockSaveHomeCategories = jest.fn();
 let mockHomeCategoriesState = {
   tiles: [
@@ -202,6 +203,21 @@ jest.mock('@edutu/core/src/hooks/useGoals', () => ({
   useGoals: () => ({ goals: [], isLoading: false }),
 }), { virtual: true });
 
+jest.mock('@edutu/core/src/hooks/useCreditRewards', () => ({
+  useCreditRewards: () => ({
+    claimDaily: jest.fn().mockResolvedValue(undefined),
+    award: jest.fn().mockResolvedValue(undefined),
+  }),
+}), { virtual: true });
+
+jest.mock('../hooks/useCommunityUnreadCounts', () => ({
+  useCommunityUnreadCounts: () => ({
+    groupsUnreadCount: 0,
+    chatsUnreadCount: 0,
+    groupUnreadCounts: {},
+  }),
+}));
+
 jest.mock('@edutu/core/src/utils/auth', () => ({
   toSafeUUID: (value: string) => `safe-${value}`,
 }), { virtual: true });
@@ -214,7 +230,7 @@ jest.mock('../lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn(() => ({
-        in: jest.fn().mockResolvedValue({ data: [] }),
+        in: jest.fn().mockImplementation(() => Promise.resolve({ data: mockProfileData })),
       })),
     })),
     // The shell claims the daily login credit on mount.
@@ -328,6 +344,7 @@ describe('mobile app shell and home dashboard', () => {
     mockGlobalSearchParams = {};
     mockOpportunitiesData = testOpportunities;
     mockOpportunitiesLoading = false;
+    mockProfileData = [];
     mockSaveHomeCategories.mockClear();
     mockHomeCategoriesState = {
       tiles: [
@@ -373,6 +390,31 @@ describe('mobile app shell and home dashboard', () => {
     fireEvent.press(getByLabelText('Open menu'));
     expect(getByTestId('feature-menu-underlay')).toBeTruthy();
     expect(getByTestId('feature-menu-page-dismiss', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('uses the persisted profile name instead of a stale Clerk placeholder in the home greeting', async () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = {
+      user: {
+        id: 'user-1',
+        firstName: 'Edutu',
+        fullName: 'Edutu Test',
+        unsafeMetadata: { onboardingComplete: true },
+      },
+    };
+    mockProfileData = [{ user_id: 'user-1', full_name: 'Paul' }];
+
+    const { getByTestId } = render(<AppLayout />);
+
+    await waitFor(() => {
+      expect(String(getByTestId('home-header-greeting').props.children)).toContain('Paul');
+    });
+    expect(String(getByTestId('home-header-greeting').props.children)).not.toContain('Edutu');
   });
 
   it('opens Community with Explore, Groups and Chats in its dedicated bottom nav', async () => {

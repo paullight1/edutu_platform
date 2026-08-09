@@ -39,7 +39,7 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
-import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
+import { fetchProfile, fetchSupabaseProfile, getCachedProfileName, isPlaceholderProfileName, type BackendProfile } from '@edutu/core/src/services/profile';
 import { setProfileFabHidden } from '../../../lib/navFabStore';
 import { clearWidgetSuiteData } from '../../../lib/widgetSuiteSync';
 import { usePromptProUpgrade } from '../../../lib/upsell';
@@ -137,6 +137,9 @@ export default function ProfileScreen() {
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
+    const cachedProfileName = user?.id ? getCachedProfileName(user.id) : null;
+    const displayProfileName = savedProfile?.fullName?.trim() || cachedProfileName ||
+        (!isPlaceholderProfileName(user?.fullName) ? user?.fullName : null) || t('view.userFallback');
     const handleSignOut = async () => {
         await clearWidgetSuiteData().catch(() => undefined);
         await signOut();
@@ -150,7 +153,9 @@ export default function ProfileScreen() {
             let cancelled = false;
             const loadSavedProfile = async () => {
                 if (!userId) return;
-                const data = await fetchProfile(getToken);
+                const data =
+                    await fetchSupabaseProfile(supabase, [userId, toSafeUUID(userId)]) ??
+                    await fetchProfile(getToken);
                 if (data && !cancelled) setSavedProfile(data);
             };
             loadSavedProfile();
@@ -260,7 +265,7 @@ export default function ProfileScreen() {
                     <View style={styles.lineInfo}>
                         <View style={styles.userNameRow}>
                             <Text style={[styles.lineName, { color: colors.foreground }]} numberOfLines={1}>
-                                {user?.fullName || t('view.userFallback')}
+                                {displayProfileName}
                             </Text>
                             {isPro && (
                                 <BadgeCheck

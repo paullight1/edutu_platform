@@ -7,6 +7,7 @@ const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockSignOut = jest.fn().mockResolvedValue(undefined);
 const mockGetToken = jest.fn().mockResolvedValue("token");
+const mockFetchProfile = jest.fn();
 const mockSetPackage = jest.fn();
 const mockOpenBrowserAsync = jest.fn().mockResolvedValue(undefined);
 const DEFAULT_NOTIF_SETTINGS = {
@@ -32,6 +33,7 @@ const mockGetPreferences = jest.fn();
 const mockSavePreferences = jest.fn().mockResolvedValue(undefined);
 const mockUnregisterPushToken = jest.fn().mockResolvedValue(undefined);
 const mockUpdatePassword = jest.fn().mockResolvedValue(undefined);
+const mockUpdateUser = jest.fn().mockResolvedValue(undefined);
 const mockDeleteUser = jest.fn().mockResolvedValue(undefined);
 const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null });
 const mockFetchGroups = jest.fn();
@@ -73,6 +75,7 @@ let mockUserState: { user: any } = {
     passwordEnabled: false,
     externalAccounts: [{ provider: "google" }],
     updatePassword: mockUpdatePassword,
+    update: mockUpdateUser,
     delete: mockDeleteUser,
   },
 };
@@ -367,6 +370,15 @@ jest.mock(
   { virtual: true },
 );
 
+jest.mock(
+  "@edutu/core/src/services/profile",
+  () => ({
+    ...jest.requireActual("@edutu/core/src/services/profile"),
+    fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
+  }),
+  { virtual: true },
+);
+
 jest.mock("../lib/supabase", () => ({
   supabase: mockSupabase,
 }));
@@ -393,6 +405,7 @@ jest.mock("lucide-react-native", () => {
 
 const ProfileScreen = require("../app/(app)/profile/index").default;
 const EditProfileScreen = require("../app/(app)/profile/edit").default;
+const ProfileViewScreen = require("../app/(app)/profile/view").default;
 const SettingsScreen = require("../app/(app)/profile/settings").default;
 
 function pressNearestTouchTarget(node: any) {
@@ -415,6 +428,7 @@ describe("mobile profile routes", () => {
     mockReplace.mockClear();
     mockSignOut.mockClear();
     mockGetToken.mockClear();
+    mockFetchProfile.mockReset().mockResolvedValue(null);
     mockSetPackage.mockClear();
     mockOpenBrowserAsync.mockClear();
     mockFetchGroups.mockReset();
@@ -441,6 +455,7 @@ describe("mobile profile routes", () => {
       quietHours: { start: "00:00", end: "00:00" },
     });
     mockUpdatePassword.mockClear();
+    mockUpdateUser.mockClear().mockResolvedValue(undefined);
     mockDeleteUser.mockClear();
     mockUpsert.mockClear();
     alertSpy.mockClear();
@@ -506,6 +521,7 @@ describe("mobile profile routes", () => {
         passwordEnabled: false,
         externalAccounts: [{ provider: "google" }],
         updatePassword: mockUpdatePassword,
+        update: mockUpdateUser,
         delete: mockDeleteUser,
       },
     };
@@ -602,6 +618,35 @@ describe("mobile profile routes", () => {
       }),
       { onConflict: "user_id" },
     );
+    expect(mockUpdateUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstName: "Ada",
+        lastName: "Lovelace",
+        unsafeMetadata: expect.objectContaining({
+          fullName: "Ada Lovelace",
+        }),
+      }),
+    );
+  });
+
+  it("renders the saved Supabase profile when the backend profile read is unavailable", async () => {
+    mockProfileRow = {
+      ...mockProfileRow,
+      country: "Ghana",
+      major: "Astrophysics",
+    };
+    mockUserState.user.unsafeMetadata = {
+      ...mockUserState.user.unsafeMetadata,
+      country: "Nigeria",
+      education: "Engineering",
+    };
+
+    const { getByText, queryByText } = render(<ProfileViewScreen />);
+
+    await waitFor(() => expect(getByText("Ghana")).toBeTruthy());
+    expect(getByText("Astrophysics")).toBeTruthy();
+    expect(queryByText("Nigeria")).toBeNull();
+    expect(queryByText("Engineering")).toBeNull();
   });
 
   it("turning push off unregisters this device and saves the preference server-side", async () => {

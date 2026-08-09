@@ -60,6 +60,8 @@ import { reportNotificationOpened } from "../../lib/notificationTelemetry";
 import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
 import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
 import { fetchOpportunityDeadlines } from "@edutu/core/src/services/deadlines";
+import { fetchSupabaseProfile, getCachedProfileName, isPlaceholderProfileName } from "@edutu/core/src/services/profile";
+import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { syncDeviceTimezone } from "../../lib/timezoneSync";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
@@ -214,9 +216,19 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
     const { getToken } = useAuth();
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
     const [deadlineSummary, setDeadlineSummary] = useState({ userId: '', count: 0 });
+    const [profileIdentity, setProfileIdentity] = useState<{ userId: string; fullName: string | null } | null>(null);
     const [greetingPeriod, setGreetingPeriod] = useState(() => Math.floor(Date.now() / HEADER_GREETING_ROTATION_MS));
 
-    const firstName = user?.firstName || user?.fullName?.trim().split(/\s+/)[0] || t('header.friend', { defaultValue: 'there' });
+    const profileReady = Boolean(user?.id && profileIdentity?.userId === user.id);
+    const metadataName = typeof user?.unsafeMetadata?.fullName === 'string'
+        ? user.unsafeMetadata.fullName.trim()
+        : '';
+    const clerkName = user?.firstName?.trim() || user?.fullName?.trim().split(/\s+/)[0] || '';
+    const cachedName = user?.id ? getCachedProfileName(user.id) || '' : '';
+    const persistedName = profileReady
+        ? profileIdentity?.fullName?.trim() || ''
+        : cachedName || metadataName;
+    const firstName = persistedName || (!isPlaceholderProfileName(clerkName) ? clerkName : '') || t('header.friend', { defaultValue: 'there' });
     const hour = new Date().getHours();
     const timeGreeting = hour < 12
         ? t('header.goodMorning', { defaultValue: 'Good morning' })
@@ -241,6 +253,29 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
     const weeklyDeadlines = user?.id === deadlineSummary.userId
         ? deadlineSummary.count
         : 0;
+
+    useEffect(() => {
+        let cancelled = false;
+        const currentUserId = user?.id;
+
+        if (!currentUserId) return;
+
+        void fetchSupabaseProfile(supabase, [currentUserId, toSafeUUID(currentUserId)])
+            .then((profile) => {
+                if (cancelled) return;
+                setProfileIdentity({
+                    userId: currentUserId,
+                    fullName: profile?.fullName?.trim() || null,
+                });
+            })
+            .catch(() => {
+                if (!cancelled) setProfileIdentity({ userId: currentUserId, fullName: null });
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     useEffect(() => {
         const updateGreetingPeriod = () => {

@@ -16,6 +16,7 @@ import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { supabase } from '../../../lib/supabase';
+import { cacheProfileName } from '@edutu/core/src/services/profile';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { CountrySelectModal } from '../../../components/ui/CountrySelectModal';
 import { Card } from '../../../components/ui/Card';
@@ -154,15 +155,27 @@ export default function EditProfileScreen() {
                 );
 
             if (error) throw error;
+            cacheProfileName(user.id, profile.full_name);
 
             // Mirror saved fields into Clerk unsafeMetadata so screens that read
             // it (profile header, personalization) stay in sync. Non-fatal.
             try {
                 const meta = { ...(user.unsafeMetadata as Record<string, unknown>) };
+                const fullName = profile.full_name?.trim() || '';
+                const nameParts = fullName.split(/\s+/).filter(Boolean);
+                const firstName = nameParts.shift() || '';
+                const lastName = nameParts.join(' ');
+
+                if (fullName) meta.fullName = fullName;
+                else delete meta.fullName;
                 if (toNullable(profile.country)) meta.country = profile.country!.trim();
                 if (toNullable(profile.school)) meta.schoolName = profile.school!.trim();
                 if (toNullable(profile.major)) meta.education = profile.major!.trim();
-                await user.update({ unsafeMetadata: meta });
+                await user.update({
+                    firstName,
+                    lastName,
+                    unsafeMetadata: meta,
+                });
             } catch (metaError) {
                 console.warn('Clerk metadata mirror failed:', metaError);
             }
