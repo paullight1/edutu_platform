@@ -26,6 +26,8 @@
 
 # Tool scratch output
 **/.playwright-cli/
+**/.expo/
+.labx/browser-bridge/state.json
 
 # Local agent / IDE settings (may contain embedded keys)
 .claude/
