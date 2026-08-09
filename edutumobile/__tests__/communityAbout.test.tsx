@@ -134,7 +134,7 @@ describe("linked opportunity on a group profile", () => {
     fireEvent.press(getByTestId("group-tab-resources"));
 
     expect(mockReplace).toHaveBeenCalledWith(
-      "/discussions/group-1/about?tab=resources",
+      "/discussions/group-1?tab=resources",
     );
   });
 

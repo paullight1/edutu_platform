@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -67,7 +68,16 @@ import { Composer } from "../../../components/community/Composer";
 import type { PickedCommunityAttachment } from "../../../components/community/Composer";
 import { uploadPrivateCommunityAsset } from "@edutu/core/src/services/storage";
 import { GroupAvatar } from "../../../components/community/GroupAvatar";
-import { GroupContentTabs } from "../../../components/community/GroupContentTabs";
+import { getCommunityGroupCoverUrl } from "../../../lib/communityDiscovery";
+import {
+  markGroupRead,
+} from "../../../lib/communityReadState";
+import {
+  GroupContentTabs,
+  useGroupContentSwipe,
+  type GroupContentTab,
+} from "../../../components/community/GroupContentTabs";
+import GroupAboutScreen from "./[id]/about";
 import {
   FirstPostNotice,
   hasAcknowledgedFirstPost,
@@ -110,7 +120,7 @@ import {
  * reader of the same contract, and the key is asserted in the test suite, so a
  * shared module would only add indirection to a five-character string.
  */
-const LAST_READ_KEY = "edutu:discussions:lastRead";
+export { markGroupRead } from "../../../lib/communityReadState";
 
 /**
  * The device's copy of the caller's block list, mirroring the server's
@@ -157,25 +167,6 @@ function callIdFromMessage(message: LocalMessage): string | null {
  * Stamp this group as read. Read-modify-write on one JSON blob, because the
  * browse screen reads every group's mark in a single `getItem`.
  */
-export async function markGroupRead(
-  groupId: string,
-  at: string,
-): Promise<void> {
-  if (!groupId) return;
-  try {
-    const raw = await AsyncStorage.getItem(LAST_READ_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
-    const map: Record<string, string> =
-      parsed && typeof parsed === "object"
-        ? (parsed as Record<string, string>)
-        : {};
-    map[groupId] = at;
-    await AsyncStorage.setItem(LAST_READ_KEY, JSON.stringify(map));
-  } catch {
-    // A failed mark costs one stale unread dot. It must never break the chat.
-  }
-}
-
 /**
  * WHO MAY ADMINISTER THIS GROUP is decided by
  * `@edutu/core/src/services/communityAuthz`, imported above, and by nothing
@@ -219,7 +210,58 @@ async function removeFromIdList(key: string, id: string): Promise<string[]> {
   return next;
 }
 
+const GROUP_CONTENT_TAB_INDEX: Record<GroupContentTab, number> = {
+  posts: 0,
+  resources: 1,
+  about: 2,
+};
+
 export default function GroupChatScreen() {
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    tab?: string | string[];
+  }>();
+  const requestedTab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
+  const activeTab: GroupContentTab =
+    requestedTab === "resources"
+      ? "resources"
+      : requestedTab === "about"
+        ? "about"
+        : "posts";
+  const previousTab = useRef<GroupContentTab>(activeTab);
+  const tabTransition = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (previousTab.current === activeTab) return;
+    const direction =
+      GROUP_CONTENT_TAB_INDEX[activeTab] >
+      GROUP_CONTENT_TAB_INDEX[previousTab.current]
+        ? 1
+        : -1;
+    previousTab.current = activeTab;
+    tabTransition.setValue(direction * 28);
+    const animation = Animated.timing(tabTransition, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [activeTab, tabTransition]);
+
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        transform: [{ translateX: tabTransition }],
+      }}
+    >
+      {activeTab === "posts" ? <GroupChatPostsScreen /> : <GroupAboutScreen />}
+    </Animated.View>
+  );
+}
+
+function GroupChatPostsScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const groupId = Array.isArray(params.id)
     ? (params.id[0] ?? "")
@@ -737,9 +779,11 @@ export default function GroupChatScreen() {
   // skeleton during a background fetch made typed drafts and picker actions
   // disappear under the user's finger.
   const busy = detailLoading;
+  const tabSwipeHandlers = useGroupContentSwipe(groupId, "posts");
 
   return (
     <SafeAreaView
+      {...tabSwipeHandlers}
       style={[styles.screen, { backgroundColor: colors.background }]}
       edges={["top", "bottom"]}
     >
@@ -752,6 +796,7 @@ export default function GroupChatScreen() {
             <GroupAvatar
               testID="chat-group-avatar"
               resourceUrl={group.coverImageResourceUrl}
+              imageUrl={getCommunityGroupCoverUrl(group.slug)}
               emoji={group.coverEmoji}
               size={36}
               radius={11}
