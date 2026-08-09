@@ -46,7 +46,7 @@ import { runImpressionChecks } from "../../lib/impressions";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { getMatchTier, MATCH_TIER_KEY } from "@edutu/core/src/utils/matchTier";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
-import { ShimmerCard } from "../../components/ui/Shimmer";
+import Shimmer, { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
 import {
     DISCOVERY_CATEGORY_CATALOG,
@@ -247,17 +247,53 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
     );
 }
 
-function DiscoveryTileGridSkeleton({ isDark }: { isDark: boolean }) {
-    const backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)';
-
+function DiscoveryTileGridSkeleton({ isDark, tiles }: { isDark: boolean; tiles: HomeCategoryTile[] }) {
+    const { t } = useTranslation('common');
     return (
-        <View style={styles.discoveryGrid} accessibilityLabel="Loading explore categories">
-            {Array.from({ length: 4 }).map((_, index) => (
-                <View
-                    key={index}
-                    style={[styles.discoverySkeletonCard, { backgroundColor }]}
-                />
-            ))}
+        <View
+            testID="home-discovery-skeleton"
+            style={styles.discoveryGrid}
+            accessibilityRole="progressbar"
+            accessibilityLabel={t('states.loading')}
+        >
+            {tiles.map((tile, index) => {
+                const testID = `home-category-skeleton-${index}-${tile.id}-${tile.size}`;
+                if (tile.size === 'icon') {
+                    return (
+                        <View key={`${tile.id}-${tile.size}`} testID={testID} style={styles.iconTileWrap}>
+                            <Shimmer
+                                width={ICON_SQUARE}
+                                height={ICON_SQUARE}
+                                borderRadius={17}
+                                isDark={isDark}
+                                style={styles.discoverySkeletonIcon}
+                            />
+                            <Shimmer
+                                width="68%"
+                                height={9}
+                                borderRadius={5}
+                                isDark={isDark}
+                                style={styles.discoverySkeletonLabel}
+                            />
+                        </View>
+                    );
+                }
+                const isLong = tile.size === 'long';
+                return (
+                    <View
+                        key={`${tile.id}-${tile.size}`}
+                        testID={testID}
+                        style={isLong ? styles.discoverySkeletonLong : styles.discoverySkeletonCard}
+                    >
+                        <Shimmer
+                            width="100%"
+                            height={isLong ? 60 : 62}
+                            borderRadius={16}
+                            isDark={isDark}
+                        />
+                    </View>
+                );
+            })}
         </View>
     );
 }
@@ -1817,7 +1853,7 @@ export default function Dashboard() {
                     {homeCategoriesLoaded ? (
                         <DiscoveryTileGrid router={router} entries={homeTileEntries} textPrimary={textPrimary} />
                     ) : (
-                        <DiscoveryTileGridSkeleton isDark={isDark} />
+                        <DiscoveryTileGridSkeleton isDark={isDark} tiles={homeTiles} />
                     )}
                 </Animated.View>
 
@@ -2113,10 +2149,20 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: '#0F172A',
     },
+    discoverySkeletonIcon: {
+        alignSelf: 'center',
+    },
     discoverySkeletonCard: {
         width: CARD_WIDTH,
         height: 62,
-        borderRadius: 16,
+    },
+    discoverySkeletonLong: {
+        width: HOME_GRID_WIDTH,
+        height: 60,
+    },
+    discoverySkeletonLabel: {
+        alignSelf: 'center',
+        marginTop: 7,
     },
     // Icon-size tile: gradient glyph square with the label underneath.
     iconTileWrap: {

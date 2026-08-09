@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { renderHook, waitFor } from "@testing-library/react-native";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 const mockIn = jest.fn().mockResolvedValue({ data: [], error: null });
 const mockSelect = jest.fn(() => ({ in: mockIn }));
@@ -21,12 +21,16 @@ jest.mock("@edutu/core/src/services/profile", () => ({
     mockUpdateHomeCategoryLayout(...args),
 }));
 
-const { useHomeCategories } = require("../lib/homeCategoriesStore") as typeof import("../lib/homeCategoriesStore");
+const {
+  __resetHomeCategoryMemoryForTests,
+  useHomeCategories,
+} = require("../lib/homeCategoriesStore") as typeof import("../lib/homeCategoriesStore");
 
 const LEGACY_KEY = "edutu.homeCategories.v2";
 const scopedKey = (userId: string) => `edutu.homeCategories.v3.${userId}`;
 
 beforeEach(async () => {
+  __resetHomeCategoryMemoryForTests();
   jest.clearAllMocks();
   mockIn.mockResolvedValue({ data: [], error: null });
   mockFetchHomeCategoryLayout.mockResolvedValue(null);
@@ -135,7 +139,9 @@ it("uses the newest version across local and remote layouts", async () => {
   const hook = renderHook(() =>
     useHomeCategories("user-first", getToken),
   );
-  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  await waitFor(() =>
+    expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual(["internships"]),
+  );
 
   expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual([
     "internships",
@@ -161,12 +167,10 @@ it("pushes a newer local version without allowing an older server value to win",
   const hook = renderHook(() =>
     useHomeCategories("user-first", getToken),
   );
-  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
-
-  expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual(["programs"]);
   await waitFor(() =>
     expect(mockUpdateHomeCategoryLayout).toHaveBeenCalledWith(getToken, local),
   );
+  expect(hook.result.current.tiles.map((tile) => tile.id)).toEqual(["programs"]);
 });
 
 it("keeps the local layout usable when remote loading fails", async () => {
@@ -182,4 +186,29 @@ it("keeps the local layout usable when remote loading fails", async () => {
 
   await waitFor(() => expect(hook.result.current.loaded).toBe(true));
   expect(hook.result.current.tiles).toEqual(local.tiles);
+});
+
+it("reveals the saved local shape without waiting for remote sync", async () => {
+  const local = {
+    tiles: [
+      { id: "programs", size: "long" },
+      { id: "scholarships", size: "icon" },
+      { id: "internships", size: "card" },
+    ],
+    updatedAt: "2026-08-08T10:00:00.000Z",
+  };
+  await AsyncStorage.setItem(scopedKey("user-first"), JSON.stringify(local));
+  let resolveRemote: (value: null) => void = () => undefined;
+  mockFetchHomeCategoryLayout.mockImplementationOnce(
+    () => new Promise<null>((resolve) => { resolveRemote = resolve; }),
+  );
+  const getToken = jest.fn().mockResolvedValue("token");
+
+  const hook = renderHook(() => useHomeCategories("user-first", getToken));
+
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  expect(hook.result.current.tiles).toEqual(local.tiles);
+  expect(mockFetchHomeCategoryLayout).toHaveBeenCalledTimes(1);
+
+  await act(async () => resolveRemote(null));
 });

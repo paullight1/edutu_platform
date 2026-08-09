@@ -27,6 +27,16 @@ let mockSegments = ['(app)', 'index'];
 let mockGlobalSearchParams: Record<string, string | string[]> = {};
 let mockOpportunitiesData: Array<any> = [];
 let mockOpportunitiesLoading = false;
+const mockSaveHomeCategories = jest.fn();
+let mockHomeCategoriesState = {
+  tiles: [
+    { id: 'scholarships', size: 'card' },
+    { id: 'internships', size: 'card' },
+    { id: 'programs', size: 'card' },
+    { id: 'fellowships', size: 'card' },
+  ],
+  loaded: true,
+};
 
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -212,6 +222,13 @@ jest.mock('../lib/supabase', () => ({
   },
 }));
 
+jest.mock('../lib/homeCategoriesStore', () => ({
+  useHomeCategories: () => ({
+    ...mockHomeCategoriesState,
+    save: mockSaveHomeCategories,
+  }),
+}));
+
 jest.mock('../widgets/OpportunityWidget', () => ({}));
 jest.mock('../cache', () => ({
   tokenCache: {},
@@ -311,6 +328,16 @@ describe('mobile app shell and home dashboard', () => {
     mockGlobalSearchParams = {};
     mockOpportunitiesData = testOpportunities;
     mockOpportunitiesLoading = false;
+    mockSaveHomeCategories.mockClear();
+    mockHomeCategoriesState = {
+      tiles: [
+        { id: 'scholarships', size: 'card' },
+        { id: 'internships', size: 'card' },
+        { id: 'programs', size: 'card' },
+        { id: 'fellowships', size: 'card' },
+      ],
+      loaded: true,
+    };
   });
 
   it('redirects unauthenticated app-shell users to sign-in', () => {
@@ -391,5 +418,29 @@ describe('mobile app shell and home dashboard', () => {
     fireEvent.press(getByText('Programs'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
 
+  });
+
+  it('keeps the loading skeleton in the saved tile order and sizes', () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockHomeCategoriesState = {
+      tiles: [
+        { id: 'programs', size: 'long' },
+        { id: 'scholarships', size: 'icon' },
+        { id: 'internships', size: 'card' },
+      ],
+      loaded: false,
+    };
+
+    const { getByTestId } = render(<Dashboard />);
+    expect(getByTestId('home-discovery-skeleton')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-0-programs-long')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-1-scholarships-icon')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-2-internships-card')).toBeTruthy();
   });
 });

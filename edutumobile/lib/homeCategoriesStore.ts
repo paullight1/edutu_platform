@@ -25,6 +25,15 @@ type LocalSnapshot = {
   updatedAt: string;
 };
 
+// Keeps the last resolved shape available synchronously when the home screen
+// remounts during the same app session. AsyncStorage remains the durable source.
+const memorySnapshots = new Map<string, LocalSnapshot>();
+
+/** Test isolation for the intentional process-lifetime cache. */
+export function __resetHomeCategoryMemoryForTests(): void {
+  memorySnapshots.clear();
+}
+
 function scopedStorageKey(userId?: string | null): string {
   return `${STORAGE_KEY_V3_PREFIX}.${userId || 'guest'}`;
 }
@@ -45,8 +54,13 @@ function snapshotFromUnknown(value: unknown): LocalSnapshot | null {
 
 async function readLocal(userId?: string | null): Promise<LocalSnapshot | null> {
   try {
+    const storageKey = scopedStorageKey(userId);
     const scoped = await AsyncStorage.getItem(scopedStorageKey(userId));
-    if (scoped) return snapshotFromUnknown(JSON.parse(scoped));
+    if (scoped) {
+      const snapshot = snapshotFromUnknown(JSON.parse(scoped));
+      if (snapshot) memorySnapshots.set(storageKey, snapshot);
+      return snapshot;
+    }
     // Auth can briefly report no user while Clerk restores its session. Do not
     // let that transient guest scope claim a signed-in user's legacy layout.
     if (!userId) return null;
@@ -76,6 +90,7 @@ async function readLocal(userId?: string | null): Promise<LocalSnapshot | null> 
         AsyncStorage.removeItem(STORAGE_KEY_V2),
         AsyncStorage.removeItem(STORAGE_KEY_V1),
       ]);
+      memorySnapshots.set(storageKey, migrated);
       return migrated;
     }
     return null;
@@ -88,6 +103,7 @@ async function writeLocal(
   userId: string | null | undefined,
   snapshot: LocalSnapshot,
 ): Promise<void> {
+  memorySnapshots.set(scopedStorageKey(userId), snapshot);
   try {
     await AsyncStorage.setItem(scopedStorageKey(userId), JSON.stringify(snapshot));
   } catch {
@@ -144,9 +160,12 @@ export function useHomeCategories(
   getAuthToken?: GetAuthToken,
 ) {
   const currentScope = scopedStorageKey(userId);
+  const initialSnapshot = memorySnapshots.get(currentScope);
   const [stateScope, setStateScope] = useState(currentScope);
-  const [tiles, setTiles] = useState<HomeCategoryTile[]>(DEFAULT_HOME_TILES);
-  const [loaded, setLoaded] = useState(false);
+  const [tiles, setTiles] = useState<HomeCategoryTile[]>(
+    initialSnapshot?.tiles ?? DEFAULT_HOME_TILES,
+  );
+  const [loaded, setLoaded] = useState(Boolean(initialSnapshot));
   const scopeRef = React.useRef(currentScope);
 
   useEffect(() => {
@@ -155,23 +174,28 @@ export function useHomeCategories(
 
   useEffect(() => {
     let cancelled = false;
-    // The hook can survive logout/login transitions inside the app shell.
-    // Clear the previous account's in-memory layout before reading the next
-    // scoped cache so it cannot remain visible when the next account has none.
     (async () => {
-      await Promise.resolve();
+      // Start the network request concurrently, but never make a warm local
+      // layout wait for Clerk refresh or a cold backend before it can render.
+      const remotePromise = userId && getAuthToken
+        ? readRemote(getAuthToken)
+        : Promise.resolve(null);
+      const local = await readLocal(userId);
       if (cancelled) return;
+
       setStateScope(currentScope);
-      setTiles(DEFAULT_HOME_TILES);
-      setLoaded(false);
-      const [local, remote] = await Promise.all([
-        readLocal(userId),
-        userId && getAuthToken
-          ? readRemote(getAuthToken)
-          : Promise.resolve(null),
-      ]);
+      if (local) {
+        setTiles(local.tiles);
+        setLoaded(true);
+      } else {
+        setTiles(DEFAULT_HOME_TILES);
+        setLoaded(false);
+      }
+
+      const remote = await remotePromise;
+      if (cancelled) return;
       const winner = newerSnapshot(local, remote);
-      if (!cancelled && winner) {
+      if (winner) {
         setTiles(winner.tiles);
         await writeLocal(userId, winner);
       }
@@ -184,7 +208,6 @@ export function useHomeCategories(
       ) {
         const accepted = await pushRemote(getAuthToken, local);
         if (
-          !cancelled &&
           accepted &&
           Date.parse(accepted.updatedAt) > Date.parse(local.updatedAt)
         ) {
@@ -208,6 +231,7 @@ export function useHomeCategories(
       };
       setStateScope(currentScope);
       setTiles(cleaned);
+      setLoaded(true);
       void writeLocal(userId, local);
       if (userId && getAuthToken) {
         void pushRemote(getAuthToken, local).then((accepted) => {
