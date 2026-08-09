@@ -247,6 +247,21 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
     );
 }
 
+function DiscoveryTileGridSkeleton({ isDark }: { isDark: boolean }) {
+    const backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)';
+
+    return (
+        <View style={styles.discoveryGrid} accessibilityLabel="Loading explore categories">
+            {Array.from({ length: 4 }).map((_, index) => (
+                <View
+                    key={index}
+                    style={[styles.discoverySkeletonCard, { backgroundColor }]}
+                />
+            ))}
+        </View>
+    );
+}
+
 // ─── Widget-style homepage editor ───────────────────────────────────────────
 type TileRect = { x: number; y: number; w: number; h: number };
 
@@ -1489,7 +1504,11 @@ export default function Dashboard() {
     const [recentlyOpenedOpportunity, setRecentlyOpenedOpportunity] = useState<RecentlyOpenedOpportunity | null>(null);
     const [opportunityRotationSeed, setOpportunityRotationSeed] = useState(() => createOpportunityRotationSeed());
     const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
-    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(userId, getToken);
+    const {
+        tiles: homeTiles,
+        save: saveHomeTiles,
+        loaded: homeCategoriesLoaded,
+    } = useHomeCategories(userId, getToken);
     const homeTileEntries = useMemo(
         () => homeTiles
             .map((tile) => ({ tile, category: getDiscoveryCategory(tile.id) }))
@@ -1780,8 +1799,13 @@ export default function Dashboard() {
                         <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.exploreOpportunities')}</Text>
                         <TouchableOpacity
                             onPress={() => setCategoryEditorVisible(true)}
+                            disabled={!homeCategoriesLoaded}
                             hitSlop={8}
-                            style={[styles.editCategoriesBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)' }]}
+                            style={[
+                                styles.editCategoriesBtn,
+                                { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)' },
+                                !homeCategoriesLoaded && styles.editCategoriesBtnDisabled,
+                            ]}
                             accessibilityLabel={t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
                         >
                             <Pencil size={14} color={textSecondary} />
@@ -1790,7 +1814,11 @@ export default function Dashboard() {
                     {/* category_view signals fire in the explore screen's
                         params-effect — the single choke point for tile taps,
                         in-screen chooser picks, and deep links alike. */}
-                    <DiscoveryTileGrid router={router} entries={homeTileEntries} textPrimary={textPrimary} />
+                    {homeCategoriesLoaded ? (
+                        <DiscoveryTileGrid router={router} entries={homeTileEntries} textPrimary={textPrimary} />
+                    ) : (
+                        <DiscoveryTileGridSkeleton isDark={isDark} />
+                    )}
                 </Animated.View>
 
                 <HomeCategoriesEditor
@@ -2085,6 +2113,11 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: '#0F172A',
     },
+    discoverySkeletonCard: {
+        width: CARD_WIDTH,
+        height: 62,
+        borderRadius: 16,
+    },
     // Icon-size tile: gradient glyph square with the label underneath.
     iconTileWrap: {
         width: ICON_TILE_WIDTH,
@@ -2183,6 +2216,9 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    editCategoriesBtnDisabled: {
+        opacity: 0.45,
     },
     editorBackdrop: {
         flex: 1,
