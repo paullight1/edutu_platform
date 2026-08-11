@@ -467,3 +467,90 @@ Runbooks must include:
 - Key rotation and webhook secret rotation.
 - Rollback to disabled checkout without losing webhook processing.
 
+## Phase 8 — Test matrix, staged cutover, and rollback
+
+### Task 8.1: Automated verification gates
+
+Backend unit/integration tests:
+
+- [ ] Signature: valid, invalid, malformed hex, wrong body, stale/future timestamp, wrong secret.
+- [ ] Envelope: missing ID/type/org/data, wrong organization/environment, unsupported event.
+- [ ] Checkout: auth required, UID ignored/not accepted, server amount/product, duplicate idempotency key, rate limit, provider timeout, malformed provider URL.
+- [ ] Event duplicate and replay: 20 identical deliveries yield one ledger effect.
+- [ ] Failure injection after each SQL mutation rolls back or resumes safely.
+- [ ] Concurrency: simultaneous Bachs and RevenueCat events preserve both grants.
+- [ ] Ordering: deleted-before-created, old updated-after-new, refund-before-late success, invoice retry sequence.
+- [ ] Money: USD/NGN minor units, decimal parsing, under/overpayment, partial/full refund.
+- [ ] Identity: raw Clerk, legacy derived UUID, Supabase UUID, unknown/ambiguous mapping.
+- [ ] Credits: duplicate and partial-failure behavior.
+
+Client tests:
+
+- [ ] No payment URL contains `uid`, email, Clerk token, amount, or currency.
+- [ ] Native always selects RevenueCat; web always selects authenticated Bachs API.
+- [ ] Result UI never grants and does not claim “not charged” from uncertain state.
+- [ ] Manage routing is provider-aware.
+- [ ] Exact checkout/portal origin validation blocks a malicious remote-config URL.
+
+Build gates:
+
+- [ ] `cd pay-edutu-org && npm run typecheck && npm run build`
+- [ ] `cd backend/services/services/api && npm run lint && npm run test && npm run test:e2e`
+- [ ] `cd edutu-web-app && npm run typecheck && npm run build`
+- [ ] `cd edutumobile && npx tsc --noEmit && npm test -- --maxWorkers=2`
+- [ ] Database migration contract test against a fresh database and a sanitized production-schema clone.
+
+### Task 8.2: Sandbox end-to-end matrix
+
+Run each product through success, cancel, failed, expired, duplicate event, delayed event, and network retry:
+
+- [ ] Weekly, monthly, and yearly recurring Bachs subscriptions.
+- [ ] Weekly, monthly, and yearly bounded one-time passes using each supported non-card local method; verify the UI never calls them auto-renewing.
+- [ ] Season pass one-time purchase.
+- [ ] Every web credit pack.
+- [ ] Card, bank transfer, mobile money, and crypto where Bachs sandbox supports the lifecycle.
+- [ ] `SUCCEEDED` and `ACCEPTED` terminal success states if exposed by the corresponding event/resource.
+- [ ] Underpaid and overpaid paths.
+- [ ] Renewal success, three-step dunning sequence, recovery, unpaid, and terminal cancellation.
+- [ ] Scheduled and immediate cancellation through Bachs customer portal.
+- [ ] Full and partial refund.
+- [ ] Dispute created/updated using replay fixtures if sandbox cannot generate one.
+- [ ] RevenueCat initial purchase, renewal, cancellation, expiration, refund/revocation, restore, and simultaneous active Bachs subscription.
+
+For every test, assert provider dashboard, event inbox, ledger, subscription, grant, projection, profile cache, web UI, mobile UI, and backend authorization agree.
+
+### Task 8.3: Staged rollout
+
+- [ ] Deploy schema first with no behavior change.
+- [ ] Deploy event ingress/processor with `BACHS_CHECKOUT_ENABLED=false`.
+- [ ] Register only the canonical sandbox webhook URL and subscribe to all required payment/subscription/invoice/refund/dispute events.
+- [ ] Replay fixtures and confirm duplicate-safe processing.
+- [ ] Enable Bachs checkout for internal admin/test accounts only.
+- [ ] Run sandbox matrix and a 24-hour synthetic monitoring period.
+- [ ] Migrate web clients behind a server feature flag; keep old Paystack webhook processing for already in-flight legacy transactions but stop creating new Paystack subscriptions.
+- [ ] Enable 5%, 25%, then 100% of web accounts with automatic rollback thresholds.
+- [ ] Keep RevenueCat native unchanged throughout web rollout.
+- [ ] After no legacy Paystack renewals remain, archive Paystack checkout creation and retain read/reconciliation history.
+
+Launch gate — all must be true:
+
+- [ ] Canonical webhook URL returns `401` unsigned and `2xx` only after durable receipt when correctly signed.
+- [ ] No Vercel/Render protection, redirect, or cold-start timeout blocks Bachs.
+- [ ] Zero event types return success with `ignored: true` unless explicitly unsubscribed/documented as no-op.
+- [ ] Successful payment-to-grant alert is green for seven sandbox days.
+- [ ] Reconciliation reports zero unexplained drift.
+- [ ] Credentials are rotated, scoped, environment-separated, and absent from repository/mobile bundle.
+- [ ] Support and incident runbooks are exercised.
+- [ ] A named owner is on call for the first live transactions.
+
+Rollback:
+
+- [ ] Set `BACHS_CHECKOUT_ENABLED=false` to stop new sessions immediately.
+- [ ] Keep webhook ingestion and reconciliation running so in-flight payments still fulfill.
+- [ ] Never roll back the database migration destructively; old clients read the compatibility projection.
+- [ ] Display a controlled payment-unavailable message instead of falling back to an unverified provider route.
+- [ ] Roll forward event processor fixes and replay failed Bachs events from the durable inbox/dashboard.
+
+## Completion definition
+
+The migration is complete only when all web payment buttons create authenticated server-owned Bachs sessions, Bachs hosts payment and portal UI, RevenueCat remains native-only, one canonical event processor drives all money and grants transactionally, simultaneous provider grants cannot revoke one another, every lifecycle state is reconciled and observable, and the launch gate has passed in sandbox before any live key or live product is enabled.
