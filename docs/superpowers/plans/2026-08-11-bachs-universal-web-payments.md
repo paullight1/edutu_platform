@@ -406,3 +406,64 @@ Atomic processing transaction:
 - [ ] A full refund revokes only the matching source grant.
 - [ ] Tests cover Bachs-only, RevenueCat-only, both active, one expired, one refunded, manual grant, season pass, past due, and all inactive.
 
+## Phase 7 — Recovery, reconciliation, observability, and support
+
+### Task 7.1: Implement lifecycle policy
+
+- [ ] Bachs `past_due`: retain access through paid `current_period_end`; optionally add a clearly configured grace timestamp.
+- [ ] Bachs `unpaid`: no new period is granted; follow configured recovery policy.
+- [ ] Bachs `canceled`: retain only through paid-through date for scheduled cancellation; immediate cancellation ends the provider grant immediately unless an independent grant exists.
+- [ ] Full `refund.paid`: revoke affected one-time grant or reduce recurring paid-through grant according to documented refund policy.
+- [ ] Partial refund: no automatic entitlement change; open a review case.
+- [ ] `dispute.created`: suspend affected grant, flag account/risk case, and notify operator; restore only on a provider event/operator action with audit.
+- [ ] `UNDERPAID`: never grant; show customer an actionable status and review/payment completion path.
+- [ ] `OVERPAID`: grant only purchased product and record excess for refund/review; never infer a larger product.
+
+### Task 7.2: Add reconciliation worker
+
+**Files:**
+
+- Create: `backend/services/services/api/src/billing/billing-reconciliation.service.ts`
+- Create: `backend/services/services/api/src/billing/billing-reconciliation.scheduler.ts`
+- Test: `backend/services/services/api/src/billing/billing-reconciliation.spec.ts`
+
+- [ ] Every 15 minutes reconcile recent open/pending/failed intents and events.
+- [ ] Daily compare Bachs payments, refunds, subscriptions, and current periods against local state using paginated APIs.
+- [ ] Daily compare RevenueCat active entitlements/subscriptions against local grants.
+- [ ] Never auto-repair ambiguous identity, amount, environment, or product mismatch; create review cases.
+- [ ] Safe deterministic missing-event repairs use the same processor/idempotency constraints and write an audit trail.
+
+### Task 7.3: Add payment observability and runbooks
+
+**Files:**
+
+- Create: `docs/operations/bachs-payments-runbook.md`
+- Create: `docs/operations/payment-incident-runbook.md`
+- Update admin monetization dashboard
+
+Metrics/alerts:
+
+- [ ] Checkout creation success/error/latency by provider/environment/product.
+- [ ] Checkout-to-success conversion and duplicate open intents.
+- [ ] Webhook signature failures, non-2xx responses, event lag, retries, and dead letters.
+- [ ] Successful payment without active matching grant after two minutes.
+- [ ] Active grant without successful provider payment/manual audit source.
+- [ ] Refund/dispute without local lifecycle action.
+- [ ] Projection mismatch and raw/derived identity split.
+- [ ] Bachs/RevenueCat reconciliation drift and provider API errors.
+- [ ] Redact email, tokens, signatures, secrets, full payloads, and customer portal URLs from logs.
+
+Runbooks must include:
+
+- Paid but not Pro.
+- Pro but no payment.
+- Duplicate payment.
+- Underpaid/overpaid transfer.
+- Failed renewal and recovery.
+- Refund and dispute.
+- Wrong-account purchase.
+- Missing/delayed webhook.
+- Provider outage.
+- Key rotation and webhook secret rotation.
+- Rollback to disabled checkout without losing webhook processing.
+
