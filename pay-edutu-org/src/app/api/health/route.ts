@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export function GET() {
-  return NextResponse.json({ ok: true, service: 'pay.edutu.org', time: new Date().toISOString() });
+  return NextResponse.json({
+    ok: true,
+    service: 'pay.edutu.org',
+    deploymentSource: 'github-vercel',
+    time: new Date().toISOString(),
+  });
 }
