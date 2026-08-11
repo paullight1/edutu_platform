@@ -335,3 +335,38 @@ Atomic processing transaction:
 - [ ] Require a reason and show a confirmation containing user, provider, amount/grant, and consequence.
 - [ ] Prevent direct manual edits to canonical ledger rows; repairs are compensating entries.
 
+## Phase 5 — Update all clients and make destinations non-configurable by untrusted data
+
+### Task 5.1: Web/PWA checkout client
+
+**Files:**
+
+- Modify: `edutu-web-app/src/services/billing.ts`
+- Modify: `edutu-web-app/src/lib/proPricing.ts`
+- Modify: `edutu-web-app/src/components/ui/UpgradeModal.tsx`
+- Modify: standalone upgrade page callers
+- Test: `edutu-web-app/src/services/billing.test.ts`
+
+- [ ] Replace direct `pay.edutu.org/checkout?uid=...` construction with authenticated `POST /billing/checkout`.
+- [ ] Generate/reuse one client idempotency UUID per user action until a terminal response.
+- [ ] Redirect only to a validated Bachs checkout URL returned by the API.
+- [ ] Display the server-returned renewal mode before redirect and on return; do not promise local-method auto-renewal.
+- [ ] Remove `uid`, email, amount, currency, promo, and arbitrary checkout origin from URLs.
+- [ ] Make `https://pay.edutu.org` and the Bachs allowed origins compile/deploy-time allowlists, not editable pricing fields.
+- [ ] Disable buttons during request, but preserve retry with the same idempotency key after timeout.
+
+### Task 5.2: Mobile web and native routing
+
+**Files:**
+
+- Modify: `edutumobile/lib/pricing.ts`
+- Modify: `edutumobile/app/(app)/paywall.tsx`
+- Modify: `edutumobile/packages/core/src/services/payments.ts`
+- Test: `edutumobile/__tests__/billingRouting.test.tsx`
+
+- [ ] Web build uses authenticated Bachs checkout API for every web product.
+- [ ] iOS/Android Pro, pass, and credit digital goods remain RevenueCat/store purchases.
+- [ ] Native “Manage” always opens store management; web “Manage” opens Bachs portal session.
+- [ ] Remove remote editable `checkoutBaseUrl`/`manageUrl` or enforce exact Edutu origin allowlists server and client side.
+- [ ] Add/validate weekly native RevenueCat product if weekly remains offered on device; otherwise hide weekly on native until store products exist.
+
