@@ -111,3 +111,19 @@ flowchart LR
 - Edutu does not process raw card details when using Bachs-hosted checkout or native IAP.
 - This model does not assume compromise of Bachs, Clerk, Supabase, Vercel, Render, Apple, or Google.
 
+## Entry points and attack surfaces
+
+| Surface | How reached | Trust boundary | Notes | Evidence |
+| --- | --- | --- | --- | --- |
+| Legacy hosted checkout | Public `GET /checkout` | Internet → pay app | Accepts caller-supplied `uid`, plan, email, ref, and platform; no authenticated owner binding or durable intent | `pay-edutu-org/src/app/checkout/route.ts:29-105` |
+| Browser payment return | Public `GET /return` | Provider/browser → pay app | Verifies provider reference but also performs fulfillment; browser return must be display-only | `pay-edutu-org/src/app/return/page.tsx:83-173` |
+| Paystack webhook | Public `POST /api/webhook` | Paystack → pay app | Raw-body HMAC exists, but payment insert and grant are separate operations | `pay-edutu-org/src/app/api/webhook/route.ts:22-164` |
+| Planned Bachs webhook | Public `POST /billing/webhooks/bachs` | Bachs → backend | Signature verifier is correct; handler returns success while ignoring the event and is not deployed | `backend/services/services/api/src/billing/billing.controller.ts:73-91`, `billing.service.ts:545-574` |
+| Account start | Public `GET /account/start` | App/browser → pay app | Clerk token is passed in URL before conversion to a cookie | `pay-edutu-org/src/app/account/start/route.ts:8-42` |
+| Account cancellation | Authenticated cookie `POST` | Browser → pay app → Paystack | Fails closed when session secret is absent, but only supports Paystack records | `pay-edutu-org/src/app/api/account/cancel/route.ts:9-57` |
+| Pay app admin | Static-token login and cookie | Operator/browser → pay app | Grants or revokes Pro and reads PII/revenue; no named identity, MFA, or RBAC | `pay-edutu-org/src/lib/auth.ts:67-118`, `src/app/api/admin/grant/route.ts` |
+| Backend billing checkout/status | Clerk bearer API | Client → backend | Uses derived `CurrentUser("id")`, while the pay app/mobile entitlement path uses raw Clerk subjects | `backend/services/services/api/src/billing/billing.controller.ts:21-32`, `src/auth/clerk-auth.guard.ts:159-170` |
+| RevenueCat webhook | Public Supabase function | RevenueCat → Supabase function | Auth and environment checks exist; event processing is multi-write and only partly retry-safe | `edutumobile/supabase/functions/revenuecat-webhook/index.ts:87-209` |
+| Remote pricing URLs | Admin setting consumed by clients | Operator config → user agent | Any valid HTTPS origin is accepted, enabling accidental or compromised redirect to a lookalike checkout | `edutu-web-app/src/lib/proPricing.ts:182-221`, `edutumobile/app/admin/pricing.tsx:184-203` |
+| Bachs customer portal session | Future authenticated POST | Client → API → Bachs | Must mint fresh short-lived URL for the authenticated user's mapped Bachs customer | Bachs integration requirement; current route absent |
+
