@@ -93,3 +93,21 @@ flowchart LR
 | Revenue and reconciliation reports | Used for operational and financial decisions | Integrity, availability |
 | Public payment and webhook endpoints | Downtime can lose checkouts or delay fulfillment | Availability |
 
+## Attacker model
+
+### Capabilities
+
+- An unauthenticated internet user can call public checkout, return, health, and webhook URLs and alter query strings, headers, JSON, and request frequency.
+- An authenticated user can alter client code, replay requests, choose arbitrary client-supplied identifiers, open multiple tabs, and race checkout creation.
+- A malicious payer can abandon, underpay, overpay, dispute, refund, or retry using supported provider flows.
+- Anyone who obtains a sandbox or static admin/webhook secret can exercise the privileges of that credential until it is rotated.
+- Provider webhooks can be duplicated, delayed, replayed, or delivered out of order without malicious intent.
+- Operators can make configuration mistakes, including wrong product IDs, wrong environment keys, stale webhook URLs, or open redirects.
+
+### Non-capabilities
+
+- A normal remote attacker cannot forge a correctly implemented Bachs or Paystack HMAC without the endpoint secret.
+- A normal remote attacker cannot directly write service-role-protected billing tables unless a credential or privileged endpoint is compromised.
+- Edutu does not process raw card details when using Bachs-hosted checkout or native IAP.
+- This model does not assume compromise of Bachs, Clerk, Supabase, Vercel, Render, Apple, or Google.
+
