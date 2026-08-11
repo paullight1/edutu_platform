@@ -127,3 +127,17 @@ flowchart LR
 | Remote pricing URLs | Admin setting consumed by clients | Operator config → user agent | Any valid HTTPS origin is accepted, enabling accidental or compromised redirect to a lookalike checkout | `edutu-web-app/src/lib/proPricing.ts:182-221`, `edutumobile/app/admin/pricing.tsx:184-203` |
 | Bachs customer portal session | Future authenticated POST | Client → API → Bachs | Must mint fresh short-lived URL for the authenticated user's mapped Bachs customer | Bachs integration requirement; current route absent |
 
+## Top abuse paths
+
+1. Paid-without-access: a provider success is inserted into the payment ledger, the entitlement write fails, and the retry sees the payment as duplicate and skips fulfillment forever.
+2. Cross-rail revocation: a user has active RevenueCat and Bachs grants; one provider expires or refunds, and its handler overwrites the single aggregate entitlement row, removing access still funded by the other provider.
+3. Identity split: checkout metadata stores a raw Clerk subject, the NestJS status path queries a derived UUID, and different clients disagree about whether the same account is Pro.
+4. Acknowledged loss: Bachs sends a valid event to the local handler; the handler returns `2xx` with `ignored: true`, so Bachs records delivery success and no grant is created.
+5. Configuration-induced fraud: an admin-controlled checkout origin is changed to a lookalike HTTPS site; clients redirect signed-in users there and expose account/email context.
+6. Secret-assisted self-grant: a public mobile build contains the RevenueCat webhook authorization secret used by the development mock; an attacker sends arbitrary sandbox/accepted events to grant Pro.
+7. Schema rejection: Bachs, weekly, season-pass, or credit transaction values violate old database checks; unchecked Supabase errors make the handler appear successful while data is missing.
+8. Refund/chargeback retention: a successful payment grants Pro, but refund or dispute events are ignored, leaving access active after funds reverse.
+9. Duplicate checkout: repeated taps or request retries create fresh provider sessions because the public GET route always creates a random reference; a user can complete more than one session.
+10. Operational replay/outage: Vercel protection, wrong DNS, a sleeping backend, or a route rename causes webhook failures; without reconciliation and alerting, paid users remain unresolved until support complaints arrive.
+11. Payment-method promise mismatch: Edutu advertises a recurring weekly/monthly/yearly subscription to a mobile-money or transfer payer, but Bachs currently supports recurring products only on USD cards; checkout either hides the method or the user receives a non-renewing purchase that the UI incorrectly calls a subscription.
+
