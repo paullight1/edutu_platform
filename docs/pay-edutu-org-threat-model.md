@@ -78,3 +78,18 @@ flowchart LR
   O["Edutu operator"] --> A
 ```
 
+## Assets and security objectives
+
+| Asset | Why it matters | Security objective |
+| --- | --- | --- |
+| Bachs, Paystack, RevenueCat, Supabase, and admin secrets | Compromise enables forged operations, data access, or payment abuse | Confidentiality, integrity |
+| Checkout intent | Binds one authenticated user to one product, amount, currency, environment, and provider session | Integrity |
+| Provider event inbox | Proves what was received and whether it was processed exactly once | Integrity, availability |
+| Payment ledger | Financial and support record; must preserve amounts, currencies, refunds, and environment | Integrity, availability |
+| Provider subscriptions | Controls renewal, cancellation, dunning, and customer-portal access | Integrity, availability |
+| Entitlement grants | Determines access users paid for; must survive retries and overlapping providers | Integrity, availability |
+| Clerk auth subject mapping | Prevents payments and entitlements from attaching to the wrong account | Integrity |
+| Customer PII and provider payloads | Includes email, name, payment metadata, and support references | Confidentiality |
+| Revenue and reconciliation reports | Used for operational and financial decisions | Integrity, availability |
+| Public payment and webhook endpoints | Downtime can lose checkouts or delay fulfillment | Availability |
+
