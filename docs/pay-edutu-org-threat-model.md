@@ -168,3 +168,32 @@ flowchart LR
 
 No currently verified critical issue is claimed because Bachs is still sandbox/not actively fulfilling live payments. Several high risks become critical operational incidents if live traffic is enabled before remediation.
 
+## Focus paths for security review
+
+| Path | Why it matters | Related Threat IDs |
+| --- | --- | --- |
+| `pay-edutu-org/src/app/checkout/route.ts` | Public identity-bearing checkout creation and duplicate-session behavior | TM-002, TM-010 |
+| `pay-edutu-org/src/app/return/page.tsx` | Browser-triggered fulfillment and partial-write race | TM-003, TM-007 |
+| `pay-edutu-org/src/app/api/webhook/route.ts` | Current Paystack authoritative handler and retry assumptions | TM-003, TM-007 |
+| `pay-edutu-org/src/lib/entitlements.ts` | Aggregate entitlement mutation, ledger idempotency, ignored DB errors | TM-003, TM-004, TM-006 |
+| `pay-edutu-org/src/lib/auth.ts` | Clerk verification, signed cookies, and static admin authority | TM-008, TM-009 |
+| `pay-edutu-org/sql/schema.sql` | Divergent payment schema and one-row entitlement model | TM-004, TM-006 |
+| `backend/services/services/api/src/billing/` | Intended canonical Bachs ingress and current duplicate payment authority | TM-001 through TM-007 |
+| `backend/services/services/api/src/auth/clerk-auth.guard.ts` | Raw subject versus derived UUID boundary | TM-005 |
+| `backend/services/services/api/src/common/user-id.ts` | One-way identifier derivation and dual-key compatibility | TM-005 |
+| `backend/services/services/api/src/monetization/monetization.service.ts` | Server-side Pro authorization and profile fallback | TM-004, TM-005 |
+| `edutumobile/supabase/functions/revenuecat-webhook/index.ts` | Native payment authority and partial-failure/idempotency behavior | TM-003, TM-004, TM-008 |
+| `edutumobile/supabase/migrations/009_billing_entitlements.sql` | Provider/plan/type constraints incompatible with current code and Bachs | TM-006 |
+| `edutu-web-app/src/services/billing.ts` | Direct URL checkout routing and false dedupe assumptions | TM-002, TM-012 |
+| `edutu-web-app/src/lib/proPricing.ts` | Remote checkout origin and user data in query strings | TM-002, TM-009 |
+| `edutumobile/lib/pricing.ts` | Mobile web checkout URL construction and remote origin trust | TM-002, TM-009 |
+| `edutumobile/lib/devMockPurchase.ts` | Public-prefixed webhook secret and arbitrary dev grant path | TM-008 |
+| `vercel.json` | Deployment configuration drift can make payment endpoints unreachable | TM-001, TM-012 |
+
+## Quality check
+
+- Covered public checkout, return, Paystack webhook, planned Bachs webhook, RevenueCat webhook, status, account, portal, admin, database, and provider outbound calls.
+- Represented every identified trust boundary in at least one threat.
+- Separated production runtime from local uncommitted code, examples, and development mock tooling.
+- Incorporated the confirmed Bachs-all-web, RevenueCat-native, multi-provider coexistence, and refund/dunning policies.
+- Redacted all discovered credential values and treated their presence, not their contents, as evidence.
