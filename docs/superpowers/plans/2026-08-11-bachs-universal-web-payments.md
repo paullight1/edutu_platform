@@ -136,3 +136,81 @@ Constraints and indexes:
 - [ ] Remove client `uid` from every checkout request and URL.
 - [ ] Add tests proving one Clerk user receives one status across pay app, backend, web, mobile, Bachs, and RevenueCat records.
 
+## Phase 2 — Build the server-owned Bachs checkout and portal client
+
+### Task 2.1: Add a strict Bachs API client
+
+**Files:**
+
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs.client.ts`
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs.types.ts`
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs.config.ts`
+- Test: `backend/services/services/api/src/billing/providers/bachs/bachs.client.spec.ts`
+- Modify: `backend/services/services/api/.env.example`
+- Modify: `backend/services/services/api/src/main.ts`
+
+Configuration:
+
+- `BACHS_API_BASE_URL=https://sandbox-api.bachs.io` in sandbox and the documented live API origin in live.
+- `BACHS_API_KEY` server-only and least scoped.
+- `BACHS_WEBHOOK_SECRET`, `BACHS_EXPECTED_ORGANIZATION_ID`, and `BACHS_ENVIRONMENT` required when Bachs is enabled.
+- Server-owned product mappings for recurring-card weekly/monthly/yearly, one-time local-method weekly/monthly/yearly passes, season pass, and every credit pack, or rows in `billing_products` populated from deployment configuration.
+
+- [ ] Fail application readiness when `BACHS_CHECKOUT_ENABLED=true` and any required value/product mapping is absent.
+- [ ] Add 10-second request timeout, bounded retry for safe failures, structured provider errors, and no secret/body logging.
+- [ ] Send `Idempotency-Key` for checkout/session, customer, portal-session, refund, and other retryable Bachs `POST` operations.
+- [ ] Validate every Bachs response with a runtime schema; reject unknown/malformed critical fields.
+- [ ] Restrict returned checkout URLs to Bachs' documented checkout origin.
+
+### Task 2.2: Replace public GET checkout creation with authenticated POST
+
+**Files:**
+
+- Create: `backend/services/services/api/src/billing/dto/create-checkout.dto.ts`
+- Modify: `backend/services/services/api/src/billing/billing.controller.ts`
+- Refactor: `backend/services/services/api/src/billing/billing.service.ts`
+- Create: `backend/services/services/api/src/billing/billing.repository.ts`
+- Test: `backend/services/services/api/src/billing/billing-checkout.spec.ts`
+
+Interface:
+
+```ts
+POST /billing/checkout
+Authorization: Bearer <Clerk token>
+Idempotency-Key: <client-generated UUID>
+{ "productKey": "pro_monthly", "returnSurface": "web" }
+
+200 { "intentId": "...", "checkoutUrl": "https://checkout.bachs.io/...", "expiresAt": "..." }
+```
+
+- [ ] Derive raw user ID and canonical email from verified server identity/profile.
+- [ ] Resolve product, provider product ID, expected amount, currency, cadence, and fulfillment from `billing_products`.
+- [ ] Resolve and return the product's renewal mode. Never infer auto-renewal from the cadence label alone.
+- [ ] Reuse the same open intent for the same user and idempotency key; never mint a new checkout on network retry or double tap.
+- [ ] Persist intent before calling Bachs; then atomically attach returned checkout ID/reference and mark `open`.
+- [ ] Send Edutu intent ID as Bachs `reference` and minimal metadata; metadata is correlation, not authority.
+- [ ] Use `success_url=https://pay.edutu.org/result` and `cancel_url=https://pay.edutu.org/result?state=cancelled`; do not put user ID, email, Clerk token, or amount in either URL.
+- [ ] Reject disabled products, zero/negative amounts except explicitly free products, wrong environment product IDs, stale catalog versions, and unsupported return surfaces.
+- [ ] Apply distributed per-user/IP checkout limits and a short cooldown while allowing safe idempotent retries.
+
+### Task 2.3: Add authenticated Bachs customer portal sessions
+
+**Files:**
+
+- Modify: `backend/services/services/api/src/billing/billing.controller.ts`
+- Modify: `backend/services/services/api/src/billing/billing.service.ts`
+- Test: `backend/services/services/api/src/billing/bachs-portal.spec.ts`
+
+Interface:
+
+```ts
+POST /billing/portal-session
+Authorization: Bearer <Clerk token>
+200 { "url": "https://portal.bachs.io/..." }
+```
+
+- [ ] Resolve the Bachs customer ID only from `billing_provider_customers` for the authenticated raw subject and current environment.
+- [ ] Mint a fresh short-lived Bachs portal session on every request; never store or pre-generate the URL.
+- [ ] Restrict the returned URL to Bachs' portal origin and return `404` when the user has no Bachs customer.
+- [ ] Keep RevenueCat/native manage actions routed to Apple/Google on native devices.
+
