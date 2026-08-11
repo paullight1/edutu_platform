@@ -33,3 +33,46 @@
 - Full refund or chargeback suspends only the affected grant by default. Partial refunds create a review case. Failed/underpaid payments never fulfill.
 - Every manual grant, refund, replay, override, and reconciliation repair has a named operator, reason, timestamp, and immutable audit row.
 
+## Phase 0 — Stop unsafe activation and clean credentials
+
+### Task 0.1: Keep Bachs collection disabled until the ingress is real
+
+**Operational actions:**
+
+- [ ] Disable or unpublish any customer-facing Bachs payment links. Sandbox test links may remain accessible only to testers.
+- [ ] In Bachs sandbox, disable the webhook destination pointed at the Edutu homepage.
+- [ ] Do not register `https://pay.edutu.org/api/webhooks/bachs` until that route exists. The current live response is `404`.
+- [ ] Do not deploy the current local acknowledge-only handler as the final implementation. It returns `2xx` with `ignored: true` for every valid event.
+- [ ] Decide and provision the stable API domain `api.edutu.org`; ensure it does not have Vercel/Render interactive authentication or bot protection on the webhook path.
+- [ ] Add a temporary launch flag `BACHS_CHECKOUT_ENABLED=false` in backend and all client environments. Default false when missing.
+
+**Verification:**
+
+- [ ] A public probe to the disabled checkout endpoint returns a controlled `503 payments_not_ready`, not a Bachs URL.
+- [ ] A public unsigned webhook probe returns `401`, not `404` or `2xx`.
+- [ ] Bachs Events shows no enabled destination pointing to a homepage or protected preview deployment.
+
+### Task 0.2: Remove and rotate exposed/test credentials
+
+**Files:**
+
+- Modify: `edutumobile/.env.example`
+- Modify: `pay-edutu-org/.env.example`
+- Modify: `edutumobile/lib/devMockPurchase.ts`
+- Modify: `.gitignore` if any local payment env file is not already ignored
+- Add CI secret scanning in the existing GitHub workflow location
+
+- [ ] Remove the standalone Bachs sandbox key from `edutumobile/.env.example`.
+- [ ] Restore every example variable to an obvious placeholder; no credential-like value belongs in a tracked example.
+- [ ] Delete the client-side dev mock purchase path or move it to a server-only development endpoint that is compiled out and disabled outside local development.
+- [ ] Remove `EXPO_PUBLIC_RC_WEBHOOK_SECRET_DEV`; a webhook secret must never use an `EXPO_PUBLIC_` variable.
+- [ ] Rotate the disclosed Bachs sandbox key and any static admin/webhook value that may have been copied into an active environment.
+- [ ] Add secret scanning for Bachs, Paystack, Supabase service-role, RevenueCat webhook, and generic high-entropy bearer values.
+- [ ] Document key owner, scopes, environment, creation date, and rotation date without recording the value.
+
+**Verification:**
+
+- [ ] `rg -l "sk_(sandbox|live)_" . -g '!**/.git/**' -g '!**/node_modules/**'` returns only intentionally redacted test fixtures, ideally none.
+- [ ] A release mobile bundle contains no RevenueCat webhook authorization value.
+- [ ] The old Bachs sandbox key receives `401` after rotation.
+
