@@ -76,3 +76,63 @@
 - [ ] A release mobile bundle contains no RevenueCat webhook authorization value.
 - [ ] The old Bachs sandbox key receives `401` after rotation.
 
+## Phase 1 — Establish one canonical billing schema and identity
+
+### Task 1.1: Inventory the live database before migration
+
+**Files:**
+
+- Create: `backend/services/services/api/scripts/audit-billing-schema.mjs`
+- Create: `docs/operations/billing-schema-cutover.md`
+
+- [ ] Query `pg_catalog` for actual columns, checks, unique indexes, RLS policies, triggers, and row counts on `payments`, `payment_transactions`, `billing_transactions`, `billing_subscriptions`, `subscriptions`, `billing_entitlements`, `processed_webhook_events`, `credit_purchases`, and `credit_transactions`.
+- [ ] Report rows using raw Clerk subjects versus derived UUIDs without printing email or raw provider payloads.
+- [ ] Report provider/type/plan/status values that would violate the desired schema.
+- [ ] Take a database backup or verified point-in-time recovery checkpoint before migration.
+- [ ] Declare root `supabase/migrations/` the canonical migration directory for new billing changes; do not add a fourth divergent schema file.
+
+### Task 1.2: Add provider-neutral durable billing tables
+
+**Files:**
+
+- Create: `supabase/migrations/20260811120000_bachs_unified_billing_core.sql`
+- Modify: `backend/services/services/api/src/db/schema.ts` only after confirming live text column types
+- Test: `backend/services/services/api/src/billing/billing-schema.contract.spec.ts`
+
+Create these canonical structures:
+
+- `billing_products`: `product_key`, fulfillment kind, `renewal_mode` (`recurring` or `one_time`), supported payment-method policy, provider/environment product IDs, expected amount minor, currency, cadence, enabled flag, and catalog version.
+- `billing_checkout_intents`: UUID primary key, opaque public token hash, raw `user_id`, provider/environment, product snapshot, expected money, provider checkout/reference, status, expiry, idempotency key, and timestamps.
+- `billing_provider_customers`: `(provider, environment, user_id)` and unique provider customer ID mapping.
+- `billing_provider_events`: unique `(provider, environment, event_id)`, event type, organization/account ID, received/processed timestamps, status, attempt count, last error, payload hash, encrypted/restricted raw payload, and next retry time.
+- `billing_payment_ledger`: append-only provider charge/invoice/refund/dispute records with unique provider resource IDs, checkout intent, raw user ID, signed integer minor amount, currency, status, and environment.
+- `billing_provider_subscriptions`: unique provider/environment/subscription ID, user, customer, product, status, cadence, period boundaries, cancellation flags, and last provider update timestamp.
+- `billing_entitlement_grants`: one row per provider source/resource with `valid_from`, `valid_until`, `status`, `revoked_at`, reason, and unique source identity.
+- `billing_review_cases`: underpayment, partial refund, chargeback, identity mismatch, amount mismatch, orphan event, and reconciliation mismatch queue.
+- `billing_admin_audit`: append-only named operator action log.
+
+Constraints and indexes:
+
+- [ ] Store all money in `bigint` minor units and `char(3)`/validated uppercase currency.
+- [ ] Permit `bachs`, `revenuecat`, `paystack`, and `manual` through a lookup table or provider-neutral text plus foreign key; do not hard-code a stale check list in multiple migrations.
+- [ ] Permit weekly, monthly, yearly, one-time season pass, and credit-pack products through catalog rows rather than scattered checks.
+- [ ] Index events by status/next retry, intents by user/status/created time, subscriptions by user/status, and grants by user/feature/status/validity.
+- [ ] RLS: clients may read only their own derived billing summary view; all canonical tables remain service-role/server only.
+- [ ] Raw event payload retention defaults to 90 days, while normalized financial ledger rows follow the accounting retention policy.
+
+### Task 1.3: Make raw auth subject canonical for billing
+
+**Files:**
+
+- Modify: `backend/services/services/api/src/billing/billing.controller.ts`
+- Modify: `backend/services/services/api/src/billing/billing.service.ts`
+- Create: `supabase/migrations/20260811121000_billing_identity_aliases.sql`
+- Test: `backend/services/services/api/src/billing/billing-identity.spec.ts`
+
+- [ ] Change billing endpoints from `@CurrentUser("id")` to `@CurrentUser("authId")`.
+- [ ] Add `billing_identity_aliases` mapping raw subject to any legacy derived UUID and provider customer IDs.
+- [ ] Backfill billing rows to the canonical raw subject using known profile/identity mappings. Quarantine ambiguous rows; never guess by email alone.
+- [ ] Reject checkout if the authenticated subject has no canonical profile/account mapping that can be created safely.
+- [ ] Remove client `uid` from every checkout request and URL.
+- [ ] Add tests proving one Clerk user receives one status across pay app, backend, web, mobile, Bachs, and RevenueCat records.
+
