@@ -36,3 +36,45 @@ Open questions that do not block the architecture but affect later policy config
 - Whether chargebacks suspend only the disputed grant or the entire account pending fraud review. This model assumes the disputed grant only unless coordinated fraud is detected.
 - The final stable API hostname. The recommendation is `api.edutu.org`; the current Render hostname can be used temporarily.
 
+## System model
+
+### Primary components
+
+- Edutu web/PWA and mobile web initiate web purchases.
+- Native iOS/Android uses RevenueCat and the platform stores.
+- `pay.edutu.org` presents Edutu-owned purchase status, return, support, and account-management UI.
+- The NestJS billing module should authenticate users, create provider sessions, receive webhooks, and own ledger/entitlement mutations.
+- Bachs hosts checkout and customer-portal UI and sends at-least-once signed webhooks.
+- RevenueCat sends native purchase lifecycle webhooks.
+- Supabase/PostgreSQL stores checkout intents, provider events, transactions, subscriptions, grants, and the compatibility entitlement projection.
+
+### Data flows and trust boundaries
+
+- Browser/mobile web → NestJS API: product key, return context, and an idempotency key over HTTPS. Clerk bearer authentication must determine the raw auth subject; client `uid`, amount, currency, email, and provider IDs are not authoritative. The current direct URL flow does not meet this requirement (`edutu-web-app/src/services/billing.ts:createCheckout`, `edutumobile/lib/pricing.ts:buildCheckoutUrl`).
+- NestJS API → Bachs API: server-owned product IDs, customer identity, unique Edutu checkout reference, return URLs, and metadata over HTTPS with a server-only scoped API key and `Idempotency-Key`.
+- User agent → Bachs hosted checkout: a short-lived Bachs checkout URL. Bachs owns payment data collection; Edutu receives only provider references and lifecycle state.
+- Bachs → NestJS webhook: exact raw JSON body plus `X-Bachs-Timestamp` and `X-Bachs-Signature`. Verification is HMAC-SHA256 over `timestamp.raw_body`, with a five-minute freshness window and constant-time comparison (`backend/services/services/api/src/billing/billing.service.ts:verifyBachsSignature`).
+- RevenueCat → webhook processor: native purchase events authenticated by a configured authorization secret. The current Supabase function performs static-secret validation and environment checks (`edutumobile/supabase/functions/revenuecat-webhook/index.ts:87-161`).
+- Billing processor → PostgreSQL: integrity-critical writes. Event claim, transaction, subscription, grant, and projection updates must be one transaction or a durable inbox plus retryable worker. Current Paystack and RevenueCat flows contain partial-write gaps.
+- Browser → `pay.edutu.org`: return/status and account-management UI. A browser redirect is never proof of payment and must not grant Pro.
+- Admin → billing operations: refunds, manual grants, reconciliation, and support actions. Clerk admin RBAC, MFA, CSRF protection, and immutable audit records are required; the current pay app uses one static bearer token.
+
+#### Diagram
+
+```mermaid
+flowchart LR
+  U["Edutu user"] --> W["Web and PWA"]
+  U --> N["Native app"]
+  W --> A["NestJS billing API"]
+  W --> P["Edutu payment site"]
+  P --> A
+  A --> B["Bachs API"]
+  U --> B
+  B --> A
+  N --> R["RevenueCat and stores"]
+  R --> A
+  A --> D["Supabase Postgres"]
+  P --> A
+  O["Edutu operator"] --> A
+```
+
