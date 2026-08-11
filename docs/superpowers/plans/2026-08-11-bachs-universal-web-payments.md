@@ -214,3 +214,73 @@ Authorization: Bearer <Clerk token>
 - [ ] Restrict the returned URL to Bachs' portal origin and return `404` when the user has no Bachs customer.
 - [ ] Keep RevenueCat/native manage actions routed to Apple/Google on native devices.
 
+## Phase 3 — Implement durable, atomic Bachs webhook processing
+
+### Task 3.1: Harden webhook ingress
+
+**Files:**
+
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs-webhook.verifier.ts`
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs-webhook.types.ts`
+- Modify: `backend/services/services/api/src/billing/billing.controller.ts`
+- Modify: `backend/services/services/api/src/main.ts`
+- Test: `backend/services/services/api/src/billing/providers/bachs/bachs-webhook.verifier.spec.ts`
+
+- [ ] Keep exact raw-body HMAC-SHA256 verification over `timestamp.raw_body`, constant-time comparison, and five-minute timestamp tolerance.
+- [ ] Reject malformed timestamp/signature encodings without throwing buffer parsing errors.
+- [ ] Validate top-level event `id`, `type`, `created_at`, `organization_id`, and `data` before durable insert.
+- [ ] Require the expected Bachs organization/account and current environment.
+- [ ] Cap body size and parse depth; return `401` for bad signature, `400` for invalid envelope, and non-2xx for any failure to durably store the event.
+- [ ] Insert the event inbox row before returning success. A duplicate event ID returns `200 duplicate` without re-running side effects.
+- [ ] Return `202` only after durable receipt when a worker will process asynchronously; never return success with `ignored: true` for a subscribed event.
+
+### Task 3.2: Implement event state machine and transactional processor
+
+**Files:**
+
+- Create: `backend/services/services/api/src/billing/providers/bachs/bachs-event.processor.ts`
+- Create: `backend/services/services/api/src/billing/billing-grants.repository.ts`
+- Create: `backend/services/services/api/src/billing/billing-events.worker.ts`
+- Modify: `backend/services/services/api/src/billing/billing.module.ts`
+- Test: `backend/services/services/api/src/billing/providers/bachs/bachs-event.processor.spec.ts`
+- Integration test: `backend/services/services/api/test/bachs-webhook.e2e-spec.ts`
+
+Subscribe to and handle:
+
+- `checkout.completed`: update checkout UI state only; never fulfill.
+- `checkout.expired`: expire open intent; no grant.
+- `collection.succeeded`: verify intent/reference, product, amount, currency, checkout ID, organization, and environment. Fulfill one-time season/credit products; record recurring collection but let `invoice.paid` own the recurring period grant.
+- `collection.failed`: mark attempt failed, preserve retry option, no grant.
+- `collection.underpaid`: no grant; create review case with amount paid/remaining.
+- `customer.subscription.created`: upsert provider subscription and customer mapping; do not double-grant the initial invoice.
+- `customer.subscription.updated`: apply only if event/provider timestamp is newer; sync `active`, `past_due`, `unpaid`, `paused`, cancellation schedule, and period boundary.
+- `customer.subscription.deleted`: close that provider subscription and end only its grant at the correct period boundary or immediately according to event state.
+- `invoice.paid`: append one ledger row keyed by invoice/payment resource and set that subscription grant's exact provider period.
+- `invoice.payment_failed`: mark invoice/subscription `past_due`; retain access only under the configured paid-through/grace policy.
+- `refund.created`, `refund.paid`, `refund.failed`: track asynchronous refund state. On full `refund.paid`, revoke/suspend the affected grant; on partial refund create a review case.
+- `dispute.created`, `dispute.updated`: place the affected grant/account into the configured fraud state and alert operators.
+- `customer.created`, `customer.updated`: maintain provider customer mapping without using email as identity authority.
+
+Atomic processing transaction:
+
+- [ ] Lock the inbox event row and transition `received/failed → processing`.
+- [ ] Load and lock checkout intent/subscription/grant rows by provider IDs.
+- [ ] Validate expected values before side effects; quarantine mismatches.
+- [ ] Append ledger row, upsert subscription, create/update the provider-specific grant, recompute projection, and mark event `processed` in one transaction.
+- [ ] On exception, roll back all side effects and mark the event retryable in a separate safe transaction with bounded exponential backoff.
+- [ ] After repeated failures, mark `dead_letter`, alert, and permit an audited operator replay.
+- [ ] Process out-of-order events by provider resource timestamp/version and current resource retrieval, never arrival order alone.
+
+### Task 3.3: Add atomic credit and one-time fulfillment
+
+**Files:**
+
+- Create migration RPC in `supabase/migrations/20260811122000_atomic_billing_fulfillment.sql`
+- Modify: `backend/services/services/api/src/billing/billing-grants.repository.ts`
+- Test: `backend/services/services/api/src/billing/billing-fulfillment.concurrency.spec.ts`
+
+- [ ] Season pass: create exactly one immutable grant keyed by charge/resource; set bounded validity without read-then-upsert races.
+- [ ] Credit pack: one transaction inserts provider ledger + credit ledger and increments balance only when the unique provider resource was newly inserted.
+- [ ] Verify the product's server-owned credit quantity, not metadata or paid amount arithmetic.
+- [ ] Include concurrency tests with 20 duplicate deliveries and injected failure after every statement boundary.
+
