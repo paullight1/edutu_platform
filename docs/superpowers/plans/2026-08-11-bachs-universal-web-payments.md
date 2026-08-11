@@ -284,3 +284,54 @@ Atomic processing transaction:
 - [ ] Verify the product's server-owned credit quantity, not metadata or paid amount arithmetic.
 - [ ] Include concurrency tests with 20 duplicate deliveries and injected failure after every statement boundary.
 
+## Phase 4 — Refactor `pay.edutu.org` into a safe Edutu shell
+
+### Task 4.1: Remove provider fulfillment from browser routes
+
+**Files:**
+
+- Replace: `pay-edutu-org/src/app/return/page.tsx`
+- Deprecate: `pay-edutu-org/src/app/checkout/route.ts`
+- Remove Supabase/provider mutation imports from browser-facing pages
+- Create: `pay-edutu-org/src/app/result/page.tsx`
+- Create: `pay-edutu-org/src/app/api/billing/status/route.ts` only if a same-origin proxy is required
+- Test: `pay-edutu-org/src/app/result/result.test.tsx`
+
+- [ ] `/return` redirects to `/result` and never writes a payment or entitlement.
+- [ ] `/result` shows `Processing`, `Active`, `Failed`, `Cancelled`, `Underpaid`, or `Needs review` by polling an authenticated backend intent-status endpoint.
+- [ ] Never say “you were not charged” from a browser failure alone. Use “not confirmed” and provide support/retry guidance.
+- [ ] Do not expose Clerk subject, email, raw provider payload, or long-lived token in query strings.
+- [ ] Keep only an opaque intent/check-out identifier needed to retrieve the authenticated user's status.
+- [ ] Remove Paystack/Bachs service-role secrets from the pay Vercel project once all mutation routes move to NestJS.
+
+### Task 4.2: Build account and management UX around provider ownership
+
+**Files:**
+
+- Refactor: `pay-edutu-org/src/app/account/page.tsx`
+- Replace: `pay-edutu-org/src/app/account/start/route.ts`
+- Replace: `pay-edutu-org/src/app/api/account/cancel/route.ts`
+- Modify: `pay-edutu-org/src/lib/auth.ts`
+- Test: `pay-edutu-org/src/app/account/account.test.tsx`
+
+- [ ] Authenticate the pay site using Clerk directly or exchange a backend-issued one-time code via POST. Never place a Clerk JWT in `?t=`.
+- [ ] Show each active provider separately: Bachs web subscription, RevenueCat/App Store, RevenueCat/Play Store, one-time pass, and credits.
+- [ ] Label recurring-capable Bachs card purchases “renews automatically” and local-method bounded purchases “access until DATE; renew manually.”
+- [ ] “Manage Bachs subscription” calls the authenticated backend portal-session endpoint and redirects to Bachs' hosted portal.
+- [ ] Native subscriptions show store-specific management instructions/links; the web portal must not attempt to cancel them.
+- [ ] Display paid-through date, renewal state, past-due recovery state, and support reference without exposing provider secrets.
+
+### Task 4.3: Replace static pay-admin token with Clerk admin RBAC
+
+**Files:**
+
+- Remove: static-token branches in `pay-edutu-org/src/lib/auth.ts`
+- Remove/refactor: `pay-edutu-org/src/app/api/admin/*`
+- Move payment operations to the existing authenticated admin app/backend billing admin routes
+- Add immutable audit writes for every mutation
+
+- [ ] Require Clerk admin role and MFA policy for payment operations.
+- [ ] Require CSRF-safe same-site flow and step-up confirmation for refunds, revokes, and manual grants.
+- [ ] Require a reason and show a confirmation containing user, provider, amount/grant, and consequence.
+- [ ] Prevent direct manual edits to canonical ledger rows; repairs are compensating entries.
+
