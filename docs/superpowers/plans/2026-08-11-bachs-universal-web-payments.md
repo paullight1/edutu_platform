@@ -370,3 +370,39 @@ Atomic processing transaction:
 - [ ] Remove remote editable `checkoutBaseUrl`/`manageUrl` or enforce exact Edutu origin allowlists server and client side.
 - [ ] Add/validate weekly native RevenueCat product if weekly remains offered on device; otherwise hide weekly on native until store products exist.
 
+## Phase 6 — Unify RevenueCat and entitlement derivation
+
+### Task 6.1: Move RevenueCat onto the durable inbox model
+
+**Files:**
+
+- Refactor or replace: `edutumobile/supabase/functions/revenuecat-webhook/index.ts`
+- Preferred new endpoint: `backend/services/services/api/src/billing/providers/revenuecat/revenuecat-webhook.controller.ts`
+- Create processor/tests beside Bachs processor
+- Update RevenueCat dashboard only after the new endpoint is deployed and verified
+
+- [ ] Authenticate the static Authorization secret in constant time and enforce expected environment/project/app.
+- [ ] Claim RevenueCat event ID in `billing_provider_events` and process transactionally.
+- [ ] Fix season-pass failure ordering: a ledger duplicate cannot skip an uncreated grant.
+- [ ] Fix credit partial failure: provider transaction claim, credit ledger insert, and balance increment occur atomically.
+- [ ] Check every Supabase/DB result; no best-effort silent financial write.
+- [ ] Store original transaction/subscription IDs separately from renewal transaction IDs.
+
+### Task 6.2: Derive effective Pro from grants
+
+**Files:**
+
+- Add SQL function/view in `supabase/migrations/20260811123000_derived_entitlements.sql`
+- Modify: `backend/services/services/api/src/billing/billing.service.ts`
+- Modify: `backend/services/services/api/src/monetization/monetization.service.ts`
+- Modify: `edutumobile/packages/core/src/hooks/useProStatus.ts`
+- Modify web Pro status consumer
+- Test: backend, mobile, and web entitlement matrix tests
+
+- [ ] Effective Pro query is `exists` over active, non-expired grants, independent of provider.
+- [ ] `billing_entitlements` is updated transactionally as a compatibility projection or replaced by a read view after clients migrate.
+- [ ] `profiles.is_pro` is a non-authoritative cache with explicit expiry; remove the backend's independent `profile OR entitlement` grant behavior.
+- [ ] Expiring one RevenueCat subscription cannot revoke an active Bachs grant, and vice versa.
+- [ ] A full refund revokes only the matching source grant.
+- [ ] Tests cover Bachs-only, RevenueCat-only, both active, one expired, one refunded, manual grant, season pass, past due, and all inactive.
+
