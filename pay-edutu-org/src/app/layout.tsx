@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Edutu Pay — Secure checkout',
-  description: 'Securely upgrade to Edutu Pro.',
+  title: 'Edutu Pay — Billing account',
+  description: 'Securely view Edutu billing status and manage web purchases.',
   robots: { index: false, follow: false },
 };
 
@@ -15,8 +15,6 @@ export const viewport: Viewport = {
 };
 
 function BrandMark() {
-  // The real Edutu logo (same asset the mobile app ships) — replaces the old
-  // placeholder "E" glyph so checkout is instantly recognisable as Edutu.
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -50,12 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <BrandMark />
               <span>
                 <span className="brand-name">Edutu Pay</span>
-                <span className="brand-sub">Secure checkout</span>
+                <span className="brand-sub">Billing account</span>
               </span>
             </span>
             <span className="secure-chip">
               <LockIcon />
-              <span>256-bit encrypted</span>
+              <span>Secure account access</span>
             </span>
           </header>
           {children}
@@ -63,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="trust">
               <LockIcon />
               <span>
-                Payments secured by <strong>Paystack</strong>
+                Web payments are hosted by <strong>Bachs</strong>
               </span>
             </span>
             <span className="fine">© {new Date().getFullYear()} Edutu · support@edutu.org</span>
