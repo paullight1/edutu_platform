@@ -185,6 +185,16 @@ const MentorPage: React.FC = () => {
         return () => { active = false; };
     }, [isSignedIn, getToken]);
 
+    React.useEffect(() => {
+        if (reduceMotion) return;
+
+        const interval = window.setInterval(() => {
+            setActiveHeroSlide((current) => (current + 1) % MENTOR_HERO_SLIDES.length);
+        }, 6000);
+
+        return () => window.clearInterval(interval);
+    }, [reduceMotion]);
+
     const startApplication = () => {
         if (!isSignedIn) {
             navigate('/auth', { state: { from: { pathname: '/mentor', search: '?apply=1' } } });
