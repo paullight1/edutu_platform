@@ -94,7 +94,7 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
   "/upgrade": {
     slug: "upgrade",
     title: "Edutu Pro — AI coaching, CV tools and smarter tracking",
-    description: "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Pay by card, mobile money, or bank transfer via Paystack.",
+    description: "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Payment terms are confirmed before secure checkout.",
     image: "https://www.edutu.org/og/upgrade.jpg",
     imageAlt: "Edutu Pro",
   },
