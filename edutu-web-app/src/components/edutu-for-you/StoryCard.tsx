@@ -24,8 +24,8 @@ const StoryCard: React.FC<StoryCardProps> = ({ story }) => (
                 alt={story.portraitAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
             />
-            <span className="absolute bottom-3 left-3 rounded-pill bg-[#0B0F19]/85 px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-[#F8FAFC] backdrop-blur">
-                {story.outcome}
+            <span className="absolute bottom-3 left-3 rounded-pill bg-[#0B0F19]/90 px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-[#F8FAFC] backdrop-blur">
+                {story.isComposite ? "Illustrative composite" : story.outcome}
             </span>
         </div>
 

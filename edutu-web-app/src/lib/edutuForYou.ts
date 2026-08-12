@@ -116,33 +116,37 @@ export interface GapStat {
   label: string;
   /** Shown verbatim on the card. Never leave this empty. */
   source: string;
+  sourceHref?: string;
 }
 
 export const GAP_STATS: GapStat[] = [
   {
     value: "~70%",
-    label: "of sub-Saharan Africa is under 30 — the youngest population on earth",
+    label: "of sub-Saharan Africa is under 30",
     source: "UN DESA, World Population Prospects",
+    sourceHref: "https://www.un.org/ohrlls/locked-out",
   },
   {
-    value: "1 in 3",
-    label: "young Africans is unemployed or in vulnerable work",
+    value: "2 in 3",
+    label: "non-student youth are unemployed or underemployed",
     source: "African Development Bank",
+    sourceHref:
+      "https://aec.afdb.org/en/past-aecs-african-economic-conference-2019/context",
   },
   {
     value: "67,000",
-    label: "young people Edutu has reached so far",
+    label: "young people reached by Edutu",
     source: "Edutu platform data",
   },
   {
     value: "31 of 54",
-    label: "African countries where Edutu is already active",
+    label: "African countries with Edutu activity",
     source: "Edutu platform data",
   },
 ];
 
 export const GAP_THESIS =
-  "None of these describe a shortage of ability. They describe a shortage of information — the scholarship that was open, and the person who heard about it after the deadline.";
+  "Ability is not the bottleneck. People miss opportunities because the information arrives late — or not at all.";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The aim
@@ -186,6 +190,44 @@ export const MILESTONES: Milestone[] = [
 ];
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The learner journey
+ * ──────────────────────────────────────────────────────────────────────────*/
+
+export interface ProgramTimelineStage {
+  period: string;
+  title: string;
+  body: string;
+}
+
+export const PROGRAM_TIMELINE: ProgramTimelineStage[] = [
+  {
+    period: "Month 1",
+    title: "Find your first real matches",
+    body: "Build a profile around your country, level, field, and goals so the right opportunities can find you.",
+  },
+  {
+    period: "Months 2–3",
+    title: "Build your application kit",
+    body: "Turn your experience into a CV, personal statement, and plan you can actually submit.",
+  },
+  {
+    period: "Months 4–6",
+    title: "Submit before the window closes",
+    body: "Move from saved opportunity to finished application with clear next steps and deadline support.",
+  },
+  {
+    period: "Months 7–9",
+    title: "Keep going with people",
+    body: "Use coaching, mentors, and community feedback to strengthen the next attempt after every response.",
+  },
+  {
+    period: "Months 10–12",
+    title: "Carry the door forward",
+    body: "Track what changed, celebrate the outcome, and help someone else find the opportunity sooner.",
+  },
+];
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Pillars
  * ──────────────────────────────────────────────────────────────────────────*/
 
@@ -198,44 +240,54 @@ export interface Pillar {
   youGet: string;
   image: string;
   imageAlt: string;
+  ctaLabel: string;
+  ctaPath: string;
 }
 
 export const PILLARS: Pillar[] = [
   {
     icon: Compass,
     title: "AI matching, in local context",
-    body: "Thousands of opportunities, filtered to what one specific person is eligible for — by country, level, field and deadline.",
+    body: "Find openings that fit your country, field, level, and deadline.",
     youGet:
       "A shortlist of opportunities you can genuinely win, instead of a feed of ones you can't.",
     image: `https://images.unsplash.com/photo-1694175271713-a6e2cc378980?${PORTRAIT}`,
     imageAlt: "A learner searching for opportunities on her phone",
+    ctaLabel: "Find my matches",
+    ctaPath: "/signup",
   },
   {
     icon: FileText,
     title: "Application coaching",
-    body: "CV tailoring, essay structure and interview prep — the work that normally costs a paid consultant.",
+    body: "Turn your experience into a clearer CV, essay, and interview plan.",
     youGet:
       "Help turning what you've done into an application that reads the way funders expect.",
     image: `https://images.unsplash.com/photo-1620829813629-45478205c88f?${PORTRAIT}`,
     imageAlt: "A student drafting an application essay",
+    ctaLabel: "Build my application",
+    ctaPath: "/signup",
   },
   {
     icon: Users,
     title: "Community and mentorship",
-    body: "Applying is lonely and rejection is the norm. The people who keep going are the ones not doing it alone.",
+    body: "Get feedback and encouragement from people a step ahead.",
     youGet:
       "People a year ahead of you who have already been through the exact thing you're attempting.",
     image: `https://images.unsplash.com/photo-1565490129165-bd6a24996c25?${PORTRAIT}`,
     imageAlt: "A peer cohort working together",
+    ctaLabel: "Meet the community",
+    ctaPath: "/community",
   },
   {
     icon: Globe2,
     title: "Access to global opportunities",
-    body: "No gatekeepers, no agent fees, no knowing the right person. The same information a well-connected applicant already has.",
+    body: "See global opportunities without gatekeepers or agent fees.",
     youGet:
       "The world's opportunities, on the same terms as everyone else applying for them.",
     image: `https://images.unsplash.com/photo-1628825453863-ccfe2dcc4c70?${PORTRAIT}`,
     imageAlt: "Two young women standing together",
+    ctaLabel: "Browse opportunities",
+    ctaPath: "/opportunities",
   },
 ];
 
@@ -304,7 +356,7 @@ export const JOIN_STEPS: JoinStep[] = [
 ];
 
 export const JOIN_ELIGIBILITY =
-  "For young people across Africa with the ability and not the access. No cost, no gatekeeping, no connections required.";
+  "For young people across Africa who are ready for more, but have not always had the information or support to get there.";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * FAQ — including the two uncomfortable questions.
@@ -349,10 +401,21 @@ export const PROGRAM_FAQ: ProgramFaq[] = [
 
 export const PROGRAM_NAME = "Edutu For You";
 export const PROGRAM_KICKER = "An Edutu impact program";
-export const PROGRAM_HEADLINE = "Talent is everywhere. Access isn't.";
+export const PROGRAM_HEADLINE = "The door should not be harder to find than the dream.";
 export const PROGRAM_SUBHEAD =
-  "Our commitment to reach one million underprivileged young people with access to global opportunities — using the AI infrastructure we have already built.";
+  "Edutu helps capable young people find the right opportunity, prepare a stronger application, and keep going.";
+
+export const HERO_PRIMARY_LABEL = "Help open the next door";
+export const HERO_SECONDARY_LABEL = "Find my opportunities";
+
+export const NARRATIVE_BEAT = {
+  label: "Illustrative composite",
+  quote:
+    "Aisha could write the code. What she could not find was the one-page guide to writing about herself.",
+  body:
+    "The fellowship was real. The ability was real. The missing piece was a path from one to the other.",
+};
 
 /** The homepage band's shorter framing. */
 export const BAND_BODY =
-  "Somewhere right now a nineteen-year-old is qualified for a fully-funded scholarship she will never hear about. Edutu For You exists to close that gap one million times.";
+  "Somewhere right now, a capable young person is ready for an opportunity they may never hear about. Edutu For You helps close that gap.";

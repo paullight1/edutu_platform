@@ -63,11 +63,51 @@ describe("EdutuForYouPage", () => {
   it("renders the program headline", () => {
     renderPage();
     expect(
-      screen.getByRole("heading", { name: /talent is everywhere/i, level: 1 }),
+      screen.getByRole("heading", {
+        name: /door should not be harder/i,
+        level: 1,
+      }),
     ).toBeInTheDocument();
   });
 
-  it("renders every story as a link to its own page", async () => {
+  it("offers distinct partner and learner hero actions", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("link", { name: /help open the next door/i }),
+    ).toHaveAttribute("href", expect.stringContaining(`mailto:${PARTNER_EMAIL}`));
+    expect(
+      screen.getByRole("link", { name: /find my opportunities/i }),
+    ).toHaveAttribute("href", "/signup");
+  });
+
+  it("renders the learner journey with feature actions and a timeline", () => {
+    renderPage();
+
+    for (const label of [
+      "Find my matches",
+      "Build my application",
+      "Meet the community",
+      "Browse opportunities",
+    ]) {
+      expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
+    }
+
+    expect(
+      screen.getByRole("heading", { name: /a year in the program/i }),
+    ).toBeInTheDocument();
+    for (const stage of [
+      "Month 1",
+      "Months 2–3",
+      "Months 4–6",
+      "Months 7–9",
+      "Months 10–12",
+    ]) {
+      expect(screen.getByText(stage)).toBeInTheDocument();
+    }
+  });
+
+  it("renders the first three stories and reveals the rest on request", async () => {
     renderPage();
     await waitFor(() => {
       expect(
@@ -77,7 +117,7 @@ describe("EdutuForYouPage", () => {
       ).toBeInTheDocument();
     });
 
-    for (const story of STORIES) {
+    for (const story of STORIES.slice(0, 3)) {
       const link = screen.getByRole("link", {
         name: new RegExp(`${story.name}, ${story.age}`, "i"),
       });
@@ -86,13 +126,28 @@ describe("EdutuForYouPage", () => {
         `/edutuforyou/stories/${story.slug}`,
       );
     }
+
+    expect(
+      screen.queryByRole("link", {
+        name: new RegExp(`${STORIES[3].name}, ${STORIES[3].age}`, "i"),
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /see more situations/i }),
+    );
+    expect(
+      screen.getByRole("link", {
+        name: new RegExp(`${STORIES[3].name}, ${STORIES[3].age}`, "i"),
+      }),
+    ).toBeInTheDocument();
   });
 
   it("falls back to the seeded stories when the API is unreachable", async () => {
     renderPage();
 
     // fetch is stubbed to reject, so the service returns the bundled seeds and
-    // the section renders all nine rather than going empty.
+    // the section renders the first three rather than going empty.
     await waitFor(() => {
       expect(
         screen.getAllByRole("link", {
@@ -101,11 +156,19 @@ describe("EdutuForYouPage", () => {
       ).toHaveLength(1);
     });
 
-    for (const story of STORIES) {
+    for (const story of STORIES.slice(0, 3)) {
       expect(
         screen.getByText(story.quote, { exact: false }),
       ).toBeInTheDocument();
     }
+  });
+
+  it("labels every initially visible story as an illustrative composite", () => {
+    renderPage();
+    const storyLinks = screen
+      .getAllByRole("link")
+      .filter((link) => within(link).queryByText("Illustrative composite"));
+    expect(storyLinks).toHaveLength(3);
   });
 
   // The attribution is the honesty guarantee for invented stories. It must be

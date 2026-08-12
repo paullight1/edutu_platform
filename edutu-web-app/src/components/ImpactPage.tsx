@@ -26,6 +26,7 @@ import {
   Target,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 import SiteFooter from "./SiteFooter";
@@ -35,6 +36,80 @@ import Seo from "./Seo";
 const IMPACT_REPORT_PDF = "/reports/edutu-opportunity-gap-report.pdf";
 const IMPACT_REPORT_FILENAME =
   "Edutu-Research-Report-001-Opportunity-Gap.pdf";
+const IMPACT_REPORT_PROMPT_KEY = "edutu_impact_report_prompt_seen";
+const IMPACT_CTA_IMAGE = "/backgrounds/dark-hero.jpg";
+
+function ImpactReportPrompt({ onClose }: { onClose: () => void }) {
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#050914]/80 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="impact-report-prompt-title"
+        className="relative w-full max-w-[460px] overflow-hidden rounded-[28px] border border-white/15 bg-[#0B0F19] text-white shadow-elevated"
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center opacity-45"
+          style={{ backgroundImage: `url(${IMPACT_CTA_IMAGE})` }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-br from-[#071020]/90 via-[#071020]/80 to-[#071020]/95"
+        />
+
+        <div className="relative p-7 sm:p-8">
+          <button
+            type="button"
+            aria-label="Close report prompt"
+            onClick={onClose}
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">
+            Edutu research
+          </span>
+          <h2
+            id="impact-report-prompt-title"
+            className="mt-4 max-w-[12ch] font-display text-3xl font-semibold leading-[1.05] tracking-[-0.03em] text-white"
+          >
+            Read the full story.
+          </h2>
+          <p className="mt-3 max-w-[34ch] text-sm leading-6 text-white/75">
+            Download the short report behind Edutu's opportunity-gap mission.
+          </p>
+
+          <a
+            href={IMPACT_REPORT_PDF}
+            download={IMPACT_REPORT_FILENAME}
+            onClick={onClose}
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white no-underline transition hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-[0.98]"
+          >
+            <Download size={17} aria-hidden="true" />
+            Download report
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Motion helpers — mirrors the house style used across the marketing pages.
@@ -129,30 +204,30 @@ interface Story {
 
 const STORIES: Story[] = [
   {
-    name: "Amara",
-    role: "Scholarship recipient · Kenya",
-    image: "https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=640",
+    name: "Amaka",
+    role: "Scholarship recipient · Ibadan, Nigeria",
+    image: "https://images.pexels.com/photos/30999375/pexels-photo-30999375.jpeg?auto=compress&cs=tinysrgb&w=640",
     quote: "I found a fully-funded scholarship I never knew existed — three weeks before the deadline.",
     impact: "Full scholarship secured",
   },
   {
-    name: "David",
-    role: "Software intern · Nigeria",
-    image: "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=640",
+    name: "Chinedu",
+    role: "Software intern · Lagos, Nigeria",
+    image: "https://images.pexels.com/photos/29292085/pexels-photo-29292085.jpeg?auto=compress&cs=tinysrgb&w=640",
     quote: "Edutu tracked every deadline for me. I landed my first internship at a company I admired.",
     impact: "First internship landed",
   },
   {
     name: "Zainab",
-    role: "Grant winner · Ghana",
-    image: "https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=640",
+    role: "Grant recipient · Abuja, Nigeria",
+    image: "https://images.pexels.com/photos/34356236/pexels-photo-34356236.jpeg?auto=compress&cs=tinysrgb&w=640",
     quote: "The AI helped me understand what the funders actually wanted. My proposal finally clicked.",
-    impact: "$10k founder grant won",
+    impact: "Founder grant won",
   },
   {
-    name: "Kwame",
-    role: "Fellowship · Rwanda",
-    image: "https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=640",
+    name: "Tobi",
+    role: "Fellowship participant · Abuja, Nigeria",
+    image: "https://images.pexels.com/photos/31890404/pexels-photo-31890404.jpeg?auto=compress&cs=tinysrgb&w=640",
     quote: "I went from confused to a focused shortlist of real fellowships, then joined a global cohort.",
     impact: "Global fellowship joined",
   },
@@ -262,7 +337,7 @@ function StoryCard({
       <div className="relative h-[220px] overflow-hidden">
         <img
           src={story.image}
-          alt={story.name}
+          alt={`Portrait representing ${story.name}, ${story.role}`}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
           decoding="async"
@@ -460,6 +535,29 @@ function CategoryBars({ reveal }: { reveal: Record<string, unknown> }) {
  * ──────────────────────────────────────────────────────────────────────────*/
 const ImpactPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
+  const [showReportPrompt, setShowReportPrompt] = React.useState(false);
+  const closeReportPrompt = React.useCallback(
+    () => setShowReportPrompt(false),
+    [],
+  );
+
+  React.useEffect(() => {
+    let timer: number | undefined;
+
+    try {
+      if (window.sessionStorage.getItem(IMPACT_REPORT_PROMPT_KEY)) return;
+      timer = window.setTimeout(() => {
+        window.sessionStorage.setItem(IMPACT_REPORT_PROMPT_KEY, "1");
+        setShowReportPrompt(true);
+      }, 900);
+    } catch {
+      timer = window.setTimeout(() => setShowReportPrompt(true), 900);
+    }
+
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
 
   const reveal = reduceMotion
     ? {}
@@ -666,7 +764,7 @@ const ImpactPage: React.FC = () => {
                   <span className="text-brand">a person</span>
                 </>
               }
-              subtitle="The reach only matters because of what it means for real young people. Here are a few of them."
+              subtitle="Illustrative learner journeys from Nigeria — the kind of opportunity a better path can bring within reach."
               reveal={reveal}
             />
             <motion.div
@@ -946,24 +1044,33 @@ const ImpactPage: React.FC = () => {
         </section>
 
         {/* ── Final CTA ────────────────────────────────────────── */}
-        <section className="px-4 py-28 sm:px-6">
-          <div className="mx-auto max-w-[1000px] overflow-hidden rounded-[36px] bg-gradient-to-br from-brand-500 to-brand-700 p-10 text-center shadow-elevated sm:p-16 lg:p-20">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+        <section className="px-4 py-24 sm:px-6 sm:py-28">
+          <div className="relative mx-auto max-w-[1000px] overflow-hidden rounded-[36px] bg-[#0B0F19] p-10 text-center shadow-elevated sm:p-16 lg:p-20">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-cover bg-center opacity-45"
+              style={{ backgroundImage: `url(${IMPACT_CTA_IMAGE})` }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-br from-[#071020]/90 via-[#071020]/80 to-[#071020]/95"
+            />
+
+            <div className="relative">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
               <Heart size={26} className="text-white" />
             </div>
             <h2 className="mx-auto max-w-[720px] font-display text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
               Help us close Africa's opportunity gap
             </h2>
-            <p className="mx-auto mt-5 max-w-[560px] text-lg leading-relaxed text-white/85 sm:text-lg">
-              The full story behind our mission is on the record — read the
-              flagship research, then join us. One opportunity really can change
-              a life.
+            <p className="mx-auto mt-5 max-w-[560px] text-base leading-relaxed text-white/75 sm:text-lg">
+              Read the evidence. Help open the next door.
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <a
                 href={IMPACT_REPORT_PDF}
                 download={IMPACT_REPORT_FILENAME}
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:w-auto"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B0F19]/90 px-8 py-4 text-base font-semibold text-white no-underline ring-1 ring-white/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#0B0F19] hover:ring-white/40 sm:w-auto"
               >
                 <Download size={18} /> Download the report (PDF)
               </a>
@@ -978,11 +1085,15 @@ const ImpactPage: React.FC = () => {
                 />
               </Link>
             </div>
+            </div>
           </div>
         </section>
       </main>
 
       <SiteFooter />
+      {showReportPrompt ? (
+        <ImpactReportPrompt onClose={closeReportPrompt} />
+      ) : null}
     </div>
   );
 };
