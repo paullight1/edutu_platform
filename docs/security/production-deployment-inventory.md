@@ -116,6 +116,7 @@ An authorized production operator must complete these steps before applying reme
 4. Determine whether these repository-identified legacy credit RPCs exist in production: `spend_credits(text, integer, text, text, text)` and `add_credits(text, integer, text, text, text)`.
 5. Determine whether these repository-identified admin functions exist in production: `count_opportunities_by_source`, `opportunity_admin_stats`, `get_signup_trends`, `get_opportunity_performance`, `get_support_metrics`, and `generate_user_recommendations`.
 6. Confirm RLS and client privileges for `scraping_sources`, `scrape_logs`, and `notification_queue` before lifting the hold.
+7. Run both the Supabase Security Advisor and Supabase Performance Advisor for the verified production project, capture their results (including no-findings results) in the approved change record, and complete this evidence before applying any production migration.
 
 | Hold evidence | Result |
 |---|---|
@@ -125,6 +126,8 @@ An authorized production operator must complete these steps before applying reme
 | Legacy credit RPC presence and ACLs | `UNKNOWN` |
 | Legacy admin RPC presence and ACLs | `UNKNOWN` |
 | Scraper/notification table RLS and ACLs | `UNKNOWN` |
+| Supabase Security Advisor result for verified production project | `UNKNOWN` |
+| Supabase Performance Advisor result for verified production project | `UNKNOWN` |
 | Operator and verification timestamp | `UNKNOWN` |
 
-Do not proceed to production security migrations until the identifiers, baseline, and hold evidence are complete.
+Do not proceed to production security migrations until the identifiers, baseline, hold evidence, and captured Supabase Security Advisor and Performance Advisor results for the verified production project are complete.
