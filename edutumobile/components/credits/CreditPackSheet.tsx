@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -7,10 +7,13 @@ import {
     Modal,
     Alert,
     ActivityIndicator,
+    Linking,
+    Platform,
     ScrollView,
 } from 'react-native';
 import { X, Zap, Check } from 'lucide-react-native';
 import type { PurchasesOffering } from 'react-native-purchases';
+import { useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../context/ThemeContext';
 import {
     getOfferings,
@@ -18,7 +21,17 @@ import {
     purchaseCredits,
     PRODUCTS,
     CREDIT_AMOUNTS,
+    waitForServerFulfillment,
 } from '@edutu/core/src/services/payments';
+import { toSafeUUID } from '@edutu/core/src/utils/auth';
+import {
+    createCheckoutIdempotencyKey,
+    getPaymentRail,
+    isBachsCheckoutEnabled,
+    requestBachsCheckout,
+    webProductKeyForCredit,
+} from '../../lib/billingRouting';
+import { supabase } from '../../lib/supabase';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -26,7 +39,7 @@ interface Props {
     onClose: () => void;
     userId: string | null;
     /** Called after a successful purchase. Balance still updates via realtime. */
-    onPurchased?: () => void;
+    onPurchased?: () => void | Promise<void>;
 }
 
 // Presentational metadata for each credit pack, ordered small → xlarge.
@@ -38,8 +51,33 @@ const PACKS: { productId: string; label: string; highlight?: boolean }[] = [
     { productId: PRODUCTS.CREDITS_XLARGE, label: 'creditPack.packs.megaValue' },
 ];
 
+async function hasServerFulfilledCreditPurchase(
+    userId: string,
+    productId: string,
+    purchasedAfter: string,
+): Promise<boolean> {
+    const amount = CREDIT_AMOUNTS[productId];
+    if (!amount) return false;
+
+    // Webhooks write the canonical credit ledger. Query only this user's raw
+    // Clerk subject (plus the legacy alias), never a client-supplied owner.
+    const lookupIds = Array.from(new Set([userId, toSafeUUID(userId)]));
+    const { data, error } = await supabase
+        .from('credit_transactions')
+        .select('id')
+        .in('user_id', lookupIds)
+        .eq('type', 'purchase')
+        .eq('amount', amount)
+        .gte('created_at', purchasedAfter)
+        .limit(1);
+
+    if (error) throw error;
+    return Boolean(data?.length);
+}
+
 export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props) {
     const { t } = useTranslation('home');
+    const { getToken } = useAuth();
     const { colors, isDark } = useTheme();
     const muted = colors.textSecondary;
     const surface = isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF';
@@ -49,6 +87,10 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
     const [configured, setConfigured] = useState(false);
     const [loadingOfferings, setLoadingOfferings] = useState(true);
     const [purchasingId, setPurchasingId] = useState<string | null>(null);
+    const checkoutIdempotencyKeys = useRef<Record<string, string>>({});
+    const retryCreditFulfillmentRef = useRef<(productId: string, purchaseStartedAt: string) => void>(() => {});
+    const usesNativeIap = getPaymentRail(Platform.OS) === 'revenuecat';
+    const webCheckoutEnabled = !usesNativeIap && isBachsCheckoutEnabled();
 
     useEffect(() => {
         if (!visible) return;
@@ -59,6 +101,10 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
             try {
                 if (!userId) {
                     if (active) setConfigured(false);
+                    return;
+                }
+                if (!usesNativeIap) {
+                    if (active) setConfigured(webCheckoutEnabled);
                     return;
                 }
                 const ok = await initRevenueCat(userId);
@@ -80,7 +126,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
         return () => {
             active = false;
         };
-    }, [visible, userId]);
+    }, [visible, userId, usesNativeIap, webCheckoutEnabled]);
 
     // Map each credit product id → its live store price string (if configured).
     const priceByProduct = useMemo(() => {
@@ -94,10 +140,54 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
         return map;
     }, [offering]);
 
-    const handleBuy = async (productId: string) => {
+    const confirmCreditFulfillment = useCallback(async (
+        productId: string,
+        purchaseStartedAt: string,
+    ): Promise<boolean> => {
+        if (!userId) return false;
+        const fulfilled = await waitForServerFulfillment(() =>
+            hasServerFulfilledCreditPurchase(userId, productId, purchaseStartedAt),
+        );
+        if (fulfilled) {
+            await onPurchased?.();
+            Alert.alert(
+                t('creditPack.purchaseCompleteTitle'),
+                t('creditPack.purchaseCompleteMessage', { count: CREDIT_AMOUNTS[productId] }),
+            );
+            onClose();
+            return true;
+        }
+
+        Alert.alert(
+            t('creditPack.paymentProcessingTitle', { defaultValue: 'Payment is still processing' }),
+            t('creditPack.paymentProcessingMessage', {
+                defaultValue: 'Your purchase was received. Credits will appear after the provider confirms it.',
+            }),
+            [
+                { text: t('common:actions.notNow', { defaultValue: 'Not now' }), style: 'cancel' },
+                {
+                    text: t('creditPack.checkAgain', { defaultValue: 'Check again' }),
+                    onPress: () => {
+                        retryCreditFulfillmentRef.current(productId, purchaseStartedAt);
+                    },
+                },
+            ],
+        );
+        return false;
+    }, [onClose, onPurchased, t, userId]);
+
+    useEffect(() => {
+        retryCreditFulfillmentRef.current = (productId, purchaseStartedAt) => {
+            setPurchasingId(productId);
+            void confirmCreditFulfillment(productId, purchaseStartedAt)
+                .finally(() => setPurchasingId(null));
+        };
+    }, [confirmCreditFulfillment]);
+
+    const handleBuy = useCallback(async (productId: string) => {
         if (purchasingId) return;
 
-        if (!configured || !priceByProduct[productId]) {
+        if (!configured || (usesNativeIap && !priceByProduct[productId])) {
             Alert.alert(
                 t('creditPack.comingSoonTitle'),
                 t('creditPack.comingSoonMessage'),
@@ -107,14 +197,28 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
 
         setPurchasingId(productId);
         try {
+            if (!usesNativeIap) {
+                const token = await getToken();
+                if (!token) throw new Error('missing session');
+                const idempotencyKey = checkoutIdempotencyKeys.current[productId] ?? createCheckoutIdempotencyKey();
+                checkoutIdempotencyKeys.current[productId] = idempotencyKey;
+                const checkout = await requestBachsCheckout({
+                    accessToken: token,
+                    productKey: webProductKeyForCredit(productId),
+                    idempotencyKey,
+                });
+                if (!(await Linking.canOpenURL(checkout.checkoutUrl))) throw new Error('cannot open checkout');
+                await Linking.openURL(checkout.checkoutUrl);
+                onClose();
+                return;
+            }
+            // Record the cutoff before StoreKit/Play opens. A returned store
+            // receipt is not a credit grant; the backend webhook creates the
+            // matching ledger row asynchronously.
+            const purchaseStartedAt = new Date(Date.now() - 5_000).toISOString();
             const result = await purchaseCredits(productId);
             if (result.success) {
-                onPurchased?.();
-                Alert.alert(
-                    t('creditPack.purchaseCompleteTitle'),
-                    t('creditPack.purchaseCompleteMessage', { count: CREDIT_AMOUNTS[productId] }),
-                );
-                onClose();
+                await confirmCreditFulfillment(productId, purchaseStartedAt);
             } else if (result.error && result.error !== 'User cancelled') {
                 Alert.alert(t('creditPack.purchaseFailedTitle'), result.error);
             }
@@ -123,7 +227,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
         } finally {
             setPurchasingId(null);
         }
-    };
+    }, [configured, confirmCreditFulfillment, getToken, onClose, priceByProduct, purchasingId, t, usesNativeIap]);
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -154,7 +258,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                             {PACKS.map((pack) => {
                                 const amount = CREDIT_AMOUNTS[pack.productId] || 0;
                                 const price = priceByProduct[pack.productId];
-                                const available = configured && !!price;
+                                const available = usesNativeIap ? configured && !!price : configured;
                                 const busy = purchasingId === pack.productId;
                                 const disabled = !!purchasingId;
 
@@ -192,7 +296,9 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                                                 <ActivityIndicator color={colors.accent} />
                                             ) : available ? (
                                                 <View style={[styles.buyPill, { backgroundColor: colors.accent }]}>
-                                                    <Text style={styles.buyPillText}>{price}</Text>
+                                                    <Text style={styles.buyPillText}>
+                                                        {usesNativeIap ? price : t('creditPack.buyNow', { defaultValue: 'Buy' })}
+                                                    </Text>
                                                 </View>
                                             ) : (
                                                 <View style={[styles.soonPill, { borderColor }]}>

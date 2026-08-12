@@ -22,7 +22,6 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { PremiumCelebration } from '../../components/ui/PremiumCelebration';
-import { devMockProPurchase } from '../../lib/devMockPurchase';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
@@ -33,6 +32,7 @@ import {
   manageSubscriptions,
   purchasePackage,
   restorePurchases,
+  waitForServerFulfillment,
 } from '@edutu/core/src/services/payments';
 import {
   DEFAULT_PRICING,
@@ -43,16 +43,24 @@ import {
   effectivePrice,
   hasPromoDiscount,
   formatMoney,
-  buildCheckoutUrl,
 } from '../../lib/pricing';
+import {
+  createCheckoutIdempotencyKey,
+  getPaymentRail,
+  nativePackageForPlan,
+  requestBachsCheckout,
+  requestBachsPortalSession,
+  visibleBillingPlans,
+  webProductKeyForPlan,
+} from '../../lib/billingRouting';
 import { useTranslation } from 'react-i18next';
 
 // Both stores REQUIRE their own billing for in-app digital goods (Apple 3.1.1,
 // Google Play Payments). So every on-device purchase goes through RevenueCat
 // (StoreKit on iOS, Play Billing on Android). Only the web build (Platform.OS
-// === 'web', which the stores don't police) uses the pay.edutu.org checkout.
+// === 'web', which the stores don't police) uses the authenticated Bachs API.
 // The app NEVER routes an iOS/Android user to external payment for Pro.
-const USE_NATIVE_IAP = Platform.OS === 'ios' || Platform.OS === 'android';
+const USE_NATIVE_IAP = getPaymentRail(Platform.OS) === 'revenuecat';
 
 
 // The paywall is intentionally ALWAYS dark (reference design): the collage of
@@ -69,14 +77,18 @@ export default function PaywallScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isPro, isLoading: proLoading, refreshStatus } = useProStatus(supabase, user?.id || null);
+  const {
+    isPro,
+    isLoading: proLoading,
+    refreshStatus,
+    refreshServerStatus = async () => false,
+  } = useProStatus(supabase, user?.id || null);
   // Narrowed locals so memoized callbacks depend on exactly these values —
   // reading `user.id` inside a callback makes the compiler infer a dependency
   // on the whole `user` object, which breaks manual memoization.
   const userId = user?.id;
-  const userEmail = user?.primaryEmailAddress?.emailAddress;
 
-  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('weekly');
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(USE_NATIVE_IAP ? 'monthly' : 'weekly');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
   // Admin-controlled design + copy overrides (mobile-control config). Empty
   // fields fall back to the built-in translated copy below.
@@ -109,8 +121,10 @@ export default function PaywallScreen() {
   // Purchases need an identity, so IAP is unavailable for guests on device.
   const iapUnavailable = userId ? iapUnavailableRaw : USE_NATIVE_IAP;
   // Set true once we hand off to the browser, so the next foreground re-checks
-  // Pro (the pay.edutu.org webhook grants it while we're away).
+  // Pro after the backend confirms the provider event.
   const awaitingReturnRef = useRef(false);
+  const checkoutIdempotencyKeyRef = useRef<string | null>(null);
+  const retryProFulfillmentRef = useRef<(onFulfilled: () => void) => void>(() => {});
 
   // Device: load StoreKit (iOS) / Play Billing (Android) offerings via
   // RevenueCat. If they can't load we mark IAP unavailable — we must NOT fall
@@ -163,16 +177,8 @@ export default function PaywallScreen() {
     })();
   }, [loadIapOfferings]);
 
-  const iapPackageForPlan = (plan: BillingPlan) =>
-    iapPackages.find((pkg) =>
-      plan === 'weekly'
-        ? pkg.identifier.includes('week')
-        : plan === 'monthly'
-          ? pkg.identifier.includes('month')
-          // RevenueCat's standard annual package is `$rc_annual` (no "year"),
-          // so match both spellings or the Yearly card is unbuyable.
-          : pkg.identifier.includes('year') || pkg.identifier.includes('annual'),
-    );
+  const iapPackageForPlan = (plan: BillingPlan) => nativePackageForPlan(plan, iapPackages);
+  const displayedPlans = visibleBillingPlans(Platform.OS, iapPackages);
   const selectedPackage = iapPackageForPlan(selectedPlan);
   // True when this purchase will actually be charged by the store — i.e. we're
   // on device AND a matching StoreKit/Play product loaded. It gates the Apple
@@ -216,11 +222,17 @@ export default function PaywallScreen() {
         if (cancelled) return;
         setPricing(config.pricing);
         setPaywall(config.paywall);
-        if (!userPickedPlanRef.current) setSelectedPlan(config.paywall.defaultPlan);
+        if (!userPickedPlanRef.current) {
+          setSelectedPlan(
+            USE_NATIVE_IAP && config.paywall.defaultPlan === 'weekly' && !nativePackageForPlan('weekly', iapPackages)
+              ? 'monthly'
+              : config.paywall.defaultPlan,
+          );
+        }
       })
       .catch(() => { /* keep defaults */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [iapPackages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,16 +252,51 @@ export default function PaywallScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  // Re-check Pro whenever we come back from the hosted checkout.
+  const waitForProFulfillment = useCallback(async (onFulfilled: () => void): Promise<boolean> => {
+    const fulfilled = await waitForServerFulfillment(refreshServerStatus);
+    if (fulfilled) {
+      onFulfilled();
+      return true;
+    }
+
+    Alert.alert(
+      t('paywall.paymentProcessingTitle', { defaultValue: 'Payment is still processing' }),
+      t('paywall.paymentProcessingMessage', {
+        defaultValue: 'Your purchase was received. Access will unlock after the payment provider confirms it.',
+      }),
+      [
+        { text: t('common:actions.notNow', { defaultValue: 'Not now' }), style: 'cancel' },
+        {
+          text: t('paywall.checkAgain', { defaultValue: 'Check again' }),
+          onPress: () => {
+            retryProFulfillmentRef.current(onFulfilled);
+          },
+        },
+      ],
+    );
+    return false;
+  }, [refreshServerStatus, t]);
+
+  useEffect(() => {
+    retryProFulfillmentRef.current = (onFulfilled) => {
+      setPurchasing(true);
+      void waitForProFulfillment(onFulfilled).finally(() => setPurchasing(false));
+    };
+  }, [waitForProFulfillment]);
+
+  // A browser return is not fulfillment. The provider webhook writes the
+  // canonical server entitlement asynchronously, so reconcile it with bounded
+  // polling rather than showing success after a single foreground refresh.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active' && awaitingReturnRef.current) {
         awaitingReturnRef.current = false;
-        void refreshStatus();
+        setPurchasing(true);
+        void waitForProFulfillment(() => setShowCelebration(true)).finally(() => setPurchasing(false));
       }
     });
     return () => sub.remove();
-  }, [refreshStatus]);
+  }, [waitForProFulfillment]);
 
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -266,16 +313,24 @@ export default function PaywallScreen() {
   const redirectToWebCheckout = useCallback(async () => {
     if (!userId) return;
     setRedirecting(true);
-    const url = buildCheckoutUrl(pricing, {
-      uid: userId,
-      email: userEmail,
-      plan: selectedPlan,
-      platform: Platform.OS,
-    });
-    await openExternal(url);
-    // Give the app-switch a beat before releasing the button spinner.
-    setTimeout(() => setRedirecting(false), 800);
-  }, [userId, userEmail, pricing, selectedPlan, openExternal]);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('missing session');
+      const idempotencyKey = checkoutIdempotencyKeyRef.current ?? createCheckoutIdempotencyKey();
+      checkoutIdempotencyKeyRef.current = idempotencyKey;
+      const checkout = await requestBachsCheckout({
+        accessToken: token,
+        productKey: webProductKeyForPlan(selectedPlan),
+        idempotencyKey,
+      });
+      await openExternal(checkout.checkoutUrl);
+    } catch {
+      Alert.alert(t('common:states.error'), t('paywall.checkoutFailed'));
+    } finally {
+      // Give the app-switch a beat before releasing the button spinner.
+      setTimeout(() => setRedirecting(false), 800);
+    }
+  }, [userId, getToken, selectedPlan, openExternal, t]);
 
   const handleRestore = useCallback(async () => {
     setRestoring(true);
@@ -316,10 +371,9 @@ export default function PaywallScreen() {
     try {
       const result = await purchasePackage(selectedPackage);
       if (result.success) {
-        await refreshStatus();
-        // Celebrate in-app (animated) instead of a plain OS alert; we route
-        // back to where they came from only once they dismiss it.
-        setShowCelebration(true);
+        // RevenueCat returning success only means StoreKit/Play accepted the
+        // transaction. The webhook's entitlement is the completion signal.
+        await waitForProFulfillment(() => setShowCelebration(true));
       } else if (result.error && result.error !== 'User cancelled') {
         Alert.alert(t('common:states.error'), result.error);
       }
@@ -328,19 +382,20 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [selectedPackage, refreshStatus, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
+  }, [selectedPackage, waitForProFulfillment, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
 
-  // Season Pass purchase — native buys the RC product; web hands off to the
-  // pay.edutu.org one-off checkout (`plan=season`).
+  // Season Pass purchase — native buys the RC product; web asks the authenticated
+  // backend to create the Bachs checkout for its server-owned product key.
   const purchaseSeasonIap = useCallback(async () => {
     if (!seasonPackage) return;
     setPurchasing(true);
     try {
       const result = await purchasePackage(seasonPackage);
       if (result.success) {
-        await refreshStatus();
-        Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
-        router.back();
+        await waitForProFulfillment(() => {
+          Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
+          router.back();
+        });
       } else if (result.error && result.error !== 'User cancelled') {
         Alert.alert(t('common:states.error'), result.error);
       }
@@ -349,25 +404,33 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [seasonPackage, refreshStatus, router, t]);
+  }, [seasonPackage, waitForProFulfillment, router, t]);
 
   const redirectSeasonCheckout = useCallback(async () => {
     if (!userId) return;
     setRedirecting(true);
-    const url = buildCheckoutUrl(pricing, {
-      uid: userId,
-      email: userEmail,
-      plan: 'season',
-      platform: Platform.OS,
-    });
-    await openExternal(url);
-    setTimeout(() => setRedirecting(false), 800);
-  }, [userId, userEmail, pricing, openExternal]);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('missing session');
+      const idempotencyKey = checkoutIdempotencyKeyRef.current ?? createCheckoutIdempotencyKey();
+      checkoutIdempotencyKeyRef.current = idempotencyKey;
+      const checkout = await requestBachsCheckout({
+        accessToken: token,
+        productKey: webProductKeyForPlan('season'),
+        idempotencyKey,
+      });
+      await openExternal(checkout.checkoutUrl);
+    } catch {
+      Alert.alert(t('common:states.error'), t('paywall.checkoutFailed'));
+    } finally {
+      setTimeout(() => setRedirecting(false), 800);
+    }
+  }, [userId, getToken, openExternal, t]);
 
   const handleSeason = USE_NATIVE_IAP ? purchaseSeasonIap : redirectSeasonCheckout;
 
   // On device ALWAYS go through native IAP (never the external web checkout —
-  // store policy). Only the web build uses the hosted pay.edutu.org checkout.
+  // store policy). Only the web build uses an authenticated Bachs checkout.
   const handleCheckout = USE_NATIVE_IAP ? purchaseWithIap : redirectToWebCheckout;
   // Whether a purchase can complete right now. Used to DIM the CTA and to show
   // the explanatory line — not to disable it: a greyed-out button with no way
@@ -378,26 +441,33 @@ export default function PaywallScreen() {
     if (!userId) return;
     // A store-billed subscription must be managed/cancelled through the store's
     // own UI (Apple/Google) — steering IAP subscribers to an external page is a
-    // 3.1.1 violation. Only the web build uses the pay.edutu.org account page.
+    // 3.1.1 violation. The web build asks the backend for a fresh Bachs portal session.
     if (USE_NATIVE_IAP) {
       await manageSubscriptions();
       return;
     }
-    // Pass a Clerk token so pay.edutu.org can prove the caller owns the account
-    // before allowing a cancel (it mints a short-lived session cookie).
-    let token: string | null | undefined = null;
-    try { token = await getToken(); } catch { token = null; }
-    const base = pricing.manageUrl.replace(/\/$/, '');
-    const q = new URLSearchParams({ uid: userId });
-    if (token) q.set('t', token);
-    await openExternal(`${base}/start?${q.toString()}`);
-  }, [userId, pricing.manageUrl, getToken, openExternal]);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('missing session');
+      await openExternal(await requestBachsPortalSession({ accessToken: token }));
+    } catch {
+      Alert.alert(t('common:states.error'), t('paywall.checkoutFailed'));
+    }
+  }, [userId, getToken, openExternal, t]);
 
-  // Admin pricing is the single source of truth for what we display. When the
-  // charge actually goes through Apple IAP, the exact StoreKit price is shown
-  // as a footnote instead of replacing the admin price (stale App Store
-  // products were rendering "$9.99" over the real ₦ prices).
-  const displayPrice = (plan: BillingPlan) => effectivePrice(pricing, plan);
+  // StoreKit/Play owns the charged amount on native. Use the product returned
+  // by RevenueCat whenever it is available; admin prices remain the fallback
+  // for web and unconfigured store products.
+  const storeProductForPlan = (plan: BillingPlan) => iapPackageForPlan(plan)?.product;
+  const displayPrice = (plan: BillingPlan) => {
+    const storePrice = storeProductForPlan(plan)?.price;
+    return typeof storePrice === 'number' && Number.isFinite(storePrice)
+      ? storePrice
+      : effectivePrice(pricing, plan);
+  };
+  const displayCurrency = (plan: BillingPlan) => storeProductForPlan(plan)?.currencyCode || pricing.currency;
+  const displayPriceText = (plan: BillingPlan) =>
+    storeProductForPlan(plan)?.priceString || formatMoney(displayPrice(plan), displayCurrency(plan));
 
   const regularPriceOf = (plan: BillingPlan) =>
     plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
@@ -452,7 +522,7 @@ export default function PaywallScreen() {
     return pct >= 5 ? t('paywall.savePct', { pct }) : '';
   };
 
-  const bestValuePlan = (['weekly', 'monthly', 'yearly'] as BillingPlan[]).reduce((best, plan) =>
+  const bestValuePlan = displayedPlans.reduce((best, plan) =>
     perWeekOf(plan) < perWeekOf(best) ? plan : best,
   );
 
@@ -603,9 +673,9 @@ export default function PaywallScreen() {
           <>
             {/* Plan cards — badge slot / name / per-week rate / total + cadence */}
             <View style={styles.planRow}>
-              {(['monthly', 'weekly', 'yearly'] as BillingPlan[]).map((plan) => {
+              {displayedPlans.map((plan) => {
                 const active = selectedPlan === plan;
-                const discounted = hasPromoDiscount(pricing, plan);
+                    const discounted = !USE_NATIVE_IAP && hasPromoDiscount(pricing, plan);
                 const offPct = promoOffPct(plan);
                 const badge = planBadge(plan);
                 return (
@@ -613,6 +683,7 @@ export default function PaywallScreen() {
                     key={plan}
                     onPress={() => {
                       userPickedPlanRef.current = true;
+                      checkoutIdempotencyKeyRef.current = null;
                       setSelectedPlan(plan);
                     }}
                     activeOpacity={0.85}
@@ -666,12 +737,12 @@ export default function PaywallScreen() {
                         legible — the total is no longer the loudest thing here. */}
                     <Text style={[styles.planRate, active && { color: accent }]} numberOfLines={1} adjustsFontSizeToFit>
                       {t('paywall.perWeek', {
-                        price: formatMoney(Math.round(perWeekOf(plan) * 100) / 100, pricing.currency),
+                        price: formatMoney(Math.round(perWeekOf(plan) * 100) / 100, displayCurrency(plan)),
                       })}
                     </Text>
                     <View style={styles.planDivider} />
                     <Text style={styles.planTotal} numberOfLines={1} adjustsFontSizeToFit>
-                      {formatMoney(displayPrice(plan), pricing.currency)}
+                      {displayPriceText(plan)}
                     </Text>
                     {discounted ? (
                       <Text style={styles.planStrike} numberOfLines={1}>
@@ -709,7 +780,7 @@ export default function PaywallScreen() {
                     t('paywall.startPlan', {
                       defaultValue: 'Start {{plan}} — {{price}}',
                       plan: planLabel(selectedPlan),
-                      price: formatMoney(displayPrice(selectedPlan), pricing.currency),
+                      price: displayPriceText(selectedPlan),
                     }),
                   )}
                 </Text>
@@ -878,9 +949,7 @@ export default function PaywallScreen() {
         ) : null}
       </View>
 
-      {/* Dev-only tools (stripped from release builds). "Preview" fires the
-          celebration animation; "Mock Pro" grants Pro server-side via the real
-          webhook (no payment) so gated features can be tested end-to-end. */}
+      {/* Dev-only visual preview; it does not create a payment or entitlement. */}
       {__DEV__ ? (
         <View style={[styles.devTools, { top: insets.top + 8 }]}>
           <TouchableOpacity
@@ -889,22 +958,6 @@ export default function PaywallScreen() {
             accessibilityLabel="Preview premium celebration"
           >
             <Text style={styles.devPreviewLabel}>🎉 Preview</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={async () => {
-              if (!userId) return;
-              const result = await devMockProPurchase(userId);
-              if (result.ok) {
-                await refreshStatus();
-                setShowCelebration(true);
-              } else {
-                Alert.alert('Dev mock purchase', result.error || 'Failed');
-              }
-            }}
-            style={styles.devPreviewBtn}
-            accessibilityLabel="Mock a Pro purchase"
-          >
-            <Text style={styles.devPreviewLabel}>🔓 Mock Pro</Text>
           </TouchableOpacity>
         </View>
       ) : null}

@@ -9,6 +9,59 @@ interface UseProStatusReturn {
   proSince: string | null;
   subscriptionId: string | null;
   refreshStatus: () => Promise<void>;
+  /** Checks only server-written billing projections; used after a purchase. */
+  refreshServerStatus: () => Promise<boolean>;
+}
+
+type ServerProStatus = {
+  displayPro: boolean;
+  confirmedPro: boolean;
+  proSince: string | null;
+  subscriptionId: string | null;
+};
+
+async function readServerProStatus(supabase: SupabaseClient, userId: string): Promise<ServerProStatus> {
+  // Profiles are keyed by the raw Clerk ID; the safe UUID supports legacy rows
+  // only and never changes which signed-in user is queried.
+  const lookupIds = Array.from(new Set([userId, toSafeUUID(userId)]));
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('user_id, is_pro, pro_since, pro_expires_at, subscription_id')
+    .in('user_id', lookupIds);
+
+  const profile =
+    profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
+  const profileExpiresAt = profile?.pro_expires_at ? new Date(profile.pro_expires_at).getTime() : null;
+  const profileMirrorPro = Boolean(profile?.is_pro) && (!profileExpiresAt || profileExpiresAt > Date.now());
+
+  const { data: entitlements, error: entitlementsError } = await supabase
+    .from('billing_entitlements')
+    .select('feature_key, status, expires_at')
+    .eq('user_id', userId)
+    .eq('feature_key', 'pro');
+
+  const proEntitlements = (entitlements || []).filter(
+    (entitlement: any) => entitlement.feature_key === 'pro',
+  );
+  const entitlementPro = proEntitlements.some((entitlement: any) => {
+    const expiresAt = entitlement.expires_at ? new Date(entitlement.expires_at).getTime() : null;
+    return entitlement.status === 'active' && (!expiresAt || expiresAt > Date.now());
+  });
+
+  // A completion screen needs proof that the webhook fulfilled the purchase,
+  // so only a live canonical entitlement can turn it into a success. The
+  // compatibility profile remains available for normal legacy status display.
+  const hasEntitlementData = !entitlementsError && proEntitlements.length > 0;
+  const mirrorFallbackPro = entitlementsError
+    ? profileMirrorPro
+    : profileMirrorPro && profileExpiresAt !== null;
+
+  return {
+    displayPro: hasEntitlementData ? entitlementPro : mirrorFallbackPro,
+    confirmedPro: !entitlementsError && entitlementPro,
+    proSince: profile?.pro_since || null,
+    subscriptionId: profile?.subscription_id || null,
+  };
 }
 
 export function useProStatus(supabase: SupabaseClient, userId: string | null): UseProStatusReturn {
@@ -38,75 +91,12 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
         // Check RevenueCat subscription status
         const rcPro = await isProSubscriber();
 
-        // Check Supabase status. Profiles are keyed by the raw Clerk ID;
-        // the hashed toSafeUUID form only exists in rows from older builds.
-        const lookupIds = Array.from(new Set([userId, toSafeUUID(userId)]));
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, is_pro, pro_since, pro_expires_at, subscription_id')
-          .in('user_id', lookupIds);
-
-        const profile =
-          profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
-
-        const profileExpiresAt = profile?.pro_expires_at ? new Date(profile.pro_expires_at).getTime() : null;
-        const profileMirrorPro = Boolean(profile?.is_pro) && (!profileExpiresAt || profileExpiresAt > Date.now());
-
-        // Fetch every 'pro' row regardless of status — NOT just the active ones.
-        // Filtering on status server-side made a cancelled/expired row look
-        // identical to "this user has no entitlement record at all", which is
-        // the one case where we still fall back to the profiles mirror. Seeing
-        // the inactive row is what lets us say "authoritatively NOT Pro".
-        const { data: entitlements, error: entitlementsError } = await supabase
-          .from('billing_entitlements')
-          .select('feature_key, status, expires_at')
-          .eq('user_id', userId)
-          .eq('feature_key', 'pro');
-
-        const proEntitlements = (entitlements || []).filter(
-          (entitlement: any) => entitlement.feature_key === 'pro',
-        );
-
-        const entitlementPro = proEntitlements.some((entitlement: any) => {
-          const expiresAt = entitlement.expires_at ? new Date(entitlement.expires_at).getTime() : null;
-          return entitlement.status === 'active' && (!expiresAt || expiresAt > Date.now());
-        });
-
-        // ── Entitlement authority ────────────────────────────────────────────
-        // Two authorities, never OR'd together with the mirror:
-        //   • RevenueCat owns the store path (iOS/Android IAP). Its SDK only
-        //     ever reports entitlements the store still considers active, so a
-        //     `true` here is definitive — no local expiry check to redo.
-        //   • billing_entitlements owns the web/Paystack + legacy-webhook path
-        //     and is the single source of truth on the server. When the query
-        //     succeeds and returns rows, its verdict is FINAL in both
-        //     directions: an expired/absent-but-present row means NOT Pro, even
-        //     if profiles.is_pro is still true. That is the bug this replaces —
-        //     OR-ing the mirror in kept lapsed users Pro forever whenever the
-        //     mirror write failed or was never expired.
-        //
-        // profiles.is_pro / pro_expires_at are a best-effort MIRROR and can
-        // only ever be consulted as a FALLBACK when we have no entitlement
-        // data at all, never as an independent grant:
-        //   • query failed (offline / RLS / transport) → trust the last known
-        //     mirror rather than downgrading a paying user on a network blip.
-        //   • query succeeded but the user has NO 'pro' row of any status →
-        //     this is either a legacy grant written before billing_entitlements
-        //     existed, or a failed webhook write. We only honour it when the
-        //     mirror carries an explicit, unexpired pro_expires_at (a real,
-        //     bounded grant). An is_pro=true row with NO expiry and NO
-        //     entitlement row is exactly the never-expiring ghost we are
-        //     killing, so it does not count.
-        const hasEntitlementData = !entitlementsError && proEntitlements.length > 0;
-        const mirrorFallbackPro = entitlementsError
-          ? profileMirrorPro
-          : profileMirrorPro && profileExpiresAt !== null;
-
-        const actualPro = rcPro || (hasEntitlementData ? entitlementPro : mirrorFallbackPro);
+        const serverStatus = await readServerProStatus(supabase, userId);
+        const actualPro = rcPro || serverStatus.displayPro;
 
         setIsPro(actualPro);
-        setProSince(profile?.pro_since || null);
-        setSubscriptionId(profile?.subscription_id || null);
+        setProSince(serverStatus.proSince);
+        setSubscriptionId(serverStatus.subscriptionId);
 
         // Note: profiles.is_pro and billing_entitlements are written only by
         // server-side webhooks (RevenueCat / Paystack, service role). This hook
@@ -131,6 +121,26 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
     setIsLoading(true);
     return fetchStatus();
   }, [userId, fetchStatus]);
+
+  const refreshServerStatus = useCallback(async (): Promise<boolean> => {
+    if (!userId) return false;
+
+    setIsLoading(true);
+    try {
+      const serverStatus = await readServerProStatus(supabase, userId);
+      if (serverStatus.confirmedPro) {
+        setIsPro(true);
+        setProSince(serverStatus.proSince);
+        setSubscriptionId(serverStatus.subscriptionId);
+      }
+      return serverStatus.confirmedPro;
+    } catch (error) {
+      console.error('Error checking server pro status:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase, userId]);
 
   // Reach the latest checkStatus from the realtime handler without making it a
   // subscription dependency; re-subscribing on a reused topic is what triggers
@@ -187,5 +197,6 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
     proSince,
     subscriptionId,
     refreshStatus: checkStatus,
+    refreshServerStatus,
   };
 }

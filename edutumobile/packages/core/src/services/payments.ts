@@ -43,6 +43,7 @@ export const ENTITLEMENTS = {
 // Product identifiers (configured in RevenueCat dashboard)
 export const PRODUCTS = {
   // Pro subscription
+  PRO_WEEKLY: 'pro_weekly',
   PRO_MONTHLY: 'pro_monthly',
   PRO_YEARLY: 'pro_yearly',
 
@@ -70,6 +71,49 @@ export const CREDIT_AMOUNTS: Record<string, number> = {
 
 let warnedMissingApiKey = false;
 
+export type ServerFulfillmentCheck = () => Promise<boolean>;
+
+export type ServerFulfillmentPollingOptions = {
+  attempts?: number;
+  intervalMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
+};
+
+const defaultSleep = (milliseconds: number) => new Promise<void>((resolve) => {
+  setTimeout(resolve, milliseconds);
+});
+
+/**
+ * A store/checkout acknowledgement proves only that a provider accepted the
+ * purchase. Money, credits, and entitlements are fulfilled asynchronously by
+ * the server webhook, so UI callers must wait for their server-side projection
+ * before showing a completed purchase.
+ */
+export async function waitForServerFulfillment(
+  check: ServerFulfillmentCheck,
+  {
+    attempts = 6,
+    intervalMs = 2_000,
+    sleep = defaultSleep,
+  }: ServerFulfillmentPollingOptions = {},
+): Promise<boolean> {
+  const totalAttempts = Math.max(1, attempts);
+
+  for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+    try {
+      if (await check()) return true;
+    } catch (error) {
+      console.warn('Server fulfillment check failed:', error);
+    }
+
+    if (attempt < totalAttempts - 1) {
+      await sleep(intervalMs);
+    }
+  }
+
+  return false;
+}
+
 export async function initRevenueCat(userId: string): Promise<boolean> {
   if (!REVENUECAT_API_KEY) {
     // Expected state until the RevenueCat key ships — warn once, not per call.
@@ -82,22 +126,22 @@ export async function initRevenueCat(userId: string): Promise<boolean> {
     return false;
   }
 
-  if (isRevenueCatConfigured && configuredUserId === userId) {
-    return true;
-  }
-
   try {
-    Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
-    Purchases.configure({
-      apiKey: REVENUECAT_API_KEY,
-      appUserID: userId,
-    });
-    isRevenueCatConfigured = true;
-    configuredUserId = userId;
+    if (!isRevenueCatConfigured) {
+      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
+      Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+      isRevenueCatConfigured = true;
+    }
+
+    // The raw Clerk/Supabase subject is the billing identity. Configure the SDK
+    // once, then explicitly update its account identity when auth changes.
+    if (configuredUserId !== userId) {
+      await Purchases.logIn(userId);
+      configuredUserId = userId;
+    }
     return true;
   } catch (error) {
     console.error('Failed to initialize RevenueCat:', error);
-    isRevenueCatConfigured = false;
     configuredUserId = null;
     return false;
   }
