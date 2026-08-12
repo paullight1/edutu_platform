@@ -34,6 +34,31 @@ export interface MentorApplicationStatus {
   application_kind?: string | null;
 }
 
+export interface MentorApplicationInput {
+  displayName: string;
+  email: string;
+  phoneNumber: string;
+  country: string;
+  bio: string;
+  contentType: string;
+  experience?: string;
+  motivation?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+  sampleContentUrl?: string;
+  proofPath?: string;
+  proofFileName?: string;
+  proofFileType?: string;
+  proofFileSize?: number;
+  consentAccepted: boolean;
+}
+
+export interface MentorApplicationSubmission {
+  id: string;
+  status: string;
+  applicationKind: "mentor";
+}
+
 async function requestMentor<T>(
   path: string,
   token: string,
@@ -68,4 +93,17 @@ export function getMentorStatus(token: string) {
     "/creator/status",
     token,
   );
+}
+
+export function submitMentorApplication(
+  token: string,
+  application: MentorApplicationInput,
+) {
+  return requestMentor<MentorApplicationSubmission>("/creator/apply", token, {
+    method: "POST",
+    body: JSON.stringify({
+      ...application,
+      applicationKind: "mentor",
+    }),
+  });
 }
