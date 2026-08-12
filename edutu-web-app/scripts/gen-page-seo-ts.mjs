@@ -12,7 +12,13 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PAGE_SEO, ogImageUrl } from "./page-seo.mjs";
+import {
+  OG_HEIGHT,
+  OG_MIME,
+  OG_WIDTH,
+  PAGE_SEO,
+  ogImageUrl,
+} from "./page-seo.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const outputPath = path.resolve(
@@ -48,6 +54,12 @@ export interface PageSeoEntry {
   image: string;
   imageAlt: string;
 }
+
+export const OG_METADATA = {
+  width: ${OG_WIDTH},
+  height: ${OG_HEIGHT},
+  mimeType: ${JSON.stringify(OG_MIME)},
+} as const;
 
 export const PAGE_SEO: Record<string, PageSeoEntry> = {
 ${entries}

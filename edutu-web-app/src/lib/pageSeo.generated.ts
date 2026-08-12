@@ -14,6 +14,12 @@ export interface PageSeoEntry {
   imageAlt: string;
 }
 
+export const OG_METADATA = {
+  width: 1200,
+  height: 630,
+  mimeType: "image/jpeg",
+} as const;
+
 export const PAGE_SEO: Record<string, PageSeoEntry> = {
   "/": {
     slug: "home",
