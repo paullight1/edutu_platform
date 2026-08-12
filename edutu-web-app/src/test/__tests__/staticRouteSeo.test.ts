@@ -12,3 +12,7 @@ it("homepage uses its hero screenshot for shared links", () => {
 it("opportunities uses its hero screenshot for shared links", () => {
   expectRoutePreview("/opportunities", "opportunities");
 });
+
+it("blog uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/blog", "blog");
+});
