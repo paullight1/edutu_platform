@@ -13,39 +13,6 @@ interface ThemeColors {
 }
 
 export type ThemeMode = "light" | "dark" | "system";
-export type ThemePackId =
-  | "indigo"
-  | "violet"
-  | "emerald"
-  | "rose"
-  | "amber"
-  | "sky";
-
-export interface ThemePack {
-  id: ThemePackId;
-  label: string;
-  /** Representative accent used for the picker swatch in light mode. */
-  swatch: string;
-  /** Lighter accent shown for the swatch when dark mode is active. */
-  swatchDark: string;
-}
-
-/**
- * Accent "theme packs". `indigo` is the product default and is served by the
- * base tokens in index.css; the rest override `--color-brand-*` via a
- * `[data-theme="…"]` block (see index.css). Add a pack here + a matching CSS
- * block to ship a new palette.
- */
-export const THEME_PACKS: ThemePack[] = [
-  { id: "indigo", label: "Indigo", swatch: "#6366f1", swatchDark: "#818cf8" },
-  { id: "violet", label: "Violet", swatch: "#8b5cf6", swatchDark: "#a78bfa" },
-  { id: "emerald", label: "Emerald", swatch: "#10b981", swatchDark: "#34d399" },
-  { id: "rose", label: "Rose", swatch: "#f43f5e", swatchDark: "#fb7185" },
-  { id: "amber", label: "Amber", swatch: "#f59e0b", swatchDark: "#fbbf24" },
-  { id: "sky", label: "Sky", swatch: "#0ea5e9", swatchDark: "#38bdf8" },
-];
-
-const THEME_PACK_IDS = new Set(THEME_PACKS.map((pack) => pack.id));
 
 interface ThemeContextType {
   // -- Light / dark ---------------------------------------------------------
@@ -56,10 +23,6 @@ interface ThemeContextType {
   setMode: (mode: ThemeMode) => void;
   toggleDarkMode: () => void;
   setDarkMode: (value: boolean) => void;
-  // -- Theme packs (accent palettes) ---------------------------------------
-  themePack: ThemePackId;
-  setThemePack: (pack: ThemePackId) => void;
-  themePacks: ThemePack[];
   // -- Legacy accent customization (kept for backwards compatibility) -------
   lightTheme: ThemeColors;
   darkTheme: ThemeColors;
@@ -69,7 +32,6 @@ interface ThemeContextType {
 
 const MODE_STORAGE_KEY = "edutu-theme-mode";
 const LEGACY_MODE_STORAGE_KEY = "edutu-theme";
-const PACK_STORAGE_KEY = "edutu-theme-pack";
 
 const defaultLightTheme: ThemeColors = {
   accent: "99 102 241", // Indigo 500
@@ -109,21 +71,6 @@ const readStoredMode = (): ThemeMode => {
   }
 };
 
-const readStoredPack = (): ThemePackId => {
-  if (typeof window === "undefined") {
-    return "indigo";
-  }
-  try {
-    const stored = window.localStorage.getItem(PACK_STORAGE_KEY);
-    if (stored && THEME_PACK_IDS.has(stored as ThemePackId)) {
-      return stored as ThemePackId;
-    }
-  } catch (error) {
-    console.warn("Failed to read theme pack.", error);
-  }
-  return "indigo";
-};
-
 const readStoredColors = (
   key: string,
   fallback: ThemeColors,
@@ -148,7 +95,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
   const [systemPrefersDarkMode, setSystemPrefersDarkMode] =
     useState<boolean>(systemPrefersDark);
-  const [themePack, setThemePackState] = useState<ThemePackId>(readStoredPack);
 
   const [lightTheme, setLightTheme] = useState<ThemeColors>(() =>
     readStoredColors("lightTheme", defaultLightTheme),
@@ -169,20 +115,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     document.documentElement.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
-  // Reflect the active accent pack on <html> via `data-theme`. Indigo is the
-  // base palette, so it carries no attribute (keeps the DOM clean + avoids an
-  // extra CSS match).
+  // Theme packs are intentionally not user-configurable. Remove the old
+  // attribute so a previous version cannot change the product palette.
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
     }
-    const root = document.documentElement;
-    if (themePack === "indigo") {
-      root.removeAttribute("data-theme");
-    } else {
-      root.setAttribute("data-theme", themePack);
-    }
-  }, [themePack]);
+    document.documentElement.removeAttribute("data-theme");
+  }, []);
 
   // Keep the browser chrome (address bar / status bar) in step with the theme.
   useEffect(() => {
@@ -229,15 +169,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [mode]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(PACK_STORAGE_KEY, themePack);
-    } catch (error) {
-      console.warn("Failed to persist theme pack.", error);
-    }
-  }, [themePack]);
-
   // Persist user-customized accent/background palettes (legacy feature).
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -252,12 +183,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [lightTheme, darkTheme]);
 
   const setMode = useCallback((next: ThemeMode) => setModeState(next), []);
-
-  const setThemePack = useCallback((pack: ThemePackId) => {
-    if (THEME_PACK_IDS.has(pack)) {
-      setThemePackState(pack);
-    }
-  }, []);
 
   const toggleDarkMode = useCallback(() => {
     setModeState((prev) => {
@@ -285,7 +210,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const resetTheme = useCallback(() => {
     setLightTheme(defaultLightTheme);
     setDarkTheme(defaultDarkTheme);
-    setThemePackState("indigo");
     setModeState("system");
   }, []);
 
@@ -296,9 +220,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
       setMode,
       toggleDarkMode,
       setDarkMode,
-      themePack,
-      setThemePack,
-      themePacks: THEME_PACKS,
       lightTheme,
       darkTheme,
       updateTheme,
@@ -310,8 +231,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
       setMode,
       toggleDarkMode,
       setDarkMode,
-      themePack,
-      setThemePack,
       lightTheme,
       darkTheme,
       updateTheme,
