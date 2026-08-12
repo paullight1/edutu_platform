@@ -229,7 +229,7 @@ export default function GroupChatScreen() {
         ? "about"
         : "posts";
   const previousTab = useRef<GroupContentTab>(activeTab);
-  const tabTransition = useRef(new Animated.Value(0)).current;
+  const [tabTransition] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (previousTab.current === activeTab) return;
