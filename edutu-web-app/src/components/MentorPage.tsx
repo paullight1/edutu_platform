@@ -149,6 +149,7 @@ const MentorPage: React.FC = () => {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [isApprovedMentor, setIsApprovedMentor] = useState(false);
+    const [activeHeroSlide, setActiveHeroSlide] = useState(0);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
 
