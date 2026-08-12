@@ -378,7 +378,7 @@ export class OpportunitySubmissionsService {
       await this.notificationsService.broadcast(adminId, {
         title: copy.title,
         body: copy.body,
-        kind: "admin-broadcast",
+        kind: "application-status",
         severity: copy.severity,
         audience: "specific",
         targetUserIds: [row.userId],
@@ -388,6 +388,7 @@ export class OpportunitySubmissionsService {
           submissionStatus: dto.decision,
           url: `/opportunities/submissions`,
         },
+        dedupeKey: `submission-status:${row.id}:${dto.decision}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

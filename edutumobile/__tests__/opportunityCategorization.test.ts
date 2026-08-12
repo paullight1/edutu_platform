@@ -13,33 +13,33 @@ describe('opportunity categorization', () => {
     })).toBe('scholarships');
   });
 
-  it('classifies careers from internships and jobs', () => {
+  it('classifies internships from internships and jobs', () => {
     expect(categorizeOpportunity({
       title: 'Product Design Internship',
       category: 'Opportunity',
       description: 'A paid intern role for early-career designers.',
-    })).toBe('careers');
+    })).toBe('internships');
   });
 
-  it('classifies leadership opportunities', () => {
+  it('classifies fellowships from leadership opportunities', () => {
     expect(categorizeOpportunity({
       title: 'Youth Ambassador Fellowship',
       description: 'A leadership and mentorship program for community changemakers.',
-    })).toBe('leadership');
+    })).toBe('fellowships');
   });
 
-  it('classifies global programs when no stronger category wins', () => {
+  it('classifies events before generic program language', () => {
     expect(categorizeOpportunity({
       title: 'International Youth Summit',
       description: 'A global exchange program for students and young professionals.',
-    })).toBe('global_programs');
+    })).toBe('events');
   });
 
-  it('honors stored canonical categories from ingestion', () => {
+  it('normalizes legacy source labels into the current taxonomy', () => {
     expect(categorizeOpportunity({
-      canonical_category: 'careers',
-      title: 'Scholarship operations assistant',
-    })).toBe('careers');
+      category: 'Jobs',
+      title: 'Product Design Role',
+    })).toBe('internships');
   });
 
   it('matches category filters using the canonical classifier', () => {
@@ -50,6 +50,6 @@ describe('opportunity categorization', () => {
     };
 
     expect(matchesOpportunityCategory(opportunity, 'scholarships')).toBe(true);
-    expect(matchesOpportunityCategory(opportunity, 'careers')).toBe(false);
+    expect(matchesOpportunityCategory(opportunity, 'internships')).toBe(false);
   });
 });

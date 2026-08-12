@@ -61,6 +61,32 @@ describe('core opportunity service contract', () => {
     ]);
   });
 
+  it('searches the complete catalogue through the public hybrid search endpoint', async () => {
+    const { searchOpportunities } = loadService();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          id: 'opp-search',
+          title: 'Women in Tech Fellowship',
+          organization: 'Edutu',
+          category: 'Fellowship',
+          description: 'A leadership opportunity for emerging builders.',
+        },
+      ],
+    } as Response);
+
+    const result = await searchOpportunities('women tech');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.example.test/opportunities/search?q=women+tech&limit=60&offset=0',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'opp-search', title: 'Women in Tech Fellowship' }),
+    ]);
+  });
+
   it('fetches authenticated recommendations, normalizes them, and persists the cache', async () => {
     const { fetchOpportunities, getCachedOpportunitiesSnapshot } = loadService();
     const onSyncSnapshot = jest.fn().mockResolvedValue(undefined);

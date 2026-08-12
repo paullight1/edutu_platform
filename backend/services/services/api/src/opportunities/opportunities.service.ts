@@ -1160,15 +1160,33 @@ export class OpportunitiesService {
     }
 
     const rows = (data ?? []) as Array<Record<string, any>>;
+    const categoryLabels: Record<string, string> = {
+      scholarships: "Scholarships",
+      internships: "Internships",
+      programs: "Programs",
+      fellowships: "Fellowships",
+      grants: "Grants",
+      graduate_programs: "Graduate Programs",
+      bootcamps: "Bootcamps",
+      events: "Events",
+      other: "Other",
+    };
     const updates = rows.map((row) => {
-      const input = {
-        ...row,
-        canonical_category: undefined,
-        canonicalCategory: undefined,
-      };
+      const rowMetadata =
+        row.metadata && typeof row.metadata === "object"
+          ? (row.metadata as Record<string, unknown>)
+          : {};
+      const manuallyLocked = rowMetadata.classification_locked === true;
+      const input = manuallyLocked
+        ? row
+        : {
+            ...row,
+            canonical_category: undefined,
+            canonicalCategory: undefined,
+          };
       const classification = classifyOpportunity(input);
       const metadata = {
-        ...((row.metadata as Record<string, unknown>) || {}),
+        ...rowMetadata,
         canonical_category: classification.canonicalCategory,
         classification_confidence: classification.confidence,
         classification_reason: classification.reason,
@@ -1183,6 +1201,9 @@ export class OpportunitiesService {
         title: row.title,
         previousCategory: row.canonical_category ?? row.canonicalCategory,
         nextCategory: classification.canonicalCategory,
+        displayCategory:
+          categoryLabels[classification.canonicalCategory] ??
+          classification.canonicalCategory,
         confidence: classification.confidence,
         reason: classification.reason,
         needsReview: classification.needsReview,
@@ -1195,6 +1216,7 @@ export class OpportunitiesService {
         const { error: updateError } = await this.supabase
           .from("opportunities")
           .update({
+            category: update.displayCategory,
             canonical_category: update.nextCategory,
             metadata: update.metadata,
             updated_at: new Date().toISOString(),
@@ -1486,12 +1508,11 @@ export class OpportunitiesService {
       graduate_programs: "Graduate Programs",
       bootcamps: "Bootcamps",
       events: "Events",
-      jobs: "Jobs",
-      competitions: "Competitions",
     };
     const label = labels[canonical] ?? canonical;
 
     this.invalidateReadCaches();
+    const classificationUpdatedAt = new Date().toISOString();
 
     if (this.supabase) {
       const { data, error } = await this.supabase
@@ -1499,12 +1520,58 @@ export class OpportunitiesService {
         .update({
           category: label,
           canonical_category: canonical,
-          updated_at: new Date().toISOString(),
+          updated_at: classificationUpdatedAt,
         })
         .in("id", ids)
         .select("id");
 
       if (!error) {
+        // A bulk move is an explicit admin decision. Preserve that decision
+        // when the background classifier is run later, without replacing the
+        // rest of each row's scraper metadata.
+        const { data: metadataRows, error: metadataError } = await this.supabase
+          .from("opportunities")
+          .select("id, metadata")
+          .in("id", ids);
+        if (metadataError) {
+          this.logger.warn(
+            `Manual category lock could not be read: ${metadataError.message}`,
+          );
+        } else {
+          const lockRows = (metadataRows ?? []) as Array<{
+            id: string;
+            metadata?: unknown;
+          }>;
+          for (let offset = 0; offset < lockRows.length; offset += 20) {
+            const chunk = lockRows.slice(offset, offset + 20);
+            await Promise.all(
+              chunk.map(async (row) => {
+                const existing =
+                  row.metadata &&
+                  typeof row.metadata === "object" &&
+                  !Array.isArray(row.metadata)
+                    ? (row.metadata as Record<string, unknown>)
+                    : {};
+                const { error: lockError } = await this.supabase!
+                  .from("opportunities")
+                  .update({
+                    metadata: {
+                      ...existing,
+                      classification_locked: true,
+                      classification_source: "manual",
+                      classification_updated_at: classificationUpdatedAt,
+                    },
+                  })
+                  .eq("id", row.id);
+                if (lockError) {
+                  this.logger.warn(
+                    `Manual category lock failed for ${row.id}: ${lockError.message}`,
+                  );
+                }
+              }),
+            );
+          }
+        }
         return { updated: (data ?? []).length, category: label };
       }
       this.logger.warn(
@@ -1521,6 +1588,30 @@ export class OpportunitiesService {
       })
       .where(inArray(opportunities.id, ids))
       .returning({ id: opportunities.id });
+
+    const metadataRows = await db
+      .select({ id: opportunities.id, metadata: opportunities.metadata })
+      .from(opportunities)
+      .where(inArray(opportunities.id, ids));
+    await Promise.all(
+      metadataRows.map((row) => {
+        const existing =
+          row.metadata && typeof row.metadata === "object"
+            ? (row.metadata as Record<string, unknown>)
+            : {};
+        return db
+          .update(opportunities)
+          .set({
+            metadata: {
+              ...existing,
+              classification_locked: true,
+              classification_source: "manual",
+              classification_updated_at: classificationUpdatedAt,
+            },
+          })
+          .where(eq(opportunities.id, row.id));
+      }),
+    );
 
     return { updated: rows.length, category: label };
   }

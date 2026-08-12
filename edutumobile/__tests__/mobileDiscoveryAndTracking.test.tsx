@@ -256,6 +256,15 @@ jest.mock('@edutu/core/src/hooks/useOpportunities', () => ({
   }),
 }), { virtual: true });
 
+// This screen uses the public catalogue search when a query settles. These
+// route tests exercise the local/degraded fallback feed, so keep that network
+// leg unavailable explicitly.
+jest.mock('@edutu/core/src/services/opportunities', () => ({
+  searchOpportunities: jest.fn(async () => {
+    throw new Error('search unavailable in route test');
+  }),
+}), { virtual: true });
+
 jest.mock('@edutu/core/src/services/opportunitySignals', () => ({
   recordOpportunitySignal: (...args: unknown[]) => mockRecordOpportunitySignal(...args),
 }), { virtual: true });
@@ -414,7 +423,7 @@ describe('mobile discovery and tracking routes', () => {
     const feed = await waitFor(() => screen.getByTestId('opportunities-feed'));
     const feedRows = feed.props.data as Array<{ id: string }>;
 
-    expect(screen.getByText('Explore')).toBeTruthy();
+    expect(screen.getByText('All opportunities')).toBeTruthy();
     expect(feedRows).toHaveLength(16);
     expect(new Set(feedRows.map((item) => item.id)).size).toBe(16);
   });

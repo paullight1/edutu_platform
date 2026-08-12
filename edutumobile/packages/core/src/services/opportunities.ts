@@ -22,6 +22,12 @@ interface FetchOptions {
   onUpdateN8n?: (opportunities: Opportunity[], userId: string) => Promise<void>;
 }
 
+export interface SearchOpportunitiesOptions {
+  signal?: AbortSignal;
+  limit?: number;
+  offset?: number;
+}
+
 function getCacheKey(userId?: string): string {
   return `${OPPORTUNITIES_CACHE_KEY}:${userId || 'guest'}`;
 }
@@ -81,6 +87,42 @@ export async function getCachedOpportunity(id: string): Promise<Opportunity | nu
   } catch {
     return null;
   }
+}
+
+/**
+ * Search the complete active catalogue, rather than only the recommendations
+ * already painted in the feed. The backend owns typo tolerance and semantic
+ * matching; callers can fall back to their local snapshot when this public
+ * endpoint is unavailable.
+ */
+export async function searchOpportunities(
+  term: string,
+  options: SearchOpportunitiesOptions = {},
+): Promise<Opportunity[]> {
+  const trimmed = term.trim();
+  if (trimmed.length < 2 || !API_BASE_URL) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    q: trimmed,
+    limit: String(Math.min(Math.max(options.limit ?? 60, 1), 60)),
+    offset: String(Math.min(Math.max(options.offset ?? 0, 0), 480)),
+  });
+
+  const response = await fetch(`${API_BASE_URL}/opportunities/search?${params.toString()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Opportunity search failed (${response.status})`);
+  }
+
+  const payload = await response.json();
+  const rows = Array.isArray(payload) ? payload : payload?.opportunities;
+  return Array.isArray(rows) ? rows.map((row: any) => normaliseOpportunity(row)) : [];
 }
 
 async function persistOpportunityDetail(opportunity: Opportunity): Promise<void> {

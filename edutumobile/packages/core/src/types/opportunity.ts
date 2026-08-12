@@ -1,6 +1,17 @@
 export type OpportunityDifficulty = 'Easy' | 'Medium' | 'Hard';
 export type OpportunitySource = 'admin' | 'n8n' | 'manual' | 'import';
-export type OpportunityCanonicalCategory = 'scholarships' | 'careers' | 'leadership' | 'global_programs' | 'training_conferences' | 'other';
+// Keep this list identical to the backend classifier and the home discovery
+// catalog. Legacy ingestion labels are normalized to one of these values.
+export type OpportunityCanonicalCategory =
+  | 'scholarships'
+  | 'internships'
+  | 'programs'
+  | 'fellowships'
+  | 'grants'
+  | 'graduate_programs'
+  | 'bootcamps'
+  | 'events'
+  | 'other';
 
 export type MatchReasonKind =
   | 'field'

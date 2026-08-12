@@ -267,7 +267,7 @@ export class CreatorService {
             ? `Your ${kind} application for ${applicantLabel} has been approved.`
             : adminNote ||
               `Your ${kind} application was not approved at this time.`,
-        kind: "admin-broadcast",
+        kind: "application-status",
         severity: decision === "approved" ? "success" : "warning",
         audience: "specific",
         targetUserIds: [app.userId],
@@ -282,6 +282,7 @@ export class CreatorService {
           creatorStatus: decision,
           adminNote: adminNote ?? null,
         },
+        dedupeKey: `creator-application-status:${applicationId}:${decision}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

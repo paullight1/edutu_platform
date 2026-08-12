@@ -37,6 +37,7 @@ import {
   Share2,
   ArrowDownWideNarrow,
   Bell,
+  Sparkles,
 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { StateView, useScreenState } from '../../../components/state';
@@ -45,6 +46,7 @@ import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
+import { searchOpportunities } from '@edutu/core/src/services/opportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySignals';
 import { markImpression } from '../../../lib/impressions';
@@ -335,7 +337,7 @@ function SkeletonCard({ colors }: { colors: any }) {
 }
 
 // ─── Detail Card (Grid view for explore) ─────────────────────────────────────
-function DetailCard({ item, onPress, colors }: { item: Opportunity; onPress: () => void; colors: any }) {
+function DetailCard({ item, onPress, onSummary, colors }: { item: Opportunity; onPress: () => void; onSummary: (item: Opportunity) => void; colors: any }) {
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
@@ -395,10 +397,25 @@ function DetailCard({ item, onPress, colors }: { item: Opportunity; onPress: () 
               <Text style={[styles.detailMetaText, { color: deadline.color }]}>{deadline.text}</Text>
             </View>
           ) : null}
-          <View style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}>
+          <View
+            style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}
+          >
             <ChevronRight size={16} color={accent} />
           </View>
         </View>
+
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            onSummary(item);
+          }}
+          style={styles.cardSummaryAction}
+          accessibilityRole="button"
+          accessibilityLabel={t('list.aiSummaryAction')}
+        >
+          <Sparkles size={12} color={accent} />
+          <Text style={[styles.cardSummaryActionText, { color: accent }]}>{t('list.aiSummaryAction')}</Text>
+        </Pressable>
 
       </View>
     </Pressable>
@@ -463,7 +480,7 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
 }
 
 // ─── List Row (for list view) ────────────────────────────────────────────────
-function ListRow({ item, onPress, onShare, colors }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any }) {
+function ListRow({ item, onPress, onSummary, onShare, colors }: { item: Opportunity; onPress: () => void; onSummary: (item: Opportunity) => void; onShare: (item: Opportunity) => void; colors: any }) {
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
@@ -510,6 +527,18 @@ function ListRow({ item, onPress, onShare, colors }: { item: Opportunity; onPres
       <Pressable
         onPress={(event) => {
           event.stopPropagation();
+          onSummary(item);
+        }}
+        hitSlop={8}
+        style={styles.listShareBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t('list.aiSummaryAction')}
+      >
+        <Sparkles size={16} color={colors.accent} />
+      </Pressable>
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation();
           onShare(item);
         }}
         hitSlop={8}
@@ -534,7 +563,6 @@ export default function OpportunitiesScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Opportunity>>(null);
   const searchInputRef = useRef<TextInput>(null);
-  const searchExpand = useAnimatedValue(0);
   const scrollY = useAnimatedValue(0);
   const { colors } = useTheme();
   // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
@@ -549,8 +577,10 @@ export default function OpportunitiesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<SortMode>('recommended');
-  const [showSearch, setShowSearch] = useState(Boolean(initialSearchQuery));
   const [showMenu, setShowMenu] = useState(false);
+  const [serverSearchResults, setServerSearchResults] = useState<Opportunity[] | null>(null);
+  const [serverSearchQuery, setServerSearchQuery] = useState('');
+  const [quickSummaryItem, setQuickSummaryItem] = useState<Opportunity | null>(null);
   const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategoryId | null>(normalizedCategoryParam);
   // Stable for this mounted screen so cards never jump while the user scrolls.
   // Remounting or explicitly refreshing creates a new discovery rotation.
@@ -563,7 +593,6 @@ export default function OpportunitiesScreen() {
     setPrevQParam(params.q);
     if (typeof params.q === 'string' && params.q.trim()) {
       setSearchTerm(params.q);
-      setShowSearch(true);
     }
   }
   const [prevCategoryParam, setPrevCategoryParam] = useState(normalizedCategoryParam);
@@ -643,18 +672,26 @@ export default function OpportunitiesScreen() {
   }, [normalizedCategoryParam, getToken]);
 
   useEffect(() => {
-    Animated.timing(searchExpand, {
-      toValue: showSearch ? 1 : 0,
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    if (showSearch) {
-      const focusTimer = setTimeout(() => searchInputRef.current?.focus(), 170);
-      return () => clearTimeout(focusTimer);
+    const query = debouncedSearch.trim();
+    if (query.length < 2) {
+      return;
     }
-  }, [searchExpand, showSearch]);
+
+    const controller = new AbortController();
+    void searchOpportunities(query, { signal: controller.signal })
+      .then((results) => {
+        if (!controller.signal.aborted) {
+          setServerSearchResults(results);
+          setServerSearchQuery(query);
+        }
+      })
+      .catch(() => {
+        // The local recommendation snapshot remains usable offline and while
+        // the public search endpoint is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [debouncedSearch]);
   const personalizationProfile = useMemo<PersonalizationProfile | null>(() => {
     const metadata = (user?.unsafeMetadata || {}) as Record<string, unknown>;
     if (!metadata || Object.keys(metadata).length === 0) return null;
@@ -712,12 +749,6 @@ export default function OpportunitiesScreen() {
   });
   const pageTitle = selectedDiscoveryCategory ? t(getDiscoveryPageTitle(selectedDiscoveryCategory)) : t('list.title');
   const selectedDiscoveryCard = getDiscoveryCard(selectedDiscoveryCategory);
-  const pageSubtitle = selectedDiscoveryCategory
-    ? t('list.browseOnly', { category: t(getDiscoveryPageTitle(selectedDiscoveryCategory)).toLowerCase() })
-    : t('list.chooseCategory');
-  const searchHeight = searchExpand.interpolate({ inputRange: [0, 1], outputRange: [0, 70] });
-  const searchOpacity = searchExpand.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0, 1] });
-  const searchTranslate = searchExpand.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
   const categoryHeroOpacity = scrollY.interpolate({
     inputRange: [0, 96, 150],
     outputRange: [1, 0.42, 0],
@@ -754,7 +785,12 @@ export default function OpportunitiesScreen() {
 
   const explore = useMemo(() => {
     const tokens = debouncedSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    let filtered = showForYouOnly ? [...fullForYou] : [...opportunities];
+    const hasServerSearch = tokens.length > 0 && serverSearchQuery === debouncedSearch.trim() && serverSearchResults !== null;
+    let filtered = hasServerSearch
+      ? [...serverSearchResults]
+      : showForYouOnly
+        ? [...fullForYou]
+        : [...opportunities];
 
     // Token-based match: every word must appear somewhere in the broad haystack
     // (title, org, category, location, tags, benefits, summary, requirements…).
@@ -768,7 +804,7 @@ export default function OpportunitiesScreen() {
     filtered = filtered.filter((item) => matchesDiscoveryCategory(item, selectedDiscoveryCategory));
 
     return sortOpportunities(filtered, sortMode, shuffleSeed);
-  }, [fullForYou, opportunities, debouncedSearch, selectedDiscoveryCategory, showForYouOnly, sortMode, shuffleSeed]);
+  }, [fullForYou, opportunities, serverSearchResults, serverSearchQuery, debouncedSearch, selectedDiscoveryCategory, showForYouOnly, sortMode, shuffleSeed]);
 
   const shouldShowChooser = !showForYouOnly && !isCategoryPage;
   const showDiscoveryLanding = shouldShowChooser && !debouncedSearch.trim();
@@ -805,6 +841,11 @@ export default function OpportunitiesScreen() {
     router.push(`/opportunities/${opportunityId}`);
   };
 
+  const handleQuickSummary = useCallback((item: Opportunity) => {
+    setQuickSummaryItem(item);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
   const handleShareOpportunity = useCallback((opportunity: Opportunity) => {
     void recordOpportunitySignal({
       opportunityId: opportunity.id,
@@ -833,7 +874,7 @@ export default function OpportunitiesScreen() {
   const handleMenuAction = useCallback(async (action: 'search' | 'settings' | 'refresh') => {
     setShowMenu(false);
     if (action === 'search') {
-      setShowSearch((current) => !current);
+      searchInputRef.current?.focus();
       return;
     }
     if (action === 'settings') {
@@ -916,9 +957,9 @@ export default function OpportunitiesScreen() {
         </Animated.View>
       ) : (
         <ScreenHeader
-          title={showForYouOnly ? t('list.forYou') : pageTitle}
+          title={t('list.explore')}
           showBack
-          subtitle={showForYouOnly ? t('list.forYouSubtitle') : pageSubtitle}
+          subtitle={showForYouOnly ? t('list.forYouSubtitle') : t('list.exploreSubtitle')}
           right={
             <Pressable onPress={() => setShowMenu((current) => !current)} style={[styles.headerMenuButton, { backgroundColor: colors.card }]}>
               <Menu size={20} color={colors.foreground} />
@@ -931,7 +972,7 @@ export default function OpportunitiesScreen() {
         <View style={[styles.menuSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('search')}>
             <Search size={24} color={colors.foreground} />
-            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{showSearch ? t('list.hideSearch') : t('common:actions.search')}</Text>
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('common:actions.search')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('settings')}>
             <Settings size={24} color={colors.foreground} />
@@ -958,8 +999,10 @@ export default function OpportunitiesScreen() {
         </View>
       )}
 
-      <Animated.View style={[styles.headerSearchWrap, { height: searchHeight, opacity: searchOpacity, transform: [{ translateY: searchTranslate }] }]}>
-        <View style={[styles.searchShell, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.headerSearchWrap}>
+        <View
+          style={[styles.searchShell, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <Search color={colors.textSecondary} size={18} />
           <TextInput
             ref={searchInputRef}
@@ -969,27 +1012,89 @@ export default function OpportunitiesScreen() {
             placeholderTextColor={colors.textSecondary}
             style={[styles.searchInput, { color: colors.foreground }]}
             returnKeyType="search"
+            testID="opportunities-search-input"
           />
-          {searchTerm.trim().length > 1 && (
+          {searchTerm.trim().length > 0 && (
             <Pressable
-              onPress={() => void handleSaveSearch()}
+              onPress={() => setSearchTerm('')}
               style={styles.searchCloseButton}
-              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('list.clearSearch')}
             >
-              <BookmarkPlus color={colors.accent} size={17} />
+              <X color={colors.textSecondary} size={16} />
             </Pressable>
           )}
+        </View>
+        <View style={styles.searchHintRow}>
+          <Sparkles color={colors.accent} size={13} />
+          <Text style={[styles.searchHint, { color: colors.textSecondary }]}>
+            {debouncedSearch.trim().length >= 2
+              ? t('list.searchResultCount', { count: explore.length })
+              : t('list.searchHint')}
+        </Text>
+        </View>
+        {debouncedSearch.trim().length >= 2 && (
+          <View style={styles.searchActionRow}>
+            <Pressable
+              onPress={() => {
+                const topMatch = feedOpportunities[0];
+                if (topMatch) handleQuickSummary(topMatch);
+              }}
+              disabled={!feedOpportunities[0]}
+              style={[styles.searchAction, { backgroundColor: `${colors.accent}12`, opacity: feedOpportunities[0] ? 1 : 0.5 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('list.summarizeTopMatch')}
+            >
+              <Sparkles size={14} color={colors.accent} />
+              <Text style={[styles.searchActionText, { color: colors.accent }]}>{t('list.summarizeTopMatch')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleSaveSearch()}
+              style={[styles.searchAction, { backgroundColor: colors.card, borderColor: colors.border }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('list.saveSearch.notifyA11y')}
+            >
+              <BookmarkPlus size={14} color={colors.foreground} />
+              <Text style={[styles.searchActionText, { color: colors.foreground }]}>{t('list.addAlert')}</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      {quickSummaryItem && (
+        <View style={[styles.quickSummaryCard, { backgroundColor: colors.card, borderColor: `${colors.accent}45` }]}>
+          <View style={styles.quickSummaryHeader}>
+            <View style={styles.quickSummaryTitleRow}>
+              <View style={[styles.quickSummaryIcon, { backgroundColor: `${colors.accent}14` }]}>
+                <Sparkles size={15} color={colors.accent} />
+              </View>
+              <View style={styles.quickSummaryTitleCopy}>
+                <Text style={[styles.quickSummaryEyebrow, { color: colors.accent }]}>{t('list.aiSummaryAction')}</Text>
+                <Text style={[styles.quickSummaryTitle, { color: colors.foreground }]} numberOfLines={1}>{quickSummaryItem.title}</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => setQuickSummaryItem(null)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('list.dismissSummary')}
+            >
+              <X size={16} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+          <Text style={[styles.quickSummaryText, { color: colors.textSecondary }]} numberOfLines={4}>
+            {quickSummaryItem.aiSummary || quickSummaryItem.description || t('detail.descriptionUnavailable')}
+          </Text>
           <Pressable
-            onPress={() => {
-              setSearchTerm('');
-              setShowSearch(false);
-            }}
-            style={styles.searchCloseButton}
+            onPress={() => openOpportunity(quickSummaryItem.id, 'explore_ai_summary_open')}
+            style={styles.quickSummaryLink}
+            accessibilityRole="button"
           >
-            <X color={colors.textSecondary} size={16} />
+            <Text style={[styles.quickSummaryLinkText, { color: colors.accent }]}>{t('list.openFullOpportunity')}</Text>
+            <ChevronRight size={14} color={colors.accent} />
           </Pressable>
         </View>
-      </Animated.View>
+      )}
 
       <Animated.FlatList
         testID="opportunities-feed"
@@ -1143,7 +1248,7 @@ export default function OpportunitiesScreen() {
                       <Compass color={colors.accent} size={16} />
                     </View>
                     <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                      {showForYouOnly ? t('list.personalized') : isCategoryPage ? pageTitle : t('list.explore')}
+                      {showForYouOnly ? t('list.personalized') : isCategoryPage ? pageTitle : t('list.allOpportunities')}
                     </Text>
                   </View>
                   <View style={[styles.viewModeWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1199,9 +1304,9 @@ export default function OpportunitiesScreen() {
         }
         renderItem={({ item }) => (
           viewMode === 'grid' ? (
-            <DetailCard item={item} colors={colors} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
+            <DetailCard item={item} colors={colors} onSummary={handleQuickSummary} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
           ) : (
-            <ListRow item={item} colors={colors} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
+            <ListRow item={item} colors={colors} onSummary={handleQuickSummary} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
           )
         )}
         ItemSeparatorComponent={() => viewMode === 'list' ? <View style={{ height: 10 }} /> : null}
@@ -1288,12 +1393,15 @@ const styles = StyleSheet.create({
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 58, paddingHorizontal: 22, paddingVertical: 12 },
   menuItemText: { fontSize: 19, fontWeight: '700' },
   headerSearchWrap: {
-    overflow: 'hidden',
     paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   searchShell: { minHeight: 52, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 14 },
   searchCloseButton: { padding: 5, borderRadius: 10 },
+  searchHintRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7, paddingHorizontal: 3 },
+  searchHint: { flex: 1, fontSize: 11, lineHeight: 15, fontWeight: '600' },
   categoryHero: {
     height: 184,
     marginHorizontal: -20,
@@ -1449,6 +1557,8 @@ const styles = StyleSheet.create({
   detailMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   detailMetaText: { fontSize: 10, fontWeight: '600' },
   detailArrow: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  cardSummaryAction: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 2 },
+  cardSummaryActionText: { fontSize: 11, fontWeight: '800' },
 
   // List Row
   listRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, marginBottom: 10, gap: 12 },
@@ -1467,6 +1577,19 @@ const styles = StyleSheet.create({
   listStipend: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   listStipendText: { fontSize: 10, fontWeight: '700', color: '#10B981' },
   listShareBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  searchActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 },
+  searchAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 10, borderWidth: 1, flexShrink: 1 },
+  searchActionText: { fontSize: 11, fontWeight: '800' },
+  quickSummaryCard: { marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderRadius: 16, padding: 14 },
+  quickSummaryHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  quickSummaryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 },
+  quickSummaryIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  quickSummaryTitleCopy: { flex: 1, minWidth: 0 },
+  quickSummaryEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3, textTransform: 'uppercase' },
+  quickSummaryTitle: { fontSize: 13, fontWeight: '800', marginTop: 2 },
+  quickSummaryText: { fontSize: 13, lineHeight: 19, marginTop: 12 },
+  quickSummaryLink: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 10 },
+  quickSummaryLinkText: { fontSize: 12, fontWeight: '800' },
 
   // Empty States
   emptyRail: { width: 260, borderRadius: 18, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },

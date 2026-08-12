@@ -133,7 +133,6 @@ const BULK_MOVE_CATEGORIES = [
   "Graduate Programs",
   "Bootcamps",
   "Events",
-  "Competitions",
 ] as const;
 
 type CreationMode = "manual" | "url" | "bulk";
