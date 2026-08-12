@@ -350,6 +350,7 @@ function EditorTile({
     onResizeStart,
     onResize,
     onResizeEnd,
+    onResizeStep,
     onRemove,
 }: {
     tile: HomeCategoryTile;
@@ -366,6 +367,7 @@ function EditorTile({
     onResizeStart: (id: DiscoveryCategoryId) => void;
     onResize: (id: DiscoveryCategoryId, size: DiscoveryTileSize) => void;
     onResizeEnd: (id: DiscoveryCategoryId) => void;
+    onResizeStep: (id: DiscoveryCategoryId, size: DiscoveryTileSize) => void;
     onRemove: (id: DiscoveryCategoryId) => void;
 }) {
     const { t } = useTranslation('home');
@@ -419,13 +421,12 @@ function EditorTile({
 
     // Edge-drag resize (iOS widget style): the width follows the finger and
     // the committed size live-snaps to the nearest step, so the board reflows
-    // while you drag. Horizontal-only so vertical swipes still scroll. The
-    // gesture's hitSlop confines it to a strip along the tile's right edge —
-    // it shares one detector with the reorder pan (see Gesture.Exclusive
-    // below); a nested detector loses the arbitration race and never fires.
+    // while you drag. Horizontal-only so vertical swipes still scroll. This
+    // detector is attached to the edge control itself, separate from the
+    // face's long-press reorder detector.
     const resizePan = Gesture.Pan()
         .enabled(gestureEnabled)
-        .hitSlop({ width: 36, right: 10 })
+        .hitSlop({ top: 8, bottom: 8, left: 8, right: 8 })
         .activeOffsetX([-6, 6])
         .failOffsetY([-16, 16])
         .onStart(() => {
@@ -457,7 +458,11 @@ function EditorTile({
     // Resize wins on the edge strip; the reorder pan only activates once the
     // resize gesture is out of the running (touch outside the strip, or
     // vertical movement failing it).
-    const tileGesture = Gesture.Exclusive(resizePan, pan);
+    const tileGesture = pan;
+    const nextSize = EDITOR_TILE_SIZE_STEPS[
+        (EDITOR_TILE_SIZE_STEPS.findIndex((step) => step.size === tile.size) + 1) % EDITOR_TILE_SIZE_STEPS.length
+    ].size;
+    const nextSizeLabel = nextSize === 'icon' ? 'compact' : nextSize === 'card' ? 'card' : 'wide';
 
     const tileStyle = useAnimatedStyle(() => ({
         position: 'absolute' as const,
@@ -475,8 +480,10 @@ function EditorTile({
     const faceStyle = useAnimatedStyle(() => ({ height: faceH.value }));
 
     return (
-        <GestureDetector gesture={tileGesture}>
-            <Animated.View style={tileStyle} exiting={FadeOut.duration(140)}>
+        <Animated.View style={tileStyle} exiting={FadeOut.duration(140)}>
+            {/* Keep the drag gesture on the face only. Explicit controls live
+                beside it so a tap cannot be swallowed by the long-press pan. */}
+            <GestureDetector gesture={tileGesture}>
                 <Animated.View style={[styles.editorFace, faceStyle]}>
                     {/* Crossfade the face when the size changes so content never snaps. */}
                     <Animated.View
@@ -486,39 +493,48 @@ function EditorTile({
                     >
                         <DiscoveryTileFace item={category} size={tile.size} title={title} />
                     </Animated.View>
-                    {canRemove && (
-                        <TouchableOpacity
-                            onPress={() => onRemove(tile.id)}
-                            hitSlop={10}
-                            disabled={!gestureEnabled && !held}
-                            style={[
-                                styles.editorBadge,
-                                styles.editorRemoveBadge,
-                                // Ride the corner of the centered icon square, not the slot.
-                                tile.size === 'icon' && { right: (rect.w - ICON_SQUARE) / 2 + 2 },
-                            ]}
-                            accessibilityLabel={t('home.discoveryEditor.remove', { defaultValue: 'Remove {{title}}', title })}
-                        >
-                            <Minus size={11} color="#FFFFFF" strokeWidth={3} />
-                        </TouchableOpacity>
-                    )}
-                    {/* Purely visual — the resize gesture lives on the tile
-                        root, confined to this edge strip via its hitSlop. */}
-                    <View style={styles.editorResizeZone} pointerEvents="none">
-                        <View style={styles.editorResizeHandle} />
-                    </View>
                 </Animated.View>
-                {tile.size === 'icon' && (
-                    <Animated.Text
-                        entering={FadeIn.duration(180)}
-                        style={[styles.editorIconLabel, { color: labelColor }]}
-                        numberOfLines={1}
-                    >
-                        {title}
-                    </Animated.Text>
-                )}
-            </Animated.View>
-        </GestureDetector>
+            </GestureDetector>
+            {canRemove && (
+                <Pressable
+                    onPress={() => onRemove(tile.id)}
+                    hitSlop={10}
+                    disabled={!gestureEnabled && !held}
+                    style={[
+                        styles.editorBadge,
+                        styles.editorRemoveBadge,
+                        // Ride the corner of the centered icon square, not the slot.
+                        tile.size === 'icon' && { right: (rect.w - ICON_SQUARE) / 2 + 2 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.discoveryEditor.remove', { defaultValue: 'Remove {{title}}', title })}
+                    testID={`home-category-remove-${tile.id}`}
+                >
+                    <Minus size={11} color="#FFFFFF" strokeWidth={3} />
+                </Pressable>
+            )}
+            <GestureDetector gesture={resizePan}>
+                <Pressable
+                    onPress={() => onResizeStep(tile.id, nextSize)}
+                    hitSlop={{ left: 12, right: 12, top: 8, bottom: 8 }}
+                    style={styles.editorResizeZone}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.discoveryEditor.resize', { defaultValue: 'Resize {{title}} to {{size}}', title, size: nextSizeLabel })}
+                    testID={`home-category-resize-${tile.id}`}
+                >
+                    <View style={styles.editorResizeHandle} />
+                </Pressable>
+            </GestureDetector>
+            {tile.size === 'icon' && (
+                <Animated.Text
+                    entering={FadeIn.duration(180)}
+                    style={[styles.editorIconLabel, { color: labelColor }]}
+                    numberOfLines={1}
+                >
+                    {title}
+                </Animated.Text>
+            )}
+        </Animated.View>
     );
 }
 
@@ -643,6 +659,13 @@ function HomeCategoriesEditor({
         setResizingId((current) => (current === id ? null : current));
     }, []);
 
+    const handleResizeStep = useCallback((id: DiscoveryCategoryId, size: DiscoveryTileSize) => {
+        void haptics.selection();
+        setDraft((prev) => prev.map((entry) => (
+            entry.id === id ? { ...entry, size } : entry
+        )));
+    }, []);
+
     const handleRemove = useCallback((id: DiscoveryCategoryId) => {
         // Keep at least one tile on the homepage.
         setDraft((prev) => (prev.length > 1 ? prev.filter((entry) => entry.id !== id) : prev));
@@ -709,6 +732,7 @@ function HomeCategoriesEditor({
                                             onResizeStart={handleResizeStart}
                                             onResize={handleResize}
                                             onResizeEnd={handleResizeEnd}
+                                            onResizeStep={handleResizeStep}
                                             onRemove={handleRemove}
                                         />
                                     );
@@ -731,6 +755,7 @@ function HomeCategoriesEditor({
                                                     defaultValue: 'Add {{title}}',
                                                     title: t(category.homeTitleKey, { defaultValue: category.fallbackTitle }),
                                                 })}
+                                                testID={`home-category-add-${category.id}`}
                                             >
                                                 <View style={styles.editorAddCardFace}>
                                                     <DiscoveryTileFace

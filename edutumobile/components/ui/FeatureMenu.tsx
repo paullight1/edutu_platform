@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    PanResponder,
     View,
     Text,
     TouchableOpacity,
@@ -21,6 +22,7 @@ import {
     HelpCircle,
 } from 'lucide-react-native';
 import { EdutuLogo } from '../branding/EdutuLogo';
+import { shouldCloseFeatureMenuOnSwipe } from './featureMenuGesture';
 
 type FeatureItem = {
     key: string;
@@ -58,6 +60,26 @@ export function FeatureMenu({
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+
+    const swipeResponder = useMemo(() => {
+        const shouldSetSwipeResponder = (_event: unknown, gesture: { dx: number; dy: number }) => (
+            visible
+            && gesture.dx < -14
+            && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25
+        );
+
+        return PanResponder.create({
+            // Capture horizontal gestures before the inner ScrollView can claim
+            // them, while leaving vertical scrolling untouched.
+            onMoveShouldSetPanResponderCapture: shouldSetSwipeResponder,
+            onMoveShouldSetPanResponder: shouldSetSwipeResponder,
+            onPanResponderRelease: (_event, gesture) => {
+                if (shouldCloseFeatureMenuOnSwipe(gesture)) {
+                    onClose();
+                }
+            },
+        });
+    }, [onClose, visible]);
 
     // Keep the underlay mounted while the foreground page completes its return
     // animation, otherwise the menu would blink away before the page covers it.
@@ -99,6 +121,7 @@ export function FeatureMenu({
     return (
         <View
             testID="feature-menu-underlay"
+            {...swipeResponder.panHandlers}
             accessibilityViewIsModal={visible}
             importantForAccessibility={visible ? 'yes' : 'no-hide-descendants'}
             pointerEvents={visible ? 'auto' : 'none'}
