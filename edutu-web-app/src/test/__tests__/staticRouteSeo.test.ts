@@ -40,3 +40,7 @@ it("events uses its hero screenshot for shared links", () => {
 it("download uses its hero screenshot for shared links", () => {
   expectRoutePreview("/download", "download");
 });
+
+it("what we believe uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/what-we-believe", "what-we-believe");
+});
