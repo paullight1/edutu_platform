@@ -44,3 +44,7 @@ it("download uses its hero screenshot for shared links", () => {
 it("what we believe uses its hero screenshot for shared links", () => {
   expectRoutePreview("/what-we-believe", "what-we-believe");
 });
+
+it("upgrade uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/upgrade", "upgrade");
+});
