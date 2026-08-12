@@ -331,27 +331,42 @@ const MentorPage: React.FC = () => {
     if (!showApplication) {
         return (
             <div className="min-h-[100dvh] bg-surface-body font-body text-text-primary">
-                <PublicHeader fixed />
+                <PublicHeader fixed darkAtTop />
 
                 <main>
                     <motion.section
                         initial={reduceMotion ? undefined : { opacity: 0 }}
                         whileInView={reduceMotion ? undefined : { opacity: 1 }}
                         viewport={{ once: true, margin: "-100px" }}
-                        className="relative overflow-hidden"
+                        className="relative isolate min-h-[min(760px,100dvh)] overflow-hidden bg-slate-950 text-white"
                     >
-                        <div
-                            className="pointer-events-none absolute inset-0"
-                            style={{
-                                background:
-                                    'radial-gradient(circle at 50% 10%, rgb(var(--color-brand-500) / 0.10), transparent 34%)',
-                            }}
-                        />
-                        <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 pt-32 pb-20 md:pt-36 md:pb-28 text-center">
+                        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                            {MENTOR_HERO_SLIDES.map((slide, index) => (
+                                <motion.img
+                                    key={slide.src}
+                                    src={slide.src}
+                                    alt=""
+                                    aria-hidden="true"
+                                    initial={false}
+                                    animate={{
+                                        opacity: index === activeHeroSlide ? 1 : 0,
+                                        scale: index === activeHeroSlide ? 1 : 1.035,
+                                    }}
+                                    transition={{ duration: 1.2, ease: 'easeInOut' }}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                    loading={index === 0 ? 'eager' : 'lazy'}
+                                    fetchPriority={index === 0 ? 'high' : 'auto'}
+                                />
+                            ))}
+                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,10,22,0.96)_0%,rgba(5,10,22,0.82)_38%,rgba(5,10,22,0.48)_72%,rgba(5,10,22,0.54)_100%)]" />
+                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,22,0.78)_0%,rgba(5,10,22,0.08)_35%,rgba(5,10,22,0.74)_100%)]" />
+                        </div>
+                        <div className="relative z-10 mx-auto flex min-h-[min(760px,100dvh)] max-w-[1200px] items-center px-4 pb-20 pt-32 text-center sm:px-6 md:pb-28 md:pt-36">
+                            <div className="w-full">
                             <motion.div
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-brand/10 text-brand border border-brand/20"
+                                className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-300/30 bg-slate-950/35 px-4 py-2 text-brand-100 shadow-soft backdrop-blur-md"
                             >
                                 <Sparkles size={14} />
                                 <span className="text-xs font-semibold uppercase tracking-[0.2em]">Mentor with Edutu</span>
