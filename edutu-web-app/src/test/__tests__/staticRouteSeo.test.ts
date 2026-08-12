@@ -28,3 +28,7 @@ it("about uses its hero screenshot for shared links", () => {
 it("impact uses its hero screenshot for shared links", () => {
   expectRoutePreview("/impact", "impact");
 });
+
+it("edutu for you uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/edutuforyou", "edutu-for-you");
+});
