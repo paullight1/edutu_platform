@@ -64,3 +64,7 @@ it("scholarship api uses its hero screenshot for shared links", () => {
 it("developers uses its hero screenshot for shared links", () => {
   expectRoutePreview("/developers", "developers");
 });
+
+it("developer docs uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/developers/docs", "developers-docs");
+});
