@@ -180,7 +180,10 @@ describe("CreatorService.getApplicationStatus", () => {
     mockedDb.select.mockReturnValue(chain);
 
     await expect(
-      service.getApplicationStatus("e5d3a70e-7d51-4759-9c64-60480b88fa2c", "mentor"),
+      service.getApplicationStatus(
+        "e5d3a70e-7d51-4759-9c64-60480b88fa2c",
+        "mentor",
+      ),
     ).resolves.toBeNull();
 
     const query = new PgDialect().sqlToQuery(applicationPredicate as SQL).sql;

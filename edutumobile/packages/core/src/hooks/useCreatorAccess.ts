@@ -4,6 +4,12 @@ import { toSafeUUID } from '../utils/auth';
 
 export type CreatorStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
+type ProfileAccess = {
+    user_id?: string | null;
+    creator_status?: CreatorStatus | null;
+    mentor_status?: CreatorStatus | null;
+};
+
 interface UseCreatorAccessReturn {
     status: CreatorStatus | null;
     isLoading: boolean;
@@ -35,6 +41,20 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
     });
 }
 
+/**
+ * Creator Studio is shared by creators and mentors, so either approved role
+ * grants access. An active pending application takes precedence over a
+ * rejection when neither role is approved, keeping the retry/review state
+ * useful for users with more than one application.
+ */
+function resolveAccessStatus(profile?: ProfileAccess): CreatorStatus {
+    const statuses = [profile?.mentor_status, profile?.creator_status];
+    if (statuses.includes('approved')) return 'approved';
+    if (statuses.includes('pending')) return 'pending';
+    if (statuses.includes('rejected')) return 'rejected';
+    return 'none';
+}
+
 export function useCreatorAccess(supabase: SupabaseClient, userId: string | null): UseCreatorAccessReturn {
     const [status, setStatus] = useState<CreatorStatus | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -63,14 +83,14 @@ export function useCreatorAccess(supabase: SupabaseClient, userId: string | null
         return withTimeout(
             supabase
                 .from('profiles')
-                .select('user_id, creator_status')
+                .select('user_id, creator_status, mentor_status')
                 .in('user_id', lookupIds),
             12000,
         )
             .then(({ data, error: queryError }) => {
                 if (queryError) throw queryError;
-                const profile = data?.find((row: any) => row.user_id === userId) || data?.[0];
-                setStatus(profile?.creator_status || 'none');
+                const profile = data?.find((row: ProfileAccess) => row.user_id === userId) || data?.[0];
+                setStatus(resolveAccessStatus(profile));
                 setError(null);
             })
             .catch((err: unknown) => {

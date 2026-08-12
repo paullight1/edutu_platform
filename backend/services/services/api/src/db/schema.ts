@@ -1121,6 +1121,12 @@ export const eventRegistrations = pgTable(
     index("idx_event_registrations_event_id").on(table.eventId),
     index("idx_event_registrations_user_id").on(table.userId),
     index("idx_event_registrations_email").on(table.email),
+    uniqueIndex("event_registrations_event_user_unique")
+      .on(table.eventId, table.userId)
+      .where(sql`${table.userId} is not null`),
+    uniqueIndex("event_registrations_event_email_ci_unique")
+      .on(table.eventId, sql`lower(${table.email})`)
+      .where(sql`${table.email} is not null`),
   ],
 );
 

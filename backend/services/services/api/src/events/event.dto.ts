@@ -36,7 +36,13 @@ export const UpdateEventSchema = CreateEventSchema.partial().extend({
 
 export const JoinEventSchema = z.object({
   name: optionalTrimmedString,
-  email: z.string().trim().email().optional().nullable(),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .optional()
+    .nullable()
+    .transform((value) => value?.toLowerCase() || undefined),
   userId: optionalTrimmedString,
   source: z.string().trim().min(1).optional().default("web"),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),

@@ -68,6 +68,7 @@ function AdminCreatorApplicationsContent() {
     const [submitting, setSubmitting] = useState(false);
     const [profileCache, setProfileCache] = useState<Record<string, { name: string; email: string; avatar: string }>>({});
     const [signedKycUrl, setSignedKycUrl] = useState<string | null>(null);
+    const [signedProofUrl, setSignedProofUrl] = useState<string | null>(null);
 
     // KYC docs live in a PRIVATE bucket. Resolve a short-lived signed URL when
     // an application is opened. Legacy rows may hold a full public URL — use
@@ -94,6 +95,29 @@ function AdminCreatorApplicationsContent() {
     }, [rawKyc, directKycUrl]);
 
     const kycUrl = directKycUrl ?? signedKycUrl;
+
+    const rawProof = selectedApp?.proof_path ?? null;
+    const legacyProofUrl = selectedApp?.proof_url && /^https?:\/\//i.test(selectedApp.proof_url)
+        ? selectedApp.proof_url
+        : null;
+
+    const [prevRawProof, setPrevRawProof] = useState(rawProof);
+    if (prevRawProof !== rawProof) {
+        setPrevRawProof(rawProof);
+        setSignedProofUrl(null);
+    }
+
+    useEffect(() => {
+        if (!rawProof || legacyProofUrl) return;
+        let cancelled = false;
+        supabase.storage
+            .from('creator-proofs')
+            .createSignedUrl(rawProof, 3600)
+            .then(({ data }) => { if (!cancelled) setSignedProofUrl(data?.signedUrl ?? null); });
+        return () => { cancelled = true; };
+    }, [rawProof, legacyProofUrl]);
+
+    const proofUrl = legacyProofUrl ?? signedProofUrl;
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -563,23 +587,17 @@ function AdminCreatorApplicationsContent() {
                                     )}
 
                                     {(() => {
-                                        // Web submissions store the proof in the PUBLIC creator-proofs
-                                        // bucket — prefer the stored URL, fall back to resolving the path.
-                                        const proofHref = selectedApp.proof_url
-                                            || (selectedApp.proof_path
-                                                ? supabase.storage.from('creator-proofs').getPublicUrl(selectedApp.proof_path).data.publicUrl
-                                                : null);
-                                        if (!proofHref) return null;
+                                        if (!proofUrl) return null;
                                         return (
                                             <View style={styles.detailSection}>
                                                 <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.proofUrl')}</Text>
                                                 <TouchableOpacity
                                                     style={styles.linkRow}
-                                                    onPress={() => { Linking.openURL(proofHref).catch(() => {}); }}
+                                                onPress={() => { Linking.openURL(proofUrl).catch(() => {}); }}
                                                 >
                                                     <ExternalLink size={14} color={colors.primary} />
                                                     <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
-                                                        {proofHref}
+                                                    {proofUrl}
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>
