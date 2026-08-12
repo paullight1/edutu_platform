@@ -315,14 +315,14 @@ describe("MonetizationService voice metering and premium authorization", () => {
     });
   });
 
-  it("applies the conservative 15 provider-minute daily default", async () => {
+  it("applies the conservative 5 provider-minute daily default", async () => {
     const service = setup({
       billing: { is_pro: true, created_at: daysAgoIso(10) },
       chatMessages: 0,
     });
 
     await expect(
-      service.meter("user-1", "voicePerMinute", 16),
+      service.meter("user-1", "voicePerMinute", 6),
     ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
       response: { error: "voice_fair_use_exceeded" },

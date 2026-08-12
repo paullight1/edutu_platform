@@ -90,12 +90,12 @@ const PRICING_CACHE_MS = 60_000;
 // before the meter bites. Env-tunable (ops can flip without a redeploy);
 // `0` disables the grace entirely; malformed → the 7-day default.
 const DEFAULT_FREE_CHAT_GRACE_DAYS = 7;
-// Voice is metered separately for STT and TTS, so a "15 minute" user turn can
+// Voice is metered separately for STT and TTS, so a "5 minute" user turn can
 // consume two provider-minute reservations. Keep the default deliberately
 // conservative until production cost telemetry is available. Operators can
 // lower or raise it per deployment with PRO_VOICE_DAILY_MINUTES, but the
 // existing Pro action-credit ceiling remains a second hard upper bound.
-const DEFAULT_PRO_VOICE_DAILY_MINUTES = 15;
+const DEFAULT_PRO_VOICE_DAILY_MINUTES = 5;
 
 function freeChatGraceDays(): number {
   const raw = process.env.FREE_CHAT_GRACE_DAYS;
@@ -956,8 +956,8 @@ export class MonetizationService {
   }
 
   /**
-   * The daily reservation is deliberately conservative: 15 provider minutes
-   * per day by default (roughly 105/week, 450/30-day month, or 5,475/year
+   * The daily reservation is deliberately conservative: 5 provider minutes
+   * per day by default (roughly 35/week, 150/30-day month, or 1,825/year
    * before a user changes plans). STT and TTS each reserve their own started
    * minutes, so a complete turn normally consumes two units. Operators can
    * lower the cap with PRO_VOICE_DAILY_MINUTES; pricing action credits remain
