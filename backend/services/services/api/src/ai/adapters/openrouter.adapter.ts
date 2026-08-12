@@ -66,7 +66,7 @@ export class OpenRouterAdapter implements AiProviderAdapter {
             : {}),
         }),
       },
-      { label: "OpenRouter" },
+      { label: "OpenRouter", signal: options.signal },
     );
 
     if (!response.ok) {
@@ -109,7 +109,7 @@ export class OpenRouterAdapter implements AiProviderAdapter {
         },
         body: JSON.stringify(buildOpenAiChatBody(config, options)),
       },
-      { label: "OpenRouter" },
+      { label: "OpenRouter", signal: options.signal },
     );
 
     if (!response.ok) {
@@ -145,6 +145,7 @@ export class OpenRouterAdapter implements AiProviderAdapter {
       provider: this.provider,
       model: config.model,
       label: "OpenRouter",
+      signal: options.signal,
     });
   }
 }

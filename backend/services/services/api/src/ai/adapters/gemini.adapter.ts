@@ -92,7 +92,7 @@ export class DeepSeekAdapter implements AiProviderAdapter {
             : {}),
         }),
       },
-      { label: "DeepSeek" },
+      { label: "DeepSeek", signal: options.signal },
     );
 
     if (!response.ok) {
@@ -133,7 +133,7 @@ export class DeepSeekAdapter implements AiProviderAdapter {
         },
         body: JSON.stringify(buildOpenAiChatBody(config, options)),
       },
-      { label: "DeepSeek" },
+      { label: "DeepSeek", signal: options.signal },
     );
 
     if (!response.ok) {
@@ -166,6 +166,7 @@ export class DeepSeekAdapter implements AiProviderAdapter {
       provider: this.provider,
       model: config.model || "deepseek-chat",
       label: "DeepSeek",
+      signal: options.signal,
     });
   }
 }
@@ -227,7 +228,7 @@ export class GeminiAdapter implements AiProviderAdapter {
           },
         }),
       },
-      { label: "Gemini" },
+      { label: "Gemini", signal: options.signal },
     );
 
     if (!response.ok) {
@@ -294,7 +295,7 @@ export class GeminiAdapter implements AiProviderAdapter {
             })),
           }),
         },
-        { label: "Gemini embeddings" },
+        { label: "Gemini embeddings", signal: options.signal },
       );
 
       if (!response.ok) {

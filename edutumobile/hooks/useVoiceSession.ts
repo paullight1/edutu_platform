@@ -8,8 +8,8 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { haptics } from '../lib/haptics';
-import { sendChatMessage, ChatRateLimitError } from '@edutu/core/src/services/chat';
-import { supabase } from '../lib/supabase';
+import { ChatRateLimitError } from '@edutu/core/src/services/chat';
+import { streamChatMessage } from '@edutu/core/src/services/chatStream';
 import { getConfig } from '../lib/config';
 import i18n from '../lib/i18n';
 import { setVoiceModeThread } from '../lib/voiceModeStore';
@@ -43,6 +43,39 @@ const TRAILING_SILENCE_MS = 1600;
 const MAX_TURN_MS = 30000;
 
 const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
+
+type VoiceTurnScope = {
+  generation: number;
+  controller: AbortController;
+};
+
+function abortError() {
+  const error = new Error('Voice turn aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function readBlobAsBase64(blob: Blob, signal: AbortSignal): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const reader = new FileReader();
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    reader.onloadend = () => {
+      signal.removeEventListener('abort', onAbort);
+      if (signal.aborted) reject(abortError());
+      else resolve((reader.result as string).split(',')[1]);
+    };
+    reader.onerror = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(new Error('Failed to read recording'));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
 
 export interface UseVoiceSessionOptions {
   mode: 'voice' | 'live';
@@ -100,6 +133,51 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   // the mute state at completion time, not at closure-creation time.
   const mutedRef = useRef(false);
   const pausedRef = useRef(false);
+  const accountUserIdRef = useRef(userId);
+  const turnGenerationRef = useRef(0);
+  const currentTurnRef = useRef<VoiceTurnScope | null>(null);
+  // expo-audio exposes one native recorder. Serialize prepare/record/stop so
+  // an app-state transition cannot start a second arm while the first native
+  // operation is still resolving.
+  const recorderOperationRef = useRef<Promise<void>>(Promise.resolve());
+
+  const runRecorderOperation = useCallback(async <T,>(operation: () => Promise<T> | T): Promise<T> => {
+    const previous = recorderOperationRef.current.catch(() => undefined);
+    let release!: () => void;
+    const next = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    recorderOperationRef.current = previous.then(() => next);
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }, []);
+
+  const abortCurrentTurn = useCallback(() => {
+    const current = currentTurnRef.current;
+    currentTurnRef.current = null;
+    current?.controller.abort();
+  }, []);
+
+  const createTurnScope = useCallback((): VoiceTurnScope => {
+    abortCurrentTurn();
+    const turn = {
+      generation: ++turnGenerationRef.current,
+      controller: new AbortController(),
+    };
+    currentTurnRef.current = turn;
+    return turn;
+  }, [abortCurrentTurn]);
+
+  const isCurrentTurn = useCallback((turn: VoiceTurnScope) => (
+    activeRef.current
+    && currentTurnRef.current === turn
+    && !turn.controller.signal.aborted
+  ), []);
 
   const updateStatus = useCallback((next: VoiceSessionStatus) => {
     statusRef.current = next;
@@ -107,20 +185,23 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   }, []);
 
   const stopRecorderQuietly = useCallback(async () => {
-    try {
-      await recorder.stop();
-    } catch {
-      // stop() throws if the recorder never started — nothing to clean up.
-    }
-    try {
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-    } catch {}
-  }, [recorder]);
+    await runRecorderOperation(async () => {
+      try {
+        await recorder.stop();
+      } catch {
+        // stop() throws if the recorder never started — nothing to clean up.
+      }
+      try {
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      } catch {}
+    });
+  }, [recorder, runRecorderOperation]);
 
   // Full teardown on unmount: kill the mic, the loop, and any speech.
   useEffect(() => {
     activeRef.current = true;
     return () => {
+      abortCurrentTurn();
       activeRef.current = false;
       stopSpeaking();
       try {
@@ -129,7 +210,35 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [abortCurrentTurn]);
+
+  // A hook instance can outlive the Clerk account that created its turn.
+  // Treat an identity change like a hard session boundary so captions,
+  // threads and delayed callbacks can never cross accounts.
+  useEffect(() => {
+    if (accountUserIdRef.current === userId) return;
+    accountUserIdRef.current = userId;
+    abortCurrentTurn();
+    processingRef.current = false;
+    stopSpeaking();
+    void stopRecorderQuietly();
+    threadIdRef.current = null;
+    lastPromptRef.current = null;
+    durationMsRef.current = 0;
+    greetedRef.current = false;
+    mutedRef.current = false;
+    pausedRef.current = false;
+    setVoiceModeThread(null);
+    setMuted(false);
+    setPaused(false);
+    setLevel(0);
+    setUserTranscript(null);
+    setAssistantReply(null);
+    setSpokenRatio(0);
+    setTurnCount(0);
+    setErrorCode(null);
+    updateStatus('idle');
+  }, [abortCurrentTurn, stopRecorderQuietly, updateStatus, userId]);
 
   const startListening = useCallback(async () => {
     if (!activeRef.current || processingRef.current) return;
@@ -139,10 +248,13 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       updateStatus('idle');
       return;
     }
+    const turn = createTurnScope();
     try {
       const current = await AudioModule.getRecordingPermissionsAsync();
+      if (!isCurrentTurn(turn)) return;
       if (!current.granted) {
         const requested = await AudioModule.requestRecordingPermissionsAsync();
+        if (!isCurrentTurn(turn)) return;
         if (!requested.granted) {
           setErrorCode('permission');
           updateStatus('error');
@@ -151,9 +263,15 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       }
 
       stopSpeaking();
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
+      await runRecorderOperation(async () => {
+        if (!isCurrentTurn(turn)) return;
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        if (!isCurrentTurn(turn)) return;
+        await recorder.prepareToRecordAsync();
+        if (!isCurrentTurn(turn)) return;
+        recorder.record();
+      });
+      if (!isCurrentTurn(turn)) return;
 
       heardSpeechRef.current = false;
       lastVoiceAtRef.current = Date.now();
@@ -163,23 +281,23 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       updateStatus('listening');
       haptics.light();
     } catch {
+      if (!isCurrentTurn(turn)) return;
       setErrorCode('network');
       updateStatus('error');
     }
-  }, [recorder, updateStatus]);
+  }, [createTurnScope, isCurrentTurn, recorder, runRecorderOperation, updateStatus]);
 
-  const transcribe = useCallback(async (uri: string): Promise<string | null> => {
-    const response = await fetch(uri);
+  const transcribe = useCallback(async (uri: string, turn: VoiceTurnScope): Promise<string | null> => {
+    const { signal } = turn.controller;
+    const response = await fetch(uri, { signal });
+    if (!isCurrentTurn(turn)) throw abortError();
     const blob = await response.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-      reader.onerror = () => reject(new Error('Failed to read recording'));
-      reader.readAsDataURL(blob);
-    });
+    if (!isCurrentTurn(turn)) throw abortError();
+    const base64 = await readBlobAsBase64(blob, signal);
 
     const supabaseUrl = getConfig().supabaseUrl;
     const authToken = await getAuthToken();
+    if (!isCurrentTurn(turn)) throw abortError();
     if (!supabaseUrl || !authToken) {
       throw new Error('Sign in to use voice mode');
     }
@@ -193,46 +311,56 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         language: i18n.language?.split('-')[0] || 'en',
         durationSeconds: Math.round(durationMsRef.current / 100) / 10 || undefined,
       }),
+      signal,
     });
+    if (!isCurrentTurn(turn)) throw abortError();
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.error || 'Transcription failed');
     }
     const { transcript } = await res.json();
+    if (!isCurrentTurn(turn)) throw abortError();
     return typeof transcript === 'string' ? transcript : null;
-  }, [getAuthToken]);
+  }, [getAuthToken, isCurrentTurn]);
 
-  const resumeAfterTurn = useCallback(() => {
-    if (!activeRef.current) return;
+  const resumeAfterTurn = useCallback((turn: VoiceTurnScope) => {
+    if (!isCurrentTurn(turn)) return;
     if (modeRef.current === 'live' && !mutedRef.current) {
       void startListening();
     } else {
+      currentTurnRef.current = null;
       updateStatus('idle');
     }
-  }, [startListening, updateStatus]);
+  }, [isCurrentTurn, startListening, updateStatus]);
 
-  const speakReply = useCallback((reply: string) => {
+  const speakReply = useCallback((reply: string, turn: VoiceTurnScope) => {
+    if (!isCurrentTurn(turn)) return;
     updateStatus('speaking');
     setSpokenRatio(0);
     void edutuSpeak(reply, {
       voice: getVoiceSettings().ttsVoice,
       language: i18n.language?.split('-')[0] || 'en',
       getAuthToken,
-      onProgress: setSpokenRatio,
-      onDone: resumeAfterTurn,
+      signal: turn.controller.signal,
+      onProgress: (ratio) => {
+        if (isCurrentTurn(turn)) setSpokenRatio(ratio);
+      },
+      onDone: () => resumeAfterTurn(turn),
       onStopped: () => {
         // Barge-in or teardown stops speech; whoever stopped it owns the
         // next state, so don't re-arm the loop here.
       },
-      onError: resumeAfterTurn,
+      onError: () => resumeAfterTurn(turn),
     });
-  }, [getAuthToken, resumeAfterTurn, updateStatus]);
+  }, [getAuthToken, isCurrentTurn, resumeAfterTurn, updateStatus]);
 
   /**
    * The "think + speak" half of a turn, split out from the recording half so
    * a network failure can be retried against the words the user already said.
    */
-  const askEdutu = useCallback(async (prompt: string) => {
+  const askEdutu = useCallback(async (prompt: string, existingTurn?: VoiceTurnScope) => {
+    const turn = existingTurn ?? createTurnScope();
+    if (!isCurrentTurn(turn)) return;
     lastPromptRef.current = prompt;
     processingRef.current = true;
     setUserTranscript(prompt);
@@ -242,19 +370,27 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
 
     try {
       if (!userId) throw new Error('Sign in to use voice mode');
-      const result = await sendChatMessage(supabase, {
+      const authToken = await getAuthToken();
+      if (!isCurrentTurn(turn)) return;
+      const result = await streamChatMessage({
         threadId: threadIdRef.current,
         message: prompt,
         userId,
-        authToken: await getAuthToken(),
+        authToken,
         // Voice channel: the AI answers in speakable prose (no bullets/emoji/UI
         // references) and leans harder on profile personalization.
         channel: 'voice',
         // A spoken crisis disclosure deserves a reply in the user's own
         // language just as much as a typed one.
         locale: i18n.language?.split('-')[0] || 'en',
+        signal: turn.controller.signal,
+        handlers: {
+          onContent: (content) => {
+            if (isCurrentTurn(turn)) setAssistantReply(content || null);
+          },
+        },
       });
-      if (!activeRef.current) return;
+      if (!isCurrentTurn(turn)) return;
 
       threadIdRef.current = result.threadId;
       setVoiceModeThread(result.threadId);
@@ -265,23 +401,25 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       processingRef.current = false;
 
       if (reply) {
-        speakReply(reply);
+        speakReply(reply, turn);
       } else {
-        resumeAfterTurn();
+        resumeAfterTurn(turn);
       }
     } catch (err) {
+      if (!isCurrentTurn(turn)) return;
       processingRef.current = false;
-      if (!activeRef.current) return;
       const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
       setErrorCode(isLimit ? 'limit' : 'network');
       updateStatus('error');
       haptics.error();
     }
-  }, [getAuthToken, resumeAfterTurn, speakReply, updateStatus, userId]);
+  }, [createTurnScope, getAuthToken, isCurrentTurn, resumeAfterTurn, speakReply, updateStatus, userId]);
 
   /** Record → transcribe → hand the words to `askEdutu`. */
   const stopAndProcess = useCallback(async () => {
     if (statusRef.current !== 'listening' || processingRef.current) return;
+    const turn = currentTurnRef.current;
+    if (!turn || !isCurrentTurn(turn)) return;
     processingRef.current = true;
     updateStatus('transcribing');
     setLevel(0);
@@ -289,27 +427,28 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
 
     try {
       await stopRecorderQuietly();
+      if (!isCurrentTurn(turn)) return;
       const uri = recorder.uri;
-      const transcript = uri ? await transcribe(uri) : null;
-      if (!activeRef.current) return;
+      const transcript = uri ? await transcribe(uri, turn) : null;
+      if (!isCurrentTurn(turn)) return;
 
       const trimmed = transcript?.trim();
       if (!trimmed) {
         processingRef.current = false;
-        resumeAfterTurn();
+        resumeAfterTurn(turn);
         return;
       }
 
-      await askEdutu(trimmed);
+      await askEdutu(trimmed, turn);
     } catch (err) {
+      if (!isCurrentTurn(turn)) return;
       processingRef.current = false;
-      if (!activeRef.current) return;
       const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
       setErrorCode(isLimit ? 'limit' : 'network');
       updateStatus('error');
       haptics.error();
     }
-  }, [askEdutu, recorder, resumeAfterTurn, stopRecorderQuietly, transcribe, updateStatus]);
+  }, [askEdutu, isCurrentTurn, recorder, resumeAfterTurn, stopRecorderQuietly, transcribe, updateStatus]);
 
   // Metering → level for the audio-reactive orb + trailing-silence VAD.
   useEffect(() => {
@@ -354,10 +493,12 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
    * talking orb is discoverable only once you already know it works.
    */
   const bargeIn = useCallback(() => {
+    abortCurrentTurn();
+    processingRef.current = false;
     stopSpeaking();
     setSpokenRatio(1);
     void startListening();
-  }, [startListening]);
+  }, [abortCurrentTurn, startListening]);
 
   /** Primary orb interaction: tap to talk / stop / barge in over the AI. */
   const onOrbPress = useCallback(() => {
@@ -382,23 +523,25 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     mutedRef.current = next;
     setMuted(next);
     if (next) {
+      abortCurrentTurn();
       // Muting always kills the mic and drops any in-flight arm, whatever the
       // current status — otherwise a recording started mid-tap keeps running.
+      stopSpeaking();
       void stopRecorderQuietly();
       processingRef.current = false;
-      if (statusRef.current === 'listening') {
-        updateStatus('idle');
-      }
+      updateStatus('idle');
     } else if (statusRef.current === 'idle' && modeRef.current === 'live') {
       void startListening();
     }
     haptics.selection();
-  }, [startListening, stopRecorderQuietly, updateStatus]);
+  }, [abortCurrentTurn, startListening, stopRecorderQuietly, updateStatus]);
 
   const begin = useCallback(() => {
+    if (!activeRef.current) return;
     // First entry: Edutu introduces itself, its caption tracking the voice,
     // then the mic arms (live) or waits for a tap (voice).
     if (greeting && !greetedRef.current) {
+      const turn = createTurnScope();
       greetedRef.current = true;
       setUserTranscript(null);
       setAssistantReply(greeting);
@@ -411,14 +554,17 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         // instead of paying for a fresh synthesis each time.
         cacheKey: `greeting-${i18n.language?.split('-')[0] || 'en'}`,
         getAuthToken,
-        onProgress: setSpokenRatio,
-        onDone: resumeAfterTurn,
-        onError: resumeAfterTurn,
+        signal: turn.controller.signal,
+        onProgress: (ratio) => {
+          if (isCurrentTurn(turn)) setSpokenRatio(ratio);
+        },
+        onDone: () => resumeAfterTurn(turn),
+        onError: () => resumeAfterTurn(turn),
       });
       return;
     }
     void startListening();
-  }, [greeting, getAuthToken, resumeAfterTurn, startListening, updateStatus]);
+  }, [createTurnScope, greeting, getAuthToken, isCurrentTurn, resumeAfterTurn, startListening, updateStatus]);
 
   /**
    * Recovery for whatever went wrong, without punishing the user for it:
@@ -437,10 +583,12 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   }, [askEdutu, errorCode, startListening]);
 
   const end = useCallback(() => {
+    abortCurrentTurn();
     activeRef.current = false;
+    processingRef.current = false;
     stopSpeaking();
     void stopRecorderQuietly();
-  }, [stopRecorderQuietly]);
+  }, [abortCurrentTurn, stopRecorderQuietly]);
 
   /**
    * The OS can take the session away at any moment — the user switches apps,
@@ -452,7 +600,8 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'background') {
-        if (statusRef.current === 'idle' && !pausedRef.current) return;
+        if (statusRef.current === 'idle' && !pausedRef.current && !currentTurnRef.current) return;
+        abortCurrentTurn();
         pausedRef.current = true;
         setPaused(true);
         stopSpeaking();
@@ -469,12 +618,19 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         // Tap-to-talk stays parked — re-arming a mic the user can't see would
         // be a surprise recording.
         if (activeRef.current && modeRef.current === 'live' && !mutedRef.current) {
-          void startListening();
+          // If the background transition raced an in-flight native prepare or
+          // cleanup, wait for the serialized recorder queue before arming the
+          // next turn. This prevents two native prepare calls from overlapping.
+          void recorderOperationRef.current.then(() => {
+            if (activeRef.current && modeRef.current === 'live' && !mutedRef.current && pausedRef.current === false) {
+              void startListening();
+            }
+          });
         }
       }
     });
     return () => subscription?.remove?.();
-  }, [startListening, stopRecorderQuietly, updateStatus]);
+  }, [abortCurrentTurn, startListening, stopRecorderQuietly, updateStatus]);
 
   return {
     status,

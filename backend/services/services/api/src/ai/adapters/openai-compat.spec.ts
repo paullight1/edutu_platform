@@ -92,6 +92,34 @@ describe("buildOpenAiChatBody", () => {
 });
 
 describe("consumeOpenAiChatStream", () => {
+  it("aborts body consumption when the caller signal is aborted", async () => {
+    const controller = new AbortController();
+    let resolveRead!: (value: { done: boolean; value?: Uint8Array }) => void;
+    const cancel = jest.fn(() => {
+      resolveRead({ done: true });
+    });
+    const body = {
+      getReader: () => ({
+        read: () =>
+          new Promise<{ done: boolean; value?: Uint8Array }>((resolve) => {
+            resolveRead = resolve;
+          }),
+        cancel,
+        releaseLock: jest.fn(),
+      }),
+    };
+
+    const pending = consumeOpenAiChatStream(
+      body,
+      () => undefined,
+      controller.signal,
+    );
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it("delivers content deltas to onToken in order and returns the full text", async () => {
     const seen: string[] = [];
     const outcome = await consumeOpenAiChatStream(

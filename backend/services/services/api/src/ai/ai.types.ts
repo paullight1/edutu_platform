@@ -35,6 +35,8 @@ export interface AiGenerateOptions {
   responseJsonSchema?: Record<string, unknown> | null;
   temperature?: number | null;
   maxOutputTokens?: number | null;
+  /** Cancels provider work when the requesting client disconnects. */
+  signal?: AbortSignal;
   metadata?: Record<string, unknown>;
 }
 
@@ -99,6 +101,8 @@ export interface AiChatOptions {
   toolChoice?: "auto" | "none" | "required";
   temperature?: number | null;
   maxOutputTokens?: number | null;
+  /** Cancels provider work when the requesting client disconnects. */
+  signal?: AbortSignal;
   metadata?: Record<string, unknown>;
 }
 
@@ -135,6 +139,8 @@ export interface AiChatStreamResult extends AiChatResult {
 }
 
 export interface AiEmbedOptions {
+  /** Aborts provider embedding when the requesting client disconnects. */
+  signal?: AbortSignal;
   feature: AiFeature;
   /** One text or a batch; result order matches input order. */
   input: string | string[];

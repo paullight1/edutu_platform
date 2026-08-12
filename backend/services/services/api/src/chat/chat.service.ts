@@ -127,6 +127,24 @@ type AgentTurnOutcome = {
  */
 const ROADMAP_INTENT_TOOLS = new Set(["offer_roadmap"]);
 
+function abortError(signal?: AbortSignal): Error {
+  if (signal?.reason instanceof Error) return signal.reason;
+  const error = new Error("The chat request was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError(signal);
+}
+
+function isAbort(error: unknown, signal?: AbortSignal): boolean {
+  return (
+    signal?.aborted === true ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
 // Fallback persona; admins can replace it with an active ai_prompts row for
 // feature 'chat.agent' without a deploy.
 const DEFAULT_AGENT_PERSONA = [
@@ -346,8 +364,11 @@ export class ChatService {
        * is buffered and only the complete answer is returned.
        */
       onToken?: (delta: string) => void;
+      /** Aborts provider generation when the requesting client disconnects. */
+      signal?: AbortSignal;
     },
   ) {
+    throwIfAborted(options?.signal);
     const message = body.message?.trim();
     if (!message) {
       throw new BadRequestException("Message is required");
@@ -527,8 +548,10 @@ export class ChatService {
           locale,
           emit,
           onToken,
+          signal: options?.signal,
         });
       } catch (error) {
+        if (isAbort(error, options?.signal)) throw error;
         if (streamedAnything) throw error;
         console.error("Agent turn failed; using legacy chat pipeline:", error);
       }
@@ -593,6 +616,7 @@ export class ChatService {
           responseMimeType: "application/json",
           temperature: 0.1,
           maxOutputTokens: 220,
+          signal: options?.signal,
           metadata: { source: "mobile-chat", userId, turnId },
         });
         finalAnswer = this.parseCoachResponse(aiResult.text || "").message;
@@ -608,6 +632,7 @@ export class ChatService {
           ? "Which opportunity should we build the roadmap for? Just tell me the name."
           : "Which opportunity should we build the roadmap for?\nSend the name, or open an opportunity and tap Roadmap."
         : this.buildFallbackAnswer(topMatches, wantsOpportunities, isVoice));
+    throwIfAborted(options?.signal);
     // SAFETY: a moderation-intercepted message (crisis support / refusal) must
     // render verbatim. Never run it through the coach sanitizer, whose
     // 3-paragraph cap would drop the helpline + contact lines of the crisis
@@ -1138,7 +1163,10 @@ ${input.message}`;
     emit?: (event: string, data: Record<string, unknown>) => void;
     /** When present, the closing round streams its answer delta by delta. */
     onToken?: (delta: string) => void;
+    /** Aborts provider generation when the requesting client disconnects. */
+    signal?: AbortSignal;
   }): Promise<AgentTurnOutcome> {
+    throwIfAborted(input.signal);
     const memories = await this.coachTools
       .loadMemories(input.userId)
       .catch(() => [] as Array<{ kind: string; content: string }>);
@@ -1239,6 +1267,7 @@ ${input.message}`;
 
     const MAX_TOOL_ROUNDS = 6;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      throwIfAborted(input.signal);
       const request = {
         feature: "chat.agent",
         userId: input.userId,
@@ -1257,12 +1286,17 @@ ${input.message}`;
       // decides to call tools still comes back with complete, executable calls;
       // only prose ever reaches onToken.
       const result = input.onToken
-        ? await this.aiService.generateChatStream({
+          ? await this.aiService.generateChatStream({
             ...request,
             onToken: input.onToken,
+            signal: input.signal,
           })
-        : await this.aiService.generateChat(request);
+        : await this.aiService.generateChat({
+            ...request,
+            signal: input.signal,
+          });
       addUsage(result);
+      throwIfAborted(input.signal);
 
       if ((result as AiChatStreamResult).truncated) {
         // The connection died mid-round. Tool-call arguments accumulated from a
@@ -1303,6 +1337,7 @@ ${input.message}`;
       // credits inside its own execute(), so concurrency neither double-charges
       // nor drops a refund.
       const calls = result.toolCalls;
+      throwIfAborted(input.signal);
       // Requested, not executed: a roadmap tool that later fails still means the
       // turn was about a plan, and the affordance is what the user needs then.
       if (calls.some((call) => ROADMAP_INTENT_TOOLS.has(call.name))) {
@@ -1330,6 +1365,7 @@ ${input.message}`;
             ),
         ),
       );
+      throwIfAborted(input.signal);
       calls.forEach((call, index) => {
         const toolResult = toolResults[index];
         input.emit?.("tool.result", {
@@ -1370,12 +1406,17 @@ ${input.message}`;
         ...(input.turnId ? { turnId: input.turnId } : {}),
       },
     };
+    throwIfAborted(input.signal);
     const closing = input.onToken
       ? await this.aiService.generateChatStream({
           ...closingRequest,
           onToken: input.onToken,
+          signal: input.signal,
         })
-      : await this.aiService.generateChat(closingRequest);
+      : await this.aiService.generateChat({
+          ...closingRequest,
+          signal: input.signal,
+        });
     addUsage(closing);
     if (!closing.text) {
       throw new Error("Agent produced no final answer");

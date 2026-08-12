@@ -55,7 +55,7 @@ import { usePromptProUpgrade } from '../../lib/upsell';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { getMatchTier, MATCH_TIER_KEY } from '@edutu/core/src/utils/matchTier';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
-import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
+import { premiumVoiceEnabledForEntitlement, setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
 import Animated, {
     Easing,
@@ -366,10 +366,11 @@ export default function ChatScreen() {
     }, [selectThread]);
 
     // Premium neural TTS (the message play button) is a Pro perk — free users
-    // fall back to the device voice. Fail-open while entitlements resolve.
+    // fall back to the device voice. Fail closed until the current account's
+    // Pro result has loaded so a stale entitlement cannot spend TTS credits.
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
     useEffect(() => {
-        setPremiumVoiceEnabled(isPro || proLoading);
+        setPremiumVoiceEnabled(premiumVoiceEnabledForEntitlement(isPro, proLoading));
     }, [isPro, proLoading]);
 
     const {

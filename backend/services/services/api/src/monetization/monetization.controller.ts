@@ -48,14 +48,14 @@ export class MonetizationController {
   @Post("meter")
   async meter(
     @CurrentUser("id") userId: string,
-    @Body() body: { action?: AiMeteredAction },
+    @Body() body: { action?: AiMeteredAction; units?: number },
     @Res({ passthrough: true }) res?: Response,
   ) {
     const action = body?.action;
     if (!action || !METERED_ACTIONS.includes(action)) {
       throw new BadRequestException("Unknown metered action");
     }
-    const charge = await this.monetization.meter(userId, action);
+    const charge = await this.monetization.meter(userId, action, body?.units);
     if (charge.remaining !== null) {
       res?.setHeader?.(AI_REMAINING_HEADER, String(charge.remaining));
     }
@@ -66,6 +66,24 @@ export class MonetizationController {
       remaining: charge.remaining,
       ledgerId: charge.ledgerId,
     };
+  }
+
+  /**
+   * Authorize server-side premium voice work. The authenticated identity is
+   * the sole principal; `kind` selects a supported provider capability but
+   * never changes which user is checked.
+   */
+  @Post("voice/authorize")
+  async authorizeVoice(
+    @CurrentUser("id") userId: string,
+    @Body() body: { kind?: "stt" | "tts" | "realtime" },
+  ) {
+    const kind = body?.kind;
+    if (kind !== "stt" && kind !== "tts" && kind !== "realtime") {
+      throw new BadRequestException("Unknown premium voice kind");
+    }
+    await this.monetization.authorizeVoicePremium(userId);
+    return { ok: true, kind };
   }
 
   /**
