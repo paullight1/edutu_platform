@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  BadRequestException,
   Param,
   Patch,
   Query,
@@ -39,8 +40,28 @@ export class CreatorController {
   }
 
   @Get("creator/status")
-  getCreatorStatus(@CurrentUser("id") userId: string) {
-    return this.creatorService.getApplicationStatus(userId);
+  getCreatorStatus(
+    @CurrentUser("id") userId: string,
+    @Query("applicationKind") applicationKind?: string,
+  ) {
+    if (
+      applicationKind !== undefined &&
+      applicationKind !== "creator" &&
+      applicationKind !== "mentor"
+    ) {
+      throw new BadRequestException(
+        "applicationKind must be either creator or mentor.",
+      );
+    }
+
+    // Existing mentor clients call /creator/status. Preserve that route while
+    // making its default role-safe: it must never return a creator application
+    // for a mentor application screen. Creator consumers can opt in explicitly
+    // with ?applicationKind=creator.
+    return this.creatorService.getApplicationStatus(
+      userId,
+      applicationKind ?? "mentor",
+    );
   }
 
   @Get("creator/dashboard")
