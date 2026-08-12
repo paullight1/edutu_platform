@@ -25,7 +25,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
-import { getMentorDashboard } from '../services/mentor';
+import { getMentorDashboard, submitMentorApplication } from '../services/mentor';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 
@@ -238,13 +238,8 @@ const MentorPage: React.FC = () => {
 
         if (error) throw error;
 
-        const { data: urlData } = supabase.storage
-            .from('creator-proofs')
-            .getPublicUrl(data.path);
-
         return {
             path: data.path,
-            url: urlData.publicUrl,
         };
     };
 
@@ -272,61 +267,30 @@ const MentorPage: React.FC = () => {
         setSubmitError(null);
         try {
             const proof = await uploadProofFile(userId, proofFile);
-            const now = new Date().toISOString();
-
-            // Only self-service columns can be written directly — role /
-            // creator_status / creator_metadata are grant-protected and would
-            // fail the whole upsert with 42501. Status goes through the
-            // SECURITY DEFINER RPC; the application row below carries the
-            // full metadata for review.
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    user_id: userId,
-                    full_name: formData.displayName,
-                    email: formData.email,
-                    country: formData.country,
-                    updated_at: now,
-                }, { onConflict: 'user_id' });
-
-            if (profileError) throw profileError;
-
-            const { error: statusError } = await supabase
-                .rpc('set_creator_status', { p_status: 'pending' });
-            if (statusError) {
-                console.warn('Could not flag creator status as pending', statusError);
+            const token = await getToken();
+            if (!token) {
+                throw new Error('Your session has expired. Please sign in again.');
             }
 
-            // Canonical creator_applications columns (snake_case; applied_at is
-            // the real timestamp column). This row is what admins review — its
-            // failure must fail the submission, not be swallowed.
-            const { error } = await supabase
-                .from('creator_applications')
-                .insert({
-                    user_id: userId,
-                    application_kind: 'creator',
-                    display_name: formData.displayName,
-                    email: formData.email,
-                    phone_number: formData.phoneNumber,
-                    country: formData.country,
-                    bio: formData.bio,
-                    motivation: formData.motivation || null,
-                    content_type: formData.contentType,
-                    experience: formData.experience || 'Not specified',
-                    linkedin_url: formData.linkedInUrl || null,
-                    portfolio_url: formData.portfolioUrl || null,
-                    sample_content_url: formData.portfolioUrl || formData.linkedInUrl,
-                    proof_file_name: proofFile?.name || null,
-                    proof_file_type: proofFile?.type || null,
-                    proof_file_size: proofFile?.size || null,
-                    proof_url: proof.url,
-                    proof_path: proof.path,
-                    consent_accepted: consentAccepted,
-                    status: 'pending',
-                    applied_at: now,
-                });
+            await submitMentorApplication(token, {
+                displayName: formData.displayName,
+                email: formData.email,
+                phoneNumber: formData.phoneNumber,
+                country: formData.country,
+                bio: formData.bio,
+                motivation: formData.motivation || undefined,
+                contentType: formData.contentType,
+                experience: formData.experience || 'Not specified',
+                linkedinUrl: formData.linkedInUrl || undefined,
+                portfolioUrl: formData.portfolioUrl || undefined,
+                sampleContentUrl: formData.portfolioUrl || formData.linkedInUrl || undefined,
+                proofPath: proof.path,
+                proofFileName: proofFile.name,
+                proofFileType: proofFile.type,
+                proofFileSize: proofFile.size,
+                consentAccepted,
+            });
 
-            if (error) throw error;
             setIsSubmitted(true);
         } catch (err) {
             console.error('Submission error:', err);
