@@ -376,17 +376,17 @@ const MentorPage: React.FC = () => {
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ delay: 0.05 }}
-                                className="max-w-3xl mx-auto font-display text-[clamp(2rem,4.4vw,3.35rem)] md:text-[clamp(2.35rem,4.6vw,4rem)] font-semibold tracking-tight leading-[1.06] mb-7 text-text-primary"
+                                className="mx-auto mb-7 max-w-3xl font-display text-[clamp(2rem,4.4vw,3.35rem)] font-semibold leading-[1.06] tracking-tight text-white md:text-[clamp(2.35rem,4.6vw,4rem)]"
                             >
                                 Help ambitious learners turn opportunity into{' '}
-                                <span className="text-brand">real outcomes.</span>
+                                <span className="text-brand-300">real outcomes.</span>
                             </motion.h1>
 
                             <motion.p
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 }}
-                                className="max-w-2xl mx-auto text-base md:text-lg leading-relaxed mb-10 text-text-secondary"
+                                className="mx-auto mb-10 max-w-2xl text-base leading-relaxed text-slate-200/85 md:text-lg"
                             >
                                 Join Edutu as a mentor or resource expert. Share what worked for you and help students prepare stronger applications, career plans, and next steps.
                             </motion.p>
