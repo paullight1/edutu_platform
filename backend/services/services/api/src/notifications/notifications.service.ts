@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import axios from "axios";
 import { Expo, type ExpoPushMessage } from "expo-server-sdk";
-import { Cron, CronExpression } from "@nestjs/schedule";
+import { Cron } from "@nestjs/schedule";
 import {
   and,
   count,
@@ -498,7 +498,9 @@ export class NotificationsService {
       .limit(Math.min(Number(limit) || 50, 100));
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  // Drain every 15 seconds so a scheduled/offline notification is not held
+  // for a full minute. The queue claim remains race-safe across replicas.
+  @Cron("*/15 * * * * *")
   async processDueQueue() {
     if (process.env.NOTIFICATION_SCHEDULER_ENABLED === "false") {
       return;
@@ -1153,10 +1155,16 @@ export class NotificationsService {
 
       // Dedicated Android channels (created by the app on launch) let
       // opportunity/deadline alerts pop as heads-up notifications.
+      const defaultChannelByKind: Record<string, string> = {
+        "opportunity-alert": "opportunities",
+        "deadline-reminder": "deadlines",
+        "community-message": "community",
+        "community-request": "community",
+      };
       const channelId =
         typeof dto.metadata?.androidChannelId === "string"
           ? dto.metadata.androidChannelId
-          : "default";
+          : defaultChannelByKind[dto.kind || ""] || "default";
       // Drives the interactive action buttons registered on the client via
       // setNotificationCategoryAsync; absent means a plain notification.
       const categoryId =

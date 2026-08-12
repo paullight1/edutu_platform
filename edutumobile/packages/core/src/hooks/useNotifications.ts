@@ -239,7 +239,41 @@ export function useNotifications(
     if (userId) {
       fetchNotifications();
     }
-  }, [userId, fetchNotifications]);
+    if (!userId) return undefined;
+
+    // Realtime wakes the hook immediately after an API insert. The interval is
+    // deliberately only a recovery path for a dropped socket/background resume
+    // and keeps the bell correct even when the device reconnects silently.
+    const channelApi = supabase as SupabaseClient & {
+      channel?: (name: string) => {
+        on: (...args: any[]) => any;
+        subscribe: () => unknown;
+      };
+      removeChannel?: (channel: unknown) => Promise<unknown> | unknown;
+    };
+    const channel = channelApi.channel?.(`notifications:${userId}`);
+    if (channel) {
+      channel
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+        }, () => {
+          void fetchNotifications();
+        })
+        .subscribe();
+    }
+    const recoveryTimer = setInterval(() => {
+      void fetchNotifications();
+    }, 15000);
+
+    return () => {
+      clearInterval(recoveryTimer);
+      if (channel && channelApi.removeChannel) {
+        void channelApi.removeChannel(channel);
+      }
+    };
+  }, [userId, fetchNotifications, supabase]);
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.readAt).length, [notifications]);
 

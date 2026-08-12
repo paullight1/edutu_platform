@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -12,33 +12,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Swipeable } from "react-native-gesture-handler";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import {
-  ChevronRight,
-  Mail,
-  MessageCircle,
-  ShieldOff,
   Trash2,
   UserRound,
-  Users,
 } from "lucide-react-native";
 import {
-  fetchGroups,
-  isCommunityApiError,
-  type CommunityGroup,
-  type GroupWithMembership,
-} from "@edutu/core/src/services/communities";
-import {
-  acceptDmRequest,
-  blockDmUser,
-  declineDmRequest,
   fetchDmConversations,
-  fetchDmRequests,
   hideDmConversation,
   isCommunityDmApiError,
   type DmConversationSummary,
-  type DmRequestSummary,
 } from "@edutu/core/src/services/communityDms";
 import {
   useTheme,
@@ -47,71 +30,32 @@ import {
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { Skeleton } from "../../../components/ui/Skeleton";
 import { StateView } from "../../../components/state";
-import { formatCompactNumber, formatRelativeTime } from "../../../lib/utils";
-
-const LAST_READ_KEY = "edutu:discussions:lastRead";
-
-type LastReadMap = Record<string, string>;
+import { formatRelativeTime } from "../../../lib/utils";
 
 type InboxSnapshot = {
-  nextRows?: GroupWithMembership[];
-  nextLastRead: LastReadMap;
   nextDms?: DmConversationSummary[];
-  nextIncoming?: DmRequestSummary[];
-  nextOutgoing?: DmRequestSummary[];
   error: string | null;
   completeFailure: boolean;
 };
 
 function inboxErrorMessage(error: unknown, fallback: string): string {
-  return isCommunityApiError(error) || isCommunityDmApiError(error)
-    ? error.message
-    : fallback;
-}
-
-async function readLastRead(): Promise<LastReadMap> {
-  try {
-    const raw = await AsyncStorage.getItem(LAST_READ_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
-    return parsed && typeof parsed === "object" ? (parsed as LastReadMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-function newestFirst(a: GroupWithMembership, b: GroupWithMembership): number {
-  const aTime = a.group.lastMessageAt ? Date.parse(a.group.lastMessageAt) : 0;
-  const bTime = b.group.lastMessageAt ? Date.parse(b.group.lastMessageAt) : 0;
-  return bTime - aTime;
-}
-
-function isUnread(group: CommunityGroup, lastRead: LastReadMap): boolean {
-  if (!group.lastMessageAt) return false;
-  const readAt = lastRead[group.id];
-  return !readAt || Date.parse(group.lastMessageAt) > Date.parse(readAt);
+  return isCommunityDmApiError(error) ? error.message : fallback;
 }
 
 /**
- * One backend-backed inbox: message requests, accepted private conversations,
- * group invitations and active group rooms. AsyncStorage is used only for the
- * legacy group-room read marker; private conversations never live on-device.
+ * One backend-backed inbox for accepted one-to-one conversations. Community
+ * rooms belong on Groups, and pending requests are intentionally not mixed into
+ * the Chats tab: this surface is only for direct conversations with people the
+ * member has chosen to connect with.
  */
 export default function CommunityChatsScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const { colors } = useTheme();
   const { t } = useTranslation(["community", "common"]);
-  const [rows, setRows] = useState<GroupWithMembership[]>([]);
   const [directMessages, setDirectMessages] = useState<DmConversationSummary[]>(
     [],
   );
-  const [incomingRequests, setIncomingRequests] = useState<DmRequestSummary[]>(
-    [],
-  );
-  const [outgoingRequests, setOutgoingRequests] = useState<DmRequestSummary[]>(
-    [],
-  );
-  const [lastRead, setLastRead] = useState<LastReadMap>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,57 +66,27 @@ export default function CommunityChatsScreen() {
   const busyIdRef = useRef<string | null>(null);
 
   const queryInbox = useCallback(async (): Promise<InboxSnapshot> => {
-    const [groupsResult, lastReadResult, dmsResult, incomingResult, outgoingResult] =
-      await Promise.allSettled([
-        fetchGroups({ mine: true, limit: 50 }, getToken),
-        readLastRead(),
-        fetchDmConversations({ limit: 50 }, getToken),
-        fetchDmRequests("incoming", { limit: 50 }, getToken),
-        fetchDmRequests("outgoing", { limit: 50 }, getToken),
-      ]);
-
-    const apiResults = [groupsResult, dmsResult, incomingResult, outgoingResult];
-    const failures = apiResults.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
-    const firstFailure = failures[0]?.reason;
+    const dmsResult = await Promise.allSettled([
+      fetchDmConversations({ limit: 50 }, getToken),
+    ]).then(([result]) => result);
 
     return {
-      nextRows: groupsResult.status === "fulfilled" ? groupsResult.value : undefined,
-      nextLastRead:
-        lastReadResult.status === "fulfilled" ? lastReadResult.value : {},
       nextDms: dmsResult.status === "fulfilled" ? dmsResult.value : undefined,
-      nextIncoming:
-        incomingResult.status === "fulfilled" ? incomingResult.value : undefined,
-      nextOutgoing:
-        outgoingResult.status === "fulfilled" ? outgoingResult.value : undefined,
       error:
-        failures.length === 0
+        dmsResult.status === "fulfilled"
           ? null
-          : failures.length === apiResults.length
-            ? inboxErrorMessage(firstFailure, t("community:inbox.networkError"))
-            : t("community:inbox.partialError", {
-                error: inboxErrorMessage(firstFailure, t("community:inbox.networkError")),
-              }),
-      completeFailure: failures.length === apiResults.length,
+          : inboxErrorMessage(dmsResult.reason, t("community:inbox.networkError")),
+      completeFailure: dmsResult.status === "rejected",
     };
   }, [getToken, t]);
 
   const applyInbox = useCallback(
     ({
-      nextRows,
-      nextLastRead,
       nextDms,
-      nextIncoming,
-      nextOutgoing,
       error: nextError,
       completeFailure: nextCompleteFailure,
     }: Awaited<ReturnType<typeof queryInbox>>) => {
-      if (nextRows) setRows(nextRows);
-      setLastRead(nextLastRead);
       if (nextDms) setDirectMessages(nextDms);
-      if (nextIncoming) setIncomingRequests(nextIncoming);
-      if (nextOutgoing) setOutgoingRequests(nextOutgoing);
       setError(nextError);
       setCompleteFailure(nextCompleteFailure);
     },
@@ -224,91 +138,10 @@ export default function CommunityChatsScreen() {
     }
   }, [applyInbox, queryInbox, t]);
 
-  const invitations = useMemo(
-    () =>
-      rows
-        .filter((row) => row.membership?.status === "invited")
-        .sort(newestFirst),
-    [rows],
-  );
-  const conversations = useMemo(
-    () =>
-      rows
-        .filter((row) => row.membership?.status === "active")
-        .sort(newestFirst),
-    [rows],
-  );
-
-  const openGroup = useCallback(
-    (groupId: string) => router.push(`/discussions/${groupId}` as never),
-    [router],
-  );
-
   const openDm = useCallback(
     (conversationId: string) =>
       router.push(`/discussions/dm/${conversationId}` as never),
     [router],
-  );
-
-  const runRequestAction = useCallback(
-    async (
-      request: DmRequestSummary,
-      action: "accept" | "decline" | "block",
-    ) => {
-      if (busyIdRef.current) return;
-      busyIdRef.current = request.id;
-      setBusyId(request.id);
-      setError(null);
-      try {
-        if (action === "accept") {
-          const accepted = await acceptDmRequest(request.id, getToken);
-          openDm(accepted.id);
-        } else if (action === "decline") {
-          await declineDmRequest(request.id, getToken);
-          setIncomingRequests((current) =>
-            current.filter((row) => row.id !== request.id),
-          );
-        } else {
-          await blockDmUser(request.otherUser.userId, getToken);
-          setIncomingRequests((current) =>
-            current.filter((row) => row.id !== request.id),
-          );
-        }
-      } catch (caught) {
-        setError(
-          isCommunityDmApiError(caught)
-            ? caught.message
-            : t("community:inbox.actionFailed"),
-        );
-      } finally {
-        busyIdRef.current = null;
-        setBusyId(null);
-      }
-    },
-    [getToken, openDm, t],
-  );
-
-  const confirmRequestAction = useCallback(
-    (request: DmRequestSummary, action: "decline" | "block") => {
-      const blocking = action === "block";
-      Alert.alert(
-        blocking
-          ? t("community:inbox.blockTitle", { name: request.otherUser.displayName })
-          : t("community:inbox.declineTitle"),
-        blocking
-          ? t("community:inbox.blockBody")
-          : t("community:inbox.declineBody"),
-        [
-          { text: t("common:actions.cancel"), style: "cancel" },
-          {
-            text: blocking ? t("community:dm.block") : t("community:inbox.decline"),
-            style: "destructive",
-            onPress: () => void runRequestAction(request, action),
-          },
-        ],
-      );
-    },
-    [runRequestAction, t],
   );
 
   const confirmHide = useCallback(
@@ -350,12 +183,7 @@ export default function CommunityChatsScreen() {
     [getToken, t],
   );
 
-  const hasInboxContent =
-    invitations.length > 0 ||
-    conversations.length > 0 ||
-    directMessages.length > 0 ||
-    incomingRequests.length > 0 ||
-    outgoingRequests.length > 0;
+  const hasInboxContent = directMessages.length > 0;
 
   return (
     <SafeAreaView
@@ -431,35 +259,6 @@ export default function CommunityChatsScreen() {
               </View>
             )}
 
-            {incomingRequests.length > 0 && (
-              <View testID="dm-requests" style={styles.section}>
-                <SectionLabel
-                  icon={Mail}
-                  label={t("community:inbox.requests")}
-                  color={colors.accent}
-                />
-                <Text
-                  style={[styles.sectionHint, { color: colors.textSecondary }]}
-                >
-                  {t("community:inbox.requestsHint")}
-                </Text>
-                <View style={[styles.list, { backgroundColor: colors.card }]}>
-                  {incomingRequests.map((request, index) => (
-                    <RequestRow
-                      key={request.id}
-                      request={request}
-                      last={index === incomingRequests.length - 1}
-                      busy={busyId === request.id}
-                      colors={colors}
-                      onAccept={() => void runRequestAction(request, "accept")}
-                      onDecline={() => confirmRequestAction(request, "decline")}
-                      onBlock={() => confirmRequestAction(request, "block")}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
             {directMessages.length > 0 && (
               <View testID="direct-conversations" style={styles.section}>
                 <SectionLabel
@@ -487,93 +286,6 @@ export default function CommunityChatsScreen() {
                 </View>
               </View>
             )}
-
-            {outgoingRequests.length > 0 && (
-              <View testID="sent-dm-requests" style={styles.section}>
-                <SectionLabel
-                  icon={Mail}
-                  label={t("community:inbox.sentRequests")}
-                  color={colors.textSecondary}
-                />
-                <View style={[styles.list, { backgroundColor: colors.card }]}>
-                  {outgoingRequests.map((request, index) => (
-                    <PendingRequestRow
-                      key={request.id}
-                      request={request}
-                      last={index === outgoingRequests.length - 1}
-                      colors={colors}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {invitations.length > 0 && (
-              <View testID="chat-invitations" style={styles.section}>
-                <SectionLabel
-                  icon={Mail}
-                  label={t("community:inbox.invitations")}
-                  color={colors.accent}
-                />
-                <View style={[styles.list, { backgroundColor: colors.card }]}>
-                  {invitations.map((row, index) => (
-                    <ConversationRow
-                      key={row.group.id}
-                      group={row.group}
-                      invited
-                      unread={isUnread(row.group, lastRead)}
-                      last={index === invitations.length - 1}
-                      colors={colors}
-                      onPress={() => openGroup(row.group.id)}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <View testID="group-conversations" style={styles.section}>
-              <SectionLabel
-                icon={MessageCircle}
-                label={t("community:inbox.groupConversations")}
-                color={colors.foreground}
-              />
-              <Text
-                style={[styles.sectionHint, { color: colors.textSecondary }]}
-              >
-                {t("community:inbox.groupHint")}
-              </Text>
-              {conversations.length > 0 ? (
-                <View style={[styles.list, { backgroundColor: colors.card }]}>
-                  {conversations.map((row, index) => (
-                    <ConversationRow
-                      key={row.group.id}
-                      group={row.group}
-                      unread={isUnread(row.group, lastRead)}
-                      last={index === conversations.length - 1}
-                      colors={colors}
-                      onPress={() => openGroup(row.group.id)}
-                    />
-                  ))}
-                </View>
-              ) : (
-                <View
-                  style={[
-                    styles.compactEmpty,
-                    { backgroundColor: colors.card },
-                  ]}
-                >
-                  <Users size={20} color={colors.textSecondary} />
-                  <Text
-                    style={[
-                      styles.compactEmptyText,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {t("community:inbox.groupEmpty")}
-                  </Text>
-                </View>
-              )}
-            </View>
           </>
         )}
       </ScrollView>
@@ -594,194 +306,6 @@ function SectionLabel({
     <View style={styles.sectionLabel} accessibilityRole="header">
       <Icon size={17} color={color} />
       <Text style={[styles.sectionTitle, { color }]}>{label}</Text>
-    </View>
-  );
-}
-
-function ConversationRow({
-  group,
-  invited = false,
-  unread,
-  last,
-  colors,
-  onPress,
-}: {
-  group: CommunityGroup;
-  invited?: boolean;
-  unread: boolean;
-  last: boolean;
-  colors: ThemeColors;
-  onPress: () => void;
-}) {
-  const { t } = useTranslation('community');
-  const activity = group.lastMessageAt
-    ? formatRelativeTime(group.lastMessageAt)
-    : t("inbox.noMessages");
-  const countCopy = t("inbox.memberCount", { count: group.memberCount, formatted: formatCompactNumber(group.memberCount) });
-  const accessibilityLabel = invited
-    ? t("inbox.invitationA11y", { name: group.name, count: countCopy })
-    : t("inbox.groupA11y", { name: group.name, unread: unread ? t("inbox.unread") : "", count: countCopy, activity });
-
-  return (
-    <AnimatedPressable
-      testID={`chat-row-${group.id}`}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityHint={
-        invited
-          ? t("inbox.invitationHint")
-          : t("inbox.groupOpenHint")
-      }
-      onPress={onPress}
-      hapticFeedback="selection"
-      scaleTo={0.985}
-      style={[
-        styles.row,
-        !last && {
-          borderBottomColor: colors.border,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-        },
-      ]}
-    >
-      <View style={styles.rowInner}>
-        <View
-          style={[styles.avatar, { backgroundColor: `${colors.accent}18` }]}
-        >
-          <Text style={styles.emoji} accessibilityElementsHidden>
-            {group.coverEmoji || "💬"}
-          </Text>
-        </View>
-
-        <View style={styles.rowCopy}>
-          <View style={styles.nameLine}>
-            <Text
-              style={[
-                styles.name,
-                { color: colors.foreground },
-                unread && styles.nameUnread,
-              ]}
-              numberOfLines={1}
-            >
-              {group.name}
-            </Text>
-            {unread && (
-              <View
-                testID={`chat-unread-${group.id}`}
-                style={[styles.unreadDot, { backgroundColor: colors.accent }]}
-              />
-            )}
-          </View>
-          <Text
-            style={[styles.preview, { color: colors.textSecondary }]}
-            numberOfLines={1}
-          >
-            {invited
-              ? t("inbox.invitedPreview", { count: countCopy })
-              : t("inbox.messageCount", { count: group.messageCount, members: countCopy, formatted: formatCompactNumber(group.messageCount) })}
-          </Text>
-        </View>
-
-        <View style={styles.trailing}>
-          <Text
-            style={[
-              styles.time,
-              { color: unread ? colors.accent : colors.textSecondary },
-            ]}
-            numberOfLines={1}
-          >
-            {invited ? t("inbox.review") : activity}
-          </Text>
-          <ChevronRight size={17} color={colors.textSecondary} />
-        </View>
-      </View>
-    </AnimatedPressable>
-  );
-}
-
-function RequestRow({
-  request,
-  last,
-  busy,
-  colors,
-  onAccept,
-  onDecline,
-  onBlock,
-}: {
-  request: DmRequestSummary;
-  last: boolean;
-  busy: boolean;
-  colors: ThemeColors;
-  onAccept: () => void;
-  onDecline: () => void;
-  onBlock: () => void;
-}) {
-  const { t } = useTranslation('community');
-  return (
-    <View
-      style={[
-        styles.requestRow,
-        !last && {
-          borderBottomColor: colors.border,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-        },
-      ]}
-      accessibilityLabel={t("inbox.requestA11y", { name: request.otherUser.displayName, message: request.firstMessage.body })}
-    >
-      <View style={styles.requestHeader}>
-        <PersonAvatar profile={request.otherUser} colors={colors} />
-        <View style={styles.rowCopy}>
-          <Text
-            style={[styles.name, { color: colors.foreground }]}
-            numberOfLines={1}
-          >
-            {request.otherUser.displayName}
-          </Text>
-          <Text style={[styles.time, { color: colors.textSecondary }]}>
-            {formatRelativeTime(request.createdAt)}
-          </Text>
-        </View>
-        <AnimatedPressable
-          accessibilityRole="button"
-          accessibilityLabel={t("dm.blockPerson", { name: request.otherUser.displayName })}
-          disabled={busy}
-          onPress={onBlock}
-          style={styles.iconAction}
-        >
-          <ShieldOff size={18} color={colors.error} />
-        </AnimatedPressable>
-      </View>
-      <Text
-        style={[styles.requestMessage, { color: colors.foreground }]}
-        numberOfLines={3}
-      >
-        “{request.firstMessage.body}”
-      </Text>
-      <View style={styles.requestActions}>
-        <AnimatedPressable
-          accessibilityRole="button"
-          accessibilityLabel={t("inbox.declineA11y", { name: request.otherUser.displayName })}
-          accessibilityState={{ disabled: busy, busy }}
-          disabled={busy}
-          onPress={onDecline}
-          style={[styles.requestButton, { borderColor: colors.border }]}
-        >
-          <Text
-            style={[styles.requestButtonText, { color: colors.foreground }]}
-          >
-            {t("inbox.decline")}
-          </Text>
-        </AnimatedPressable>
-        <AnimatedPressable
-          accessibilityRole="button"
-          accessibilityLabel={t("inbox.acceptA11y", { name: request.otherUser.displayName })}
-          accessibilityState={{ disabled: busy, busy }}
-          disabled={busy}
-          onPress={onAccept}
-          style={[styles.requestButton, { backgroundColor: colors.accent }]}
-        >
-          <Text style={styles.acceptText}>{busy ? t("inbox.working") : t("inbox.accept")}</Text>
-        </AnimatedPressable>
-      </View>
     </View>
   );
 }
@@ -861,9 +385,11 @@ function DirectMessageRow({
                 {conversation.otherUser.displayName}
               </Text>
               {unread && (
-                <View
-                  style={[styles.unreadDot, { backgroundColor: colors.accent }]}
-                />
+                <View style={[styles.unreadBadge, { backgroundColor: colors.accent }]}>
+                  <Text style={styles.unreadBadgeText}>
+                    {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                  </Text>
+                </View>
               )}
             </View>
             <Text
@@ -887,50 +413,11 @@ function DirectMessageRow({
   );
 }
 
-function PendingRequestRow({
-  request,
-  last,
-  colors,
-}: {
-  request: DmRequestSummary;
-  last: boolean;
-  colors: ThemeColors;
-}) {
-  const { t } = useTranslation('community');
-  return (
-    <View
-      style={[
-        styles.pendingRow,
-        !last && {
-          borderBottomColor: colors.border,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-        },
-      ]}
-    >
-      <PersonAvatar profile={request.otherUser} colors={colors} />
-      <View style={styles.rowCopy}>
-        <Text
-          style={[styles.name, { color: colors.foreground }]}
-          numberOfLines={1}
-        >
-          {request.otherUser.displayName}
-        </Text>
-        <Text
-          style={[styles.preview, { color: colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          {t("inbox.waitingResponse", { message: request.firstMessage.body })}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 function PersonAvatar({
   profile,
   colors,
 }: {
-  profile: DmRequestSummary["otherUser"];
+  profile: DmConversationSummary["otherUser"];
   colors: ThemeColors;
 }) {
   if (profile.avatarUrl)
@@ -1021,6 +508,15 @@ const styles = StyleSheet.create({
   },
   nameUnread: { fontWeight: "900" },
   unreadDot: { width: 7, height: 7, borderRadius: 4 },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadBadgeText: { color: '#FFFFFF', fontSize: 10, lineHeight: 12, fontWeight: '800' },
   preview: { fontSize: 12, lineHeight: 17 },
   trailing: {
     flexDirection: "row",

@@ -23,6 +23,8 @@
   "discovery": {
     "title": "Descubra comunidades",
     "subtitle": "Encontre pessoas se preparando para as mesmas oportunidades e objetivos.",
+    "featured": "Em destaque",
+    "shuffleA11y": "Alternar comunidades em destaque",
     "emptyTitle": "Ainda não há comunidades para descobrir",
     "emptyBody": "Novos grupos de oportunidades aparecerão aqui quando forem criados.",
     "checkAgain": "Verificar novamente",

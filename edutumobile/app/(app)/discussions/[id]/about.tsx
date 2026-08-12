@@ -48,7 +48,11 @@ import { AnimatedPressable } from "../../../../components/ui/AnimatedPressable";
 import { Skeleton } from "../../../../components/ui/Skeleton";
 import { useTheme } from "../../../../components/context/ThemeContext";
 import { GroupAvatar } from "../../../../components/community/GroupAvatar";
-import { GroupContentTabs } from "../../../../components/community/GroupContentTabs";
+import {
+  GroupContentTabs,
+  useGroupContentSwipe,
+} from "../../../../components/community/GroupContentTabs";
+import { getCommunityGroupCoverUrl } from "../../../../lib/communityDiscovery";
 
 type PendingRole = { member: CommunityMemberSummary; role: "mod" | "member" };
 
@@ -94,6 +98,7 @@ export default function GroupAboutScreen() {
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(
     null,
   );
+  const tabSwipeHandlers = useGroupContentSwipe(groupId, activeTab);
 
   const load = useCallback(async () => {
     if (!groupId) return;
@@ -266,6 +271,7 @@ export default function GroupAboutScreen() {
 
   return (
     <SafeAreaView
+      {...tabSwipeHandlers}
       style={[styles.screen, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
@@ -673,6 +679,7 @@ function GroupHero({
         <GroupAvatar
           testID="group-about-avatar"
           resourceUrl={group.coverImageResourceUrl}
+          imageUrl={getCommunityGroupCoverUrl(group.slug)}
           emoji={group.coverEmoji}
           size={72}
           radius={20}

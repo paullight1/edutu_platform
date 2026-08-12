@@ -16,6 +16,7 @@ const resolvedImageCache = new Map<string, CachedImage>();
 
 export interface GroupAvatarProps {
   resourceUrl?: string | null;
+  imageUrl?: string | null;
   emoji: string;
   size?: number;
   radius?: number;
@@ -31,6 +32,7 @@ export interface GroupAvatarProps {
  */
 export function GroupAvatar({
   resourceUrl,
+  imageUrl,
   emoji,
   size = 44,
   radius = 13,
@@ -84,12 +86,14 @@ export function GroupAvatar({
       style={[styles.frame, frame, { backgroundColor: colors.muted }, style]}
     >
       <Text style={[styles.emoji, { fontSize: Math.max(18, size * 0.44) }]}>{emoji}</Text>
-      {!!resolvedUrl && (
+      {(resolvedUrl || imageUrl) && (
         <Image
           testID={`${testID}-image`}
-          source={{ uri: resolvedUrl }}
+          source={{ uri: resolvedUrl || imageUrl || '' }}
           resizeMode="cover"
-          onError={() => setResolvedImage(null)}
+          onError={() => {
+            if (resolvedUrl) setResolvedImage(null);
+          }}
           style={[StyleSheet.absoluteFillObject, frame]}
         />
       )}

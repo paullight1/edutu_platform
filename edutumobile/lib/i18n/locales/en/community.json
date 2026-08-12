@@ -23,6 +23,8 @@
   "discovery": {
     "title": "Discover communities",
     "subtitle": "Find people preparing for the same opportunities and goals.",
+    "featured": "Featured",
+    "shuffleA11y": "Shuffle featured communities",
     "emptyTitle": "No communities to discover yet",
     "emptyBody": "New opportunity groups will appear here as people start them.",
     "checkAgain": "Check again",
@@ -299,7 +301,7 @@
     "unavailable": "Conversations unavailable",
     "emptyTitle": "No conversations yet",
     "emptyPartial": "Some conversation sources are temporarily unavailable. Pull to refresh or try again shortly.",
-    "emptyBody": "Message a member or join a community. Private message requests and group conversations will appear here.",
+  "emptyBody": "Direct conversations with people you connect with will appear here.",
     "explore": "Explore communities",
     "retryA11y": "Retry loading conversations",
     "requests": "Message requests",

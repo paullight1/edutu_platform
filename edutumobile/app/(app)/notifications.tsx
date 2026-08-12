@@ -22,7 +22,9 @@ import {
     Settings,
     Lock,
     Newspaper,
-    ChevronRight
+    ChevronRight,
+    MessageCircle,
+    CheckCircle2
 } from 'lucide-react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
@@ -116,6 +118,9 @@ export default function NotificationsScreen() {
             case 'goal-progress': return <Award size={size} color="#10b981" />;
             case 'opportunity-highlight': return <Users size={size} color="#3b82f6" />;
             case 'opportunity-alert': return <BellRing size={size} color="#10b981" />;
+            case 'community-message': return <MessageCircle size={size} color="#146EF5" />;
+            case 'community-request': return <Users size={size} color="#8B5CF6" />;
+            case 'application-status': return <CheckCircle2 size={size} color="#10B981" />;
             case 'admin-broadcast': return <AlertTriangle size={size} color="#f59e0b" />;
             case 'system': return <Lock size={size} color="#2563EB" />;
             default: return <Bell size={size} color="#94A3B8" />;

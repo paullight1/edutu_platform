@@ -4,6 +4,9 @@ export type NotificationKind =
   | 'goal-progress'
   | 'opportunity-highlight'
   | 'opportunity-alert'
+  | 'community-message'
+  | 'community-request'
+  | 'application-status'
   | 'admin-broadcast'
   | 'system';
 

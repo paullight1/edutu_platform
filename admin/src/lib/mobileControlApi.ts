@@ -8,7 +8,7 @@ export interface MobileCampaign {
   title: string;
   body?: string;
   campaign_type: 'popup' | 'banner' | 'notification' | 'interstitial' | 'announcement';
-  placement: 'global' | 'home' | 'opportunities' | 'goals' | 'notifications';
+  placement: 'global' | 'home' | 'opportunities' | 'goals' | 'notifications' | 'community';
   status: 'draft' | 'scheduled' | 'active' | 'paused' | 'archived';
   priority: number;
   starts_at?: string | null;

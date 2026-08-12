@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   communityGroupForms,
   communityGroupMembers,
@@ -297,9 +298,14 @@ export type ResolvedForm = {
 @Injectable()
 export class FormsService {
   private readonly store: FormsStore;
+  private readonly notificationsService?: NotificationsService;
 
-  constructor(@Optional() @Inject(FORMS_STORE) store?: FormsStore) {
+  constructor(
+    @Optional() @Inject(FORMS_STORE) store?: FormsStore,
+    @Optional() notificationsService?: NotificationsService,
+  ) {
     this.store = store ?? new DrizzleFormsStore();
+    this.notificationsService = notificationsService;
   }
 
   /**
@@ -562,11 +568,37 @@ export class FormsService {
     // not counted — and rewriting it to `removed` would only make the person's
     // re-application (an UPSERT back to `pending`) look like a returning
     // ex-member rather than the second attempt it is.
-    return this.store.decideRequest({
+    const result = await this.store.decideRequest({
       requestId,
       decision: { status: decision, decidedBy: acting, decidedAt: new Date() },
       activate,
     });
+    void this.notificationsService
+      ?.broadcast(acting, {
+        title:
+          decision === "approved"
+            ? `You're in ${group.name}`
+            : `Application update for ${group.name}`,
+        body:
+          decision === "approved"
+            ? "Your request to join the group was approved."
+            : "Your request to join the group was not approved this time.",
+        kind: "community-request",
+        severity: decision === "approved" ? "success" : "warning",
+        audience: "specific",
+        targetUserIds: [request.userId],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `community-join-decision:${request.id}:${decision}`,
+        metadata: {
+          url: `/discussions/${group.id}`,
+          groupId: group.id,
+          requestId: request.id,
+          decision,
+          source: "community-join-decision",
+        },
+      })
+      .catch(() => undefined);
+    return result;
   }
 
   // -------------------------------------------------------------------------

@@ -70,6 +70,7 @@ import { useTranslation } from "react-i18next";
 import { useGuestMode, isGuestAllowedPath } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
 import { CommunityHeader, CommunityNavigation } from "../../components/community/CommunityNavigation";
+import { useCommunityUnreadCounts } from "../../hooks/useCommunityUnreadCounts";
 import { registerNativeCallingTokenSync, resetNativeCallingTokenSync } from "../../features/community-calls/nativeCall";
 import { getCommunityCallRouteFromNotification } from "../../features/community-calls/notifications";
 
@@ -92,6 +93,7 @@ function stableGreetingOffset(value: string) {
     }
     return Math.abs(hash);
 }
+
 // …and its width. Compacting only the height left the four icons stranded at
 // their expanded spacing, so the bar looked like it had merely lost its labels
 // rather than contracted. 52pt per tab keeps every touch target comfortably
@@ -135,7 +137,9 @@ function getCreateDialBottom(style: NavBarStyle, bottomInset: number): number {
 // ─── Badge Component ─────────────────────────────────────────────────────────
 function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
     const { t } = useTranslation('home');
-    if (count === undefined || count === null) return null;
+    // Zero is a normal state, not a notification. Keep this guard central so
+    // a future tab cannot accidentally render a distracting "0" badge.
+    if (count === undefined || count === null || (typeof count === "number" && count <= 0)) return null;
     const label = typeof count === "number" ? (count > 99 ? t('tabs.badgeOverflow') : String(count)) : count;
     return (
         <View style={[styles.badge, { borderColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
@@ -388,7 +392,11 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     style={[styles.bellBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}
                 >
                     <Bell size={20} color={accentColor} strokeWidth={2} />
-                    {unreadNotifications > 0 && <View style={[styles.bellBadge, { borderColor: colors.background }]} />}
+                    {unreadNotifications > 0 && (
+                        <View style={styles.bellCountWrap}>
+                            <Badge count={unreadNotifications} isDark={isDark} />
+                        </View>
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -1338,6 +1346,10 @@ export default function AppLayout() {
     const pathname = usePathname();
     const params = useGlobalSearchParams<{ category?: string }>();
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
+    const {
+        groupsUnreadCount,
+        chatsUnreadCount,
+    } = useCommunityUnreadCounts(user?.id ?? null, getToken);
     const registeredPushUserRef = React.useRef<string | null>(null);
     const [featureMenuOpen, setFeatureMenuOpen] = useState(false);
     const [featureMenuPath, setFeatureMenuPath] = useState(pathname);
@@ -1632,7 +1644,7 @@ export default function AppLayout() {
 
     const tabs = [
         { key: "home", route: "/", label: t('tabs.home'), icon: Home, badge: undefined },
-        { key: "groups", route: "/discussions", label: t('tabs.groups', { defaultValue: 'Groups' }), icon: Users, badge: undefined },
+        { key: "groups", route: "/discussions", label: t('tabs.groups', { defaultValue: 'Groups' }), icon: Users, badge: groupsUnreadCount > 0 ? groupsUnreadCount : undefined },
         { key: "opportunities", route: "/opportunities", label: t('tabs.explore'), icon: Compass, badge: undefined },
         { key: "roadmaps", route: "/roadmaps", label: t('tabs.plan'), icon: ShoppingBag, badge: undefined },
         { key: "menu", route: "/profile", label: t('tabs.more'), icon: Menu, badge: undefined },
@@ -1766,7 +1778,12 @@ export default function AppLayout() {
             {/* The Groups tab enters the existing Community interface. Its
                 landing screens keep their dedicated bottom navigation, while
                 focused group and DM conversations keep their own back flow. */}
-            {isCommunityLanding && <CommunityNavigation />}
+            {isCommunityLanding && (
+                <CommunityNavigation
+                    groupsUnreadCount={groupsUnreadCount}
+                    chatsUnreadCount={chatsUnreadCount}
+                />
+            )}
 
             {featureMenuOpen ? (
                 <Pressable
@@ -2138,5 +2155,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#EF4444',
         borderWidth: 1.5,
         borderColor: '#020617',
+    },
+    bellCountWrap: {
+        position: 'absolute',
+        top: 1,
+        right: 0,
     },
 });

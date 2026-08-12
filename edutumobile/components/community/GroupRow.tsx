@@ -10,6 +10,7 @@ import type {
 import { AnimatedPressable } from '../ui/AnimatedPressable';
 import { useTheme } from '../context/ThemeContext';
 import { formatRelativeTime } from '../../lib/utils';
+import { getCommunityGroupCoverUrl } from '../../lib/communityDiscovery';
 import { GroupAvatar } from './GroupAvatar';
 
 /**
@@ -31,6 +32,8 @@ interface GroupRowProps {
   membership?: MembershipStatus | null;
   /** Drives the accent dot. Unread is one of the only things accent carries. */
   unread?: boolean;
+  /** Exact unread message count from the community inbox. */
+  unreadCount?: number;
   /** Position in its own list, for the staggered entrance. */
   index?: number;
   onPress?: (group: CommunityGroup) => void;
@@ -65,6 +68,7 @@ export function GroupRow({
   group,
   membership = null,
   unread = false,
+  unreadCount = 0,
   index = 0,
   onPress,
   disabled = false,
@@ -149,6 +153,7 @@ export function GroupRow({
         <GroupAvatar
           testID={`group-row-avatar-${group.id}`}
           resourceUrl={group.coverImageResourceUrl}
+          imageUrl={getCommunityGroupCoverUrl(group.slug)}
           emoji={group.coverEmoji}
           size={42}
           radius={12}
@@ -185,6 +190,18 @@ export function GroupRow({
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"
               />
+            )}
+            {unreadCount > 0 && (
+              <View
+                testID={`group-row-unread-count-${group.id}`}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={[styles.unreadBadge, { backgroundColor: colors.accent }]}
+              >
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
             )}
           </View>
 
@@ -285,6 +302,21 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: '800',
   },
   name: {
     flex: 1,

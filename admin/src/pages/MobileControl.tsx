@@ -341,7 +341,7 @@ export default function MobileControl() {
                 onRemove={(item) => void remove('campaigns', item)}
                 onSetLive={(item, live) => void setCampaignStatus(item, live ? 'active' : 'draft')}
                 onArchive={(item) => void setCampaignStatus(item, 'archived')}
-                renderMeta={(item) => `${item.campaign_type} · shows on ${item.placement === 'global' ? 'every screen' : item.placement}`}
+                renderMeta={(item) => `${item.campaign_type} · shows on ${item.placement === 'global' ? 'every screen' : item.placement === 'community' ? 'Explore community hero' : item.placement}`}
               />
             </>
           )}
@@ -501,7 +501,7 @@ function CampaignForm({ value, onChange, onSave, onCancel, saving, onValidity, j
       />
       <TextField label="Message" wide placeholder="e.g. 12 new scholarships match your profile — take a look." hint="One or two short sentences users will read." value={value.body || ''} onChange={(body) => onChange({ ...value, body })} />
       <SelectField label="Format" hint="Popup = card over the screen · banner = strip with an image." value={value.campaign_type} options={['popup', 'banner', 'notification', 'interstitial', 'announcement']} onChange={(campaign_type) => onChange({ ...value, campaign_type: campaign_type as MobileCampaign['campaign_type'] })} />
-      <SelectField label="Shows on" hint="Which screen of the app displays it." value={value.placement} options={['global', 'home', 'opportunities', 'goals', 'notifications']} onChange={(placement) => onChange({ ...value, placement: placement as MobileCampaign['placement'] })} />
+      <SelectField label="Shows on" hint="Which screen of the app displays it. Community banners rotate in the Explore hero card." value={value.placement} options={['global', 'home', 'opportunities', 'goals', 'notifications', 'community']} onChange={(placement) => onChange({ ...value, placement: placement as MobileCampaign['placement'] })} />
       <TextField label="Button label" placeholder="e.g. See them" hint="Text on the message’s button." value={String(creative.ctaLabel ?? '')} onChange={(ctaLabel) => setCreative({ ctaLabel })} />
       <TextField label="Button opens" placeholder="e.g. /opportunities" hint="App screen or link the button opens." value={String(creative.ctaRoute ?? '')} onChange={(ctaRoute) => setCreative({ ctaRoute })} />
       <TextField

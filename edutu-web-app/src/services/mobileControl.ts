@@ -26,8 +26,6 @@ export interface RemotePricing {
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
-  /** Hosted-checkout origin (pay.edutu.org) — where the season link points. */
-  checkoutBaseUrl?: string;
   creditPacks?: Array<{ credits: number; price: number; label?: string }>;
   promo?: {
     active: boolean;

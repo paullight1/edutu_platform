@@ -187,6 +187,13 @@ export async function registerForPushNotificationsAsync(
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#171a4f',
         });
+        Notifications.setNotificationChannelAsync('community', {
+            name: 'Community messages',
+            description: 'Direct messages, group activity and invitations',
+            importance: Notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 180, 120, 180],
+            lightColor: '#146EF5',
+        });
     }
 
     return token.data;

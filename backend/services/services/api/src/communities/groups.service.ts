@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   communityGroupMembers,
   communityGroups,
@@ -761,14 +762,17 @@ export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
   private readonly store: GroupsStore;
   private readonly authors: AuthorDirectory;
+  private readonly notificationsService?: NotificationsService;
 
   constructor(
     @Optional() @Inject(GROUPS_STORE) store?: GroupsStore,
     @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
     @Optional() private readonly assets?: MessagesService,
+    @Optional() notificationsService?: NotificationsService,
   ) {
     this.store = store ?? new DrizzleGroupsStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
+    this.notificationsService = notificationsService;
   }
 
   // -------------------------------------------------------------------------
@@ -1161,6 +1165,24 @@ export class GroupsService {
         role: this.roleOnActivation(existing),
         status: "pending",
       });
+      void this.notificationsService
+        ?.broadcast(joinerId, {
+          title: `New join request for ${group.name}`,
+          body: "Someone is waiting for your group review.",
+          kind: "community-request",
+          severity: "info",
+          audience: "specific",
+          targetUserIds: [group.ownerId],
+          channels: { inApp: true, push: true, email: false },
+          dedupeKey: `community-join-request:${request.id}`,
+          metadata: {
+            url: `/discussions/${group.id}`,
+            groupId: group.id,
+            requestId: request.id,
+            source: "community-join-request",
+          },
+        })
+        .catch(() => undefined);
       return { status: "pending", groupId, membership, request };
     }
 
@@ -1219,12 +1241,30 @@ export class GroupsService {
         "That person is banned from this group. Unban them before inviting them back.",
       );
     }
-    return this.store.upsertMembership({
+    const membership = await this.store.upsertMembership({
       groupId,
       userId: invitee,
       role: this.roleOnActivation(existing),
       status: "invited",
     });
+    void this.notificationsService
+      ?.broadcast(actorId, {
+        title: `You're invited to ${group.name}`,
+        body: "Open the group to accept your invitation.",
+        kind: "community-request",
+        severity: "info",
+        audience: "specific",
+        targetUserIds: [invitee],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `community-invite:${group.id}:${invitee}`,
+        metadata: {
+          url: `/discussions/${group.id}`,
+          groupId: group.id,
+          source: "community-group-invite",
+        },
+      })
+      .catch(() => undefined);
+    return membership;
   }
 
   /**

@@ -100,3 +100,32 @@ export function subscribeToGroupMessages(
     void supabase.removeChannel(channel);
   };
 }
+
+/**
+ * One app-level group-message listener used by unread badges. It deliberately
+ * does not open one channel per joined group; the callback only schedules a
+ * fresh authorized API read, which keeps the badge data subject to the same
+ * membership rules as the Groups screen.
+ */
+export function subscribeToCommunityGroupInbox(onChange: () => void): () => void {
+  const channel = supabase
+    .channel('community:group-inbox')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'community_group_messages' },
+      onChange,
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'community_group_messages' },
+      onChange,
+    )
+    .subscribe();
+
+  let removed = false;
+  return () => {
+    if (removed) return;
+    removed = true;
+    void supabase.removeChannel(channel);
+  };
+}

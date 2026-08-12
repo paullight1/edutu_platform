@@ -23,6 +23,8 @@
   "discovery": {
     "title": "Gano al'ummomi",
     "subtitle": "Nemo mutanen da ke shirin dama da manufofi iri ɗaya.",
+    "featured": "Fitattu",
+    "shuffleA11y": "Canza al'ummomin da aka fito da su",
     "emptyTitle": "Babu al'ummar da za a gano tukuna",
     "emptyBody": "Sabbin ƙungiyoyin dama za su bayyana a nan idan an ƙirƙire su.",
     "checkAgain": "Sake dubawa",

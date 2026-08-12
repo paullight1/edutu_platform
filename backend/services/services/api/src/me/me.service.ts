@@ -3,10 +3,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { toDatabaseUserId } from "../common/user-id";
+import { NotificationsService } from "../notifications/notifications.service";
 import type {
   CreateApplicationDto,
   SaveBookmarkDto,
@@ -40,8 +42,10 @@ export class MeService {
   private readonly logger = new Logger(MeService.name);
   private readonly supabase: SupabaseClient | null = null;
   private readonly notificationCountWarnings = new Set<string>();
+  private readonly notificationsService?: NotificationsService;
 
-  constructor() {
+  constructor(@Optional() notificationsService?: NotificationsService) {
+    this.notificationsService = notificationsService;
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -167,6 +171,14 @@ export class MeService {
     await this.recordOutcomeSignal(dbUserId, dto.opportunityId, status);
 
     const [application] = await this.hydrateApplications([data as TableRow]);
+    if (status === "submitted") {
+      this.queueApplicationNotification(
+        userId,
+        dto.opportunityId,
+        String((data as TableRow).id ?? ""),
+        "submitted",
+      );
+    }
     return application;
   }
 
@@ -215,7 +227,59 @@ export class MeService {
     }
 
     const [application] = await this.hydrateApplications([data as TableRow]);
+    if (typeof dto.status === "string" && dto.status !== "draft") {
+      this.queueApplicationNotification(
+        userId,
+        String((data as TableRow).opportunity_id ?? ""),
+        applicationId,
+        dto.status,
+      );
+    }
     return application;
+  }
+
+  private queueApplicationNotification(
+    userId: string,
+    opportunityId: string,
+    applicationId: string,
+    status: string,
+  ): void {
+    if (
+      !this.notificationsService ||
+      !userId ||
+      !opportunityId ||
+      !applicationId
+    ) {
+      return;
+    }
+
+    const statusLabel = status.replace(/_/g, " ");
+    void this.notificationsService
+      .broadcast(userId, {
+        title:
+          status === "submitted"
+            ? "Application submitted"
+            : "Application updated",
+        body: `Your application status is now ${statusLabel}.`,
+        kind: "application-status",
+        severity: status === "rejected" ? "warning" : "success",
+        audience: "specific",
+        targetUserIds: [userId],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `application-status:${applicationId}:${status}`,
+        metadata: {
+          url: `/opportunities/${opportunityId}`,
+          opportunityId,
+          applicationId,
+          status,
+          source: "applications",
+        },
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Application notification failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
   }
 
   /**

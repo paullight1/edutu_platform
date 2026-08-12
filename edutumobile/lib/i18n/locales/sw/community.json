@@ -23,6 +23,8 @@
   "discovery": {
     "title": "Gundua jumuiya",
     "subtitle": "Pata watu wanaojiandaa kwa fursa na malengo sawa.",
+    "featured": "Zilizoangaziwa",
+    "shuffleA11y": "Changanya jumuiya zilizoangaziwa",
     "emptyTitle": "Bado hakuna jumuiya za kugundua",
     "emptyBody": "Vikundi vipya vya fursa vitaonekana hapa watu wanapovianzisha.",
     "checkAgain": "Angalia tena",

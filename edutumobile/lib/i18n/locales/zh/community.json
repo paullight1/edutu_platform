@@ -23,6 +23,8 @@
   "discovery": {
     "title": "发现新社区",
     "subtitle": "找到正在为相同机会和目标做准备的人。",
+    "featured": "精选",
+    "shuffleA11y": "随机切换精选社区",
     "emptyTitle": "暂无可发现的社区",
     "emptyBody": "当用户创建新的机会小组时，它们会显示在这里。",
     "checkAgain": "再次检查",

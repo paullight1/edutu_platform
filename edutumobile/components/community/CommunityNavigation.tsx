@@ -30,6 +30,13 @@ export function CommunityHeader() {
   const { t } = useTranslation("community");
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const palette = {
+    background: isDark ? colors.background : '#FFF9F1',
+    foreground: isDark ? colors.foreground : '#4A170D',
+    border: isDark ? colors.border : '#F7D9C3',
+    accent: isDark ? colors.accent : '#F45B16',
+    muted: isDark ? colors.muted : '#FCEAD5',
+  };
 
   const page = pathname.includes("/discussions/explore")
     ? "explore"
@@ -53,8 +60,8 @@ export function CommunityHeader() {
       style={[
         styles.header,
         {
-          backgroundColor: colors.background,
-          borderBottomColor: colors.border,
+          backgroundColor: palette.background,
+          borderBottomColor: palette.border,
           paddingTop: insets.top,
           height: 76 + insets.top,
         },
@@ -66,17 +73,14 @@ export function CommunityHeader() {
         onPress={() => router.replace("/(app)" as never)}
         style={[
           styles.back,
-          { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : colors.muted },
+          { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : palette.muted },
         ]}
       >
-        <ArrowLeft size={19} color={colors.foreground} />
+        <ArrowLeft size={19} color={palette.foreground} />
       </TouchableOpacity>
       <View style={styles.titleWrap}>
-        <Text style={[styles.eyebrow, { color: colors.accent }]}>
-          {t("navigation.eyebrow")}
-        </Text>
         <Text
-          style={[styles.title, { color: colors.foreground }]}
+          style={[styles.title, { color: palette.foreground }]}
           numberOfLines={1}
         >
           {title}
@@ -92,12 +96,12 @@ export function CommunityHeader() {
               : t("screens.profileTitle")
           }
           onPress={() => router.push((page === "profile" ? "/profile/settings" : "/discussions/profile") as never)}
-          style={[styles.activity, { backgroundColor: colors.muted }]}
+          style={[styles.activity, { backgroundColor: palette.muted }]}
         >
           {page === "profile" ? (
-            <Settings size={19} color={colors.foreground} />
+            <Settings size={19} color={palette.foreground} />
           ) : (
-            <UserCircle size={20} color={colors.foreground} />
+            <UserCircle size={20} color={palette.foreground} />
           )}
         </TouchableOpacity>
       </View>
@@ -105,12 +109,23 @@ export function CommunityHeader() {
   );
 }
 
-export function CommunityNavigation() {
+export function CommunityNavigation({
+  groupsUnreadCount = 0,
+  chatsUnreadCount = 0,
+}: {
+  groupsUnreadCount?: number;
+  chatsUnreadCount?: number;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation("community");
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const palette = {
+    border: isDark ? colors.border : '#F7D9C3',
+    accent: isDark ? colors.accent : '#F45B16',
+    textSecondary: isDark ? colors.textSecondary : '#796F6B',
+  };
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
   const isGroups = normalizedPath === "/discussions";
   const isExplore = normalizedPath === "/discussions/explore";
@@ -126,12 +141,14 @@ export function CommunityNavigation() {
     {
       label: t("screens.browseTitle"),
       icon: Users,
+      badge: groupsUnreadCount,
       active: isGroups,
       onPress: () => router.replace("/discussions" as never),
     },
     {
       label: t("screens.chatsTitle"),
       icon: MessageCircle,
+      badge: chatsUnreadCount,
       active: isChats,
       onPress: () => router.replace("/discussions/chats" as never),
     },
@@ -146,13 +163,13 @@ export function CommunityNavigation() {
           backgroundColor: isDark
             ? "rgba(15,23,42,0.97)"
             : "rgba(255,255,255,0.97)",
-          borderTopColor: colors.border,
+          borderTopColor: palette.border,
           height: 58 + insets.bottom,
           paddingBottom: insets.bottom,
         },
       ]}
     >
-      {items.map(({ label, icon: Icon, active, onPress }) => (
+      {items.map(({ label, icon: Icon, active, onPress, badge = 0 }) => (
         <TouchableOpacity
           key={label}
           accessibilityRole="button"
@@ -165,19 +182,27 @@ export function CommunityNavigation() {
           <View
             style={[
               styles.iconBubble,
-              active && { backgroundColor: `${colors.accent}20` },
+              active && { backgroundColor: `${palette.accent}20` },
             ]}
           >
             <Icon
               size={21}
-              color={active ? colors.accent : colors.textSecondary}
+              color={active ? palette.accent : palette.textSecondary}
               strokeWidth={active ? 2.5 : 2}
             />
+            {badge > 0 && (
+              <View
+                testID={`community-nav-badge-${label}`}
+                style={[styles.badge, { backgroundColor: palette.accent }]}
+              >
+                <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+              </View>
+            )}
           </View>
           <Text
             style={[
               styles.navLabel,
-              { color: active ? colors.accent : colors.textSecondary },
+              { color: active ? palette.accent : palette.textSecondary },
             ]}
           >
             {label}
@@ -204,7 +229,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   titleWrap: { flex: 1, marginLeft: 12 },
-  eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
   title: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
   activity: {
     width: 38,
@@ -231,6 +255,7 @@ const styles = StyleSheet.create({
   },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
   iconBubble: {
+    position: "relative",
     width: 42,
     height: 30,
     borderRadius: 15,
@@ -238,4 +263,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   navLabel: { fontSize: 11, fontWeight: "700" },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
+  badgeText: { color: "#FFFFFF", fontSize: 9, lineHeight: 11, fontWeight: "800" },
 });
