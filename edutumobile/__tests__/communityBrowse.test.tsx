@@ -2,15 +2,14 @@
    `mock*` consts, so those consts must be initialised before the modules under
    test are required. Imports therefore follow the mocks. */
 /**
- * Group Discussions — browse screen, WhatsApp banner, Discover tile re-route.
+ * Group Discussions — member-only browse screen and community navigation.
  *
- * These assert the things a user would notice if they broke, not that render()
- * returned something: the tile no longer leaves the app, the three sections are
- * three genuinely different components, the banner stays dismissed across
- * mounts, and a refusal from the backend shows the sentence the backend wrote.
+ * These assert the things a user would notice if they broke: Groups only shows
+ * active memberships, the banner stays dismissed across mounts, and a refusal
+ * from the backend shows the sentence the backend wrote.
  */
 import React from 'react';
-import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const mockPush = jest.fn();
@@ -55,7 +54,19 @@ jest.mock('../components/context/ThemeContext', () => ({
   }),
 }));
 
-jest.mock('../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../lib/supabase', () => ({
+  supabase: {
+    channel: jest.fn(() => {
+      const channel = {
+        on: jest.fn(() => channel),
+        subscribe: jest.fn(() => channel),
+        unsubscribe: jest.fn(),
+      };
+      return channel;
+    }),
+    removeChannel: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 // requireActual keeps the real CommunityApiError class so the error test
 // exercises the shape the service actually throws, not a stand-in.
@@ -193,18 +204,23 @@ describe('Chats tab ownership', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Three affordances
+// Member affordance
 // ---------------------------------------------------------------------------
 
 describe('browse screen affordances', () => {
   it('refreshes when Groups regains focus so a newly created group appears', async () => {
+    const existing = makeGroup({
+      id: 'existing-1',
+      name: 'Existing member group',
+    });
     const created = makeGroup({
       id: 'created-1',
       name: 'A group I created',
       ownerId: 'user_1',
     });
+    wireGroups([makeRow(existing, 'active')], []);
     const { getByTestId } = render(<DiscussionsBrowseScreen />);
-    await waitFor(() => getByTestId('discussions-empty'));
+    await waitFor(() => getByTestId(`group-row-${existing.id}`));
 
     wireGroups([makeRow(created, 'active')], []);
     mockFocusCallback?.();
@@ -212,7 +228,7 @@ describe('browse screen affordances', () => {
     await waitFor(() => getByTestId(`group-row-${created.id}`));
   });
 
-  it('shows an owned group even if its legacy membership row is missing', async () => {
+  it('does not show a legacy owned group without an active membership row', async () => {
     const owned = makeGroup({
       id: 'legacy-owned',
       name: 'My earlier group',
@@ -220,62 +236,33 @@ describe('browse screen affordances', () => {
     });
     wireGroups([makeRow(owned)], []);
 
-    const { getByTestId } = render(<DiscussionsBrowseScreen />);
+    const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
 
-    await waitFor(() => getByTestId(`group-row-${owned.id}`));
+    await waitFor(() => getByTestId('discussions-empty'));
+    expect(queryByTestId(`group-row-${owned.id}`)).toBeNull();
   });
 
-  it('renders your groups as rows, saved-opportunity groups as a rail, and discovery inline — three different components', async () => {
+  it('renders only active member groups; discovery belongs to Explore', async () => {
     wireGroups(
       [makeRow(MINE, 'active')],
       [makeRow(RAIL), makeRow(DISCOVER)],
     );
-    mockFetchSavedOpportunities.mockResolvedValue([
-      {
-        id: 'b1',
-        opportunity_id: 'opp-1',
-        user_id: 'user_1',
-        created_at: '2026-07-20T00:00:00.000Z',
-        title: 'Mastercard Foundation Scholars',
-        deadline: '2026-08-06T00:00:00.000Z',
-      },
-    ]);
-
     const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
 
     await waitFor(() => getByTestId(`group-row-${MINE.id}`));
-    getByTestId(`group-rail-card-${RAIL.id}`);
-    getByTestId(`discover-pill-${DISCOVER.id}`);
-
-    // Same group id must never appear in two affordances at once — that is what
-    // "one card grid three times" would look like in the DOM.
+    expect(queryByTestId(`group-rail-card-${RAIL.id}`)).toBeNull();
+    expect(queryByTestId(`discover-pill-${DISCOVER.id}`)).toBeNull();
     expect(queryByTestId(`group-row-${RAIL.id}`)).toBeNull();
-    expect(queryByTestId(`group-rail-card-${MINE.id}`)).toBeNull();
-    expect(queryByTestId(`discover-pill-${MINE.id}`)).toBeNull();
-    expect(queryByTestId(`discover-pill-${RAIL.id}`)).toBeNull();
-
-    // Each affordance carries structure the others do not: the row states your
-    // membership, the rail card carries the deadline chip, the pill carries
-    // neither.
     getByTestId(`group-row-membership-${MINE.id}`);
-    getByTestId(`group-rail-deadline-${RAIL.id}`);
-    expect(queryByTestId(`group-rail-deadline-${MINE.id}`)).toBeNull();
-    expect(queryByTestId(`group-row-membership-${DISCOVER.id}`)).toBeNull();
-
-    // And the rail is a horizontally scrolling container, not a wrapped grid.
-    expect(getByTestId('discussions-rail').props.horizontal).toBe(true);
   });
 
-  it('opens a group from any of the three affordances', async () => {
+  it('opens a group from the member row', async () => {
     wireGroups([makeRow(MINE, 'active')], [makeRow(DISCOVER)]);
     const { getByTestId } = render(<DiscussionsBrowseScreen />);
 
     await waitFor(() => getByTestId(`group-row-${MINE.id}`));
     fireEvent.press(getByTestId(`group-row-${MINE.id}`));
     expect(mockPush).toHaveBeenCalledWith(`/discussions/${MINE.id}`);
-
-    fireEvent.press(getByTestId(`discover-pill-${DISCOVER.id}`));
-    expect(mockPush).toHaveBeenCalledWith(`/discussions/${DISCOVER.id}`);
   });
 
   it('tells an invitee and an applicant apart', () => {
@@ -341,55 +328,32 @@ describe('membership states on the browse screen', () => {
     expect(queryByTestId('discover-pill-undefined')).toBeNull();
   });
 
-  it('shows an invitation in your groups, reading as an invitation and not as membership', async () => {
+  it('does not show invitations in Groups', async () => {
     wireGroups(
       [makeRow(MINE, 'active'), makeRow(INVITED, 'invited')],
       [],
     );
     const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
 
-    const label = await waitFor(() =>
-      getByTestId(`group-row-membership-${INVITED.id}`),
-    );
-    expect(label.props.children).toBe("You're invited");
-    expect(label.props.children).not.toBe('Member');
-
-    // It is a live relationship, not an application: it must not be filed
-    // under the waiting list.
+    await waitFor(() => getByTestId(`group-row-${MINE.id}`));
+    expect(queryByTestId(`group-row-${INVITED.id}`)).toBeNull();
+    expect(queryByTestId(`group-row-membership-${INVITED.id}`)).toBeNull();
     expect(queryByTestId('discussions-pending')).toBeNull();
-
-    // And it leads somewhere the invitee can accept — the only door into a
-    // private group.
-    fireEvent.press(getByTestId(`group-row-${INVITED.id}`));
-    expect(mockPush).toHaveBeenCalledWith(`/discussions/${INVITED.id}`);
   });
 
-  it('shows an application as waiting, apart from real memberships, with no way to force entry', async () => {
+  it('does not show pending applications in Groups', async () => {
     wireGroups(
       [makeRow(MINE, 'active'), makeRow(PENDING, 'pending')],
       [],
     );
-    const { getByTestId, queryByTestId, queryByText, getByText } = render(
+    const { getByTestId, queryByTestId } = render(
       <DiscussionsBrowseScreen />,
     );
 
     await waitFor(() => getByTestId(`group-row-${MINE.id}`));
-
-    // Its own list, its own heading — not mixed in with the groups they are
-    // actually in.
-    const waiting = getByTestId('discussions-pending');
-    getByText('Waiting on approval');
-    within(waiting).getByTestId(`group-row-${PENDING.id}`);
-    expect(within(waiting).queryByTestId(`group-row-${MINE.id}`)).toBeNull();
-
-    expect(
-      getByTestId(`group-row-membership-${PENDING.id}`).props.children,
-    ).toBe('Request sent');
-
-    // Nothing on this screen offers a pending applicant a way in.
-    expect(queryByText('Join')).toBeNull();
-    expect(queryByText('Accept invite')).toBeNull();
-    expect(queryByTestId(`discover-pill-${PENDING.id}`)).toBeNull();
+    expect(queryByTestId(`group-row-${PENDING.id}`)).toBeNull();
+    expect(queryByTestId(`group-row-membership-${PENDING.id}`)).toBeNull();
+    expect(queryByTestId('discussions-pending')).toBeNull();
   });
 
   it('opens the chat for a group you are actually in', async () => {
@@ -445,9 +409,10 @@ describe('WhatsApp banner', () => {
     expect(second.queryByTestId('whatsapp-banner')).toBeNull();
   });
 
-  it('appears on the browse screen when it has never been dismissed', async () => {
-    const { getByTestId } = render(<DiscussionsBrowseScreen />);
-    await waitFor(() => getByTestId('whatsapp-banner'));
+  it('is not rendered inside the member-only Groups screen', async () => {
+    const { getByTestId, queryByTestId } = render(<DiscussionsBrowseScreen />);
+    await waitFor(() => getByTestId('discussions-empty'));
+    expect(queryByTestId('whatsapp-banner')).toBeNull();
   });
 
   it('is absent from the browse screen once dismissed', async () => {
@@ -463,12 +428,8 @@ describe('WhatsApp banner', () => {
 // ---------------------------------------------------------------------------
 
 describe('empty and error states', () => {
-  it('keeps Your groups usable when only the Discover request fails', async () => {
-    mockFetchGroups.mockImplementation((filter: { mine?: boolean }) =>
-      filter.mine
-        ? Promise.resolve([makeRow(MINE, 'active')])
-        : Promise.reject(new Error('temporary browse failure')),
-    );
+  it('keeps Groups usable when the unused discovery source is unavailable', async () => {
+    mockFetchGroups.mockResolvedValue([makeRow(MINE, 'active')]);
 
     const { getByTestId, queryByTestId } = render(
       <DiscussionsBrowseScreen />,
@@ -478,21 +439,15 @@ describe('empty and error states', () => {
     expect(queryByTestId('discussions-error')).toBeNull();
   });
 
-  it('never reports no groups when the owned-groups request failed', async () => {
-    mockFetchGroups.mockImplementation((filter: { mine?: boolean }) =>
-      filter.mine
-        ? Promise.reject(new Error('temporary ownership failure'))
-        : Promise.resolve([makeRow(DISCOVER)]),
-    );
+  it('shows an error when the member-groups request fails', async () => {
+    mockFetchGroups.mockRejectedValue(new Error('temporary membership failure'));
 
-    const { getByTestId, queryByTestId, getByText } = render(
+    const { getByTestId, queryByTestId } = render(
       <DiscussionsBrowseScreen />,
     );
 
-    await waitFor(() => getByTestId('discussions-mine-warning'));
-    getByText("Your groups couldn't refresh");
+    await waitFor(() => getByTestId('discussions-error'));
     expect(queryByTestId('discussions-empty')).toBeNull();
-    expect(getByTestId('discussions-discover')).toBeTruthy();
   });
 
   it('teaches with an icon, one line and one CTA rather than a bare sentence', async () => {

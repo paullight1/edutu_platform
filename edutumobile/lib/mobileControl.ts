@@ -13,7 +13,7 @@ import {
 import { getConfig } from './config';
 
 export type CampaignType = 'popup' | 'banner' | 'notification' | 'interstitial' | 'announcement';
-export type CampaignPlacement = 'global' | 'home' | 'opportunities' | 'goals' | 'notifications';
+export type CampaignPlacement = 'global' | 'home' | 'opportunities' | 'goals' | 'notifications' | 'community';
 
 export interface MobileCampaign {
   id: string;
@@ -439,11 +439,18 @@ export function sortCampaigns(campaigns: MobileCampaign[]): MobileCampaign[] {
   return [...campaigns].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
 
-export function selectCampaign(campaigns: MobileCampaign[], placement: CampaignPlacement = 'global'): MobileCampaign | null {
-  return sortCampaigns(campaigns).find((campaign) => (
+export function selectCampaigns(
+  campaigns: MobileCampaign[],
+  placement: CampaignPlacement = 'global',
+): MobileCampaign[] {
+  return sortCampaigns(campaigns).filter((campaign) => (
     isCampaignActive(campaign) &&
     (campaign.placement === 'global' || campaign.placement === placement)
-  )) ?? null;
+  ));
+}
+
+export function selectCampaign(campaigns: MobileCampaign[], placement: CampaignPlacement = 'global'): MobileCampaign | null {
+  return selectCampaigns(campaigns, placement)[0] ?? null;
 }
 
 export async function canShowCampaign(campaign: MobileCampaign): Promise<boolean> {

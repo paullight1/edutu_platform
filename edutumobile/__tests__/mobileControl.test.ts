@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isCampaignActive, selectCampaign, type MobileCampaign } from '../lib/mobileControl';
+import { isCampaignActive, selectCampaign, selectCampaigns, type MobileCampaign } from '../lib/mobileControl';
 import {
   buildOpportunityWidgetSnapshot,
   OPPORTUNITY_WIDGET_SNAPSHOT_KEY,
@@ -90,6 +90,19 @@ describe('mobile control campaign selection', () => {
     ], 'home');
 
     expect(campaign?.id).toBe('high');
+  });
+
+  it('returns all active community adverts in priority order for a rotating hero', () => {
+    const campaigns = selectCampaigns([
+      { ...baseCampaign, id: 'community-low', key: 'community-low', priority: 2, placement: 'community' },
+      { ...baseCampaign, id: 'community-high', key: 'community-high', priority: 10, placement: 'community' },
+      { ...baseCampaign, id: 'home-only', key: 'home-only', priority: 100, placement: 'home' },
+    ], 'community');
+
+    expect(campaigns.map((campaign) => campaign.id)).toEqual([
+      'community-high',
+      'community-low',
+    ]);
   });
 });
 
