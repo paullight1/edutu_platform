@@ -49,10 +49,15 @@ verified admin account to confirm all of the following:
    regular account. Verify the existing email allowlist and verified Clerk app
    metadata path used by `AdminGuard`.
 5. `opportunity_admin_stats()` remains non-executable by `authenticated`.
-6. Identify the deployed CV/resume relation, if one exists, and prove a
-   regular account cannot select rows belonging to another user. The canonical
-   migration tree does not define a CV/resume relation, so this mapping cannot
-   be inferred safely from source.
+6. Inventory the deployed CV/resume relation before running pgTAP. Set the
+   per-session input, for example
+   `set app.task4_cv_relation = 'public.actual_cv_relation';`, then prove the
+   relation has RLS and that a regular account cannot select another user's
+   row. Record the exact relation, RLS/policy output, test principal, SQL
+   baseline/migration version, and result in the staging change evidence. The
+   canonical migration tree does not define a CV/resume relation, so this
+   mapping cannot be inferred safely from source; leaving the input unset makes
+   `security_profile_authorization.sql` fail closed.
 7. Run `supabase/tests/security_profile_authorization.sql` against staging
    with pgTAP, then review Supabase Security and Performance Advisor results.
 

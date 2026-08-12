@@ -52,25 +52,36 @@ before insert or update of preferences on public.profiles
 for each row
 execute function public.profiles_reject_client_authorization_metadata();
 
--- Client-facing admin policies must not trust a value under preferences. The
--- backend service role remains the authorization boundary for admin actions;
--- removing an old policy is therefore fail-closed for direct Data API calls.
+-- Client-facing admin policies must not trust a value under preferences. Scan
+-- every non-system relation because legacy analytics/CV policies can live on
+-- tables other than profiles. The backend service role remains the
+-- authorization boundary for admin actions; removing a legacy policy is
+-- therefore fail-closed for direct Data API calls.
 do $$
 declare
   policy_row record;
 begin
   for policy_row in
-    select p.polname
+    select n.nspname, c.relname, p.polname
     from pg_policy as p
-    where p.polrelid = 'public.profiles'::regclass
+    join pg_class as c
+      on c.oid = p.polrelid
+    join pg_namespace as n
+      on n.oid = c.relnamespace
+    where n.nspname not in ('pg_catalog', 'information_schema')
       and (
         coalesce(pg_get_expr(p.polqual, p.polrelid), '') ~*
-          $pattern$preferences\s*(->>|#>>)\s*'?((role)|(admin)|(is_admin)|(isAdmin))'?$pattern$
+          $pattern$preferences[[:space:][:print:]]*(role|admin|is_admin|isAdmin)$pattern$
         or coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') ~*
-          $pattern$preferences\s*(->>|#>>)\s*'?((role)|(admin)|(is_admin)|(isAdmin))'?$pattern$
+          $pattern$preferences[[:space:][:print:]]*(role|admin|is_admin|isAdmin)$pattern$
       )
   loop
-    execute format('drop policy if exists %I on public.profiles', policy_row.polname);
+    execute format(
+      'drop policy if exists %I on %I.%I',
+      policy_row.polname,
+      policy_row.nspname,
+      policy_row.relname
+    );
   end loop;
 end;
 $$;
