@@ -123,4 +123,24 @@ export class BillingController {
       signature,
     );
   }
+
+  @Public()
+  @Post("webhooks/bachs")
+  handleBachsWebhook(
+    @Headers("x-bachs-timestamp") timestamp: string | undefined,
+    @Headers("x-bachs-signature") signature: string | undefined,
+    @Req() request: any,
+  ) {
+    if (!request.rawBody) {
+      throw new UnauthorizedException(
+        "Raw request body unavailable; cannot verify webhook signature",
+      );
+    }
+    return this.billingService.handleBachsWebhook(
+      request.rawBody,
+      request.body,
+      timestamp,
+      signature,
+    );
+  }
 }

@@ -540,6 +540,39 @@ export class BillingService {
     return { received: true };
   }
 
+  /**
+   * Bachs webhook ingress. Bachs signs the exact raw body as
+   * `${timestamp}.${rawBody}` with HMAC-SHA256. Keep this endpoint small and
+   * authenticated at the boundary; event fulfillment is added once Bachs
+   * product IDs and the production webhook secret are configured.
+   */
+  async handleBachsWebhook(
+    rawBody: Buffer,
+    payload: any,
+    timestamp?: string,
+    signature?: string,
+  ) {
+    const secret = process.env.BACHS_WEBHOOK_SECRET;
+    if (!secret) {
+      throw new BadRequestException("Bachs webhook is not configured");
+    }
+
+    if (
+      !timestamp ||
+      !signature ||
+      !this.verifyBachsSignature(rawBody, timestamp, signature, secret)
+    ) {
+      throw new BadRequestException("Invalid Bachs webhook signature");
+    }
+
+    if (!payload?.id || !payload?.type) {
+      throw new BadRequestException("Bachs webhook is missing event metadata");
+    }
+
+    this.logger.log(`Received Bachs webhook ${payload.type} (${payload.id})`);
+    return { received: true, ignored: true };
+  }
+
   // ─── Admin oversight: revenue, subscribers, credit flow, AI cost ────────
   async getAdminOverview() {
     // Fetch pricing up front — the USD→NGN rate it carries feeds the revenue
@@ -838,6 +871,25 @@ export class BillingService {
   ): boolean {
     const digest = createHmac("sha512", secretKey)
       .update(rawBody)
+      .digest("hex");
+    const received = Buffer.from(signature, "hex");
+    const expected = Buffer.from(digest, "hex");
+    if (received.length !== expected.length) return false;
+    return timingSafeEqual(received, expected);
+  }
+
+  private verifyBachsSignature(
+    rawBody: Buffer,
+    timestamp: string,
+    signature: string,
+    secret: string,
+  ): boolean {
+    const sentAt = Number(timestamp);
+    if (!Number.isInteger(sentAt)) return false;
+    if (Math.abs(Date.now() / 1000 - sentAt) > 300) return false;
+
+    const digest = createHmac("sha256", secret)
+      .update(`${timestamp}.${rawBody.toString("utf8")}`)
       .digest("hex");
     const received = Buffer.from(signature, "hex");
     const expected = Buffer.from(digest, "hex");
