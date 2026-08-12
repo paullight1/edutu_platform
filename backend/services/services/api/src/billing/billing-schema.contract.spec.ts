@@ -1,7 +1,25 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { getTableColumns } from "drizzle-orm";
+
+const mockExecute = jest.fn();
+
+jest.mock("../db", () => ({ db: { execute: mockExecute } }));
+
+import { apiConsumers, profiles } from "../db/schema";
+import { BillingRepository } from "./billing.repository";
 
 const repositoryRoot = resolve(__dirname, "../../../../../../");
+const apiRoot = resolve(__dirname, "../..");
+const apiProductionMigrationPath = resolve(
+  apiRoot,
+  "supabase/migrations/20260812090000_api_production_contract.sql",
+);
+const schemaVerificationScriptPath = resolve(
+  apiRoot,
+  "scripts/verify-api-production-schema.mjs",
+);
 const migrationNames = [
   "20260811120000_bachs_unified_billing_core.sql",
   "20260811121000_billing_identity_aliases.sql",
@@ -274,6 +292,179 @@ describe("canonical billing schema migrations", () => {
     expect(sql).toMatch(/enabled = false/i);
     expect(sql).not.toMatch(
       /insert into public\.billing_product_provider_mappings[\s\S]*?values/i,
+    );
+  });
+});
+
+describe("production API credit contract", () => {
+  beforeEach(() => {
+    mockExecute.mockReset();
+  });
+
+  it("uses profiles.credits as the non-null zero-default canonical balance", () => {
+    const profileColumns = getTableColumns(profiles);
+
+    expect(profileColumns.creditsBalance.name).toBe("credits");
+    expect(profileColumns.creditsBalance.notNull).toBe(true);
+    expect(profileColumns.creditsBalance.hasDefault).toBe(true);
+  });
+
+  it("ships the additive API ownership, credit-ledger, and billing contract migration", () => {
+    expect(existsSync(apiProductionMigrationPath)).toBe(true);
+    const sql = existsSync(apiProductionMigrationPath)
+      ? readFileSync(apiProductionMigrationPath, "utf8")
+      : "";
+
+    for (const column of [
+      "owner_user_id",
+      "key_prefix",
+      "api_key_hash",
+      "status",
+    ]) {
+      expect(sql).toMatch(new RegExp(`api_consumers[\\s\\S]*?${column}`, "i"));
+    }
+
+    expect(sql).toMatch(
+      /profiles[\s\S]*?credits\s+integer[\s\S]*?default\s+0[\s\S]*?set\s+not\s+null/i,
+    );
+    expect(sql).toMatch(/sync_profile_credit_balance_compat/i);
+    expect(sql).not.toMatch(/drop\s+column[\s\S]*?credits_balance/i);
+    expect(sql).toMatch(/credit_transactions_api_ref_unique/i);
+    expect(sql).toMatch(/api_usage_buckets_consumer_period_unique/i);
+    expect(sql).toMatch(/billing_products_api_credit_contract_check/i);
+    expect(sql).toMatch(
+      /billing_checkout_intents_provider_environment_user_idempotency_key/i,
+    );
+    expect(sql).toMatch(
+      /billing_checkout_intents_product_provider_environment_fkey/i,
+    );
+    expect(sql).toMatch(/billing_provider_events_provider_event_unique/i);
+  });
+
+  it("returns only non-expiring one-time credit products with positive quantity", async () => {
+    mockExecute.mockResolvedValueOnce({
+      rows: [
+        {
+          product_key: "credits_100",
+          fulfillment_kind: "credit_pack",
+          renewal_mode: "one_time",
+          provider_product_id: "bachs_credits_100_sandbox",
+          expected_amount_minor: "499",
+          currency: "USD",
+          cadence: "one_time",
+          credit_quantity: "100",
+          validity_days: null,
+          allowed_payment_methods: ["card"],
+          catalog_version: "1",
+        },
+      ],
+    } as never);
+
+    await expect(
+      new BillingRepository().findEnabledProduct("credits_100", "sandbox"),
+    ).resolves.toMatchObject({
+      fulfillmentKind: "credits",
+      renewalMode: "one_time",
+      creditQuantity: 100,
+      validityDays: null,
+      expectedAmountMinor: 499,
+      currency: "USD",
+      providerProductId: "bachs_credits_100_sandbox",
+    });
+  });
+
+  it("fails closed when an enabled credit product violates the credit contract", async () => {
+    mockExecute.mockResolvedValueOnce({
+      rows: [
+        {
+          product_key: "credits_broken",
+          fulfillment_kind: "credit_pack",
+          renewal_mode: "recurring",
+          provider_product_id: "bachs_credits_broken_sandbox",
+          expected_amount_minor: "499",
+          currency: "USD",
+          cadence: "monthly",
+          credit_quantity: "0",
+          validity_days: "30",
+          allowed_payment_methods: ["card"],
+          catalog_version: "1",
+        },
+      ],
+    } as never);
+
+    await expect(
+      new BillingRepository().findEnabledProduct("credits_broken", "sandbox"),
+    ).rejects.toThrow("Invalid credit product contract");
+  });
+
+  it("prints every schema object required by production verification", () => {
+    const result = spawnSync(
+      process.execPath,
+      [schemaVerificationScriptPath, "--print-required"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    const required = JSON.parse(result.stdout) as {
+      tables: Record<string, { columns: string[] }>;
+      indexes: string[];
+      constraints: string[];
+      productMapping: Record<string, unknown>;
+    };
+
+    expect(required.tables.api_consumers.columns).toEqual(
+      expect.arrayContaining([
+        "owner_user_id",
+        "key_prefix",
+        "api_key_hash",
+        "status",
+      ]),
+    );
+    expect(required.tables.profiles.columns).toContain("credits");
+    expect(required.tables.credit_transactions.columns).toEqual(
+      expect.arrayContaining([
+        "user_id",
+        "amount",
+        "related_id",
+        "related_type",
+      ]),
+    );
+    expect(required.tables.billing_products).toBeDefined();
+    expect(required.tables.billing_product_provider_mappings).toBeDefined();
+    expect(required.tables.billing_checkout_intents).toBeDefined();
+    expect(required.tables.billing_provider_events).toBeDefined();
+    expect(required.indexes).toEqual(
+      expect.arrayContaining([
+        "credit_transactions_api_ref_unique",
+        "billing_events_provider_environment_retry_idx",
+      ]),
+    );
+    expect(required.constraints).toEqual(
+      expect.arrayContaining([
+        "billing_products_api_credit_contract_check",
+        "billing_checkout_intents_provider_environment_user_idempotency_key",
+        "billing_checkout_intents_product_provider_environment_fkey",
+        "billing_provider_events_provider_event_unique",
+      ]),
+    );
+    expect(required.productMapping).toMatchObject({
+      fulfillmentKind: "credit_pack",
+      renewalMode: "one_time",
+      minimumCreditQuantity: 1,
+      validityDays: null,
+    });
+  });
+
+  it("keeps the API-consumer Drizzle contract aligned with ownership and key lookup", () => {
+    const columns = getTableColumns(apiConsumers);
+
+    expect(Object.values(columns).map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        "owner_user_id",
+        "key_prefix",
+        "api_key_hash",
+        "status",
+      ]),
     );
   });
 });

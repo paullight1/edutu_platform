@@ -53,6 +53,33 @@ export interface BillingCheckoutProduct {
   isFree?: boolean;
 }
 
+export type BillingCreditProduct = BillingCheckoutProduct & {
+  fulfillmentKind: "credits";
+  renewalMode: "one_time";
+  creditQuantity: number;
+  validityDays: null;
+};
+
+/**
+ * Catalog drift must never turn a credit top-up into a subscription or an
+ * expiring grant. Repositories call this at the database boundary so malformed
+ * enabled rows fail closed before checkout creation.
+ */
+export function assertBillingCheckoutProductContract(
+  product: BillingCheckoutProduct,
+): void {
+  if (product.fulfillmentKind !== "credits") return;
+
+  if (
+    product.renewalMode !== "one_time" ||
+    !Number.isSafeInteger(product.creditQuantity) ||
+    (product.creditQuantity ?? 0) <= 0 ||
+    product.validityDays !== null
+  ) {
+    throw new Error("Invalid credit product contract");
+  }
+}
+
 export interface BillingProductSnapshot {
   productKey: string;
   providerProductId: string;

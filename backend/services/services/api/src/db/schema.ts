@@ -36,7 +36,9 @@ export const profiles = pgTable("profiles", {
   preferences: jsonb("preferences")
     .$type<Record<string, unknown>>()
     .default({}),
-  creditsBalance: integer("credits_balance").default(0), // In-app credits currency
+  // Canonical balance shared by API metering and billing fulfillment. Keep the
+  // TypeScript property name for existing callers while mapping the live column.
+  creditsBalance: integer("credits").notNull().default(0),
   creatorStatus: text("creator_status").default("none"), // 'none', 'pending', 'approved', 'rejected'
   mentorStatus: text("mentor_status").default("none"), // mirror of creatorStatus for mentor applications
   creatorMetadata: jsonb("creator_metadata")

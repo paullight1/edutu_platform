@@ -2,26 +2,16 @@ import { Injectable } from "@nestjs/common";
 import { randomBytes, createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
+import {
+  assertBillingCheckoutProductContract,
+  type BillingCheckoutProduct,
+} from "./types/billing-checkout.types";
 
 export type BillingEnvironment = "sandbox" | "live";
 export type BillingRenewalMode = "recurring" | "one_time";
 export type BillingFulfillmentKind = "pro" | "season_pass" | "credits";
 
-export type BillingProduct = {
-  productKey: string;
-  fulfillmentKind: BillingFulfillmentKind;
-  renewalMode: BillingRenewalMode;
-  providerProductId: string | null;
-  expectedAmountMinor: number;
-  currency: string;
-  cadence: string | null;
-  creditQuantity: number | null;
-  validityDays: number | null;
-  allowedPaymentMethods: Array<
-    "card" | "bank_transfer" | "mobile_money" | "crypto"
-  >;
-  catalogVersion: number;
-};
+export type BillingProduct = BillingCheckoutProduct;
 
 export type CheckoutIntent = {
   id: string;
@@ -156,7 +146,7 @@ export class BillingRepository {
     `);
     const row = (result as RowResult<Record<string, unknown>>).rows?.[0];
     if (!row) return null;
-    return {
+    const product: BillingProduct = {
       productKey: String(row.product_key),
       fulfillmentKind: this.mapFulfillmentKind(row.fulfillment_kind),
       renewalMode: String(row.renewal_mode) as BillingRenewalMode,
@@ -175,6 +165,8 @@ export class BillingRepository {
         : ["card"],
       catalogVersion: Number(row.catalog_version),
     };
+    assertBillingCheckoutProductContract(product);
+    return product;
   }
 
   async createOrReuseIntent(input: {
