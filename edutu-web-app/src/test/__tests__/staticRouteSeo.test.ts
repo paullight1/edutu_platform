@@ -36,3 +36,7 @@ it("edutu for you uses its hero screenshot for shared links", () => {
 it("events uses its hero screenshot for shared links", () => {
   expectRoutePreview("/events", "events");
 });
+
+it("download uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/download", "download");
+});
