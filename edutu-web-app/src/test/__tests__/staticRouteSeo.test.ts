@@ -56,3 +56,7 @@ it("mentor uses its hero screenshot for shared links", () => {
 it("scholarship engine uses its hero screenshot for shared links", () => {
   expectRoutePreview("/scholarship-engine", "scholarship-engine");
 });
+
+it("scholarship api uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/scholarship-api", "scholarship-api");
+});
