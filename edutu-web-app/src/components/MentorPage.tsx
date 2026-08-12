@@ -108,6 +108,21 @@ const LANDING_OPTIONS = [
     },
 ];
 
+const MENTOR_HERO_SLIDES = [
+    {
+        src: '/mentor/hero-library-mentor.jpg',
+        alt: 'A Nigerian mentor guiding two learners through an application in a university library',
+    },
+    {
+        src: '/mentor/hero-campus-walk.jpg',
+        alt: 'A Nigerian mentor and university learner discussing a plan on campus',
+    },
+    {
+        src: '/mentor/hero-application-review.jpg',
+        alt: 'A mentor and learner reviewing an application together in a study space',
+    },
+] as const;
+
 const MentorPage: React.FC = () => {
     const reduceMotion = useReducedMotion();
     const { userId, isSignedIn, getToken } = useAuth();
