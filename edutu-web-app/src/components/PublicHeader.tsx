@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Menu, Moon, Sun, UserRound, X } from "lucide-react";
+import { ChevronDown, Menu, UserRound, X } from "lucide-react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
-import { useDarkMode } from "../hooks/useDarkMode";
 import { getDocsUrl, isExternalDocsUrl } from "../lib/apiProductUrls";
 
 interface PublicHeaderProps {
   fixed?: boolean;
   onPrimaryAction?: () => void;
+  darkAtTop?: boolean;
 }
 
 type NavItem = {
@@ -38,6 +38,7 @@ const moreNavItems: NavItem[] = [
 export default function PublicHeader({
   fixed = false,
   onPrimaryAction,
+  darkAtTop = false,
 }: PublicHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -45,11 +46,11 @@ export default function PublicHeader({
   const moreRef = useRef<HTMLDivElement>(null);
   const { isSignedIn } = useClerkAuth();
   const { user } = useUser();
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   const actionLabel = isSignedIn ? "Dashboard" : onPrimaryAction ? "Join Edutu" : "Sign in";
   const actionTarget = isSignedIn ? "/dashboard" : "/auth?mode=sign-in";
   const positionClass = fixed ? "fixed" : "sticky";
+  const useDarkTopChrome = darkAtTop && !scrolled;
   const displayName =
     user?.fullName ||
     user?.username ||
@@ -89,17 +90,6 @@ export default function PublicHeader({
       </Link>
     );
 
-  const themeToggle = (
-    <button
-      type="button"
-      onClick={toggleDarkMode}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-text-secondary transition hover:text-brand hover:border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-      aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-    </button>
-  );
-
   const profileLink = isSignedIn ? (
     <Link
       to="/profile"
@@ -127,13 +117,15 @@ export default function PublicHeader({
       className={`${positionClass} inset-x-0 top-0 z-50 border-b transition-theme ${
         scrolled
           ? "border-subtle bg-surface-layer/80 backdrop-blur-xl shadow-soft"
-          : "border-transparent bg-surface-layer/60 backdrop-blur-md"
+          : useDarkTopChrome
+            ? "border-transparent bg-slate-950/25 text-white backdrop-blur-md"
+            : "border-transparent bg-surface-layer/60 backdrop-blur-md"
       }`}
     >
       <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
         <Link
           to="/"
-          className="flex items-center gap-2 text-text-primary no-underline"
+          className={`flex items-center gap-2 no-underline ${useDarkTopChrome ? "text-white" : "text-text-primary"}`}
           aria-label="Edutu home"
         >
           <img src="/edutu-logo.png" alt="" className="h-8 w-8 object-contain" />
@@ -141,7 +133,7 @@ export default function PublicHeader({
         </Link>
 
         <nav
-          className="hidden items-center gap-8 text-sm font-semibold text-text-secondary md:flex"
+          className={`hidden items-center gap-8 text-sm font-semibold md:flex ${useDarkTopChrome ? "text-white/80" : "text-text-secondary"}`}
           aria-label="Primary navigation"
         >
           {coreNavItems.map((item) =>
@@ -170,7 +162,7 @@ export default function PublicHeader({
             <button
               type="button"
               onClick={() => setMoreOpen((o) => !o)}
-              className="flex items-center gap-1 transition hover:text-brand"
+              className={`flex items-center gap-1 transition hover:text-brand ${useDarkTopChrome ? "text-white/80" : ""}`}
               aria-expanded={moreOpen}
               aria-haspopup="true"
             >
@@ -218,17 +210,15 @@ export default function PublicHeader({
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          {themeToggle}
           {renderPrimaryAction()}
           {profileLink}
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
-          {themeToggle}
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-subtle bg-surface-layer text-text-primary shadow-sm"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm ${useDarkTopChrome ? "border-white/20 bg-slate-950/30 text-white" : "border-subtle bg-surface-layer text-text-primary"}`}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
           >
