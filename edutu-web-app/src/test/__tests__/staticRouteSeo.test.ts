@@ -52,3 +52,7 @@ it("upgrade uses its hero screenshot for shared links", () => {
 it("mentor uses its hero screenshot for shared links", () => {
   expectRoutePreview("/mentor", "mentor");
 });
+
+it("scholarship engine uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/scholarship-engine", "scholarship-engine");
+});
