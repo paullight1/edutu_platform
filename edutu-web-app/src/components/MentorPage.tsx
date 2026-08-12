@@ -401,14 +401,14 @@ const MentorPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={startApplication}
-                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand px-8 py-4 text-sm font-semibold text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-300/60 sm:w-auto"
                                     >
                                         Become a Mentor <ArrowRight size={16} />
                                     </button>
                                 )}
                                 <a
                                     href="#options"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold border border-strong bg-surface-layer text-text-primary transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/50"
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/35 bg-slate-950/25 px-8 py-4 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 sm:w-auto"
                                 >
                                     Explore Options <PlayCircle size={16} />
                                 </a>
