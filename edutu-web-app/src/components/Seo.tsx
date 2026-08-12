@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import { OG_METADATA } from "../lib/pageSeo.generated";
 import { getPageOgImage, getPageOgImageAlt } from "../lib/pageSeo";
 
 interface SeoProps {
@@ -114,6 +115,10 @@ export default function Seo({
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:image", imageUrl);
+    upsertMeta("property", "og:image:secure_url", imageUrl);
+    upsertMeta("property", "og:image:type", OG_METADATA.mimeType);
+    upsertMeta("property", "og:image:width", String(OG_METADATA.width));
+    upsertMeta("property", "og:image:height", String(OG_METADATA.height));
     upsertMeta("property", "og:image:alt", resolvedImageAlt);
     upsertMeta("property", "og:site_name", "Edutu");
     upsertMeta("name", "twitter:card", "summary_large_image");

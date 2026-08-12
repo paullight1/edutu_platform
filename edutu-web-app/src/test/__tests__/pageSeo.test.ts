@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PAGE_SEO } from "../../lib/pageSeo.generated";
+import { OG_METADATA, PAGE_SEO } from "../../lib/pageSeo.generated";
 import { findPageSeo, getPageOgImage } from "../../lib/pageSeo";
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
 describe("page SEO registry", () => {
+  it("uses the canonical screenshot dimensions", () => {
+    expect(OG_METADATA).toEqual({
+      width: 1200,
+      height: 630,
+      mimeType: "image/jpeg",
+    });
+  });
+
   it("resolves a hero image for every marketing route", () => {
     for (const [routePath, entry] of Object.entries(PAGE_SEO)) {
       expect(getPageOgImage(routePath)).toBe(entry.image);
