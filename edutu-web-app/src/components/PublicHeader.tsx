@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Menu, Moon, Sun, UserRound, X } from "lucide-react";
+import { ChevronDown, Menu, UserRound, X } from "lucide-react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
-import { useDarkMode } from "../hooks/useDarkMode";
 import { getDocsUrl, isExternalDocsUrl } from "../lib/apiProductUrls";
 
 interface PublicHeaderProps {
@@ -45,7 +44,6 @@ export default function PublicHeader({
   const moreRef = useRef<HTMLDivElement>(null);
   const { isSignedIn } = useClerkAuth();
   const { user } = useUser();
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   const actionLabel = isSignedIn ? "Dashboard" : onPrimaryAction ? "Join Edutu" : "Sign in";
   const actionTarget = isSignedIn ? "/dashboard" : "/auth?mode=sign-in";
@@ -88,17 +86,6 @@ export default function PublicHeader({
         {actionLabel}
       </Link>
     );
-
-  const themeToggle = (
-    <button
-      type="button"
-      onClick={toggleDarkMode}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-text-secondary transition hover:text-brand hover:border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
-      aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-    </button>
-  );
 
   const profileLink = isSignedIn ? (
     <Link
@@ -218,13 +205,11 @@ export default function PublicHeader({
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          {themeToggle}
           {renderPrimaryAction()}
           {profileLink}
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
-          {themeToggle}
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
