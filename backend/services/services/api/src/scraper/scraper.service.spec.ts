@@ -1,5 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ScraperService } from "./scraper.service";
+import { categorizeOpportunityTitle } from "./scraper-classification";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
@@ -324,25 +325,25 @@ describe("ScraperService", () => {
 
   describe("categorize", () => {
     it("should categorize computer science opportunities", () => {
-      const result = (service as any).categorize(
+      const result = categorizeOpportunityTitle(
         "Software Engineering Scholarship",
       );
       expect(result).toBe("Computer Science");
     });
 
     it("should categorize business opportunities", () => {
-      const result = (service as any).categorize("MBA Fellowship Program");
+      const result = categorizeOpportunityTitle("MBA Fellowship Program");
       expect(result).toBe("Business");
     });
 
     it("should return null for unknown categories so the caller derives a label", () => {
-      const result = (service as any).categorize("Random Opportunity");
+      const result = categorizeOpportunityTitle("Random Opportunity");
       expect(result).toBeNull();
     });
 
     it("should map canonical categories to display labels", () => {
       expect((service as any).displayCategoryFor("scholarships")).toBe(
-        "Scholarship",
+        "Scholarships",
       );
       expect((service as any).displayCategoryFor("unknown_thing")).toBe(
         "General",

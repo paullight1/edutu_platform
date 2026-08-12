@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { BillingCheckoutService } from "./billing-checkout.service";
 import {
   BACHS_CHECKOUT_REPOSITORY,
@@ -66,7 +70,9 @@ class FakeRateLimiter implements BillingRateLimiterPort {
 }
 
 class FakeIdentityResolver implements BillingCustomerIdentityResolver {
-  resolution: { status: "resolved"; email: string; name?: string } | { status: "missing" | "ambiguous" } = {
+  resolution:
+    | { status: "resolved"; email: string; name?: string }
+    | { status: "missing" | "ambiguous" } = {
     status: "resolved",
     email: "student@example.com",
     name: "Student",
@@ -79,9 +85,15 @@ class FakeIdentityResolver implements BillingCustomerIdentityResolver {
 
 class FakeRepository implements BillingCheckoutRepositoryPort {
   product: BillingCheckoutProduct | null = product;
-  calls: Array<Parameters<BillingCheckoutRepositoryPort["createOrReuseIntent"]>[0]> = [];
-  attached: Array<Parameters<BillingCheckoutRepositoryPort["attachProviderCheckout"]>[0]> = [];
-  failed: Array<Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0]> = [];
+  calls: Array<
+    Parameters<BillingCheckoutRepositoryPort["createOrReuseIntent"]>[0]
+  > = [];
+  attached: Array<
+    Parameters<BillingCheckoutRepositoryPort["attachProviderCheckout"]>[0]
+  > = [];
+  failed: Array<
+    Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0]
+  > = [];
   nextCreated = true;
   intentCounter = 0;
   currentIntent: BillingCheckoutIntentRecord | null = null;
@@ -90,7 +102,9 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
     return this.product;
   }
 
-  async createOrReuseIntent(input: Parameters<BillingCheckoutRepositoryPort["createOrReuseIntent"]>[0]) {
+  async createOrReuseIntent(
+    input: Parameters<BillingCheckoutRepositoryPort["createOrReuseIntent"]>[0],
+  ) {
     this.calls.push(input);
     if (this.currentIntent && !this.nextCreated) {
       return { intent: this.currentIntent, created: false };
@@ -113,7 +127,11 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
     return { intent: this.currentIntent, created: true };
   }
 
-  async attachProviderCheckout(input: Parameters<BillingCheckoutRepositoryPort["attachProviderCheckout"]>[0]) {
+  async attachProviderCheckout(
+    input: Parameters<
+      BillingCheckoutRepositoryPort["attachProviderCheckout"]
+    >[0],
+  ) {
     this.attached.push(input);
     if (this.currentIntent?.id === input.intentId) {
       this.currentIntent = {
@@ -126,13 +144,17 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
     }
   }
 
-  async markIntentFailed(input: Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0]) {
+  async markIntentFailed(
+    input: Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0],
+  ) {
     this.failed.push(input);
   }
 }
 
 class FakeProvider implements BillingCheckoutProviderPort {
-  calls: Array<Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0]> = [];
+  calls: Array<
+    Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0]
+  > = [];
   getCalls: string[] = [];
   error: Error | null = null;
   session = {
@@ -144,7 +166,9 @@ class FakeProvider implements BillingCheckoutProviderPort {
     reference: "intent-1",
   };
 
-  async createCheckoutSession(input: Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0]) {
+  async createCheckoutSession(
+    input: Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0],
+  ) {
     this.calls.push(input);
     if (this.error) throw this.error;
     return this.session;
@@ -224,10 +248,14 @@ describe("BillingCheckoutService", () => {
     });
     fixture.repository.nextCreated = false;
 
-    const result = await fixture.service.createCheckout("user_123", "same-key", {
-      productKey: product.productKey,
-      returnSurface: "web",
-    });
+    const result = await fixture.service.createCheckout(
+      "user_123",
+      "same-key",
+      {
+        productKey: product.productKey,
+        returnSurface: "web",
+      },
+    );
 
     expect(result.checkoutUrl).toBe("https://checkout.bachs.io/s/session-1");
     expect(fixture.provider.calls).toHaveLength(1);
@@ -331,7 +359,10 @@ describe("BillingCheckoutService", () => {
 
   it("rejects an enabled catalog product whose provider mapping does not match", async () => {
     const fixture = createFixture();
-    fixture.repository.product = { ...product, providerProductId: "prod_other" };
+    fixture.repository.product = {
+      ...product,
+      providerProductId: "prod_other",
+    };
 
     await expect(
       fixture.service.createCheckout("user_123", "wrong-map", {
@@ -387,10 +418,14 @@ describe("BillingCheckoutService", () => {
     const fixture = createFixture();
     fixture.repository.product = recurringProduct;
 
-    const result = await fixture.service.createCheckout("user_123", "recurring", {
-      productKey: recurringProduct.productKey,
-      returnSurface: "web",
-    });
+    const result = await fixture.service.createCheckout(
+      "user_123",
+      "recurring",
+      {
+        productKey: recurringProduct.productKey,
+        returnSurface: "web",
+      },
+    );
 
     expect(result.renewalMode).toBe("recurring");
     expect(result.productSnapshot.cadence).toBe("monthly");

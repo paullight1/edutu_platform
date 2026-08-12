@@ -80,10 +80,7 @@ export class DrizzleCommunityDmsStore implements CommunityDmsStore {
     firstUserId: string,
     secondUserId: string,
   ): Promise<CommunityDmConversation | null> {
-    const [participantA, participantB] = orderedPair(
-      firstUserId,
-      secondUserId,
-    );
+    const [participantA, participantB] = orderedPair(firstUserId, secondUserId);
     const [row] = await db
       .select()
       .from(communityDmConversations)
@@ -385,9 +382,7 @@ export class DrizzleCommunityDmsStore implements CommunityDmsStore {
     cursor: DmCursor | null,
     limit: number,
   ): Promise<CommunityDmMessage[]> {
-    const conditions = [
-      eq(communityDmMessages.conversationId, conversationId),
-    ];
+    const conditions = [eq(communityDmMessages.conversationId, conversationId)];
     if (cursor) {
       conditions.push(
         cursor.id

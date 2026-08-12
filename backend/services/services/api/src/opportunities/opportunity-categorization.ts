@@ -127,42 +127,48 @@ const RULES: CategoryRule[] = [
     label: "scholarship/bursary/studentship funding",
     fields: ["title"],
     weight: 96,
-    pattern: /\b(scholarship|scholars?|bursar(?:y|ies)|studentship|tuition waiver|financial aid)\b/i,
+    pattern:
+      /\b(scholarship|scholars?|bursar(?:y|ies)|studentship|tuition waiver|financial aid)\b/i,
   },
   {
     category: "scholarships",
     label: "tuition or student funding",
     fields: ["description", "metadata", "category"],
     weight: 22,
-    pattern: /\b(tuition|financial aid|study support|fully funded|partially funded|education funding|student funding)\b/i,
+    pattern:
+      /\b(tuition|financial aid|study support|fully funded|partially funded|education funding|student funding)\b/i,
   },
   {
     category: "grants",
     label: "direct grant/project funding",
     fields: ["title"],
     weight: 94,
-    pattern: /\b(grant|grants|seed funding|microgrant|innovation fund|research funding)\b/i,
+    pattern:
+      /\b(grant|grants|seed funding|microgrant|innovation fund|research funding)\b/i,
   },
   {
     category: "grants",
     label: "project or business funding",
     fields: ["description", "metadata", "category"],
     weight: 24,
-    pattern: /\b(project funding|research grant|business grant|startup funding|seed capital|innovation funding|award funding)\b/i,
+    pattern:
+      /\b(project funding|research grant|business grant|startup funding|seed capital|innovation funding|award funding)\b/i,
   },
   {
     category: "internships",
     label: "internship/trainee/apprenticeship role",
     fields: ["title"],
     weight: 94,
-    pattern: /\b(internship|intern|trainee|apprentice|apprenticeship|industrial attachment|work placement)\b/i,
+    pattern:
+      /\b(internship|intern|trainee|apprentice|apprenticeship|industrial attachment|work placement)\b/i,
   },
   {
     category: "internships",
     label: "early-career work experience",
     fields: ["description", "metadata", "category"],
     weight: 24,
-    pattern: /\b(entry[- ]level|early career|graduate trainee|paid placement|work experience|vacancy|employment role)\b/i,
+    pattern:
+      /\b(entry[- ]level|early career|graduate trainee|paid placement|work experience|vacancy|employment role)\b/i,
   },
   {
     category: "fellowships",
@@ -176,21 +182,24 @@ const RULES: CategoryRule[] = [
     label: "leadership or mentorship fellowship",
     fields: ["description", "metadata", "category"],
     weight: 23,
-    pattern: /\b(leadership fellowship|leadership cohort|mentorship cohort|ambassador program|changemaker)\b/i,
+    pattern:
+      /\b(leadership fellowship|leadership cohort|mentorship cohort|ambassador program|changemaker)\b/i,
   },
   {
     category: "graduate_programs",
     label: "masters/PhD/postgraduate study",
     fields: ["title"],
     weight: 95,
-    pattern: /\b(master'?s|msc|m\.sc|mba|phd|ph\.d|doctoral|doctorate|postgraduate|graduate school|graduate studies)\b/i,
+    pattern:
+      /\b(master'?s|msc|m\.sc|mba|phd|ph\.d|doctoral|doctorate|postgraduate|graduate school|graduate studies)\b/i,
   },
   {
     category: "graduate_programs",
     label: "graduate degree admission",
     fields: ["description", "metadata", "category"],
     weight: 25,
-    pattern: /\b(graduate degree|degree program|higher degree|post[- ]graduate study|admission for graduates)\b/i,
+    pattern:
+      /\b(graduate degree|degree program|higher degree|post[- ]graduate study|admission for graduates)\b/i,
   },
   {
     category: "bootcamps",
@@ -204,35 +213,40 @@ const RULES: CategoryRule[] = [
     label: "intensive skills training",
     fields: ["description", "metadata", "category"],
     weight: 24,
-    pattern: /\b(intensive training|cohort[- ]based training|skills intensive|career accelerator|startup accelerator)\b/i,
+    pattern:
+      /\b(intensive training|cohort[- ]based training|skills intensive|career accelerator|startup accelerator)\b/i,
   },
   {
     category: "events",
     label: "conference/summit/workshop event",
     fields: ["title"],
     weight: 98,
-    pattern: /\b(event|conference|summit|workshop|webinar|forum|expo|hackathon|career fair)\b/i,
+    pattern:
+      /\b(event|conference|summit|workshop|webinar|forum|expo|hackathon|career fair)\b/i,
   },
   {
     category: "events",
     label: "attend or apply as a delegate",
     fields: ["description", "metadata", "category"],
     weight: 26,
-    pattern: /\b(delegate|delegates|attendee|speaker application|youth ambassador|registration|call for abstracts)\b/i,
+    pattern:
+      /\b(delegate|delegates|attendee|speaker application|youth ambassador|registration|call for abstracts)\b/i,
   },
   {
     category: "programs",
     label: "leadership/exchange/mentorship program",
     fields: ["title"],
     weight: 72,
-    pattern: /\b(leadership|exchange|mentorship|training|global|professional development)\s+(program|programme|track|cohort)\b/i,
+    pattern:
+      /\b(leadership|exchange|mentorship|training|global|professional development)\s+(program|programme|track|cohort)\b/i,
   },
   {
     category: "programs",
     label: "general structured program",
     fields: ["title", "description", "metadata", "category"],
     weight: 16,
-    pattern: /\b(program|programme|fellowship track|learning track|initiative|cohort)\b/i,
+    pattern:
+      /\b(program|programme|fellowship track|learning track|initiative|cohort)\b/i,
   },
 ];
 
@@ -308,14 +322,17 @@ function buildFields(input: Record<string, unknown>) {
 }
 
 function isLocked(input: Record<string, unknown>): boolean {
-  if (input.classification_locked === true || input.classificationLocked === true) {
+  if (
+    input.classification_locked === true ||
+    input.classificationLocked === true
+  ) {
     return true;
   }
   const metadata = input.metadata;
   return Boolean(
     metadata &&
-      typeof metadata === "object" &&
-      (metadata as Record<string, unknown>).classification_locked === true,
+    typeof metadata === "object" &&
+    (metadata as Record<string, unknown>).classification_locked === true,
   );
 }
 
@@ -364,13 +381,16 @@ export function classifyOpportunity(
     addEvidence(sourceCategory, 88, `source category: ${sourceCategory}`);
   }
   const rawType = normalizeKey(input.type);
-  const typeCategory = rawType !== "scholarship" ? normalizeCategory(input.type) : null;
+  const typeCategory =
+    rawType !== "scholarship" ? normalizeCategory(input.type) : null;
   if (typeCategory && typeCategory !== "other") {
     addEvidence(typeCategory, 54, `source type: ${typeCategory}`);
   }
 
   for (const rule of RULES) {
-    const matchedField = rule.fields.find((field) => rule.pattern.test(fields[field]));
+    const matchedField = rule.fields.find((field) =>
+      rule.pattern.test(fields[field]),
+    );
     if (!matchedField) continue;
     const fieldWeight = matchedField === "title" ? 1 : 1;
     addEvidence(

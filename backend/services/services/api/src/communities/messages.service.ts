@@ -888,8 +888,11 @@ export class MessagesService {
     });
 
     const hasMore = candidates.length > limit || !exhausted;
-    const boundary = selected[selected.length - 1]?.message ??
-      (hasMore ? cursor && { createdAt: cursor.createdAt, id: cursor.id ?? "" } : null);
+    const boundary =
+      selected[selected.length - 1]?.message ??
+      (hasMore
+        ? cursor && { createdAt: cursor.createdAt, id: cursor.id ?? "" }
+        : null);
     return {
       resources,
       nextCursor:
@@ -993,10 +996,7 @@ export class MessagesService {
     // group lists immediately, while this fan-out covers members who are
     // offline or currently elsewhere in the app. System posts are created by
     // separate flows and do not enter this member-authored send path.
-    if (
-      this.notificationsService &&
-      this.store.listActiveMemberUserIds
-    ) {
+    if (this.notificationsService && this.store.listActiveMemberUserIds) {
       void this.notifyGroupMembers(group, senderId, withAuthor).catch(
         () => undefined,
       );
@@ -1133,7 +1133,10 @@ export class MessagesService {
       this.attachmentApiBaseUrl(),
     );
     url.searchParams.set("path", storagePath);
-    url.searchParams.set("signature", this.signAttachment(groupId, storagePath));
+    url.searchParams.set(
+      "signature",
+      this.signAttachment(groupId, storagePath),
+    );
     return url.toString();
   }
 

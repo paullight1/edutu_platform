@@ -127,13 +127,14 @@ describe("AiService.generateChatStream", () => {
 
   it("does not retry or fall back after the caller aborts", async () => {
     const controller = new AbortController();
-    const generateChat = jest.fn(async () =>
-      ({
-        text: "buffered answer",
-        toolCalls: [],
-        provider: "deepseek",
-        model: "deepseek-chat",
-      }) as AiChatResult,
+    const generateChat = jest.fn(
+      async () =>
+        ({
+          text: "buffered answer",
+          toolCalls: [],
+          provider: "deepseek",
+          model: "deepseek-chat",
+        }) as AiChatResult,
     );
     const abortError = Object.assign(new Error("client disconnected"), {
       name: "AbortError",

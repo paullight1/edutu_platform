@@ -20,14 +20,18 @@ describe("BillingReconciliationScheduler", () => {
         checkoutEnabled: false,
         metrics: [],
       }),
-    } as unknown as BillingReconciliationService;
-    const scheduler = new BillingReconciliationScheduler(service);
+    } as unknown as jest.Mocked<
+      Pick<BillingReconciliationService, "reconcileRecent" | "reconcileDaily">
+    >;
+    const scheduler = new BillingReconciliationScheduler(
+      service as unknown as BillingReconciliationService,
+    );
 
     await scheduler.runRecent();
     await scheduler.runDaily();
 
-    expect(service.reconcileRecent).toHaveBeenCalledWith({});
-    expect(service.reconcileDaily).toHaveBeenCalledWith({});
+    expect(jest.mocked(service.reconcileRecent)).toHaveBeenCalledWith({});
+    expect(jest.mocked(service.reconcileDaily)).toHaveBeenCalledWith({});
   });
 
   it("skips an overlapping run and resumes after the active run finishes", async () => {
@@ -48,8 +52,12 @@ describe("BillingReconciliationScheduler", () => {
         };
       }),
       reconcileDaily: jest.fn(),
-    } as unknown as BillingReconciliationService;
-    const scheduler = new BillingReconciliationScheduler(service);
+    } as unknown as jest.Mocked<
+      Pick<BillingReconciliationService, "reconcileRecent" | "reconcileDaily">
+    >;
+    const scheduler = new BillingReconciliationScheduler(
+      service as unknown as BillingReconciliationService,
+    );
 
     const firstRun = scheduler.runRecent();
     await expect(scheduler.runRecent()).resolves.toEqual({ skipped: true });
@@ -57,6 +65,6 @@ describe("BillingReconciliationScheduler", () => {
     await firstRun;
     await scheduler.runRecent();
 
-    expect(service.reconcileRecent).toHaveBeenCalledTimes(2);
+    expect(jest.mocked(service.reconcileRecent)).toHaveBeenCalledTimes(2);
   });
 });

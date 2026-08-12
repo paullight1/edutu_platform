@@ -158,7 +158,9 @@ export interface BillingPortalRepositoryPort {
 }
 
 export interface BillingCheckoutProviderPort {
-  createCheckoutSession(input: BachsCheckoutInput): Promise<BachsCheckoutSession>;
+  createCheckoutSession(
+    input: BachsCheckoutInput,
+  ): Promise<BachsCheckoutSession>;
   getCheckoutSession(checkoutId: string): Promise<BachsCheckoutSession>;
 }
 

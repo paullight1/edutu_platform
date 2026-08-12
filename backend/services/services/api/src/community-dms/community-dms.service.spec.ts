@@ -4,14 +4,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
-import type {
-  CommunityDmConversation,
-  CommunityDmMessage,
-} from "../db/schema";
-import type {
-  CommunityDmsStore,
-  DmCursor,
-} from "./community-dms.store";
+import type { CommunityDmConversation, CommunityDmMessage } from "../db/schema";
+import type { CommunityDmsStore, DmCursor } from "./community-dms.store";
 import { CommunityDmsService } from "./community-dms.service";
 import type {
   CreateDmRequestResult,
@@ -58,7 +52,10 @@ class MemoryDmStore implements CommunityDmsStore {
   }
 
   async isBlocked(first: string, second: string) {
-    return this.blocks.has(`${first}:${second}`) || this.blocks.has(`${second}:${first}`);
+    return (
+      this.blocks.has(`${first}:${second}`) ||
+      this.blocks.has(`${second}:${first}`)
+    );
   }
 
   async findProfiles(userIds: string[]) {
@@ -111,8 +108,11 @@ class MemoryDmStore implements CommunityDmsStore {
       )
       .slice(0, limit)
       .map((row) => {
-        const otherId = row.participantA === userId ? row.participantB : row.participantA;
-        const last = this.messages.filter((message) => message.conversationId === row.id).at(-1)!;
+        const otherId =
+          row.participantA === userId ? row.participantB : row.participantA;
+        const last = this.messages
+          .filter((message) => message.conversationId === row.id)
+          .at(-1)!;
         return {
           id: row.id,
           status: "accepted",
@@ -122,7 +122,11 @@ class MemoryDmStore implements CommunityDmsStore {
           lastMessageAt: row.lastMessageAt,
           otherUser: this.profiles.get(otherId)!,
           blocked: false,
-          lastMessage: { body: last.body, senderId: last.senderId, createdAt: last.createdAt },
+          lastMessage: {
+            body: last.body,
+            senderId: last.senderId,
+            createdAt: last.createdAt,
+          },
           unreadCount: this.read.has(`${row.id}:${userId}`) ? 0 : 1,
         };
       });
@@ -137,25 +141,42 @@ class MemoryDmStore implements CommunityDmsStore {
     this.lastLimit = limit;
     return this.conversations
       .filter((row) => {
-        if (row.status !== "pending" || !this.participants.get(row.id)?.has(userId)) return false;
-        return direction === "incoming" ? row.requestedBy !== userId : row.requestedBy === userId;
+        if (
+          row.status !== "pending" ||
+          !this.participants.get(row.id)?.has(userId)
+        )
+          return false;
+        return direction === "incoming"
+          ? row.requestedBy !== userId
+          : row.requestedBy === userId;
       })
       .slice(0, limit)
       .map((row) => {
-        const otherId = row.participantA === userId ? row.participantB : row.participantA;
-        const first = this.messages.find((message) => message.conversationId === row.id)!;
+        const otherId =
+          row.participantA === userId ? row.participantB : row.participantA;
+        const first = this.messages.find(
+          (message) => message.conversationId === row.id,
+        )!;
         return {
           id: row.id,
           direction,
           requestedBy: row.requestedBy,
           createdAt: row.createdAt,
           otherUser: this.profiles.get(otherId)!,
-          firstMessage: { body: first.body, senderId: first.senderId, createdAt: first.createdAt },
+          firstMessage: {
+            body: first.body,
+            senderId: first.senderId,
+            createdAt: first.createdAt,
+          },
         };
       });
   }
 
-  async listMessages(conversationId: string, _cursor: DmCursor | null, limit: number) {
+  async listMessages(
+    conversationId: string,
+    _cursor: DmCursor | null,
+    limit: number,
+  ) {
     this.lastLimit = limit;
     return this.messages
       .filter((message) => message.conversationId === conversationId)
@@ -183,7 +204,10 @@ class MemoryDmStore implements CommunityDmsStore {
 
   async blockUser(blockerId: string, blockedUserId: string) {
     this.blocks.add(`${blockerId}:${blockedUserId}`);
-    const conversation = await this.findConversationBetween(blockerId, blockedUserId);
+    const conversation = await this.findConversationBetween(
+      blockerId,
+      blockedUserId,
+    );
     if (conversation) this.hidden.add(`${conversation.id}:${blockerId}`);
   }
 
@@ -254,9 +278,9 @@ describe("CommunityDmsService message requests", () => {
       body: "Hi",
     });
 
-    await expect(service.acceptRequest(ADA, conversation.id)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.acceptRequest(ADA, conversation.id),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     const accepted = await service.acceptRequest(BEN, conversation.id);
     expect(accepted.status).toBe("accepted");
     expect(accepted.otherUser).toEqual({
@@ -290,12 +314,15 @@ describe("CommunityDmsService accepted conversations", () => {
     await service.acceptRequest(BEN, conversation.id);
     await service.sendMessage(BEN, conversation.id, { body: "Welcome" });
 
-    expect((await service.listMessages(ADA, conversation.id, null, 20)).map((row) => row.body)).toEqual([
-      "Welcome",
-      "Request",
-    ]);
+    expect(
+      (await service.listMessages(ADA, conversation.id, null, 20)).map(
+        (row) => row.body,
+      ),
+    ).toEqual(["Welcome", "Request"]);
     await service.markRead(ADA, conversation.id);
-    expect((await service.listConversations(ADA, null, 20))[0].unreadCount).toBe(0);
+    expect(
+      (await service.listConversations(ADA, null, 20))[0].unreadCount,
+    ).toBe(0);
 
     await service.hideConversation(ADA, conversation.id);
     expect(await service.listConversations(ADA, null, 20)).toEqual([]);

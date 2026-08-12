@@ -1286,7 +1286,7 @@ ${input.message}`;
       // decides to call tools still comes back with complete, executable calls;
       // only prose ever reaches onToken.
       const result = input.onToken
-          ? await this.aiService.generateChatStream({
+        ? await this.aiService.generateChatStream({
             ...request,
             onToken: input.onToken,
             signal: input.signal,

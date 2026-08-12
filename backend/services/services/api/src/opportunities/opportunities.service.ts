@@ -1552,8 +1552,9 @@ export class OpportunitiesService {
                   !Array.isArray(row.metadata)
                     ? (row.metadata as Record<string, unknown>)
                     : {};
-                const { error: lockError } = await this.supabase!
-                  .from("opportunities")
+                const { error: lockError } = await this.supabase!.from(
+                  "opportunities",
+                )
                   .update({
                     metadata: {
                       ...existing,
@@ -1596,9 +1597,7 @@ export class OpportunitiesService {
     await Promise.all(
       metadataRows.map((row) => {
         const existing =
-          row.metadata && typeof row.metadata === "object"
-            ? (row.metadata as Record<string, unknown>)
-            : {};
+          row.metadata && typeof row.metadata === "object" ? row.metadata : {};
         return db
           .update(opportunities)
           .set({

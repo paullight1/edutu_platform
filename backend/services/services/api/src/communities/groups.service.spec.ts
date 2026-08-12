@@ -209,7 +209,9 @@ class FakeGroupsStore implements GroupsStore {
   ): Promise<CommunityGroupMember[]> {
     const rank: Record<string, number> = { owner: 0, mod: 1, member: 2 };
     return this.members
-      .filter((member) => member.groupId === groupId && member.status === "active")
+      .filter(
+        (member) => member.groupId === groupId && member.status === "active",
+      )
       .sort(
         (left, right) =>
           (rank[left.role] ?? 3) - (rank[right.role] ?? 3) ||
@@ -996,7 +998,8 @@ describe("GroupsService", () => {
           .map((userId) => ({
             userId,
             fullName: userId === "user_owner" ? "Amina Owner" : "Kofi Member",
-            avatarUrl: userId === "user_owner" ? "https://img.test/amina.jpg" : null,
+            avatarUrl:
+              userId === "user_owner" ? "https://img.test/amina.jpg" : null,
           }));
       },
     };
@@ -1045,12 +1048,14 @@ describe("GroupsService", () => {
       const db = fakeDb({ group: { id: GROUP_ID, visibility: "private" } });
       const service = new GroupsService(db, directory);
 
-      await expect(service.listMembers("user_stranger", GROUP_ID)).rejects.toThrow(
-        /private/i,
-      );
+      await expect(
+        service.listMembers("user_stranger", GROUP_ID),
+      ).rejects.toThrow(/private/i);
 
       await service.invite("user_owner", GROUP_ID, "user_invited");
-      await expect(service.listMembers("user_invited", GROUP_ID)).resolves.toMatchObject({
+      await expect(
+        service.listMembers("user_invited", GROUP_ID),
+      ).resolves.toMatchObject({
         members: [{ membership: { userId: "user_owner", status: "active" } }],
       });
     });

@@ -215,9 +215,13 @@ const WebHeroBannerSchema = z.object({
 
 const WebAnnouncementSchema = z.object({
   enabled: z.boolean().default(true),
-  text: z.string().trim().max(240).default(
-    "Help Edutu For You reach 1 million young people with access to global opportunities.",
-  ),
+  text: z
+    .string()
+    .trim()
+    .max(240)
+    .default(
+      "Help Edutu For You reach 1 million young people with access to global opportunities.",
+    ),
   linkUrl: z.string().trim().max(1000).default("/edutuforyou"),
   linkLabel: z.string().trim().max(60).default("See Edutu For You"),
 });

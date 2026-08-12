@@ -37,7 +37,9 @@ function page<T>(items: T[], nextCursor: string | null): ReconciliationPage<T> {
   };
 }
 
-function store(overrides: Partial<BillingReconciliationStore> = {}) {
+function store(
+  overrides: Partial<BillingReconciliationStore> = {},
+): jest.Mocked<BillingReconciliationStore> {
   const base: BillingReconciliationStore = {
     listRecentIntents: jest.fn().mockResolvedValue([]),
     listRecentEvents: jest.fn().mockResolvedValue([]),
@@ -54,7 +56,7 @@ function store(overrides: Partial<BillingReconciliationStore> = {}) {
 
 function adapter(
   overrides: Partial<ProviderReadAdapter> = {},
-): ProviderReadAdapter {
+): jest.Mocked<ProviderReadAdapter> {
   return {
     provider: "bachs",
     environment: "sandbox",
@@ -63,6 +65,17 @@ function adapter(
     listSubscriptions: jest.fn().mockResolvedValue(page([], null)),
     ...overrides,
   };
+}
+
+function mockCalls<T extends object, K extends keyof T>(
+  target: T,
+  key: K,
+): unknown[][] {
+  const method = target[key];
+  if (typeof method !== "function" || !("mock" in method)) {
+    throw new Error(`Expected ${String(key)} to be a Jest mock`);
+  }
+  return (method as jest.Mock).mock.calls;
 }
 
 describe("BillingReconciliationService", () => {
@@ -89,14 +102,12 @@ describe("BillingReconciliationService", () => {
 
     const result = await service.reconcileDaily({ now: NOW });
 
-    expect(bach.listPayments).toHaveBeenNthCalledWith(1, {
-      cursor: undefined,
-      signal: expect.any(AbortSignal),
-    });
-    expect(bach.listPayments).toHaveBeenNthCalledWith(2, {
-      cursor: "cursor-2",
-      signal: expect.any(AbortSignal),
-    });
+    expect(mockCalls(bach, "listPayments")[0]).toEqual([
+      { cursor: undefined, signal: expect.any(AbortSignal) },
+    ]);
+    expect(mockCalls(bach, "listPayments")[1]).toEqual([
+      { cursor: "cursor-2", signal: expect.any(AbortSignal) },
+    ]);
     expect(repair).toHaveBeenCalledTimes(2);
     expect(repair).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -143,7 +154,7 @@ describe("BillingReconciliationService", () => {
 
     const result = await service.reconcileDaily({ now: NOW });
 
-    expect(bach.listPayments).toHaveBeenCalledTimes(2);
+    expect(mockCalls(bach, "listPayments")).toHaveLength(2);
     expect(repair).toHaveBeenCalledTimes(1);
     expect(result.duplicates).toBe(1);
     expect(result.metrics).toEqual(
@@ -184,8 +195,8 @@ describe("BillingReconciliationService", () => {
       const result = await service.reconcileDaily({ now: NOW });
 
       expect(repair).not.toHaveBeenCalled();
-      expect(billingStore.createReviewCase).toHaveBeenCalledWith(
-        expect.objectContaining({ category }),
+      expect(mockCalls(billingStore, "createReviewCase")).toEqual(
+        expect.arrayContaining([[expect.objectContaining({ category })]]),
       );
       expect(result.reviewCases).toBe(1);
     },
@@ -214,9 +225,9 @@ describe("BillingReconciliationService", () => {
 
     const result = await service.reconcileDaily({ now: NOW });
 
-    expect(bach.listPayments).toHaveBeenCalledTimes(2);
+    expect(mockCalls(bach, "listPayments")).toHaveLength(2);
     expect(repair).not.toHaveBeenCalled();
-    expect(billingStore.createReviewCase).not.toHaveBeenCalled();
+    expect(mockCalls(billingStore, "createReviewCase")).toHaveLength(0);
     expect(result.providerErrors).toBe(1);
     expect(result.metrics).toEqual(
       expect.arrayContaining([
@@ -246,18 +257,26 @@ describe("BillingReconciliationService", () => {
 
     const result = await service.reconcileRecent({ now: NOW });
 
-    expect(billingStore.listRecentIntents).toHaveBeenCalledWith({
-      since: new Date("2026-08-11T11:45:00.000Z"),
-      until: NOW,
-      statuses: ["open", "pending", "failed"],
-    });
-    expect(billingStore.listRecentEvents).toHaveBeenCalledWith({
-      since: new Date("2026-08-11T11:45:00.000Z"),
-      until: NOW,
-      statuses: ["received", "retrying", "dead_letter"],
-    });
+    expect(mockCalls(billingStore, "listRecentIntents")).toEqual([
+      [
+        {
+          since: new Date("2026-08-11T11:45:00.000Z"),
+          until: NOW,
+          statuses: ["open", "pending", "failed"],
+        },
+      ],
+    ]);
+    expect(mockCalls(billingStore, "listRecentEvents")).toEqual([
+      [
+        {
+          since: new Date("2026-08-11T11:45:00.000Z"),
+          until: NOW,
+          statuses: ["received", "retrying", "dead_letter"],
+        },
+      ],
+    ]);
     expect(result.checkoutEnabled).toBe(false);
-    expect(bach.listPayments).toHaveBeenCalled();
+    expect(mockCalls(bach, "listPayments").length).toBeGreaterThan(0);
   });
 
   it("keeps Bachs and RevenueCat grants provider-scoped during comparison", async () => {
@@ -287,16 +306,16 @@ describe("BillingReconciliationService", () => {
 
     await service.reconcileDaily({ now: NOW });
 
-    expect(billingStore.listLocalGrants).toHaveBeenCalledWith({
-      provider: "bachs",
-      environment: "sandbox",
-    });
-    expect(billingStore.listLocalGrants).toHaveBeenCalledWith({
-      provider: "revenuecat",
-      environment: "live",
-    });
-    expect(billingStore.createReviewCase).not.toHaveBeenCalledWith(
-      expect.objectContaining({ sourceResourceId: "rc_entitlement_1" }),
+    expect(mockCalls(billingStore, "listLocalGrants")).toEqual(
+      expect.arrayContaining([
+        [{ provider: "bachs", environment: "sandbox" }],
+        [{ provider: "revenuecat", environment: "live" }],
+      ]),
+    );
+    expect(mockCalls(billingStore, "createReviewCase")).not.toEqual(
+      expect.arrayContaining([
+        [expect.objectContaining({ sourceResourceId: "rc_entitlement_1" })],
+      ]),
     );
   });
 

@@ -1,4 +1,8 @@
-import { BadGatewayException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadGatewayException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { BillingPortalService } from "./billing-portal.service";
 import {
   type BillingPortalRepositoryPort,
@@ -10,7 +14,10 @@ class FakePortalRepository implements BillingPortalRepositoryPort {
   customerId: string | null = "customer-1";
   calls: Array<{ userId: string; environment: string }> = [];
 
-  async findProviderCustomerId(userId: string, environment: "sandbox" | "live") {
+  async findProviderCustomerId(
+    userId: string,
+    environment: "sandbox" | "live",
+  ) {
     this.calls.push({ userId, environment });
     return this.customerId;
   }
@@ -21,7 +28,10 @@ class FakePortalProvider implements BillingPortalProviderPort {
   response = { id: "portal-1", url: "https://portal.bachs.io/s/session-1" };
   error: Error | null = null;
 
-  async createPortalSession(input: { customerId: string; idempotencyKey: string }) {
+  async createPortalSession(input: {
+    customerId: string;
+    idempotencyKey: string;
+  }) {
     this.calls.push(input);
     if (this.error) throw this.error;
     return this.response;
@@ -45,10 +55,15 @@ describe("BillingPortalService", () => {
   it("resolves the customer by raw auth subject and returns a fresh exact-origin portal URL", async () => {
     const fixture = createFixture();
 
-    const result = await fixture.service.createPortalSession("user_123", "operation-1");
+    const result = await fixture.service.createPortalSession(
+      "user_123",
+      "operation-1",
+    );
 
     expect(result).toEqual({ url: "https://portal.bachs.io/s/session-1" });
-    expect(fixture.repository.calls).toEqual([{ userId: "user_123", environment: "sandbox" }]);
+    expect(fixture.repository.calls).toEqual([
+      { userId: "user_123", environment: "sandbox" },
+    ]);
     expect(fixture.provider.calls).toEqual([
       { customerId: "customer-1", idempotencyKey: expect.any(String) },
     ]);
@@ -61,7 +76,9 @@ describe("BillingPortalService", () => {
 
     expect(fixture.provider.calls[0].customerId).toBe("customer-1");
     expect(fixture.repository.calls[0].userId).toBe("user_123");
-    expect(JSON.stringify(fixture.provider.calls[0])).not.toContain("@example.com");
+    expect(JSON.stringify(fixture.provider.calls[0])).not.toContain(
+      "@example.com",
+    );
   });
 
   it("returns not-found without calling Bachs when no customer mapping exists", async () => {
@@ -99,7 +116,9 @@ describe("BillingPortalService", () => {
 
   it("allows the caller to retry a network-failed portal attempt without persisting a URL", async () => {
     const fixture = createFixture();
-    fixture.provider.error = Object.assign(new Error("timeout"), { retryable: true });
+    fixture.provider.error = Object.assign(new Error("timeout"), {
+      retryable: true,
+    });
 
     await expect(
       fixture.service.createPortalSession("user_123", "retry-operation"),

@@ -51,23 +51,59 @@ export interface ReconciliationReviewCase {
 }
 
 export interface BillingReconciliationStore {
-  listRecentIntents(input: { since: Date; until: Date; statuses: string[] }): Promise<ReconciliationIntent[]>;
-  listRecentEvents(input: { since: Date; until: Date; statuses: string[] }): Promise<ReconciliationEvent[]>;
-  listLocalPayments(input: { provider: ReconciliationProvider; environment: ReconciliationEnvironment }): Promise<ReconciliationPayment[]>;
-  listLocalRefunds(input: { provider: ReconciliationProvider; environment: ReconciliationEnvironment }): Promise<unknown[]>;
-  listLocalSubscriptions(input: { provider: ReconciliationProvider; environment: ReconciliationEnvironment }): Promise<unknown[]>;
-  listLocalGrants(input: { provider: ReconciliationProvider; environment: ReconciliationEnvironment }): Promise<ReconciliationGrant[]>;
-  hasResource(input: { provider: ReconciliationProvider; environment: ReconciliationEnvironment; resourceId: string }): Promise<boolean>;
+  listRecentIntents(input: {
+    since: Date;
+    until: Date;
+    statuses: string[];
+  }): Promise<ReconciliationIntent[]>;
+  listRecentEvents(input: {
+    since: Date;
+    until: Date;
+    statuses: string[];
+  }): Promise<ReconciliationEvent[]>;
+  listLocalPayments(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<ReconciliationPayment[]>;
+  listLocalRefunds(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<unknown[]>;
+  listLocalSubscriptions(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<unknown[]>;
+  listLocalGrants(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<ReconciliationGrant[]>;
+  hasResource(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+    resourceId: string;
+  }): Promise<boolean>;
   createReviewCase(input: ReconciliationReviewCase): Promise<void>;
 }
 
 export interface ProviderReadAdapter {
   provider: ReconciliationProvider;
   environment: ReconciliationEnvironment;
-  listPayments(input: { cursor?: string; signal: AbortSignal }): Promise<ReconciliationPage<ReconciliationPayment>>;
-  listRefunds(input: { cursor?: string; signal: AbortSignal }): Promise<ReconciliationPage<unknown>>;
-  listSubscriptions(input: { cursor?: string; signal: AbortSignal }): Promise<ReconciliationPage<unknown>>;
-  listEntitlements?: (input: { cursor?: string; signal: AbortSignal }) => Promise<ReconciliationPage<unknown>>;
+  listPayments(input: {
+    cursor?: string;
+    signal: AbortSignal;
+  }): Promise<ReconciliationPage<ReconciliationPayment>>;
+  listRefunds(input: {
+    cursor?: string;
+    signal: AbortSignal;
+  }): Promise<ReconciliationPage<unknown>>;
+  listSubscriptions(input: {
+    cursor?: string;
+    signal: AbortSignal;
+  }): Promise<ReconciliationPage<unknown>>;
+  listEntitlements?: (input: {
+    cursor?: string;
+    signal: AbortSignal;
+  }) => Promise<ReconciliationPage<unknown>>;
 }
 
 export interface ReconciliationRepairInput {

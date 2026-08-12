@@ -59,9 +59,9 @@ describe("opportunity static snapshot helpers", () => {
       { id: "4", status: "active", category: "Scholarship" },
     ];
 
-    expect(filterStaticOpportunityRows(rows, 1, 1, "active", "scholarship")).toEqual([
-      { id: "4", status: "active", category: "Scholarship" },
-    ]);
+    expect(
+      filterStaticOpportunityRows(rows, 1, 1, "active", "scholarship"),
+    ).toEqual([{ id: "4", status: "active", category: "Scholarship" }]);
     expect(filterStaticOpportunityRows(rows, 10, 0, "all")).toHaveLength(4);
     expect(filterStaticOpportunityRows(rows, 10, 0, "closed")).toEqual([]);
   });

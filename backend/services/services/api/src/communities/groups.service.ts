@@ -909,16 +909,14 @@ export class GroupsService {
       .map((group) => ({ group, membership: byGroup.get(group.id) ?? null }))
       .filter(
         ({ group, membership }) =>
-          (group.ownerId === userId &&
-            !isDepartedStatus(membership?.status)) ||
+          (group.ownerId === userId && !isDepartedStatus(membership?.status)) ||
           canReadGroup(group, membership),
       )
       .filter(
         ({ group, membership }) =>
           !filter.mine ||
           live.has(group.id) ||
-          (group.ownerId === userId &&
-            !isDepartedStatus(membership?.status)),
+          (group.ownerId === userId && !isDepartedStatus(membership?.status)),
       );
   }
 
@@ -930,10 +928,7 @@ export class GroupsService {
     // community-authz.ts for why `invited` reads and `pending` does not.
     if (
       !canReadGroup(group, membership) &&
-      !(
-        group.ownerId === userId &&
-        !isDepartedStatus(membership?.status)
-      )
+      !(group.ownerId === userId && !isDepartedStatus(membership?.status))
     ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
@@ -959,10 +954,7 @@ export class GroupsService {
     const membership = await this.store.findMembership(groupId, userId);
     if (
       !canReadGroup(group, membership) &&
-      !(
-        group.ownerId === userId &&
-        !isDepartedStatus(membership?.status)
-      )
+      !(group.ownerId === userId && !isDepartedStatus(membership?.status))
     ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
@@ -1055,7 +1047,9 @@ export class GroupsService {
       "You're not allowed to change this group's photo.",
     );
     if (!this.assets) {
-      throw new BadRequestException("Group photos are not configured right now.");
+      throw new BadRequestException(
+        "Group photos are not configured right now.",
+      );
     }
     return this.assets.createAttachmentUpload(userId, groupId, dto);
   }

@@ -354,7 +354,7 @@ export class CopilotService {
       if (concurrent && Object.keys(concurrent.kit || {}).length) {
         void this.monetizationService.refund(charge);
         return {
-          ...(await this.withOpportunity(concurrent, opportunity)),
+          ...this.withOpportunity(concurrent, opportunity),
           profileGrounded: this.isProfileGrounded(profile),
         };
       }
@@ -396,7 +396,7 @@ export class CopilotService {
     // pretending an empty-profile kit is personalized (P0.1).
     const profileGrounded = this.isProfileGrounded(profile);
     return {
-      ...(await this.withOpportunity(saved, opportunity)),
+      ...this.withOpportunity(saved, opportunity),
       profileGrounded,
     };
   }

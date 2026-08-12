@@ -60,11 +60,7 @@ describe("CommunityDmsController identity", () => {
     ).filter(
       (name) =>
         name !== "constructor" &&
-        Reflect.getMetadata(
-          ROUTE_ARGS_METADATA,
-          CommunityDmsController,
-          name,
-        ),
+        Reflect.getMetadata(ROUTE_ARGS_METADATA, CommunityDmsController, name),
     );
     expect(declared.sort()).toEqual([...HANDLERS].sort());
   });

@@ -157,7 +157,9 @@ export class CommunityDmsService {
       throw new ConflictException("This message request is no longer pending.");
     }
     if (conversation.requestedBy === actor) {
-      throw new ForbiddenException("Only the recipient can accept this request.");
+      throw new ForbiddenException(
+        "Only the recipient can accept this request.",
+      );
     }
     const otherId = this.otherUserId(conversation, actor);
     if (await this.store.isBlocked(actor, otherId)) {
@@ -196,7 +198,9 @@ export class CommunityDmsService {
       throw new ConflictException("This message request is no longer pending.");
     }
     if (conversation.requestedBy === actor) {
-      throw new ForbiddenException("Only the recipient can decline this request.");
+      throw new ForbiddenException(
+        "Only the recipient can decline this request.",
+      );
     }
     await this.store.updateStatus(conversation.id, "declined");
     await this.store.hideConversation(conversation.id, actor);
@@ -253,7 +257,8 @@ export class CommunityDmsService {
     return messages.map((message) => ({
       ...message,
       sender:
-        profileById.get(message.senderId) ?? this.fallbackProfile(message.senderId),
+        profileById.get(message.senderId) ??
+        this.fallbackProfile(message.senderId),
     }));
   }
 
@@ -403,10 +408,14 @@ export class CommunityDmsService {
   ): void {
     if (!conversation) return;
     if (conversation.status === "accepted") {
-      throw new ConflictException("You already have a conversation with this person.");
+      throw new ConflictException(
+        "You already have a conversation with this person.",
+      );
     }
     if (conversation.status === "declined") {
-      throw new ForbiddenException("This person isn't accepting messages from you.");
+      throw new ForbiddenException(
+        "This person isn't accepting messages from you.",
+      );
     }
     if (conversation.requestedBy === actor) {
       throw new ConflictException(

@@ -28,7 +28,9 @@ describe("ChatController.sendMessageStream", () => {
           resolveTurn = () => resolve(options);
         }),
     );
-    const controller = new ChatController({ sendMessage } as unknown as ChatService);
+    const controller = new ChatController({
+      sendMessage,
+    } as unknown as ChatService);
     const response = responseStub();
 
     const pending = controller.sendMessageStream(
@@ -53,7 +55,9 @@ describe("ChatController.sendMessageStream", () => {
       name: "AbortError",
     });
     const sendMessage = jest.fn().mockRejectedValue(abortError);
-    const controller = new ChatController({ sendMessage } as unknown as ChatService);
+    const controller = new ChatController({
+      sendMessage,
+    } as unknown as ChatService);
     const response = responseStub();
 
     const pending = controller.sendMessageStream(
