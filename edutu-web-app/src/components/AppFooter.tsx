@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
+import { useDarkMode } from "../hooks/useDarkMode";
 
 /**
  * Slim footer for every in-app screen, rendered once by AppWorkspaceShell
@@ -6,26 +8,38 @@ import { Link } from "react-router-dom";
  * dashboard's local footer was removed in favor of this one.
  */
 export default function AppFooter() {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+
   return (
     <footer className="mx-auto max-w-[1500px] border-t border-subtle px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
         <p className="text-xs text-text-muted">
           © {new Date().getFullYear()} Edutu. All rights reserved.
         </p>
-        <nav
-          aria-label="Footer"
-          className="flex items-center gap-4 text-xs font-semibold text-text-muted"
-        >
-          <Link to="/help" className="transition hover:text-brand">
-            Help
-          </Link>
-          <Link to="/privacy" className="transition hover:text-brand">
-            Privacy
-          </Link>
-          <Link to="/terms" className="transition hover:text-brand">
-            Terms
-          </Link>
-        </nav>
+        <div className="flex items-center gap-4">
+          <nav
+            aria-label="Footer"
+            className="flex items-center gap-4 text-xs font-semibold text-text-muted"
+          >
+            <Link to="/help" className="transition hover:text-brand">
+              Help
+            </Link>
+            <Link to="/privacy" className="transition hover:text-brand">
+              Privacy
+            </Link>
+            <Link to="/terms" className="transition hover:text-brand">
+              Terms
+            </Link>
+          </nav>
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-subtle text-text-muted transition hover:border-strong hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+          >
+            {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+        </div>
       </div>
     </footer>
   );
