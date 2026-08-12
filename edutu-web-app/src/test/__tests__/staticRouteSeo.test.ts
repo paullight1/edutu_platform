@@ -8,3 +8,7 @@ function expectRoutePreview(route: string, slug: string) {
 it("homepage uses its hero screenshot for shared links", () => {
   expectRoutePreview("/", "home");
 });
+
+it("opportunities uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/opportunities", "opportunities");
+});
