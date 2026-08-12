@@ -47,6 +47,22 @@ DONE_WITH_CONCERNS
   now requires an explicit `app.task4_cv_relation` live-inventory input and
   fails closed when it is absent; the runbook specifies the required evidence.
 
+## Fix round 2
+
+- Added the missing authenticated cross-row CV read assertion to
+  `security_profile_authorization.sql`. It uses a `pg_temp` helper that safely
+  addresses only the configured `regclass` and verified owner-column name,
+  then queries the real inventoried relation under authenticated user A and
+  asserts that user B's fixture row is not visible.
+- The test now fails closed unless staging supplies the relation,
+  owner-column name, and two distinct fixture owners through
+  `app.task4_cv_relation`, `app.task4_cv_owner_column`,
+  `app.task4_cv_fixture_a_owner`, and `app.task4_cv_fixture_b_owner`. It also
+  proves both fixtures exist before the RLS assertion.
+- Updated the cutover runbook to require fixture-creation SQL for the actual
+  relation's non-null/application constraints, plus the configured inputs and
+  RLS/policy evidence. No guessed CV table or column name was added.
+
 ## Verification
 
 - PASS: `cd backend/services/services/api && npm test -- --runInBand src/auth/admin.guard.spec.ts src/profile/dto/profile.dto.spec.ts`
@@ -78,3 +94,7 @@ DONE_WITH_CONCERNS
 3. Local pgTAP execution requires Docker plus `supabase start` (or an explicit
    disposable database URL). The SQL test remains unexecuted locally for that
    environmental reason.
+4. The new CV cross-row assertion is ready only after staging inventory creates
+   two disposable rows using the live relation's required fields. Until those
+   relation/owner/fixture inputs are recorded and the test is run against that
+   disposable database, live CV isolation remains unverified.

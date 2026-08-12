@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(24);
 
 select is(
   has_column_privilege('anon', 'public.profiles', 'role', 'INSERT'),
@@ -195,8 +195,17 @@ select is(
 
 select ok(
   nullif(current_setting('app.task4_cv_relation', true), '') is not null
-  and to_regclass(current_setting('app.task4_cv_relation', true)) is not null,
-  'CV relation inventory input is required; set app.task4_cv_relation to the live relation before running this test'
+  and nullif(current_setting('app.task4_cv_owner_column', true), '') is not null
+  and to_regclass(current_setting('app.task4_cv_relation', true)) is not null
+  and exists (
+    select 1
+    from pg_attribute a
+    where a.attrelid = to_regclass(current_setting('app.task4_cv_relation', true))
+      and a.attname = current_setting('app.task4_cv_owner_column', true)
+      and a.attnum > 0
+      and not a.attisdropped
+  ),
+  'CV relation and owner-column inventory inputs are required before this test can run'
 );
 
 select is(
@@ -208,6 +217,83 @@ select is(
   true,
   'the inventoried CV relation has row level security enabled'
 );
+
+select ok(
+  nullif(current_setting('app.task4_cv_fixture_a_owner', true), '') is not null
+  and nullif(current_setting('app.task4_cv_fixture_b_owner', true), '') is not null
+  and current_setting('app.task4_cv_fixture_a_owner', true)
+    <> current_setting('app.task4_cv_fixture_b_owner', true),
+  'two distinct disposable CV fixture owners are required'
+);
+
+create function pg_temp.task4_cv_fixture_owner_visible(owner_value text)
+returns boolean
+language plpgsql
+as $$
+declare
+  relation_oid regclass := to_regclass(current_setting('app.task4_cv_relation', true));
+  owner_column text := current_setting('app.task4_cv_owner_column', true);
+  has_owner_column boolean;
+  visible boolean := false;
+begin
+  if relation_oid is null or owner_column is null or owner_column = '' then
+    return false;
+  end if;
+
+  select exists (
+    select 1
+    from pg_attribute a
+    where a.attrelid = relation_oid
+      and a.attname = owner_column
+      and a.attnum > 0
+      and not a.attisdropped
+  ) into has_owner_column;
+
+  if not has_owner_column then
+    return false;
+  end if;
+
+  execute format(
+    'select exists (select 1 from %s where %I::text = $1)',
+    relation_oid,
+    owner_column
+  ) into visible using owner_value;
+
+  return visible;
+end;
+$$;
+
+select ok(
+  pg_temp.task4_cv_fixture_owner_visible(
+    current_setting('app.task4_cv_fixture_a_owner', true)
+  ),
+  'the disposable CV fixture for user A exists in the inventoried relation'
+);
+
+select ok(
+  pg_temp.task4_cv_fixture_owner_visible(
+    current_setting('app.task4_cv_fixture_b_owner', true)
+  ),
+  'the disposable CV fixture for user B exists in the inventoried relation'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  coalesce(current_setting('app.task4_cv_fixture_a_owner', true), ''),
+  true
+);
+
+set local role authenticated;
+
+select is(
+  pg_temp.task4_cv_fixture_owner_visible(
+    current_setting('app.task4_cv_fixture_b_owner', true)
+  ),
+  false,
+  'authenticated user A cannot read user B CV rows from the inventoried relation'
+);
+
+reset role;
 
 select * from finish();
 
