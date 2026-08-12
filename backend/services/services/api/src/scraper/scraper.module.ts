@@ -6,11 +6,21 @@ import { OpportunityDedupService } from "./opportunity-dedup.service";
 import { RobotsChecker } from "./robots-checker";
 import { AiModule } from "../ai";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
+import { ScraperEgressController } from "./scraper-egress.controller";
+import { ScraperEgressService } from "./scraper-egress.service";
+import { loadScraperEgressConfig } from "./scraper-egress.config";
 
 @Module({
   imports: [AiModule, OpportunitiesModule],
-  controllers: [ScraperController],
+  controllers: [ScraperController, ScraperEgressController],
   providers: [
+    { provide: "SCRAPER_EGRESS_CONFIG", useFactory: loadScraperEgressConfig },
+    {
+      provide: ScraperEgressService,
+      useFactory: (config: ReturnType<typeof loadScraperEgressConfig>) =>
+        new ScraperEgressService(config),
+      inject: ["SCRAPER_EGRESS_CONFIG"],
+    },
     ScraperService,
     ScraperAlertsService,
     RobotsChecker,
