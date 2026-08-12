@@ -416,12 +416,25 @@ const MentorPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/mentor/dashboard')}
-                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand px-8 py-4 text-sm font-semibold text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-300/60 sm:w-auto"
                                     >
                                         Go to Mentor Studio <ArrowRight size={16} />
                                     </button>
                                 )}
                             </motion.div>
+                            <div className="mt-10 flex items-center justify-center gap-2" aria-label="Mentor hero images">
+                                {MENTOR_HERO_SLIDES.map((slide, index) => (
+                                    <span
+                                        key={slide.src}
+                                        className={`h-1.5 rounded-full transition-all duration-500 ${index === activeHeroSlide ? 'w-8 bg-brand-300' : 'w-1.5 bg-white/45'}`}
+                                        aria-hidden="true"
+                                    />
+                                ))}
+                            </div>
+                            <span className="sr-only" aria-live="polite">
+                                {MENTOR_HERO_SLIDES[activeHeroSlide].alt}
+                            </span>
+                            </div>
                         </div>
                     </motion.section>
 
