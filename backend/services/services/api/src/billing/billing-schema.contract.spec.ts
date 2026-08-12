@@ -1,4 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { getTableColumns } from "drizzle-orm";
@@ -27,6 +34,96 @@ const migrationNames = [
   "20260811123000_derived_entitlements.sql",
   "20260812120000_bachs_checkout_contract_hardening.sql",
 ] as const;
+
+type VerificationManifest = {
+  tables: Record<
+    string,
+    {
+      columns: string[];
+      rls: boolean | null;
+      serviceRolePrivileges: string[] | null;
+    }
+  >;
+  indexes: Array<{
+    name: string;
+    table: string;
+    unique: boolean;
+    valid: boolean;
+    ready: boolean;
+    keys: string[];
+    predicate: string | null;
+  }>;
+  constraints: Array<{
+    name: string;
+    table: string;
+    type: string;
+    validated: boolean | null;
+    definition: string;
+  }>;
+  productMapping: Record<string, unknown>;
+};
+
+function verificationManifest(): VerificationManifest {
+  const result = spawnSync(
+    process.execPath,
+    [schemaVerificationScriptPath, "--print-required"],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(0);
+  return JSON.parse(result.stdout) as VerificationManifest;
+}
+
+function validVerificationFixture(manifest: VerificationManifest) {
+  return {
+    columns: Object.entries(manifest.tables).flatMap(([table, requirement]) =>
+      requirement.columns.map((column) => ({
+        table_name: table,
+        column_name: column,
+        data_type:
+          table === "profiles" && column === "credits" ? "integer" : "text",
+        is_nullable:
+          table === "profiles" && column === "credits" ? "NO" : "YES",
+        column_default:
+          table === "profiles" && column === "credits" ? "0" : null,
+      })),
+    ),
+    tables: Object.entries(manifest.tables).map(([table, requirement]) => ({
+      table_name: table,
+      rls_enabled: requirement.rls,
+    })),
+    indexes: manifest.indexes.map((index) => ({ ...index })),
+    constraints: manifest.constraints.map((constraint) => ({ ...constraint })),
+    privileges: Object.entries(manifest.tables).flatMap(
+      ([table, requirement]) =>
+        (requirement.serviceRolePrivileges ?? []).map((privilege) => ({
+          table_name: table,
+          role_name: "service_role",
+          privilege_type: privilege,
+        })),
+    ),
+    product_mapping_present: true,
+    invalid_enabled_credit_product_keys: [],
+  };
+}
+
+function runVerificationFixture(fixture: unknown) {
+  const directory = mkdtempSync(resolve(tmpdir(), "edutu-schema-contract-"));
+  const fixturePath = resolve(directory, "catalog.json");
+  writeFileSync(fixturePath, JSON.stringify(fixture));
+  try {
+    return spawnSync(
+      process.execPath,
+      [
+        schemaVerificationScriptPath,
+        "--environment=sandbox",
+        `--verify-fixture=${fixturePath}`,
+      ],
+      { encoding: "utf8" },
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 function migrationPath(name: (typeof migrationNames)[number]): string {
   return resolve(repositoryRoot, "supabase/migrations", name);
@@ -341,6 +438,60 @@ describe("production API credit contract", () => {
     expect(sql).toMatch(/billing_provider_events_provider_event_unique/i);
   });
 
+  it("audits divergent balances and aborts before any compatibility synchronization", () => {
+    const sql = readFileSync(apiProductionMigrationPath, "utf8");
+
+    expect(sql).toMatch(
+      /create table if not exists public\.api_credit_balance_reconciliation_audit/i,
+    );
+    expect(sql).toMatch(
+      /create table if not exists public\.api_credit_balance_reconciliation_resolutions/i,
+    );
+    expect(sql).toMatch(/public\.credit_transactions/i);
+    expect(sql).toMatch(/public\.billing_payment_ledger/i);
+    expect(sql).toMatch(/public\.billing_transactions/i);
+    expect(sql).toMatch(/unresolved[^']*credit balance[^']*mismatch/i);
+    expect(sql).toMatch(/mismatch_count/i);
+    expect(sql).toMatch(/initial_reconciliation_completed/i);
+    expect(sql).toMatch(/had_credits or reconciliation_completed/i);
+
+    const auditPosition = sql.search(
+      /insert into public\.api_credit_balance_reconciliation_audit/i,
+    );
+    const durableCommitPosition = sql.indexOf("commit;", auditPosition);
+    const abortPosition = sql.search(
+      /raise exception[^;]*unresolved[^;]*credit balance[^;]*mismatch/i,
+    );
+    const synchronizationPosition = sql.search(
+      /create or replace function public\.sync_profile_credit_balance_compat/i,
+    );
+
+    expect(auditPosition).toBeGreaterThan(-1);
+    expect(durableCommitPosition).toBeGreaterThan(auditPosition);
+    expect(abortPosition).toBeGreaterThan(durableCommitPosition);
+    expect(synchronizationPosition).toBeGreaterThan(abortPosition);
+    expect(sql).not.toMatch(
+      /set\s+credits_balance\s*=\s*credits\s+where\s+credits_balance\s+is\s+distinct\s+from\s+credits/i,
+    );
+  });
+
+  it("quarantines invalid enabled credit products and validates the contract", () => {
+    const sql = readFileSync(apiProductionMigrationPath, "utf8");
+
+    expect(sql).toMatch(
+      /create table if not exists public\.billing_product_contract_quarantine/i,
+    );
+    expect(sql).toMatch(
+      /insert into public\.billing_product_contract_quarantine[\s\S]*?from public\.billing_products/i,
+    );
+    expect(sql).toMatch(
+      /update public\.billing_products[\s\S]*?set enabled = false[\s\S]*?fulfillment_kind = 'credit_pack'/i,
+    );
+    expect(sql).toMatch(
+      /validate constraint billing_products_api_credit_contract_check/i,
+    );
+  });
+
   it("returns only non-expiring one-time credit products with positive quantity", async () => {
     mockExecute.mockResolvedValueOnce({
       rows: [
@@ -398,19 +549,7 @@ describe("production API credit contract", () => {
   });
 
   it("prints every schema object required by production verification", () => {
-    const result = spawnSync(
-      process.execPath,
-      [schemaVerificationScriptPath, "--print-required"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status).toBe(0);
-    const required = JSON.parse(result.stdout) as {
-      tables: Record<string, { columns: string[] }>;
-      indexes: string[];
-      constraints: string[];
-      productMapping: Record<string, unknown>;
-    };
+    const required = verificationManifest();
 
     expect(required.tables.api_consumers.columns).toEqual(
       expect.arrayContaining([
@@ -433,13 +572,14 @@ describe("production API credit contract", () => {
     expect(required.tables.billing_product_provider_mappings).toBeDefined();
     expect(required.tables.billing_checkout_intents).toBeDefined();
     expect(required.tables.billing_provider_events).toBeDefined();
-    expect(required.indexes).toEqual(
+    expect(required.indexes.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "credit_transactions_api_ref_unique",
+        "billing_credit_transactions_purchase_unique",
         "billing_events_provider_environment_retry_idx",
       ]),
     );
-    expect(required.constraints).toEqual(
+    expect(required.constraints.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "billing_products_api_credit_contract_check",
         "billing_checkout_intents_provider_environment_user_idempotency_key",
@@ -447,12 +587,108 @@ describe("production API credit contract", () => {
         "billing_provider_events_provider_event_unique",
       ]),
     );
+    expect(required.tables.api_consumers).toMatchObject({
+      rls: true,
+      serviceRolePrivileges: ["SELECT", "INSERT", "UPDATE"],
+    });
+    expect(
+      required.constraints.find(
+        ({ name }) => name === "billing_products_api_credit_contract_check",
+      ),
+    ).toMatchObject({ type: "c", validated: true });
     expect(required.productMapping).toMatchObject({
       fulfillmentKind: "credit_pack",
       renewalMode: "one_time",
       minimumCreditQuantity: 1,
       validityDays: null,
     });
+  });
+
+  it("reads effective PostgreSQL index, constraint, RLS, and ACL state", () => {
+    const script = readFileSync(schemaVerificationScriptPath, "utf8");
+
+    expect(script).toMatch(/pg_catalog\.pg_index/i);
+    expect(script).toMatch(/indisunique/i);
+    expect(script).toMatch(/indisvalid/i);
+    expect(script).toMatch(/indisready/i);
+    expect(script).toMatch(/pg_get_indexdef/i);
+    expect(script).toMatch(/pg_get_expr\(ind\.indpred/i);
+    expect(script).toMatch(/con\.contype/i);
+    expect(script).toMatch(/con\.convalidated/i);
+    expect(script).toMatch(/rel\.relrowsecurity/i);
+    expect(script).toMatch(/has_table_privilege/i);
+    expect(script).toMatch(/aclexplode/i);
+    expect(script).toMatch(/invalid_enabled_credit_product_keys/i);
+  });
+
+  it("accepts a fixture only when catalog semantics, RLS, and ACLs match", () => {
+    const manifest = verificationManifest();
+    const result = runVerificationFixture(validVerificationFixture(manifest));
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "API production schema verified for billing environment sandbox",
+    );
+  });
+
+  it("rejects invalid index, constraint, product, RLS, and ACL semantics", () => {
+    const manifest = verificationManifest();
+    const fixture = validVerificationFixture(manifest);
+    const purchaseIndex = fixture.indexes.find(
+      ({ name }) => name === "billing_credit_transactions_purchase_unique",
+    );
+    const productConstraint = fixture.constraints.find(
+      ({ name }) => name === "billing_products_api_credit_contract_check",
+    );
+    const consumers = fixture.tables.find(
+      ({ table_name }) => table_name === "api_consumers",
+    );
+
+    if (!purchaseIndex || !productConstraint || !consumers) {
+      throw new Error("Verification manifest is incomplete");
+    }
+    purchaseIndex.unique = false;
+    purchaseIndex.valid = false;
+    purchaseIndex.keys = [...purchaseIndex.keys].reverse();
+    purchaseIndex.predicate = null;
+    productConstraint.type = "u";
+    productConstraint.validated = false;
+    productConstraint.definition = "UNIQUE (product_key)";
+    consumers.rls_enabled = false;
+    fixture.privileges.push({
+      table_name: "api_consumers",
+      role_name: "authenticated",
+      privilege_type: "SELECT",
+    });
+    fixture.privileges = fixture.privileges.filter(
+      ({ table_name, role_name, privilege_type }) =>
+        !(
+          table_name === "api_consumers" &&
+          role_name === "service_role" &&
+          privilege_type === "UPDATE"
+        ),
+    );
+    fixture.invalid_enabled_credit_product_keys = ["credits_legacy_bad"];
+
+    const result = runVerificationFixture(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "index public.billing_credit_transactions_purchase_unique unique",
+    );
+    expect(result.stderr).toContain(
+      "constraint public.billing_products_api_credit_contract_check type c",
+    );
+    expect(result.stderr).toContain("RLS public.api_consumers enabled");
+    expect(result.stderr).toContain(
+      "ACL public.api_consumers authenticated has no SELECT",
+    );
+    expect(result.stderr).toContain(
+      "ACL public.api_consumers service_role grants UPDATE",
+    );
+    expect(result.stderr).toContain(
+      "invalid enabled credit products: credits_legacy_bad",
+    );
   });
 
   it("keeps the API-consumer Drizzle contract aligned with ownership and key lookup", () => {
