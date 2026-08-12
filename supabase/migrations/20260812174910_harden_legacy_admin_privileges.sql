@@ -1,7 +1,9 @@
 begin;
 
 alter table public.scraping_sources enable row level security;
+alter table public.scraped_urls enable row level security;
 alter table public.scrape_logs enable row level security;
+alter table public.scraper_config enable row level security;
 alter table public.notification_queue enable row level security;
 
 drop policy if exists "Enable read access for authenticated users"
@@ -18,6 +20,16 @@ create policy "service role manages scraper sources"
   using (true)
   with check (true);
 
+drop policy if exists "service role manages scraped urls"
+  on public.scraped_urls;
+
+create policy "service role manages scraped urls"
+  on public.scraped_urls
+  for all
+  to service_role
+  using (true)
+  with check (true);
+
 drop policy if exists "Enable read access for authenticated users"
   on public.scrape_logs;
 drop policy if exists "Enable all for service role"
@@ -27,6 +39,16 @@ drop policy if exists "service role manages scrape logs"
 
 create policy "service role manages scrape logs"
   on public.scrape_logs
+  for all
+  to service_role
+  using (true)
+  with check (true);
+
+drop policy if exists "service role manages scraper config"
+  on public.scraper_config;
+
+create policy "service role manages scraper config"
+  on public.scraper_config
   for all
   to service_role
   using (true)
@@ -48,20 +70,30 @@ create policy "service role manages notification queue"
 
 revoke all on table
   public.scraping_sources,
+  public.scraped_urls,
   public.scrape_logs,
+  public.scraper_config,
   public.notification_queue
-from anon, authenticated;
+from anon, authenticated, service_role;
 
 grant select, insert, update, delete on table
   public.scraping_sources,
+  public.scraped_urls,
   public.scrape_logs,
   public.notification_queue
 to service_role;
 
-revoke all on sequence public.scraping_sources_id_seq
-from anon, authenticated;
+grant select, insert, update on table public.scraper_config
+to service_role;
 
-grant usage, select on sequence public.scraping_sources_id_seq
+revoke all on sequence
+  public.scraping_sources_id_seq,
+  public.scraper_config_id_seq
+from public, anon, authenticated, service_role;
+
+grant usage on sequence
+  public.scraping_sources_id_seq,
+  public.scraper_config_id_seq
 to service_role;
 
 create or replace function public.count_opportunities_by_source()
@@ -290,18 +322,55 @@ begin
 end;
 $$;
 
-revoke all on function public.count_opportunities_by_source()
-from public, anon, authenticated;
-revoke all on function public.opportunity_admin_stats()
-from public, anon, authenticated;
-revoke all on function public.get_signup_trends(integer)
-from public, anon, authenticated;
-revoke all on function public.get_opportunity_performance(integer)
-from public, anon, authenticated;
-revoke all on function public.get_support_metrics(integer)
-from public, anon, authenticated;
-revoke all on function public.generate_user_recommendations(uuid)
-from public, anon, authenticated;
+-- CREATE OR REPLACE preserves existing ACL entries. Enforce an explicit
+-- allowlist across only these six functions by removing every direct EXECUTE
+-- grant except the owner's implicit/direct access and service_role. CASCADE is
+-- intentional: a grant delegated by an unexpected grantee is unauthorized too.
+do $$
+declare
+  acl_row record;
+begin
+  for acl_row in
+    select distinct
+      p.oid::regprocedure as function_identity,
+      acl.grantee,
+      grantee_role.rolname as grantee_name
+    from pg_proc as p
+    join pg_namespace as n
+      on n.oid = p.pronamespace
+    cross join lateral aclexplode(
+      coalesce(p.proacl, acldefault('f', p.proowner))
+    ) as acl
+    left join pg_roles as grantee_role
+      on grantee_role.oid = acl.grantee
+    where n.nspname = 'public'
+      and p.oid in (
+        'public.count_opportunities_by_source()'::regprocedure,
+        'public.opportunity_admin_stats()'::regprocedure,
+        'public.get_signup_trends(integer)'::regprocedure,
+        'public.get_opportunity_performance(integer)'::regprocedure,
+        'public.get_support_metrics(integer)'::regprocedure,
+        'public.generate_user_recommendations(uuid)'::regprocedure
+      )
+      and acl.privilege_type = 'EXECUTE'
+      and acl.grantee <> p.proowner
+      and acl.grantee <> (
+        select r.oid
+        from pg_roles as r
+        where r.rolname = 'service_role'
+      )
+  loop
+    execute format(
+      'revoke execute on function %s from %s cascade',
+      acl_row.function_identity,
+      case
+        when acl_row.grantee = 0 then 'public'
+        else format('%I', acl_row.grantee_name)
+      end
+    );
+  end loop;
+end;
+$$;
 
 grant execute on function public.count_opportunities_by_source()
 to service_role;
