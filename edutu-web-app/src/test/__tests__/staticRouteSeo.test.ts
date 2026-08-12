@@ -72,3 +72,7 @@ it("developer docs uses its hero screenshot for shared links", () => {
 it("help uses its hero screenshot for shared links", () => {
   expectRoutePreview("/help", "help");
 });
+
+it("careers uses its hero screenshot for shared links", () => {
+  expectRoutePreview("/careers", "careers");
+});
