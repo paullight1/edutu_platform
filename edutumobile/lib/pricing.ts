@@ -41,9 +41,6 @@ export interface PricingConfig {
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
-  /** Hosted checkout + subscription-management origins. */
-  checkoutBaseUrl: string;
-  manageUrl: string;
   promo: PricingPromo;
   /** Optional credit top-up packs (admin-configured). */
   creditPacks?: CreditPack[];
@@ -56,8 +53,6 @@ export const DEFAULT_PRICING: PricingConfig = {
   weeklyPrice: 2000,
   monthlyPrice: 6500,
   yearlyPrice: 60000,
-  checkoutBaseUrl: 'https://pay.edutu.org',
-  manageUrl: 'https://pay.edutu.org/account',
   promo: { active: false, label: '', weeklyPrice: null, monthlyPrice: null, yearlyPrice: null },
   seasonPass: { enabled: false, price: 15000, durationDays: 90, label: 'Season Pass' },
 };
@@ -139,12 +134,6 @@ export function normalisePricing(payload: unknown): PricingConfig {
     weeklyPrice: fill(weekly, DEFAULT_PRICING.weeklyPrice, monthlyBase != null ? monthlyBase * weeklyRatio : null),
     monthlyPrice: fill(monthly, DEFAULT_PRICING.monthlyPrice, monthlyBase),
     yearlyPrice: fill(yearly, DEFAULT_PRICING.yearlyPrice, monthlyBase != null ? monthlyBase * yearlyRatio : null),
-    checkoutBaseUrl: typeof r.checkoutBaseUrl === 'string' && r.checkoutBaseUrl.trim()
-      ? r.checkoutBaseUrl.trim().replace(/\/$/, '')
-      : DEFAULT_PRICING.checkoutBaseUrl,
-    manageUrl: typeof r.manageUrl === 'string' && r.manageUrl.trim()
-      ? r.manageUrl.trim().replace(/\/$/, '')
-      : DEFAULT_PRICING.manageUrl,
     promo: {
       active: promo.active === true,
       label: typeof promo.label === 'string' ? promo.label : '',
@@ -281,42 +270,4 @@ export function effectivePrice(pricing: PricingConfig, plan: BillingPlan): numbe
 export function hasPromoDiscount(pricing: PricingConfig, plan: BillingPlan): boolean {
   if (!pricing.promo.active) return false;
   return effectivePrice(pricing, plan) < regularPrice(pricing, plan);
-}
-
-/**
- * Build the pay.edutu.org hosted-checkout URL with the signed-in user's context.
- * pay.edutu.org maps this to a Paystack transaction; its webhook grants the
- * entitlement server-side (the client can never self-grant Pro).
- *
- * `plan` goes over verbatim — all three cadences round-trip: pay.edutu.org's
- * isBillingPlan() accepts 'weekly' | 'monthly' | 'yearly' and planDurationDays()
- * grants 7 / 31 / 366 days, so a weekly checkout is honoured rather than being
- * rejected as an unknown plan. Web build only: on iOS/Android the paywall
- * charges through the store instead (App Store 3.1.1 / Play Payments).
- */
-export function buildCheckoutUrl(
-  pricing: PricingConfig,
-  params: { uid: string; email?: string | null; plan: CheckoutPlan; platform?: string; ref?: string },
-): string {
-  // The season pass is a ONE-OFF charge at its own admin-set price; promos never
-  // apply to it. Every other plan is the recurring price (promo override wins).
-  const amount =
-    params.plan === 'season' ? pricing.seasonPass.price : effectivePrice(pricing, params.plan);
-  const isSeason = params.plan === 'season';
-  const q = new URLSearchParams({
-    uid: params.uid,
-    plan: params.plan,
-    currency: pricing.currency,
-    amount: String(amount),
-    ref: params.ref || 'edutu-mobile',
-  });
-  if (params.email) q.set('email', params.email);
-  if (params.platform) q.set('platform', params.platform);
-  if (!isSeason && pricing.promo.active) q.set('promo', pricing.promo.label || 'promo');
-  return `${pricing.checkoutBaseUrl}/checkout?${q.toString()}`;
-}
-
-export function buildManageUrl(pricing: PricingConfig, uid: string): string {
-  const q = new URLSearchParams({ uid });
-  return `${pricing.manageUrl}?${q.toString()}`;
 }

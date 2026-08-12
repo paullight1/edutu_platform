@@ -18,8 +18,6 @@ export interface OpenPaywallInput {
   reason?: string | null;
   /** The feature the user was trying to use (analytics / copy hints). */
   feature?: string | null;
-  /** Path to return to after Paystack checkout. Defaults to current path. */
-  returnTo?: string;
 }
 
 interface PaywallContextValue {
@@ -55,14 +53,9 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
-  const [returnTo, setReturnTo] = useState<string | undefined>(undefined);
 
   const openPaywall = useCallback((input: OpenPaywallInput = {}) => {
     setReason(input.reason ?? null);
-    setReturnTo(
-      input.returnTo ??
-        (typeof window !== 'undefined' ? window.location.pathname : undefined),
-    );
     setOpen(true);
   }, []);
 
@@ -112,7 +105,6 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
         open={onUpgradePage ? false : open}
         onClose={closePaywall}
         reason={reason}
-        returnTo={returnTo}
       />
     </PaywallContext.Provider>
   );

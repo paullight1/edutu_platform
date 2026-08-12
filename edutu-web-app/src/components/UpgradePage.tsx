@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth, useUser } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
+import { v4 as uuidv4 } from 'uuid';
 import {
   ArrowRight,
   Check,
@@ -13,10 +14,16 @@ import {
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
-import { broadcastBillingInvalidation, createCheckout, type BillingInterval } from '../services/billing';
+import {
+  createCheckout,
+  isBachsCheckoutEnabled,
+  type BillingInterval,
+  type CheckoutResponse,
+} from '../services/billing';
 import { usePaywall } from '../hooks/usePaywall';
 import {
   PRO_PLANS,
+  PAYMENT_RENEWAL_DISCLOSURE,
   effectivePrice,
   formatMoney,
   useProPricing,
@@ -28,6 +35,7 @@ import {
 
 interface PlanCard {
   plan: BillingInterval;
+  productKey: string;
   label: string;
   cadence: string;
   price: string;
@@ -35,6 +43,7 @@ interface PlanCard {
   badge?: string;
   /** Short reassurance line under the price. */
   hint: string;
+  renewalHint: string;
   highlighted: boolean;
 }
 
@@ -59,11 +68,11 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'How do I pay?',
-    a: 'You can pay with your card, mobile money, or a bank transfer — all processed securely by Paystack. You will be redirected to a secure checkout to complete your purchase, then brought straight back to Edutu.',
+    a: 'You can pay with your card, mobile money, or a bank transfer through Bachs. Card purchases can renew automatically; bank transfers and mobile-money payments are one-time access for the selected period and renew manually.',
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes. Pro is a simple subscription — you keep access for the period you paid for, and you are never locked in. Cancel whenever you like and you will not be charged again.',
+    a: 'Card subscriptions can be cancelled before their next renewal. Bank transfer and mobile-money purchases are one-time access passes, so they do not renew automatically.',
   },
   {
     q: 'Does it work on mobile too?',
@@ -73,18 +82,20 @@ const FAQ: Array<{ q: string; a: string }> = [
 
 const UpgradePage: React.FC = () => {
   const { getToken, isSignedIn } = useAuth();
-  const { user } = useUser();
   const { isPro } = usePaywall();
 
   // Shared admin pricing (session-cached, same hook the modal uses). Billing
   // status is owned by useBillingStatus under PaywallProvider, which already
   // refetches on mount and on tab focus — so returning from checkout re-checks
   // Pro without a duplicate request here.
-  const { pricing: remotePricing, loading: pricingLoading, displayPricing: pricing } = useProPricing();
+  const { loading: pricingLoading, displayPricing: pricing } = useProPricing();
   const showPrices = !pricingLoading;
 
   const [pendingPlan, setPendingPlan] = useState<BillingInterval | null>(null);
+  const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const actionKeys = useRef<Partial<Record<BillingInterval, string>>>({});
+  const checkoutEnabled = isBachsCheckoutEnabled();
 
   // Yearly vs. paying monthly for a year — leaned into as the headline saving.
   const yearlySavingPct = useMemo(() => {
@@ -105,6 +116,7 @@ const UpgradePage: React.FC = () => {
           : meta.defaultBadge;
       return {
         plan: meta.plan,
+        productKey: meta.productKey,
         label: meta.longLabel,
         cadence: meta.cadence,
         price: formatMoney(effectivePrice(pricing, meta.plan), pricing.currency),
@@ -113,13 +125,15 @@ const UpgradePage: React.FC = () => {
           showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
             ? `A full year of Pro for roughly ${yearlySavingPct}% less than paying monthly.`
             : meta.hint,
+        renewalHint: meta.renewalHint,
         highlighted: meta.highlighted,
       };
     });
   }, [pricing, yearlySavingPct, showPrices]);
 
-  const startCheckout = async (plan: BillingInterval) => {
-    if (pendingPlan) return;
+  const startCheckout = async (card: Pick<PlanCard, 'plan' | 'productKey'>) => {
+    if (!checkoutEnabled || pendingPlan || checkoutToConfirm) return;
+    const { plan, productKey } = card;
     setPendingPlan(plan);
     setError(null);
     try {
@@ -128,24 +142,15 @@ const UpgradePage: React.FC = () => {
         setError('Please sign in to continue to checkout.');
         return;
       }
-      // Pro plans originate at pay.edutu.org (see services/billing.ts) — it
-      // identifies the buyer from uid/email and re-resolves the amount itself.
+      const idempotencyKey = actionKeys.current[plan] ?? uuidv4();
+      actionKeys.current[plan] = idempotencyKey;
       const checkout = await createCheckout(token, {
-        plan,
-        returnTo: '/upgrade',
-        uid: user?.id,
-        email: user?.primaryEmailAddress?.emailAddress,
-        pricing: remotePricing,
+        productKey,
+        returnSurface: 'web',
+        idempotencyKey,
       });
-      if (checkout.configured === false || !checkout.authorizationUrl) {
-        setError(
-          checkout.message ||
-            'Payments are not configured yet. Please try again later or contact support.',
-        );
-        return;
-      }
-      broadcastBillingInvalidation();
-      window.location.assign(checkout.authorizationUrl);
+      delete actionKeys.current[plan];
+      setCheckoutToConfirm(checkout);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Unable to start checkout.');
     } finally {
@@ -153,11 +158,16 @@ const UpgradePage: React.FC = () => {
     }
   };
 
+  const continueToCheckout = () => {
+    if (!checkoutToConfirm) return;
+    window.location.assign(checkoutToConfirm.checkoutUrl);
+  };
+
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
       <Seo
         title="Edutu Pro — AI coaching, CV tools and smarter tracking"
-        description="Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. One scholarship is worth far more than the subscription. Pay by card, mobile money, or bank transfer via Paystack."
+        description="Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Card purchases can renew automatically; local payment methods provide bounded access."
         path="/upgrade"
       />
       <PublicHeader />
@@ -268,12 +278,15 @@ const UpgradePage: React.FC = () => {
                       <p className="mt-3 text-sm leading-relaxed text-text-secondary">
                         {card.hint}
                       </p>
+                      <p className="mt-2 text-xs leading-relaxed text-text-muted">
+                        {card.renewalHint}
+                      </p>
 
                       {isSignedIn ? (
                         <button
                           type="button"
-                          disabled={pendingPlan !== null}
-                          onClick={() => void startCheckout(card.plan)}
+                          disabled={!checkoutEnabled || pendingPlan !== null || checkoutToConfirm !== null}
+                          onClick={() => void startCheckout(card)}
                           className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold no-underline transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
                             card.highlighted
                               ? 'bg-brand text-white shadow-elevated hover:-translate-y-0.5 hover:bg-brand-700'
@@ -327,9 +340,29 @@ const UpgradePage: React.FC = () => {
                 </p>
               ) : null}
 
+              {checkoutToConfirm ? (
+                <section className="mx-auto mt-6 max-w-[720px] rounded-2xl border border-brand/40 bg-brand/5 p-5 text-center" aria-live="polite">
+                  <h2 className="font-display text-xl font-semibold text-text-primary">Review your renewal terms</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                    {checkoutToConfirm.renewalMode === 'recurring'
+                      ? 'This card purchase renews automatically until you cancel.'
+                      : `This is one-time access${checkoutToConfirm.accessUntil ? ` until ${new Date(checkoutToConfirm.accessUntil).toLocaleDateString()}` : ''}; renew manually when it ends.`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={continueToCheckout}
+                    className="mt-4 inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white"
+                  >
+                    Continue to secure checkout
+                  </button>
+                </section>
+              ) : null}
+
               <p className="mx-auto mt-6 flex max-w-[1080px] items-center justify-center gap-2 text-center text-sm text-text-muted">
                 <ShieldCheck size={15} className="text-brand" aria-hidden="true" />
-                Pay by card, mobile money, or bank transfer — processed securely by Paystack.
+                {checkoutEnabled
+                  ? `Processed securely by Bachs. ${PAYMENT_RENEWAL_DISCLOSURE}`
+                  : 'Payments are not available yet.'}
               </p>
             </section>
 
@@ -407,13 +440,14 @@ const UpgradePage: React.FC = () => {
                 </h2>
                 <p className="mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-white/85 sm:text-lg">
                   Go Pro today and give every application your best shot. Card, mobile money or bank
-                  transfer — secure checkout via Paystack.
+                  transfer — secure checkout via Bachs. Card purchases can renew automatically;
+                  local-method purchases are bounded access and renew manually.
                 </p>
                 {isSignedIn ? (
                   <button
                     type="button"
-                    disabled={pendingPlan !== null}
-                    onClick={() => void startCheckout('yearly')}
+                    disabled={!checkoutEnabled || pendingPlan !== null || checkoutToConfirm !== null}
+                    onClick={() => void startCheckout({ plan: 'yearly', productKey: 'pro_yearly_pass' })}
                     className="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand no-underline shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pendingPlan === 'yearly' ? (

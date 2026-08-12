@@ -1,14 +1,13 @@
 // Shared Pro-pricing display helpers, used by both the UpgradeModal and the
 // standalone /upgrade page so the two can never drift. Display amounts come
 // from the admin-configured pricing group on the public /mobile-control/config
-// (the same source as the mobile paywall + pay.edutu.org). The FALLBACK values
+// (the same source as the mobile paywall). The FALLBACK values
 // only apply while that config loads or if it is unreachable; the amount
 // actually charged is always resolved server-side at checkout.
 //
 // This module is the ONE price source for the web app's monetization surfaces:
 //   • useProPricing()      — load state both surfaces render from
 //   • PRO_PLANS            — the plan catalogue (labels/cadence/badges/copy)
-//   • buildProCheckoutUrl()— the pay.edutu.org hosted-checkout link
 // Nothing else may hardcode a Pro amount. A surface that cannot yet show the
 // real price must render a loading state, never a guess (see PricingState).
 
@@ -85,8 +84,7 @@ export interface PricingState {
   loading: boolean;
   /**
    * Config was unreachable. We then show FALLBACK_PRICING, which is the same
-   * fallback pay.edutu.org uses when it cannot read the config either — so the
-   * two still agree. `pricing` is null in this state; use `displayPricing`.
+   * pricing is null in this state; use `displayPricing`.
    */
   failed: boolean;
   /** Safe-to-render pricing: never a hardcoded per-surface guess. */
@@ -128,6 +126,8 @@ export function useProPricing(active: boolean = true): PricingState {
 
 export interface ProPlanMeta {
   plan: BillingInterval;
+  /** Server-owned catalogue key. It intentionally does not encode a price. */
+  productKey: string;
   /** Short label used by compact surfaces (the modal cards). */
   label: string;
   /** Long label used by the full page. */
@@ -136,6 +136,8 @@ export interface ProPlanMeta {
   /** Badge shown when no promo is running. */
   defaultBadge?: string;
   hint: string;
+  /** Renewal policy is resolved by the billing API and confirmed before redirect. */
+  renewalHint: string;
   /** The visually emphasised card. */
   highlighted: boolean;
 }
@@ -144,79 +146,49 @@ export interface ProPlanMeta {
 export const PRO_PLANS: ProPlanMeta[] = [
   {
     plan: 'weekly',
+    productKey: 'pro_weekly_pass',
     label: 'Pro Weekly',
     longLabel: 'Weekly',
     cadence: 'per week',
     hint: 'Try Pro for a big week — perfect around a deadline.',
+    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
     highlighted: false,
   },
   {
     plan: 'monthly',
+    productKey: 'pro_monthly_pass',
     label: 'Pro Monthly',
     longLabel: 'Monthly',
     cadence: 'per month',
     defaultBadge: 'Most popular',
-    hint: 'Full access, month to month. Cancel anytime.',
+    hint: 'Full access for the month.',
+    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
     highlighted: false,
   },
   {
     plan: 'yearly',
+    productKey: 'pro_yearly_pass',
     label: 'Pro Yearly',
     longLabel: 'Yearly',
     cadence: 'per year',
     defaultBadge: 'Best value',
     hint: 'A full year of Pro at our best price.',
+    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
     highlighted: true,
   },
 ];
 
-// ─── pay.edutu.org hosted checkout ───────────────────────────────────────────
+export const SEASON_PASS_PRODUCT_KEY = 'season_pass';
 
-/**
- * Canonical WEB checkout origin. pay.edutu.org validates the price server-side
- * against the same admin config we read here, mints the Paystack transaction
- * and grants the entitlement from its webhook — the client can never self-grant
- * Pro. The backend's own POST /billing/checkout is deprecated for new web
- * subscription checkouts (see services/billing.ts).
- */
-export const PRO_CHECKOUT_BASE_URL: string = (
-  (import.meta.env?.VITE_PAY_CHECKOUT_URL as string | undefined) || 'https://pay.edutu.org'
-).replace(/\/$/, '');
+const CREDIT_PACK_PRODUCT_KEYS: Record<number, string> = {
+  100: 'credits_100',
+  250: 'credits_250',
+  700: 'credits_700',
+};
 
-function checkoutBaseUrl(pricing: RemotePricing): string {
-  // The admin config may ship its own checkout origin (the mobile PricingConfig
-  // carries `checkoutBaseUrl`). Honour it when present so a migration of the
-  // hosted checkout does not need a web release.
-  const remote = (pricing as { checkoutBaseUrl?: unknown }).checkoutBaseUrl;
-  if (typeof remote === 'string' && remote.trim()) return remote.trim().replace(/\/$/, '');
-  return PRO_CHECKOUT_BASE_URL;
+export function creditPackProductKey(credits: number): string | null {
+  return CREDIT_PACK_PRODUCT_KEYS[credits] ?? null;
 }
 
-/**
- * Build the pay.edutu.org hosted-checkout URL for a Pro plan. Mirrors the
- * mobile contract in edutumobile/lib/pricing.ts `buildCheckoutUrl()`:
- * `uid, plan, currency, amount, ref` always; `email`, `platform` and `promo`
- * when known. `currency`/`amount` are DISPLAY ONLY — pay.edutu.org re-resolves
- * the charged amount from the admin config and ignores what we send.
- */
-export function buildProCheckoutUrl(params: {
-  uid: string;
-  plan: BillingInterval;
-  email?: string | null;
-  pricing?: RemotePricing | null;
-  ref?: string;
-  platform?: string;
-}): string {
-  const pricing = params.pricing ?? FALLBACK_PRICING;
-  const query = new URLSearchParams({
-    uid: params.uid,
-    plan: params.plan,
-    currency: pricing.currency,
-    amount: String(effectivePrice(pricing, params.plan)),
-    ref: params.ref || 'edutu-web',
-  });
-  if (params.email) query.set('email', params.email);
-  query.set('platform', params.platform || 'web');
-  if (pricing.promo?.active) query.set('promo', pricing.promo.label || 'promo');
-  return `${checkoutBaseUrl(pricing)}/checkout?${query.toString()}`;
-}
+export const PAYMENT_RENEWAL_DISCLOSURE =
+  'The secure payment page will show whether the selected payment method renews automatically or provides one-time access.';

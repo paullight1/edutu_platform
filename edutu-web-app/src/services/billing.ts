@@ -1,4 +1,7 @@
+import { getApiBaseUrl } from '../lib/apiBaseUrl';
+
 export type BillingInterval = 'weekly' | 'monthly' | 'yearly';
+export type RenewalMode = 'recurring' | 'one_time';
 
 export interface BillingStatus {
   isPro: boolean;
@@ -23,18 +26,32 @@ export interface BillingTransaction {
   createdAt: string | null;
 }
 
-import { getApiBaseUrl } from '../lib/apiBaseUrl';
-import { buildProCheckoutUrl } from '../lib/proPricing';
-import type { RemotePricing } from './mobileControl';
-
 export interface CheckoutResponse {
-  provider: string;
-  configured: boolean;
-  message?: string;
-  reference?: string;
-  authorizationUrl?: string;
-  accessCode?: string;
+  intentId: string;
+  checkoutUrl: string;
+  expiresAt: string;
+  renewalMode: RenewalMode;
+  accessUntil?: string | null;
 }
+
+export interface CreateCheckoutInput {
+  /** Server-owned catalogue key; price, provider product, and fulfilment stay server-side. */
+  productKey: string;
+  returnSurface: 'web';
+  /** One UUID generated for a user action and reused after a timeout retry. */
+  idempotencyKey: string;
+}
+
+export type ManageDestination =
+  | { kind: 'portal-session' }
+  | { kind: 'external'; url: string }
+  | { kind: 'none' };
+
+const APP_STORE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
+const PLAY_STORE_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
+const BACHS_CHECKOUT_ORIGINS = new Set(['https://checkout.bachs.io']);
+
+const activeCheckoutRequests = new Map<string, Promise<CheckoutResponse>>();
 
 async function requestBilling<T>(
   path: string,
@@ -63,83 +80,94 @@ export async function getBillingStatus(token: string): Promise<BillingStatus> {
   return requestBilling<BillingStatus>('/billing/status', token);
 }
 
-export interface CreateCheckoutInput {
-  plan?: BillingInterval;
-  feature?: string | null;
-  credits?: number | null;
-  returnTo?: string | null;
-  /**
-   * Clerk user id. REQUIRED for the pay.edutu.org plan path — the hosted
-   * checkout puts it in Paystack metadata and its webhook grants the
-   * entitlement against it. Ignored on the credit-pack path (the backend reads
-   * the identity off the bearer token instead).
-   */
-  uid?: string | null;
-  /** Buyer email — Paystack requires one; without it no receipt can be sent. */
-  email?: string | null;
-  /** Admin pricing snapshot for display params only (amount is re-resolved). */
-  pricing?: RemotePricing | null;
+/** Bachs is opt-in until the server-side launch gate has passed. */
+export function isBachsCheckoutEnabled(): boolean {
+  return import.meta.env.VITE_BACHS_CHECKOUT_ENABLED === 'true';
+}
+
+export function validateBachsCheckoutUrl(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new Error('Billing returned an invalid checkout URL.');
+  }
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Billing returned an invalid checkout URL.');
+  }
+
+  if (url.protocol !== 'https:' || url.username || url.password || !BACHS_CHECKOUT_ORIGINS.has(url.origin)) {
+    throw new Error('Billing did not return a trusted Bachs checkout URL.');
+  }
+
+  return url.toString();
+}
+
+function validateCheckoutResponse(value: unknown): CheckoutResponse {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Billing returned an invalid checkout response.');
+  }
+
+  const response = value as Record<string, unknown>;
+  if (
+    typeof response.intentId !== 'string' ||
+    typeof response.expiresAt !== 'string' ||
+    (response.renewalMode !== 'recurring' && response.renewalMode !== 'one_time')
+  ) {
+    throw new Error('Billing returned an invalid checkout response.');
+  }
+
+  return {
+    intentId: response.intentId,
+    checkoutUrl: validateBachsCheckoutUrl(response.checkoutUrl),
+    expiresAt: response.expiresAt,
+    renewalMode: response.renewalMode,
+    accessUntil: typeof response.accessUntil === 'string' ? response.accessUntil : null,
+  };
 }
 
 /**
- * Start a checkout.
- *
- * ─── ROUTING SPLIT (deliberate — do not "unify" this) ────────────────────────
- * PRO PLANS (`plan: weekly|monthly|yearly`) → pay.edutu.org hosted GET /checkout.
- *   pay.edutu.org is the canonical web checkout: it re-resolves the price from
- *   the admin config server-side, dedupes references so a double-tap cannot
- *   double-charge, and grants `billing_entitlements` from its Paystack webhook.
- *   No network call happens here — we just hand the browser a URL, so this path
- *   resolves synchronously with `authorizationUrl` set.
- *
- * CREDIT TOP-UPS (`feature: 'credits'` / any `credits` amount) → the backend's
- *   POST /billing/checkout, unchanged. pay.edutu.org's /checkout ONLY accepts a
- *   subscription plan (`isBillingPlan()` rejects everything else and 303s to an
- *   error page), so routing credit packs there would break every top-up. When
- *   pay.edutu.org learns to sell credit packs, move this arm over too — until
- *   then the backend Paystack checkout stays alive for credits (and for the
- *   in-flight webhooks of subscriptions bought before this change).
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * Both arms return the same `CheckoutResponse` shape, so callers keep their
- * existing `configured === false` / missing-`authorizationUrl` degradation.
+ * Starts an authenticated, server-owned checkout. No identity, email, price,
+ * currency, promo, or destination arrives from the client or enters a URL.
  */
-export async function createCheckout(
+export function createCheckout(
   token: string,
   input: CreateCheckoutInput,
 ): Promise<CheckoutResponse> {
-  const isCreditTopUp = input.feature === 'credits' || typeof input.credits === 'number';
-
-  if (!isCreditTopUp && input.plan) {
-    if (!input.uid) {
-      return {
-        provider: 'pay.edutu.org',
-        configured: false,
-        message: 'We could not identify your account. Please sign in again and retry.',
-      };
-    }
-    return {
-      provider: 'pay.edutu.org',
-      configured: true,
-      authorizationUrl: buildProCheckoutUrl({
-        uid: input.uid,
-        plan: input.plan,
-        email: input.email,
-        pricing: input.pricing,
-      }),
-    };
+  if (!isBachsCheckoutEnabled()) {
+    return Promise.reject(new Error('Payments are not ready yet. Please try again later.'));
   }
 
-  // Credit packs (and any legacy call without a plan) — deprecated backend path.
-  const { uid: _uid, email: _email, pricing: _pricing, ...backendInput } = input;
-  return requestBilling<CheckoutResponse>('/billing/checkout', token, {
+  const activeRequest = activeCheckoutRequests.get(input.idempotencyKey);
+  if (activeRequest) return activeRequest;
+
+  const request = requestBilling<unknown>('/billing/checkout', token, {
     method: 'POST',
-    body: JSON.stringify(backendInput),
-  });
+    headers: { 'Idempotency-Key': input.idempotencyKey },
+    body: JSON.stringify({
+      productKey: input.productKey,
+      returnSurface: input.returnSurface,
+    }),
+  }).then(validateCheckoutResponse);
+
+  activeCheckoutRequests.set(input.idempotencyKey, request);
+  void request
+    .finally(() => activeCheckoutRequests.delete(input.idempotencyKey))
+    .catch(() => undefined);
+  return request;
 }
 
-/** Notify other tabs after a hosted checkout or payment return completes. */
-export function broadcastBillingInvalidation(): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem('edutu:billing-invalidated', String(Date.now()));
+/** Management is chosen from the provider, never a remotely configured URL. */
+export function getManageDestination(provider: string | null | undefined): ManageDestination {
+  switch (provider) {
+    case 'bachs':
+      return { kind: 'portal-session' };
+    case 'revenuecat_app_store':
+      return { kind: 'external', url: APP_STORE_SUBSCRIPTIONS_URL };
+    case 'revenuecat_play_store':
+      return { kind: 'external', url: PLAY_STORE_SUBSCRIPTIONS_URL };
+    default:
+      return { kind: 'none' };
+  }
 }

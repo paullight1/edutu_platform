@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
-    Linking,
     Platform,
     ScrollView,
     StyleSheet,
@@ -14,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
-import { BarChart3, Coins, DollarSign, ExternalLink, Palette, Plus, Save, Tag, Trash2 } from 'lucide-react-native';
+import { Coins, DollarSign, Palette, Plus, Save, Tag, Trash2 } from 'lucide-react-native';
 import { requestProductApi } from '@edutu/core/src/services/productApi';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { AnimatedPressable } from '../../components/ui/AnimatedPressable';
@@ -33,9 +32,9 @@ import {
 
 // Admin console for subscription pricing, currency, promos ("bonanza") and the
 // paywall's design + copy. State lives in admin_settings (pricing + paywall
-// groups, GET/PUT /admin/settings); the paywall and pay.edutu.org read it from
-// the public /mobile-control/config payload, so a change reaches users without
-// a store release. No secrets here — Paystack keys live on pay.edutu.org.
+// groups, GET/PUT /admin/settings); the paywall reads it from the public
+// /mobile-control/config payload, so a change reaches users without a store
+// release. Checkout and portal destinations are server-owned, not admin data.
 
 interface AdminSettingsPayload {
     success: boolean;
@@ -56,8 +55,6 @@ interface PricingForm {
     weeklyPrice: string;
     monthlyPrice: string;
     yearlyPrice: string;
-    checkoutBaseUrl: string;
-    manageUrl: string;
     promoActive: boolean;
     promoLabel: string;
     promoWeeklyPrice: string;
@@ -72,8 +69,6 @@ function toForm(p: PricingConfig): PricingForm {
         weeklyPrice: String(p.weeklyPrice),
         monthlyPrice: String(p.monthlyPrice),
         yearlyPrice: String(p.yearlyPrice),
-        checkoutBaseUrl: p.checkoutBaseUrl,
-        manageUrl: p.manageUrl,
         promoActive: p.promo.active,
         promoLabel: p.promo.label,
         promoWeeklyPrice: p.promo.weeklyPrice != null ? String(p.promo.weeklyPrice) : '',
@@ -197,11 +192,6 @@ function AdminPricingContent() {
             Alert.alert('Invalid price', 'Weekly, monthly and yearly prices must be valid non-negative numbers.');
             return;
         }
-        if (!/^https?:\/\//.test(form.checkoutBaseUrl.trim()) || !/^https?:\/\//.test(form.manageUrl.trim())) {
-            Alert.alert('Invalid URL', 'Checkout and manage URLs must start with https://');
-            return;
-        }
-
         // Ignore fully-empty rows; reject half-filled ones.
         const packRows = form.creditPacks.filter((row) => row.credits.trim() || row.price.trim() || row.label.trim());
         const creditPacks = packRows.map((row) => ({
@@ -249,8 +239,6 @@ function AdminPricingContent() {
             weeklyPrice: weekly,
             monthlyPrice: monthly,
             yearlyPrice: yearly,
-            checkoutBaseUrl: form.checkoutBaseUrl.trim().replace(/\/$/, ''),
-            manageUrl: form.manageUrl.trim().replace(/\/$/, ''),
             promo: {
                 active: form.promoActive,
                 label: form.promoLabel.trim(),
@@ -501,38 +489,11 @@ function AdminPricingContent() {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Checkout</Text>
-                    </View>
-                    <View style={[styles.card, { backgroundColor: cardBg, borderColor: inputBorder }]}>
-                        {field('Checkout base URL', form.checkoutBaseUrl, (v) => set('checkoutBaseUrl', v), { placeholder: 'https://pay.edutu.org', autoCapitalize: 'none' })}
-                        {field('Manage subscription URL', form.manageUrl, (v) => set('manageUrl', v), { placeholder: 'https://pay.edutu.org/account', autoCapitalize: 'none' })}
-                    </View>
-
                     <AnimatedPressable onPress={handleSave} disabled={saving} hapticFeedback="medium" style={[styles.saveButton, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]}>
                         <Save size={18} color="#FFFFFF" />
                         <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save pricing'}</Text>
                     </AnimatedPressable>
 
-                    {/* Revenue: opens the pay.edutu.org admin dashboard (amount
-                        generated, active Pro users, recent payments). */}
-                    <TouchableOpacity
-                        style={[styles.revenueButton, { borderColor: inputBorder }]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                            const base = (form.checkoutBaseUrl.trim() || 'https://pay.edutu.org').replace(/\/$/, '');
-                            Linking.openURL(`${base}/admin`).catch(() =>
-                                Alert.alert('Error', 'Could not open the revenue dashboard.'),
-                            );
-                        }}
-                    >
-                        <BarChart3 size={18} color={textPrimary} />
-                        <View style={styles.flex}>
-                            <Text style={[styles.revenueTitle, { color: textPrimary }]}>Revenue & payments</Text>
-                            <Text style={[styles.revenueHint, { color: textSecondary }]}>See amount generated, subscribers & recent payments</Text>
-                        </View>
-                        <ExternalLink size={16} color={textSecondary} />
-                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
