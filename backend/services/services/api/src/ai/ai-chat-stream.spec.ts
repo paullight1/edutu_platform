@@ -125,6 +125,37 @@ describe("AiService.generateChatStream", () => {
     expect(result.text).toBe("buffered answer");
   });
 
+  it("does not retry or fall back after the caller aborts", async () => {
+    const controller = new AbortController();
+    const generateChat = jest.fn(async () =>
+      ({
+        text: "buffered answer",
+        toolCalls: [],
+        provider: "deepseek",
+        model: "deepseek-chat",
+      }) as AiChatResult,
+    );
+    const abortError = Object.assign(new Error("client disconnected"), {
+      name: "AbortError",
+    });
+    const service = buildService({
+      generateChat,
+      generateChatStream: jest.fn(async () => {
+        throw abortError;
+      }),
+    });
+    controller.abort(abortError);
+
+    await expect(
+      service.generateChatStream({
+        ...CHAT_OPTIONS,
+        signal: controller.signal,
+        onToken: () => undefined,
+      }),
+    ).rejects.toBe(abortError);
+    expect(generateChat).not.toHaveBeenCalled();
+  });
+
   it("never replays a round once tokens have reached the user", async () => {
     const generateChat = jest.fn();
     const service = buildService({

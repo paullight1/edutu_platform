@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -39,6 +41,13 @@ export interface MeterCharge {
    * turn failed kept the bump forever and walked into the daily cap early.
    */
   actionCredited?: number;
+  /**
+   * Started voice minutes reserved in the Pro daily voice counter. Voice is
+   * tracked separately from generic action credits so one request cannot
+   * spend both buckets, and the reservation can be released exactly once if
+   * the provider call fails.
+   */
+  voiceMinutesCredited?: number;
   /**
    * Chat messages left in today's allowance (free tier or Pro fair use) after
    * this one, or null when the action isn't counted against a daily allowance
@@ -81,6 +90,12 @@ const PRICING_CACHE_MS = 60_000;
 // before the meter bites. Env-tunable (ops can flip without a redeploy);
 // `0` disables the grace entirely; malformed → the 7-day default.
 const DEFAULT_FREE_CHAT_GRACE_DAYS = 7;
+// Voice is metered separately for STT and TTS, so a "15 minute" user turn can
+// consume two provider-minute reservations. Keep the default deliberately
+// conservative until production cost telemetry is available. Operators can
+// lower or raise it per deployment with PRO_VOICE_DAILY_MINUTES, but the
+// existing Pro action-credit ceiling remains a second hard upper bound.
+const DEFAULT_PRO_VOICE_DAILY_MINUTES = 15;
 
 function freeChatGraceDays(): number {
   const raw = process.env.FREE_CHAT_GRACE_DAYS;
@@ -89,6 +104,15 @@ function freeChatGraceDays(): number {
   return Number.isFinite(parsed) && parsed >= 0
     ? Math.floor(parsed)
     : DEFAULT_FREE_CHAT_GRACE_DAYS;
+}
+
+function proVoiceDailyMinutes(): number {
+  const raw = process.env.PRO_VOICE_DAILY_MINUTES;
+  if (raw === undefined || raw === "") return DEFAULT_PRO_VOICE_DAILY_MINUTES;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 120
+    ? parsed
+    : DEFAULT_PRO_VOICE_DAILY_MINUTES;
 }
 
 @Injectable()
@@ -109,48 +133,67 @@ export class MonetizationService {
     return pricing;
   }
 
-  /** Active Pro = profiles.is_pro (unexpired) OR an active pro entitlement. */
+  /** Active Pro is derived only from a current canonical billing entitlement. */
   async isPro(userId: string): Promise<boolean> {
     return (await this.loadBilling(userId)).isPro;
   }
 
   /**
-   * Single profile+entitlement read backing metering decisions: whether the
-   * user is Pro, plus the earliest profile `created_at` (for the new-user chat
-   * grace). One query rather than two — the isPro lookup already scans
-   * profiles, so it also carries created_at. A split-profile user takes the
-   * OLDEST created_at (min) so grace can't be revived by a fresh duplicate row.
-   * Fails CLOSED on any DB error: non-Pro AND no grace (a metering outage must
-   * never mint free unlimited chat).
+   * Guard premium provider audio. This deliberately has a separate public
+   * entry point from `isPro()`: callers that are about to mint premium TTS or
+   * Realtime work must distinguish a valid non-Pro account (403) from a
+   * failed billing lookup (503), and must never fall back to profile flags.
+   */
+  async authorizeVoicePremium(userId: string): Promise<void> {
+    if (!userId) {
+      throw new UnauthorizedException("Sign in to use premium voice");
+    }
+
+    const billing = await this.loadBilling(userId);
+    if (!billing.available) {
+      throw new HttpException(
+        {
+          code: "billing_unavailable",
+          message: "Billing is temporarily unavailable. Please try again.",
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (!billing.isPro) {
+      throw new ForbiddenException("Premium voice requires an active Pro plan");
+    }
+  }
+
+  /**
+   * Single profile+canonical-entitlement read backing metering decisions:
+   * whether the user is Pro, plus the earliest profile `created_at` (for the
+   * new-user chat grace). A split-profile user takes the OLDEST created_at
+   * (min) so grace cannot be revived by a fresh duplicate row. `profiles` is
+   * never an entitlement authority: its legacy `is_pro` flag is intentionally
+   * absent from this query.
+   *
+   * Fails CLOSED on DB error: metering receives non-Pro and no grace, while
+   * premium provider authorization receives an explicit 503.
    */
   private async loadBilling(
     userId: string,
-  ): Promise<{ isPro: boolean; createdAt: Date | null }> {
+  ): Promise<{ isPro: boolean; createdAt: Date | null; available: boolean }> {
     try {
       // profiles/billing_entitlements user_id may hold the raw auth subject
       // or the derived uuid — match both (see matchUserIdRef).
       const result = await db.execute(sql`
         select
-          bool_or(is_pro_active) as is_pro,
-          min(created_at) as created_at
-        from (
-          select
-            (p.is_pro = true
-              and (p.pro_expires_at is null or p.pro_expires_at > now()))
-              as is_pro_active,
-            p.created_at as created_at
-          from profiles p
-          where ${matchUserIdRef("p.user_id", userId)}
-          union all
-          select
-            (e.feature_key = 'pro'
+          exists (
+            select 1
+            from billing_entitlements e
+            where ${matchUserIdRef("e.user_id", userId)}
+              and e.feature_key = 'pro'
               and e.status = 'active'
-              and (e.expires_at is null or e.expires_at > now()))
-              as is_pro_active,
-            null::timestamptz as created_at
-          from billing_entitlements e
-          where ${matchUserIdRef("e.user_id", userId)}
-        ) t
+              and (e.expires_at is null or e.expires_at > now())
+          ) as is_pro,
+          min(p.created_at) as created_at
+        from profiles p
+        where ${matchUserIdRef("p.user_id", userId)}
       `);
       const rows =
         (
@@ -168,6 +211,7 @@ export class MonetizationService {
         isPro: row?.is_pro === true,
         createdAt:
           createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
+        available: true,
       };
     } catch (error) {
       // Fail CLOSED for billing purposes: treat as non-Pro (the credit path has
@@ -177,7 +221,7 @@ export class MonetizationService {
           error instanceof Error ? error.message : "unknown"
         }`,
       );
-      return { isPro: false, createdAt: null };
+      return { isPro: false, createdAt: null, available: false };
     }
   }
 
@@ -201,15 +245,75 @@ export class MonetizationService {
    * Throws 429 (code "limit") when a daily cap is hit and 402
    * (code "insufficient_credits") when the balance can't cover the action.
    */
-  async meter(userId: string, action: AiMeteredAction): Promise<MeterCharge> {
+  async meter(
+    userId: string,
+    action: AiMeteredAction,
+    units?: number,
+  ): Promise<MeterCharge> {
     if (!userId) {
       throw new UnauthorizedException("Sign in to use AI features");
     }
 
+    const unitCount = this.validateMeterUnits(action, units);
     const pricing = await this.getPricing();
-    const cost = Math.max(0, Math.round(pricing.aiCosts[action] ?? 0));
-    const { isPro: pro, createdAt } = await this.loadBilling(userId);
+    const cost = Math.max(
+      0,
+      Math.round(pricing.aiCosts[action] ?? 0) * unitCount,
+    );
+    const billing = await this.loadBilling(userId);
+    const { isPro: pro, createdAt } = billing;
     const isChat = action === "chatMessage";
+
+    // Voice is a Pro-only provider capability. Keep this check in the
+    // canonical backend meter as well as the edge function: a caller must not
+    // be able to post directly to /monetization/meter and buy voice with
+    // credits. Billing outages fail closed instead of accidentally opening a
+    // paid provider path.
+    if (action === "voicePerMinute") {
+      if (!billing.available) {
+        throw new HttpException(
+          {
+            code: "billing_unavailable",
+            message: "Billing is temporarily unavailable. Please try again.",
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      if (!pro) {
+        throw new ForbiddenException(
+          "Premium voice requires an active Pro plan",
+        );
+      }
+
+      const voiceUsage = await this.reserveVoiceMinutes(
+        userId,
+        unitCount,
+        this.dailyVoiceMinuteLimit(pricing),
+      );
+      if (!voiceUsage) {
+        throw new HttpException(
+          {
+            code: "limit",
+            error: "voice_fair_use_exceeded",
+            message:
+              "You've reached today's voice limit. It resets at midnight.",
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      return {
+        userId,
+        action,
+        charged: 0,
+        ledgerId: null,
+        chatCounted: false,
+        actionCredited: 0,
+        voiceMinutesCredited: unitCount,
+        remaining: null,
+        day: voiceUsage.day,
+      };
+    }
 
     if (pro) {
       const usage = await this.bumpDailyUsage(
@@ -340,6 +444,30 @@ export class MonetizationService {
     };
   }
 
+  /** Only voice uses variable, positive started-minute units. */
+  private validateMeterUnits(action: AiMeteredAction, units?: number): number {
+    if (units === undefined) {
+      if (action === "voicePerMinute") {
+        throw new BadRequestException(
+          "Voice metering requires server-derived started-minute units",
+        );
+      }
+      return 1;
+    }
+    if (
+      action !== "voicePerMinute" ||
+      typeof units !== "number" ||
+      !Number.isInteger(units) ||
+      units < 1 ||
+      units > 120
+    ) {
+      throw new BadRequestException(
+        "Units are only allowed for voicePerMinute and must be an integer from 1 to 120",
+      );
+    }
+    return units;
+  }
+
   /** Best-effort compensation when the AI call fails after a debit. */
   async refund(charge: MeterCharge): Promise<void> {
     // Independent of the credit refund below: a free-tier turn charges no
@@ -349,18 +477,24 @@ export class MonetizationService {
     // action-credit bump (cvAi/copilotKit/…), which previously stuck forever.
     const chatDelta = charge.chatCounted ? 1 : 0;
     const creditDelta = Math.max(0, Math.round(charge.actionCredited ?? 0));
-    if (chatDelta > 0 || creditDelta > 0) {
+    const voiceDelta = Math.max(
+      0,
+      Math.round(charge.voiceMinutesCredited ?? 0),
+    );
+    if (chatDelta > 0 || creditDelta > 0 || voiceDelta > 0) {
       // Exactly-once: clear the markers SYNCHRONOUSLY (before any await) so a
       // second refund() of the same charge — retries, or two callers racing on
       // one failure — cannot release the same bump twice. A successful action
       // never reaches refund() at all.
       charge.chatCounted = false;
       charge.actionCredited = 0;
+      charge.voiceMinutesCredited = 0;
       await this.releaseDailyUsage(
         charge.userId,
         charge.day ?? null,
         chatDelta,
         creditDelta,
+        voiceDelta,
       );
     }
     if (!charge.charged || !charge.ledgerId) return;
@@ -734,14 +868,16 @@ export class MonetizationService {
     day: string | null,
     chatDelta: number,
     creditDelta: number,
+    voiceDelta = 0,
   ): Promise<void> {
-    if (chatDelta <= 0 && creditDelta <= 0) return;
+    if (chatDelta <= 0 && creditDelta <= 0 && voiceDelta <= 0) return;
     try {
       const dayRef = day ? sql`${day}::date` : sql`current_date`;
       await db.execute(sql`
         update user_ai_usage_daily
         set chat_messages = greatest(chat_messages - ${chatDelta}, 0),
             action_credits = greatest(action_credits - ${creditDelta}, 0),
+            voice_minutes = greatest(voice_minutes - ${voiceDelta}, 0),
             updated_at = now()
         where user_id = ${userId} and day = ${dayRef}
       `);
@@ -787,6 +923,60 @@ export class MonetizationService {
       actionCredits: Number(rows[0]?.action_credits ?? 0),
       day: normalizeUsageDay(rows[0]?.day),
     };
+  }
+
+  /**
+   * Atomically reserve started voice minutes for a Pro user. The conditional
+   * `on conflict ... where` is important: separate read-then-write checks can
+   * overspend the daily cap when two audio turns start together. A zero-row
+   * result means the reservation was refused and no rollback is necessary.
+   */
+  private async reserveVoiceMinutes(
+    userId: string,
+    minutes: number,
+    dailyLimit: number,
+  ): Promise<{ day: string | null } | null> {
+    // The conflict predicate protects an existing row; this guard protects
+    // the first insert, for which PostgreSQL has no conflict branch to run.
+    if (minutes > dailyLimit) return null;
+    const result = await db.execute(sql`
+      insert into user_ai_usage_daily
+        (user_id, day, chat_messages, action_credits, voice_minutes)
+      values (${userId}, current_date, 0, 0, ${minutes})
+      on conflict (user_id, day) do update set
+        voice_minutes = user_ai_usage_daily.voice_minutes + ${minutes},
+        updated_at = now()
+      where user_ai_usage_daily.voice_minutes + ${minutes} <= ${dailyLimit}
+      returning day
+    `);
+    const rows =
+      (result as unknown as { rows?: Array<{ day?: unknown }> }).rows ?? [];
+    if (rows.length === 0) return null;
+    return { day: normalizeUsageDay(rows[0]?.day) };
+  }
+
+  /**
+   * The daily reservation is deliberately conservative: 15 provider minutes
+   * per day by default (roughly 105/week, 450/30-day month, or 5,475/year
+   * before a user changes plans). STT and TTS each reserve their own started
+   * minutes, so a complete turn normally consumes two units. Operators can
+   * lower the cap with PRO_VOICE_DAILY_MINUTES; pricing action credits remain
+   * a second hard upper bound. The cap is minute-based and never trusts a
+   * client-reported duration.
+   */
+  private dailyVoiceMinuteLimit(pricing: PricingSettings): number {
+    const fairUseCredits = Math.max(
+      0,
+      Math.floor(pricing.proFairUse.dailyActionCredits),
+    );
+    const perMinuteCost = Math.max(
+      0,
+      Math.round(pricing.aiCosts.voicePerMinute),
+    );
+    const actionCreditLimit = perMinuteCost > 0
+      ? Math.floor(fairUseCredits / perMinuteCost)
+      : fairUseCredits;
+    return Math.min(proVoiceDailyMinutes(), actionCreditLimit);
   }
 }
 

@@ -2,9 +2,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { verifyClerkRequest } from "../_shared/clerk-auth.ts";
 import { detectSelfHarmIntent, selfHarmSupportText } from "../_shared/crisis-support.ts";
+import {
+  parseM4aDurationSeconds,
+  resolveOwnedThreadId,
+  startedMinuteUnits,
+} from "./voice-usage.ts";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const MAX_AUDIO_BASE64_BYTES = 6 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
+const MAX_AUDIO_SECONDS = 120;
+const SUPPORTED_M4A_MIME_TYPES = new Set(["audio/m4a", "audio/mp4", "audio/x-m4a"]);
 
 function checkRateLimit(userId: string, maxRequests = 100, windowMs = 3600000): boolean {
   const now = Date.now();
@@ -52,7 +59,7 @@ const SECURITY_HEADERS = {
  * returned ledgerId to refundMeterCharge so a transient provider failure
  * doesn't leave the user's credits gone with nothing to show for it.
  */
-async function enforceMeter(req: Request, action: string): Promise<Response | string | null> {
+async function enforceMeter(req: Request, action: string, units = 1): Promise<Response | string | null> {
   const apiUrl = Deno.env.get("EDUTU_API_URL");
   const authHeader = req.headers.get("authorization") || "";
   const deny = (status: number, body: Record<string, unknown>) =>
@@ -70,7 +77,7 @@ async function enforceMeter(req: Request, action: string): Promise<Response | st
     const res = await fetch(`${apiUrl.replace(/\/$/, "")}/monetization/meter`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: authHeader },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, units }),
     });
     if (res.ok) {
       const body = (await res.json().catch(() => null)) as { ledgerId?: string | null } | null;
@@ -93,6 +100,55 @@ async function enforceMeter(req: Request, action: string): Promise<Response | st
   } catch (error) {
     console.error("Meter enforcement failed:", error);
     return deny(503, { code: "billing_unavailable", error: "AI is temporarily unavailable." });
+  }
+}
+
+/**
+ * Ask the canonical monetization service whether this Clerk user may use paid
+ * text-to-speech. Like metering, this fails closed and preserves the backend's
+ * typed denial so clients receive the same upgrade/auth response everywhere.
+ */
+async function authorizePremiumVoice(
+  req: Request,
+  kind: "stt" | "tts" | "realtime",
+): Promise<Response | null> {
+  const apiUrl = Deno.env.get("EDUTU_API_URL");
+  const deny = (status: number, body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+
+  if (!apiUrl) {
+    console.error("EDUTU_API_URL not configured — cannot authorize premium voice, denying");
+    return deny(503, { code: "billing_unavailable", error: "Speech is temporarily unavailable." });
+  }
+
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/$/, "")}/monetization/voice/authorize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: req.headers.get("authorization") || "",
+      },
+      body: JSON.stringify({ kind }),
+    });
+    if (response.ok) return null;
+
+    const text = await response.text();
+    let payload: unknown;
+    try {
+      payload = text ? JSON.parse(text) : { error: "Speech authorization failed" };
+    } catch {
+      payload = { error: text || "Speech authorization failed" };
+    }
+    return new Response(JSON.stringify(payload), {
+      status: response.status,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+  } catch (error) {
+    console.error("Premium voice authorization failed:", error);
+    return deny(503, { code: "billing_unavailable", error: "Voice is temporarily unavailable." });
   }
 }
 
@@ -387,8 +443,12 @@ function looksLikeRoadmapDump(message: string) {
   );
 }
 
-async function transcribeAudio(apiKey: string, audio: AudioPayload, language?: string) {
-  const audioBytes = Uint8Array.from(atob(audio.data), (char) => char.charCodeAt(0));
+async function transcribeAudio(
+  apiKey: string,
+  audio: AudioPayload,
+  audioBytes: Uint8Array,
+  language?: string,
+) {
   const audioBlob = new Blob([audioBytes], { type: audio.mimeType });
   const audioFile = new File([audioBlob], `voice-note.${audio.mimeType.split('/')[1] || 'm4a'}`, {
     type: audio.mimeType,
@@ -834,7 +894,7 @@ serve(async (req: Request) => {
 
   try {
     const claims = await verifyClerkRequest(req);
-    const { message, threadId, userId, mode, audio, language, text, voice, channel, durationSeconds, locale } = await req.json();
+    const { message, threadId, userId, mode, audio, language, text, voice, channel, locale } = await req.json();
     const authenticatedUserId = claims.sub;
 
     if (userId && userId !== authenticatedUserId) {
@@ -940,12 +1000,59 @@ serve(async (req: Request) => {
           headers: { ...corsHeaders, ...SECURITY_HEADERS },
         });
       }
-      if (String(audio.data).length > MAX_AUDIO_BASE64_BYTES) {
+      if (!SUPPORTED_M4A_MIME_TYPES.has(String(audio.mimeType).toLowerCase())) {
+        return new Response(JSON.stringify({ error: "Unsupported audio format; upload an M4A recording" }), {
+          status: 400,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+
+      const encodedAudio = String(audio.data).trim();
+      if (encodedAudio.length > Math.ceil(MAX_AUDIO_BYTES / 3) * 4 + 4) {
         return new Response(JSON.stringify({ error: "Audio payload is too large" }), {
           status: 413,
           headers: { ...corsHeaders, ...SECURITY_HEADERS },
         });
       }
+
+      let audioBytes: Uint8Array;
+      try {
+        const binary = atob(encodedAudio);
+        audioBytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid audio payload" }), {
+          status: 400,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+      if (audioBytes.length > MAX_AUDIO_BYTES) {
+        return new Response(JSON.stringify({ error: "Audio payload is too large" }), {
+          status: 413,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+
+      const sttSeconds = parseM4aDurationSeconds(audioBytes);
+      if (sttSeconds === null) {
+        return new Response(JSON.stringify({ error: "Invalid or unparseable M4A audio" }), {
+          status: 400,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+      if (sttSeconds > MAX_AUDIO_SECONDS) {
+        return new Response(JSON.stringify({ error: "Audio must be 120 seconds or shorter" }), {
+          status: 413,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+
+      // Transcription is a paid provider capability too. Do not rely only on
+      // the generic meter: non-Pro users with credits must be rejected before
+      // any OpenAI request, and direct calls to /monetization/meter cannot
+      // turn this into a voice bypass because the backend enforces the same
+      // entitlement.
+      const authorizationFailure = await authorizePremiumVoice(req, "stt");
+      if (authorizationFailure) return authorizationFailure;
 
       const openaiKey = Deno.env.get("OPENAI_API_KEY");
       if (!openaiKey) {
@@ -956,22 +1063,18 @@ serve(async (req: Request) => {
       }
 
       // Meter after cheap validation, before the paid OpenAI call.
-      const sttMeterResult = await enforceMeter(req, "voicePerMinute");
+      const sttMeterResult = await enforceMeter(req, "voicePerMinute", startedMinuteUnits(sttSeconds));
       if (sttMeterResult instanceof Response) return sttMeterResult;
       const sttLedgerId = sttMeterResult;
 
       try {
-        const transcript = await transcribeAudio(openaiKey, audio as AudioPayload, language);
-        // Usage ledger for the admin cost dashboard. Client-reported duration
-        // when available; otherwise estimated from payload size (~21.3k base64
-        // chars per second of 128kbps AAC). Never blocks the response.
-        const sttSeconds = Number.isFinite(Number(durationSeconds)) && Number(durationSeconds) > 0
-          ? Math.min(Number(durationSeconds), 120)
-          : Math.round((String(audio.data).length / 21300) * 10) / 10;
+        const transcript = await transcribeAudio(openaiKey, audio as AudioPayload, audioBytes, language);
+        // The container-derived duration is canonical for both metering and
+        // usage analytics. A client duration remains an untrusted hint only.
         await supabase.from("ai_voice_usage").insert({
           user_id: safeUserId,
           kind: "stt",
-          seconds: sttSeconds,
+          seconds: Math.round(sttSeconds * 10) / 10,
           model: Deno.env.get("OPENAI_AUDIO_MODEL") || "whisper-1",
         }).then(({ error: usageError }) => {
           if (usageError) console.error("ai_voice_usage stt insert failed:", usageError.message);
@@ -1007,6 +1110,10 @@ serve(async (req: Request) => {
           headers: { ...corsHeaders, ...SECURITY_HEADERS },
         });
       }
+      const providerText = speakText.slice(0, MAX_TTS_CHARS);
+      // ~12.5 chars/sec at a natural 150wpm speaking rate. Both duration and
+      // units derive from the exact already-truncated input sent to OpenAI.
+      const ttsSeconds = providerText.length / 12.5;
 
       const openaiKey = Deno.env.get("OPENAI_API_KEY");
       if (!openaiKey) {
@@ -1016,20 +1123,21 @@ serve(async (req: Request) => {
         });
       }
 
-      // Meter after cheap validation, before the paid OpenAI call.
-      const ttsMeterResult = await enforceMeter(req, "voicePerMinute");
+      const authorizationFailure = await authorizePremiumVoice(req, "tts");
+      if (authorizationFailure) return authorizationFailure;
+
+      // Authorize and meter after cheap validation, before the paid OpenAI call.
+      const ttsMeterResult = await enforceMeter(req, "voicePerMinute", startedMinuteUnits(ttsSeconds));
       if (ttsMeterResult instanceof Response) return ttsMeterResult;
       const ttsLedgerId = ttsMeterResult;
 
       try {
-        const speech = await synthesizeSpeech(openaiKey, speakText, typeof voice === "string" ? voice : undefined);
-        // ~12.5 chars/sec at a natural 150wpm speaking rate.
-        const spokenChars = Math.min(speakText.length, MAX_TTS_CHARS);
+        const speech = await synthesizeSpeech(openaiKey, providerText, typeof voice === "string" ? voice : undefined);
         await supabase.from("ai_voice_usage").insert({
           user_id: safeUserId,
           kind: "tts",
-          seconds: Math.round((spokenChars / 12.5) * 10) / 10,
-          chars: spokenChars,
+          seconds: Math.round(ttsSeconds * 10) / 10,
+          chars: providerText.length,
           voice: speech.voice,
           model: OPENAI_TTS_MODEL,
         }).then(({ error: usageError }) => {
@@ -1047,6 +1155,20 @@ serve(async (req: Request) => {
           JSON.stringify({ error: error instanceof Error ? error.message : "Speech is unavailable" }),
           { status: 502, headers: { ...corsHeaders, ...SECURITY_HEADERS } },
         );
+      }
+    }
+
+    // A supplied fallback thread is not trusted until it resolves for this
+    // authenticated owner. Do this before metering, history, or any write so a
+    // foreign/missing ID cannot spend credits or become an IDOR primitive.
+    let activeThreadId: string | null = null;
+    if (threadId) {
+      activeThreadId = await resolveOwnedThreadId(supabase, String(threadId), safeUserId);
+      if (!activeThreadId) {
+        return new Response(JSON.stringify({ error: "Conversation not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
       }
     }
 
@@ -1072,7 +1194,6 @@ serve(async (req: Request) => {
       });
     }
 
-    let activeThreadId = threadId;
     if (!activeThreadId) {
       const { data: thread, error: threadError } = await supabase
         .from("chat_threads")
@@ -1095,11 +1216,11 @@ serve(async (req: Request) => {
     // Multi-turn memory: prior messages of this thread ground the reply so
     // follow-ups ("tell me more", "what about the second one") make sense.
     let history: Array<{ role: string; content: string }> = [];
-    if (threadId) {
+    if (activeThreadId) {
       const { data: priorMessages } = await supabase
         .from("chat_messages")
         .select("role, content")
-        .eq("thread_id", threadId)
+        .eq("thread_id", activeThreadId)
         .order("created_at", { ascending: false })
         .limit(8);
       history = (priorMessages || []).reverse();
@@ -1298,7 +1419,8 @@ ${JSON.stringify(opportunities, null, 2)}`);
     await supabase
       .from("chat_threads")
       .update({ updated_at: new Date().toISOString() })
-      .eq("id", activeThreadId);
+      .eq("id", activeThreadId)
+      .eq("user_id", safeUserId);
 
     return new Response(JSON.stringify({
       threadId: activeThreadId,

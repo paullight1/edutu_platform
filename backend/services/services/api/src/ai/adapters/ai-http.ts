@@ -28,6 +28,8 @@ export interface AiFetchOptions {
   retries?: number;
   /** Label used in error messages, e.g. the provider name. */
   label?: string;
+  /** Caller-owned cancellation signal (for example an HTTP client disconnect). */
+  signal?: AbortSignal;
 }
 
 function backoffDelay(
@@ -69,8 +71,15 @@ export async function aiFetch(
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (options.signal?.aborted) {
+      throw options.signal.reason instanceof Error
+        ? options.signal.reason
+        : abortError();
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const abortCaller = () => controller.abort(options.signal?.reason);
+    options.signal?.addEventListener("abort", abortCaller, { once: true });
 
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
@@ -91,6 +100,13 @@ export async function aiFetch(
       await sleep(delay);
     } catch (error) {
       lastError = error;
+      // A caller abort is definitive. Retrying or falling over to another
+      // provider after the socket has gone away only burns more budget.
+      if (options.signal?.aborted) {
+        throw options.signal.reason instanceof Error
+          ? options.signal.reason
+          : abortError();
+      }
       const isAbort = error instanceof Error && error.name === "AbortError";
       if (attempt === retries) {
         throw new Error(
@@ -102,6 +118,7 @@ export async function aiFetch(
       await sleep(backoffDelay(attempt));
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abortCaller);
     }
   }
 
@@ -109,4 +126,10 @@ export async function aiFetch(
   throw lastError instanceof Error
     ? lastError
     : new Error(`${label} request failed`);
+}
+
+function abortError(): Error {
+  const error = new Error("The operation was aborted");
+  error.name = "AbortError";
+  return error;
 }

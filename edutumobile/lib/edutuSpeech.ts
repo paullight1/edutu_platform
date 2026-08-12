@@ -29,6 +29,8 @@ export interface SpeakOptions {
    */
   cacheKey?: string;
   getAuthToken?: () => Promise<string | null>;
+  /** Cancels synthesis/playback and suppresses all callbacks for this utterance. */
+  signal?: AbortSignal;
   onStart?: () => void;
   /** Fires ~10×/sec with playback position as a 0→1 ratio. */
   onProgress?: SpeakProgress;
@@ -41,9 +43,9 @@ export interface SpeakOptions {
 // ─── Premium voice gate ───────────────────────────────────────────────────────
 // Server TTS costs real money per minute, so it is a Pro perk: free users get
 // the device synthesizer. The flag is pushed from wherever pro status is known
-// (voice overlay / chat screen) — defaults open so a slow entitlement fetch
-// never mutes a paying user.
-let premiumVoiceEnabled = true;
+// (voice overlay / chat screen). It is deliberately fail-closed: server TTS
+// is enabled only after the current account's entitlement has loaded as Pro.
+let premiumVoiceEnabled = false;
 
 export function setPremiumVoiceEnabled(enabled: boolean) {
   premiumVoiceEnabled = enabled;
@@ -51,6 +53,10 @@ export function setPremiumVoiceEnabled(enabled: boolean) {
 
 export function isPremiumVoiceEnabled() {
   return premiumVoiceEnabled;
+}
+
+export function premiumVoiceEnabledForEntitlement(isPro: boolean, isLoading: boolean) {
+  return !isLoading && isPro === true;
 }
 
 /** Strip markdown/links so neither engine reads syntax aloud. */
@@ -73,11 +79,14 @@ let fileCounter = 0;
 let activePlayer: AudioPlayer | null = null;
 let activeListener: { remove: () => void } | null = null;
 let progressTimer: ReturnType<typeof setInterval> | null = null;
+let activeSignalCleanup: (() => void) | null = null;
 // Monotonically increasing token — a callback whose token is stale means a
 // newer utterance (or a stop) has taken over, so it must not fire onDone.
 let currentToken = 0;
 
 function teardownPlayback() {
+  activeSignalCleanup?.();
+  activeSignalCleanup = null;
   if (progressTimer) {
     clearInterval(progressTimer);
     progressTimer = null;
@@ -109,15 +118,18 @@ async function synthesize(
   text: string,
   voice: string | null | undefined,
   getAuthToken?: () => Promise<string | null>,
+  signal?: AbortSignal,
 ): Promise<{ audio: string; mimeType: string } | null> {
   const supabaseUrl = getConfig().supabaseUrl;
   const authToken = await getAuthToken?.();
+  if (signal?.aborted) return null;
   if (!supabaseUrl || !authToken) return null;
 
   const res = await fetch(`${supabaseUrl}/functions/v1/chat-proxy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
     body: JSON.stringify({ mode: 'tts', text, voice: voice ?? undefined }),
+    signal,
   });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);
@@ -167,6 +179,7 @@ function speakWithDevice(text: string, opts: SpeakOptions, token: number) {
 export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<void> {
   const text = cleanForSpeech(rawText);
   stopSpeaking();
+  if (opts.signal?.aborted) return;
   if (!text) {
     opts.onProgress?.(1);
     opts.onDone?.();
@@ -174,6 +187,18 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
   }
 
   const token = ++currentToken;
+  if (opts.signal) {
+    const handleAbort = () => {
+      if (token !== currentToken) return;
+      currentToken += 1;
+      teardownPlayback();
+      try {
+        Speech.stop();
+      } catch {}
+    };
+    opts.signal.addEventListener('abort', handleAbort, { once: true });
+    activeSignalCleanup = () => opts.signal?.removeEventListener('abort', handleAbort);
+  }
 
   if (!premiumVoiceEnabled) {
     speakWithDevice(text, opts, token);
@@ -195,14 +220,14 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
   let synthesized: { audio: string; mimeType: string } | null = null;
   if (!cacheHit) {
     try {
-      synthesized = await synthesize(text, opts.voice, opts.getAuthToken);
+      synthesized = await synthesize(text, opts.voice, opts.getAuthToken, opts.signal);
     } catch {
       synthesized = null;
     }
   }
 
   // A newer utterance started while we were awaiting synthesis — abandon.
-  if (token !== currentToken) return;
+  if (token !== currentToken || opts.signal?.aborted) return;
 
   if (!cacheHit && !synthesized) {
     speakWithDevice(text, opts, token);
@@ -220,7 +245,7 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
       file.write(synthesized!.audio, { encoding: 'base64' });
     }
 
-    if (token !== currentToken) {
+    if (token !== currentToken || opts.signal?.aborted) {
       if (!cacheFile) {
         try {
           file.delete();
@@ -244,6 +269,12 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
       if (token !== currentToken) return;
       if (status.duration > 0) {
         opts.onProgress?.(Math.min(1, status.currentTime / status.duration));
+      }
+      if (status.error) {
+        teardownPlayback();
+        cleanupFile();
+        opts.onError?.(new Error(status.error));
+        return;
       }
       if (status.didJustFinish) {
         teardownPlayback();

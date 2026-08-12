@@ -1,10 +1,11 @@
-import { HttpStatus, Logger } from "@nestjs/common";
+import { BadRequestException, HttpStatus, Logger } from "@nestjs/common";
 import type { Reflector } from "@nestjs/core";
 import { firstValueFrom, of, throwError } from "rxjs";
 import { MonetizationService } from "./monetization.service";
 import { AiMeteringInterceptor } from "./ai-metering.interceptor";
 import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
 import type { SettingsService } from "../settings/settings.service";
+import { MonetizationController } from "./monetization.controller";
 
 // Every metering query goes through db.execute / db.transaction. Stub the
 // module so the service runs its real control flow with no connection, and
@@ -232,5 +233,60 @@ describe("AiMeteringInterceptor", () => {
 
     await expect(firstValueFrom(observable)).rejects.toThrow("provider down");
     expect(refund).toHaveBeenCalledWith(charge);
+  });
+});
+
+describe("MonetizationController — voice metering and premium authorization", () => {
+  it("forwards validated started-minute units to the meter", async () => {
+    const meter = jest.fn(async () => ({
+      userId: "user-1",
+      action: "voicePerMinute" as const,
+      charged: 10,
+      ledgerId: "ledger-1",
+      chatCounted: false,
+      remaining: null,
+    }));
+    const controller = new MonetizationController({ meter } as any);
+
+    await expect(
+      controller.meter("user-1", { action: "voicePerMinute", units: 2 }),
+    ).resolves.toMatchObject({ charged: 10 });
+    expect(meter).toHaveBeenCalledWith("user-1", "voicePerMinute", 2);
+  });
+
+  it("rejects a voice authorization request with an unknown kind", async () => {
+    const authorizeVoicePremium = jest.fn();
+    const controller = new MonetizationController({
+      authorizeVoicePremium,
+    } as any);
+
+    await expect(
+      controller.authorizeVoice("user-1", { kind: "phone" as "tts" }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(authorizeVoicePremium).not.toHaveBeenCalled();
+  });
+
+  it("authorizes transcription as a premium voice capability", async () => {
+    const authorizeVoicePremium = jest.fn(async () => undefined);
+    const controller = new MonetizationController({
+      authorizeVoicePremium,
+    } as any);
+
+    await expect(
+      controller.authorizeVoice("user-1", { kind: "stt" }),
+    ).resolves.toEqual({ ok: true, kind: "stt" });
+    expect(authorizeVoicePremium).toHaveBeenCalledWith("user-1");
+  });
+
+  it("authorizes each supported premium voice kind for the authenticated user", async () => {
+    const authorizeVoicePremium = jest.fn(async () => undefined);
+    const controller = new MonetizationController({
+      authorizeVoicePremium,
+    } as any);
+
+    await expect(
+      controller.authorizeVoice("user-1", { kind: "realtime" }),
+    ).resolves.toEqual({ ok: true, kind: "realtime" });
+    expect(authorizeVoicePremium).toHaveBeenCalledWith("user-1");
   });
 });

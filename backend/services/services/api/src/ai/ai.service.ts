@@ -37,6 +37,13 @@ function aiNumberEnv(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function isCallerCancellation(error: unknown, signal?: AbortSignal): boolean {
+  return (
+    signal?.aborted === true ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
 // Server-side output-token ceiling applied when a route doesn't set one, so a
 // large prompt can't run up an unbounded (and unbudgeted) completion.
 const DEFAULT_MAX_OUTPUT_TOKENS = aiNumberEnv(
@@ -421,6 +428,8 @@ export class AiService {
     } catch (error) {
       void this.logUsage(options, route, null, Date.now() - startedAt, error);
 
+      if (isCallerCancellation(error, options.signal)) throw error;
+
       // A provider outage should not take down the feature if a fallback
       // provider is configured. Retry once on the secondary before giving up.
       const fallbackRoute = await this.resolveFallbackRoute(route);
@@ -546,6 +555,8 @@ export class AiService {
         error,
         { prompt: conversation },
       );
+
+      if (isCallerCancellation(error, options.signal)) throw error;
 
       const fallbackRoute = await this.resolveFallbackRoute(route);
       const fallbackAdapter = fallbackRoute
@@ -675,6 +686,8 @@ export class AiService {
         error,
         { prompt: () => serializeChatPrompt(options.messages) },
       );
+
+      if (isCallerCancellation(error, options.signal)) throw error;
 
       if (delivered) {
         // Tokens are already on the wire — re-running the round would show the

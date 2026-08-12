@@ -110,6 +110,17 @@ export class ChatController {
     @Res() res: Response,
     @Headers("accept-language") acceptLanguage?: string,
   ) {
+    // The provider request must not outlive the browser/app socket. Express
+    // emits `close` for both an intentional disconnect and a destroyed
+    // connection; only abort while the response is still open so a normal
+    // `res.end()` does not race the generation signal.
+    const generationAbort = new AbortController();
+    const onResponseClose = () => {
+      if (!res.writableEnded) generationAbort.abort();
+    };
+    res.once("close", onResponseClose);
+    const cleanup = () => res.off("close", onResponseClose);
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -128,15 +139,32 @@ export class ChatController {
         {
           emit,
           onToken: (content) => emit("token", { type: "token", content }),
+          signal: generationAbort.signal,
         },
       );
+      if (generationAbort.signal.aborted) {
+        cleanup();
+        if (!res.writableEnded) res.end();
+        return;
+      }
       emit("turn.final", result as unknown as Record<string, unknown>);
+      cleanup();
       res.end();
     } catch (error) {
+      // A disconnected client cannot receive an error event. Do not rethrow
+      // this cancellation: the metering interceptor treats handler errors as
+      // provider failures and would refund a charge even though generation may
+      // already have consumed provider tokens.
+      if (generationAbort.signal.aborted) {
+        cleanup();
+        if (!res.writableEnded) res.end();
+        return;
+      }
       emit("turn.error", {
         message: error instanceof Error ? error.message : "Chat turn failed",
         status: (error as { status?: number })?.status ?? 500,
       });
+      cleanup();
       res.end();
       // Rethrow so the metering interceptor refunds the charge — the response
       // has already ended, so nothing else is written to the socket.

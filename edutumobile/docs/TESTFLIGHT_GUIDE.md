@@ -92,6 +92,29 @@ Testers install the **TestFlight** app from the App Store, accept the invite, an
 - For **TestFlight** builds, the "Update now" button should ideally point testers to the TestFlight app.
 - During beta, lean on **OTA-first** (`expo-updates` on the `production` channel) so `eas update` pushes JS fixes to testers **without a new TestFlight build**.
 
+## GPT Realtime voice prerequisite
+
+The Live voice experience requires a native development/TestFlight build;
+Expo Go cannot load `react-native-webrtc`. Before inviting voice testers:
+
+1. Build from the committed native configuration (`react-native-webrtc` plus
+   `@config-plugins/react-native-webrtc`) with `npx expo run:ios` or the EAS
+   production profile.
+2. Confirm the authenticated Nest Realtime session endpoint is configured with
+   the server-only OpenAI key and model. Never put either value in an
+   `EXPO_PUBLIC_*` variable.
+3. Test on a physical device: microphone permission, remote audio, Bluetooth
+   output, barge-in, interruption, background/foreground teardown, reconnect,
+   and Pro-only access.
+4. Keep the Live flag off until the Realtime session proxy and `ask_edutu`
+   tool contract are deployed. Users without an active server-side Pro
+   entitlement must fall back to tap-to-talk, not receive a provider session.
+
+The current mobile loop is a turn-based record/transcribe/chat/TTS fallback,
+not OpenAI Realtime. See
+[`docs/operations/edutu-realtime-voice.md`](../../docs/operations/edutu-realtime-voice.md)
+for the release gates, observability fields, and rollback procedure.
+
 ---
 
 ## Quick reference

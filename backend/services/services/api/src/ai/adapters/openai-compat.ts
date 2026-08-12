@@ -129,24 +129,48 @@ type ToolCallAccumulator = { id: string; name: string; arguments: string };
  * (Node's global fetch) and plain async iterables (test doubles, undici
  * streams).
  */
-async function* readBodyChunks(body: unknown): AsyncGenerator<Uint8Array> {
+function abortError(): Error {
+  const error = new Error("The operation was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function signalAbortError(signal?: AbortSignal): Error {
+  return signal?.reason instanceof Error ? signal.reason : abortError();
+}
+
+async function* readBodyChunks(
+  body: unknown,
+  signal?: AbortSignal,
+): AsyncGenerator<Uint8Array> {
   if (!body) return;
   const candidate = body as {
     getReader?: () => {
       read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+      cancel?: () => Promise<unknown> | void;
       releaseLock?: () => void;
     };
   };
 
   if (typeof candidate.getReader === "function") {
     const reader = candidate.getReader();
+    const onAbort = () => {
+      void Promise.resolve(reader.cancel?.()).catch(() => undefined);
+    };
+    if (signal?.aborted) throw signalAbortError(signal);
+    signal?.addEventListener("abort", onAbort, { once: true });
     try {
       for (;;) {
+        if (signal?.aborted) throw signalAbortError(signal);
         const { done, value } = await reader.read();
-        if (done) return;
+        if (done) {
+          if (signal?.aborted) throw signalAbortError(signal);
+          return;
+        }
         if (value) yield value;
       }
     } finally {
+      signal?.removeEventListener("abort", onAbort);
       reader.releaseLock?.();
     }
     return; // a reader-backed body is never also iterated
@@ -159,6 +183,7 @@ async function* readBodyChunks(body: unknown): AsyncGenerator<Uint8Array> {
     return;
   }
   for await (const chunk of body as AsyncIterable<Uint8Array>) {
+    if (signal?.aborted) throw signalAbortError(signal);
     yield chunk;
   }
 }
@@ -175,6 +200,7 @@ async function* readBodyChunks(body: unknown): AsyncGenerator<Uint8Array> {
 export async function consumeOpenAiChatStream(
   body: unknown,
   onToken: (delta: string) => void,
+  signal?: AbortSignal,
 ): Promise<OpenAiStreamOutcome> {
   const decoder = new TextDecoder();
   let buffer = "";
@@ -273,7 +299,7 @@ export async function consumeOpenAiChatStream(
   };
 
   try {
-    for await (const chunk of readBodyChunks(body)) {
+    for await (const chunk of readBodyChunks(body, signal)) {
       buffer += decoder.decode(chunk, { stream: true });
       let newlineIndex = buffer.indexOf("\n");
       while (newlineIndex >= 0) {
@@ -286,7 +312,8 @@ export async function consumeOpenAiChatStream(
     // is an incomplete frame, so flushing it would parse garbage. Do not "fix"
     // this by hoisting it into the finally.
     if (buffer) handleLine(buffer);
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw signalAbortError(signal);
     // Socket died mid-stream. Keep what we have; `truncated` reports it.
   }
 
@@ -325,6 +352,7 @@ export async function requestOpenAiChatStream(params: {
   provider: AiProvider;
   model: string;
   label: string;
+  signal?: AbortSignal;
 }): Promise<AiChatStreamResult> {
   const response = await aiFetch(
     params.url,
@@ -339,7 +367,7 @@ export async function requestOpenAiChatStream(params: {
         buildOpenAiChatBody(params.config, params.options, { stream: true }),
       ),
     },
-    { label: params.label },
+    { label: params.label, signal: params.signal },
   );
 
   if (!response.ok) {
@@ -353,7 +381,7 @@ export async function requestOpenAiChatStream(params: {
   const outcome = await consumeOpenAiChatStream(response.body, (delta) => {
     delivered = true;
     params.options.onToken(delta);
-  });
+  }, params.signal);
 
   // Nothing reached the user AND nothing usable came back — treat it as a
   // failed establishment so the caller can fall back to the buffered call

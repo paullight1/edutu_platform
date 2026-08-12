@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
-import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
+import { premiumVoiceEnabledForEntitlement, setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { useTranslation } from 'react-i18next';
 import { MessageSquare, Mic, MicOff, Settings2, AudioLines, RotateCcw, SlidersHorizontal, X } from 'lucide-react-native';
 import Animated, {
@@ -118,11 +118,11 @@ function VoiceSessionScreen({
     const { user } = useUser();
     const { getToken } = useAuth();
     // Premium branded voices are a Pro perk; free users hear the device
-    // synthesizer. Fail-open while entitlements load so a slow fetch never
-    // downgrades a paying user's greeting.
+    // synthesizer. Fail closed until this account has an explicit loaded Pro
+    // result so a stale entitlement can never spend premium TTS credits.
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id ?? null);
     useEffect(() => {
-        setPremiumVoiceEnabled(isPro || proLoading);
+        setPremiumVoiceEnabled(premiumVoiceEnabledForEntitlement(isPro, proLoading));
     }, [isPro, proLoading]);
     const { reducedMotion, colors } = useTheme();
     const { design } = useVoiceSettings();
