@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Github, Linkedin, Twitter } from 'lucide-react';
+import { Instagram, Linkedin, Moon, Sun, Twitter, Youtube } from 'lucide-react';
 import { getDocsUrl, isExternalDocsUrl } from '../lib/apiProductUrls';
+import { useDarkMode } from '../hooks/useDarkMode';
 
 const docsUrl = getDocsUrl();
 
@@ -74,6 +75,8 @@ const FooterLinkItem: React.FC<{ link: FooterLink }> = ({ link }) => {
  * real page so nothing dead-ends.
  */
 const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
+    const { isDarkMode, toggleDarkMode } = useDarkMode();
+
     return (
         <footer className="border-t border-subtle px-4 py-10 sm:px-6 sm:py-16">
             <div className="mx-auto max-w-[1200px]">
@@ -116,10 +119,19 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
                     <span className="text-2xs leading-relaxed text-text-muted md:text-xs">
                         © {new Date().getFullYear()} Edutu Inc. All rights reserved. {version}
                     </span>
-                    <div className="flex items-center gap-4 md:gap-6">
-                        <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on X" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Twitter size={18} /></a>
-                        <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on LinkedIn" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Linkedin size={18} /></a>
-                        <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on GitHub" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Github size={18} /></a>
+                    <div className="flex items-center gap-3 md:gap-5">
+                        <button
+                            type="button"
+                            onClick={toggleDarkMode}
+                            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-subtle text-text-muted transition hover:border-strong hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                        >
+                            {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
+                        </button>
+                        <a href="https://x.com/edutu_ai" target="_blank" rel="noopener noreferrer" aria-label="Edutu on X" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Twitter size={18} /></a>
+                        <a href="https://www.linkedin.com/company/edutu-ai/" target="_blank" rel="noopener noreferrer" aria-label="Edutu on LinkedIn" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Linkedin size={18} /></a>
+                        <a href="https://www.instagram.com/edutu.ai/" target="_blank" rel="noopener noreferrer" aria-label="Edutu on Instagram" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Instagram size={18} /></a>
+                        <a href="https://www.youtube.com/@edutu_ai" target="_blank" rel="noopener noreferrer" aria-label="Edutu on YouTube" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Youtube size={18} /></a>
                     </div>
                 </div>
             </div>
