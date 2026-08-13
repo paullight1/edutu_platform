@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { apiUsageEvents } from "../db/schema";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
@@ -272,19 +272,36 @@ export class EdutuApiUsageService {
         // same for our direct (service-role) write. Transaction-local.
         await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
 
-        // Rows written before the scoped key was introduced cannot prove which
-        // consumer owned the client-controlled request id. Do not recharge
-        // such a request or treat it as a valid duplicate.
-        const legacy = await tx.execute(sql`
-          select id
+        // Find any stored API request reference before attempting the claim.
+        // This is intentionally independent of the scoped unique conflict
+        // tuple: a malformed row must not become chargeable merely because its
+        // consumer or owner field no longer matches that tuple.
+        const existing = await tx.execute(sql`
+          select
+            id,
+            user_id,
+            api_consumer_id,
+            amount,
+            type,
+            related_id,
+            related_type,
+            api_request_idempotency_key
           from credit_transactions
-          where related_type = 'api_request'
-            and related_id = ${requestId}
-            and api_request_idempotency_key is null
+          where
+            related_id = ${requestId}
+            or related_id = ${idempotencyKey}
+            or api_request_idempotency_key = ${idempotencyKey}
           limit 2
         `);
-        if (this.rowCount(legacy) > 0) {
-          throw new EdutuApiBillingUnavailableError();
+        const existingRows = this.rows(existing);
+        if (existingRows.length > 0) {
+          return this.readVerifiedDuplicateReservation(
+            tx,
+            existingRows,
+            consumer,
+            ownerUserId,
+            idempotencyKey,
+          );
         }
 
         // Claim the request with a key scoped to both the authenticated
@@ -343,34 +360,19 @@ export class EdutuApiUsageService {
               related_type,
               api_request_idempotency_key
             from credit_transactions
-            where related_type = 'api_request'
-              and api_request_idempotency_key = ${idempotencyKey}
+            where
+              related_id = ${requestId}
+              or related_id = ${idempotencyKey}
+              or api_request_idempotency_key = ${idempotencyKey}
             limit 2
           `);
-          const duplicateRows = this.rows(duplicate);
-          if (
-            duplicateRows.length !== 1 ||
-            !this.isMatchingApiLedgerRow(
-              duplicateRows[0],
-              consumer,
-              ownerUserId,
-              idempotencyKey,
-            )
-          ) {
-            throw new EdutuApiBillingUnavailableError();
-          }
-
-          const current = await tx.execute(sql`
-            select credits from profiles where user_id = ${ownerUserId} limit 1
-          `);
-          const currentBalance = this.readProfileBalance(current, "credits");
-          if (currentBalance === null) {
-            throw new EdutuApiBillingUnavailableError();
-          }
-          return {
-            balance: currentBalance,
-            exhausted: false,
-          } satisfies CreditReservation;
+          return this.readVerifiedDuplicateReservation(
+            tx,
+            this.rows(duplicate),
+            consumer,
+            ownerUserId,
+            idempotencyKey,
+          );
         }
 
         // Atomically decrement, but only while credits remain.
@@ -472,6 +474,38 @@ export class EdutuApiUsageService {
           consumer.requestId!.trim(),
         ),
     );
+  }
+
+  private async readVerifiedDuplicateReservation(
+    tx: { execute(statement: SQL): Promise<unknown> },
+    rows: Record<string, unknown>[],
+    consumer: ApiConsumerContext,
+    ownerUserId: string,
+    idempotencyKey: string,
+  ): Promise<CreditReservation> {
+    if (
+      rows.length !== 1 ||
+      !this.isMatchingApiLedgerRow(
+        rows[0],
+        consumer,
+        ownerUserId,
+        idempotencyKey,
+      )
+    ) {
+      throw new EdutuApiBillingUnavailableError();
+    }
+
+    const current = await tx.execute(sql`
+      select credits from profiles where user_id = ${ownerUserId} limit 1
+    `);
+    const currentBalance = this.readProfileBalance(current, "credits");
+    if (currentBalance === null) {
+      throw new EdutuApiBillingUnavailableError();
+    }
+    return {
+      balance: currentBalance,
+      exhausted: false,
+    } satisfies CreditReservation;
   }
 
   private exhaustedReservation(

@@ -37,6 +37,29 @@ function isMatchingLedgerRow(
   );
 }
 
+async function readVerifiedDuplicate(
+  database: PGlite,
+  rows: Record<string, unknown>[],
+  consumer: Consumer,
+  key: string,
+) {
+  if (rows.length !== 1 || !isMatchingLedgerRow(rows[0], consumer, key)) {
+    throw new BillingUnavailableError();
+  }
+
+  const profile = await database.query<{ credits: number }>(
+    `select credits from public.profiles where user_id = $1 limit 1`,
+    [consumer.ownerUserId],
+  );
+  const balance = Number(profile.rows[0]?.credits);
+  if (profile.rows.length !== 1 || !Number.isInteger(balance) || balance < 0) {
+    throw new BillingUnavailableError();
+  }
+
+  await database.exec("commit");
+  return { balance, exhausted: false };
+}
+
 async function reserveRequestCredit(
   database: PGlite,
   consumer: Consumer,
@@ -45,16 +68,27 @@ async function reserveRequestCredit(
   await database.exec("begin");
 
   try {
-    const legacy = await database.query<{ id: number }>(
-      `select id
+    const existing = await database.query<Record<string, unknown>>(
+      `select
+         id,
+         user_id,
+         api_consumer_id,
+         amount,
+         type,
+         related_id,
+         related_type,
+         api_request_idempotency_key
        from public.credit_transactions
-       where related_type = 'api_request'
-         and related_id = $1
-         and api_request_idempotency_key is null
+       where
+         related_id = $1
+         or related_id = $2
+         or api_request_idempotency_key = $2
        limit 2`,
-      [consumer.requestId],
+      [consumer.requestId, key],
     );
-    if (legacy.rows.length > 0) throw new BillingUnavailableError();
+    if (existing.rows.length > 0) {
+      return readVerifiedDuplicate(database, existing.rows, consumer, key);
+    }
 
     const claim = await database.query<{ id: number }>(
       `insert into public.credit_transactions
@@ -95,33 +129,14 @@ async function reserveRequestCredit(
            related_type,
            api_request_idempotency_key
          from public.credit_transactions
-         where related_type = 'api_request'
-           and api_request_idempotency_key = $1
+         where
+           related_id = $1
+           or related_id = $2
+           or api_request_idempotency_key = $2
          limit 2`,
-        [key],
+        [consumer.requestId, key],
       );
-      if (
-        duplicate.rows.length !== 1 ||
-        !isMatchingLedgerRow(duplicate.rows[0], consumer, key)
-      ) {
-        throw new BillingUnavailableError();
-      }
-
-      const profile = await database.query<{ credits: number }>(
-        `select credits from public.profiles where user_id = $1 limit 1`,
-        [consumer.ownerUserId],
-      );
-      const balance = Number(profile.rows[0]?.credits);
-      if (
-        profile.rows.length !== 1 ||
-        !Number.isInteger(balance) ||
-        balance < 0
-      ) {
-        throw new BillingUnavailableError();
-      }
-
-      await database.exec("commit");
-      return { balance, exhausted: false };
+      return readVerifiedDuplicate(database, duplicate.rows, consumer, key);
     }
 
     const decremented = await database.query<{ credits: number }>(
@@ -184,7 +199,11 @@ async function main() {
         metadata jsonb not null default '{}'::jsonb
       );
       insert into public.profiles (user_id, credits)
-      values ('owner-a', 1), ('owner-b', 1), ('owner-malformed', 2);
+      values
+        ('owner-a', 1),
+        ('owner-b', 1),
+        ('owner-malformed', 2),
+        ('owner-mismatch', 2);
     `);
 
     const migrationPath = resolve(
@@ -243,7 +262,8 @@ async function main() {
     await reserveRequestCredit(database, malformedConsumer);
     await database.query(
       `update public.credit_transactions
-       set related_id = 'malformed-related-id'
+       set related_id = 'malformed-related-id',
+           related_type = 'malformed-related-type'
        where api_request_idempotency_key = $1`,
       [idempotencyKey(malformedConsumer)],
     );
@@ -254,10 +274,17 @@ async function main() {
 
     const mismatchedConsumer: Consumer = {
       id: "consumer-mismatch",
-      ownerUserId: "owner-malformed",
+      ownerUserId: "owner-mismatch",
       requestId: "mismatched-request-1",
     };
-    await reserveRequestCredit(database, mismatchedConsumer);
+    const mismatchFirst = await reserveRequestCredit(
+      database,
+      mismatchedConsumer,
+    );
+    assert(
+      mismatchFirst.balance === 1,
+      "mismatch fixture did not retain a positive balance",
+    );
     await database.query(
       `update public.credit_transactions
        set api_consumer_id = 'different-consumer'
@@ -278,9 +305,22 @@ async function main() {
         (select count(*)::integer from public.credit_transactions where user_id = 'owner-malformed') as entries
     `);
     assert(
-      Number(malformedState.rows[0]?.credits) === 0 &&
-        malformedState.rows[0]?.entries === 2,
+      Number(malformedState.rows[0]?.credits) === 1 &&
+        malformedState.rows[0]?.entries === 1,
       "malformed duplicate changed balance or ledger count",
+    );
+    const mismatchState = await database.query<{
+      credits: number;
+      entries: number;
+    }>(`
+      select
+        (select credits from public.profiles where user_id = 'owner-mismatch') as credits,
+        (select count(*)::integer from public.credit_transactions where user_id = 'owner-mismatch') as entries
+    `);
+    assert(
+      Number(mismatchState.rows[0]?.credits) === 1 &&
+        mismatchState.rows[0]?.entries === 1,
+      "mismatched duplicate changed balance or ledger count",
     );
 
     process.stdout.write(

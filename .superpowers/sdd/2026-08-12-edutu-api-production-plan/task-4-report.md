@@ -55,3 +55,20 @@ unrelated formatting errors in concurrent/pre-existing files:
 - Added a migration-applied PGlite regression proving cross-consumer/owner
   isolation, exact retry idempotency, and fail-closed malformed/mismatched
   duplicates.
+
+## Final review fix
+
+- Before accepting a paid request claim, the transaction independently searches
+  for the raw request identity, computed scoped `related_id`, or scoped
+  `api_request_idempotency_key`; this lookup is not gated by the scoped unique
+  conflict tuple or `related_type`.
+- Any discovered state must be exactly one valid same-owner/same-consumer,
+  one-credit `spend` API ledger row with a valid profile. Malformed,
+  mismatched, duplicate, or missing-profile state rolls back and returns stable
+  `503 billing_unavailable` without another debit or paid-handler execution.
+  The unique-index conflict path retains the same independent verification for
+  concurrent races.
+- The PGlite migration-backed regression now corrupts both the reference shape
+  and consumer ownership, then verifies rejection with a separate owner that
+  starts with two credits; balance and ledger count remain unchanged, avoiding
+  an exhaustion-based mismatch result.

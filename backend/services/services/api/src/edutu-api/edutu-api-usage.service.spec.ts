@@ -44,9 +44,10 @@ describe("EdutuApiUsageService", () => {
   };
 
   // Models the raw-SQL flow inside db.transaction(cb). tx.execute is called in
-  // sequence: (1) set_config guard, (2) claim insert ... returning id, (3) if
-  // claimed -> update ... returning credits, else -> select the matching ledger
-  // row, and (4) read the current profile balance.
+  // sequence: (1) set_config guard, (2) independent request-reference lookup,
+  // (3) claim insert ... returning id, (4) if claimed -> update ... returning
+  // credits, else -> select the matching ledger row, and (5) read the current
+  // profile balance.
   function stubTransaction(opts: {
     claimed: boolean;
     balanceAfterDecrement?: number | null;
@@ -57,7 +58,7 @@ describe("EdutuApiUsageService", () => {
   }) {
     const txExecute = jest.fn();
     txExecute.mockResolvedValueOnce({ rows: [] }); // set_config
-    txExecute.mockResolvedValueOnce({ rows: [] }); // legacy unscoped lookup
+    txExecute.mockResolvedValueOnce({ rows: [] }); // request-reference lookup
     txExecute.mockResolvedValueOnce({
       rows: opts.claimed ? [{ id: "ledger-1" }] : [], // claim insert
     });
@@ -119,7 +120,7 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 9, exhausted: false });
-    // set_config + legacy lookup + claim insert + decrement = 4 statements.
+    // set_config + request-reference lookup + claim insert + decrement = 4.
     expect(txExecute).toHaveBeenCalledTimes(4);
   });
 
@@ -136,8 +137,8 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 42, exhausted: false });
-    // set_config + legacy lookup + claim (conflict no-op) + matching-ledger
-    // read + current profile read = 5 statements.
+    // set_config + request-reference lookup + claim (conflict no-op) +
+    // matching-ledger read + current profile read = 5 statements.
     expect(txExecute).toHaveBeenCalledTimes(5);
   });
 
@@ -154,7 +155,7 @@ describe("EdutuApiUsageService", () => {
           )
           .join("");
         if (text?.includes("set_config")) return { rows: [] };
-        if (text?.includes("api_request_idempotency_key is null")) {
+        if (text?.includes("from credit_transactions")) {
           return { rows: [] };
         }
         if (text?.includes("insert into credit_transactions")) {
