@@ -19,7 +19,25 @@ describe("EdutuApiDocsController", () => {
     expect(spec.paths["/categories"]).toBeDefined();
     expect(spec.paths["/usage"]).toBeDefined();
     expect(spec.components.securitySchemes.apiKeyAuth).toBeDefined();
+    expect(spec.components.securitySchemes.clerkAuth).toBeDefined();
     expect(spec.components.schemas.Opportunity).toBeDefined();
+    expect(spec.info.description).toContain("/developer/*");
+    expect(spec.info.description).toContain("402");
+    expect(spec.info.description).toContain("non-expiring");
+    expect(spec.paths["/health"].get.security).toEqual([]);
+    expect(spec.paths["/categories"].get.description).toContain("free");
+    expect(spec.paths["/usage"].get.description).toContain("does not consume");
+    expect(spec.paths["/opportunities"].get.responses["402"].description).toContain(
+      "credits_exhausted",
+    );
+    expect(spec["x-edutu-contract"].credits.exhausted).toEqual({
+      status: 402,
+      code: "credits_exhausted",
+      operationExecuted: false,
+    });
+    expect(spec.paths["/match"]).toBeUndefined();
+    expect(spec.paths["/scraper/run"]).toBeUndefined();
+    expect(spec.paths["/keys"]).toBeUndefined();
   });
 
   it("returns a public discovery overview for the Scholarship Engine API", () => {
@@ -29,6 +47,18 @@ describe("EdutuApiDocsController", () => {
     expect(overview.service).toBe("edutu-api");
     expect(overview.status).toBe("ok");
     expect(overview.openapiUrl).toMatch(/\/openapi\.json$/);
+    expect(overview.authentication.developerRoutes.scheme).toBe("Clerk user session");
+    expect(overview.authentication.apiRoutes.scheme).toBe("Edutu API key");
+    expect(overview.credits.startingBalance).toBe(0);
+    expect(overview.credits.topUps).toBe("one-time");
+    expect(overview.credits.expiry).toBe("never");
+    expect(overview.credits.freeEndpoints).toEqual([
+      "GET /v1/health",
+      "GET /v1/usage",
+      "GET /v1/categories",
+    ]);
+    expect(overview.credits.chargeableRequestCost).toBe(1);
+    expect(overview.dashboardUrl).toContain("/dashboard/developer");
     expect(
       overview.endpoints.some(
         (item: { path: string }) => item.path === "/v1/usage",
@@ -47,6 +77,15 @@ describe("EdutuApiDocsController", () => {
       expect(doc).toContain("Base URL: https://api.example.com/v1");
       expect(doc).toContain("x-edutu-api-key");
       expect(doc).toContain("POST | /recommendations");
+      expect(doc).toContain("Clerk");
+      expect(doc).toContain("New accounts start with **0 credits**");
+      expect(doc).toContain("one-time purchases");
+      expect(doc).toContain("402 `credits_exhausted`");
+      expect(doc).toContain('"code":"credits_exhausted"');
+      expect(doc).toContain("server-to-server");
+      expect(doc).not.toContain("/v1/match");
+      expect(doc).not.toContain("/v1/scraper/run");
+      expect(doc).not.toContain("/v1/keys");
       expect(doc).toContain("code=rate_limit_exceeded");
       expect(doc).toContain(
         'curl "https://api.example.com/v1/opportunities?limit=5"',

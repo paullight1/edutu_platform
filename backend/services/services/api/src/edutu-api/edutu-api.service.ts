@@ -86,7 +86,13 @@ export class EdutuApiService {
     const [row] = await db
       .select()
       .from(opportunities)
-      .where(and(eq(opportunities.id, id), eq(opportunities.status, "active")))
+      .where(
+        and(
+          eq(opportunities.id, id),
+          eq(opportunities.status, "active"),
+          eq(opportunities.verificationStatus, "verified"),
+        ),
+      )
       .limit(1)
       .execute();
 
@@ -109,6 +115,7 @@ export class EdutuApiService {
         max(updated_at) as last_updated_at
       from opportunities
       where status = 'active'
+        and verification_status = 'verified'
     `);
 
     const row =
@@ -155,6 +162,7 @@ export class EdutuApiService {
         count(*)::int as count
       from opportunities
       where status = 'active'
+        and verification_status = 'verified'
       group by 1
       order by count(*) desc, slug asc
     `);
@@ -276,7 +284,10 @@ export class EdutuApiService {
   }
 
   private buildOpportunityFilters(query: ListOpportunitiesQuery) {
-    const filters = [eq(opportunities.status, "active")];
+    const filters = [
+      eq(opportunities.status, "active"),
+      eq(opportunities.verificationStatus, "verified"),
+    ];
 
     if (query.canonicalCategory) {
       filters.push(

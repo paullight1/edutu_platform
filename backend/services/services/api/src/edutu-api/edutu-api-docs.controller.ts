@@ -3,6 +3,24 @@ import { Public } from "../auth";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3000/v1";
 const DEFAULT_DOCS_URL = "https://docs.edutu.org";
+const DEFAULT_DASHBOARD_URL = "https://www.edutu.org/dashboard/developer";
+
+const API_KEY_HEADERS = [
+  "x-edutu-api-key: <api_key>",
+  "x-api-key: <api_key>",
+  "Authorization: Bearer <api_key>",
+];
+
+const FREE_ENDPOINTS = ["GET /v1/health", "GET /v1/usage", "GET /v1/categories"];
+
+const CHARGEABLE_ENDPOINTS = [
+  "GET /v1/opportunities",
+  "GET /v1/opportunities/stats",
+  "GET /v1/opportunities/sync",
+  "GET /v1/opportunities/:id",
+  "POST /v1/recommendations",
+  "POST /v1/events",
+];
 
 @Public()
 @Controller("v1")
@@ -17,7 +35,7 @@ export class EdutuApiDocsController {
     );
     const docsUrl = process.env.EDUTU_DOCS_URL || DEFAULT_DOCS_URL;
     const dashboardUrl =
-      process.env.EDUTU_DASHBOARD_URL || "https://www.edutu.org/developers";
+      process.env.EDUTU_DASHBOARD_URL || DEFAULT_DASHBOARD_URL;
     const marketingUrl =
       process.env.EDUTU_MARKETING_URL ||
       "https://www.edutu.org/scholarship-engine";
@@ -39,73 +57,95 @@ export class EdutuApiDocsController {
       llmsUrl: `${apiBaseUrl.replace(/\/+$/, "")}/llms.txt`,
       authentication: {
         required: true,
-        acceptedHeaders: [
-          "x-edutu-api-key: <api_key>",
-          "x-api-key: <api_key>",
-          "Authorization: Bearer <api_key>",
-        ],
+        developerRoutes: {
+          paths: ["/developer/*", "/dashboard/developer"],
+          scheme: "Clerk user session",
+          description:
+            "Sign in to Edutu with Clerk to create and manage developer projects and API keys.",
+        },
+        apiRoutes: {
+          paths: ["/v1/*"],
+          scheme: "Edutu API key",
+          acceptedHeaders: API_KEY_HEADERS,
+          description:
+            "Use a project API key for server-to-server calls. A Clerk bearer token is not an API key and is not accepted by /v1.",
+        },
+        publicDocumentation: ["GET /v1", "GET /v1/llms.txt", "GET /v1/openapi.json"],
       },
       quickstart: [
-        "Create a developer project in the dashboard.",
+        `Sign in with Clerk and open ${dashboardUrl} to create a developer project.`,
+        "Create a project and API key without purchasing credits; new accounts start at zero credits.",
         "Generate an API key once and keep the raw secret safe.",
-        "Call GET /v1/opportunities or GET /v1/categories to confirm access.",
-        "Use GET /v1/usage to inspect credits and quota.",
+        "Call GET /v1/health, GET /v1/categories, or GET /v1/usage to confirm access without spending a credit.",
+        "Chargeable opportunity, recommendation, and event calls cost one credit and return 402 credits_exhausted at zero.",
       ],
+      credits: {
+        startingBalance: 0,
+        topUps: "one-time",
+        expiry: "never",
+        chargeableRequestCost: 1,
+        exhaustedStatus: 402,
+        exhaustedCode: "credits_exhausted",
+        freeEndpoints: FREE_ENDPOINTS,
+        chargeableEndpoints: CHARGEABLE_ENDPOINTS,
+      },
+      opportunityVisibility:
+        "Only approved opportunities are returned. Approved user submissions become global catalog records visible to Edutu users and API customers.",
       endpoints: [
         {
           method: "GET",
           path: "/v1/health",
-          access: "public",
-          description: "Runtime diagnostics and readiness status.",
+          access: "public, free",
+          description: "Runtime diagnostics and readiness status; no API key or credit required.",
         },
         {
           method: "GET",
           path: "/v1/opportunities",
           access: "api key",
-          description: "Search and page through normalized opportunities.",
+          description: "Search and page through approved normalized opportunities; costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/opportunities/stats",
           access: "api key",
-          description: "Inspect catalog health and coverage.",
+          description: "Inspect approved catalog health and coverage; costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/opportunities/sync",
           access: "api key",
           description:
-            "Delta sync of changed rows (requires opportunities:sync).",
+            "Delta sync of approved changed rows (requires opportunities:sync); costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/opportunities/:id",
           access: "api key",
-          description: "Fetch a single normalized opportunity.",
+          description: "Fetch a single approved normalized opportunity; costs one credit per request.",
         },
         {
           method: "POST",
           path: "/v1/recommendations",
           access: "api key",
-          description: "Ranked opportunities for a supplied profile.",
+          description: "Ranked approved opportunities for a supplied profile; costs one credit per request.",
         },
         {
           method: "POST",
           path: "/v1/events",
           access: "api key",
-          description: "Record partner impressions, clicks, and conversions.",
+          description: "Record partner impressions, clicks, and conversions; costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/categories",
-          access: "api key",
-          description: "Discover stable category metadata.",
+          access: "api key, free",
+          description: "Discover stable category metadata without spending a credit.",
         },
         {
           method: "GET",
           path: "/v1/usage",
           access: "api key",
-          description: "Inspect quota and API credit usage.",
+          description: "Inspect quota and API credit usage without spending a credit.",
         },
       ],
     };
@@ -125,7 +165,7 @@ export class EdutuApiDocsController {
         DEFAULT_API_BASE_URL,
     );
     const dashboardUrl =
-      process.env.EDUTU_DASHBOARD_URL || "https://www.edutu.org/developers";
+      process.env.EDUTU_DASHBOARD_URL || DEFAULT_DASHBOARD_URL;
 
     return `# Edutu Scholarship Engine API
 
@@ -134,29 +174,43 @@ export class EdutuApiDocsController {
 > Machine-readable spec: ${apiBaseUrl}/openapi.json
 > Get an API key: ${dashboardUrl}
 
-## Authentication
+## Authentication boundary
 
-Every endpoint except GET /health and this file requires an API key. Send it in ANY of these headers:
+Sign in to Edutu with Clerk to access the developer dashboard and \`/developer/*\` routes. Use the dashboard to create a project and generate an Edutu API key; there is no separate developer login.
+
+The \`/v1/*\` API uses the Edutu API key, not the Clerk session token. The documentation endpoints (\`GET /v1\`, \`GET /v1/llms.txt\`, and \`GET /v1/openapi.json\`) are public. \`GET /v1/health\` is public; the other live \`/v1\` operations require an Edutu API key.
+
+Send an Edutu API key in any of these headers:
 
     x-edutu-api-key: <API_KEY>
     x-api-key: <API_KEY>
     Authorization: Bearer <API_KEY>
 
-Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). Keys are shown once at creation in the dashboard and stored hashed server-side.
+Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). Keys are shown once at creation in the dashboard and stored hashed server-side. Keep them on your server by default.
+
+## Projects, credits, and visibility
+
+- Create a project and key at ${dashboardUrl} without purchasing credits. New accounts start with **0 credits**.
+- Credit top-ups are one-time purchases. Credits do not expire and there is no recurring API subscription requirement.
+- Free endpoints: \`GET /health\`, \`GET /usage\`, and \`GET /categories\`. Usage and categories still require an API key so Edutu can identify the account.
+- Chargeable endpoints: opportunities, opportunity stats, opportunity sync, opportunity detail, recommendations, and events. Each successful request costs **1 credit**.
+- When a chargeable request has no credits, the API returns HTTP \`402 Payment Required\` with \`code: "credits_exhausted"\` and does not execute the paid operation.
+- Only approved opportunities are returned. An approved user submission becomes a global catalog record visible to Edutu users and API customers.
+- Use the API server-to-server. A browser-visible key is not secret; direct browser use requires an approved CORS origin and should be limited to cases where that trade-off is understood.
 
 ## Endpoints
 
 | Method | Path | Scope | Purpose |
 |---|---|---|---|
-| GET | /health | none (public) | Liveness + echoes your plan when a key is sent |
-| GET | /opportunities | opportunities:read | Search/list the catalog (filters below) |
-| GET | /opportunities/stats | opportunities:read | Catalog coverage + freshness stats |
-| GET | /opportunities/sync | opportunities:sync | Delta sync; pass updatedSince, includes expired rows |
-| GET | /opportunities/{id} | opportunities:read | One opportunity by UUID |
-| GET | /categories | opportunities:read | Category slugs with counts |
-| GET | /usage | usage:read | Your quota, credits, and period reset (never costs a credit) |
-| POST | /recommendations | recommendations:read | Ranked matches for a profile you send |
-| POST | /events | events:write | Report impressions/clicks/applies back |
+| GET | /health | none (public, free) | Liveness and readiness status |
+| GET | /opportunities | opportunities:read (1 credit) | Search/list approved opportunities |
+| GET | /opportunities/stats | opportunities:read (1 credit) | Approved catalog coverage and freshness |
+| GET | /opportunities/sync | opportunities:sync (1 credit) | Delta sync; pass updatedSince |
+| GET | /opportunities/{id} | opportunities:read (1 credit) | One approved opportunity by UUID |
+| GET | /categories | opportunities:read (free) | Stable category slugs with counts |
+| GET | /usage | usage:read (free) | Your quota, credits, and period reset |
+| POST | /recommendations | recommendations:read (1 credit) | Ranked matches for a profile you send |
+| POST | /events | events:write (1 credit) | Report impressions/clicks/applies back |
 
 ## GET /opportunities — query parameters
 
@@ -195,9 +249,16 @@ All fields optional; more profile signal = better ranking. Returns { object: "re
 
 { "error": { "message", "status", "code", "retryAfter" }, "requestId": "..." }
 
-- 401 invalid/missing key · 403 code — key lacks the required scope
-- 402 code=quota_exceeded (monthly quota) or code=credits_exhausted (buy credits in the dashboard)
+- 401 \`missing_api_key\` or \`invalid_api_key\` — the Edutu API key is missing or invalid
+- 403 \`scope_required\` — the key lacks the required scope
+- 402 \`quota_exceeded\` — monthly quota is exhausted
+- 402 \`credits_exhausted\` — the account has zero credits for a chargeable call
 - 429 code=rate_limit_exceeded — honor the Retry-After header (seconds)
+
+Example zero-credit response (redacted):
+
+    HTTP/1.1 402 Payment Required
+    {"error":{"message":"API credits exhausted","status":402,"code":"credits_exhausted"},"requestId":"req_..."}
 
 ## Limits & headers
 
@@ -212,7 +273,7 @@ Per-minute rate limit and monthly quota depend on your plan (defaults: live 60/m
     });
     const { data, meta } = await res.json();
 
-Recommended integration pattern: full pull via /opportunities (cursor pagination), then poll /opportunities/sync?updatedSince=<last-run> on a schedule; report engagement via /events; check /usage before large backfills.
+Recommended integration pattern: full pull via /opportunities (cursor pagination), then poll /opportunities/sync?updatedSince=<last-run> on a schedule; report engagement via /events; check /usage before large backfills. Never put a production key in client-side JavaScript.
 `;
   }
 
@@ -229,6 +290,17 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
       process.env.EDUTU_API_OPENAPI_URL ||
         `${apiBaseUrl.replace(/\/+$/, "")}/openapi.json`,
     );
+    const chargeableErrorResponses = {
+      "402": {
+        description:
+          "Payment Required: monthly quota or one-time API credits are exhausted. A zero-credit chargeable call uses code credits_exhausted and does not execute.",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+    };
 
     return {
       openapi: "3.1.0",
@@ -236,11 +308,34 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
         title: "Scholarship Engine Public API",
         version: "0.2.0",
         description:
-          "Machine-readable documentation for the public Scholarship Engine API used by external developers and the Edutu dashboard. All authenticated endpoints are rate-limited per API key (60 req/min on the default plan) and capped by a monthly quota; response headers X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset and Retry-After describe the current window, and X-Edutu-Quota-* headers describe the monthly budget.",
+          "Machine-readable documentation for the public Scholarship Engine API. Clerk authenticates Edutu users on /developer/* and /dashboard/developer; /v1/* uses a separate Edutu API key. Health, usage, and categories are free. Each chargeable opportunity, recommendation, or event request costs one non-expiring credit and returns HTTP 402 with code credits_exhausted at zero. Approved opportunities, including approved user submissions, are shared with Edutu users and API customers.",
         contact: {
           name: "Edutu",
           url: docsUrl,
         },
+      },
+      "x-edutu-contract": {
+        authenticationBoundary: {
+          clerk: ["/developer/*", "/dashboard/developer"],
+          apiKey: ["/v1/*"],
+        },
+        credits: {
+          startingBalance: 0,
+          topUps: "one_time",
+          expiry: "never",
+          chargeableRequestCost: 1,
+          freeEndpoints: FREE_ENDPOINTS,
+          chargeableEndpoints: CHARGEABLE_ENDPOINTS,
+          exhausted: {
+            status: 402,
+            code: "credits_exhausted",
+            operationExecuted: false,
+          },
+        },
+        opportunityVisibility:
+          "Only approved opportunities are returned. Approved user submissions become global catalog records visible to Edutu users and API customers.",
+        integration:
+          "Server-to-server by default. Browser use requires approved CORS and exposes the API key to the browser.",
       },
       servers: [
         {
@@ -291,7 +386,15 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
             type: "http",
             scheme: "bearer",
             bearerFormat: "opaque api key",
-            description: "Bearer token form of the same customer API key.",
+            description:
+              "Bearer form of the same Edutu API key. This is not a Clerk user session token.",
+          },
+          clerkAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "Clerk session token",
+            description:
+              "Clerk authenticates the Edutu developer dashboard and /developer/* routes; it is not accepted as credentials for /v1 operations.",
           },
         },
         parameters: {
@@ -656,9 +759,13 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   code: {
                     type: ["string", "null"],
                     enum: [
+                      "missing_api_key",
+                      "invalid_api_key",
+                      "scope_required",
                       "rate_limit_exceeded",
                       "quota_exceeded",
                       "credits_exhausted",
+                      "billing_unavailable",
                       null,
                     ],
                     description:
@@ -696,7 +803,6 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   },
                 },
               },
-              "401": { description: "Missing or invalid API key" },
             },
           },
         },
@@ -749,7 +855,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                 },
               },
               "402": {
-                description: "Monthly quota exceeded (code: quota_exceeded)",
+                description:
+                  "Payment Required: code quota_exceeded for monthly quota or credits_exhausted when the account has zero credits. The paid operation does not execute when credits are exhausted.",
                 content: {
                   "application/json": {
                     schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -778,6 +885,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           get: {
             tags: ["Opportunities"],
             summary: "Inspect catalog health and coverage",
+            description:
+              "Inspect the approved opportunity catalog. This chargeable request costs one credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             responses: {
               "200": {
@@ -790,6 +899,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   },
                 },
               },
+              ...chargeableErrorResponses,
             },
           },
         },
@@ -798,7 +908,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
             tags: ["Opportunities"],
             summary: "Pull changes since the last sync window",
             description:
-              "Delta sync. Pass updatedSince to receive only rows changed on or after that timestamp. Requires the opportunities:sync scope.",
+              "Delta sync of approved opportunities. Pass updatedSince to receive only rows changed on or after that timestamp. Requires the opportunities:sync scope and costs one credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             parameters: [
               { $ref: "#/components/parameters/OpportunityUpdatedSince" },
@@ -831,6 +941,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   "Retry-After": { schema: { type: "integer" } },
                 },
               },
+              ...chargeableErrorResponses,
             },
           },
         },
@@ -838,6 +949,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           get: {
             tags: ["Opportunities"],
             summary: "Fetch a single opportunity by ID",
+            description:
+              "Fetch one approved opportunity. This chargeable request costs one credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             parameters: [
               {
@@ -857,6 +970,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                 },
               },
               "404": { description: "Opportunity not found" },
+              ...chargeableErrorResponses,
             },
           },
         },
@@ -864,6 +978,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           get: {
             tags: ["Categories"],
             summary: "Return the stable category list",
+            description:
+              "Discover stable category metadata. This endpoint is free, but requires an Edutu API key with opportunities:read so results are associated with the consumer.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             responses: {
               "200": {
@@ -883,6 +999,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           get: {
             tags: ["Usage"],
             summary: "Inspect quota and credits for the current consumer",
+            description:
+              "Inspect quota and credit balance. This endpoint is free and does not consume a credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             responses: {
               "200": {
@@ -900,6 +1018,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           post: {
             tags: ["Recommendations"],
             summary: "Retrieve ranked opportunity recommendations",
+            description:
+              "Retrieve ranked approved opportunities for a supplied profile. This chargeable request costs one credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             responses: {
               "200": {
@@ -912,6 +1032,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   },
                 },
               },
+              ...chargeableErrorResponses,
             },
           },
         },
@@ -919,6 +1040,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           post: {
             tags: ["Events"],
             summary: "Record a partner event",
+            description:
+              "Record a partner event. This chargeable request costs one credit.",
             security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
             responses: {
               "200": {
@@ -929,6 +1052,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
                   },
                 },
               },
+              ...chargeableErrorResponses,
             },
           },
         },
