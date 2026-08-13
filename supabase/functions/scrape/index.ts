@@ -193,7 +193,7 @@ export function createRequestAuthenticator(
   const env = options.env ?? ((name) => Deno.env.get(name));
   const now = options.now ?? Date.now;
   const verifyClerkAdminToken = options.verifyClerkAdminToken ??
-    verifyClerkAdmin;
+    createClerkAdminVerifier();
 
   return async (request, rawBody) => {
     const signedJob = await authenticateSignedJob(
@@ -264,6 +264,23 @@ async function readBoundedText(
 
 type ClerkJwk = JsonWebKey & { alg?: string; kid?: string };
 
+type ClerkUser = {
+  public_metadata?: { role?: unknown };
+  primary_email_address_id?: string;
+  email_addresses?: Array<{ id?: string; email_address?: string }>;
+};
+
+export type ClerkAdminVerifierOptions = {
+  env?: (name: string) => string | undefined;
+  now?: () => number;
+  fetchJwks?: (issuer: string) => Promise<ClerkJwk[]>;
+  fetchUser?: (
+    subject: string,
+    clerkSecret: string,
+    signal: AbortSignal,
+  ) => Promise<ClerkUser | null>;
+};
+
 const jwksCache = new Map<string, { expiresAt: number; keys: ClerkJwk[] }>();
 
 async function getClerkJwks(issuer: string): Promise<ClerkJwk[]> {
@@ -293,6 +310,7 @@ async function getClerkJwks(issuer: string): Promise<ClerkJwk[]> {
 async function verifyClerkJwt(
   token: string,
   issuer: string,
+  options: Pick<ClerkAdminVerifierOptions, "now" | "fetchJwks"> = {},
 ): Promise<Record<string, unknown>> {
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Invalid token");
@@ -301,7 +319,7 @@ async function verifyClerkJwt(
   if (header.alg !== "RS256" || !header.kid || payload.iss !== issuer) {
     throw new Error("Invalid token");
   }
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor((options.now ?? Date.now)() / 1000);
   if (typeof payload.exp !== "number" || payload.exp < now - 10) {
     throw new Error("Invalid token");
   }
@@ -309,7 +327,10 @@ async function verifyClerkJwt(
     throw new Error("Invalid token");
   }
 
-  const jwk = (await getClerkJwks(issuer)).find((candidate) =>
+  const jwks = options.fetchJwks
+    ? await options.fetchJwks(issuer)
+    : await getClerkJwks(issuer);
+  const jwk = jwks.find((candidate) =>
     candidate.kid === header.kid && candidate.kty === "RSA" &&
     (!candidate.alg || candidate.alg === "RS256")
   );
@@ -331,68 +352,82 @@ async function verifyClerkJwt(
   return payload;
 }
 
-async function verifyClerkAdmin(
-  token: string,
-  request: Request,
-): Promise<ClerkAdminResult> {
-  const issuerValue = Deno.env.get("CLERK_ISSUER_URL")?.trim();
-  const clerkSecret = Deno.env.get("CLERK_SECRET_KEY")?.trim();
-  const parties = (Deno.env.get("CLERK_AUTHORIZED_PARTIES") ?? "")
-    .split(",").map((value) => value.trim()).filter(Boolean).map(
-      normalizeOrigin,
-    );
-  if (!issuerValue || !clerkSecret || parties.length === 0) return null;
-  const issuerUrl = new URL(issuerValue);
-  if (
-    issuerUrl.protocol !== "https:" ||
-    issuerUrl.origin !== issuerValue.replace(/\/$/, "")
-  ) return null;
-  const issuer = issuerUrl.origin;
-  const payload = await verifyClerkJwt(token, issuer);
-  const subject = typeof payload.sub === "string" ? payload.sub : "";
-  const authorizedParty = typeof payload.azp === "string"
-    ? normalizeOrigin(payload.azp)
-    : "";
-  if (!subject || !parties.includes(authorizedParty)) return null;
-  const origin = request.headers.get("origin");
-  if (origin && normalizeOrigin(origin) !== authorizedParty) return null;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5_000);
-  try {
-    const response = await fetch(
-      `https://api.clerk.com/v1/users/${encodeURIComponent(subject)}`,
-      {
-        signal: controller.signal,
-        headers: {
-          authorization: `Bearer ${clerkSecret}`,
-          accept: "application/json",
-        },
+async function fetchClerkUser(
+  subject: string,
+  clerkSecret: string,
+  signal: AbortSignal,
+): Promise<ClerkUser | null> {
+  const response = await fetch(
+    `https://api.clerk.com/v1/users/${encodeURIComponent(subject)}`,
+    {
+      signal,
+      headers: {
+        authorization: `Bearer ${clerkSecret}`,
+        accept: "application/json",
       },
-    );
-    if (!response.ok) return null;
-    const user = JSON.parse(
-      await readBoundedText(response, MAX_AI_RESPONSE_BYTES),
-    ) as {
-      public_metadata?: { role?: unknown };
-      primary_email_address_id?: string;
-      email_addresses?: Array<{ id?: string; email_address?: string }>;
-    };
-    const role = user.public_metadata?.role;
-    if (typeof role === "string" && TRUSTED_ADMIN_ROLES.has(role)) {
-      return { status: "admin", subject };
+    },
+  );
+  if (!response.ok) return null;
+  return JSON.parse(
+    await readBoundedText(response, MAX_AI_RESPONSE_BYTES),
+  ) as ClerkUser;
+}
+
+export function createClerkAdminVerifier(
+  options: ClerkAdminVerifierOptions = {},
+): (token: string, request: Request) => Promise<ClerkAdminResult> {
+  const env = options.env ?? ((name) => Deno.env.get(name));
+  const now = options.now ?? Date.now;
+
+  return async (token, request): Promise<ClerkAdminResult> => {
+    const issuerValue = env("CLERK_ISSUER_URL")?.trim();
+    const clerkSecret = env("CLERK_SECRET_KEY")?.trim();
+    const parties = (env("CLERK_AUTHORIZED_PARTIES") ?? "")
+      .split(",").map((value) => value.trim()).filter(Boolean).map(
+        normalizeOrigin,
+      );
+    if (!issuerValue || !clerkSecret || parties.length === 0) return null;
+    const issuerUrl = new URL(issuerValue);
+    if (
+      issuerUrl.protocol !== "https:" ||
+      issuerUrl.origin !== issuerValue.replace(/\/$/, "")
+    ) return null;
+    const issuer = issuerUrl.origin;
+    const payload = await verifyClerkJwt(token, issuer, {
+      now,
+      fetchJwks: options.fetchJwks,
+    });
+    const subject = typeof payload.sub === "string" ? payload.sub : "";
+    const authorizedParty = typeof payload.azp === "string"
+      ? normalizeOrigin(payload.azp)
+      : "";
+    if (!subject || !parties.includes(authorizedParty)) return null;
+    const origin = request.headers.get("origin");
+    if (origin && normalizeOrigin(origin) !== authorizedParty) return null;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      const user = options.fetchUser
+        ? await options.fetchUser(subject, clerkSecret, controller.signal)
+        : await fetchClerkUser(subject, clerkSecret, controller.signal);
+      if (!user) return null;
+      const role = user.public_metadata?.role;
+      if (typeof role === "string" && TRUSTED_ADMIN_ROLES.has(role)) {
+        return { status: "admin", subject };
+      }
+      const primaryEmail = user.email_addresses?.find((email) =>
+        email.id === user.primary_email_address_id
+      )?.email_address?.toLowerCase();
+      const adminEmails = (env("ADMIN_EMAILS") ?? "")
+        .split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
+      return primaryEmail && adminEmails.includes(primaryEmail)
+        ? { status: "admin", subject }
+        : { status: "forbidden" };
+    } finally {
+      clearTimeout(timer);
     }
-    const primaryEmail = user.email_addresses?.find((email) =>
-      email.id === user.primary_email_address_id
-    )?.email_address?.toLowerCase();
-    const adminEmails = (Deno.env.get("ADMIN_EMAILS") ?? "")
-      .split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
-    return primaryEmail && adminEmails.includes(primaryEmail)
-      ? { status: "admin", subject }
-      : { status: "forbidden" };
-  } finally {
-    clearTimeout(timer);
-  }
+  };
 }
 
 function sanitizePageText(html: string): string {
