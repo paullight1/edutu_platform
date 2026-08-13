@@ -2,10 +2,12 @@
 
 ## Purpose and trust boundary
 
-`supabase/functions/scrape` fetches and extracts one page from an explicitly
-approved scholarship source. It is not a general proxy. The handler authenticates
-the caller before resolving or fetching the submitted URL and returns generic
-errors so callers cannot use it to probe target reachability.
+`supabase/functions/scrape` extracts one page from an explicitly approved
+scholarship source through the Render egress service. It is not a general
+proxy. The handler authenticates the caller and validates the exact target
+allowlist before signing a request to the configured egress route; only the
+backend egress service resolves or fetches the target URL. Generic errors keep
+callers from probing target reachability.
 
 The function does not write to Supabase. Any future persistence must remain in a
 backend or worker that uses a server-side service-role credential; never expose a
@@ -20,6 +22,9 @@ Configure these as Edge Function secrets without recording their values:
 | `SCRAPE_ALLOWED_HOSTS` | Comma-separated exact hostnames. No wildcards, schemes, ports, paths, or implicit subdomains. Start only with currently approved sources such as `opportunitiescircle.com`, `oyaopportunities.com`, `globalscholardesk.com`, `scholars4dev.com`, and `www.scholarshipportal.com`; remove any source not operationally approved. |
 | `SCRAPE_ALLOWED_ORIGINS` | Comma-separated exact admin browser origins. Wildcards and `null` are rejected. HTTPS is required except for loopback development origins. |
 | `SCRAPE_INTERNAL_JOB_SECRET` | Random secret of at least 32 characters, stored only by the function and trusted scheduler. |
+| `SCRAPE_EGRESS_URL` | Required HTTPS URL for the backend `POST /internal/scraper-egress` route. It must be the exact deployed route, not a target page URL or a generic proxy. Missing or non-HTTPS configuration fails closed. |
+| `SCRAPE_EGRESS_SHARED_SECRET` | Required server-only HMAC secret of at least 32 bytes. It must exactly match the Render `SCRAPE_EGRESS_SHARED_SECRET`; never expose or log its value. |
+| `SCRAPE_EGRESS_PRINCIPAL` | Optional stable principal sent to Render in `x-edutu-egress-principal`; defaults to `edge-job`. |
 | `CLERK_ISSUER_URL` | Exact HTTPS origin for the production Clerk instance. |
 | `CLERK_AUTHORIZED_PARTIES` | Comma-separated exact Clerk authorized-party origins. |
 | `CLERK_SECRET_KEY` | Server-only Clerk key used to load server-controlled role/email data after JWT verification. |
@@ -58,14 +63,15 @@ repository.
 
 ## Network and response controls
 
-Only HTTPS URLs on an exact configured hostname are accepted. Credentials,
-non-default ports, fragments, wildcard/subdomain matching, non-HTML responses,
-private/loopback/link-local/reserved IPv4 or IPv6 answers, and over-limit bodies
-are rejected. Redirects are manual and each destination is reparsed, re-allowlisted,
-and DNS-checked. DNS or runtime API failure is fail-closed. The response body is
-streamed under the byte limit, and one abort deadline covers DNS, redirects, and
-download. Attacker-controlled page text is stripped and capped at 8,000 characters
-before provider input; provider output is capped at 65,536 bytes.
+Only HTTPS URLs on an exact configured hostname are accepted before signing.
+Credentials, non-default ports, fragments, wildcard/subdomain matching, and
+missing egress configuration are rejected. The signed POST contains exactly
+`{"url":"..."}` and uses HMAC-SHA256 over
+`<timestamp>.<principal>.<exact raw body>`. Render performs DNS/private-network,
+redirect, timeout, response-size, and HTML-content enforcement before returning
+the `{text, finalUrl}` result. Attacker-controlled page text is stripped and
+capped at 8,000 characters before provider input; provider output is capped at
+65,536 bytes.
 
 The in-isolate rate limiter is defense in depth, not a globally distributed quota.
 Keep platform/API-gateway rate limiting enabled for production traffic.
@@ -73,8 +79,59 @@ Keep platform/API-gateway rate limiting enabled for production traffic.
 ## Pre-deployment verification
 
 Do not deploy until an authorized operator has confirmed the production project,
-Clerk issuer, deployed function identity/auth mode, and exact source/origin lists.
-No live evidence is established by repository state.
+Clerk issuer, deployed function identity/auth mode, exact source/origin lists,
+and the matching Edge/Render egress configuration.
+
+### Render egress enablement sequence
+
+Use this order so the Edge function never becomes dependent on an unconfigured
+or unauthenticated route:
+
+1. Identify and record the production Supabase project ref, Render service, and
+   release commit. Generate one random HMAC secret of at least 32 bytes; place
+   it in the Edge secret store as `SCRAPE_EGRESS_SHARED_SECRET` and in Render as
+   `SCRAPE_EGRESS_SHARED_SECRET`. Compare configured secret values through the
+   secret manager, not by printing them.
+2. Configure Edge `SCRAPE_EGRESS_URL` to the exact HTTPS URL whose path is the
+   backend `POST /internal/scraper-egress` route. Do not point it at a source
+   hostname, redirect target, or generic proxy. Keep the Edge function
+   fail-closed until the route is deployed.
+3. Deploy the backend route with the same shared secret and matching exact
+   `SCRAPE_EGRESS_ALLOWED_HOSTS` values. Keep the Render egress service disabled
+   until the route and configuration are present; then set
+   `SCRAPE_EGRESS_ENABLED=true` in Render and restart/redeploy the service.
+4. Verify the signed route contract in staging or the approved canary path:
+   `POST /internal/scraper-egress`, JSON body exactly `{"url":"..."}`, headers
+   `x-edutu-egress-timestamp`, `x-edutu-egress-signature`, and
+   `x-edutu-egress-principal`, with HMAC over
+   `<timestamp>.<principal>.<exact raw body>`. A missing/mismatched secret,
+   wrong route, disabled backend, or disallowed source must fail generically.
+5. Deploy the Edge function only after the Render route is ready, then run the
+   approved-source and disallowed-source smoke tests. Never enable the Edge
+   path with a placeholder secret or a route that accepts unsigned requests.
+
+### Mandatory Supabase advisor release gate
+
+An operator must complete both advisor checks for the identified production
+project before release. Repository tests are not a substitute for live advisor
+evidence. Record the following in the release report or change ticket:
+
+```text
+Supabase project ref: <exact production project ref>
+Release commit / deployed Edge revision: <commit or revision>
+Security Advisor completed: <YYYY-MM-DDTHH:MM:SSZ>
+Security Advisor result: <no unresolved release-blocking findings / details>
+Performance Advisor completed: <YYYY-MM-DDTHH:MM:SSZ>
+Performance Advisor result: <no unresolved release-blocking findings / details>
+Operator: <named operator>
+```
+
+The timestamps must be UTC and tied to the exact project ref and release
+revision. The release is blocked if either advisor result is missing, belongs
+to a different project, is not timestamped, or has an unresolved critical/high
+finding relevant to this change. Run the Security Advisor and Performance
+Advisor from the Supabase Dashboard for that project (or the approved
+project-scoped CLI/MCP equivalent) immediately before the production release.
 
 Run locally:
 

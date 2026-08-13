@@ -489,6 +489,49 @@ Deno.test("safe fetch turns a backend error into a generic SafeFetchError", asyn
   });
 });
 
+Deno.test("production scrape path rejects a disallowed URL before signed egress fetch", async () => {
+  let egressCalls = 0;
+  await withEnv({
+    SCRAPE_ALLOWED_HOSTS: "approved.example",
+    SCRAPE_EGRESS_URL: "https://egress.example/internal/scraper-egress",
+    SCRAPE_EGRESS_SHARED_SECRET: "s".repeat(32),
+    SCRAPE_EGRESS_PRINCIPAL: "edge-job",
+  }, async () => {
+    await withFetch(async () => {
+      egressCalls += 1;
+      return Response.json({
+        text: "unexpected",
+        finalUrl: "https://disallowed.example/page",
+      });
+    }, async () => {
+      const handler = createScrapeHandler({
+        allowedOrigins: [],
+        authenticate: async () => ({
+          ok: true,
+          kind: "job",
+          principal: "job:daily-scholarship-import",
+        }),
+        extractOpportunity: async () => ({}),
+      });
+
+      const response = await handler(
+        new Request("https://edge.test/scrape", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: "https://disallowed.example/page" }),
+        }),
+      );
+
+      assertEquals(response.status, 502);
+      assertEquals(
+        await response.text(),
+        '{"error":"Request could not be processed"}',
+      );
+    });
+  });
+  assertEquals(egressCalls, 0);
+});
+
 Deno.test("scrape handler returns only a generic error when an approved upstream fails", async () => {
   const handler = createScrapeHandler({
     allowedOrigins: [],

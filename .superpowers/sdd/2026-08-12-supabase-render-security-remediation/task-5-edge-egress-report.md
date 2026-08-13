@@ -34,3 +34,23 @@ DONE_WITH_CONCERNS
   direct-fetch fixture used by the pre-existing SSRF/streaming tests. The
   production `safeFetchApprovedPage` path no longer calls it or fetches target
   hosts directly.
+
+## Boole follow-up (2026-08-13)
+
+- Added a production-path regression test through `createScrapeHandler` proving
+  a disallowed URL returns the generic failure and makes zero signed egress
+  calls/fetches.
+- Updated `docs/security/scrape-function-runbook.md` with the required
+  `SCRAPE_EGRESS_URL` and `SCRAPE_EGRESS_SHARED_SECRET` configuration, the
+  matching Render `SCRAPE_EGRESS_ENABLED=true` rollout sequence and route/secret
+  contract, and a project-identified, UTC-timestamped Supabase Security Advisor
+  plus Performance Advisor release gate.
+
+## Boole follow-up verification
+
+- `npx --yes deno test --allow-env --allow-net supabase/functions/scrape/index_test.ts` — 25 passed, 0 failed.
+- `npx --yes deno check --allow-import supabase/functions/scrape/index.ts` — passed.
+- `git diff --check` — passed.
+- No live Render or Supabase Advisor evidence was generated; the documented
+  project-identified, UTC-timestamped advisor gate remains mandatory before
+  production release.
