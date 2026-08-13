@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import DeveloperDashboardPage from '../../components/DeveloperDashboardPage';
 
@@ -123,6 +123,13 @@ describe('developer dashboard credit top-ups', () => {
     });
     mocks.billingRefresh.mockReset();
     mocks.billingStatus.transactions = [];
+    mocks.billingStatus.credits = 0;
+    sessionStorage.clear();
+    vi.stubGlobal('open', vi.fn().mockReturnValue(window));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('shows a zero balance, configured packs, and keeps project creation enabled', async () => {
@@ -136,7 +143,7 @@ describe('developer dashboard credit top-ups', () => {
     expect(document.body.textContent).not.toMatch(/recurring subscription/i);
   });
 
-  it('uses the selected product key, refreshes status, and keeps checkout idempotent', async () => {
+  it('uses the selected product key and keeps checkout idempotent', async () => {
     renderDashboard();
 
     const purchase = await screen.findByRole('button', { name: /buy 700 credits/i });
@@ -151,14 +158,48 @@ describe('developer dashboard credit top-ups', () => {
           idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
         }),
       );
-      expect(mocks.billingRefresh).toHaveBeenCalled();
     });
 
     const firstInput = mocks.createCheckout.mock.calls[0][1];
     fireEvent.click(screen.getByRole('button', { name: /continue to secure checkout/i }));
+    expect(window.open).toHaveBeenCalledWith(
+      'https://checkout.bachs.io/session/1',
+      '_blank',
+      'noopener,noreferrer',
+    );
     expect(firstInput).not.toHaveProperty('price');
     expect(firstInput).not.toHaveProperty('credits');
     expect(firstInput).not.toHaveProperty('currency');
+  });
+
+  it('keeps the dashboard handoff pending and refreshes billing when focus returns', async () => {
+    renderDashboard();
+
+    fireEvent.click(await screen.findByRole('button', { name: /buy 100 credits/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /continue to secure checkout/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
+
+    fireEvent(window, new Event('focus'));
+
+    await waitFor(() => expect(mocks.billingRefresh).toHaveBeenCalled());
+  });
+
+  it('shows a confirmed state after the returned balance increases', async () => {
+    const view = renderDashboard();
+
+    fireEvent.click(await screen.findByRole('button', { name: /buy 700 credits/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /continue to secure checkout/i }));
+
+    mocks.billingStatus = { ...mocks.billingStatus, credits: 700 };
+    view.rerender(
+      <MemoryRouter initialEntries={['/dashboard/developer']}>
+        <DeveloperDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/payment confirmed/i);
+    expect(screen.getByText(/700 api credits available/i)).toBeInTheDocument();
   });
 
   it('explains unavailable checkout without claiming that credits were purchased', async () => {
@@ -194,7 +235,7 @@ describe('developer dashboard credit top-ups', () => {
 
     renderDashboard();
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/payment processing/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
     fireEvent.click(screen.getByRole('button', { name: /check balance again/i }));
     expect(mocks.billingRefresh).toHaveBeenCalled();
   });

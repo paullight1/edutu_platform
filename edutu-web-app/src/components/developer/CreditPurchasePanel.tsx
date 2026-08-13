@@ -12,6 +12,7 @@ export interface CreditPurchasePanelProps {
   checkoutToConfirm: CheckoutResponse | null;
   checkoutError: { code: string | null; message: string } | null;
   hasPendingPayment: boolean;
+  paymentState: 'idle' | 'pending' | 'confirmed';
   onPurchase: (productKey: string) => void;
   onContinueToCheckout: () => void;
   onRefreshBilling: () => void;
@@ -54,6 +55,7 @@ export default function CreditPurchasePanel({
   checkoutToConfirm,
   checkoutError,
   hasPendingPayment,
+  paymentState,
   onPurchase,
   onContinueToCheckout,
   onRefreshBilling,
@@ -91,11 +93,18 @@ export default function CreditPurchasePanel({
         </div>
       </div>
 
-      {hasPendingPayment ? (
-        <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text-primary" role="status">
-          <p className="font-semibold">Payment processing</p>
+      {paymentState === 'confirmed' ? (
+        <div className="mt-5 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-text-primary" role="status">
+          <p className="font-semibold">Payment confirmed</p>
           <p className="mt-1 leading-6 text-text-muted">
-            Your payment is pending provider confirmation. Credits appear only after verification; refresh this page to check again.
+            Your API credit balance has been refreshed from the verified billing status.
+          </p>
+        </div>
+      ) : paymentState === 'pending' || hasPendingPayment ? (
+        <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text-primary" role="status">
+          <p className="font-semibold">Waiting for payment confirmation</p>
+          <p className="mt-1 leading-6 text-text-muted">
+            Credits appear only after provider verification. Keep this dashboard open and check your balance again after returning from secure checkout.
           </p>
           <button
             type="button"

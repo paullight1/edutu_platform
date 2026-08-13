@@ -77,6 +77,15 @@ type GeneratedKey = CreateDeveloperProjectResult & {
   copied?: boolean;
 };
 
+const CREDIT_CHECKOUT_HANDOFF_KEY = "edutu.billing.dashboard-handoff";
+const CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS = 30 * 60 * 1000;
+
+type CreditCheckoutHandoff = {
+  intentId: string;
+  startingCredits: number;
+  state: "pending" | "confirmed";
+};
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Never";
   const parsed = new Date(value);
@@ -171,8 +180,10 @@ export default function DeveloperDashboardPage() {
   const [checkoutLoadingProductKey, setCheckoutLoadingProductKey] = useState<string | null>(null);
   const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
   const [checkoutError, setCheckoutError] = useState<{ code: string | null; message: string } | null>(null);
+  const [checkoutHandoff, setCheckoutHandoff] = useState<CreditCheckoutHandoff | null>(null);
   const checkoutActionKeys = useRef<Record<string, string>>({});
   const checkoutEnabled = isBachsCheckoutEnabled();
+  const refreshBilling = billing.refresh;
 
   const loadDashboard = useCallback(async () => {
     if (!isLoaded) return;
@@ -354,7 +365,6 @@ export default function DeveloperDashboardPage() {
       });
       delete checkoutActionKeys.current[productKey];
       setCheckoutToConfirm(checkout);
-      await billing.refresh();
     } catch (checkoutError) {
       setCheckoutError({
         code:
@@ -371,8 +381,83 @@ export default function DeveloperDashboardPage() {
 
   const continueToCheckout = () => {
     if (!checkoutToConfirm) return;
-    window.location.assign(checkoutToConfirm.checkoutUrl);
+
+    const handoff: CreditCheckoutHandoff = {
+      intentId: checkoutToConfirm.intentId,
+      startingCredits: billing.status?.credits ?? 0,
+      state: "pending",
+    };
+    sessionStorage.setItem(CREDIT_CHECKOUT_HANDOFF_KEY, JSON.stringify({
+      ...handoff,
+      startedAt: Date.now(),
+    }));
+    setCheckoutHandoff(handoff);
+    setCheckoutToConfirm(null);
+
+    const checkoutWindow = window.open(
+      checkoutToConfirm.checkoutUrl,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (!checkoutWindow) {
+      window.location.assign(checkoutToConfirm.checkoutUrl);
+    }
   };
+
+  const refreshAfterCheckoutReturn = useCallback(() => {
+    let stored: (CreditCheckoutHandoff & { startedAt?: number }) | null = null;
+    try {
+      const raw = sessionStorage.getItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object") {
+        const candidate = parsed as Record<string, unknown>;
+        if (
+          typeof candidate.intentId === "string" &&
+          typeof candidate.startingCredits === "number" &&
+          (candidate.state === "pending" || candidate.state === "confirmed") &&
+          (candidate.startedAt === undefined || typeof candidate.startedAt === "number")
+        ) {
+          stored = candidate as (CreditCheckoutHandoff & { startedAt?: number });
+        }
+      }
+    } catch {
+      stored = null;
+    }
+
+    if (!stored) return;
+    if (stored.startedAt && Date.now() - stored.startedAt > CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS) {
+      sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+      return;
+    }
+
+    setCheckoutHandoff((current) => current ?? {
+      intentId: stored!.intentId,
+      startingCredits: stored!.startingCredits,
+      state: stored!.state,
+    });
+    void refreshBilling();
+  }, [refreshBilling]);
+
+  useEffect(() => {
+    const handleReturn = () => {
+      if (document.visibilityState === "visible") refreshAfterCheckoutReturn();
+    };
+    window.addEventListener("focus", handleReturn);
+    document.addEventListener("visibilitychange", handleReturn);
+    refreshAfterCheckoutReturn();
+    return () => {
+      window.removeEventListener("focus", handleReturn);
+      document.removeEventListener("visibilitychange", handleReturn);
+    };
+  }, [refreshAfterCheckoutReturn]);
+
+  useEffect(() => {
+    if (!checkoutHandoff || checkoutHandoff.state !== "pending" || !billing.status) return;
+    if (billing.status.credits <= checkoutHandoff.startingCredits) return;
+
+    setCheckoutHandoff({ ...checkoutHandoff, state: "confirmed" });
+    sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+  }, [billing.status, checkoutHandoff]);
 
   const hasPendingPayment = Boolean(
     billing.status?.transactions?.some(
@@ -1109,6 +1194,7 @@ Implement:
                   message: billing.error ?? "Unable to load billing status",
                 } : null)}
                 hasPendingPayment={hasPendingPayment}
+                paymentState={checkoutHandoff?.state ?? "idle"}
                 onPurchase={(productKey) => void handleTopUpCredits(productKey)}
                 onContinueToCheckout={continueToCheckout}
                 onRefreshBilling={() => void billing.refresh()}
