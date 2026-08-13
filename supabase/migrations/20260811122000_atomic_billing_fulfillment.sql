@@ -17,7 +17,20 @@ create table if not exists public.credit_transactions (
 
 -- Legacy installations may have used UUID profile keys. Preserve the exact
 -- existing value as text; identity reconciliation is handled by aliases.
-alter table public.credit_transactions alter column user_id type text using user_id::text;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'credit_transactions'
+      and column_name = 'user_id'
+      and data_type <> 'text'
+  ) then
+    execute 'alter table public.credit_transactions alter column user_id type text using user_id::text';
+  end if;
+end;
+$$;
 
 create index if not exists billing_credit_transactions_resource_idx
   on public.credit_transactions (related_type, related_id)
