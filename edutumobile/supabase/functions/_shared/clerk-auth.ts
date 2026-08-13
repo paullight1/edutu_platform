@@ -43,17 +43,47 @@ function decodeJson<T>(input: string): T {
   return JSON.parse(new TextDecoder().decode(base64UrlDecode(input))) as T;
 }
 
-function isProductionMode(mode: string): boolean {
-  return mode === 'production' || mode === 'prod';
+type DeploymentMode = 'production' | 'development' | 'test';
+
+function resolveDeploymentMode(
+  options: ClerkVerifierOptions,
+  readEnv: (name: string) => string | undefined,
+): DeploymentMode {
+  const signals = [
+    readEnv('NODE_ENV'),
+    readEnv('DEPLOYMENT_MODE'),
+    options.deploymentMode,
+  ].filter((value): value is string => Boolean(value?.trim())).map((value) =>
+    value.trim().toLowerCase()
+  );
+  const allowed = new Set<DeploymentMode>([
+    'production',
+    'development',
+    'test',
+  ]);
+  for (const signal of signals) {
+    if (!allowed.has(signal as DeploymentMode)) {
+      throw new Error(`Unknown deployment mode: ${signal}`);
+    }
+  }
+
+  const uniqueSignals = [...new Set(signals)];
+  if (uniqueSignals.length === 0) {
+    throw new Error('Deployment mode must be explicitly configured');
+  }
+  if (uniqueSignals.length > 1) {
+    throw new Error('Conflicting deployment modes configured');
+  }
+  return uniqueSignals[0] as DeploymentMode;
 }
 
 function resolveIssuer(options: ClerkVerifierOptions): string {
   const readEnv = options.env ?? ((name) => Deno.env.get(name));
+  const deploymentMode = resolveDeploymentMode(options, readEnv);
   const configuredIssuer = options.issuer?.trim() ||
     readEnv('CLERK_ISSUER_URL')?.trim();
-  const mode = (options.deploymentMode ?? readEnv('DEPLOYMENT_MODE') ??
-    readEnv('NODE_ENV') ?? '').trim().toLowerCase();
-  const explicitNonProduction = mode.length > 0 && !isProductionMode(mode);
+  const explicitNonProduction = deploymentMode === 'development' ||
+    deploymentMode === 'test';
 
   if (!configuredIssuer && !explicitNonProduction) {
     throw new Error(

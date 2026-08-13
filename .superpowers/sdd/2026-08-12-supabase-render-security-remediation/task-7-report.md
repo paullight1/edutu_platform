@@ -22,6 +22,9 @@ COMPLETE_WITH_LIVE_VERIFICATION_HOLD
 - Issuer, expiry, not-before, subject, algorithm, `kid`, and signature checks
   fail closed.
 - Explicit non-production mode preserves the development issuer fallback.
+- Deployment mode resolution validates all `NODE_ENV`, `DEPLOYMENT_MODE`, and
+  injected test signals. Production wins when both signals agree; conflicting
+  production/development signals, unknown modes, and missing mode fail closed.
 - `chat-proxy`, `delete-account`, and `report-ai-content` already use the
   shared verifier. Svix and RevenueCat webhook handlers use separate webhook
   authentication boundaries and were not changed. Weekly digest was excluded.
@@ -44,3 +47,12 @@ The broader check including `edutumobile/supabase/functions/chat-proxy/index.ts`
 was also run and failed on an unrelated pre-existing Deno 2 type error at
 `chat-proxy/index.ts:452` (`Uint8Array<ArrayBufferLike>` passed to `Blob`). That
 file was not modified in this task.
+
+## P1 review follow-up
+
+- Added regression tests for `NODE_ENV=production` with
+  `DEPLOYMENT_MODE=development`, the inverse production/development conflict,
+  and unknown deployment mode.
+- `npx --yes deno test --allow-env --allow-net edutumobile/supabase/functions/_shared/clerk-auth_test.ts` — **9 passed, 0 failed**.
+- `npx --yes deno check edutumobile/supabase/functions/_shared/clerk-auth.ts edutumobile/supabase/functions/_shared/clerk-auth_test.ts edutumobile/supabase/functions/delete-account/index.ts edutumobile/supabase/functions/report-ai-content/index.ts` — **exit code 0**.
+- `git diff --check` — **exit code 0**.

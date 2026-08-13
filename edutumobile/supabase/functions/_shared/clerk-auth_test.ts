@@ -86,11 +86,10 @@ function verifierOptions(
   values: Record<string, string | undefined> = {
     CLERK_ISSUER_URL: PRODUCTION_ISSUER,
   },
-  deploymentMode = "production",
+  deploymentMode?: string,
 ) {
-  return {
+  const options = {
     env: env(values),
-    deploymentMode,
     now: () => NOW_SECONDS * 1000,
     fetchImpl: async (input: RequestInfo | URL) => {
       assert(
@@ -101,13 +100,16 @@ function verifierOptions(
       return new Response(JSON.stringify({ keys: [publicJwk] }), { status: 200 });
     },
   };
+  return deploymentMode === undefined
+    ? options
+    : { ...options, deploymentMode };
 }
 
 Deno.test("accepts a valid token from the configured production issuer", async () => {
   const token = await signedToken(PRODUCTION_ISSUER);
   const claims = await verifyClerkRequest(
     request(token),
-    verifierOptions(),
+    verifierOptions({ CLERK_ISSUER_URL: PRODUCTION_ISSUER }, "production"),
   );
 
   assertEquals(claims.sub, SUBJECT);
@@ -120,7 +122,7 @@ Deno.test("rejects the known development issuer in production", async () => {
   await assertRejects(() =>
     verifyClerkRequest(
       request(token),
-      verifierOptions({ CLERK_ISSUER_URL: DEVELOPMENT_ISSUER }),
+      verifierOptions({ CLERK_ISSUER_URL: DEVELOPMENT_ISSUER }, "production"),
     )
   );
 });
@@ -128,13 +130,17 @@ Deno.test("rejects the known development issuer in production", async () => {
 Deno.test("rejects a token with an unknown issuer before JWKS verification", async () => {
   const token = await signedToken("https://unknown.example");
 
-  await assertRejects(() => verifyClerkRequest(request(token), verifierOptions()));
+  await assertRejects(() =>
+    verifyClerkRequest(request(token), verifierOptions(undefined, "production"))
+  );
 });
 
 Deno.test("rejects an expired token", async () => {
   const token = await signedToken(PRODUCTION_ISSUER, { exp: NOW_SECONDS - 1 });
 
-  await assertRejects(() => verifyClerkRequest(request(token), verifierOptions()));
+  await assertRejects(() =>
+    verifyClerkRequest(request(token), verifierOptions(undefined, "production"))
+  );
 });
 
 Deno.test("rejects missing and malformed production issuer configuration", async () => {
@@ -163,4 +169,48 @@ Deno.test("allows the development issuer fallback only in explicit development m
   );
 
   assertEquals(claims.iss, DEVELOPMENT_ISSUER);
+});
+
+Deno.test("fails closed when NODE_ENV is production and DEPLOYMENT_MODE is development", async () => {
+  const token = await signedToken(DEVELOPMENT_ISSUER);
+
+  await assertRejects(() =>
+    verifyClerkRequest(
+      request(token),
+      verifierOptions({
+        NODE_ENV: "production",
+        DEPLOYMENT_MODE: "development",
+        CLERK_ISSUER_URL: DEVELOPMENT_ISSUER,
+      }),
+    )
+  );
+});
+
+Deno.test("fails closed when NODE_ENV is development and DEPLOYMENT_MODE is production", async () => {
+  const token = await signedToken(DEVELOPMENT_ISSUER);
+
+  await assertRejects(() =>
+    verifyClerkRequest(
+      request(token),
+      verifierOptions({
+        NODE_ENV: "development",
+        DEPLOYMENT_MODE: "production",
+        CLERK_ISSUER_URL: DEVELOPMENT_ISSUER,
+      }),
+    )
+  );
+});
+
+Deno.test("fails closed for an unknown deployment mode", async () => {
+  const token = await signedToken(DEVELOPMENT_ISSUER);
+
+  await assertRejects(() =>
+    verifyClerkRequest(
+      request(token),
+      verifierOptions({
+        NODE_ENV: "staging",
+        CLERK_ISSUER_URL: DEVELOPMENT_ISSUER,
+      }),
+    )
+  );
 });
