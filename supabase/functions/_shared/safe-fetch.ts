@@ -4,6 +4,8 @@ const DEFAULT_MAX_BYTES = 1_000_000;
 const MAX_CONFIGURED_BYTES = 2_000_000;
 const DEFAULT_MAX_REDIRECTS = 3;
 const MAX_CONFIGURED_REDIRECTS = 5;
+const DEFAULT_EGRESS_PRINCIPAL = "edge-job";
+const GENERIC_EGRESS_ERROR = "Request could not be processed";
 
 export class SafeFetchError extends Error {
   constructor(message: string) {
@@ -413,6 +415,40 @@ function envInteger(name: string): number | undefined {
   return parsed;
 }
 
+function isValidEgressPrincipal(principal: string): boolean {
+  return (
+    principal.length > 0 &&
+    new TextEncoder().encode(principal).byteLength <= 256 &&
+    !/[\u0000-\u001f\u007f-\u009f]/.test(principal)
+  );
+}
+
+async function signEgressRequest(
+  secret: string,
+  timestamp: string,
+  principal: string,
+  rawBody: string,
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signatureBytes = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${timestamp}.${principal}.${rawBody}`),
+    ),
+  );
+  const signature = Array.from(signatureBytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `v1=${signature}`;
+}
+
 export async function safeFetchApprovedPage(
   url: string,
 ): Promise<SafeFetchResult> {
@@ -420,11 +456,101 @@ export async function safeFetchApprovedPage(
     .split(",")
     .map((host) => host.trim())
     .filter(Boolean);
-  const fetchPage = createSafeFetchApprovedPage({
-    allowedHosts,
-    timeoutMs: envInteger("SCRAPE_FETCH_TIMEOUT_MS"),
-    maxBytes: envInteger("SCRAPE_MAX_RESPONSE_BYTES"),
-    maxRedirects: envInteger("SCRAPE_MAX_REDIRECTS"),
-  });
-  return fetchPage(url);
+  const egressUrl = Deno.env.get("SCRAPE_EGRESS_URL")?.trim();
+  const sharedSecret = Deno.env.get("SCRAPE_EGRESS_SHARED_SECRET");
+  if (!egressUrl || !sharedSecret) {
+    throw new SafeFetchError("Egress configuration missing");
+  }
+
+  const principal = Deno.env.get("SCRAPE_EGRESS_PRINCIPAL") ??
+    DEFAULT_EGRESS_PRINCIPAL;
+  if (!isValidEgressPrincipal(principal)) {
+    throw new SafeFetchError("Invalid SCRAPE_EGRESS_PRINCIPAL");
+  }
+
+  let endpoint: URL;
+  try {
+    endpoint = new URL(egressUrl);
+  } catch {
+    throw new SafeFetchError("Invalid SCRAPE_EGRESS_URL");
+  }
+  if (endpoint.protocol !== "https:") {
+    throw new SafeFetchError("Invalid SCRAPE_EGRESS_URL");
+  }
+
+  const allowedHostSet = new Set(allowedHosts.map(normalizeAllowedHost));
+  if (allowedHostSet.size === 0) {
+    throw new SafeFetchError("No allowed hosts configured");
+  }
+  const approvedUrl = parseAndAuthorizeUrl(url, allowedHostSet);
+  const rawBody = JSON.stringify({ url: approvedUrl.toString() });
+  const timeoutMs = boundedInteger(
+    envInteger("SCRAPE_FETCH_TIMEOUT_MS"),
+    DEFAULT_TIMEOUT_MS,
+    MAX_TIMEOUT_MS,
+    "fetch timeout",
+  );
+  const timestamp = Math.floor(Date.now() / 1000).toString().padStart(10, "0");
+  const signature = await signEgressRequest(
+    sharedSecret,
+    timestamp,
+    principal,
+    rawBody,
+  );
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(new DOMException("Fetch timed out", "TimeoutError")),
+    timeoutMs,
+  );
+
+  try {
+    const response = await fetch(egressUrl, {
+      method: "POST",
+      redirect: "error",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        "x-edutu-egress-timestamp": timestamp,
+        "x-edutu-egress-signature": signature,
+        "x-edutu-egress-principal": principal,
+      },
+      body: rawBody,
+    });
+
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new SafeFetchError(GENERIC_EGRESS_ERROR);
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new SafeFetchError(GENERIC_EGRESS_ERROR);
+    }
+    if (
+      !payload ||
+      Array.isArray(payload) ||
+      typeof payload !== "object" ||
+      Object.keys(payload).length !== 2 ||
+      Object.keys(payload).some((key) =>
+        key !== "text" && key !== "finalUrl"
+      ) ||
+      typeof (payload as { text?: unknown }).text !== "string" ||
+      typeof (payload as { finalUrl?: unknown }).finalUrl !== "string" ||
+      (payload as { finalUrl: string }).finalUrl.length === 0
+    ) {
+      throw new SafeFetchError(GENERIC_EGRESS_ERROR);
+    }
+
+    return {
+      text: (payload as { text: string }).text,
+      finalUrl: (payload as { finalUrl: string }).finalUrl,
+    };
+  } catch (error) {
+    if (error instanceof SafeFetchError) throw error;
+    throw new SafeFetchError(GENERIC_EGRESS_ERROR);
+  } finally {
+    clearTimeout(timeout);
+  }
 }

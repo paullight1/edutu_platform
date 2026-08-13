@@ -4,7 +4,11 @@ import {
   createRequestAuthenticator,
   createScrapeHandler,
 } from "./index.ts";
-import { createSafeFetchApprovedPage } from "../_shared/safe-fetch.ts";
+import {
+  createSafeFetchApprovedPage,
+  safeFetchApprovedPage,
+  SafeFetchError,
+} from "../_shared/safe-fetch.ts";
 
 function assert(
   condition: unknown,
@@ -62,6 +66,40 @@ function safeFetcher(overrides: {
     maxRedirects: overrides.maxRedirects ?? 2,
     timeoutMs: overrides.timeoutMs ?? 100,
   });
+}
+
+async function withEnv(
+  values: Record<string, string | undefined>,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const previous = new Map<string, string | undefined>();
+  for (const [name, value] of Object.entries(values)) {
+    previous.set(name, Deno.env.get(name));
+    if (value === undefined) Deno.env.delete(name);
+    else Deno.env.set(name, value);
+  }
+
+  try {
+    await operation();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+}
+
+async function withFetch(
+  fetchImpl: typeof fetch,
+  operation: () => Promise<void>,
+): Promise<void> {
+  const previous = globalThis.fetch;
+  globalThis.fetch = fetchImpl;
+  try {
+    await operation();
+  } finally {
+    globalThis.fetch = previous;
+  }
 }
 
 Deno.test("scrape handler rejects a request with no authentication before fetching", async () => {
@@ -343,6 +381,112 @@ Deno.test("safe fetch returns a bounded approved HTTPS page and final URL", asyn
   assert(result.text.includes("Approved page"));
   assertEquals(result.finalUrl, "https://approved.example/page");
   assertEquals(seenHosts.join(","), "approved.example");
+});
+
+Deno.test("safe fetch fails closed when backend egress configuration is missing", async () => {
+  let fetched = false;
+  await withEnv({
+    SCRAPE_ALLOWED_HOSTS: "approved.example",
+    SCRAPE_EGRESS_URL: undefined,
+    SCRAPE_EGRESS_SHARED_SECRET: undefined,
+  }, async () => {
+    await withFetch(async () => {
+      fetched = true;
+      return Response.json({ text: "unexpected", finalUrl: "" });
+    }, async () => {
+      await assertRejects(() =>
+        safeFetchApprovedPage("https://approved.example/page")
+      );
+    });
+  });
+  assertEquals(fetched, false);
+});
+
+Deno.test("safe fetch signs the exact backend POST contract", async () => {
+  const secret = "s".repeat(32);
+  const egressUrl = "https://egress.example/internal/scraper-egress";
+  let seenInput: unknown;
+  let seenInit: RequestInit | undefined;
+
+  await withEnv({
+    SCRAPE_ALLOWED_HOSTS: "approved.example",
+    SCRAPE_EGRESS_URL: egressUrl,
+    SCRAPE_EGRESS_SHARED_SECRET: secret,
+    SCRAPE_EGRESS_PRINCIPAL: undefined,
+  }, async () => {
+    await withFetch(async (input, init) => {
+      seenInput = input;
+      seenInit = init;
+      return Response.json({
+        text: "Approved page",
+        finalUrl: "https://approved.example/page",
+      });
+    }, async () => {
+      const result = await safeFetchApprovedPage(
+        "https://APPROVED.example/page#fragment",
+      );
+
+      assertEquals(result.text, "Approved page");
+      assertEquals(result.finalUrl, "https://approved.example/page");
+    });
+  });
+
+  assertEquals(seenInput, egressUrl);
+  assertEquals(seenInit?.method, "POST");
+  const headers = new Headers(seenInit?.headers);
+  const body = String(seenInit?.body);
+  const timestamp = headers.get("x-edutu-egress-timestamp");
+  const signature = headers.get("x-edutu-egress-signature");
+  assertEquals(body, '{"url":"https://approved.example/page"}');
+  assertEquals(headers.get("content-type"), "application/json");
+  assertEquals(headers.get("x-edutu-egress-principal"), "edge-job");
+  assert(timestamp !== null && /^\d{10}$/.test(timestamp));
+  assert(signature !== null && /^v1=[a-f0-9]{64}$/.test(signature));
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const expectedBytes = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${timestamp}.edge-job.${body}`),
+    ),
+  );
+  const expected = Array.from(expectedBytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  assertEquals(signature, `v1=${expected}`);
+});
+
+Deno.test("safe fetch turns a backend error into a generic SafeFetchError", async () => {
+  await withEnv({
+    SCRAPE_ALLOWED_HOSTS: "approved.example",
+    SCRAPE_EGRESS_URL: "https://egress.example/internal/scraper-egress",
+    SCRAPE_EGRESS_SHARED_SECRET: "s".repeat(32),
+  }, async () => {
+    await withFetch(async () =>
+      new Response(
+        '{"error":"upstream secret host and response details"}',
+        {
+          status: 502,
+          headers: { "content-type": "application/json" },
+        },
+      ), async () => {
+      let error: unknown;
+      try {
+        await safeFetchApprovedPage("https://approved.example/page");
+      } catch (caught) {
+        error = caught;
+      }
+      assert(error instanceof SafeFetchError);
+      assertEquals(error.message, "Request could not be processed");
+    });
+  });
 });
 
 Deno.test("scrape handler returns only a generic error when an approved upstream fails", async () => {
