@@ -82,14 +82,16 @@ function makeService(durable = false) {
     }),
   };
   const monetization = { chargeCredits: jest.fn(), refundCredits: jest.fn() };
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const service = new OpportunitySubmissionsService(
     notifications as any,
     catalog as any,
     settings as any,
     monetization as any,
     verification as any,
+    audit as any,
   );
-  return { service, catalog, verification, notifications };
+  return { service, catalog, verification, notifications, audit };
 }
 
 function rawSubmission(row: ReturnType<typeof submission>) {
@@ -293,6 +295,61 @@ describe("Task 8 publication corrections", () => {
     await expect(
       service.review(SUBMISSION_ID, ADMIN_ID, { decision: "approved" }),
     ).rejects.toThrow("commit failed");
+  });
+
+  it("audits approval handoff failures without approving or linking the submission", async () => {
+    const { service, catalog, audit } = makeService();
+    const state = transactionFor(submission());
+    catalog.createPendingReviewFromSubmission.mockRejectedValueOnce(
+      new Error("catalog insert failed"),
+    );
+
+    await expect(
+      service.review(SUBMISSION_ID, ADMIN_ID, { decision: "approved" }),
+    ).rejects.toThrow("catalog insert failed");
+
+    expect(audit.log).toHaveBeenCalledWith(
+      "opportunity.submission.review_failed",
+      ADMIN_ID,
+      "opportunity_submission",
+      expect.objectContaining({
+        resourceId: SUBMISSION_ID,
+        decision: "approved",
+        severity: "critical",
+        failureClass: "catalog_publication_boundary",
+      }),
+    );
+    expect(state.state.status).toBe("pending");
+    expect(state.state.approvedOpportunityId).toBeNull();
+  });
+
+  it("audits durable enqueue failures without returning an approval", async () => {
+    const { service, verification, audit } = makeService(true);
+    const state = transactionFor(submission());
+    verification.enqueueSubmissionVerification.mockRejectedValueOnce(
+      new Error("enqueue failed with internal details"),
+    );
+
+    await expect(
+      service.review(SUBMISSION_ID, ADMIN_ID, { decision: "approved" }),
+    ).rejects.toThrow("enqueue failed with internal details");
+
+    expect(audit.log).toHaveBeenCalledWith(
+      "opportunity.submission.review_failed",
+      ADMIN_ID,
+      "opportunity_submission",
+      expect.objectContaining({
+        resourceId: SUBMISSION_ID,
+        failureClass: "catalog_publication_boundary",
+        severity: "critical",
+      }),
+    );
+    expect(audit.log.mock.calls[0][3]).not.toHaveProperty(
+      "error",
+      expect.stringContaining("internal details"),
+    );
+    expect(state.state.status).toBe("pending");
+    expect(state.state.approvedOpportunityId).toBeNull();
   });
 
   it("rejects needs-info decisions without an admin note", async () => {

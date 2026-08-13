@@ -31,6 +31,7 @@ import type {
   ReviewSubmissionDto,
 } from "./dto/opportunity-submission.dto";
 import { isSafeHttpUrl } from "./dto/opportunity-submission.dto";
+import { AuditService } from "../common/audit/audit.service";
 
 type ThreadEntry = { role: "admin" | "user"; message: string; at: string };
 
@@ -45,6 +46,7 @@ export class OpportunitySubmissionsService {
     private readonly monetizationService: MonetizationService,
     @Optional()
     private readonly opportunityVerificationService?: OpportunityVerificationService,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   // ─── User side ──────────────────────────────────────────────────────────
@@ -229,96 +231,41 @@ export class OpportunitySubmissionsService {
       );
     }
 
-    const outcome = await db.transaction(async (tx) => {
-      const row = await this.selectSubmissionForUpdate(tx, id);
-      if (!row) throw new NotFoundException("Submission not found");
-
-      const repeatedDecision = row.status === dto.decision;
-      let approvedOpportunityId = row.approvedOpportunityId ?? null;
-      let shouldVerify = false;
-      let verificationOperationId: string | null = null;
-
+    let outcome: Awaited<ReturnType<typeof this.reviewTransaction>>;
+    try {
+      outcome = await db.transaction(async (tx) =>
+        this.reviewTransaction(tx, id, adminId, dto),
+      );
+    } catch (error) {
       if (dto.decision === "approved") {
-        approvedOpportunityId = approvedOpportunityId
-          ? await this.opportunitiesService.prepareSubmissionOpportunityForApproval(
-              tx,
-              approvedOpportunityId,
-              row.id,
-              this.toCatalogInput(row),
-            )
-          : await this.opportunitiesService.createPendingReviewFromSubmission(
-              tx,
-              this.toCatalogInput(row),
-            );
-        shouldVerify = true;
-        if (
-          approvedOpportunityId &&
-          this.opportunityVerificationService?.enqueueSubmissionVerification
-        ) {
-          const reviewVersion =
-            await this.opportunitiesService.getSubmissionCatalogReviewVersion(
-              tx,
-              approvedOpportunityId,
-            );
-          const operation =
-            await this.opportunityVerificationService.enqueueSubmissionVerification(
-              tx,
-              {
-                submissionId: row.id,
-                opportunityId: approvedOpportunityId,
-                reviewVersion,
-              },
-            );
-          verificationOperationId = operation?.id ?? null;
+        try {
+          await this.auditService?.log(
+            "opportunity.submission.review_failed",
+            adminId,
+            "opportunity_submission",
+            {
+              resourceId: id,
+              decision: dto.decision,
+              severity: "critical",
+              failureClass: "catalog_publication_boundary",
+              failureType:
+                error instanceof BadRequestException
+                  ? "validation"
+                  : "transaction_failure",
+            },
+          );
+        } catch (auditError) {
+          this.logger.error(
+            `Approval failure audit failed for ${id}: ${
+              auditError instanceof Error
+                ? auditError.message
+                : String(auditError)
+            }`,
+          );
         }
-      } else if (approvedOpportunityId && !repeatedDecision) {
-        await this.opportunitiesService.setSubmissionCatalogReviewState(
-          tx,
-          approvedOpportunityId,
-          row.id,
-          dto.decision,
-        );
       }
-
-      if (repeatedDecision && dto.decision !== "approved") {
-        return {
-          row,
-          shouldVerify: false,
-          notify: false,
-          verificationOperationId,
-          publicationState: "not_published" as const,
-        };
-      }
-
-      const thread = dto.adminNote?.trim()
-        ? this.appendThread(row.thread, "admin", dto.adminNote.trim())
-        : ((row.thread as ThreadEntry[] | null) ?? []);
-      const [updated] = await tx
-        .update(opportunitySubmissions)
-        .set({
-          status: dto.decision,
-          adminNote: dto.adminNote ?? row.adminNote ?? null,
-          reviewedBy: toDatabaseUserId(adminId),
-          reviewedAt: new Date(),
-          approvedOpportunityId,
-          thread,
-          updatedAt: new Date(),
-        })
-        .where(eq(opportunitySubmissions.id, id))
-        .returning();
-
-      if (!updated) throw new Error("Submission review could not be persisted");
-      return {
-        row: updated,
-        shouldVerify,
-        notify: !repeatedDecision,
-        verificationOperationId,
-        publicationState:
-          dto.decision === "approved"
-            ? ("approved_for_verification" as const)
-            : ("not_published" as const),
-      };
-    });
+      throw error;
+    }
 
     await this.opportunitiesService.invalidateCatalogCache();
 
@@ -367,6 +314,102 @@ export class OpportunitySubmissionsService {
     return {
       ...this.serialize(outcome.row),
       publication_state: publicationState,
+    };
+  }
+
+  private async reviewTransaction(
+    tx: OpportunityDbTransaction,
+    id: string,
+    adminId: string,
+    dto: ReviewSubmissionDto,
+  ) {
+    const row = await this.selectSubmissionForUpdate(tx, id);
+    if (!row) throw new NotFoundException("Submission not found");
+
+    const repeatedDecision = row.status === dto.decision;
+    let approvedOpportunityId = row.approvedOpportunityId ?? null;
+    let shouldVerify = false;
+    let verificationOperationId: string | null = null;
+
+    if (dto.decision === "approved") {
+      approvedOpportunityId = approvedOpportunityId
+        ? await this.opportunitiesService.prepareSubmissionOpportunityForApproval(
+            tx,
+            approvedOpportunityId,
+            row.id,
+            this.toCatalogInput(row),
+          )
+        : await this.opportunitiesService.createPendingReviewFromSubmission(
+            tx,
+            this.toCatalogInput(row),
+          );
+      shouldVerify = true;
+      if (
+        approvedOpportunityId &&
+        this.opportunityVerificationService?.enqueueSubmissionVerification
+      ) {
+        const reviewVersion =
+          await this.opportunitiesService.getSubmissionCatalogReviewVersion(
+            tx,
+            approvedOpportunityId,
+          );
+        const operation =
+          await this.opportunityVerificationService.enqueueSubmissionVerification(
+            tx,
+            {
+              submissionId: row.id,
+              opportunityId: approvedOpportunityId,
+              reviewVersion,
+            },
+          );
+        verificationOperationId = operation?.id ?? null;
+      }
+    } else if (approvedOpportunityId && !repeatedDecision) {
+      await this.opportunitiesService.setSubmissionCatalogReviewState(
+        tx,
+        approvedOpportunityId,
+        row.id,
+        dto.decision,
+      );
+    }
+
+    if (repeatedDecision && dto.decision !== "approved") {
+      return {
+        row,
+        shouldVerify: false,
+        notify: false,
+        verificationOperationId,
+        publicationState: "not_published" as const,
+      };
+    }
+
+    const thread = dto.adminNote?.trim()
+      ? this.appendThread(row.thread, "admin", dto.adminNote.trim())
+      : ((row.thread as ThreadEntry[] | null) ?? []);
+    const [updated] = await tx
+      .update(opportunitySubmissions)
+      .set({
+        status: dto.decision,
+        adminNote: dto.adminNote ?? row.adminNote ?? null,
+        reviewedBy: toDatabaseUserId(adminId),
+        reviewedAt: new Date(),
+        approvedOpportunityId,
+        thread,
+        updatedAt: new Date(),
+      })
+      .where(eq(opportunitySubmissions.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Submission review could not be persisted");
+    return {
+      row: updated,
+      shouldVerify,
+      notify: !repeatedDecision,
+      verificationOperationId,
+      publicationState:
+        dto.decision === "approved"
+          ? ("approved_for_verification" as const)
+          : ("not_published" as const),
     };
   }
 
