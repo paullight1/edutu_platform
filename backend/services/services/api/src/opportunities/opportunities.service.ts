@@ -33,6 +33,13 @@ import {
   pickOpportunityUrl,
   withOpportunityUrlAliases,
 } from "./opportunity-static-snapshot";
+import {
+  isPublicOpportunityRow,
+  PUBLIC_OPPORTUNITY_STATUS,
+  PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
+  publicOpportunityConditions,
+  publicOpportunitySql,
+} from "./opportunity-visibility";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -318,7 +325,7 @@ export class OpportunitiesService {
 
     // Public "active" listings must not surface opportunities whose deadline
     // has already passed (mirrors opportunity-ranking fetchCandidateOpportunities).
-    const excludeExpired = statusFilter === "active";
+    const excludeExpired = statusFilter === PUBLIC_OPPORTUNITY_STATUS;
     const today = new Date().toISOString().slice(0, 10);
 
     const run = async () => {
@@ -335,8 +342,11 @@ export class OpportunitiesService {
             request = request.or(`close_date.gte.${today},close_date.is.null`);
           }
 
-          if (statusFilter === "active") {
-            request = request.eq("verification_status", "verified");
+          if (statusFilter === PUBLIC_OPPORTUNITY_STATUS) {
+            request = request.eq(
+              "verification_status",
+              PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
+            );
           }
 
           if (category) {
@@ -358,10 +368,11 @@ export class OpportunitiesService {
           }
         }
 
-        const conditions = [eq(opportunities.status, statusFilter)];
-        if (statusFilter === "active") {
-          conditions.push(eq(opportunities.verificationStatus, "verified"));
-        }
+        const conditions = [
+          statusFilter === PUBLIC_OPPORTUNITY_STATUS
+            ? publicOpportunityConditions(opportunities)
+            : eq(opportunities.status, statusFilter),
+        ];
         if (category) {
           conditions.push(eq(opportunities.category, category));
         }
@@ -436,8 +447,8 @@ export class OpportunitiesService {
           const { data, error } = await this.supabase
             .from("opportunities")
             .select("*")
-            .eq("status", "active")
-            .eq("verification_status", "verified")
+            .eq("status", PUBLIC_OPPORTUNITY_STATUS)
+            .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
             .eq("is_featured", true)
             .or(`close_date.gte.${today},close_date.is.null`)
             // Soonest real deadline first; rolling (null) items sort last so a
@@ -459,8 +470,7 @@ export class OpportunitiesService {
           .from(opportunities)
           .where(
             and(
-              eq(opportunities.status, "active"),
-              eq(opportunities.verificationStatus, "verified"),
+              publicOpportunityConditions(opportunities),
               eq(opportunities.isFeatured, true),
               or(
                 isNull(opportunities.closeDate),
@@ -520,7 +530,7 @@ export class OpportunitiesService {
       : null;
 
     const activeFilter = sql`
-      o.status = 'active'
+      ${publicOpportunitySql("o")}
       and (o.close_date is null or o.close_date >= current_date)
       ${category ? sql`and o.category = ${category}` : sql``}
     `;
@@ -633,7 +643,7 @@ export class OpportunitiesService {
       const result = await db.execute(sql`
         select o.*
         from opportunities o
-        where o.status = 'active'
+        where ${publicOpportunitySql("o")}
           and (o.close_date is null or o.close_date >= current_date)
           ${category ? sql`and o.category = ${category}` : sql``}
           and (
@@ -713,7 +723,8 @@ export class OpportunitiesService {
           const { data, error } = await this.supabase
             .from("opportunities")
             .select("id,updated_at,created_at")
-            .eq("status", "active")
+            .eq("status", PUBLIC_OPPORTUNITY_STATUS)
+            .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
             .order("updated_at", { ascending: false, nullsFirst: false })
             .range(offset, to);
 
@@ -749,7 +760,7 @@ export class OpportunitiesService {
           createdAt: opportunities.createdAt,
         })
         .from(opportunities)
-        .where(eq(opportunities.status, "active"))
+        .where(publicOpportunityConditions(opportunities))
         .orderBy(desc(opportunities.updatedAt))
         .limit(cappedMax)
         .execute();
@@ -767,7 +778,7 @@ export class OpportunitiesService {
 
     const snapshotRows = await loadStaticOpportunitySnapshot();
     return snapshotRows
-      .filter((row) => String(row.status ?? "active") === "active")
+      .filter((row) => isPublicOpportunityRow(row, "snapshot"))
       .map((row) => ({
         id: String(row.id),
         updatedAt:
@@ -791,6 +802,8 @@ export class OpportunitiesService {
             .from("opportunities")
             .select("*")
             .eq("id", id)
+            .eq("status", PUBLIC_OPPORTUNITY_STATUS)
+            .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
             .maybeSingle();
 
           if (!error) {
@@ -807,7 +820,12 @@ export class OpportunitiesService {
         const res = await db
           .select()
           .from(opportunities)
-          .where(eq(opportunities.id, id))
+          .where(
+            and(
+              eq(opportunities.id, id),
+              publicOpportunityConditions(opportunities),
+            ),
+          )
           .execute();
         if (res[0]) {
           return withOpportunityUrlAliases(res[0] as Record<string, any>);
@@ -819,7 +837,11 @@ export class OpportunitiesService {
       }
 
       const snapshotRows = await loadStaticOpportunitySnapshot();
-      const row = snapshotRows.find((item) => String(item.id) === String(id));
+      const row = snapshotRows.find(
+        (item) =>
+          String(item.id) === String(id) &&
+          isPublicOpportunityRow(item, "snapshot"),
+      );
       return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
     };
 

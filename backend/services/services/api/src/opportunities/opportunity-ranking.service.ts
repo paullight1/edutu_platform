@@ -51,6 +51,12 @@ import {
   annotateHiddenGems,
   resolveHiddenGemOptions,
 } from "./hidden-gems";
+import {
+  PUBLIC_OPPORTUNITY_STATUS,
+  PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
+  publicOpportunityConditions,
+  publicOpportunitySql,
+} from "./opportunity-visibility";
 
 // Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
 // (legacy behavior only). Lets the new engine ship dark and flip via env.
@@ -643,7 +649,7 @@ export class OpportunityRankingService {
         (
           select o.*, 1 - (o.embedding <=> ${vectorLiteral}::vector) as semantic_similarity
           from opportunities o
-          where o.status = 'active'
+          where ${publicOpportunitySql("o")}
             and (o.close_date is null or o.close_date >= current_date)
             and o.embedding is not null
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
@@ -654,7 +660,7 @@ export class OpportunityRankingService {
         (
           select o.*, null as semantic_similarity
           from opportunities o
-          where o.status = 'active'
+          where ${publicOpportunitySql("o")}
             and (o.close_date is null or o.close_date >= current_date)
             and o.embedding is null
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
@@ -689,7 +695,8 @@ export class OpportunityRankingService {
       const result = await db.execute(sql`
         select o.*, ${similarity} as semantic_similarity
         from opportunities o
-        where o.id = any(${ids}::uuid[])
+        where ${publicOpportunitySql("o")}
+          and o.id = any(${ids}::uuid[])
       `);
       return ((result as { rows?: Record<string, unknown>[] }).rows ?? []).map(
         (row) => this.normalizeCanonicalRow(row),
@@ -835,7 +842,8 @@ export class OpportunityRankingService {
       let request = this.supabase
         .from("opportunities")
         .select("*")
-        .eq("status", "active")
+        .eq("status", PUBLIC_OPPORTUNITY_STATUS)
+        .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
         .or(`close_date.gte.${today},close_date.is.null`)
         .order("updated_at", { ascending: false })
         .limit(1000);
@@ -855,7 +863,7 @@ export class OpportunityRankingService {
     }
 
     const filters = [
-      eq(opportunities.status, "active"),
+      publicOpportunityConditions(opportunities),
       or(
         gte(opportunities.deadline, new Date()),
         sql`${opportunities.deadline} is null`,

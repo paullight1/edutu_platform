@@ -4,6 +4,7 @@ import * as schema from "../db/schema";
 import { OpportunitiesService } from "./opportunities.service";
 import { EdutuApiService } from "../edutu-api/edutu-api.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
+import { OpportunityRankingService } from "./opportunity-ranking.service";
 
 let mockRuntimeDb: any;
 
@@ -23,6 +24,9 @@ const PENDING_ID = "22222222-2222-4222-8222-222222222222";
 const REJECTED_ID = "33333333-3333-4333-8333-333333333333";
 const UNVERIFIED_ID = "44444444-4444-4444-8444-444444444444";
 const RACE_ID = "55555555-5555-4555-8555-555555555555";
+const OPERATION_ID = "66666666-6666-4666-8666-666666666666";
+const OLD_LEASE_TOKEN = "77777777-7777-4777-8777-777777777777";
+const NEW_LEASE_TOKEN = "88888888-8888-4888-8888-888888888888";
 
 const consumer = {
   id: "consumer-1",
@@ -61,13 +65,13 @@ async function createCatalogTable(database: PGlite) {
       content_fingerprint text,
       apply_url text,
       application_url text,
+      source text,
       image_url text,
       tags text[],
       skills text[],
       embedding text,
       embedding_model text,
       embedded_at timestamptz,
-      source text,
       metadata jsonb,
       is_remote boolean,
       is_featured boolean,
@@ -88,6 +92,18 @@ async function createCatalogTable(database: PGlite) {
       original_json text,
       created_at timestamptz,
       updated_at timestamptz
+    );
+  `);
+  await database.exec(`
+    create table opportunity_verification_operations (
+      id uuid primary key,
+      submission_id uuid not null,
+      opportunity_id uuid not null,
+      review_version integer not null,
+      status text not null,
+      lease_token uuid,
+      lease_expires_at timestamptz,
+      updated_at timestamptz default now()
     );
   `);
   await database.exec(`
@@ -148,6 +164,34 @@ describe("persisted shared catalog visibility", () => {
       expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
     );
     expect(apiRows.data.map((row: any) => row.id)).not.toEqual(
+      expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
+    );
+    expect(await apiService.getOpportunity(PENDING_ID, consumer)).toBeNull();
+  });
+
+  it("keeps public detail, search, share, and recommendation ID lookups fail-closed", async () => {
+    const learnerService = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const rankingService = new OpportunityRankingService({} as any, {} as any);
+
+    expect(await learnerService.findOne(PENDING_ID)).toBeNull();
+    expect(await learnerService.ensureShareCard(REJECTED_ID)).toBeNull();
+    expect(await learnerService.getSharePdf(UNVERIFIED_ID)).toBeNull();
+
+    const searched = await learnerService.hybridSearch("Pending scholarship");
+    expect(searched.map((row: any) => row.id)).not.toEqual(
+      expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
+    );
+
+    const candidates = await (
+      rankingService as any
+    ).fetchCandidateOpportunities([]);
+    expect(candidates.map((row: any) => row.id)).not.toEqual(
       expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
     );
   });
@@ -270,6 +314,157 @@ describe("persisted shared catalog visibility", () => {
     expect(persisted).toBe(false);
     expect(row).toEqual({
       status: "rejected",
+      verification_status: "unverified",
+    });
+  });
+
+  it("fences a late old worker catalog write after reclaim and replacement success", async () => {
+    await database.exec(`
+      insert into opportunities
+        (id, title, apply_url, application_url, is_remote, metadata, tags, skills,
+         status, verification_status, verification_attempts, broken_link_count,
+         created_at, updated_at)
+      values
+        ('${RACE_ID}', 'Lease race', 'https://example.com/race',
+         'https://example.com/race', true,
+         '{"submission_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "submission_review_status":"approved", "submission_review_version":1}'::jsonb,
+         '{}'::text[], '{}'::text[], 'pending_review', 'unverified', 0, 0, now(), now())
+      on conflict (id) do update set
+        status = excluded.status,
+        verification_status = excluded.verification_status,
+        metadata = excluded.metadata,
+        verification_attempts = excluded.verification_attempts,
+        broken_link_count = excluded.broken_link_count;
+    `);
+    await database.exec(`
+      insert into opportunity_verification_operations
+        (id, submission_id, opportunity_id, review_version, status, lease_token,
+         lease_expires_at)
+      values
+        ('${OPERATION_ID}', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '${RACE_ID}', 1,
+         'running', '${OLD_LEASE_TOKEN}', now() + interval '2 minutes')
+      on conflict (id) do update set
+        status = excluded.status,
+        lease_token = excluded.lease_token,
+        review_version = excluded.review_version,
+        lease_expires_at = excluded.lease_expires_at;
+    `);
+
+    await database.exec(`
+      update opportunity_verification_operations
+      set status = 'retry', lease_token = null, lease_expires_at = null
+      where id = '${OPERATION_ID}';
+      update opportunity_verification_operations
+      set status = 'running', lease_token = '${NEW_LEASE_TOKEN}',
+          lease_expires_at = now() + interval '2 minutes'
+      where id = '${OPERATION_ID}';
+    `);
+
+    const verifier = new OpportunityVerificationService({} as any);
+    const replacement = await (verifier as any).persistOutcome({
+      opportunityId: RACE_ID,
+      title: "Lease race",
+      url: "https://example.com/race",
+      status: "verified",
+      opportunityStatus: "active",
+      httpStatus: 200,
+      error: null,
+      nextCheckAt: new Date(),
+      submissionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      submissionReviewVersion: 1,
+      verificationOperationId: OPERATION_ID,
+      verificationLeaseToken: NEW_LEASE_TOKEN,
+    });
+    const oldWorker = await (verifier as any).persistOutcome({
+      opportunityId: RACE_ID,
+      title: "Lease race",
+      url: "https://example.com/race",
+      status: "broken_link",
+      opportunityStatus: "pending_review",
+      httpStatus: 404,
+      error: "late old worker",
+      nextCheckAt: null,
+      submissionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      submissionReviewVersion: 1,
+      verificationOperationId: OPERATION_ID,
+      verificationLeaseToken: OLD_LEASE_TOKEN,
+    });
+
+    const result = await database.query<{
+      status: string;
+      verification_status: string;
+    }>(
+      `select status, verification_status from opportunities where id = '${RACE_ID}'`,
+    );
+    expect(replacement).toBe(true);
+    expect(oldWorker).toBe(false);
+    expect(result.rows[0]).toEqual({
+      status: "active",
+      verification_status: "verified",
+    });
+  });
+
+  it("rejects a late catalog write from a verifier aborted by the hard timeout", async () => {
+    await database.exec(`
+      insert into opportunities
+        (id, title, apply_url, application_url, is_remote, metadata, tags, skills,
+         status, verification_status, verification_attempts, broken_link_count,
+         created_at, updated_at)
+      values
+        ('${RACE_ID}', 'Timed out submission', 'https://example.com/timeout',
+         'https://example.com/timeout', true,
+         '{"submission_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "submission_review_status":"approved", "submission_review_version":1}'::jsonb,
+         '{}'::text[], '{}'::text[], 'pending_review', 'unverified', 0, 0, now(), now())
+      on conflict (id) do update set
+        status = excluded.status,
+        verification_status = excluded.verification_status,
+        metadata = excluded.metadata,
+        verification_attempts = excluded.verification_attempts,
+        broken_link_count = excluded.broken_link_count;
+    `);
+    await database.exec(`
+      insert into opportunity_verification_operations
+        (id, submission_id, opportunity_id, review_version, status, lease_token,
+         lease_expires_at)
+      values
+        ('${OPERATION_ID}', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '${RACE_ID}', 1,
+         'running', '${NEW_LEASE_TOKEN}', now() + interval '2 minutes')
+      on conflict (id) do update set
+        status = excluded.status,
+        lease_token = excluded.lease_token,
+        review_version = excluded.review_version,
+        lease_expires_at = excluded.lease_expires_at;
+    `);
+
+    const verifier = new OpportunityVerificationService({} as any);
+    const controller = new AbortController();
+    controller.abort(new Error("Verification operation timed out"));
+
+    const persisted = await (verifier as any).persistOutcome({
+      opportunityId: RACE_ID,
+      title: "Timed out submission",
+      url: "https://example.com/timeout",
+      status: "verified",
+      opportunityStatus: "active",
+      httpStatus: 200,
+      error: null,
+      nextCheckAt: new Date(),
+      submissionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      submissionReviewVersion: 1,
+      verificationOperationId: OPERATION_ID,
+      verificationLeaseToken: NEW_LEASE_TOKEN,
+      verificationSignal: controller.signal,
+    });
+
+    const result = await database.query<{
+      status: string;
+      verification_status: string;
+    }>(
+      `select status, verification_status from opportunities where id = '${RACE_ID}'`,
+    );
+    expect(persisted).toBe(false);
+    expect(result.rows[0]).toEqual({
+      status: "pending_review",
       verification_status: "unverified",
     });
   });

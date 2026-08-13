@@ -65,4 +65,27 @@ describe("opportunity static snapshot helpers", () => {
     expect(filterStaticOpportunityRows(rows, 10, 0, "all")).toHaveLength(4);
     expect(filterStaticOpportunityRows(rows, 10, 0, "closed")).toEqual([]);
   });
+
+  it("allows only legacy snapshot rows without verification and never user submissions", () => {
+    expect(
+      filterStaticOpportunityRows(
+        [
+          { id: "legacy", status: "active" },
+          {
+            id: "submitted",
+            status: "active",
+            metadata: { submission_id: "submission-1" },
+          },
+          {
+            id: "unverified",
+            status: "active",
+            verification_status: "unverified",
+          },
+        ],
+        10,
+        0,
+        "active",
+      ),
+    ).toEqual([{ id: "legacy", status: "active" }]);
+  });
 });

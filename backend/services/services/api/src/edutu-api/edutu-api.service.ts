@@ -16,6 +16,10 @@ import {
 import { db } from "../db";
 import { apiPartnerEvents, opportunities } from "../db/schema";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
+import {
+  publicOpportunityConditions,
+  publicOpportunitySql,
+} from "../opportunities/opportunity-visibility";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 import type {
   ListOpportunitiesQuery,
@@ -89,8 +93,7 @@ export class EdutuApiService {
       .where(
         and(
           eq(opportunities.id, id),
-          eq(opportunities.status, "active"),
-          eq(opportunities.verificationStatus, "verified"),
+          publicOpportunityConditions(opportunities),
         ),
       )
       .limit(1)
@@ -114,8 +117,7 @@ export class EdutuApiService {
         count(*) filter (where verification_status = 'broken_link')::int as broken_link_count,
         max(updated_at) as last_updated_at
       from opportunities
-      where status = 'active'
-        and verification_status = 'verified'
+      where ${publicOpportunitySql("opportunities")}
     `);
 
     const row =
@@ -161,8 +163,7 @@ export class EdutuApiService {
         coalesce(nullif(canonical_category, ''), 'other') as slug,
         count(*)::int as count
       from opportunities
-      where status = 'active'
-        and verification_status = 'verified'
+      where ${publicOpportunitySql("opportunities")}
       group by 1
       order by count(*) desc, slug asc
     `);
@@ -284,10 +285,7 @@ export class EdutuApiService {
   }
 
   private buildOpportunityFilters(query: ListOpportunitiesQuery) {
-    const filters = [
-      eq(opportunities.status, "active"),
-      eq(opportunities.verificationStatus, "verified"),
-    ];
+    const filters = [publicOpportunityConditions(opportunities)];
 
     if (query.canonicalCategory) {
       filters.push(
