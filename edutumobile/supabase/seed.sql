@@ -7,18 +7,19 @@
 -- ============================================================
 
 -- Student: Chiamaka Adebayo, Computer Science student at UNILAG
-INSERT INTO public.profiles (user_id, full_name, email, role, country, age, degree_pursuit, school, skills, interests, goals, creator_status, credits_balance, created_at, updated_at)
-VALUES ('seed-student-001', 'Chiamaka Adebayo', 'chiamaka@example.ng', 'user', 'Nigeria', 21, 'BSc', 'University of Lagos', '["Python","Data Science","Public Speaking"]', '["Technology","Research","Social Impact"]', '["Get Scholarship","Land a Job"]', 'none', 150, NOW(), NOW())
+-- API credits are intentionally zero; verified server-owned grants are separate.
+INSERT INTO public.profiles (user_id, full_name, email, role, country, age, degree_pursuit, school, skills, interests, goals, creator_status, credits, created_at, updated_at)
+VALUES ('seed-student-001', 'Chiamaka Adebayo', 'chiamaka@example.ng', 'user', 'Nigeria', 21, 'BSc', 'University of Lagos', '["Python","Data Science","Public Speaking"]', '["Technology","Research","Social Impact"]', '["Get Scholarship","Land a Job"]', 'none', 0, NOW(), NOW())
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Creator: Dr. Oluwaseun Okafor, Career Coach
-INSERT INTO public.profiles (user_id, full_name, email, role, country, age, degree_pursuit, school, skills, interests, goals, creator_status, credits_balance, created_at, updated_at)
-VALUES ('seed-creator-001', 'Dr. Oluwaseun Okafor', 'seun@example.ng', 'user', 'Nigeria', 35, 'PhD', 'University of Ibadan', '["Career Coaching","Mentorship","Curriculum Design"]', '["Education","Technology","Business"]', '["Get Mentor","Build Skills"]', 'approved', 5000, NOW() - INTERVAL '6 months', NOW())
+INSERT INTO public.profiles (user_id, full_name, email, role, country, age, degree_pursuit, school, skills, interests, goals, creator_status, credits, created_at, updated_at)
+VALUES ('seed-creator-001', 'Dr. Oluwaseun Okafor', 'seun@example.ng', 'user', 'Nigeria', 35, 'PhD', 'University of Ibadan', '["Career Coaching","Mentorship","Curriculum Design"]', '["Education","Technology","Business"]', '["Get Mentor","Build Skills"]', 'approved', 0, NOW() - INTERVAL '6 months', NOW())
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Admin
-INSERT INTO public.profiles (user_id, full_name, email, role, country, created_at, updated_at)
-VALUES ('seed-admin-001', 'Admin Edutu', 'admin@edutu.com', 'admin', 'Nigeria', NOW(), NOW())
+INSERT INTO public.profiles (user_id, full_name, email, role, country, credits, created_at, updated_at)
+VALUES ('seed-admin-001', 'Admin Edutu', 'admin@edutu.com', 'admin', 'Nigeria', 0, NOW(), NOW())
 ON CONFLICT (user_id) DO NOTHING;
 
 -- ============================================================

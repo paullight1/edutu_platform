@@ -27,13 +27,18 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     language TEXT DEFAULT 'en',
     theme_package TEXT DEFAULT 'default',
     onboarding_complete BOOLEAN DEFAULT FALSE,
-    credits INTEGER DEFAULT 0,
+    credits INTEGER NOT NULL DEFAULT 0,
     xp_points INTEGER DEFAULT 0,
     level INTEGER DEFAULT 1,
     streak_days INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS credits INTEGER;
+UPDATE public.profiles SET credits = 0 WHERE credits IS NULL;
+ALTER TABLE public.profiles ALTER COLUMN credits SET DEFAULT 0;
+ALTER TABLE public.profiles ALTER COLUMN credits SET NOT NULL;
 
 -- Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -55,11 +60,12 @@ CREATE POLICY "Users can update own profile"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, full_name, avatar_url)
+    INSERT INTO public.profiles (id, full_name, avatar_url, credits)
     VALUES (
         NEW.id,
         NEW.raw_user_meta_data->>'full_name',
-        NEW.raw_user_meta_data->>'avatar_url'
+        NEW.raw_user_meta_data->>'avatar_url',
+        0
     );
     RETURN NEW;
 END;

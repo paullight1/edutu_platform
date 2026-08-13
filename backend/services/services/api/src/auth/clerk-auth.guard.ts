@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   UnauthorizedException,
   Inject,
+  SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { ClerkClient } from "@clerk/backend";
@@ -26,6 +27,9 @@ const TRUSTED_ADMIN_ROLES = new Set([
   "moderator",
   "support_agent",
 ]);
+
+export const CLERK_ONLY_KEY = "clerkOnly";
+export const ClerkOnly = () => SetMetadata(CLERK_ONLY_KEY, true);
 
 // Stamp profiles.last_seen_at at most once per user per window — the
 // active-user metric is day/week-granular, so per-request writes are waste.
@@ -51,8 +55,13 @@ export class ClerkAuthGuard implements CanActivate {
       return true;
     }
 
+    const clerkOnly = this.reflector.getAllAndOverride<boolean>(
+      CLERK_ONLY_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     const request = context.switchToHttp().getRequest();
-    if (this.tryAuthenticateLocalAdmin(request)) {
+    if (!clerkOnly && this.tryAuthenticateLocalAdmin(request)) {
       return true;
     }
 
@@ -72,6 +81,10 @@ export class ClerkAuthGuard implements CanActivate {
       return true;
     }
 
+    if (clerkOnly) {
+      throw new UnauthorizedException("Invalid or expired Clerk token");
+    }
+
     const supabaseAuthenticated = await this.tryAuthenticateSupabase(
       token,
       request,
@@ -84,9 +97,10 @@ export class ClerkAuthGuard implements CanActivate {
   }
 
   private tryAuthenticateLocalAdmin(request: any): boolean {
-    // SECURITY: the local-admin bypass must never be usable in production,
-    // regardless of how the env vars are configured.
-    if (process.env.NODE_ENV === "production") {
+    // SECURITY: the local-admin bypass is only valid in the explicit local
+    // development mode. Unsupported, staging-like, and test environments
+    // must not inherit this privileged escape hatch.
+    if (process.env.NODE_ENV !== "development") {
       return false;
     }
     if (process.env.EDUTU_LOCAL_ADMIN_BYPASS !== "true") {
@@ -275,6 +289,7 @@ export class ClerkAuthGuard implements CanActivate {
         userId: profileKey,
         email: email ?? null,
         fullName: firstName ?? null,
+        creditsBalance: 0,
         lastSeenAt: new Date(),
       })
       .onConflictDoUpdate({

@@ -63,10 +63,18 @@ serve(async (req) => {
         const email = email_addresses?.[0]?.email_address
         const fullName = `${first_name || ""} ${last_name || ""}`.trim()
 
+        const { error: createError } = await supabase
+            .from("profiles")
+            .upsert({ user_id: id, credits: 0 }, { onConflict: 'user_id', ignoreDuplicates: true })
+
+        if (createError) {
+            console.error("Error creating profile:", createError)
+            return new Response(JSON.stringify({ error: "Error creating profile" }), { status: 500, headers: SECURITY_HEADERS })
+        }
+
         const { error } = await supabase
             .from("profiles")
-            .upsert({
-                user_id: id,
+            .update({
                 email: email,
                 full_name: fullName,
                 avatar_url: image_url,
@@ -77,7 +85,8 @@ serve(async (req) => {
                 school: unsafe_metadata?.school || unsafe_metadata?.educationDetails?.school,
                 bio: unsafe_metadata?.interests || unsafe_metadata?.bio,
                 updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id' })
+            })
+            .eq("user_id", id)
 
         if (error) {
             console.error("Error upserting profile:", error)

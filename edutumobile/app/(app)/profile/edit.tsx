@@ -16,6 +16,7 @@ import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { supabase } from '../../../lib/supabase';
+import { cacheProfileName } from '@edutu/core/src/services/profile';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { CountrySelectModal } from '../../../components/ui/CountrySelectModal';
 import { Card } from '../../../components/ui/Card';
@@ -138,31 +139,52 @@ export default function EditProfileScreen() {
             // lands on the row the rest of the app reads — no dependence on the
             // product API, which was rejecting the mobile token (401 → the old
             // "silent not-saving" bug).
-            const { error } = await supabase
+            const { error: createError } = await supabase
                 .from('profiles')
                 .upsert(
                     {
                         user_id: user.id,
-                        full_name: toNullable(profile.full_name),
-                        country: toNullable(profile.country),
-                        school: toNullable(profile.school),
-                        major: toNullable(profile.major),
-                        cgpa: cgpaValue,
-                        updated_at: new Date().toISOString(),
+                        credits: 0,
                     },
-                    { onConflict: 'user_id' },
+                    { onConflict: 'user_id', ignoreDuplicates: true },
                 );
 
+            if (createError) throw createError;
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: toNullable(profile.full_name),
+                    country: toNullable(profile.country),
+                    school: toNullable(profile.school),
+                    major: toNullable(profile.major),
+                    cgpa: cgpaValue,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', user.id);
+
             if (error) throw error;
+            cacheProfileName(user.id, profile.full_name);
 
             // Mirror saved fields into Clerk unsafeMetadata so screens that read
             // it (profile header, personalization) stay in sync. Non-fatal.
             try {
                 const meta = { ...(user.unsafeMetadata as Record<string, unknown>) };
+                const fullName = profile.full_name?.trim() || '';
+                const nameParts = fullName.split(/\s+/).filter(Boolean);
+                const firstName = nameParts.shift() || '';
+                const lastName = nameParts.join(' ');
+
+                if (fullName) meta.fullName = fullName;
+                else delete meta.fullName;
                 if (toNullable(profile.country)) meta.country = profile.country!.trim();
                 if (toNullable(profile.school)) meta.schoolName = profile.school!.trim();
                 if (toNullable(profile.major)) meta.education = profile.major!.trim();
-                await user.update({ unsafeMetadata: meta });
+                await user.update({
+                    firstName,
+                    lastName,
+                    unsafeMetadata: meta,
+                });
             } catch (metaError) {
                 console.warn('Clerk metadata mirror failed:', metaError);
             }

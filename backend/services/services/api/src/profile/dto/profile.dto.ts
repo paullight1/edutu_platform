@@ -96,3 +96,30 @@ export const UpdateMemberSettingsSchema = z
 export type UpdateMemberSettingsDto = z.infer<
   typeof UpdateMemberSettingsSchema
 >;
+
+export const HomeCategoryTileSchema = z
+  .object({
+    id: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_-]+$/),
+    size: z.enum(["icon", "card", "long"]),
+  })
+  .strict();
+
+export const UpdateHomeCategoryLayoutSchema = z
+  .object({
+    tiles: z.array(HomeCategoryTileSchema).min(1).max(12),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+  .refine(
+    ({ tiles }) => new Set(tiles.map((tile) => tile.id)).size === tiles.length,
+    { message: "Home category ids must be unique", path: ["tiles"] },
+  );
+
+export type UpdateHomeCategoryLayoutDto = z.infer<
+  typeof UpdateHomeCategoryLayoutSchema
+>;

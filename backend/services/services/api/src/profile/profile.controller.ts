@@ -9,10 +9,12 @@ import {
 } from "../opportunities/dto/personalization.dto";
 import {
   ProfileNotificationPreferencesSchema,
+  UpdateHomeCategoryLayoutSchema,
   UpdateMemberSettingsSchema,
   UpdateProfileSchema,
   type UpdateMemberSettingsDto,
   type ProfileNotificationPreferencesDto,
+  type UpdateHomeCategoryLayoutDto,
   type UpdateProfileDto,
 } from "./dto/profile.dto";
 import {
@@ -99,5 +101,19 @@ export class ProfileController {
     body: ProfileNotificationPreferencesDto,
   ) {
     return this.notificationsService.savePreferences(userId, body);
+  }
+
+  @Get("preferences/home-categories")
+  getHomeCategoryLayout(@CurrentUser() user: AuthenticatedProfileUser) {
+    return this.profileService.getHomeCategoryLayout(user);
+  }
+
+  @Patch("preferences/home-categories")
+  updateHomeCategoryLayout(
+    @CurrentUser() user: AuthenticatedProfileUser,
+    @Body(new ZodValidationPipe(UpdateHomeCategoryLayoutSchema))
+    body: UpdateHomeCategoryLayoutDto,
+  ) {
+    return this.profileService.updateHomeCategoryLayout(user, body);
   }
 }
