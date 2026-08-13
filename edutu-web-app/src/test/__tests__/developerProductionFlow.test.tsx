@@ -157,6 +157,9 @@ describe('developer dashboard credit top-ups', () => {
   it('uses the Clerk bearer session to create a project without requiring credits', async () => {
     renderDashboard();
 
+    await waitFor(() => {
+      expect(mocks.getDeveloperDashboard).toHaveBeenCalledWith('token-123');
+    });
     fireEvent.change(screen.getByDisplayValue('Scholarship Engine'), {
       target: { value: 'Fixture API project' },
     });
