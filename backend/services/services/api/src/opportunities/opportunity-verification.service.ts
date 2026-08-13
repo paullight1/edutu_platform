@@ -17,6 +17,7 @@ import {
   DeadlineConfidence,
 } from "./deadline.util";
 import { AiService } from "../ai";
+import { OpportunityRankingService } from "./opportunity-ranking.service";
 
 export interface VerificationRunOptions {
   limit?: number;
@@ -219,6 +220,7 @@ export class OpportunityVerificationService {
     private readonly aiService: AiService,
     @Optional() private readonly cache?: CacheService,
     @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly opportunityRankingService?: OpportunityRankingService,
   ) {}
 
   async enqueueSubmissionVerification(
@@ -1226,7 +1228,10 @@ export class OpportunityVerificationService {
         : undefined;
     const changed =
       affectedRows === undefined ? true : Number(affectedRows) > 0;
-    if (changed) await this.cache?.delByPrefix("opps:");
+    if (changed) {
+      await this.cache?.delByPrefix("opps:");
+      this.opportunityRankingService?.invalidateAllResponseCache();
+    }
     return changed;
   }
 
