@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
+import { stableApiError } from "./edutu-api-billing-policy";
 
 @Catch()
 export class EdutuApiExceptionFilter implements ExceptionFilter {
@@ -62,12 +63,19 @@ export class EdutuApiExceptionFilter implements ExceptionFilter {
       };
     }
 
+    const fallback = stableApiError(
+      status >= 500 ? "internal_error" : "invalid_request",
+      requestId ?? "",
+      defaultMessage,
+    );
+
     return {
       error: {
         message: defaultMessage,
         status,
+        code: fallback.code,
       },
-      requestId,
+      requestId: requestId ?? undefined,
     };
   }
 }

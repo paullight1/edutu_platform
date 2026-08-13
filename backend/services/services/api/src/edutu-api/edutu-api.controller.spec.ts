@@ -183,4 +183,14 @@ describe("EdutuApiController", () => {
       id: "event-1",
     });
   });
+
+  it("keeps free metadata operations available without invoking opportunity work", async () => {
+    await controller.listCategories(consumer);
+    await controller.getUsage(consumer);
+
+    expect(service.listCategories).toHaveBeenCalledWith(consumer);
+    expect(service.getUsage).toHaveBeenCalledWith(consumer);
+    expect(service.listOpportunities).not.toHaveBeenCalled();
+    expect(service.getRecommendations).not.toHaveBeenCalled();
+  });
 });

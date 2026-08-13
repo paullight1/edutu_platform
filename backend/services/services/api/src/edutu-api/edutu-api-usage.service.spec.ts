@@ -1,5 +1,8 @@
 import { db } from "../db";
-import { EdutuApiUsageService } from "./edutu-api-usage.service";
+import {
+  EdutuApiBillingUnavailableError,
+  EdutuApiUsageService,
+} from "./edutu-api-usage.service";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
 jest.mock("../db", () => ({
@@ -26,6 +29,7 @@ describe("EdutuApiUsageService", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     service = new EdutuApiUsageService();
+    jest.spyOn((service as any).logger, "warn").mockImplementation(() => {});
   });
 
   const billableConsumer: ApiConsumerContext = {
@@ -61,6 +65,9 @@ describe("EdutuApiUsageService", () => {
           }
         : { rows: [{ credits: opts.currentBalance ?? 0 }] }, // current balance read
     );
+    if (opts.claimed && opts.balanceAfterDecrement === null) {
+      txExecute.mockResolvedValueOnce({ rows: [{ credits: 0 }] });
+    }
     const tx = { execute: txExecute };
     mockedDb.transaction.mockImplementation(async (cb: any) => cb(tx));
     return { txExecute };
@@ -113,7 +120,7 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 0, exhausted: true }); // InsufficientCreditsError rolls back the tx
-    expect(txExecute).toHaveBeenCalledTimes(3);
+    expect(txExecute).toHaveBeenCalledTimes(4);
   });
 
   it("reads the balance for credit-free endpoints without deducting", async () => {
@@ -135,19 +142,39 @@ describe("EdutuApiUsageService", () => {
     expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 
-  it("never blocks consumers without an owner (env/partner keys)", async () => {
+  it("fails closed when a database-backed consumer has no owner", async () => {
+    await expect(
+      service.reserveRequestCredit(
+        {
+          id: "consumer-without-owner",
+          name: "Misconfigured consumer",
+          plan: "starter",
+          scopes: ["*"],
+          monthlyQuota: 1000,
+        },
+        "/v1/opportunities",
+      ),
+    ).rejects.toBeInstanceOf(EdutuApiBillingUnavailableError);
+
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("maps reservation database failures to billing_unavailable", async () => {
+    mockedDb.transaction.mockRejectedValue(new Error("database offline"));
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("does not charge categories because categories are free", async () => {
+    mockedDb.execute.mockResolvedValue({ rows: [{ credits: 17 }] });
     const remaining = await service.reserveRequestCredit(
-      {
-        id: "env",
-        name: "Environment API key",
-        plan: "internal",
-        scopes: ["*"],
-        monthlyQuota: null,
-      },
-      "/v1/opportunities",
+      billableConsumer,
+      "/v1/categories",
     );
 
-    expect(remaining).toEqual({ balance: null, exhausted: false });
+    expect(remaining).toEqual({ balance: 17, exhausted: false });
     expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 

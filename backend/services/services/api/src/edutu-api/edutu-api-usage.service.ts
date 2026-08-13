@@ -3,6 +3,12 @@ import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { apiUsageEvents } from "../db/schema";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
+import {
+  billingClassForEndpoint,
+  EdutuApiBillingUnavailableError,
+} from "./edutu-api-billing-policy";
+
+export { EdutuApiBillingUnavailableError } from "./edutu-api-billing-policy";
 
 export interface QuotaReservation {
   allowed: boolean;
@@ -213,27 +219,30 @@ export class EdutuApiUsageService {
         })
         .execute();
     } catch (error) {
-      this.logger.warn(
-        `Unable to record Edutu API usage event: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`,
-      );
+      this.logger.warn("Unable to record Edutu API usage event");
     }
   }
 
   async reserveRequestCredit(
     consumer: ApiConsumerContext,
     endpoint: string,
+    method = "GET",
   ): Promise<CreditReservation> {
-    if (
-      consumer.id === "env" ||
-      !consumer.ownerUserId ||
-      this.isCreditFreeEndpoint(endpoint)
-    ) {
+    if (billingClassForEndpoint(method, endpoint) === "free") {
       return {
         balance: await this.readCreditBalance(consumer.ownerUserId ?? null),
         exhausted: false,
       };
+    }
+
+    // Environment keys are explicitly internal and are not issued to normal
+    // users. Database-backed consumers must always have an owner so a paid
+    // request can be tied to the canonical credit ledger.
+    if (consumer.id === "env") {
+      return { balance: null, exhausted: false };
+    }
+    if (!consumer.ownerUserId) {
+      throw new EdutuApiBillingUnavailableError();
     }
 
     const ownerUserId = consumer.ownerUserId;
@@ -293,10 +302,21 @@ export class EdutuApiUsageService {
           returning credits
         `);
 
-        // Insufficient credits: roll back the ledger insert so no charge is
-        // recorded, and signal exhaustion to the caller.
+        // A missing row is ambiguous from the guarded UPDATE alone. Read the
+        // profile inside the same transaction so confirmed zero is distinct
+        // from a missing profile/database inconsistency.
         if (this.rowCount(decremented) === 0) {
-          throw new InsufficientCreditsError();
+          const profile = await tx.execute(sql`
+            select credits from profiles where user_id = ${ownerUserId} limit 1
+          `);
+          const profileRows = this.rowCount(profile);
+          if (profileRows === 0) {
+            throw new EdutuApiBillingUnavailableError();
+          }
+          if (this.readNumber(profile, "credits") <= 0) {
+            throw new InsufficientCreditsError();
+          }
+          throw new EdutuApiBillingUnavailableError();
         }
 
         return {
@@ -308,14 +328,9 @@ export class EdutuApiUsageService {
       if (error instanceof InsufficientCreditsError) {
         return { balance: 0, exhausted: true };
       }
-      // Infrastructure failure while charging: fail open rather than blocking
-      // paying consumers on a transient DB error.
-      this.logger.warn(
-        `Unable to reserve API credit: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`,
-      );
-      return { balance: null, exhausted: false };
+      this.logger.warn("Unable to reserve API credit");
+      if (error instanceof EdutuApiBillingUnavailableError) throw error;
+      throw new EdutuApiBillingUnavailableError();
     }
   }
 
@@ -363,8 +378,10 @@ export class EdutuApiUsageService {
     };
   }
 
-  private isCreditFreeEndpoint(endpoint: string) {
-    return /\/v1\/(usage|health)(?:\/|$)/i.test(endpoint);
+  async readCreditBalanceForConsumer(
+    consumer: ApiConsumerContext,
+  ): Promise<number | null> {
+    return this.readCreditBalance(consumer.ownerUserId ?? null);
   }
 
   private async readCreditBalance(
@@ -378,11 +395,7 @@ export class EdutuApiUsageService {
       `);
       return this.readNumber(result, "credits");
     } catch (error) {
-      this.logger.warn(
-        `Unable to read API credit balance: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`,
-      );
+      this.logger.warn("Unable to read API credit balance");
       return null;
     }
   }

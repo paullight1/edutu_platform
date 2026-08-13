@@ -21,6 +21,11 @@ import { EDUTU_API_SCOPE_KEY } from "./api-scope.decorator";
 import { EDUTU_API_PUBLIC_KEY } from "./edutu-api-public.decorator";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
+import {
+  billingClassForEndpoint,
+  EDUTU_API_BILLING_CLASS_KEY,
+  stableApiError,
+} from "./edutu-api-billing-policy";
 
 @Injectable()
 export class EdutuApiKeyGuard implements CanActivate {
@@ -47,17 +52,25 @@ export class EdutuApiKeyGuard implements CanActivate {
     const apiKey = this.extractApiKey(request.headers);
 
     if (!apiKey) {
-      throw new UnauthorizedException("Missing Edutu API key");
+      throw new UnauthorizedException(
+        stableApiError("missing_api_key", requestId, "Missing Edutu API key"),
+      );
     }
 
-    const consumer = await this.resolveConsumer(apiKey);
+    const consumer = await this.resolveConsumer(apiKey, requestId);
     const scope = this.reflector.getAllAndOverride<string>(
       EDUTU_API_SCOPE_KEY,
       [context.getHandler(), context.getClass()],
     );
 
     if (scope && !this.hasScope(consumer.scopes, scope)) {
-      throw new ForbiddenException(`API key missing scope: ${scope}`);
+      throw new ForbiddenException(
+        stableApiError(
+          "scope_required",
+          requestId,
+          `API key missing scope: ${scope}`,
+        ),
+      );
     }
 
     const rateLimit = this.usageService.reserveRateLimit(consumer);
@@ -66,9 +79,11 @@ export class EdutuApiKeyGuard implements CanActivate {
       response.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
       throw new HttpException(
         {
-          message: "Rate limit exceeded",
-          code: "rate_limit_exceeded",
-          requestId,
+          ...stableApiError(
+            "rate_limit_exceeded",
+            requestId,
+            "Rate limit exceeded",
+          ),
           retryAfter: rateLimit.retryAfterSeconds,
         },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -88,9 +103,11 @@ export class EdutuApiKeyGuard implements CanActivate {
     if (!quota.allowed) {
       throw new HttpException(
         {
-          message: "Edutu API monthly quota exceeded",
-          code: "quota_exceeded",
-          requestId,
+          ...stableApiError(
+            "quota_exceeded",
+            requestId,
+            "Edutu API monthly quota exceeded",
+          ),
           quota: consumer.quota,
         },
         HttpStatus.PAYMENT_REQUIRED,
@@ -98,16 +115,62 @@ export class EdutuApiKeyGuard implements CanActivate {
     }
 
     const endpoint = String(request.originalUrl || request.url || "");
-    const credit = await this.usageService.reserveRequestCredit(
-      consumer,
-      endpoint,
-    );
+    consumer.requestId = requestId;
+
+    const billingClass =
+      this.reflector.getAllAndOverride<"free" | "credit">(
+        EDUTU_API_BILLING_CLASS_KEY,
+        [context.getHandler(), context.getClass()],
+      ) ?? billingClassForEndpoint(request.method, endpoint);
+
+    if (billingClass === "free") {
+      if (consumer.id !== "env") {
+        consumer.creditBalance =
+          await this.usageService.readCreditBalanceForConsumer(consumer);
+      }
+      request.apiConsumer = consumer;
+      return true;
+    }
+
+    let credit;
+    try {
+      credit = await this.usageService.reserveRequestCredit(
+        consumer,
+        endpoint,
+        request.method,
+      );
+    } catch {
+      throw new HttpException(
+        stableApiError(
+          "billing_unavailable",
+          requestId,
+          "API billing is temporarily unavailable",
+        ),
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (
+      !credit ||
+      typeof credit.exhausted !== "boolean" ||
+      (credit.balance === null && consumer.id !== "env")
+    ) {
+      throw new HttpException(
+        stableApiError(
+          "billing_unavailable",
+          requestId,
+          "API billing is temporarily unavailable",
+        ),
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
     if (credit.exhausted) {
       throw new HttpException(
         {
-          message: "API credits exhausted",
-          code: "credits_exhausted",
-          requestId,
+          ...stableApiError(
+            "credits_exhausted",
+            requestId,
+            "API credits exhausted",
+          ),
           quota: consumer.quota,
         },
         HttpStatus.PAYMENT_REQUIRED,
@@ -155,7 +218,10 @@ export class EdutuApiKeyGuard implements CanActivate {
     return randomUUID();
   }
 
-  private async resolveConsumer(apiKey: string): Promise<ApiConsumerContext> {
+  private async resolveConsumer(
+    apiKey: string,
+    requestId: string,
+  ): Promise<ApiConsumerContext> {
     const envConsumer = this.resolveEnvConsumer(apiKey);
     if (envConsumer) return envConsumer;
 
@@ -165,7 +231,13 @@ export class EdutuApiKeyGuard implements CanActivate {
     // constant-time comparison. This avoids scanning/hashing every key.
     const keyPrefix = this.deriveKeyPrefix(apiKey);
     if (!keyPrefix) {
-      throw new UnauthorizedException("Invalid or inactive Edutu API key");
+      throw new UnauthorizedException(
+        stableApiError(
+          "invalid_api_key",
+          requestId,
+          "Invalid or inactive Edutu API key",
+        ),
+      );
     }
 
     const candidates = await db
@@ -187,12 +259,24 @@ export class EdutuApiKeyGuard implements CanActivate {
     );
 
     if (!consumer) {
-      throw new UnauthorizedException("Invalid or inactive Edutu API key");
+      throw new UnauthorizedException(
+        stableApiError(
+          "invalid_api_key",
+          requestId,
+          "Invalid or inactive Edutu API key",
+        ),
+      );
     }
 
     const revokedAt = consumer.revokedAt ? new Date(consumer.revokedAt) : null;
     if (revokedAt && !Number.isNaN(revokedAt.getTime())) {
-      throw new UnauthorizedException("Invalid or inactive Edutu API key");
+      throw new UnauthorizedException(
+        stableApiError(
+          "invalid_api_key",
+          requestId,
+          "Invalid or inactive Edutu API key",
+        ),
+      );
     }
 
     const expiresAt = consumer.expiresAt ? new Date(consumer.expiresAt) : null;
@@ -201,7 +285,13 @@ export class EdutuApiKeyGuard implements CanActivate {
       !Number.isNaN(expiresAt.getTime()) &&
       expiresAt.getTime() <= Date.now()
     ) {
-      throw new UnauthorizedException("Invalid or inactive Edutu API key");
+      throw new UnauthorizedException(
+        stableApiError(
+          "invalid_api_key",
+          requestId,
+          "Invalid or inactive Edutu API key",
+        ),
+      );
     }
 
     const consumerContext: ApiConsumerContext = {

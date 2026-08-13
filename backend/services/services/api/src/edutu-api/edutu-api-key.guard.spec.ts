@@ -25,7 +25,10 @@ describe("EdutuApiKeyGuard", () => {
   const originalApiKeys = process.env.EDUTU_API_KEYS;
   let usageService: Pick<
     EdutuApiUsageService,
-    "reserveMonthlyQuota" | "reserveRequestCredit" | "reserveRateLimit"
+    | "reserveMonthlyQuota"
+    | "reserveRequestCredit"
+    | "reserveRateLimit"
+    | "readCreditBalanceForConsumer"
   >;
 
   beforeEach(() => {
@@ -47,6 +50,7 @@ describe("EdutuApiKeyGuard", () => {
         resetAt: new Date(Date.now() + 60_000).toISOString(),
         retryAfterSeconds: 0,
       }),
+      readCreditBalanceForConsumer: jest.fn().mockResolvedValue(10),
     };
   });
 
@@ -168,5 +172,142 @@ describe("EdutuApiKeyGuard", () => {
       status: 402,
       response: expect.objectContaining({ code: "credits_exhausted" }),
     });
+  });
+
+  it("does not reserve a credit for the free categories endpoint", async () => {
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockImplementation((key) => {
+      if (key === "edutuApiScope") return "opportunities:read";
+      return undefined;
+    });
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    jest.spyOn(guard as any, "resolveConsumer").mockResolvedValue({
+      id: "consumer-1",
+      name: "Test consumer",
+      plan: "starter",
+      scopes: ["opportunities:read"],
+      monthlyQuota: null,
+      ownerUserId: "user-1",
+    });
+    const { context, request } = createContext({
+      authorization: "Bearer edutu_live_test",
+    });
+    request.method = "GET";
+    request.originalUrl = "/v1/categories";
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(usageService.reserveRequestCredit).not.toHaveBeenCalled();
+  });
+
+  it("maps credit reservation uncertainty to a stable 503", async () => {
+    (usageService.reserveRequestCredit as jest.Mock).mockRejectedValue({
+      code: "billing_unavailable",
+    });
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    jest.spyOn(guard as any, "resolveConsumer").mockResolvedValue({
+      id: "consumer-1",
+      name: "Test consumer",
+      plan: "starter",
+      scopes: ["*"],
+      monthlyQuota: null,
+      ownerUserId: "user-1",
+    });
+    const { context, request } = createContext({
+      authorization: "Bearer edutu_live_test",
+    });
+    request.method = "GET";
+    request.originalUrl = "/v1/opportunities";
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 503,
+      response: expect.objectContaining({ code: "billing_unavailable" }),
+    });
+  });
+
+  it("fails closed when a database consumer has an unknown balance", async () => {
+    (usageService.reserveRequestCredit as jest.Mock).mockResolvedValue({
+      balance: null,
+      exhausted: false,
+    });
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    jest.spyOn(guard as any, "resolveConsumer").mockResolvedValue({
+      id: "consumer-1",
+      name: "Test consumer",
+      plan: "starter",
+      scopes: ["*"],
+      monthlyQuota: null,
+      ownerUserId: "user-1",
+    });
+    const { context, request } = createContext({
+      authorization: "Bearer edutu_live_test",
+    });
+    request.method = "GET";
+    request.originalUrl = "/v1/opportunities";
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 503,
+      response: expect.objectContaining({ code: "billing_unavailable" }),
+    });
+  });
+
+  it("enforces key, scope, rate, quota, credit in order", async () => {
+    const order: string[] = [];
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockImplementation((key) => {
+      if (key === "edutuApiScope") return "opportunities:read";
+      return undefined;
+    });
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    jest.spyOn(guard as any, "resolveConsumer").mockImplementation(async () => {
+      order.push("key");
+      return {
+        id: "consumer-1",
+        name: "Test consumer",
+        plan: "starter",
+        scopes: ["opportunities:read"],
+        monthlyQuota: 1000,
+        ownerUserId: "user-1",
+      };
+    });
+    (usageService.reserveRateLimit as jest.Mock).mockImplementation(() => {
+      order.push("rate");
+      return {
+        allowed: true,
+        limit: 60,
+        remaining: 59,
+        resetAt: new Date(Date.now() + 60_000).toISOString(),
+        retryAfterSeconds: 0,
+      };
+    });
+    (usageService.reserveMonthlyQuota as jest.Mock).mockImplementation(
+      async () => {
+        order.push("quota");
+        return {
+          allowed: true,
+          limit: 1000,
+          remaining: 999,
+          resetAt: new Date(Date.now() + 60_000).toISOString(),
+          used: 1,
+        };
+      },
+    );
+    (usageService.reserveRequestCredit as jest.Mock).mockImplementation(
+      async () => {
+        order.push("credit");
+        return { balance: 9, exhausted: false };
+      },
+    );
+    const { context, request } = createContext({
+      authorization: "Bearer edutu_live_test",
+    });
+    request.method = "GET";
+    request.originalUrl = "/v1/opportunities";
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(order).toEqual(["key", "rate", "quota", "credit"]);
   });
 });

@@ -32,6 +32,7 @@ import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import { EdutuApiService } from "./edutu-api.service";
 import { EdutuApiExceptionFilter } from "./edutu-api-exception.filter";
 import { EdutuApiUsageInterceptor } from "./edutu-api-usage.interceptor";
+import { EdutuApiBilling } from "./edutu-api-billing-policy";
 
 @Public()
 @UseFilters(EdutuApiExceptionFilter)
@@ -43,6 +44,7 @@ export class EdutuApiController {
 
   @Get("health")
   @EdutuApiPublic()
+  @EdutuApiBilling("free")
   health(@CurrentApiConsumer() consumer?: ApiConsumerContext) {
     return {
       object: "health",
@@ -59,6 +61,7 @@ export class EdutuApiController {
 
   @Get("opportunities")
   @ApiScope("opportunities:read")
+  @EdutuApiBilling("credit")
   listOpportunities(
     @Query(new ZodValidationPipe(ListOpportunitiesQuerySchema))
     query: ListOpportunitiesQuery,
@@ -69,12 +72,14 @@ export class EdutuApiController {
 
   @Get("opportunities/stats")
   @ApiScope("opportunities:read")
+  @EdutuApiBilling("credit")
   getOpportunityStats(@CurrentApiConsumer() consumer: ApiConsumerContext) {
     return this.edutuApiService.getOpportunityStats(consumer);
   }
 
   @Get("opportunities/sync")
   @ApiScope("opportunities:sync")
+  @EdutuApiBilling("credit")
   syncOpportunities(
     @Query(new ZodValidationPipe(ListOpportunitiesQuerySchema))
     query: ListOpportunitiesQuery,
@@ -85,6 +90,7 @@ export class EdutuApiController {
 
   @Get("opportunities/:id")
   @ApiScope("opportunities:read")
+  @EdutuApiBilling("credit")
   async getOpportunity(
     @Param("id") id: string,
     @CurrentApiConsumer() consumer: ApiConsumerContext,
@@ -98,6 +104,7 @@ export class EdutuApiController {
 
   @Post("recommendations")
   @ApiScope("recommendations:read")
+  @EdutuApiBilling("credit")
   getRecommendations(
     @Body(new ZodValidationPipe(ThirdPartyRecommendationRequestSchema))
     body: ThirdPartyRecommendationRequest,
@@ -108,6 +115,7 @@ export class EdutuApiController {
 
   @Post("events")
   @ApiScope("events:write")
+  @EdutuApiBilling("credit")
   recordEvent(
     @Body(new ZodValidationPipe(PartnerEventSchema))
     body: PartnerEventDto,
@@ -118,12 +126,14 @@ export class EdutuApiController {
 
   @Get("categories")
   @ApiScope("opportunities:read")
+  @EdutuApiBilling("free")
   listCategories(@CurrentApiConsumer() consumer: ApiConsumerContext) {
     return this.edutuApiService.listCategories(consumer);
   }
 
   @Get("usage")
   @ApiScope("usage:read")
+  @EdutuApiBilling("free")
   getUsage(@CurrentApiConsumer() consumer: ApiConsumerContext) {
     return this.edutuApiService.getUsage(consumer);
   }
