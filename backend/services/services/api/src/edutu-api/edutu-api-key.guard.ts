@@ -14,7 +14,9 @@ import { db } from "../db";
 import { apiConsumers } from "../db/schema";
 import {
   apiKeyMatches,
+  apiKeyPrefix,
   hashApiKey,
+  isValidApiKeyFormat,
   safeEqualHash,
 } from "../common/api-key-hash";
 import { EDUTU_API_SCOPE_KEY } from "./api-scope.decorator";
@@ -229,7 +231,17 @@ export class EdutuApiKeyGuard implements CanActivate {
     // head of the key (everything before the final secret segment), so we can
     // find the candidate row in O(1) and then verify the secret with a
     // constant-time comparison. This avoids scanning/hashing every key.
-    const keyPrefix = this.deriveKeyPrefix(apiKey);
+    if (!isValidApiKeyFormat(apiKey)) {
+      throw new UnauthorizedException(
+        stableApiError(
+          "invalid_api_key",
+          requestId,
+          "Invalid or inactive Edutu API key",
+        ),
+      );
+    }
+
+    const keyPrefix = apiKeyPrefix(apiKey);
     if (!keyPrefix) {
       throw new UnauthorizedException(
         stableApiError(
@@ -327,12 +339,6 @@ export class EdutuApiKeyGuard implements CanActivate {
       .execute();
 
     return consumerContext;
-  }
-
-  private deriveKeyPrefix(apiKey: string): string | null {
-    const separatorIndex = apiKey.lastIndexOf("_");
-    if (separatorIndex <= 0) return null;
-    return apiKey.slice(0, separatorIndex);
   }
 
   private resolveEnvConsumer(apiKey: string): ApiConsumerContext | null {

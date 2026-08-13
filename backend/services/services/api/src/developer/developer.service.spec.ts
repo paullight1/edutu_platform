@@ -1,4 +1,5 @@
 import * as crypto from "crypto";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import { DeveloperService } from "./developer.service";
 
@@ -15,6 +16,12 @@ const mockedDb = db as unknown as {
   insert: jest.Mock;
   update: jest.Mock;
 };
+
+const dialect = new PgDialect();
+
+function renderedSql(value: unknown) {
+  return dialect.sqlToQuery(value as Parameters<PgDialect["sqlToQuery"]>[0]);
+}
 
 describe("DeveloperService", () => {
   let service: DeveloperService;
@@ -241,11 +248,7 @@ describe("DeveloperService", () => {
       ],
     });
 
-    const project = await service.revokeProject(
-      "db-user-1",
-      "dev@example.com",
-      "consumer-1",
-    );
+    const project = await service.revokeProject("db-user-1", "consumer-1");
 
     expect(set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -324,11 +327,7 @@ describe("DeveloperService", () => {
     set.mockReturnValue({ where });
     mockedDb.update.mockReturnValue({ set });
 
-    const result = await service.rotateProject(
-      "db-user-1",
-      "dev@example.com",
-      "consumer-1",
-    );
+    const result = await service.rotateProject("db-user-1", "consumer-1");
 
     expect(rotateSpy).toHaveBeenCalledTimes(2);
     expect(result.rawKey).toMatch(/^edu_live_a1b2c3d4_[a-f0-9]{40}$/);
@@ -337,5 +336,69 @@ describe("DeveloperService", () => {
       status: "active",
       keyPrefix: "edu_live_a1b2c3d4",
     });
+    expect(JSON.stringify(result.project)).not.toContain(result.rawKey);
+    expect(JSON.stringify(result.project)).not.toContain("apiKeyHash");
+  });
+
+  it("uses the legacy email fallback only for rows without canonical ownership", async () => {
+    mockedDb.execute.mockResolvedValue({ rows: [] });
+
+    await service.listProjects("user-b", "DEV@example.com");
+
+    const query = renderedSql(mockedDb.execute.mock.calls[0][0]);
+    expect(query.sql).toContain(
+      '"api_consumers"."owner_user_id" = $2 or ("api_consumers"."owner_user_id" is null and lower("api_consumers"."contact_email") = $3)',
+    );
+    expect(query.params.slice(-2)).toEqual(["user-b", "dev@example.com"]);
+  });
+
+  it("fails closed when a project listing has no authenticated user id", async () => {
+    await expect(service.listProjects("", "dev@example.com")).rejects.toThrow(
+      "Authenticated user required",
+    );
+    expect(mockedDb.execute).not.toHaveBeenCalled();
+  });
+
+  it("does not create a project without canonical authenticated ownership", async () => {
+    await expect(
+      service.createProject("  ", "dev@example.com", {
+        name: "Unowned project",
+      }),
+    ).rejects.toThrow("Authenticated user required");
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("never uses email fallback for revocation", async () => {
+    const where = jest.fn().mockReturnValue({
+      returning: jest
+        .fn()
+        .mockReturnValue({ execute: jest.fn().mockResolvedValue([]) }),
+    });
+    mockedDb.update.mockReturnValue({
+      set: jest.fn().mockReturnValue({ where }),
+    });
+
+    await expect(service.revokeProject("user-b", "consumer-1")).rejects.toThrow(
+      "Developer project not found",
+    );
+
+    const query = renderedSql(where.mock.calls[0][0]);
+    expect(query.sql).not.toContain("contact_email");
+    expect(query.params).toEqual(["consumer-1", "user-b"]);
+  });
+
+  it("never uses email fallback for rotation", async () => {
+    mockedDb.execute.mockResolvedValue({ rows: [] });
+
+    await expect(service.rotateProject("user-b", "consumer-1")).rejects.toThrow(
+      "Developer project not found",
+    );
+    expect(mockedDb.update).not.toHaveBeenCalled();
+
+    const query = renderedSql(mockedDb.execute.mock.calls[0][0]);
+    expect(query.sql.slice(query.sql.indexOf("where"))).not.toContain(
+      "contact_email",
+    );
+    expect(query.params).toEqual(["consumer-1", "user-b"]);
   });
 });

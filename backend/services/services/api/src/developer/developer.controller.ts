@@ -41,26 +41,16 @@ export class DeveloperController {
   @Post("projects/:id/rotate")
   rotateProject(
     @CurrentUser("id") userId: string,
-    @CurrentUser("email") email: string | undefined,
     @Param("id") projectId: string,
   ) {
-    return this.developerService.rotateProject(
-      userId,
-      email ?? null,
-      projectId,
-    );
+    return this.developerService.rotateProject(userId, projectId);
   }
 
   @Delete("projects/:id")
   revokeProject(
     @CurrentUser("id") userId: string,
-    @CurrentUser("email") email: string | undefined,
     @Param("id") projectId: string,
   ) {
-    return this.developerService.revokeProject(
-      userId,
-      email ?? null,
-      projectId,
-    );
+    return this.developerService.revokeProject(userId, projectId);
   }
 }

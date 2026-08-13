@@ -1,7 +1,21 @@
-import { ExecutionContext, ForbiddenException } from "@nestjs/common";
+import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { db } from "../db";
+import { hashApiKey } from "../common/api-key-hash";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import type { EdutuApiUsageService } from "./edutu-api-usage.service";
+
+jest.mock("../db", () => ({
+  db: {
+    select: jest.fn(),
+    update: jest.fn(),
+  },
+}));
+
+const mockedDb = db as unknown as {
+  select: jest.Mock;
+  update: jest.Mock;
+};
 
 const TEST_API_KEY =
   "edu_test_8b2c4f6e_9a1d4c7f8e0b2a5c6d9f1a3b4c5d6e7f8a9b0c1d";
@@ -69,9 +83,72 @@ describe("EdutuApiKeyGuard", () => {
     const guard = new EdutuApiKeyGuard(reflector, usageService as any);
     const { context } = createContext({});
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
-      "Missing Edutu API key",
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 401,
+      response: expect.objectContaining({
+        code: "missing_api_key",
+        requestId: expect.any(String),
+      }),
+    });
+  });
+
+  it("rejects malformed generated keys before querying the database", async () => {
+    const reflector = new Reflector();
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    const { context } = createContext({
+      "x-edutu-api-key": "edu_live_bad_prefix_unbounded-secret",
+    });
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "invalid_api_key" }),
+    });
+    expect(mockedDb.select).not.toHaveBeenCalled();
+  });
+
+  it("accepts only the rotated key and rejects the old key immediately", async () => {
+    const oldKey = "edu_live_a1b2c3d4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const newKey = "edu_live_a1b2c3d4_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const select = jest.fn().mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            execute: jest.fn().mockResolvedValue([
+              {
+                id: "consumer-1",
+                name: "Rotated",
+                plan: "starter",
+                allowedScopes: ["*"],
+                monthlyQuota: null,
+                apiKeyHash: hashApiKey(newKey),
+                status: "active",
+                ownerUserId: "user-1",
+              },
+            ]),
+          }),
+        }),
+      }),
+    });
+    mockedDb.select.mockImplementation(select);
+    mockedDb.update.mockReturnValue({
+      set: jest.fn().mockReturnValue({
+        where: jest
+          .fn()
+          .mockReturnValue({ execute: jest.fn().mockResolvedValue([]) }),
+      }),
+    });
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+
+    const oldContext = createContext({ "x-edutu-api-key": oldKey });
+    await expect(guard.canActivate(oldContext.context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
     );
+
+    const newContext = createContext({ "x-edutu-api-key": newKey });
+    newContext.request.originalUrl = "/v1/health";
+    newContext.request.method = "GET";
+    await expect(guard.canActivate(newContext.context)).resolves.toBe(true);
   });
 
   it("accepts a configured environment API key", async () => {
@@ -148,9 +225,13 @@ describe("EdutuApiKeyGuard", () => {
       authorization: `Bearer ${LIVE_API_KEY}`,
     });
 
-    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 403,
+      response: expect.objectContaining({
+        code: "scope_required",
+        requestId: expect.any(String),
+      }),
+    });
   });
 
   it("returns 402 with a stable code when credits are exhausted", async () => {

@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  Logger,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import * as crypto from "crypto";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { apiConsumers } from "../db/schema";
 import { hashApiKey } from "../common/api-key-hash";
@@ -12,6 +14,7 @@ import type { CreateDeveloperProjectDto } from "./developer.dto";
 
 type DeveloperProjectRow = {
   id: string;
+  owner_user_id?: string | null;
   name: string;
   contact_email: string | null;
   key_prefix: string | null;
@@ -31,6 +34,7 @@ type DeveloperProjectRow = {
 
 type DeveloperRequestRow = {
   id: string;
+  owner_user_id?: string | null;
   request_id: string | null;
   method: string;
   endpoint: string;
@@ -125,14 +129,17 @@ const DEFAULT_LIMITS = {
 
 @Injectable()
 export class DeveloperService {
+  private readonly logger = new Logger(DeveloperService.name);
+
   async getDashboard(
     userId: string,
     email?: string | null,
   ): Promise<DeveloperDashboardResponse> {
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
     const normalizedEmail = this.normalizeEmail(email);
     const [projects, recentRequests] = await Promise.all([
-      this.listProjects(userId, normalizedEmail),
-      this.listRecentRequests(userId, normalizedEmail),
+      this.listProjects(ownerUserId, normalizedEmail),
+      this.listRecentRequests(ownerUserId, normalizedEmail),
     ]);
 
     const totalRequestsThisMonth = projects.reduce(
@@ -151,7 +158,7 @@ export class DeveloperService {
 
     return {
       account: {
-        userId,
+        userId: ownerUserId,
         email: normalizedEmail,
       },
       summary: {
@@ -193,11 +200,13 @@ export class DeveloperService {
     userId: string,
     email?: string | null,
   ): Promise<DeveloperProjectSummary[]> {
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
     const normalizedEmail = this.normalizeEmail(email);
     const periodStart = this.getCurrentPeriodStart();
     const rowsResult = await db.execute(sql`
       select
         api_consumers.id,
+        api_consumers.owner_user_id,
         api_consumers.name,
         api_consumers.contact_email,
         api_consumers.key_prefix,
@@ -217,11 +226,12 @@ export class DeveloperService {
       left join api_usage_buckets
         on api_usage_buckets.consumer_id = api_consumers.id
         and api_usage_buckets.period_start = ${periodStart}::date
-      where ${this.buildOwnershipPredicate(userId, normalizedEmail)}
+      where ${this.buildReadOwnershipPredicate(ownerUserId, normalizedEmail)}
       order by api_consumers.created_at desc
     `);
 
     const rows = this.extractRows<DeveloperProjectRow>(rowsResult);
+    this.recordLegacyOwnershipFallback(rows, ownerUserId);
     return rows.map((row) => this.mapProjectRow(row));
   }
 
@@ -229,6 +239,7 @@ export class DeveloperService {
     userId: string,
     email?: string | null,
   ): Promise<DeveloperRequestSummary[]> {
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
     const normalizedEmail = this.normalizeEmail(email);
     const rowsResult = await db.execute(sql`
       select
@@ -240,18 +251,20 @@ export class DeveloperService {
         api_usage_events.latency_ms,
         api_usage_events.created_at,
         api_consumers.id as consumer_id,
+        api_consumers.owner_user_id,
         api_consumers.name as consumer_name,
         api_consumers.key_prefix,
         api_consumers.environment
       from api_usage_events
       join api_consumers
         on api_consumers.id = api_usage_events.consumer_id
-      where ${this.buildOwnershipPredicate(userId, normalizedEmail)}
+      where ${this.buildReadOwnershipPredicate(ownerUserId, normalizedEmail)}
       order by api_usage_events.created_at desc
       limit 20
     `);
 
     const rows = this.extractRows<DeveloperRequestRow>(rowsResult);
+    this.recordLegacyOwnershipFallback(rows, ownerUserId);
     return rows.map((row) => this.mapRequestRow(row));
   }
 
@@ -260,6 +273,7 @@ export class DeveloperService {
     email: string | null | undefined,
     dto: CreateDeveloperProjectDto,
   ): Promise<CreateDeveloperProjectResult> {
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) {
       throw new BadRequestException(
@@ -278,7 +292,7 @@ export class DeveloperService {
     const [created] = await db
       .insert(apiConsumers)
       .values({
-        ownerUserId: userId,
+        ownerUserId,
         name: dto.name,
         contactEmail: normalizedEmail,
         keyPrefix,
@@ -290,7 +304,7 @@ export class DeveloperService {
         monthlyQuota,
         rateLimitPerMinute,
         metadata: {
-          ownerUserId: userId,
+          ownerUserId,
           contactEmail: normalizedEmail,
           environment,
           keyPrefix,
@@ -329,10 +343,10 @@ export class DeveloperService {
 
   async rotateProject(
     userId: string,
-    email: string | null | undefined,
     projectId: string,
   ): Promise<CreateDeveloperProjectResult> {
-    const project = await this.findOwnedProject(userId, email, projectId);
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
+    const project = await this.findOwnedProject(ownerUserId, projectId);
     const environment = (project.environment ?? "live") as "test" | "live";
     const { rawKey } = this.buildKeyMaterial(
       environment,
@@ -350,7 +364,7 @@ export class DeveloperService {
       .where(
         and(
           eq(apiConsumers.id, projectId),
-          this.buildOwnershipPredicate(userId, this.normalizeEmail(email)),
+          this.buildCanonicalOwnershipPredicate(ownerUserId),
         ),
       )
       .returning()
@@ -362,17 +376,17 @@ export class DeveloperService {
 
     return {
       rawKey,
-      project: await this.findOwnedProject(userId, email, projectId).then(
-        (row) => this.mapProjectRow(row),
+      project: await this.findOwnedProject(ownerUserId, projectId).then((row) =>
+        this.mapProjectRow(row),
       ),
     };
   }
 
   async revokeProject(
     userId: string,
-    email: string | null | undefined,
     projectId: string,
   ): Promise<DeveloperProjectSummary> {
+    const ownerUserId = this.requireAuthenticatedUserId(userId);
     const [updated] = await db
       .update(apiConsumers)
       .set({
@@ -383,7 +397,7 @@ export class DeveloperService {
       .where(
         and(
           eq(apiConsumers.id, projectId),
-          this.buildOwnershipPredicate(userId, this.normalizeEmail(email)),
+          this.buildCanonicalOwnershipPredicate(ownerUserId),
         ),
       )
       .returning()
@@ -393,15 +407,34 @@ export class DeveloperService {
       throw new NotFoundException("Developer project not found");
     }
 
-    return this.findOwnedProject(userId, email, projectId).then((row) =>
+    return this.findOwnedProject(ownerUserId, projectId).then((row) =>
       this.mapProjectRow(row),
     );
   }
 
-  private buildOwnershipPredicate(userId: string, email?: string | null) {
-    const ownerClause = eq(apiConsumers.ownerUserId, userId);
+  private buildCanonicalOwnershipPredicate(userId: string) {
+    return eq(apiConsumers.ownerUserId, userId);
+  }
+
+  private requireAuthenticatedUserId(userId: string) {
+    const normalizedUserId = userId?.trim();
+    if (!normalizedUserId) {
+      throw new UnauthorizedException("Authenticated user required");
+    }
+    return normalizedUserId;
+  }
+
+  private buildReadOwnershipPredicate(userId: string, email?: string | null) {
+    const ownerClause = this.buildCanonicalOwnershipPredicate(userId);
     if (!email) return ownerClause;
-    return or(ownerClause, eq(apiConsumers.contactEmail, email))!;
+
+    return or(
+      ownerClause,
+      and(
+        isNull(apiConsumers.ownerUserId),
+        sql`lower(${apiConsumers.contactEmail}) = ${email}`,
+      ),
+    )!;
   }
 
   private buildKeyMaterial(
@@ -469,17 +502,13 @@ export class DeveloperService {
     };
   }
 
-  private findOwnedProject(
-    userId: string,
-    email: string | null | undefined,
-    projectId: string,
-  ) {
-    const normalizedEmail = this.normalizeEmail(email);
+  private findOwnedProject(userId: string, projectId: string) {
     return db
       .execute(
         sql`
         select
           api_consumers.id,
+          api_consumers.owner_user_id,
           api_consumers.name,
           api_consumers.contact_email,
           api_consumers.key_prefix,
@@ -497,7 +526,7 @@ export class DeveloperService {
           0::int as request_count
         from api_consumers
         where api_consumers.id = ${projectId}
-          and ${this.buildOwnershipPredicate(userId, normalizedEmail)}
+          and ${this.buildCanonicalOwnershipPredicate(userId)}
         limit 1
       `,
       )
@@ -508,6 +537,22 @@ export class DeveloperService {
         }
         return project;
       });
+  }
+
+  private recordLegacyOwnershipFallback(
+    rows: Array<{ owner_user_id?: string | null }>,
+    userId: string,
+  ) {
+    const legacyRows = rows.filter((row) => row.owner_user_id === null).length;
+    if (legacyRows === 0) return;
+
+    this.logger.warn(
+      JSON.stringify({
+        metric: "developer_api_key_legacy_email_fallback",
+        count: legacyRows,
+        userId,
+      }),
+    );
   }
 
   private sumProjectQuota(projects: DeveloperProjectSummary[]) {

@@ -1,6 +1,8 @@
+import * as crypto from "crypto";
 import {
   apiKeyMatches,
   hashApiKey,
+  isValidApiKeyFormat,
   legacyHashApiKey,
   safeEqualHash,
 } from "./api-key-hash";
@@ -9,12 +11,15 @@ const RAW_KEY = "edu_live_ab12cd34_someverysecretvalue123456";
 
 describe("api-key-hash", () => {
   const originalPepper = process.env.API_KEY_PEPPER;
+  const originalLegacyCompatibility = process.env.API_KEY_ALLOW_LEGACY_HASHES;
 
   afterEach(() => {
-    if (originalPepper === undefined) {
-      delete process.env.API_KEY_PEPPER;
+    if (originalPepper === undefined) delete process.env.API_KEY_PEPPER;
+    else process.env.API_KEY_PEPPER = originalPepper;
+    if (originalLegacyCompatibility === undefined) {
+      delete process.env.API_KEY_ALLOW_LEGACY_HASHES;
     } else {
-      process.env.API_KEY_PEPPER = originalPepper;
+      process.env.API_KEY_ALLOW_LEGACY_HASHES = originalLegacyCompatibility;
     }
   });
 
@@ -50,6 +55,7 @@ describe("api-key-hash", () => {
     });
 
     it("still accepts a legacy plain-SHA-256 hash for backward compatibility", () => {
+      process.env.API_KEY_ALLOW_LEGACY_HASHES = "true";
       const legacyStored = legacyHashApiKey(RAW_KEY);
       expect(apiKeyMatches(RAW_KEY, legacyStored)).toBe(true);
     });
@@ -77,5 +83,42 @@ describe("api-key-hash", () => {
       process.env.API_KEY_PEPPER = "short";
       expect(hashApiKey(RAW_KEY)).toBe(legacyHashApiKey(RAW_KEY));
     });
+  });
+
+  describe("generated key format", () => {
+    it("accepts only bounded generated key prefixes and secret lengths", () => {
+      expect(
+        isValidApiKeyFormat(
+          "edu_live_ab12cd34_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
+      ).toBe(true);
+      expect(isValidApiKeyFormat("edu_live_ab12cd34_unbounded-secret")).toBe(
+        false,
+      );
+      expect(isValidApiKeyFormat("not_a_key")).toBe(false);
+    });
+  });
+
+  it("uses the production HMAC pepper for newly generated keys", () => {
+    process.env.API_KEY_PEPPER = "production-pepper-for-task-3";
+    delete process.env.API_KEY_ALLOW_LEGACY_HASHES;
+
+    expect(hashApiKey(RAW_KEY)).toBe(
+      crypto
+        .createHmac("sha256", process.env.API_KEY_PEPPER)
+        .update(RAW_KEY)
+        .digest("hex"),
+    );
+    expect(hashApiKey(RAW_KEY)).not.toBe(legacyHashApiKey(RAW_KEY));
+  });
+
+  it("accepts legacy unpeppered hashes only during an explicit migration window", () => {
+    process.env.API_KEY_PEPPER = "production-pepper-for-task-3";
+    delete process.env.API_KEY_ALLOW_LEGACY_HASHES;
+
+    expect(apiKeyMatches(RAW_KEY, legacyHashApiKey(RAW_KEY))).toBe(false);
+
+    process.env.API_KEY_ALLOW_LEGACY_HASHES = "true";
+    expect(apiKeyMatches(RAW_KEY, legacyHashApiKey(RAW_KEY))).toBe(true);
   });
 });

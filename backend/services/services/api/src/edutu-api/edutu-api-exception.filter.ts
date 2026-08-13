@@ -7,6 +7,10 @@ import {
 } from "@nestjs/common";
 import { stableApiError } from "./edutu-api-billing-policy";
 
+const RAW_API_KEY_PATTERN = /\bedu_(?:test|live)_[a-z0-9-]+_[a-z0-9-]+\b/gi;
+const API_KEY_HASH_PATTERN = /\b[a-f0-9]{64}\b/gi;
+const SENSITIVE_FIELD_PATTERN = /^(?:raw_?key|api_?key|api_?key_?hash)$/i;
+
 @Catch()
 export class EdutuApiExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
@@ -35,7 +39,7 @@ export class EdutuApiExceptionFilter implements ExceptionFilter {
     if (typeof payload === "string") {
       return {
         error: {
-          message: payload,
+          message: this.redactString(payload),
           status,
         },
         requestId,
@@ -48,12 +52,12 @@ export class EdutuApiExceptionFilter implements ExceptionFilter {
         error: {
           message:
             typeof source.message === "string"
-              ? source.message
+              ? this.redactString(source.message)
               : defaultMessage,
           status,
           code: typeof source.code === "string" ? source.code : undefined,
-          details: source.errors ?? source.error ?? undefined,
-          quota: source.quota ?? undefined,
+          details: this.redact(source.errors ?? source.error),
+          quota: this.redact(source.quota),
           retryAfter:
             typeof source.retryAfter === "number"
               ? source.retryAfter
@@ -77,5 +81,23 @@ export class EdutuApiExceptionFilter implements ExceptionFilter {
       },
       requestId: requestId ?? undefined,
     };
+  }
+
+  private redact(value: unknown): unknown {
+    if (typeof value === "string") return this.redactString(value);
+    if (Array.isArray(value)) return value.map((item) => this.redact(item));
+    if (!value || typeof value !== "object") return value;
+
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !SENSITIVE_FIELD_PATTERN.test(key))
+        .map(([key, item]) => [key, this.redact(item)]),
+    );
+  }
+
+  private redactString(value: string) {
+    return value
+      .replace(RAW_API_KEY_PATTERN, "[REDACTED_API_KEY]")
+      .replace(API_KEY_HASH_PATTERN, "[REDACTED_API_KEY_HASH]");
   }
 }
