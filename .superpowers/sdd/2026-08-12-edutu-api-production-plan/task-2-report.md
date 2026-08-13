@@ -2,54 +2,55 @@
 
 ## Status
 
-Complete. Implementation commit: `33d225f` (`feat: enforce production auth and zero API credit defaults`).
+Complete. Fix-round implementation commit: `c2bef72` (`fix: close Task 2 production readiness gaps`). The original Task 2 implementation remains in `33d225f`; this report supersedes the earlier report commit `1f61bc6`.
+
+## Findings addressed
+
+- Added the forward migration `20260813110000_api_credit_task2_contract.sql`. It is safe for fresh and already-upgraded databases, ensures `profiles.credits` is canonical and non-null with a zero default, adds/validates `profiles_credits_nonnegative_check`, creates the service-role-only `api_credit_balance_integrity_audit` view, and revokes public/anon/authenticated access.
+- Restored `20260812090000_api_production_contract.sql` to its original Task 1 content. The Task 2 audit view and constraint are no longer carried only by the already-versioned Task 1 migration.
+- Extended `verify-api-production-schema.mjs` and its contract fixtures to verify the new constraint, view, and exact ACLs.
+- Audited non-Drizzle profile creation paths. `ChatService.ensureProfile`, the mobile chat proxy, and both Supabase auth-trigger schemas explicitly use zero API credits. Conflict paths use no-op conflict behavior so existing balances are preserved.
+- Changed environment validation to fail closed unless `NODE_ENV` is exactly `development`, `test`, or `production`. Production still requires database, Supabase, Clerk, security-pepper, and enabled-provider configuration.
+- Restricted the local admin bypass to explicit `NODE_ENV=development`; unset, empty, staging-like, production-like, test, and production environments cannot use it.
+- Added tests/static guards for all of the above, including no AI/signup credit grant path being introduced by these profile changes.
 
 ## Files changed
 
-- `backend/services/services/api/src/main.ts`
-  - Production startup now hard-fails for missing `DATABASE_URL`, Supabase URL/service-role credentials, Clerk verification configuration, or an `API_KEY_PEPPER` shorter than 16 characters.
-  - Rejects `EDUTU_LOCAL_ADMIN_BYPASS=true` in production.
-  - Validates complete enabled Bachs configuration and requires `PAYSTACK_SECRET_KEY` when the legacy Paystack webhook is enabled.
-- `backend/services/services/api/src/auth/clerk-auth.guard.ts`
-  - Adds a `@ClerkOnly()` route contract so developer routes cannot accept Supabase tokens, Edutu API keys, or the local admin bypass.
-  - Keeps normal application-route Supabase fallback behavior unchanged.
-  - Explicitly writes new auth-created profiles with zero API credits.
-- `backend/services/services/api/src/developer/developer.controller.ts`
-  - Applies `@ClerkOnly()` to all developer routes.
-- `backend/services/services/api/src/profile/profile.service.ts`
-  - Explicitly defaults all profile insert/upsert creation paths to zero API credits.
-- `backend/services/services/api/src/admin/admin.service.ts`
-  - Explicitly defaults directory backfill profile rows to zero API credits.
-- `backend/services/services/api/src/db/seed.ts`
-  - Explicitly seeds zero API credits.
-- `backend/services/services/api/supabase/migrations/20260812090000_api_production_contract.sql`
-  - Adds a service-role-only `api_credit_balance_integrity_audit` view for null/negative balances.
-  - Adds and validates a nonnegative profile credit constraint.
-- `backend/services/services/api/src/auth/clerk-auth.guard.spec.ts`
-  - Covers missing auth, verified Clerk identity hydration, Edutu API key rejection, Supabase token rejection on Clerk-only routes, and production bypass rejection.
-- `backend/services/services/api/src/main.spec.ts`
-  - Covers production environment and enabled-provider validation.
-- `backend/services/services/api/src/developer/developer.service.spec.ts`
-  - Covers project creation without Pro status or API-credit gating.
-- `backend/services/services/api/src/billing/billing.service.spec.ts`
-  - Covers a new account returning zero credits and no transactions.
+Fix-round files in `c2bef72`:
 
-The API codebase has no backend use of the `signupCredits` setting, and AI daily usage counters remain separate from profile API-credit creation. No AI or signup path was added that grants API credits.
+- `backend/services/services/api/supabase/migrations/20260813110000_api_credit_task2_contract.sql`
+- `backend/services/services/api/scripts/verify-api-production-schema.mjs`
+- `backend/services/services/api/src/billing/billing-schema.contract.spec.ts`
+- `backend/services/services/api/src/profile/profile-creation.contract.spec.ts`
+- `backend/services/services/api/src/chat/chat.service.ts`
+- `backend/services/services/api/src/chat/chat.service.spec.ts`
+- `backend/services/services/api/src/auth/clerk-auth.guard.ts`
+- `backend/services/services/api/src/auth/clerk-auth.guard.spec.ts`
+- `backend/services/services/api/src/main.ts`
+- `backend/services/services/api/src/main.spec.ts`
+- `backend/services/services/api/supabase/schema.sql`
+- `edutu-web-app/supabase/schema.sql`
+- `edutumobile/supabase/functions/chat-proxy/index.ts`
+- Task 1 migration restoration: `backend/services/services/api/supabase/migrations/20260812090000_api_production_contract.sql`
+
+Earlier Task 2 files remain in `33d225f`, including the Clerk-only developer route contract and Drizzle/admin/seed zero-credit defaults.
 
 ## Verification
 
-- Focused tests plus migration contract: **5 suites passed, 62 tests passed**.
+- Focused Jest suite: **5 suites passed, 80 tests passed**.
 - `npm run build`: **passed**.
 - `npm run lint`: **passed**.
-- Jest reports an existing open-handle warning after completion; it does not affect the passing exit status.
+- Targeted Prettier check: **passed**.
+- `git diff --check`: **passed**.
+- Task 1 migration comparison against its pre-Task-2 version: **no diff**.
 
 ## Concerns and verification gaps
 
-- The migration was not applied to a staging/live Supabase database in this workspace.
+- The new migration was not applied to a staging/live Supabase database in this workspace. Live migration execution and catalog verification remain required before rollout.
 - No live Clerk, Bachs, Paystack webhook, or non-admin production smoke test was run.
-- Production startup validation was tested with environment fixtures only; deployment secret provisioning still needs staging verification.
-- The focused Jest process emits an open-handle diagnostic that should be followed up separately if CI requires clean process teardown.
+- Deployment secret provisioning and exact `NODE_ENV` values still require staging verification.
+- Jest completes successfully but emits the existing open-handle diagnostic; this is separate follow-up work if CI requires clean process teardown.
 
 ## Working-tree preservation
 
-The pre-existing dirty files listed in the task request were left unstaged and were not modified by the Task 2 commit.
+The task-listed pre-existing dirty files remain unstaged and were not included in `c2bef72`. Only Task 2 files were staged for the focused fix commit.
