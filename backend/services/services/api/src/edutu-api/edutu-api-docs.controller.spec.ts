@@ -27,9 +27,9 @@ describe("EdutuApiDocsController", () => {
     expect(spec.paths["/health"].get.security).toEqual([]);
     expect(spec.paths["/categories"].get.description).toContain("free");
     expect(spec.paths["/usage"].get.description).toContain("does not consume");
-    expect(spec.paths["/opportunities"].get.responses["402"].description).toContain(
-      "credits_exhausted",
-    );
+    expect(
+      spec.paths["/opportunities"].get.responses["402"].description,
+    ).toContain("credits_exhausted");
     expect(spec["x-edutu-contract"].credits.exhausted).toEqual({
       status: 402,
       code: "credits_exhausted",
@@ -47,7 +47,9 @@ describe("EdutuApiDocsController", () => {
     expect(overview.service).toBe("edutu-api");
     expect(overview.status).toBe("ok");
     expect(overview.openapiUrl).toMatch(/\/openapi\.json$/);
-    expect(overview.authentication.developerRoutes.scheme).toBe("Clerk user session");
+    expect(overview.authentication.developerRoutes.scheme).toBe(
+      "Clerk user session",
+    );
     expect(overview.authentication.apiRoutes.scheme).toBe("Edutu API key");
     expect(overview.credits.startingBalance).toBe(0);
     expect(overview.credits.topUps).toBe("one-time");

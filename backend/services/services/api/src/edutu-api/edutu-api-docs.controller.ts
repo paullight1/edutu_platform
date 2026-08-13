@@ -11,7 +11,11 @@ const API_KEY_HEADERS = [
   "Authorization: Bearer <api_key>",
 ];
 
-const FREE_ENDPOINTS = ["GET /v1/health", "GET /v1/usage", "GET /v1/categories"];
+const FREE_ENDPOINTS = [
+  "GET /v1/health",
+  "GET /v1/usage",
+  "GET /v1/categories",
+];
 
 const CHARGEABLE_ENDPOINTS = [
   "GET /v1/opportunities",
@@ -70,7 +74,11 @@ export class EdutuApiDocsController {
           description:
             "Use a project API key for server-to-server calls. A Clerk bearer token is not an API key and is not accepted by /v1.",
         },
-        publicDocumentation: ["GET /v1", "GET /v1/llms.txt", "GET /v1/openapi.json"],
+        publicDocumentation: [
+          "GET /v1",
+          "GET /v1/llms.txt",
+          "GET /v1/openapi.json",
+        ],
       },
       quickstart: [
         `Sign in with Clerk and open ${dashboardUrl} to create a developer project.`,
@@ -96,19 +104,22 @@ export class EdutuApiDocsController {
           method: "GET",
           path: "/v1/health",
           access: "public, free",
-          description: "Runtime diagnostics and readiness status; no API key or credit required.",
+          description:
+            "Runtime diagnostics and readiness status; no API key or credit required.",
         },
         {
           method: "GET",
           path: "/v1/opportunities",
           access: "api key",
-          description: "Search and page through approved normalized opportunities; costs one credit per request.",
+          description:
+            "Search and page through approved normalized opportunities; costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/opportunities/stats",
           access: "api key",
-          description: "Inspect approved catalog health and coverage; costs one credit per request.",
+          description:
+            "Inspect approved catalog health and coverage; costs one credit per request.",
         },
         {
           method: "GET",
@@ -121,31 +132,36 @@ export class EdutuApiDocsController {
           method: "GET",
           path: "/v1/opportunities/:id",
           access: "api key",
-          description: "Fetch a single approved normalized opportunity; costs one credit per request.",
+          description:
+            "Fetch a single approved normalized opportunity; costs one credit per request.",
         },
         {
           method: "POST",
           path: "/v1/recommendations",
           access: "api key",
-          description: "Ranked approved opportunities for a supplied profile; costs one credit per request.",
+          description:
+            "Ranked approved opportunities for a supplied profile; costs one credit per request.",
         },
         {
           method: "POST",
           path: "/v1/events",
           access: "api key",
-          description: "Record partner impressions, clicks, and conversions; costs one credit per request.",
+          description:
+            "Record partner impressions, clicks, and conversions; costs one credit per request.",
         },
         {
           method: "GET",
           path: "/v1/categories",
           access: "api key, free",
-          description: "Discover stable category metadata without spending a credit.",
+          description:
+            "Discover stable category metadata without spending a credit.",
         },
         {
           method: "GET",
           path: "/v1/usage",
           access: "api key",
-          description: "Inspect quota and API credit usage without spending a credit.",
+          description:
+            "Inspect quota and API credit usage without spending a credit.",
         },
       ],
     };
