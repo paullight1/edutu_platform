@@ -220,7 +220,8 @@ export class OpportunityVerificationService {
     private readonly aiService: AiService,
     @Optional() private readonly cache?: CacheService,
     @Optional() private readonly auditService?: AuditService,
-    @Optional() private readonly opportunityRankingService?: OpportunityRankingService,
+    @Optional()
+    private readonly opportunityRankingService?: OpportunityRankingService,
   ) {}
 
   async enqueueSubmissionVerification(

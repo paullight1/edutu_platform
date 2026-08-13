@@ -269,21 +269,18 @@ describe("persisted shared catalog visibility", () => {
   it("withdraws a warmed personalized recommendation when catalog visibility changes", async () => {
     let withdrawn = false;
     const rankingService = new OpportunityRankingService({} as any, {} as any);
-    jest
-      .spyOn(rankingService as any, "getUserProfile")
-      .mockResolvedValue(null);
+    jest.spyOn(rankingService as any, "getUserProfile").mockResolvedValue(null);
     jest
       .spyOn(rankingService as any, "getUserPreferences")
       .mockResolvedValue(null);
-    jest
-      .spyOn(rankingService as any, "getUserGoals")
-      .mockResolvedValue([]);
+    jest.spyOn(rankingService as any, "getUserGoals").mockResolvedValue([]);
     const query = jest
       .spyOn(rankingService, "queryRecommendations")
-      .mockImplementation(async () =>
-        ({
-          opportunities: withdrawn ? [] : [{ id: APPROVED_ID }],
-        }) as any,
+      .mockImplementation(
+        async () =>
+          ({
+            opportunities: withdrawn ? [] : [{ id: APPROVED_ID }],
+          }) as any,
       );
     const learnerService = new OpportunitiesService(
       rankingService,
