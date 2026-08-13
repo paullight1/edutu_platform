@@ -109,7 +109,13 @@ assembled from an explicit Task 8 path list only.
 
 ## Commit
 
-`54ee61f fix: fence Task 8 verification leases`
+Prior Task 8 implementation: `54ee61f fix: fence Task 8 verification leases`.
 
-The final narrow correction is committed separately as
-`fix: close Task 8 cache and response races`.
+Final narrow correction commits:
+
+- `aa00677 fix(opportunities): invalidate personalized feed caches`
+- `700c3e5 fix(opportunities): clear feed caches after verification`
+- `47e74dc fix(submissions): protect concurrent response updates`
+- `e7598b5 style(api): format opportunity race code`
+- `70aef62 docs(api): record Task 8 race corrections`
+- `cbe0a76 docs: record Task 8 verification limits`
