@@ -255,6 +255,37 @@ describe("Task 8 publication corrections", () => {
     expect(notifications.broadcast).toHaveBeenCalledTimes(1);
   });
 
+  it("re-approval passes corrected needs-info submission fields into catalog refresh before verification", async () => {
+    const { service, catalog, verification } = makeService(true);
+    transactionFor(
+      submission({
+        status: "needs_info",
+        approvedOpportunityId: OPPORTUNITY_ID,
+        title: "Corrected scholarship title",
+        description: "Corrected description",
+        applyUrl: "https://corrected.example/apply",
+        sourceUrl: "https://corrected.example",
+      }),
+    );
+
+    await service.review(SUBMISSION_ID, ADMIN_ID, { decision: "approved" });
+
+    expect(
+      catalog.prepareSubmissionOpportunityForApproval,
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      OPPORTUNITY_ID,
+      SUBMISSION_ID,
+      expect.objectContaining({
+        title: "Corrected scholarship title",
+        description: "Corrected description",
+        applyUrl: "https://corrected.example/apply",
+        sourceUrl: "https://corrected.example",
+      }),
+    );
+    expect(verification.enqueueSubmissionVerification).toHaveBeenCalled();
+  });
+
   it("surfaces transaction persistence failures instead of swallowing recovery errors", async () => {
     const { service } = makeService();
     mockedDb.transaction.mockRejectedValueOnce(new Error("commit failed"));

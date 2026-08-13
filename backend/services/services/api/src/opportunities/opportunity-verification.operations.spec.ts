@@ -19,6 +19,7 @@ describe("submission verification recovery operations", () => {
             opportunity_id: "opportunity-1",
             status: "running",
             attempt_count: 1,
+            lease_token: "11111111-1111-4111-8111-111111111111",
           },
         ],
       })
@@ -45,6 +46,7 @@ describe("submission verification recovery operations", () => {
             opportunity_id: "opportunity-2",
             status: "running",
             attempt_count: 3,
+            lease_token: "22222222-2222-4222-8222-222222222222",
           },
         ],
       })
@@ -75,7 +77,6 @@ describe("submission verification recovery operations", () => {
   it("reclaims an expired running lease and sends it through retry to critical exhaustion", async () => {
     mockedDb.execute
       .mockResolvedValueOnce({ rows: [{ id: "operation-stale" }] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -83,6 +84,7 @@ describe("submission verification recovery operations", () => {
             opportunity_id: "opportunity-stale",
             status: "running",
             attempt_count: 3,
+            lease_token: "33333333-3333-4333-8333-333333333333",
           },
         ],
       })
@@ -106,5 +108,139 @@ describe("submission verification recovery operations", () => {
       "opportunity_verification_operation",
       expect.objectContaining({ operationId: "operation-stale", attempts: 3 }),
     );
+  });
+
+  it("fences a late old worker after reclaim so only the replacement can exhaust", async () => {
+    let releaseOldWorker!: (value: { status: string }) => void;
+    const oldWorkerResult = new Promise<{ status: string }>((resolve) => {
+      releaseOldWorker = resolve;
+    });
+    mockedDb.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-fenced",
+            opportunity_id: "opportunity-fenced",
+            status: "running",
+            attempt_count: 2,
+            lease_token: "44444444-4444-4444-8444-444444444444",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: "operation-fenced" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-fenced",
+            opportunity_id: "opportunity-fenced",
+            status: "running",
+            attempt_count: 3,
+            lease_token: "55555555-5555-4555-8555-555555555555",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 0 });
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new OpportunityVerificationService(
+      {} as any,
+      undefined,
+      audit as any,
+    );
+    const verifyOne = jest
+      .spyOn(service, "verifyOne")
+      .mockImplementationOnce(() => oldWorkerResult as any)
+      .mockRejectedValueOnce(new Error("replacement failed"));
+
+    const oldWorker =
+      service.processSubmissionVerificationOperation("operation-fenced");
+    await new Promise((resolve) => setImmediate(resolve));
+    await service.runDueSubmissionVerificationOperations();
+    releaseOldWorker({ status: "verified" });
+    const oldResult = await oldWorker;
+
+    expect(verifyOne).toHaveBeenCalledTimes(2);
+    expect(oldResult.state).toBe("approved_for_verification");
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.log).toHaveBeenCalledWith(
+      "opportunity.verification.exhausted",
+      "system",
+      "opportunity_verification_operation",
+      expect.objectContaining({ operationId: "operation-fenced", attempts: 3 }),
+    );
+  });
+
+  it("fences a late old-worker failure after the replacement succeeds", async () => {
+    let releaseOldWorker!: (error: Error) => void;
+    const oldWorkerResult = new Promise<never>((_, reject) => {
+      releaseOldWorker = reject;
+    });
+    mockedDb.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-fenced-failure",
+            opportunity_id: "opportunity-fenced-failure",
+            status: "running",
+            attempt_count: 1,
+            lease_token: "66666666-6666-4666-8666-666666666666",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "operation-fenced-failure" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-fenced-failure",
+            opportunity_id: "opportunity-fenced-failure",
+            status: "running",
+            attempt_count: 2,
+            lease_token: "77777777-7777-4777-8777-777777777777",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 0 });
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new OpportunityVerificationService(
+      {} as any,
+      undefined,
+      audit as any,
+    );
+    const verifyOne = jest
+      .spyOn(service, "verifyOne")
+      .mockImplementationOnce(() => oldWorkerResult as any)
+      .mockResolvedValueOnce({ status: "verified" } as any);
+
+    const oldWorker = service.processSubmissionVerificationOperation(
+      "operation-fenced-failure",
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    await service.runDueSubmissionVerificationOperations();
+    releaseOldWorker(new Error("late old worker failure"));
+    const oldResult = await oldWorker;
+
+    expect(verifyOne).toHaveBeenCalledTimes(2);
+    expect(oldResult.state).toBe("approved_for_verification");
+    expect(audit.log).not.toHaveBeenCalled();
+  });
+
+  it("reclaims no more than 25 stale operations in one recovery pass", async () => {
+    const ids = Array.from({ length: 25 }, (_, index) => `stale-${index}`);
+    mockedDb.execute.mockResolvedValueOnce({
+      rows: ids.map((id) => ({ id })),
+    });
+    const service = new OpportunityVerificationService({} as any);
+    const process = jest
+      .spyOn(service, "processSubmissionVerificationOperation")
+      .mockResolvedValue({ state: "approved_for_verification" });
+
+    await service.runDueSubmissionVerificationOperations();
+
+    expect(process).toHaveBeenCalledTimes(25);
+    expect(process.mock.calls.map(([id]) => id)).toEqual(ids);
+    expect(mockedDb.execute).toHaveBeenCalledTimes(1);
   });
 });

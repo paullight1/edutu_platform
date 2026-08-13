@@ -19,6 +19,11 @@ Verification recovery uses bounded retry/backoff, persists exhaustion, and
 writes a critical audit alert. Running operations carry a bounded worker lease;
 the recovery cron reclaims expired or legacy stale-running rows into the same
 retry/exhaustion path, so worker termination cannot strand recovery forever.
+Each claim receives a fresh lease token; worker completion, failure, and
+cancellation writes are token-fenced, and a hard verification timeout expires
+before the lease. Recovery selects no more than 25 ordered candidates per
+pass. Re-approval copies the locked submission's current fields into the
+linked catalog row atomically before enqueueing its new verification operation.
 Review responses distinguish
 `approved_for_verification` from `verified_public` and withdrawn states.
 
@@ -63,8 +68,14 @@ and unchanged in this correction round.
   exhaustion alerting, and approval response states.
 - Recovery lease regression: claimed `running` operation was reclaimed,
   retried, and exhausted with the critical audit alert emitted.
+- Final lease fencing/backlog/re-approval focus: 7 suites/45 tests passed,
+  including late old-worker completion/failure fencing, a stale backlog larger
+  than 25, and corrected needs-info submission data reaching catalog refresh.
 - Backend `npm run build`: passed.
 - Targeted backend ESLint over all final Task 8 backend files: passed.
+- Backend `npx tsc --noEmit`: remains blocked by pre-existing unrelated dirty
+  billing, communities, and events test/type changes; no Task 8 source error
+  was reported, and the Nest build plus scoped lint pass.
 - Web typecheck — passed.
 - Web lint — passed.
 - Web build — passed; existing Vite dynamic-import warning emitted.
@@ -79,5 +90,4 @@ from an explicit Task 8 path list only.
 
 ## Commit
 
-`fix: harden Task 8 opportunity publication` — resolve the exact containing
-commit with `git rev-parse HEAD`.
+`4261e3d fix: fence Task 8 verification leases`

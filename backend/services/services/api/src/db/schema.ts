@@ -326,6 +326,7 @@ export const opportunityVerificationOperations = pgTable(
     status: text("status").notNull().default("queued"),
     attemptCount: integer("attempt_count").notNull().default(0),
     nextAttemptAt: timestamp("next_attempt_at").defaultNow(),
+    leaseToken: uuid("lease_token"),
     leaseExpiresAt: timestamp("lease_expires_at"),
     lastError: text("last_error"),
     completedAt: timestamp("completed_at"),

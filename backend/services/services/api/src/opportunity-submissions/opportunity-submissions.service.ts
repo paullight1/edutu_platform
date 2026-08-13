@@ -244,6 +244,7 @@ export class OpportunitySubmissionsService {
               tx,
               approvedOpportunityId,
               row.id,
+              this.toCatalogInput(row),
             )
           : await this.opportunitiesService.createPendingReviewFromSubmission(
               tx,

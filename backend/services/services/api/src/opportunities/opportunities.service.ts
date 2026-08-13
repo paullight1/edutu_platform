@@ -1410,6 +1410,7 @@ export class OpportunitiesService {
     tx: OpportunityDbTransaction,
     opportunityId: string,
     submissionId: string,
+    input: SubmissionCatalogInput,
   ): Promise<string> {
     const [row] = await tx
       .select()
@@ -1431,6 +1432,8 @@ export class OpportunitiesService {
           ? row.metadata.submission_review_version
           : Number(row.metadata?.submission_review_version ?? 0) || 0,
       submission_source: "user_submission",
+      requirements: input.eligibility ? [input.eligibility] : [],
+      benefits: input.benefits ? [input.benefits] : [],
     };
     if (row.status === "active" && row.verificationStatus === "verified") {
       return row.id;
@@ -1442,16 +1445,42 @@ export class OpportunitiesService {
     // version. The verifier's conditional write is the final safety boundary
     // for a worker that already holds the old candidate snapshot.
     await tx.execute(sql`
-      update public.opportunity_verification_operations
-      set status = 'cancelled', lease_expires_at = null, updated_at = now()
-      where submission_id = ${submissionId}::uuid
-        and opportunity_id = ${opportunityId}::uuid
-        and status in ('queued', 'running', 'retry')
+      with candidates as (
+        select id, lease_token
+        from public.opportunity_verification_operations
+        where submission_id = ${submissionId}::uuid
+          and opportunity_id = ${opportunityId}::uuid
+          and status in ('queued', 'running', 'retry')
+        for update
+      )
+      update public.opportunity_verification_operations operation
+      set status = 'cancelled', lease_token = null, lease_expires_at = null, updated_at = now()
+      where exists (
+        select 1
+        from candidates candidate
+        where candidate.id = operation.id
+          and operation.lease_token is not distinct from candidate.lease_token
+      )
     `);
 
     await tx
       .update(opportunities)
       .set({
+        title: input.title,
+        summary: input.summary,
+        description: input.description,
+        category: input.category,
+        organization: input.organization,
+        location: input.location,
+        type: input.type || "scholarship",
+        eligibilityCriteria: input.eligibility,
+        deadline: input.deadline,
+        sourceUrl: input.sourceUrl,
+        canonicalUrl: input.applyUrl,
+        applyUrl: input.applyUrl,
+        applicationUrl: input.applyUrl,
+        imageUrl: input.imageUrl,
+        isRemote: input.isRemote ?? false,
         status: "pending_review",
         validationStatus: "pending",
         verificationStatus: "unverified",
@@ -1514,11 +1543,22 @@ export class OpportunitiesService {
     // the provenance/version predicate in persistOutcome also rejects a race
     // that has already completed its network request.
     await tx.execute(sql`
-      update public.opportunity_verification_operations
-      set status = 'cancelled', lease_expires_at = null, updated_at = now()
-      where submission_id = ${submissionId}::uuid
-        and opportunity_id = ${opportunityId}::uuid
-        and status in ('queued', 'running', 'retry')
+      with candidates as (
+        select id, lease_token
+        from public.opportunity_verification_operations
+        where submission_id = ${submissionId}::uuid
+          and opportunity_id = ${opportunityId}::uuid
+          and status in ('queued', 'running', 'retry')
+        for update
+      )
+      update public.opportunity_verification_operations operation
+      set status = 'cancelled', lease_token = null, lease_expires_at = null, updated_at = now()
+      where exists (
+        select 1
+        from candidates candidate
+        where candidate.id = operation.id
+          and operation.lease_token is not distinct from candidate.lease_token
+      )
     `);
   }
 
@@ -3539,7 +3579,7 @@ ${sourceText || "No source page text was available. Still write a complete summa
   }
 
   getPublicAppBaseUrl(): string {
-    return (
+    const configured = (
       process.env.EDUTU_PUBLIC_APP_URL ||
       process.env.PUBLIC_WEB_APP_URL ||
       process.env.WEB_APP_URL ||

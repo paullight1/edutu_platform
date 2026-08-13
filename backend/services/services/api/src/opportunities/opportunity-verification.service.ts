@@ -65,6 +65,8 @@ const MAX_OUTBOUND_REDIRECTS = 5;
 const MAX_SUBMISSION_VERIFICATION_ATTEMPTS = 3;
 const SUBMISSION_VERIFICATION_RETRY_DELAYS_MS = [60_000, 300_000];
 const SUBMISSION_VERIFICATION_LEASE_SECONDS = 120;
+const SUBMISSION_VERIFICATION_HARD_TIMEOUT_MS = 90_000;
+const SUBMISSION_VERIFICATION_BATCH_SIZE = 25;
 
 function ipv4Number(value: string): number | null {
   const parts = value.split(".");
@@ -240,33 +242,60 @@ export class OpportunityVerificationService {
     // persist either success or failure. Requeue expired leases first so a
     // crashed worker cannot strand an approved submission forever. The normal
     // claim/failure path below still owns the attempt bound and alerting.
-    const reclaimed = await db.execute(sql`
-      update public.opportunity_verification_operations
-      set status = 'retry',
-          next_attempt_at = now(),
-          lease_expires_at = null,
-          last_error = coalesce(
-            last_error,
-            'Verification worker lease expired before completion'
-          ),
-          updated_at = now()
-      where status = 'running'
-        and coalesce(lease_expires_at, updated_at, created_at)
-          <= now() - (${SUBMISSION_VERIFICATION_LEASE_SECONDS}::text || ' seconds')::interval
-      returning id
-    `);
     const due = await db.execute(sql`
-      select id
-      from public.opportunity_verification_operations
-      where status in ('queued', 'retry')
-        and next_attempt_at <= now()
-      order by next_attempt_at, created_at
-      limit 25
+      with candidates as (
+        select id, status, lease_token
+        from public.opportunity_verification_operations
+        where (
+          status = 'running'
+          and (
+            (lease_expires_at is not null and lease_expires_at <= now())
+            or (
+              lease_expires_at is null
+              and coalesce(updated_at, created_at)
+                <= now() - (${SUBMISSION_VERIFICATION_LEASE_SECONDS}::text || ' seconds')::interval
+            )
+          )
+        )
+        or (
+          status in ('queued', 'retry')
+          and next_attempt_at <= now()
+        )
+        order by
+          case when status = 'running' then 0 else 1 end,
+          coalesce(lease_expires_at, next_attempt_at, updated_at, created_at),
+          created_at,
+          id
+        limit ${SUBMISSION_VERIFICATION_BATCH_SIZE}
+        for update skip locked
+      ),
+      reclaimed as (
+        update public.opportunity_verification_operations operation
+        set status = 'retry',
+            next_attempt_at = now(),
+            lease_token = null,
+            lease_expires_at = null,
+            last_error = coalesce(
+              operation.last_error,
+              'Verification worker lease expired before completion'
+            ),
+            updated_at = now()
+        where exists (
+          select 1
+          from candidates candidate
+          where candidate.id = operation.id
+            and candidate.status = 'running'
+            and operation.lease_token is not distinct from candidate.lease_token
+        )
+        returning operation.id
+      )
+      select candidate.id
+      from candidates candidate
+      left join reclaimed on reclaimed.id = candidate.id
     `);
-    const operationIds = new Set([
-      ...this.rows<{ id: string }>(reclaimed).map((operation) => operation.id),
-      ...this.rows<{ id: string }>(due).map((operation) => operation.id),
-    ]);
+    const operationIds = this.rows<{ id: string }>(due).map(
+      (operation) => operation.id,
+    );
     for (const operationId of operationIds) {
       try {
         await this.processSubmissionVerificationOperation(operationId);
@@ -286,17 +315,19 @@ export class OpportunityVerificationService {
       opportunity_id: string;
       status: string;
       attempt_count: number;
+      lease_token: string;
     }>(
       await db.execute(sql`
       update public.opportunity_verification_operations
       set status = 'running',
           attempt_count = attempt_count + 1,
+          lease_token = gen_random_uuid(),
           lease_expires_at = now() + (${SUBMISSION_VERIFICATION_LEASE_SECONDS}::text || ' seconds')::interval,
           updated_at = now()
       where id = ${operationId}::uuid
         and status in ('queued', 'retry')
         and next_attempt_at <= now()
-      returning id, opportunity_id, status, attempt_count
+      returning id, opportunity_id, status, attempt_count, lease_token
     `),
     );
 
@@ -318,36 +349,49 @@ export class OpportunityVerificationService {
     }
 
     try {
-      const outcome = await this.verifyOne(claimed.opportunity_id);
+      const outcome = await this.verifyWithHardTimeout(claimed.opportunity_id);
       if (outcome?.status === "verified") {
-        await db.execute(sql`
+        const persisted = await db.execute(sql`
           update public.opportunity_verification_operations
           set status = 'completed',
               completed_at = now(),
+              lease_token = null,
               lease_expires_at = null,
               updated_at = now()
-          where id = ${operationId}::uuid and status = 'running'
+          where id = ${operationId}::uuid
+            and status = 'running'
+            and lease_token = ${claimed.lease_token}::uuid
         `);
+        if (!this.didUpdateRow(persisted)) {
+          return { state: "approved_for_verification" } as const;
+        }
         return { state: "verified_public" } as const;
       }
       if (outcome?.status === "stale") {
-        await db.execute(sql`
+        const cancelled = await db.execute(sql`
           update public.opportunity_verification_operations
-          set status = 'cancelled', lease_expires_at = null, updated_at = now()
-          where id = ${operationId}::uuid and status = 'running'
+          set status = 'cancelled', lease_token = null, lease_expires_at = null, updated_at = now()
+          where id = ${operationId}::uuid
+            and status = 'running'
+            and lease_token = ${claimed.lease_token}::uuid
         `);
+        if (!this.didUpdateRow(cancelled)) {
+          return { state: "approved_for_verification" } as const;
+        }
         return { state: "withdrawn" } as const;
       }
       return await this.recordSubmissionVerificationFailure(
         operationId,
         outcome?.error ?? "Verification did not produce a public result",
         claimed.attempt_count,
+        claimed.lease_token,
       );
     } catch (error) {
       return await this.recordSubmissionVerificationFailure(
         operationId,
         error instanceof Error ? error.message : String(error),
         claimed.attempt_count,
+        claimed.lease_token,
       );
     }
   }
@@ -356,6 +400,7 @@ export class OpportunityVerificationService {
     operationId: string,
     error: string,
     attemptCount: number,
+    leaseToken: string,
   ) {
     const exhausted = attemptCount >= MAX_SUBMISSION_VERIFICATION_ATTEMPTS;
     const delay =
@@ -365,16 +410,22 @@ export class OpportunityVerificationService {
           SUBMISSION_VERIFICATION_RETRY_DELAYS_MS.length - 1,
         )
       ] ?? SUBMISSION_VERIFICATION_RETRY_DELAYS_MS.at(-1)!;
-    await db.execute(sql`
+    const persisted = await db.execute(sql`
       update public.opportunity_verification_operations
       set status = ${exhausted ? "exhausted" : "retry"},
           last_error = ${error},
           next_attempt_at = ${exhausted ? new Date() : new Date(Date.now() + delay)},
+          lease_token = null,
           exhausted_at = ${exhausted ? new Date() : null},
           lease_expires_at = null,
           updated_at = now()
-      where id = ${operationId}::uuid and status = 'running'
+      where id = ${operationId}::uuid
+        and status = 'running'
+        and lease_token = ${leaseToken}::uuid
     `);
+    if (!this.didUpdateRow(persisted)) {
+      return { state: "approved_for_verification" } as const;
+    }
     if (exhausted) {
       this.logger.error(
         `Opportunity verification exhausted retries for operation ${operationId}: ${error}`,
@@ -515,6 +566,23 @@ export class OpportunityVerificationService {
       ...summary,
       outcomes: outcomes.slice(0, 50),
     };
+  }
+
+  private async verifyWithHardTimeout(id: string) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        this.verifyOne(id),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Verification operation timed out")),
+            SUBMISSION_VERIFICATION_HARD_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async verifyOne(id: string, dryRun = false) {
@@ -1325,5 +1393,12 @@ export class OpportunityVerificationService {
 
   private firstRow<T = Record<string, unknown>>(result: unknown): T {
     return this.rows<T>(result)[0] ?? ({} as T);
+  }
+
+  private didUpdateRow(result: unknown): boolean {
+    if (!result || typeof result !== "object") return true;
+    const typed = result as { rowCount?: number; affectedRows?: number };
+    const count = typed.rowCount ?? typed.affectedRows;
+    return count === undefined ? true : count > 0;
   }
 }
