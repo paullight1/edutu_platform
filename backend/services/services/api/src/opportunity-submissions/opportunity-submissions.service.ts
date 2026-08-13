@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Optional,
 } from "@nestjs/common";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -195,8 +196,20 @@ export class OpportunitySubmissionsService {
         ...(patch.imageUrl !== undefined ? { imageUrl: patch.imageUrl } : {}),
         updatedAt: new Date(),
       })
-      .where(eq(opportunitySubmissions.id, id))
+      .where(
+        and(
+          eq(opportunitySubmissions.id, id),
+          eq(opportunitySubmissions.userId, dbUserId),
+          eq(opportunitySubmissions.status, "needs_info"),
+        ),
+      )
       .returning();
+
+    if (!updated) {
+      throw new ConflictException(
+        "This submission changed before your response could be saved.",
+      );
+    }
 
     return this.serialize(updated);
   }

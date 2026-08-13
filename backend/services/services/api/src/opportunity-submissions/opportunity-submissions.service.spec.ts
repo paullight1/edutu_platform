@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { db } from "../db";
 import {
   RespondSubmissionSchema,
@@ -7,9 +7,9 @@ import {
 import { OpportunitySubmissionsService } from "./opportunity-submissions.service";
 
 jest.mock("drizzle-orm", () => ({
-  and: jest.fn(),
+  and: jest.fn((...conditions: unknown[]) => conditions),
   desc: jest.fn(),
-  eq: jest.fn(),
+  eq: jest.fn((column: unknown, value: unknown) => ({ column, value })),
 }));
 
 jest.mock("../db", () => ({
@@ -198,6 +198,47 @@ describe("OpportunitySubmissionsService publication state machine", () => {
       }),
     );
     expect(result.status).toBe("pending");
+  });
+
+  it("does not overwrite an admin approval that wins the response interleaving", async () => {
+    const row = submission({ status: "needs_info" });
+    mockSelect([row]);
+    const update = mockUpdate(null);
+    update.returning.mockImplementation(async () => {
+      row.status = "approved";
+      return [];
+    });
+    const { service } = makeService();
+
+    await expect(
+      service.respond(USER_ID, row.id, { message: "Here is the detail." }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(row.status).toBe("approved");
+    expect(update.where).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ value: row.id }),
+        expect.objectContaining({ value: USER_ID }),
+        expect.objectContaining({ value: "needs_info" }),
+      ]),
+    );
+  });
+
+  it("does not overwrite an admin rejection that wins the response interleaving", async () => {
+    const row = submission({ status: "needs_info" });
+    mockSelect([row]);
+    const update = mockUpdate(null);
+    update.returning.mockImplementation(async () => {
+      row.status = "rejected";
+      return [];
+    });
+    const { service } = makeService();
+
+    await expect(
+      service.respond(USER_ID, row.id, { message: "Here is the detail." }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(row.status).toBe("rejected");
   });
 
   it("does not accept a client publication status in a response patch", () => {
