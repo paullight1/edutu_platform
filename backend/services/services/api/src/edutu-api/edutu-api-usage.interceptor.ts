@@ -32,17 +32,22 @@ export class EdutuApiUsageInterceptor implements NestInterceptor {
 
   private async record(request: any, statusCode: number, startedAt: number) {
     const consumer = request.apiConsumer;
-    const requestId = request.edutuRequestId;
+    const requestId = request.edutuRequestId ?? request.requestId;
     if (!consumer || !requestId) return;
 
-    await this.usageService.recordUsageEvent({
-      consumer,
-      requestId,
-      method: request.method || "GET",
-      endpoint: this.endpointFor(request),
-      statusCode,
-      latencyMs: Date.now() - startedAt,
-    });
+    try {
+      await this.usageService.recordUsageEvent({
+        consumer,
+        requestId,
+        method: request.method || "GET",
+        endpoint: this.endpointFor(request),
+        statusCode,
+        latencyMs: Date.now() - startedAt,
+      });
+    } catch {
+      // Telemetry failures must never change the API response or create an
+      // unhandled rejection.
+    }
   }
 
   private endpointFor(request: any) {

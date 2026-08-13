@@ -10,6 +10,104 @@ import {
 
 export { EdutuApiBillingUnavailableError } from "./edutu-api-billing-policy";
 
+export type SafeObservabilityLevel = "log" | "warn" | "error";
+
+export interface SafeObservabilityFields {
+  requestId?: string;
+  consumerId?: string;
+  ownerUserId?: string;
+  method?: string;
+  endpoint?: string;
+  billingClass?: "free" | "credit" | "unknown";
+  statusCode?: number;
+  statusClass?: string;
+  latencyMs?: number;
+  provider?: string;
+  environment?: string;
+  outcome?: string;
+  category?: string;
+  count?: number;
+  repaired?: number;
+  reviewCases?: number;
+  duplicates?: number;
+  providerErrors?: number;
+  alert?: string;
+  runbook?: string;
+}
+
+const SAFE_OBSERVABILITY_KEYS = new Set<keyof SafeObservabilityFields>([
+  "requestId",
+  "consumerId",
+  "ownerUserId",
+  "method",
+  "endpoint",
+  "billingClass",
+  "statusCode",
+  "statusClass",
+  "latencyMs",
+  "provider",
+  "environment",
+  "outcome",
+  "category",
+  "count",
+  "repaired",
+  "reviewCases",
+  "duplicates",
+  "providerErrors",
+  "alert",
+  "runbook",
+]);
+
+function safeString(value: unknown, maxLength = 200): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value
+    .replace(/\r|\n/g, " ")
+    .replace(String.fromCharCode(0), " ")
+    .trim();
+  return normalized ? normalized.slice(0, maxLength) : undefined;
+}
+
+/** Build structured telemetry from an explicit allowlist; arbitrary metadata is never copied. */
+export function safeObservabilityEvent(
+  event: string,
+  fields: SafeObservabilityFields = {},
+): Record<string, unknown> {
+  const safeEvent =
+    safeString(event, 80)?.replace(/[^a-zA-Z0-9_.:-]/g, "_") || "unknown";
+  const record: Record<string, unknown> = {
+    event: safeEvent,
+    service: "edutu-api",
+    occurredAt: new Date().toISOString(),
+  };
+  const candidate = fields as Record<string, unknown>;
+
+  for (const key of SAFE_OBSERVABILITY_KEYS) {
+    if (!(key in candidate)) continue;
+    const value = candidate[key];
+    if (typeof value === "string") {
+      const normalized = safeString(value);
+      if (normalized !== undefined) {
+        record[key] =
+          key === "endpoint" ? normalized.split(/[?#]/, 1)[0] : normalized;
+      }
+    } else if (typeof value === "number" && Number.isFinite(value)) {
+      record[key] = value;
+    }
+  }
+  return record;
+}
+
+export function logSafeObservability(
+  logger: Pick<Logger, "log" | "warn" | "error">,
+  event: string,
+  fields: SafeObservabilityFields = {},
+  level: SafeObservabilityLevel = "log",
+): Record<string, unknown> {
+  const record = safeObservabilityEvent(event, fields);
+  logger[level](JSON.stringify(record));
+  return record;
+}
+
 export interface QuotaReservation {
   allowed: boolean;
   limit: number | null;
@@ -173,6 +271,12 @@ export class EdutuApiUsageService {
           Math.ceil((entry.windowStart + RATE_WINDOW_MS - now) / 1000),
           1,
         );
+        logSafeObservability(this.logger, "api_rate_limited", {
+          requestId: consumer.requestId,
+          consumerId: consumer.id,
+          outcome: "rejected",
+          category: "429",
+        });
         return {
           allowed: false,
           limit,
@@ -214,6 +318,19 @@ export class EdutuApiUsageService {
   }) {
     if (input.consumer.id === "env") return;
 
+    logSafeObservability(this.logger, "api_request", {
+      requestId: input.requestId,
+      consumerId: input.consumer.id,
+      ownerUserId: input.consumer.ownerUserId ?? undefined,
+      method: input.method.toUpperCase(),
+      endpoint: input.endpoint,
+      billingClass: billingClassForEndpoint(input.method, input.endpoint),
+      statusCode: input.statusCode,
+      statusClass: `${Math.floor(input.statusCode / 100)}xx`,
+      latencyMs: Math.max(0, Math.round(input.latencyMs)),
+      outcome: input.statusCode >= 400 ? "error" : "success",
+    });
+
     try {
       await db
         .insert(apiUsageEvents)
@@ -227,7 +344,12 @@ export class EdutuApiUsageService {
         })
         .execute();
     } catch (error) {
-      this.logger.warn("Unable to record Edutu API usage event");
+      logSafeObservability(
+        this.logger,
+        "api_usage_recording_failed",
+        { consumerId: input.consumer.id, outcome: "unavailable" },
+        "warn",
+      );
     }
   }
 
@@ -410,9 +532,29 @@ export class EdutuApiUsageService {
       });
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {
+        logSafeObservability(this.logger, "api_credits_exhausted", {
+          requestId,
+          consumerId: consumer.id,
+          ownerUserId,
+          billingClass: "credit",
+          outcome: "rejected",
+          category: "402",
+        });
         return { balance: 0, exhausted: true };
       }
-      this.logger.warn("Unable to reserve API credit");
+      logSafeObservability(
+        this.logger,
+        "api_credit_unavailable",
+        {
+          requestId,
+          consumerId: consumer.id,
+          ownerUserId,
+          billingClass: "credit",
+          outcome: "unavailable",
+          category: "503",
+        },
+        "warn",
+      );
       if (error instanceof EdutuApiBillingUnavailableError) throw error;
       throw new EdutuApiBillingUnavailableError();
     }
@@ -553,7 +695,12 @@ export class EdutuApiUsageService {
       `);
       return this.readProfileBalance(result, "credits");
     } catch (error) {
-      this.logger.warn("Unable to read API credit balance");
+      logSafeObservability(
+        this.logger,
+        "api_credit_balance_unavailable",
+        { ownerUserId, outcome: "unavailable", category: "503" },
+        "warn",
+      );
       return null;
     }
   }
