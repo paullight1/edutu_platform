@@ -115,6 +115,8 @@ export async function bootstrap() {
     bodyParser: false,
   });
 
+  // Do not disclose the Express implementation through the response headers.
+  app.disable("x-powered-by");
   app.use(helmet());
   app.use(
     "/internal/scraper-egress",
