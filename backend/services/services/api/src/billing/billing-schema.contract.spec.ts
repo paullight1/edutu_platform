@@ -24,6 +24,10 @@ const apiProductionMigrationPath = resolve(
   apiRoot,
   "supabase/migrations/20260812090000_api_production_contract.sql",
 );
+const task4IdempotencyMigrationPath = resolve(
+  apiRoot,
+  "supabase/migrations/20260813150000_api_request_idempotency_scope.sql",
+);
 const task2ForwardMigrationPath = resolve(
   apiRoot,
   "supabase/migrations/20260813110000_api_credit_task2_contract.sql",
@@ -730,6 +734,8 @@ describe("production API credit contract", () => {
         "amount",
         "related_id",
         "related_type",
+        "api_consumer_id",
+        "api_request_idempotency_key",
       ]),
     );
     expect(required.tables.billing_products).toBeDefined();
@@ -739,10 +745,27 @@ describe("production API credit contract", () => {
     expect(required.indexes.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "credit_transactions_api_ref_unique",
+        "credit_transactions_api_request_idempotency_unique",
         "billing_credit_transactions_purchase_unique",
         "billing_events_provider_environment_retry_idx",
       ]),
     );
+    const scopedIdempotencyIndex = required.indexes.find(
+      ({ name }) =>
+        name === "credit_transactions_api_request_idempotency_unique",
+    );
+    expect(scopedIdempotencyIndex).toMatchObject({
+      table: "credit_transactions",
+      unique: true,
+      keys: [
+        "related_type",
+        "api_consumer_id",
+        "user_id",
+        "api_request_idempotency_key",
+      ],
+      predicate:
+        "related_type = 'api_request' and api_consumer_id is not null and api_request_idempotency_key is not null",
+    });
     expect(required.constraints.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "billing_products_api_credit_contract_check",
@@ -785,6 +808,27 @@ describe("production API credit contract", () => {
     expect(script).toMatch(/pg_catalog\.pg_trigger/i);
     expect(script).toMatch(/pg_get_triggerdef/i);
     expect(script).toMatch(/invalid_enabled_credit_product_keys/i);
+  });
+
+  it("ships the Task 4 scoped API idempotency migration", () => {
+    expect(existsSync(task4IdempotencyMigrationPath)).toBe(true);
+    const sql = existsSync(task4IdempotencyMigrationPath)
+      ? readFileSync(task4IdempotencyMigrationPath, "utf8")
+      : "";
+
+    expect(sql).toMatch(/add column if not exists api_consumer_id text/i);
+    expect(sql).toMatch(
+      /add column if not exists api_request_idempotency_key text/i,
+    );
+    expect(sql).toMatch(
+      /create unique index if not exists credit_transactions_api_request_idempotency_unique/i,
+    );
+    expect(sql).toMatch(
+      /on public\.credit_transactions\s*\(\s*related_type,\s*api_consumer_id,\s*user_id,\s*api_request_idempotency_key\s*\)/i,
+    );
+    expect(sql).toMatch(
+      /where related_type = 'api_request'\s+and api_consumer_id is not null\s+and api_request_idempotency_key is not null/i,
+    );
   });
 
   it("accepts a fixture only when catalog semantics, RLS, and ACLs match", () => {

@@ -22,15 +22,14 @@
 Passed:
 
 ```text
-48 focused tests passed (including the correction-round pipeline suite)
+81 Task 4-focused tests passed (including schema contracts, the migration-applied PGlite regression, and the correction-round pipeline suite)
 npm run build
 Task 4-only ESLint
 ```
 
 The full backend lint command was also run. It remains non-zero because of
 unrelated formatting errors in concurrent/pre-existing files:
-`src/og/page-og.controller.ts` and
-`src/opportunities/opportunities.service.ts`.
+`src/og/page-og.controller.ts`.
 
 ## Correction round
 
@@ -46,3 +45,13 @@ unrelated formatting errors in concurrent/pre-existing files:
 - Added an HTTP request-pipeline test proving zero balance and reservation
   failure return stable status/code/request ID values without invoking a paid
   handler.
+
+## Acceptance fix
+
+- Extended `verify-api-production-schema.mjs` to require both scoped ledger
+  columns and the effective unique index keys, uniqueness, and predicate.
+- Extended the billing/schema contract tests to assert the manifest and
+  migration contain the scoped idempotency contract.
+- Added a migration-applied PGlite regression proving cross-consumer/owner
+  isolation, exact retry idempotency, and fail-closed malformed/mismatched
+  duplicates.

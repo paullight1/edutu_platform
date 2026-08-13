@@ -79,7 +79,15 @@ const REQUIRED = Object.freeze({
       [],
     ),
     credit_transactions: table(
-      ["user_id", "amount", "type", "related_id", "related_type"],
+      [
+        "user_id",
+        "amount",
+        "type",
+        "related_id",
+        "related_type",
+        "api_consumer_id",
+        "api_request_idempotency_key",
+      ],
       ["SELECT", "INSERT"],
     ),
     billing_providers: table(["provider", "display_name"], ["SELECT"]),
@@ -156,6 +164,21 @@ const REQUIRED = Object.freeze({
       "consumer_id",
       "created_at desc",
     ]),
+    index(
+      "credit_transactions_api_request_idempotency_unique",
+      "credit_transactions",
+      [
+        "related_type",
+        "api_consumer_id",
+        "user_id",
+        "api_request_idempotency_key",
+      ],
+      {
+        unique: true,
+        predicate:
+          "related_type = 'api_request' and api_consumer_id is not null and api_request_idempotency_key is not null",
+      },
+    ),
     index(
       "credit_transactions_api_ref_unique",
       "credit_transactions",
