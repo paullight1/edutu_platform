@@ -85,6 +85,8 @@ describe("BillingRepository money and status contracts", () => {
       repository.findEnabledProduct("pro_monthly_pass", "sandbox"),
     ).resolves.toEqual({
       productKey: "pro_monthly_pass",
+      provider: "bachs",
+      environment: "sandbox",
       fulfillmentKind: "pro",
       renewalMode: "one_time",
       providerProductId: "bachs_monthly_sandbox",
