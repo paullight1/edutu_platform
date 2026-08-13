@@ -38,12 +38,21 @@ IPv4-compatible, and unsafe IPv6 targets, pins the resolved address for the
 request, revalidates every initial/redirect target, and enforces a bounded
 redirect limit.
 
+The final narrow correction also clears all personalized recommendation
+responses whenever catalog visibility is invalidated, including review
+withdrawals and verifier publication writes. A warmed recommendation therefore
+cannot serve a withdrawn submission from the 45-second response cache. User
+`respond()` writes now condition on the authenticated submitter and the
+observed `needs_info` state; a concurrent admin approval or rejection returns a
+conflict instead of overwriting the newer review decision.
+
 ## Scoped files changed
 
 - `backend/services/services/api/src/opportunity-submissions/opportunity-submissions.service.ts`
 - `backend/services/services/api/src/opportunity-submissions/opportunity-submissions.service.spec.ts`
 - `backend/services/services/api/src/opportunity-submissions/opportunity-submissions.correction.spec.ts`
 - `backend/services/services/api/src/opportunities/opportunities.service.ts`
+- `backend/services/services/api/src/opportunities/opportunity-ranking.service.ts`
 - `backend/services/services/api/src/opportunities/opportunity-static-snapshot.ts`
 - `backend/services/services/api/src/opportunities/opportunity-verification.service.ts`
 - `backend/services/services/api/src/opportunities/opportunity-verification.service.spec.ts`
@@ -73,9 +82,16 @@ and unchanged in this correction round.
   than 25, and corrected needs-info submission data reaching catalog refresh.
 - Backend `npm run build`: passed.
 - Targeted backend ESLint over all final Task 8 backend files: passed.
+- Final narrow correction focus: 7 suites, 57 tests passed, including the
+  warmed personalized-recommendation withdrawal and both admin
+  approval/rejection response interleavings.
+- Backend `npm run lint` — passed after formatting the final scoped files.
+- Backend `npm run build` — passed after the final narrow correction.
 - Backend `npx tsc --noEmit`: remains blocked by pre-existing unrelated dirty
-  billing, communities, and events test/type changes; no Task 8 source error
-  was reported, and the Nest build plus scoped lint pass.
+  billing, communities, events, and developer test/type changes, plus the
+  existing optional-property typing warning in the Task 8 correction test; no
+  Task 8 production source error was reported, and the Nest build plus scoped
+  lint pass.
 - Web typecheck — passed.
 - Web lint — passed.
 - Web build — passed; existing Vite dynamic-import warning emitted.
@@ -91,3 +107,6 @@ assembled from an explicit Task 8 path list only.
 ## Commit
 
 `54ee61f fix: fence Task 8 verification leases`
+
+The final narrow correction is committed separately as
+`fix: close Task 8 cache and response races`.
