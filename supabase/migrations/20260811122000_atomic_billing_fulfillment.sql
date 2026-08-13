@@ -24,7 +24,7 @@ create index if not exists billing_credit_transactions_resource_idx
   where related_id is not null;
 create unique index if not exists billing_credit_transactions_purchase_unique
   on public.credit_transactions (related_type, related_id)
-  where related_type = 'billing_credit_pack' and related_id is not null;
+  where related_id is not null and related_type = 'credit_pack';
 
 create or replace function public.billing_fulfill_one_time_purchase(
   p_provider text,
@@ -231,14 +231,22 @@ begin
     'purchase',
     'Billing credit pack',
     p_provider_resource_id,
-    'billing_credit_pack',
+    'credit_pack',
     jsonb_build_object(
       'provider', p_provider,
       'environment', p_environment,
       'product_key', p_product_key
     )
   )
+  on conflict (related_type, related_id)
+    where related_id is not null
+      and related_type = 'credit_pack'
+  do nothing
   returning id into v_credit_transaction_id;
+
+  if v_credit_transaction_id is null then
+    return jsonb_build_object('fulfilled', false, 'duplicate', true);
+  end if;
 
   if to_regclass('public.profiles') is null then
     raise exception 'profiles table does not exist';

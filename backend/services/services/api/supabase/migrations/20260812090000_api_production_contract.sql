@@ -378,6 +378,10 @@ $$;
 
 begin;
 
+-- Prevent a balance writer from crossing the final reconciliation check and
+-- trigger cutover. The lock is held through the final transaction commit.
+lock table public.profiles in share row exclusive mode;
+
 do $$
 declare
   had_credits boolean;
@@ -457,6 +461,12 @@ begin
       before insert or update of credits, credits_balance on public.profiles
       for each row execute function public.sync_profile_credit_balance_compat()
     $ddl$;
+
+    execute 'select count(*) from public.profiles where credits is distinct from credits_balance'
+      into remaining_mismatches;
+    if remaining_mismatches > 0 then
+      raise exception 'Credit reconciliation invariant failed after trigger installation with % remaining mismatch(es)', remaining_mismatches;
+    end if;
   else
     update public.profiles set credits = 0 where credits is null;
   end if;
@@ -497,7 +507,7 @@ create unique index if not exists credit_transactions_api_ref_unique
     and related_type in ('api_request', 'api_credit_purchase');
 create unique index if not exists billing_credit_transactions_purchase_unique
   on public.credit_transactions (related_type, related_id)
-  where related_id is not null and related_type = 'billing_credit_pack';
+  where related_id is not null and related_type = 'credit_pack';
 
 create table if not exists public.billing_providers (
   provider text primary key,

@@ -168,8 +168,7 @@ const REQUIRED = Object.freeze({
       ["related_type", "related_id"],
       {
         unique: true,
-        predicate:
-          "related_id is not null and related_type = 'billing_credit_pack'",
+        predicate: "related_id is not null and related_type = 'credit_pack'",
       },
     ),
     index(
@@ -193,57 +192,37 @@ const REQUIRED = Object.freeze({
       table: "api_usage_buckets",
       type: "u",
       validated: true,
-      definition: ["unique", "consumer_id", "period_start"],
+      definition: "UNIQUE (consumer_id, period_start)",
     },
     {
       name: "billing_products_api_credit_contract_check",
       table: "billing_products",
       type: "c",
       validated: true,
-      definition: [
-        "check",
-        "not enabled",
-        "fulfillment_kind",
-        "credit_pack",
-        "renewal_mode",
-        "one_time",
-        "coalesce(credit_quantity, 0) > 0",
-        "entitlement_duration is null",
-        "feature_key is null",
-      ],
+      definition:
+        "CHECK (NOT enabled OR fulfillment_kind <> 'credit_pack'::text OR NOT renewal_mode IS DISTINCT FROM 'one_time'::text AND COALESCE(credit_quantity, 0) > 0 AND entitlement_duration IS NULL AND feature_key IS NULL)",
     },
     {
-      name: "billing_checkout_intents_provider_environment_user_idempotency_key",
+      name: "billing_checkout_intents_provider_environment_user_idempotency_",
       table: "billing_checkout_intents",
       type: "u",
       validated: true,
-      definition: [
-        "unique",
-        "provider",
-        "environment",
-        "user_id",
-        "idempotency_key",
-      ],
+      definition: "UNIQUE (provider, environment, user_id, idempotency_key)",
     },
     {
       name: "billing_checkout_intents_product_provider_environment_fkey",
       table: "billing_checkout_intents",
       type: "f",
       validated: true,
-      definition: [
-        "foreign key",
-        "product_key",
-        "provider",
-        "environment",
-        "billing_product_provider_mappings",
-      ],
+      definition:
+        "FOREIGN KEY (product_key, provider, environment) REFERENCES billing_product_provider_mappings(product_key, provider, environment)",
     },
     {
       name: "billing_provider_events_provider_event_unique",
       table: "billing_provider_events",
       type: "u",
       validated: true,
-      definition: ["unique", "provider", "environment", "event_id"],
+      definition: "UNIQUE (provider, environment, event_id)",
     },
   ],
   productMapping: {
@@ -280,11 +259,16 @@ function normalizedSql(value) {
     .trim();
 }
 
-function includesSql(actual, expected) {
-  const normalized = normalizedSql(actual);
-  return expected.every((fragment) =>
-    normalized.includes(normalizedSql(fragment)),
-  );
+function normalizedConstraintDefinition(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll('"', "")
+    .replace(/::[a-z0-9_.\[\]]+/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*([(),])\s*/g, "$1")
+    .replace(/\s*(<>|>=|<=|=|>)\s*/g, " $1 ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function columnKey(tableName, column) {
@@ -428,7 +412,10 @@ function evaluateSnapshot(snapshot, environment) {
         `constraint public.${requirement.name} validated=${requirement.validated}`,
       );
     }
-    if (!includesSql(actual.definition, requirement.definition)) {
+    if (
+      normalizedConstraintDefinition(actual.definition) !==
+      normalizedConstraintDefinition(requirement.definition)
+    ) {
       violations.push(`constraint public.${requirement.name} definition`);
     }
   }

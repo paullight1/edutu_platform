@@ -1,6 +1,7 @@
 import {
   existsSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -27,6 +28,14 @@ const schemaVerificationScriptPath = resolve(
   apiRoot,
   "scripts/verify-api-production-schema.mjs",
 );
+const apiMigrationDirectory = resolve(apiRoot, "supabase/migrations");
+
+function apiCreditUpgradeMigrationPath(): string | null {
+  const name = readdirSync(apiMigrationDirectory).find((entry) =>
+    entry.endsWith("_api_credit_contract_upgrade_guard.sql"),
+  );
+  return name ? resolve(apiMigrationDirectory, name) : null;
+}
 const migrationNames = [
   "20260811120000_bachs_unified_billing_core.sql",
   "20260811121000_billing_identity_aliases.sql",
@@ -492,6 +501,89 @@ describe("production API credit contract", () => {
     );
   });
 
+  it("uses credit_pack as the only purchase-ledger discriminator", () => {
+    const apiMigration = readFileSync(apiProductionMigrationPath, "utf8");
+    const atomicMigration = migration(
+      "20260811122000_atomic_billing_fulfillment.sql",
+    );
+    const billingService = readFileSync(
+      resolve(apiRoot, "src/billing/billing.service.ts"),
+      "utf8",
+    );
+    const billingLedgerSql = readFileSync(
+      resolve(apiRoot, "src/billing/billing-credit-ledger.sql.ts"),
+      "utf8",
+    );
+
+    expect(apiMigration).toMatch(
+      /billing_credit_transactions_purchase_unique[\s\S]*?related_type = 'credit_pack'/i,
+    );
+    expect(atomicMigration).toMatch(
+      /billing_credit_transactions_purchase_unique[\s\S]*?where related_id is not null and related_type = 'credit_pack'/i,
+    );
+    expect(atomicMigration).toMatch(
+      /insert into public\.credit_transactions[\s\S]*?'credit_pack'/i,
+    );
+    expect(atomicMigration).toMatch(
+      /insert into public\.credit_transactions[\s\S]*?on conflict \(related_type, related_id\)[\s\S]*?related_type = 'credit_pack'[\s\S]*?do nothing/i,
+    );
+    expect(billingLedgerSql).toMatch(
+      /on conflict \(related_type, related_id\)[\s\S]*?related_type = 'credit_pack'/i,
+    );
+    expect(billingService).toMatch(/CREDIT_PACK_LEDGER_RELATED_TYPE/i);
+    expect(billingService).toMatch(/recordCreditPurchaseInTransaction/i);
+    expect(
+      `${apiMigration}\n${atomicMigration}\n${billingService}\n${billingLedgerSql}`,
+    ).not.toContain("billing_credit_pack");
+  });
+
+  it("ships a forward upgrade gate and locks profiles through reconciliation cutover", () => {
+    const path = apiCreditUpgradeMigrationPath();
+    expect(path).not.toBeNull();
+    const sql = path ? readFileSync(path, "utf8") : "";
+
+    expect(sql).toMatch(/supabase_migrations\.schema_migrations/i);
+    expect(sql).toMatch(/20260812090000/);
+    expect(sql).toMatch(/api_credit_cutover_upgrade_audit/i);
+    expect(sql).toMatch(/api_credit_cutover_upgrade_attestations/i);
+    expect(sql).toMatch(/api_credit_balance_reconciliation_state/i);
+    expect(sql).toMatch(/raise exception[^;]*attestation/i);
+    expect(sql).toMatch(
+      /lock table public\.profiles in share row exclusive mode/i,
+    );
+
+    const lockPosition = sql.search(
+      /lock table public\.profiles in share row exclusive mode/i,
+    );
+    const triggerPosition = sql.search(
+      /create (?:or replace )?trigger trg_00_sync_profile_credit_balance_compat/i,
+    );
+    const finalInvariantPosition = sql.search(
+      /raise exception[^;]*remaining[^;]*mismatch/i,
+    );
+    expect(lockPosition).toBeGreaterThan(-1);
+    expect(triggerPosition).toBeGreaterThan(lockPosition);
+    expect(finalInvariantPosition).toBeGreaterThan(triggerPosition);
+  });
+
+  it("audits and blocks an already-applied divergent upgrade before mutation", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "-r",
+        "ts-node/register/transpile-only",
+        resolve(apiRoot, "test/task-1/upgrade-gate-pglite-runner.ts"),
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(
+      "upgrade gate audited the mismatch and preserved the divergent balances",
+    );
+  });
+
   it("returns only non-expiring one-time credit products with positive quantity", async () => {
     mockExecute.mockResolvedValueOnce({
       rows: [
@@ -582,7 +674,7 @@ describe("production API credit contract", () => {
     expect(required.constraints.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         "billing_products_api_credit_contract_check",
-        "billing_checkout_intents_provider_environment_user_idempotency_key",
+        "billing_checkout_intents_provider_environment_user_idempotency_",
         "billing_checkout_intents_product_provider_environment_fkey",
         "billing_provider_events_provider_event_unique",
       ]),
@@ -690,6 +782,44 @@ describe("production API credit contract", () => {
       "invalid enabled credit products: credits_legacy_bad",
     );
   });
+
+  it.each([
+    ["OR true", "OR TRUE"],
+    ["zero-credit escape", "OR credit_quantity = 0"],
+    ["recurring escape", "OR renewal_mode = 'recurring'"],
+    ["expiring escape", "OR entitlement_duration IS NOT NULL"],
+    ["feature escape", "OR feature_key IS NOT NULL"],
+  ])(
+    "rejects a validated credit-product constraint weakened by %s",
+    (_, escape) => {
+      const manifest = verificationManifest();
+      const fixture = validVerificationFixture(manifest);
+      const productConstraint = fixture.constraints.find(
+        ({ name }) => name === "billing_products_api_credit_contract_check",
+      );
+      if (!productConstraint) {
+        throw new Error("Credit product constraint manifest is missing");
+      }
+      productConstraint.definition = `CHECK (
+      NOT enabled
+      OR fulfillment_kind <> 'credit_pack'
+      OR (
+        renewal_mode IS NOT DISTINCT FROM 'one_time'
+        AND COALESCE(credit_quantity, 0) > 0
+        AND entitlement_duration IS NULL
+        AND feature_key IS NULL
+      )
+      ${escape}
+    )`;
+
+      const result = runVerificationFixture(fixture);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        "constraint public.billing_products_api_credit_contract_check definition",
+      );
+    },
+  );
 
   it("keeps the API-consumer Drizzle contract aligned with ownership and key lookup", () => {
     const columns = getTableColumns(apiConsumers);
