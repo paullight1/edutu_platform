@@ -1,18 +1,23 @@
+import { type SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import { CreatorService } from "./creator.service";
 
-jest.mock("../db", () => ({ db: { select: jest.fn() } }));
+jest.mock("../db", () => ({ db: { select: jest.fn(), insert: jest.fn() } }));
 jest.mock("../notifications/notifications.service", () => ({
   NotificationsService: class {},
 }));
 
-const mockedDb = db as unknown as { select: jest.Mock };
+const mockedDb = db as unknown as { select: jest.Mock; insert: jest.Mock };
 
 describe("CreatorService.getCreatorDashboard", () => {
   let service: CreatorService;
+  let whereClauses: unknown[];
+
   beforeEach(() => {
     jest.resetAllMocks();
     service = new CreatorService({ broadcast: jest.fn() } as any);
+    whereClauses = [];
   });
 
   // Each db.select() call returns a chain that resolves on `.execute()`
@@ -24,7 +29,10 @@ describe("CreatorService.getCreatorDashboard", () => {
       const result = rows[call++] ?? [];
       const chain: any = {
         from: () => chain,
-        where: () => chain,
+        where: (clause: unknown) => {
+          whereClauses.push(clause);
+          return chain;
+        },
         orderBy: () => chain,
         limit: () => chain,
         execute: () => Promise.resolve(result),
@@ -100,5 +108,85 @@ describe("CreatorService.getCreatorDashboard", () => {
     expect(result.stats.mentorStatus).toBe("approved");
     expect(result.stats.publishedContent).toBe(0);
     expect(result.totalEarnings).toBe(0);
+  });
+
+  it("matches a raw profile id before authorizing an approved mentor", async () => {
+    wireSelects([
+      [{ creatorStatus: "none", mentorStatus: "approved", creditsBalance: 0 }],
+      [],
+      [{ total: 0 }],
+      [],
+      [],
+    ]);
+
+    await service.getCreatorDashboard("e5d3a70e-7d51-4759-9c64-60480b88fa2c");
+
+    const profilePredicate = new PgDialect().sqlToQuery(
+      whereClauses[0] as SQL,
+    ).sql;
+    expect(profilePredicate).toContain("clerk_id_to_uuid");
+  });
+
+  it("matches a raw profile id before authorizing an approved mentor to create a listing", async () => {
+    wireSelects([
+      [{ creatorStatus: "none", mentorStatus: "approved", creditsBalance: 0 }],
+    ]);
+    const insertChain: any = {
+      values: () => insertChain,
+      returning: () => insertChain,
+      execute: () => Promise.resolve([{ id: "listing-1" }]),
+    };
+    mockedDb.insert.mockReturnValue(insertChain);
+
+    await service.createListing("e5d3a70e-7d51-4759-9c64-60480b88fa2c", {
+      title: "Application clinic",
+      category: "mentorship",
+    });
+
+    const profilePredicate = new PgDialect().sqlToQuery(
+      whereClauses[0] as SQL,
+    ).sql;
+    expect(profilePredicate).toContain("clerk_id_to_uuid");
+  });
+});
+
+describe("CreatorService.getApplicationStatus", () => {
+  let service: CreatorService;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    service = new CreatorService({ broadcast: jest.fn() } as any);
+  });
+
+  it("does not return a creator application for a mentor status lookup", async () => {
+    let applicationPredicate: unknown;
+    const chain: any = {
+      from: () => chain,
+      where: (clause: unknown) => {
+        applicationPredicate = clause;
+        return chain;
+      },
+      orderBy: () => chain,
+      limit: () => chain,
+      execute: () =>
+        Promise.resolve([
+          {
+            id: "creator-application",
+            applicationKind: "creator",
+            status: "approved",
+          },
+        ]),
+    };
+    mockedDb.select.mockReturnValue(chain);
+
+    await expect(
+      service.getApplicationStatus(
+        "e5d3a70e-7d51-4759-9c64-60480b88fa2c",
+        "mentor",
+      ),
+    ).resolves.toBeNull();
+
+    const query = new PgDialect().sqlToQuery(applicationPredicate as SQL).sql;
+    expect(query).toContain("application_kind");
   });
 });

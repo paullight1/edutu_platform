@@ -126,8 +126,9 @@ export class PageOgController {
     const description =
       truncate(
         clean(post.excerpt) || toPlainText(post.content ?? post.body),
-        200,
+        160,
       ) || `${title} — insights from the Edutu team.`;
+    const articleBody = toPlainText(post.content ?? post.body);
 
     const image =
       this.absoluteImage(post.coverImage ?? post.cover_image) ??
@@ -146,6 +147,7 @@ export class PageOgController {
         url: pageUrl,
         ogType: "article",
         ctaLabel: "Read this post on Edutu →",
+        articleBody,
         jsonLd: {
           "@context": "https://schema.org",
           "@type": "BlogPosting",

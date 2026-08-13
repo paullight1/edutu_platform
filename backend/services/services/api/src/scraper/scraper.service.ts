@@ -3052,11 +3052,14 @@ ${text}`;
 
   private displayCategoryFor(canonicalCategory: string): string {
     const labels: Record<string, string> = {
-      scholarships: "Scholarship",
-      careers: "Career",
-      leadership: "Leadership",
-      global_programs: "Global Program",
-      training_conferences: "Training",
+      scholarships: "Scholarships",
+      internships: "Internships",
+      programs: "Programs",
+      fellowships: "Fellowships",
+      grants: "Grants",
+      graduate_programs: "Graduate Programs",
+      bootcamps: "Bootcamps",
+      events: "Events",
     };
     return labels[canonicalCategory] ?? "General";
   }
@@ -3299,10 +3302,14 @@ ${text}`;
 
   private buildPublicTags(item: RawItem, canonicalCategory: string): string[] {
     const categoryTags: Record<string, string> = {
-      scholarships: "Scholarship",
-      careers: "Career",
-      leadership: "Leadership",
-      global_programs: "Global Program",
+      scholarships: "Scholarships",
+      internships: "Internships",
+      programs: "Programs",
+      fellowships: "Fellowships",
+      grants: "Grants",
+      graduate_programs: "Graduate Programs",
+      bootcamps: "Bootcamps",
+      events: "Events",
       other: "Opportunity",
     };
     const rawTags = [

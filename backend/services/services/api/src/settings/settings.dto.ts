@@ -213,7 +213,26 @@ const WebHeroBannerSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+const WebAnnouncementSchema = z.object({
+  enabled: z.boolean().default(true),
+  text: z
+    .string()
+    .trim()
+    .max(240)
+    .default(
+      "Help Edutu For You reach 1 million young people with access to global opportunities.",
+    ),
+  linkUrl: z.string().trim().max(1000).default("/edutuforyou"),
+  linkLabel: z.string().trim().max(60).default("See Edutu For You"),
+});
+
 const WebContentSettingsSchema = z.object({
+  announcement: WebAnnouncementSchema.default({
+    enabled: true,
+    text: "Help Edutu For You reach 1 million young people with access to global opportunities.",
+    linkUrl: "/edutuforyou",
+    linkLabel: "See Edutu For You",
+  }),
   heroBanners: z.array(WebHeroBannerSchema).max(8).default([]),
 });
 
@@ -321,6 +340,7 @@ export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
 export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
 export type PaywallSettings = z.infer<typeof PaywallSettingsSchema>;
 export type WebHeroBanner = z.infer<typeof WebHeroBannerSchema>;
+export type WebAnnouncement = z.infer<typeof WebAnnouncementSchema>;
 export type WebContentSettings = z.infer<typeof WebContentSettingsSchema>;
 export type UserContentSettings = z.infer<typeof UserContentSettingsSchema>;
 export type SafetySettings = z.infer<typeof SafetySettingsSchema>;
@@ -458,6 +478,12 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
   },
   // No banners = the web app keeps its built-in hardcoded hero carousel.
   webContent: {
+    announcement: {
+      enabled: true,
+      text: "Help Edutu For You reach 1 million young people with access to global opportunities.",
+      linkUrl: "/edutuforyou",
+      linkLabel: "See Edutu For You",
+    },
     heroBanners: [],
   },
   // User submissions: reviewed before publishing, free to submit.
@@ -561,6 +587,10 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
         partial.paywall?.features ?? DEFAULT_ADMIN_SETTINGS.paywall.features,
     },
     webContent: {
+      announcement: {
+        ...DEFAULT_ADMIN_SETTINGS.webContent.announcement,
+        ...(partial.webContent?.announcement ?? {}),
+      },
       heroBanners:
         partial.webContent?.heroBanners ??
         DEFAULT_ADMIN_SETTINGS.webContent.heroBanners,

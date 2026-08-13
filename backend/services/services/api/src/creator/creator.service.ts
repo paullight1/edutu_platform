@@ -164,15 +164,29 @@ export class CreatorService {
     return this.serializeApplication(app);
   }
 
-  async getApplicationStatus(userId: string) {
+  async getApplicationStatus(
+    userId: string,
+    applicationKind: "creator" | "mentor" = "mentor",
+  ) {
     const [app] = await db
       .select()
       .from(creatorApplications)
-      .where(this.userMatch(creatorApplications.userId, userId))
+      .where(
+        and(
+          this.userMatch(creatorApplications.userId, userId),
+          eq(creatorApplications.applicationKind, applicationKind),
+        ),
+      )
       .orderBy(desc(creatorApplications.appliedAt))
       .limit(1)
       .execute();
-    return app ? this.serializeApplication(app) : null;
+
+    // The SQL predicate above is the source of truth. Keep this guard as a
+    // fail-closed boundary so a future query refactor can never expose a
+    // creator application through the mentor status endpoint (or vice versa).
+    return app?.applicationKind === applicationKind
+      ? this.serializeApplication(app)
+      : null;
   }
 
   // ─── Admin: Approve / Reject ───────────────────────────────────────────────
@@ -267,7 +281,7 @@ export class CreatorService {
             ? `Your ${kind} application for ${applicantLabel} has been approved.`
             : adminNote ||
               `Your ${kind} application was not approved at this time.`,
-        kind: "admin-broadcast",
+        kind: "application-status",
         severity: decision === "approved" ? "success" : "warning",
         audience: "specific",
         targetUserIds: [app.userId],
@@ -282,6 +296,7 @@ export class CreatorService {
           creatorStatus: decision,
           adminNote: adminNote ?? null,
         },
+        dedupeKey: `creator-application-status:${applicationId}:${decision}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -301,7 +316,7 @@ export class CreatorService {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .execute();
     if (!isApprovedMentor(profile)) {
       throw new ForbiddenException("Creator access not granted.");
@@ -411,7 +426,7 @@ export class CreatorService {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .execute();
     if (!profile || !isApprovedMentor(profile)) {
       throw new ForbiddenException("Only approved creators can list items.");

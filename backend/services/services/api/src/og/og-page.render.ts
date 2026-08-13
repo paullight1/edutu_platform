@@ -61,6 +61,8 @@ export interface OgPageMeta {
   imageWidth?: number;
   imageHeight?: number;
   jsonLd?: Record<string, unknown>;
+  /** Plain-text article copy exposed before the SPA boots for non-JS crawlers. */
+  articleBody?: string;
 }
 
 export function renderOgPage(meta: OgPageMeta): string {
@@ -72,6 +74,10 @@ export function renderOgPage(meta: OgPageMeta): string {
     meta.imageWidth && meta.imageHeight
       ? `\n  <meta property="og:image:width" content="${meta.imageWidth}">\n  <meta property="og:image:height" content="${meta.imageHeight}">`
       : "";
+
+  const articleBody = meta.articleBody
+    ? `\n    <p>${textContent(meta.articleBody)}</p>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -100,6 +106,7 @@ export function renderOgPage(meta: OgPageMeta): string {
   <main style="font-family:system-ui,-apple-system,sans-serif;max-width:640px;margin:48px auto;padding:0 20px;line-height:1.5">
     <h1>${textContent(meta.title)}</h1>
     <p>${textContent(meta.description)}</p>
+${articleBody}
     <p><a href="${attr(meta.url)}">${textContent(meta.ctaLabel)}</a></p>
   </main>
 </body>

@@ -21,7 +21,8 @@ export const CreatorApplicationSchema = z
     socialLinks: z.string().trim().max(1000).optional(),
     // Storage path in the private creator-applications bucket (identity doc).
     kycImageUrl: z.string().trim().max(500).optional(),
-    // Public proof file in the creator-proofs bucket.
+    // Legacy URL field. New submissions persist only proofPath in the private
+    // creator-proofs bucket and reviewers use short-lived signed URLs.
     proofUrl: z.string().url().optional().or(z.literal("")),
     proofPath: z.string().trim().max(500).optional(),
     proofFileName: z.string().trim().max(255).optional(),

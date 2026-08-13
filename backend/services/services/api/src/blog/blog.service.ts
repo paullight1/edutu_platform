@@ -136,6 +136,30 @@ export class BlogService {
     }
   }
 
+  /** Lightweight published-post projection used by the public XML sitemap. */
+  async listSitemapPosts(): Promise<
+    Array<{
+      slug: string;
+      publishedAt: Date | null;
+      updatedAt: Date | null;
+    }>
+  > {
+    try {
+      return await db
+        .select({
+          slug: blogPosts.slug,
+          publishedAt: blogPosts.publishedAt,
+          updatedAt: blogPosts.updatedAt,
+        })
+        .from(blogPosts)
+        .where(eq(blogPosts.status, "published"))
+        .orderBy(desc(blogPosts.publishedAt))
+        .limit(1000);
+    } catch {
+      return [];
+    }
+  }
+
   async findOne(id: string): Promise<BlogPost> {
     const posts = await db
       .select()
