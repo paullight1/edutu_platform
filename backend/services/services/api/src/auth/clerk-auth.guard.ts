@@ -97,9 +97,10 @@ export class ClerkAuthGuard implements CanActivate {
   }
 
   private tryAuthenticateLocalAdmin(request: any): boolean {
-    // SECURITY: the local-admin bypass must never be usable in production,
-    // regardless of how the env vars are configured.
-    if (process.env.NODE_ENV === "production") {
+    // SECURITY: the local-admin bypass is only valid in the explicit local
+    // development mode. Unsupported, staging-like, and test environments
+    // must not inherit this privileged escape hatch.
+    if (process.env.NODE_ENV !== "development") {
       return false;
     }
     if (process.env.EDUTU_LOCAL_ADMIN_BYPASS !== "true") {

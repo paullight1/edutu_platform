@@ -12,7 +12,13 @@ if (typeof globalThis.WebSocket === "undefined") {
 
 export function validateEnvironment(): void {
   const logger = new Logger("Bootstrap");
-  const isProd = process.env.NODE_ENV === "production";
+  const nodeEnv = process.env.NODE_ENV?.trim();
+  if (!nodeEnv || !["development", "test", "production"].includes(nodeEnv)) {
+    throw new Error(
+      "NODE_ENV must be explicitly set to development, test, or production.",
+    );
+  }
+  const isProd = nodeEnv === "production";
 
   if (process.env.COMMUNITY_CALLS_ENABLED === "true") {
     const tokenSecret = process.env.COMMUNITY_CALL_TOKEN_SECRET || "";

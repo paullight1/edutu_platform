@@ -30,19 +30,26 @@ create table if not exists public.profiles (
   bio text,
   preferences jsonb not null default '{}'::jsonb,
   settings jsonb not null default '{}'::jsonb,
+  credits integer not null default 0,
   last_seen_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table public.profiles add column if not exists credits integer;
+update public.profiles set credits = 0 where credits is null;
+alter table public.profiles alter column credits set default 0;
+alter table public.profiles alter column credits set not null;
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (user_id, email, full_name, created_at, updated_at)
+  insert into public.profiles (user_id, email, full_name, credits, created_at, updated_at)
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name'),
+    0,
     now(),
     now()
   )

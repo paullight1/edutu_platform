@@ -24,6 +24,10 @@ const apiProductionMigrationPath = resolve(
   apiRoot,
   "supabase/migrations/20260812090000_api_production_contract.sql",
 );
+const task2ForwardMigrationPath = resolve(
+  apiRoot,
+  "supabase/migrations/20260813110000_api_credit_task2_contract.sql",
+);
 const schemaVerificationScriptPath = resolve(
   apiRoot,
   "scripts/verify-api-production-schema.mjs",
@@ -53,6 +57,7 @@ type VerificationManifest = {
       serviceRolePrivileges: string[] | null;
     }
   >;
+  views: Record<string, { serviceRolePrivileges: string[] }>;
   indexes: Array<{
     name: string;
     table: string;
@@ -109,14 +114,23 @@ function validVerificationFixture(manifest: VerificationManifest) {
     indexes: manifest.indexes.map((index) => ({ ...index })),
     constraints: manifest.constraints.map((constraint) => ({ ...constraint })),
     triggers: manifest.triggers.map((trigger) => ({ ...trigger })),
-    privileges: Object.entries(manifest.tables).flatMap(
-      ([table, requirement]) =>
+    privileges: [
+      ...Object.entries(manifest.tables).flatMap(([table, requirement]) =>
         (requirement.serviceRolePrivileges ?? []).map((privilege) => ({
           table_name: table,
           role_name: "service_role",
           privilege_type: privilege,
         })),
-    ),
+      ),
+      ...Object.entries(manifest.views).flatMap(([view, requirement]) =>
+        requirement.serviceRolePrivileges.map((privilege) => ({
+          table_name: view,
+          role_name: "service_role",
+          privilege_type: privilege,
+        })),
+      ),
+    ],
+    views: Object.keys(manifest.views).map((view) => ({ view_name: view })),
     product_mapping_present: true,
     invalid_enabled_credit_product_keys: [],
   };
@@ -458,6 +472,32 @@ describe("production API credit contract", () => {
     expect(sql).toMatch(/billing_provider_events_provider_event_unique/i);
   });
 
+  it("ships Task 2 credit integrity objects in a forward migration", () => {
+    expect(existsSync(task2ForwardMigrationPath)).toBe(true);
+    const task2Sql = existsSync(task2ForwardMigrationPath)
+      ? readFileSync(task2ForwardMigrationPath, "utf8")
+      : "";
+    const task1Sql = readFileSync(apiProductionMigrationPath, "utf8");
+
+    expect(task2Sql).toMatch(
+      /create or replace view public\.api_credit_balance_integrity_audit/i,
+    );
+    expect(task2Sql).toMatch(
+      /alter table public\.profiles add column if not exists credits integer/i,
+    );
+    expect(task2Sql).toMatch(
+      /profiles_credits_nonnegative_check[\s\S]*?validate constraint profiles_credits_nonnegative_check/i,
+    );
+    expect(task2Sql).toMatch(
+      /revoke all on public\.api_credit_balance_integrity_audit\s+from public, anon, authenticated/i,
+    );
+    expect(task2Sql).toMatch(
+      /grant select on public\.api_credit_balance_integrity_audit to service_role/i,
+    );
+    expect(task1Sql).not.toMatch(/api_credit_balance_integrity_audit/i);
+    expect(task1Sql).not.toMatch(/profiles_credits_nonnegative_check/i);
+  });
+
   it("audits divergent balances and aborts before any compatibility synchronization", () => {
     const sql = readFileSync(apiProductionMigrationPath, "utf8");
 
@@ -784,6 +824,11 @@ describe("production API credit contract", () => {
     fixture.privileges.push({
       table_name: "api_consumers",
       role_name: "authenticated",
+      privilege_type: "SELECT",
+    });
+    fixture.privileges.push({
+      table_name: "api_credit_balance_integrity_audit",
+      role_name: "PUBLIC",
       privilege_type: "SELECT",
     });
     fixture.privileges = fixture.privileges.filter(

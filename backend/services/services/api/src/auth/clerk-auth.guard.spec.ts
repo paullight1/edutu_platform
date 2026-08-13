@@ -184,4 +184,32 @@ describe("ClerkAuthGuard", () => {
       status: 401,
     });
   });
+
+  it("allows the local admin bypass only in explicit development mode", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.EDUTU_LOCAL_ADMIN_BYPASS = "true";
+    const { guard } = createGuard();
+    const { context } = createContext({
+      "x-edutu-admin-email": "admin@example.com",
+    });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it.each([undefined, "", "staging", "production-like"])(
+    "does not allow the local admin bypass in NODE_ENV=%s",
+    async (nodeEnv) => {
+      if (nodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = nodeEnv;
+      process.env.EDUTU_LOCAL_ADMIN_BYPASS = "true";
+      const { guard } = createGuard();
+      const { context } = createContext({
+        "x-edutu-admin-email": "admin@example.com",
+      });
+
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        status: 401,
+      });
+    },
+  );
 });

@@ -18,6 +18,7 @@ const table = (columns, serviceRolePrivileges) => ({
   rls: serviceRolePrivileges === null ? null : true,
   serviceRolePrivileges,
 });
+const view = (serviceRolePrivileges) => ({ serviceRolePrivileges });
 const index = (name, tableName, keys, options = {}) => ({
   name,
   table: tableName,
@@ -129,6 +130,9 @@ const REQUIRED = Object.freeze({
       ["SELECT", "INSERT", "UPDATE"],
     ),
   },
+  views: {
+    api_credit_balance_integrity_audit: view(["SELECT"]),
+  },
   indexes: [
     index("idx_api_consumers_owner", "api_consumers", ["owner_user_id"]),
     index("idx_api_consumers_status", "api_consumers", ["status"]),
@@ -187,6 +191,13 @@ const REQUIRED = Object.freeze({
     ),
   ],
   constraints: [
+    {
+      name: "profiles_credits_nonnegative_check",
+      table: "profiles",
+      type: "c",
+      validated: true,
+      definition: "CHECK (credits >= 0)",
+    },
     {
       name: "api_usage_buckets_consumer_period_unique",
       table: "api_usage_buckets",
@@ -299,6 +310,9 @@ function evaluateSnapshot(snapshot, environment) {
   );
   const triggers = new Map(
     (snapshot.triggers ?? []).map((row) => [row.name, row]),
+  );
+  const views = new Map(
+    (snapshot.views ?? []).map((row) => [row.view_name, row]),
   );
 
   for (const [tableName, requirement] of Object.entries(REQUIRED.tables)) {
@@ -459,6 +473,44 @@ function evaluateSnapshot(snapshot, environment) {
     }
   }
 
+  for (const [viewName, requirement] of Object.entries(REQUIRED.views)) {
+    if (!views.has(viewName)) {
+      violations.push(`view public.${viewName}`);
+      continue;
+    }
+
+    const grants = snapshot.privileges.filter(
+      (row) => row.table_name === viewName,
+    );
+    for (const roleName of ["PUBLIC", "anon", "authenticated"]) {
+      for (const grant of grants.filter((row) => row.role_name === roleName)) {
+        violations.push(
+          `ACL public.${viewName} ${roleName} has no ${grant.privilege_type}`,
+        );
+      }
+    }
+
+    const actualServiceRole = new Set(
+      grants
+        .filter((row) => row.role_name === "service_role")
+        .map((row) => row.privilege_type),
+    );
+    for (const privilege of requirement.serviceRolePrivileges) {
+      if (!actualServiceRole.has(privilege)) {
+        violations.push(
+          `ACL public.${viewName} service_role grants ${privilege}`,
+        );
+      }
+    }
+    for (const privilege of actualServiceRole) {
+      if (!requirement.serviceRolePrivileges.includes(privilege)) {
+        violations.push(
+          `ACL public.${viewName} service_role has no extra ${privilege}`,
+        );
+      }
+    }
+  }
+
   if (!snapshot.product_mapping_present) {
     violations.push(`product mapping enabled bachs ${environment} credit_pack`);
   }
@@ -473,10 +525,12 @@ function evaluateSnapshot(snapshot, environment) {
 
 async function loadDatabaseSnapshot(client, environment) {
   const tableNames = Object.keys(REQUIRED.tables);
+  const viewNames = Object.keys(REQUIRED.views);
+  const relationNames = [...tableNames, ...viewNames];
   const indexNames = REQUIRED.indexes.map(({ name }) => name);
   const constraintNames = REQUIRED.constraints.map(({ name }) => name);
   const triggerNames = REQUIRED.triggers.map(({ name }) => name);
-  const [columns, tables, indexes, constraints, triggers, privileges] =
+  const [columns, tables, indexes, constraints, triggers, views, privileges] =
     await Promise.all([
       client.query(
         `select table_name, column_name, data_type, is_nullable, column_default
@@ -541,11 +595,19 @@ async function loadDatabaseSnapshot(client, environment) {
         [triggerNames],
       ),
       client.query(
-        `with target_tables as (
+        `select rel.relname as view_name
+         from pg_catalog.pg_class rel
+         join pg_catalog.pg_namespace ns on ns.oid = rel.relnamespace
+         where ns.nspname = 'public' and rel.relkind = 'v'
+           and rel.relname = any($1::text[])`,
+        [viewNames],
+      ),
+      client.query(
+        `with target_relations as (
          select rel.oid, rel.relname as table_name, rel.relacl, rel.relowner
          from pg_catalog.pg_class rel
          join pg_catalog.pg_namespace ns on ns.oid = rel.relnamespace
-         where ns.nspname = 'public' and rel.relkind in ('r', 'p')
+         where ns.nspname = 'public' and rel.relkind in ('r', 'p', 'v')
            and rel.relname = any($1::text[])
        ), roles(role_name) as (
          values ('anon'::text), ('authenticated'::text), ('service_role'::text)
@@ -553,7 +615,7 @@ async function loadDatabaseSnapshot(client, environment) {
          select unnest($2::text[])
        ), effective_grants as (
          select target.table_name, roles.role_name, privileges.privilege_type
-         from target_tables target
+         from target_relations target
          cross join roles
          cross join privileges
          where pg_catalog.has_table_privilege(
@@ -563,7 +625,7 @@ async function loadDatabaseSnapshot(client, environment) {
          )
        ), public_grants as (
          select target.table_name, 'PUBLIC'::text as role_name, acl.privilege_type
-         from target_tables target
+         from target_relations target
          cross join lateral pg_catalog.aclexplode(
            coalesce(
              target.relacl,
@@ -575,7 +637,7 @@ async function loadDatabaseSnapshot(client, environment) {
        select table_name, role_name, privilege_type from effective_grants
        union
        select table_name, role_name, privilege_type from public_grants`,
-        [tableNames, DATA_PRIVILEGES],
+        [relationNames, DATA_PRIVILEGES],
       ),
     ]);
 
@@ -642,6 +704,7 @@ async function loadDatabaseSnapshot(client, environment) {
     indexes: indexes.rows,
     constraints: constraints.rows,
     triggers: triggers.rows,
+    views: views.rows,
     privileges: privileges.rows,
     product_mapping_present: productMappingPresent,
     invalid_enabled_credit_product_keys: invalidEnabledCreditProductKeys,

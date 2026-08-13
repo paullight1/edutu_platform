@@ -771,10 +771,14 @@ export class ChatService {
 
     if (data) return;
 
-    const { error } = await supabase.from("profiles").insert({
-      user_id: userId,
-      full_name: "Edutu User",
-    });
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        full_name: "Edutu User",
+        credits: 0,
+      },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    );
 
     if (error) throw new BadRequestException(error.message);
   }

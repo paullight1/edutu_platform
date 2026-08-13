@@ -22,6 +22,16 @@ describe("production environment validation", () => {
     process.env = originalEnv;
   });
 
+  it.each([undefined, "", "staging", "prod", "production-like"])(
+    "rejects unsupported NODE_ENV=%s before accepting runtime configuration",
+    (nodeEnv) => {
+      if (nodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = nodeEnv;
+
+      expect(() => validateEnvironment()).toThrow("NODE_ENV");
+    },
+  );
+
   it("accepts complete production identity and database configuration", () => {
     expect(() => validateEnvironment()).not.toThrow();
   });
