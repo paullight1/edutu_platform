@@ -378,10 +378,14 @@ export async function requestOpenAiChatStream(params: {
   }
 
   let delivered = false;
-  const outcome = await consumeOpenAiChatStream(response.body, (delta) => {
-    delivered = true;
-    params.options.onToken(delta);
-  }, params.signal);
+  const outcome = await consumeOpenAiChatStream(
+    response.body,
+    (delta) => {
+      delivered = true;
+      params.options.onToken(delta);
+    },
+    params.signal,
+  );
 
   // Nothing reached the user AND nothing usable came back — treat it as a
   // failed establishment so the caller can fall back to the buffered call

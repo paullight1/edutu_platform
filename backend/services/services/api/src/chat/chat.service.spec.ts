@@ -131,6 +131,35 @@ describe("ChatService.sendMessage — relevance gate", () => {
     return { service, aiService, rankingService, coachTools };
   }
 
+  it("creates a missing profile with zero API credits and preserves conflicts", async () => {
+    const { service } = makeService();
+    const upsert = jest.fn().mockResolvedValue({ error: null });
+    const supabase = {
+      from: (table: string) => {
+        if (table !== "profiles") throw new Error(`Unexpected table: ${table}`);
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: jest.fn().mockResolvedValue({ data: null }),
+            }),
+          }),
+          upsert,
+        };
+      },
+    };
+
+    await (service as any).ensureProfile(supabase, "user-new");
+
+    expect(upsert).toHaveBeenCalledWith(
+      {
+        user_id: "user-new",
+        full_name: "Edutu User",
+        credits: 0,
+      },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    );
+  });
+
   it("does not topic-gate non-English messages on the agent path", async () => {
     delete process.env.AI_AGENT_ENABLED; // agent path enabled (default)
     const { service } = makeService();

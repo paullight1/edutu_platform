@@ -771,10 +771,14 @@ export class ChatService {
 
     if (data) return;
 
-    const { error } = await supabase.from("profiles").insert({
-      user_id: userId,
-      full_name: "Edutu User",
-    });
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        full_name: "Edutu User",
+        credits: 0,
+      },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    );
 
     if (error) throw new BadRequestException(error.message);
   }
@@ -1286,7 +1290,7 @@ ${input.message}`;
       // decides to call tools still comes back with complete, executable calls;
       // only prose ever reaches onToken.
       const result = input.onToken
-          ? await this.aiService.generateChatStream({
+        ? await this.aiService.generateChatStream({
             ...request,
             onToken: input.onToken,
             signal: input.signal,
