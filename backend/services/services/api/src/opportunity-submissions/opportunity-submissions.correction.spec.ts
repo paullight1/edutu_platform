@@ -50,7 +50,7 @@ function submission(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeService() {
+function makeService(durable = false) {
   const catalog = {
     createPendingReviewFromSubmission: jest
       .fn()
@@ -59,8 +59,20 @@ function makeService() {
       .fn()
       .mockResolvedValue(OPPORTUNITY_ID),
     setSubmissionCatalogReviewState: jest.fn().mockResolvedValue(undefined),
+    invalidateCatalogCache: jest.fn().mockResolvedValue(undefined),
+    getSubmissionCatalogReviewVersion: jest.fn().mockResolvedValue(1),
   };
-  const verification = { verifyOne: jest.fn().mockResolvedValue(null) };
+  const verification = durable
+    ? {
+        verifyOne: jest.fn().mockResolvedValue(null),
+        enqueueSubmissionVerification: jest
+          .fn()
+          .mockResolvedValue({ id: "operation-1" }),
+        processSubmissionVerificationOperation: jest
+          .fn()
+          .mockResolvedValue({ state: "verified_public" }),
+      }
+    : { verifyOne: jest.fn().mockResolvedValue(null) };
   const notifications = { broadcast: jest.fn().mockResolvedValue(undefined) };
   const settings = {
     getSettings: jest.fn().mockResolvedValue({
@@ -163,7 +175,9 @@ describe("Task 8 publication corrections", () => {
     expect(result).toMatchObject({
       status: "approved",
       approved_opportunity_id: OPPORTUNITY_ID,
+      publication_state: "approved_for_verification",
     });
+    expect(catalog.invalidateCatalogCache).toHaveBeenCalled();
   });
 
   it("withdraws the linked catalog row for approved-to-rejected and approved-to-needs-info", async () => {
@@ -190,7 +204,34 @@ describe("Task 8 publication corrections", () => {
         decision,
       );
       expect(result.status).toBe(decision);
+      expect(catalog.invalidateCatalogCache).toHaveBeenCalled();
     }
+  });
+
+  it("creates the durable approval handoff in the review transaction and reports public only after verification", async () => {
+    const { service, catalog, verification } = makeService(true);
+    transactionFor(submission());
+
+    const result = await service.review(SUBMISSION_ID, ADMIN_ID, {
+      decision: "approved",
+    });
+
+    expect(catalog.getSubmissionCatalogReviewVersion).toHaveBeenCalledWith(
+      expect.anything(),
+      OPPORTUNITY_ID,
+    );
+    expect(verification.enqueueSubmissionVerification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        submissionId: SUBMISSION_ID,
+        opportunityId: OPPORTUNITY_ID,
+        reviewVersion: 1,
+      }),
+    );
+    expect(
+      verification.processSubmissionVerificationOperation,
+    ).toHaveBeenCalledWith("operation-1");
+    expect(result.publication_state).toBe("verified_public");
   });
 
   it("makes repeated decisions idempotent and does not create a second catalog row", async () => {

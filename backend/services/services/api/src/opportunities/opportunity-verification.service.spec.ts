@@ -16,6 +16,8 @@ describe("OpportunityVerificationService outbound URL policy", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    dnsLookup.mockReset();
+    (httpsRequest as unknown as jest.Mock).mockReset();
   });
 
   it.each([
@@ -25,6 +27,11 @@ describe("OpportunityVerificationService outbound URL policy", () => {
     "http://10.0.0.8/apply",
     "http://[::1]/apply",
     "http://[fd00::1]/apply",
+    "http://[::ffff:7f00:1]/apply",
+    "http://[0:0:0:0:0:ffff:7f00:1]/apply",
+    "http://[::ffff:a9fe:a9fe]/latest/meta-data",
+    "http://[::a00:1]/apply",
+    "http://[0:0:0:0:0:0:c000:0201]/apply",
     "http://2130706433/apply",
   ])(
     "rejects private, link-local, metadata, or encoded target %s",
@@ -79,6 +86,36 @@ describe("OpportunityVerificationService outbound URL policy", () => {
         100,
       ),
     ).rejects.toThrow(/unsafe|private|metadata/i);
+    expect(request).toHaveBeenCalledTimes(1);
+    request.mockReset();
+  });
+
+  it("revalidates hexadecimal mapped and compatible IPv4 redirects", async () => {
+    dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    const service = new OpportunityVerificationService({} as any);
+    const request = httpsRequest as unknown as jest.Mock;
+    request.mockImplementation(((
+      _options: any,
+      _requestOptions: any,
+      callback: any,
+    ) => {
+      callback({
+        statusCode: 302,
+        headers: { location: "http://[::ffff:7f00:1]/apply" },
+        on: (event: string, handler: (value?: unknown) => void) => {
+          if (event === "end") handler();
+        },
+      });
+      return { on: jest.fn(), setTimeout: jest.fn(), end: jest.fn() } as any;
+    }) as any);
+
+    await expect(
+      (service as any).fetchWithTimeout(
+        "https://public.example/apply",
+        "GET",
+        100,
+      ),
+    ).rejects.toThrow(/unsafe|private|loopback|metadata/i);
     expect(request).toHaveBeenCalledTimes(1);
     request.mockReset();
   });

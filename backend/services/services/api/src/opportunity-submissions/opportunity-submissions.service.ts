@@ -236,6 +236,7 @@ export class OpportunitySubmissionsService {
       const repeatedDecision = row.status === dto.decision;
       let approvedOpportunityId = row.approvedOpportunityId ?? null;
       let shouldVerify = false;
+      let verificationOperationId: string | null = null;
 
       if (dto.decision === "approved") {
         approvedOpportunityId = approvedOpportunityId
@@ -249,6 +250,26 @@ export class OpportunitySubmissionsService {
               this.toCatalogInput(row),
             );
         shouldVerify = true;
+        if (
+          approvedOpportunityId &&
+          this.opportunityVerificationService?.enqueueSubmissionVerification
+        ) {
+          const reviewVersion =
+            await this.opportunitiesService.getSubmissionCatalogReviewVersion(
+              tx,
+              approvedOpportunityId,
+            );
+          const operation =
+            await this.opportunityVerificationService.enqueueSubmissionVerification(
+              tx,
+              {
+                submissionId: row.id,
+                opportunityId: approvedOpportunityId,
+                reviewVersion,
+              },
+            );
+          verificationOperationId = operation?.id ?? null;
+        }
       } else if (approvedOpportunityId && !repeatedDecision) {
         await this.opportunitiesService.setSubmissionCatalogReviewState(
           tx,
@@ -259,7 +280,13 @@ export class OpportunitySubmissionsService {
       }
 
       if (repeatedDecision && dto.decision !== "approved") {
-        return { row, shouldVerify: false, notify: false };
+        return {
+          row,
+          shouldVerify: false,
+          notify: false,
+          verificationOperationId,
+          publicationState: "not_published" as const,
+        };
       }
 
       const thread = dto.adminNote?.trim()
@@ -280,24 +307,51 @@ export class OpportunitySubmissionsService {
         .returning();
 
       if (!updated) throw new Error("Submission review could not be persisted");
-      return { row: updated, shouldVerify, notify: !repeatedDecision };
+      return {
+        row: updated,
+        shouldVerify,
+        notify: !repeatedDecision,
+        verificationOperationId,
+        publicationState:
+          dto.decision === "approved"
+            ? ("approved_for_verification" as const)
+            : ("not_published" as const),
+      };
     });
 
+    await this.opportunitiesService.invalidateCatalogCache();
+
+    let publicationState:
+      | "approved_for_verification"
+      | "verified_public"
+      | "withdrawn"
+      | "not_published" = outcome.publicationState;
     if (
       outcome.shouldVerify &&
       outcome.row.approvedOpportunityId &&
       this.opportunityVerificationService
     ) {
-      try {
-        await this.opportunityVerificationService.verifyOne(
-          outcome.row.approvedOpportunityId,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Submission verification could not run for ${id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+      if (
+        outcome.verificationOperationId &&
+        this.opportunityVerificationService
+          .processSubmissionVerificationOperation
+      ) {
+        const verification =
+          await this.opportunityVerificationService.processSubmissionVerificationOperation(
+            outcome.verificationOperationId,
+          );
+        publicationState = verification.state;
+      } else {
+        // Compatibility fallback for isolated callers that provide the
+        // verifier without the durable-operation methods. Production wiring
+        // always takes the operation path above.
+        const verification =
+          await this.opportunityVerificationService.verifyOne(
+            outcome.row.approvedOpportunityId,
+          );
+        if (verification?.status === "verified") {
+          publicationState = "verified_public";
+        }
       }
     }
 
@@ -309,7 +363,10 @@ export class OpportunitySubmissionsService {
       `Opportunity submission ${id} → ${dto.decision} by admin ${adminId}`,
     );
 
-    return this.serialize(outcome.row);
+    return {
+      ...this.serialize(outcome.row),
+      publication_state: publicationState,
+    };
   }
 
   private async selectSubmissionForUpdate(

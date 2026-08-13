@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { sql } from "drizzle-orm";
 import { lookup } from "node:dns/promises";
@@ -7,6 +7,9 @@ import * as http from "node:http";
 import * as https from "node:https";
 import { db } from "../db";
 import { opportunityVerificationRuns } from "../db/schema";
+import type { OpportunityDbTransaction } from "./opportunities.service";
+import { CacheService } from "../common/cache/cache.service";
+import { AuditService } from "../common/audit/audit.service";
 import {
   parseDeadlineDetailed,
   extractDeadlineText,
@@ -54,9 +57,13 @@ type VerificationOutcome = {
    */
   newCloseDate?: string | null;
   newDeadlineConfidence?: DeadlineConfidence;
+  submissionId?: string | null;
+  submissionReviewVersion?: number | null;
 };
 
 const MAX_OUTBOUND_REDIRECTS = 5;
+const MAX_SUBMISSION_VERIFICATION_ATTEMPTS = 3;
+const SUBMISSION_VERIFICATION_RETRY_DELAYS_MS = [60_000, 300_000];
 
 function ipv4Number(value: string): number | null {
   const parts = value.split(".");
@@ -72,7 +79,10 @@ function ipv4Number(value: string): number | null {
 
 function isUnsafeIpv4(value: string): boolean {
   const number = ipv4Number(value);
-  if (number === null) return true;
+  return number === null ? true : isUnsafeIpv4Number(number);
+}
+
+function isUnsafeIpv4Number(number: number): boolean {
   const first = number >>> 24;
   const second = (number >>> 16) & 0xff;
   const third = (number >>> 8) & 0xff;
@@ -93,19 +103,76 @@ function isUnsafeIpv4(value: string): boolean {
   );
 }
 
+function parseIpv6Hextets(value: string): number[] | null {
+  const normalized = value.replace(/%[0-9a-z_.-]+$/i, "");
+  if (!normalized || normalized.includes("%")) return null;
+
+  let expanded = normalized;
+  const dottedIndex = expanded.lastIndexOf(":");
+  if (expanded.includes(".")) {
+    if (dottedIndex < 0) return null;
+    const ipv4 = ipv4Number(expanded.slice(dottedIndex + 1));
+    if (ipv4 === null) return null;
+    expanded = `${expanded.slice(0, dottedIndex + 1)}${(
+      (ipv4 >>> 16) &
+      0xffff
+    ).toString(16)}:${(ipv4 & 0xffff).toString(16)}`;
+  }
+
+  const compression = expanded.indexOf("::");
+  if (compression !== -1 && compression !== expanded.lastIndexOf("::")) {
+    return null;
+  }
+
+  const parsePart = (part: string) => {
+    if (!part) return [];
+    const values = part.split(":");
+    if (values.some((item) => !/^[0-9a-f]{1,4}$/i.test(item))) return null;
+    return values.map((item) => parseInt(item, 16));
+  };
+
+  if (compression >= 0) {
+    const left = parsePart(expanded.slice(0, compression));
+    const right = parsePart(expanded.slice(compression + 2));
+    if (!left || !right || left.length + right.length >= 8) return null;
+    return [
+      ...left,
+      ...Array(8 - left.length - right.length).fill(0),
+      ...right,
+    ];
+  }
+
+  const parts = parsePart(expanded);
+  return parts?.length === 8 ? parts : null;
+}
+
+function ipv4NumberFromIpv6(value: string): number | null {
+  const hextets = parseIpv6Hextets(value);
+  if (!hextets) return null;
+  const firstFiveZero = hextets.slice(0, 5).every((part) => part === 0);
+  const compatible = hextets.slice(0, 6).every((part) => part === 0);
+  const mapped = firstFiveZero && hextets[5] === 0xffff;
+  if (!mapped && !compatible) return null;
+  return ((hextets[6] << 16) | hextets[7]) >>> 0;
+}
+
 function isUnsafeIp(value: string): boolean {
   const normalized = value.replace(/^\[|\]$/g, "").toLowerCase();
   if (isIP(normalized) === 4) return isUnsafeIpv4(normalized);
   if (isIP(normalized) !== 6) return true;
 
-  if (normalized === "::" || normalized === "::1") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
-  if (normalized.startsWith("fe8") || normalized.startsWith("fe9")) return true;
-  if (normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
-  if (normalized.startsWith("ff")) return true;
+  const mappedIpv4 = ipv4NumberFromIpv6(normalized);
+  if (mappedIpv4 !== null) return isUnsafeIpv4Number(mappedIpv4);
 
-  const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  return Boolean(mappedIpv4 && isUnsafeIpv4(mappedIpv4[1]));
+  const hextets = parseIpv6Hextets(normalized);
+  if (!hextets) return true;
+  const first = hextets[0];
+  return (
+    first === 0 ||
+    (first & 0xfe00) === 0xfc00 ||
+    (first & 0xffc0) === 0xfe80 ||
+    (first & 0xff00) === 0xff00
+  );
 }
 
 function isUnsafeHostname(hostname: string): boolean {
@@ -134,7 +201,168 @@ type SafeResponse = {
 export class OpportunityVerificationService {
   private readonly logger = new Logger(OpportunityVerificationService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    @Optional() private readonly cache?: CacheService,
+    @Optional() private readonly auditService?: AuditService,
+  ) {}
+
+  async enqueueSubmissionVerification(
+    tx: OpportunityDbTransaction,
+    input: {
+      submissionId: string;
+      opportunityId: string;
+      reviewVersion: number;
+    },
+  ) {
+    const result = await tx.execute(sql`
+      insert into public.opportunity_verification_operations
+        (submission_id, opportunity_id, review_version, status, next_attempt_at)
+      values
+        (${input.submissionId}::uuid, ${input.opportunityId}::uuid,
+         ${input.reviewVersion}, 'queued', now())
+      on conflict (submission_id, review_version)
+      do update set updated_at = now()
+      returning id, status, attempt_count, next_attempt_at
+    `);
+    return this.firstRow<{
+      id: string;
+      status: string;
+      attempt_count: number;
+      next_attempt_at: Date;
+    }>(result);
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async runDueSubmissionVerificationOperations() {
+    const result = await db.execute(sql`
+      select id
+      from public.opportunity_verification_operations
+      where status in ('queued', 'retry')
+        and next_attempt_at <= now()
+      order by next_attempt_at, created_at
+      limit 25
+    `);
+    for (const operation of this.rows<{ id: string }>(result)) {
+      try {
+        await this.processSubmissionVerificationOperation(operation.id);
+      } catch (error) {
+        this.logger.error(
+          `Verification recovery persistence failed for ${operation.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
+  async processSubmissionVerificationOperation(operationId: string) {
+    const claimed = this.firstRow<{
+      id: string;
+      opportunity_id: string;
+      status: string;
+      attempt_count: number;
+    }>(
+      await db.execute(sql`
+      update public.opportunity_verification_operations
+      set status = 'running',
+          attempt_count = attempt_count + 1,
+          updated_at = now()
+      where id = ${operationId}::uuid
+        and status in ('queued', 'retry')
+        and next_attempt_at <= now()
+      returning id, opportunity_id, status, attempt_count
+    `),
+    );
+
+    if (!claimed.id) {
+      const current = this.firstRow<{ status: string }>(
+        await db.execute(sql`
+        select status from public.opportunity_verification_operations
+        where id = ${operationId}::uuid
+      `),
+      );
+      return {
+        state:
+          current.status === "completed"
+            ? "verified_public"
+            : current.status === "cancelled"
+              ? "withdrawn"
+              : "approved_for_verification",
+      } as const;
+    }
+
+    try {
+      const outcome = await this.verifyOne(claimed.opportunity_id);
+      if (outcome?.status === "verified") {
+        await db.execute(sql`
+          update public.opportunity_verification_operations
+          set status = 'completed', completed_at = now(), updated_at = now()
+          where id = ${operationId}::uuid and status = 'running'
+        `);
+        return { state: "verified_public" } as const;
+      }
+      if (outcome?.status === "stale") {
+        await db.execute(sql`
+          update public.opportunity_verification_operations
+          set status = 'cancelled', updated_at = now()
+          where id = ${operationId}::uuid and status = 'running'
+        `);
+        return { state: "withdrawn" } as const;
+      }
+      return await this.recordSubmissionVerificationFailure(
+        operationId,
+        outcome?.error ?? "Verification did not produce a public result",
+        claimed.attempt_count,
+      );
+    } catch (error) {
+      return await this.recordSubmissionVerificationFailure(
+        operationId,
+        error instanceof Error ? error.message : String(error),
+        claimed.attempt_count,
+      );
+    }
+  }
+
+  private async recordSubmissionVerificationFailure(
+    operationId: string,
+    error: string,
+    attemptCount: number,
+  ) {
+    const exhausted = attemptCount >= MAX_SUBMISSION_VERIFICATION_ATTEMPTS;
+    const delay =
+      SUBMISSION_VERIFICATION_RETRY_DELAYS_MS[
+        Math.min(
+          attemptCount - 1,
+          SUBMISSION_VERIFICATION_RETRY_DELAYS_MS.length - 1,
+        )
+      ] ?? SUBMISSION_VERIFICATION_RETRY_DELAYS_MS.at(-1)!;
+    await db.execute(sql`
+      update public.opportunity_verification_operations
+      set status = ${exhausted ? "exhausted" : "retry"},
+          last_error = ${error},
+          next_attempt_at = ${exhausted ? new Date() : new Date(Date.now() + delay)},
+          exhausted_at = ${exhausted ? new Date() : null},
+          updated_at = now()
+      where id = ${operationId}::uuid and status = 'running'
+    `);
+    if (exhausted) {
+      this.logger.error(
+        `Opportunity verification exhausted retries for operation ${operationId}: ${error}`,
+      );
+      await this.auditService?.log(
+        "opportunity.verification.exhausted",
+        "system",
+        "opportunity_verification_operation",
+        { operationId, error, attempts: attemptCount, severity: "critical" },
+      );
+      return { state: "approved_for_verification", exhausted: true } as const;
+    }
+    return {
+      state: "approved_for_verification",
+      retryAt: new Date(Date.now() + delay),
+    } as const;
+  }
 
   @Cron(CronExpression.EVERY_HOUR)
   async runScheduledVerification() {
@@ -409,7 +637,9 @@ export class OpportunityVerificationService {
       // closed. Re-read the live page — annual programs update it with the
       // next cycle's deadline.
       const outcome = await this.verifyExpiredAgainstSource(candidate);
-      if (!dryRun) await this.persistOutcome(outcome);
+      if (!dryRun && !(await this.persistOutcome(outcome))) {
+        return this.stalePersistenceOutcome(outcome);
+      }
       return outcome;
     }
 
@@ -424,8 +654,11 @@ export class OpportunityVerificationService {
         httpStatus: null,
         error: "No application or source URL available",
         nextCheckAt: this.hoursFromNow(24),
+        ...this.submissionContext(candidate),
       };
-      if (!dryRun) await this.persistOutcome(outcome);
+      if (!dryRun && !(await this.persistOutcome(outcome))) {
+        return this.stalePersistenceOutcome(outcome);
+      }
       return outcome;
     }
 
@@ -449,8 +682,22 @@ export class OpportunityVerificationService {
       }
     }
 
-    if (!dryRun) await this.persistOutcome(outcome);
+    if (!dryRun && !(await this.persistOutcome(outcome))) {
+      return this.stalePersistenceOutcome(outcome);
+    }
     return outcome;
+  }
+
+  private stalePersistenceOutcome(
+    outcome: VerificationOutcome,
+  ): VerificationOutcome {
+    return {
+      ...outcome,
+      status: "stale",
+      opportunityStatus: "pending_review",
+      error: "Verification result was superseded by a newer submission review",
+      nextCheckAt: null,
+    };
   }
 
   /**
@@ -476,6 +723,7 @@ export class OpportunityVerificationService {
       httpStatus: null,
       error: null,
       nextCheckAt: this.hoursFromNow(24 * 30),
+      ...this.submissionContext(candidate),
     };
     if (!url) return { ...base, nextCheckAt: null };
 
@@ -633,6 +881,21 @@ export class OpportunityVerificationService {
       : "unknown";
   }
 
+  private submissionContext(candidate: CandidateRow) {
+    const submissionId = candidate.metadata?.submission_id;
+    const rawVersion = candidate.metadata?.submission_review_version;
+    const submissionReviewVersion =
+      typeof rawVersion === "number"
+        ? rawVersion
+        : typeof rawVersion === "string" && /^\d+$/.test(rawVersion)
+          ? Number(rawVersion)
+          : null;
+    return {
+      submissionId: typeof submissionId === "string" ? submissionId : null,
+      submissionReviewVersion,
+    };
+  }
+
   private isoToday() {
     return new Date().toISOString().split("T")[0];
   }
@@ -686,6 +949,7 @@ export class OpportunityVerificationService {
         httpStatus: check.httpStatus,
         error: "User submission is not approved for publication",
         nextCheckAt: null,
+        ...this.submissionContext(candidate),
       };
     }
 
@@ -699,6 +963,7 @@ export class OpportunityVerificationService {
         httpStatus: check.httpStatus,
         error: null,
         nextCheckAt: this.nextHealthyCheck(candidate),
+        ...this.submissionContext(candidate),
       };
     }
 
@@ -718,12 +983,13 @@ export class OpportunityVerificationService {
       httpStatus: check.httpStatus,
       error: check.error,
       nextCheckAt: this.hoursFromNow(hardBroken ? 24 * 7 : 12),
+      ...this.submissionContext(candidate),
     };
   }
 
-  private async persistOutcome(outcome: VerificationOutcome) {
+  private async persistOutcome(outcome: VerificationOutcome): Promise<boolean> {
     const hasDeadlineUpdate = outcome.newCloseDate !== undefined;
-    await db.execute(sql`
+    const result = await db.execute(sql`
       update public.opportunities
       set
         status = ${outcome.opportunityStatus},
@@ -763,7 +1029,25 @@ export class OpportunityVerificationService {
         end,
         updated_at = now()
       where id = ${outcome.opportunityId}::uuid
+        and (
+          ${outcome.submissionId ?? null}::text is null
+          or (
+            metadata ->> 'submission_id' = ${outcome.submissionId ?? null}
+            and metadata ->> 'submission_review_status' = 'approved'
+            and coalesce((metadata ->> 'submission_review_version')::int, 0)
+              = ${outcome.submissionReviewVersion ?? 0}
+          )
+        )
     `);
+    const affectedRows =
+      typeof result === "object" && result !== null
+        ? ((result as { rowCount?: number; affectedRows?: number }).rowCount ??
+          (result as { affectedRows?: number }).affectedRows)
+        : undefined;
+    const changed =
+      affectedRows === undefined ? true : Number(affectedRows) > 0;
+    await this.cache?.delByPrefix("opps:");
+    return changed;
   }
 
   private async checkUrl(url: string) {

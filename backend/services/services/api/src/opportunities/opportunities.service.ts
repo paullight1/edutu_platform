@@ -281,6 +281,11 @@ export class OpportunitiesService {
     void this.cache?.delByPrefix(OPPS_CACHE_PREFIX);
   }
 
+  /** Invalidate learner-feed reads after a lifecycle write performed elsewhere. */
+  async invalidateCatalogCache(): Promise<void> {
+    await this.cache?.delByPrefix(OPPS_CACHE_PREFIX);
+  }
+
   constructor(
     private readonly opportunityRankingService: OpportunityRankingService,
     private readonly aiService: AiService,
@@ -1342,6 +1347,7 @@ export class OpportunitiesService {
     const metadata = {
       submission_id: input.id,
       submission_review_status: "approved",
+      submission_review_version: 1,
       submission_source: "user_submission",
       requirements: input.eligibility ? [input.eligibility] : [],
       benefits: input.benefits ? [input.benefits] : [],
@@ -1420,11 +1426,28 @@ export class OpportunitiesService {
       ...(row.metadata ?? {}),
       submission_id: submissionId,
       submission_review_status: "approved",
+      submission_review_version:
+        typeof row.metadata?.submission_review_version === "number"
+          ? row.metadata.submission_review_version
+          : Number(row.metadata?.submission_review_version ?? 0) || 0,
       submission_source: "user_submission",
     };
     if (row.status === "active" && row.verificationStatus === "verified") {
       return row.id;
     }
+
+    metadata.submission_review_version += 1;
+
+    // A re-approval supersedes queued/running work for the old review
+    // version. The verifier's conditional write is the final safety boundary
+    // for a worker that already holds the old candidate snapshot.
+    await tx.execute(sql`
+      update public.opportunity_verification_operations
+      set status = 'cancelled', updated_at = now()
+      where submission_id = ${submissionId}::uuid
+        and opportunity_id = ${opportunityId}::uuid
+        and status in ('queued', 'running', 'retry')
+    `);
 
     await tx
       .update(opportunities)
@@ -1476,12 +1499,45 @@ export class OpportunitiesService {
           ...(row.metadata ?? {}),
           submission_id: submissionId,
           submission_review_status: decision,
+          submission_review_version:
+            (typeof row.metadata?.submission_review_version === "number"
+              ? row.metadata.submission_review_version
+              : Number(row.metadata?.submission_review_version ?? 0) || 0) + 1,
           submission_source: "user_submission",
         },
         updatedAt: new Date(),
       })
       .where(eq(opportunities.id, opportunityId))
       .execute();
+
+    // Withdrawal invalidates any verifier that was queued or already running;
+    // the provenance/version predicate in persistOutcome also rejects a race
+    // that has already completed its network request.
+    await tx.execute(sql`
+      update public.opportunity_verification_operations
+      set status = 'cancelled', updated_at = now()
+      where submission_id = ${submissionId}::uuid
+        and opportunity_id = ${opportunityId}::uuid
+        and status in ('queued', 'running', 'retry')
+    `);
+  }
+
+  async getSubmissionCatalogReviewVersion(
+    tx: OpportunityDbTransaction,
+    opportunityId: string,
+  ): Promise<number> {
+    const [row] = await tx
+      .select({ metadata: opportunities.metadata })
+      .from(opportunities)
+      .where(eq(opportunities.id, opportunityId))
+      .limit(1)
+      .execute();
+    const value = row?.metadata?.submission_review_version;
+    return typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : 0;
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {

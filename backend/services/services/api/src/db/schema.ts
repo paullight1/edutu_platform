@@ -312,6 +312,41 @@ export const opportunityVerificationRuns = pgTable(
   ],
 );
 
+// Durable handoff for user-submission approvals. The approval transaction
+// creates this row before commit; the verifier can therefore recover from a
+// crashed post-commit request without making an approved row public by
+// accident.
+export const opportunityVerificationOperations = pgTable(
+  "opportunity_verification_operations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    submissionId: uuid("submission_id").notNull(),
+    opportunityId: uuid("opportunity_id").notNull(),
+    reviewVersion: integer("review_version").notNull(),
+    status: text("status").notNull().default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow(),
+    lastError: text("last_error"),
+    completedAt: timestamp("completed_at"),
+    exhaustedAt: timestamp("exhausted_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_opportunity_verification_operations_review").on(
+      table.submissionId,
+      table.reviewVersion,
+    ),
+    index("idx_opportunity_verification_operations_due").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("idx_opportunity_verification_operations_opportunity").on(
+      table.opportunityId,
+    ),
+  ],
+);
+
 export const userOpportunityPreferences = pgTable(
   "user_opportunity_preferences",
   {
