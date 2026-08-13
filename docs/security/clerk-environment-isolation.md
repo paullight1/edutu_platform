@@ -15,7 +15,9 @@ CLERK_ISSUER_URL=https://clerk.edutu.org
 ```
 
 `DEPLOYMENT_MODE=production` is also accepted as the deployment-mode signal.
-When either production signal is used, `CLERK_ISSUER_URL` is required, must be
+When both `NODE_ENV` and `DEPLOYMENT_MODE` are present, they must agree.
+Conflicting production/development signals, unknown modes, and a missing mode
+fail closed. When the production signal is present, `CLERK_ISSUER_URL` is required, must be
 an HTTPS origin without credentials, path, query, or fragment, and must not be
 the known development issuer
 `https://calm-gecko-44.clerk.accounts.dev`.
@@ -40,10 +42,10 @@ NODE_ENV=development
 CLERK_ISSUER_URL=https://calm-gecko-44.clerk.accounts.dev
 ```
 
-When the mode is explicitly non-production and `CLERK_ISSUER_URL` is omitted,
-the verifier retains the historical development fallback to the known Clerk
-development issuer. No development fallback is available when the deployment
-mode is production or unset.
+When the mode is explicitly `development` or `test` and `CLERK_ISSUER_URL` is
+omitted, the verifier retains the historical development fallback to the known
+Clerk development issuer. No development fallback is available when the
+deployment mode is production, unknown, conflicting, or unset.
 
 ## Protected entry-point audit
 
