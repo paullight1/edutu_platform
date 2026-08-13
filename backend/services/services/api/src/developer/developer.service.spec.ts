@@ -81,6 +81,47 @@ describe("DeveloperService", () => {
     });
   });
 
+  it("creates a project without Pro status or API-credit eligibility", async () => {
+    const execute = jest.fn().mockResolvedValue([
+      {
+        id: "consumer-zero-credit",
+        name: "Zero Credit Project",
+        contactEmail: "new@example.com",
+        keyPrefix: "edu_live_1234abcd",
+        status: "active",
+        plan: "starter",
+        environment: "live",
+        allowedScopes: ["opportunities:read"],
+        monthlyQuota: 1000,
+        rateLimitPerMinute: 60,
+        lastUsedAt: null,
+        revokedAt: null,
+        expiresAt: null,
+        createdAt: new Date("2026-06-19T08:00:00.000Z"),
+        updatedAt: new Date("2026-06-19T08:00:00.000Z"),
+      },
+    ]);
+    const returning = jest.fn().mockReturnValue({ execute });
+    const values = jest.fn().mockReturnValue({ returning });
+    mockedDb.insert.mockReturnValue({ values });
+
+    const result = await service.createProject(
+      "new-user-zero-credit",
+      "new@example.com",
+      {
+        name: "Zero Credit Project",
+        environment: "live",
+        scopes: ["opportunities:read"],
+      },
+    );
+
+    expect(result.project).toMatchObject({
+      id: "consumer-zero-credit",
+      plan: "starter",
+    });
+    expect(mockedDb.execute).not.toHaveBeenCalled();
+  });
+
   it("summarizes projects and recent requests for the dashboard", async () => {
     mockedDb.execute
       .mockResolvedValueOnce({

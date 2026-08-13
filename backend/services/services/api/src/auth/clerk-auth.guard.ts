@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   UnauthorizedException,
   Inject,
+  SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { ClerkClient } from "@clerk/backend";
@@ -26,6 +27,9 @@ const TRUSTED_ADMIN_ROLES = new Set([
   "moderator",
   "support_agent",
 ]);
+
+export const CLERK_ONLY_KEY = "clerkOnly";
+export const ClerkOnly = () => SetMetadata(CLERK_ONLY_KEY, true);
 
 // Stamp profiles.last_seen_at at most once per user per window — the
 // active-user metric is day/week-granular, so per-request writes are waste.
@@ -51,8 +55,13 @@ export class ClerkAuthGuard implements CanActivate {
       return true;
     }
 
+    const clerkOnly = this.reflector.getAllAndOverride<boolean>(
+      CLERK_ONLY_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     const request = context.switchToHttp().getRequest();
-    if (this.tryAuthenticateLocalAdmin(request)) {
+    if (!clerkOnly && this.tryAuthenticateLocalAdmin(request)) {
       return true;
     }
 
@@ -70,6 +79,10 @@ export class ClerkAuthGuard implements CanActivate {
     const clerkAuthenticated = await this.tryAuthenticateClerk(token, request);
     if (clerkAuthenticated) {
       return true;
+    }
+
+    if (clerkOnly) {
+      throw new UnauthorizedException("Invalid or expired Clerk token");
     }
 
     const supabaseAuthenticated = await this.tryAuthenticateSupabase(
@@ -275,6 +288,7 @@ export class ClerkAuthGuard implements CanActivate {
         userId: profileKey,
         email: email ?? null,
         fullName: firstName ?? null,
+        creditsBalance: 0,
         lastSeenAt: new Date(),
       })
       .onConflictDoUpdate({

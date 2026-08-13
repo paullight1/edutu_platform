@@ -65,7 +65,7 @@ export class ProfileService {
       // save silently died and the profile came back empty).
       [updated] = await db
         .insert(profiles)
-        .values({ userId: rawKey, ...updateData })
+        .values({ userId: rawKey, creditsBalance: 0, ...updateData })
         .onConflictDoUpdate({
           target: profiles.userId,
           set: updateData,
@@ -84,7 +84,7 @@ export class ProfileService {
       if (!updated) {
         [updated] = await db
           .insert(profiles)
-          .values({ userId: derivedId, ...updateData })
+          .values({ userId: derivedId, creditsBalance: 0, ...updateData })
           .onConflictDoUpdate({
             target: profiles.userId,
             set: updateData,
@@ -308,6 +308,7 @@ export class ProfileService {
         email: user.email || null,
         fullName: this.inferFullName(user),
         role: user.role || "user",
+        creditsBalance: 0,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({

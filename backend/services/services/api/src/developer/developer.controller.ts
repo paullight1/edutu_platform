@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post } from "@nestjs/common";
-import { CurrentUser } from "../auth";
+import { ClerkOnly, CurrentUser } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
   CreateDeveloperProjectSchema,
@@ -7,6 +7,7 @@ import {
 } from "./developer.dto";
 import { DeveloperService } from "./developer.service";
 
+@ClerkOnly()
 @Controller("developer")
 export class DeveloperController {
   constructor(private readonly developerService: DeveloperService) {}

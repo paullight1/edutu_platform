@@ -1062,6 +1062,7 @@ export class AdminService {
             userId: toDatabaseUserId(user.userId),
             email: user.email === "No email" ? null : user.email,
             fullName: user.fullName === "Anonymous User" ? null : user.fullName,
+            creditsBalance: 0,
             createdAt: new Date(user.createdAt),
           })
           .onConflictDoNothing()

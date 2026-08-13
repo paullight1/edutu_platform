@@ -3,6 +3,7 @@ import { createHmac } from "crypto";
 import { BillingService } from "./billing.service";
 import { SettingsService } from "../settings/settings.service";
 import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
+import { db } from "../db";
 
 // Settings stub: hand the service the default (NGN) pricing config.
 const settingsStub = {
@@ -470,6 +471,38 @@ describe("BillingService", () => {
       status: "completed",
       description: "Credit top-up for 1,000 credits",
       createdAt: "2026-06-22T10:00:00.000Z",
+    });
+  });
+
+  it("returns zero API credits and no transactions for a new account", async () => {
+    jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as any);
+    const emptyResult = { data: null, error: null };
+    const emptyList = { data: [], error: null };
+    const createQuery = (result: any) => ({
+      select: () => createQuery(result),
+      eq: () => createQuery(result),
+      order: () => createQuery(result),
+      limit: () => createQuery(result),
+      maybeSingle: () => Promise.resolve(result),
+      then: (
+        resolve: (value: any) => unknown,
+        reject: (reason?: unknown) => unknown,
+      ) => Promise.resolve(result).then(resolve, reject),
+    });
+    const service = new BillingService(settingsStub);
+    (service as any).supabase = {
+      from: (table: string) =>
+        createQuery(table === "profiles" ? emptyResult : emptyList),
+    };
+
+    const status = await service.getStatus("new-user-1");
+
+    expect(status).toMatchObject({
+      isPro: false,
+      credits: 0,
+      subscriptionStatus: null,
+      entitlements: [],
+      transactions: [],
     });
   });
 });
