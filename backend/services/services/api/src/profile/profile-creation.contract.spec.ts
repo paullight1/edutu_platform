@@ -40,4 +40,38 @@ describe("profile creation credit contract", () => {
       /insert into public\.profiles\s*\([\s\S]*?credits[\s\S]*?\)\s*values\s*\([\s\S]*?0[\s\S]*?\)\s*on conflict \(user_id\) do nothing/i,
     );
   });
+
+  it("covers mobile and web profile bootstraps without resetting balances", () => {
+    const mobileWebhook = source(
+      "../../../../edutumobile/supabase/functions/clerk-webhook/index.ts",
+    );
+    const mobileEdit = source(
+      "../../../../edutumobile/app/(app)/profile/edit.tsx",
+    );
+    const webAuth = source("../../../../edutu-web-app/src/lib/auth.ts");
+
+    for (const profilePath of [mobileWebhook, mobileEdit, webAuth]) {
+      expect(profilePath).toMatch(/credits:\s*0/);
+      expect(profilePath).toMatch(/ignoreDuplicates:\s*true/);
+      expect(profilePath).toMatch(/\.update\(/);
+    }
+  });
+
+  it("makes the mobile auth trigger and seed rows explicit zero-credit paths", () => {
+    const mobileSchema = source("../../../../edutumobile/supabase_schema.sql");
+    expect(mobileSchema).toMatch(
+      /insert into public\.profiles\s*\([\s\S]*?credits[\s\S]*?\)\s*values\s*\([\s\S]*?0[\s\S]*?\)/i,
+    );
+
+    const seed = source("../../../../edutumobile/supabase/seed.sql");
+    const profileStatements = seed.match(
+      /insert into public\.profiles[\s\S]*?on conflict \(user_id\) do nothing;/gi,
+    );
+    expect(profileStatements).toHaveLength(3);
+    for (const statement of profileStatements ?? []) {
+      expect(statement).toMatch(/\bcredits\b/i);
+      expect(statement).toMatch(/,\s*0\s*,/i);
+      expect(statement).not.toMatch(/credits_balance|\b150\b|\b5000\b/i);
+    }
+  });
 });

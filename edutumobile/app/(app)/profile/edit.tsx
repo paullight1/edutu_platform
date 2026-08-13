@@ -139,20 +139,29 @@ export default function EditProfileScreen() {
             // lands on the row the rest of the app reads — no dependence on the
             // product API, which was rejecting the mobile token (401 → the old
             // "silent not-saving" bug).
-            const { error } = await supabase
+            const { error: createError } = await supabase
                 .from('profiles')
                 .upsert(
                     {
                         user_id: user.id,
-                        full_name: toNullable(profile.full_name),
-                        country: toNullable(profile.country),
-                        school: toNullable(profile.school),
-                        major: toNullable(profile.major),
-                        cgpa: cgpaValue,
-                        updated_at: new Date().toISOString(),
+                        credits: 0,
                     },
-                    { onConflict: 'user_id' },
+                    { onConflict: 'user_id', ignoreDuplicates: true },
                 );
+
+            if (createError) throw createError;
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: toNullable(profile.full_name),
+                    country: toNullable(profile.country),
+                    school: toNullable(profile.school),
+                    major: toNullable(profile.major),
+                    cgpa: cgpaValue,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', user.id);
 
             if (error) throw error;
             cacheProfileName(user.id, profile.full_name);
