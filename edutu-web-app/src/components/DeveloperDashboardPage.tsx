@@ -83,8 +83,34 @@ const CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS = 30 * 60 * 1000;
 type CreditCheckoutHandoff = {
   intentId: string;
   startingCredits: number | null;
-  state: "pending" | "confirmed";
+  state: "pending" | "confirmed" | "cancelled" | "expired";
 };
+
+function readCheckoutReturnState(intentId: string): CreditCheckoutHandoff["state"] | null {
+  if (typeof window === "undefined") return null;
+
+  const params = new URLSearchParams(window.location.search);
+  const rawState = params.get("state")?.toLowerCase();
+  const returnedIntentId = params.get("intentId") ?? params.get("intent_id");
+  if (returnedIntentId && returnedIntentId !== intentId) return null;
+  if (rawState === "cancelled" || rawState === "canceled") return "cancelled";
+  if (rawState === "expired") return "expired";
+  return null;
+}
+
+function clearCheckoutReturnState() {
+  if (typeof window === "undefined" || !window.history.replaceState) return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("state");
+  url.searchParams.delete("intentId");
+  url.searchParams.delete("intent_id");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Never";
@@ -384,7 +410,7 @@ export default function DeveloperDashboardPage() {
 
     const handoff: CreditCheckoutHandoff = {
       intentId: checkoutToConfirm.intentId,
-      startingCredits: billing.status?.credits ?? 0,
+      startingCredits: billing.status?.credits ?? null,
       state: "pending",
     };
     sessionStorage.setItem(CREDIT_CHECKOUT_HANDOFF_KEY, JSON.stringify({
@@ -425,8 +451,19 @@ export default function DeveloperDashboardPage() {
     }
 
     if (!stored) return;
+
+    const returnState = readCheckoutReturnState(stored.intentId);
+    if (returnState) {
+      setCheckoutHandoff({ ...stored, state: returnState });
+      sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+      clearCheckoutReturnState();
+      void refreshBilling();
+      return;
+    }
+
     if (stored.startedAt && Date.now() - stored.startedAt > CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS) {
       sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+      setCheckoutHandoff({ ...stored, state: "expired" });
       return;
     }
 
@@ -1198,6 +1235,7 @@ Implement:
                 } : null)}
                 hasPendingPayment={hasPendingPayment}
                 paymentState={checkoutHandoff?.state ?? "idle"}
+                checkoutBaselineKnown={checkoutHandoff?.startingCredits !== null && checkoutHandoff !== null}
                 onPurchase={(productKey) => void handleTopUpCredits(productKey)}
                 onContinueToCheckout={continueToCheckout}
                 onRefreshBilling={() => void billing.refresh()}

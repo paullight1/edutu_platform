@@ -3,6 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import DeveloperDashboardPage from '../../components/DeveloperDashboardPage';
 
+type BillingStatusMock = {
+  credits: number;
+  isPro: boolean;
+  subscriptionStatus: null;
+  proSince: null;
+  proExpiresAt: null;
+  entitlements: string[];
+  featureAccess: Record<string, boolean>;
+  transactions: Array<Record<string, unknown>>;
+};
+
 const mocks = vi.hoisted(() => ({
   getDeveloperDashboard: vi.fn(),
   createDeveloperProject: vi.fn(),
@@ -10,16 +21,7 @@ const mocks = vi.hoisted(() => ({
   revokeDeveloperProject: vi.fn(),
   createCheckout: vi.fn(),
   billingRefresh: vi.fn(),
-  billingStatus: {
-    credits: 0,
-    isPro: false,
-    subscriptionStatus: null,
-    proSince: null,
-    proExpiresAt: null,
-    entitlements: [],
-    featureAccess: {},
-    transactions: [] as Array<Record<string, unknown>>,
-  },
+  billingStatus: null as BillingStatusMock | null,
 }));
 
 const clerk = vi.hoisted(() => ({
@@ -122,9 +124,18 @@ describe('developer dashboard credit top-ups', () => {
       renewalMode: 'one_time',
     });
     mocks.billingRefresh.mockReset();
-    mocks.billingStatus.transactions = [];
-    mocks.billingStatus.credits = 0;
+    mocks.billingStatus = {
+      credits: 0,
+      isPro: false,
+      subscriptionStatus: null,
+      proSince: null,
+      proExpiresAt: null,
+      entitlements: [],
+      featureAccess: {},
+      transactions: [],
+    };
     sessionStorage.clear();
+    window.history.replaceState({}, '', '/');
     vi.stubGlobal('open', vi.fn().mockReturnValue(window));
   });
 
@@ -141,6 +152,28 @@ describe('developer dashboard credit top-ups', () => {
     expect(screen.getByText('Builder pack')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create project/i })).toBeEnabled();
     expect(document.body.textContent).not.toMatch(/recurring subscription/i);
+  });
+
+  it('uses the Clerk bearer session to create a project without requiring credits', async () => {
+    renderDashboard();
+
+    fireEvent.change(screen.getByDisplayValue('Scholarship Engine'), {
+      target: { value: 'Fixture API project' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^create project$/i }));
+
+    await waitFor(() => {
+      expect(mocks.createDeveloperProject).toHaveBeenCalledWith(
+        'token-123',
+        expect.objectContaining({
+          name: 'Fixture API project',
+          environment: 'live',
+          scopes: expect.arrayContaining(['opportunities:read']),
+        }),
+      );
+    });
+    expect(await screen.findByText('edu_live_key')).toBeInTheDocument();
+    expect(screen.getByText(/you have 0 api credits/i)).toBeInTheDocument();
   });
 
   it('uses the selected product key and keeps checkout idempotent', async () => {
@@ -191,7 +224,7 @@ describe('developer dashboard credit top-ups', () => {
     fireEvent.click(await screen.findByRole('button', { name: /buy 700 credits/i }));
     fireEvent.click(await screen.findByRole('button', { name: /continue to secure checkout/i }));
 
-    mocks.billingStatus = { ...mocks.billingStatus, credits: 700 };
+    mocks.billingStatus = { ...mocks.billingStatus!, credits: 700 };
     view.rerender(
       <MemoryRouter initialEntries={['/dashboard/developer']}>
         <DeveloperDashboardPage />
@@ -200,6 +233,69 @@ describe('developer dashboard credit top-ups', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent(/payment confirmed/i);
     expect(screen.getByText(/700 api credits available/i)).toBeInTheDocument();
+  });
+
+  it('does not confirm a purchase when its starting balance was unavailable', async () => {
+    mocks.billingStatus = null;
+    const view = renderDashboard();
+
+    fireEvent.click(await screen.findByRole('button', { name: /buy 100 credits/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /continue to secure checkout/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
+    expect(JSON.parse(sessionStorage.getItem('edutu.billing.dashboard-handoff') ?? '{}')).toMatchObject({
+      startingCredits: null,
+      state: 'pending',
+    });
+
+    mocks.billingStatus = {
+      credits: 100,
+      isPro: false,
+      subscriptionStatus: null,
+      proSince: null,
+      proExpiresAt: null,
+      entitlements: [],
+      featureAccess: {},
+      transactions: [],
+    };
+    view.rerender(
+      <MemoryRouter initialEntries={['/dashboard/developer']}>
+        <DeveloperDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
+    expect(screen.queryByText(/payment confirmed/i)).not.toBeInTheDocument();
+  });
+
+  it('renders a cancelled checkout outcome for the matching stored intent', async () => {
+    sessionStorage.setItem('edutu.billing.dashboard-handoff', JSON.stringify({
+      intentId: 'intent-1',
+      startingCredits: 0,
+      state: 'pending',
+      startedAt: Date.now(),
+    }));
+    window.history.replaceState({}, '', '/dashboard/developer?state=cancelled&intentId=intent-1');
+
+    renderDashboard();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/checkout was cancelled/i);
+    expect(screen.queryByText(/waiting for payment confirmation/i)).not.toBeInTheDocument();
+  });
+
+  it('renders an expired outcome and clears the stale handoff after its safe TTL', async () => {
+    sessionStorage.setItem('edutu.billing.dashboard-handoff', JSON.stringify({
+      intentId: 'intent-1',
+      startingCredits: 0,
+      state: 'pending',
+      startedAt: Date.now() - (30 * 60 * 1000 + 1),
+    }));
+
+    renderDashboard();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/checkout session expired/i);
+    expect(screen.queryByText(/waiting for payment confirmation/i)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('edutu.billing.dashboard-handoff')).toBeNull();
   });
 
   it('explains unavailable checkout without claiming that credits were purchased', async () => {
@@ -219,7 +315,7 @@ describe('developer dashboard credit top-ups', () => {
   });
 
   it('shows pending payment state with a safe balance retry action', async () => {
-    mocks.billingStatus.transactions = [
+    mocks.billingStatus!.transactions = [
       {
         id: 'transaction-1',
         provider: 'bachs',

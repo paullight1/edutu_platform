@@ -12,7 +12,8 @@ export interface CreditPurchasePanelProps {
   checkoutToConfirm: CheckoutResponse | null;
   checkoutError: { code: string | null; message: string } | null;
   hasPendingPayment: boolean;
-  paymentState: 'idle' | 'pending' | 'confirmed';
+  paymentState: 'idle' | 'pending' | 'confirmed' | 'cancelled' | 'expired';
+  checkoutBaselineKnown: boolean;
   onPurchase: (productKey: string) => void;
   onContinueToCheckout: () => void;
   onRefreshBilling: () => void;
@@ -56,6 +57,7 @@ export default function CreditPurchasePanel({
   checkoutError,
   hasPendingPayment,
   paymentState,
+  checkoutBaselineKnown,
   onPurchase,
   onContinueToCheckout,
   onRefreshBilling,
@@ -100,11 +102,27 @@ export default function CreditPurchasePanel({
             Your API credit balance has been refreshed from the verified billing status.
           </p>
         </div>
+      ) : paymentState === 'cancelled' ? (
+        <div className="mt-5 rounded-2xl border border-subtle bg-surface-elevated px-4 py-3 text-sm text-text-primary" role="status">
+          <p className="font-semibold">Checkout was cancelled</p>
+          <p className="mt-1 leading-6 text-text-muted">
+            No payment was confirmed and no credits were added. Choose a pack below to start a new checkout when you are ready.
+          </p>
+        </div>
+      ) : paymentState === 'expired' ? (
+        <div className="mt-5 rounded-2xl border border-subtle bg-surface-elevated px-4 py-3 text-sm text-text-primary" role="status">
+          <p className="font-semibold">Checkout session expired</p>
+          <p className="mt-1 leading-6 text-text-muted">
+            This secure checkout session is no longer valid. No payment was confirmed; choose a pack below to try again.
+          </p>
+        </div>
       ) : paymentState === 'pending' || hasPendingPayment ? (
         <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-text-primary" role="status">
           <p className="font-semibold">Waiting for payment confirmation</p>
           <p className="mt-1 leading-6 text-text-muted">
-            Credits appear only after provider verification. Keep this dashboard open and check your balance again after returning from secure checkout.
+            {checkoutBaselineKnown
+              ? 'Credits appear only after provider verification. Keep this dashboard open and check your balance again after returning from secure checkout.'
+              : 'We could not capture a verified starting balance for this checkout. Credits appear only after provider verification; refresh after returning from secure checkout and do not treat the displayed balance as confirmation.'}
           </p>
           <button
             type="button"
