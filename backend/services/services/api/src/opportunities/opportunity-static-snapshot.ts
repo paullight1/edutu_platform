@@ -176,6 +176,16 @@ export function filterStaticOpportunityRows(
       return false;
     }
 
+    const verificationStatus =
+      row.verification_status ?? row.verificationStatus;
+    if (
+      normalizedStatus === "active" &&
+      verificationStatus != null &&
+      String(verificationStatus).trim().toLowerCase() !== "verified"
+    ) {
+      return false;
+    }
+
     if (normalizedCategory && rowCategory !== normalizedCategory) {
       return false;
     }

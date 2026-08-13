@@ -88,6 +88,29 @@ const LEGACY_OPPORTUNITY_STATUS: Record<string, string> = {
   expired: "closed",
 };
 
+export type OpportunityDbTransaction = Parameters<
+  Parameters<typeof db.transaction>[0]
+>[0];
+
+export type SubmissionCatalogInput = {
+  id: string;
+  userId: string;
+  title: string;
+  summary: string | null;
+  description: string | null;
+  category: string | null;
+  organization: string | null;
+  location: string | null;
+  type: string | null;
+  eligibility: string | null;
+  benefits: string | null;
+  isRemote: boolean | null;
+  deadline: Date | null;
+  applyUrl: string | null;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+};
+
 export function canonicalOpportunityStatus(
   status: string | null | undefined,
   fallback = "pending_review",
@@ -307,6 +330,10 @@ export class OpportunitiesService {
             request = request.or(`close_date.gte.${today},close_date.is.null`);
           }
 
+          if (statusFilter === "active") {
+            request = request.eq("verification_status", "verified");
+          }
+
           if (category) {
             request = request.eq("category", category);
           }
@@ -327,6 +354,9 @@ export class OpportunitiesService {
         }
 
         const conditions = [eq(opportunities.status, statusFilter)];
+        if (statusFilter === "active") {
+          conditions.push(eq(opportunities.verificationStatus, "verified"));
+        }
         if (category) {
           conditions.push(eq(opportunities.category, category));
         }
@@ -402,6 +432,7 @@ export class OpportunitiesService {
             .from("opportunities")
             .select("*")
             .eq("status", "active")
+            .eq("verification_status", "verified")
             .eq("is_featured", true)
             .or(`close_date.gte.${today},close_date.is.null`)
             // Soonest real deadline first; rolling (null) items sort last so a
@@ -424,6 +455,7 @@ export class OpportunitiesService {
           .where(
             and(
               eq(opportunities.status, "active"),
+              eq(opportunities.verificationStatus, "verified"),
               eq(opportunities.isFeatured, true),
               or(
                 isNull(opportunities.closeDate),
@@ -1295,6 +1327,161 @@ export class OpportunitiesService {
     return result[0]
       ? withOpportunityUrlAliases(result[0] as Record<string, any>)
       : result[0];
+  }
+
+  /**
+   * Insert the catalog half of a user-submission approval in the caller's
+   * transaction. It deliberately starts pending_review/unverified; the
+   * verification worker owns the only transition to active/verified.
+   */
+  async createPendingReviewFromSubmission(
+    tx: OpportunityDbTransaction,
+    input: SubmissionCatalogInput,
+  ): Promise<string> {
+    const now = new Date();
+    const metadata = {
+      submission_id: input.id,
+      submission_review_status: "approved",
+      submission_source: "user_submission",
+      requirements: input.eligibility ? [input.eligibility] : [],
+      benefits: input.benefits ? [input.benefits] : [],
+    };
+    const [created] = await tx
+      .insert(opportunities)
+      .values({
+        title: input.title,
+        summary: input.summary,
+        description: input.description,
+        category: input.category,
+        organization: input.organization,
+        location: input.location,
+        type: input.type || "scholarship",
+        eligibilityCriteria: input.eligibility,
+        deadline: input.deadline,
+        sourceUrl: input.sourceUrl,
+        canonicalUrl: input.applyUrl,
+        applyUrl: input.applyUrl,
+        applicationUrl: input.applyUrl,
+        imageUrl: input.imageUrl,
+        isRemote: input.isRemote ?? false,
+        status: "pending_review",
+        validationStatus: "pending",
+        verificationStatus: "unverified",
+        verificationNextCheckAt: now,
+        metadata,
+        source: "user_submission",
+        createdBy: input.userId,
+        originalJson: JSON.stringify({ submissionId: input.id }),
+      })
+      .onConflictDoNothing()
+      .returning()
+      .execute();
+
+    if (created?.id) return created.id;
+
+    // A retry after a committed catalog insert must reuse the same row. The
+    // unique expression index is the concurrency boundary; this lookup is the
+    // deterministic recovery path after ON CONFLICT DO NOTHING.
+    const [existing] = await tx
+      .select()
+      .from(opportunities)
+      .where(sql`${opportunities.metadata} ->> 'submission_id' = ${input.id}`)
+      .limit(1)
+      .execute();
+    if (existing?.id) return existing.id;
+
+    throw new ConflictException(
+      "The submission conflicts with an existing catalog opportunity.",
+    );
+  }
+
+  /**
+   * Reuse a linked submission row on re-approval. A verified active row is
+   * already published; every other state is reset to the verifier's safe
+   * starting state before it can become public again.
+   */
+  async prepareSubmissionOpportunityForApproval(
+    tx: OpportunityDbTransaction,
+    opportunityId: string,
+    submissionId: string,
+  ): Promise<string> {
+    const [row] = await tx
+      .select()
+      .from(opportunities)
+      .where(eq(opportunities.id, opportunityId))
+      .limit(1)
+      .execute();
+
+    if (!row) {
+      throw new NotFoundException("Linked catalog opportunity not found");
+    }
+
+    const metadata = {
+      ...(row.metadata ?? {}),
+      submission_id: submissionId,
+      submission_review_status: "approved",
+      submission_source: "user_submission",
+    };
+    if (row.status === "active" && row.verificationStatus === "verified") {
+      return row.id;
+    }
+
+    await tx
+      .update(opportunities)
+      .set({
+        status: "pending_review",
+        validationStatus: "pending",
+        verificationStatus: "unverified",
+        verificationError: null,
+        verificationNextCheckAt: new Date(),
+        lastVerifiedAt: null,
+        metadata,
+        updatedAt: new Date(),
+      })
+      .where(eq(opportunities.id, opportunityId))
+      .execute();
+
+    return row.id;
+  }
+
+  /**
+   * Deactivate a linked catalog row when an admin withdraws an approval or
+   * requests more information. The provenance link remains for audit and
+   * idempotent re-approval.
+   */
+  async setSubmissionCatalogReviewState(
+    tx: OpportunityDbTransaction,
+    opportunityId: string,
+    submissionId: string,
+    decision: "rejected" | "needs_info",
+  ): Promise<void> {
+    const [row] = await tx
+      .select()
+      .from(opportunities)
+      .where(eq(opportunities.id, opportunityId))
+      .limit(1)
+      .execute();
+    if (!row) return;
+
+    await tx
+      .update(opportunities)
+      .set({
+        status: decision === "rejected" ? "rejected" : "pending_review",
+        validationStatus: decision === "rejected" ? "needs_review" : "pending",
+        verificationStatus: "unverified",
+        verificationError: null,
+        verificationNextCheckAt: null,
+        lastVerifiedAt: null,
+        metadata: {
+          ...(row.metadata ?? {}),
+          submission_id: submissionId,
+          submission_review_status: decision,
+          submission_source: "user_submission",
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(opportunities.id, opportunityId))
+      .execute();
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {

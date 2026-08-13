@@ -1,6 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { sql } from "drizzle-orm";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import * as http from "node:http";
+import * as https from "node:https";
 import { db } from "../db";
 import { opportunityVerificationRuns } from "../db/schema";
 import {
@@ -50,6 +54,80 @@ type VerificationOutcome = {
    */
   newCloseDate?: string | null;
   newDeadlineConfidence?: DeadlineConfidence;
+};
+
+const MAX_OUTBOUND_REDIRECTS = 5;
+
+function ipv4Number(value: string): number | null {
+  const parts = value.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part))) {
+    return null;
+  }
+  const octets = parts.map(Number);
+  if (octets.some((octet) => octet < 0 || octet > 255)) return null;
+  return (
+    ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0
+  );
+}
+
+function isUnsafeIpv4(value: string): boolean {
+  const number = ipv4Number(value);
+  if (number === null) return true;
+  const first = number >>> 24;
+  const second = (number >>> 16) & 0xff;
+  const third = (number >>> 8) & 0xff;
+
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && (second === 0 || second === 168)) ||
+    (first === 192 && second === 88 && third === 99) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && (second === 51 || second === 52)) ||
+    (first === 203 && second === 0 && third === 113) ||
+    first >= 224
+  );
+}
+
+function isUnsafeIp(value: string): boolean {
+  const normalized = value.replace(/^\[|\]$/g, "").toLowerCase();
+  if (isIP(normalized) === 4) return isUnsafeIpv4(normalized);
+  if (isIP(normalized) !== 6) return true;
+
+  if (normalized === "::" || normalized === "::1") return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  if (normalized.startsWith("fe8") || normalized.startsWith("fe9")) return true;
+  if (normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
+  if (normalized.startsWith("ff")) return true;
+
+  const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  return Boolean(mappedIpv4 && isUnsafeIpv4(mappedIpv4[1]));
+}
+
+function isUnsafeHostname(hostname: string): boolean {
+  const normalized = hostname.replace(/\.$/, "").toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal") ||
+    normalized === "metadata.google.com" ||
+    normalized === "metadata.google.internal" ||
+    normalized === "instance-data" ||
+    normalized === "instance-data.ec2.internal" ||
+    /^0x[0-9a-f]+$/i.test(normalized) ||
+    /^\d+$/.test(normalized)
+  );
+}
+
+type SafeResponse = {
+  status: number;
+  headers: Record<string, string | string[] | undefined>;
+  text(): Promise<string>;
 };
 
 @Injectable()
@@ -596,6 +674,21 @@ export class OpportunityVerificationService {
     url: string,
     check: { httpStatus: number | null; ok: boolean; error: string | null },
   ): VerificationOutcome {
+    const submissionId = candidate.metadata?.submission_id;
+    const submissionReviewStatus = candidate.metadata?.submission_review_status;
+    if (submissionId && submissionReviewStatus !== "approved") {
+      return {
+        opportunityId: candidate.id,
+        title: candidate.title,
+        url,
+        status: "needs_review",
+        opportunityStatus: candidate.status || "pending_review",
+        httpStatus: check.httpStatus,
+        error: "User submission is not approved for publication",
+        nextCheckAt: null,
+      };
+    }
+
     if (check.ok) {
       return {
         opportunityId: candidate.id,
@@ -703,21 +796,125 @@ export class OpportunityVerificationService {
     url: string,
     method: "HEAD" | "GET",
     timeoutMs: number,
-  ) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, {
-        method,
-        redirect: "follow",
-        signal: controller.signal,
-        headers: {
-          "user-agent": "EdutuOpportunityVerifier/1.0",
-        },
-      });
-    } finally {
-      clearTimeout(timeout);
+  ): Promise<SafeResponse> {
+    let currentUrl = url;
+    for (
+      let redirectCount = 0;
+      redirectCount <= MAX_OUTBOUND_REDIRECTS;
+      redirectCount += 1
+    ) {
+      const target = await this.safeOutboundTarget(currentUrl);
+      const response = await this.requestPinned(target, method, timeoutMs);
+      if (response.status < 300 || response.status >= 400) return response;
+
+      const location = response.headers.location;
+      if (!location || Array.isArray(location)) {
+        throw new Error("Unsafe redirect without a single Location header");
+      }
+      if (redirectCount === MAX_OUTBOUND_REDIRECTS) {
+        throw new Error("Redirect limit exceeded");
+      }
+      currentUrl = new URL(location, currentUrl).toString();
     }
+
+    throw new Error("Redirect limit exceeded");
+  }
+
+  private async safeOutboundTarget(url: string) {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error("Unsafe outbound URL");
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error("Unsafe outbound URL protocol");
+    }
+
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+    if (isUnsafeHostname(hostname)) {
+      throw new Error("Unsafe private or metadata hostname");
+    }
+    if (isIP(hostname) && isUnsafeIp(hostname)) {
+      throw new Error("Unsafe private or link-local IP address");
+    }
+
+    if (isIP(hostname)) {
+      return { parsed, address: hostname, family: isIP(hostname) };
+    }
+
+    let addresses: Array<{ address: string; family: number }>;
+    try {
+      addresses = await lookup(hostname, { all: true, verbatim: true });
+    } catch {
+      throw new Error("Could not resolve outbound hostname");
+    }
+    if (
+      addresses.length === 0 ||
+      addresses.some((entry) => isUnsafeIp(entry.address))
+    ) {
+      throw new Error("Outbound hostname resolves to a private or reserved IP");
+    }
+
+    return {
+      parsed,
+      address: addresses[0].address,
+      family: addresses[0].family,
+    };
+  }
+
+  private requestPinned(
+    target: {
+      parsed: URL;
+      address: string;
+      family: number;
+    },
+    method: "HEAD" | "GET",
+    timeoutMs: number,
+  ): Promise<SafeResponse> {
+    const transport = target.parsed.protocol === "https:" ? https : http;
+    return new Promise((resolve, reject) => {
+      const request = transport.request(
+        target.parsed,
+        {
+          method,
+          headers: { "user-agent": "EdutuOpportunityVerifier/1.0" },
+          servername: isIP(target.parsed.hostname)
+            ? undefined
+            : target.parsed.hostname,
+          lookup: ((...args: any[]) => {
+            const callback = args[args.length - 1] as (
+              error: Error | null,
+              address: string,
+              family: number,
+            ) => void;
+            callback(null, target.address, target.family);
+          }) as any,
+        },
+        (response) => {
+          const chunks: Buffer[] = [];
+          response.on("data", (chunk: Buffer) =>
+            chunks.push(Buffer.from(chunk)),
+          );
+          response.on("end", () => {
+            resolve({
+              status: response.statusCode ?? 0,
+              headers: response.headers as Record<
+                string,
+                string | string[] | undefined
+              >,
+              text: async () => Buffer.concat(chunks).toString("utf8"),
+            });
+          });
+          response.on("error", reject);
+        },
+      );
+      request.setTimeout(timeoutMs, () => {
+        request.destroy(new Error("URL check timed out"));
+      });
+      request.on("error", reject);
+      request.end();
+    });
   }
 
   private preferredUrl(candidate: CandidateRow) {

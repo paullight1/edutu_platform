@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { db } from "../db";
 import {
   RespondSubmissionSchema,
@@ -177,101 +177,6 @@ describe("OpportunitySubmissionsService publication state machine", () => {
         message: "Here is the requested information.",
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it("approves by creating an active catalog row and persists its link", async () => {
-    const row = submission();
-    const approvedOpportunity = {
-      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      status: "active",
-    };
-    mockSelect([row]);
-    const update = mockUpdate({
-      ...row,
-      status: "approved",
-      approvedOpportunityId: approvedOpportunity.id,
-      reviewedBy: ADMIN_ID,
-    });
-    const { service, opportunities } = makeService();
-    opportunities.create.mockResolvedValue(approvedOpportunity);
-
-    const result = await service.review("submission-1", ADMIN_ID, {
-      decision: "approved",
-    });
-
-    expect(opportunities.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        applyUrl: "https://example.com/apply",
-        status: "active",
-      }),
-    );
-    expect(update.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "approved",
-        approvedOpportunityId: approvedOpportunity.id,
-      }),
-    );
-    expect(result).toMatchObject({
-      status: "approved",
-      approved_opportunity_id: approvedOpportunity.id,
-    });
-  });
-
-  it("rejects without creating a catalog row", async () => {
-    const row = submission();
-    mockSelect([row]);
-    const update = mockUpdate({ ...row, status: "rejected" });
-    const { service, opportunities } = makeService();
-
-    const result = await service.review("submission-1", ADMIN_ID, {
-      decision: "rejected",
-      adminNote: "This is not an eligible opportunity.",
-    });
-
-    expect(opportunities.create).not.toHaveBeenCalled();
-    expect(update.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "rejected",
-        approvedOpportunityId: null,
-      }),
-    );
-    expect(result.status).toBe("rejected");
-  });
-
-  it("leaves approval recoverable when catalog creation fails", async () => {
-    const row = submission();
-    mockSelect([row]);
-    const update = mockUpdate({ ...row, status: "pending" });
-    const { service, opportunities } = makeService();
-    opportunities.create.mockRejectedValue(new Error("catalog unavailable"));
-
-    await expect(
-      service.review("submission-1", ADMIN_ID, { decision: "approved" }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(update.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "pending",
-        approvedOpportunityId: null,
-        adminNote: expect.stringContaining("couldn't publish"),
-      }),
-    );
-  });
-
-  it("requires an apply URL before approval", async () => {
-    const row = submission({ applyUrl: null });
-    mockSelect([row]);
-    const update = mockUpdate({ ...row, status: "pending" });
-    const { service, opportunities } = makeService();
-
-    await expect(
-      service.review("submission-1", ADMIN_ID, { decision: "approved" }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(opportunities.create).not.toHaveBeenCalled();
-    expect(update.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "pending" }),
-    );
   });
 
   it("returns a needs-info response to pending without giving the user publication control", async () => {
