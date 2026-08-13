@@ -37,6 +37,41 @@ describe("submission verification recovery operations", () => {
     expect(mockedDb.execute).toHaveBeenCalledTimes(2);
   });
 
+  it("passes the claimed operation id, lease token, and review version into verification", async () => {
+    mockedDb.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-context",
+            opportunity_id: "opportunity-context",
+            submission_id: "submission-context",
+            review_version: 7,
+            status: "running",
+            attempt_count: 1,
+            lease_token: "11111111-1111-4111-8111-111111111111",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    const service = new OpportunityVerificationService({} as any);
+    const verifyOne = jest
+      .spyOn(service, "verifyOne")
+      .mockResolvedValue({ status: "verified" } as any);
+
+    await service.processSubmissionVerificationOperation("operation-context");
+
+    expect(verifyOne).toHaveBeenCalledWith(
+      "opportunity-context",
+      false,
+      expect.objectContaining({
+        operationId: "operation-context",
+        leaseToken: "11111111-1111-4111-8111-111111111111",
+        submissionReviewVersion: 7,
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
   it("marks exhaustion and emits a durable operational alert", async () => {
     mockedDb.execute
       .mockResolvedValueOnce({
@@ -101,7 +136,14 @@ describe("submission verification recovery operations", () => {
 
     await service.runDueSubmissionVerificationOperations();
 
-    expect(verifyOne).toHaveBeenCalledWith("opportunity-stale");
+    expect(verifyOne).toHaveBeenCalledWith(
+      "opportunity-stale",
+      false,
+      expect.objectContaining({
+        operationId: "operation-stale",
+        leaseToken: "33333333-3333-4333-8333-333333333333",
+      }),
+    );
     expect(audit.log).toHaveBeenCalledWith(
       "opportunity.verification.exhausted",
       "system",

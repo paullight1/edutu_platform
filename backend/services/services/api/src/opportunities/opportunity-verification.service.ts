@@ -59,6 +59,16 @@ type VerificationOutcome = {
   newDeadlineConfidence?: DeadlineConfidence;
   submissionId?: string | null;
   submissionReviewVersion?: number | null;
+  verificationOperationId?: string | null;
+  verificationLeaseToken?: string | null;
+  verificationSignal?: AbortSignal;
+};
+
+type VerificationExecutionContext = {
+  operationId?: string;
+  leaseToken?: string;
+  submissionReviewVersion?: number | null;
+  signal?: AbortSignal;
 };
 
 const MAX_OUTBOUND_REDIRECTS = 5;
@@ -67,6 +77,7 @@ const SUBMISSION_VERIFICATION_RETRY_DELAYS_MS = [60_000, 300_000];
 const SUBMISSION_VERIFICATION_LEASE_SECONDS = 120;
 const SUBMISSION_VERIFICATION_HARD_TIMEOUT_MS = 90_000;
 const SUBMISSION_VERIFICATION_BATCH_SIZE = 25;
+const MAX_VERIFICATION_RESPONSE_BYTES = 500_000;
 
 function ipv4Number(value: string): number | null {
   const parts = value.split(".");
@@ -316,6 +327,8 @@ export class OpportunityVerificationService {
       status: string;
       attempt_count: number;
       lease_token: string;
+      submission_id: string;
+      review_version: number;
     }>(
       await db.execute(sql`
       update public.opportunity_verification_operations
@@ -327,7 +340,8 @@ export class OpportunityVerificationService {
       where id = ${operationId}::uuid
         and status in ('queued', 'retry')
         and next_attempt_at <= now()
-      returning id, opportunity_id, status, attempt_count, lease_token
+      returning id, opportunity_id, submission_id, review_version, status,
+                attempt_count, lease_token
     `),
     );
 
@@ -349,7 +363,11 @@ export class OpportunityVerificationService {
     }
 
     try {
-      const outcome = await this.verifyWithHardTimeout(claimed.opportunity_id);
+      const outcome = await this.verifyWithHardTimeout(claimed.opportunity_id, {
+        operationId: claimed.id,
+        leaseToken: claimed.lease_token,
+        submissionReviewVersion: claimed.review_version,
+      });
       if (outcome?.status === "verified") {
         const persisted = await db.execute(sql`
           update public.opportunity_verification_operations
@@ -568,16 +586,24 @@ export class OpportunityVerificationService {
     };
   }
 
-  private async verifyWithHardTimeout(id: string) {
+  private async verifyWithHardTimeout(
+    id: string,
+    operationContext: VerificationExecutionContext,
+  ) {
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
-        this.verifyOne(id),
+        this.verifyOne(id, false, {
+          ...operationContext,
+          signal: controller.signal,
+        }),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error("Verification operation timed out")),
-            SUBMISSION_VERIFICATION_HARD_TIMEOUT_MS,
-          );
+          timer = setTimeout(() => {
+            const timeout = new Error("Verification operation timed out");
+            controller.abort(timeout);
+            reject(timeout);
+          }, SUBMISSION_VERIFICATION_HARD_TIMEOUT_MS);
         }),
       ]);
     } finally {
@@ -585,7 +611,11 @@ export class OpportunityVerificationService {
     }
   }
 
-  async verifyOne(id: string, dryRun = false) {
+  async verifyOne(
+    id: string,
+    dryRun = false,
+    executionContext?: VerificationExecutionContext,
+  ) {
     const result = await db.execute(sql`
       select
         opportunity.id,
@@ -609,7 +639,7 @@ export class OpportunityVerificationService {
     const candidate = this.firstRow<CandidateRow>(result);
     if (!candidate?.id) return null;
 
-    return this.verifyCandidate(candidate, dryRun);
+    return this.verifyCandidate(candidate, dryRun, executionContext);
   }
 
   /**
@@ -724,7 +754,27 @@ export class OpportunityVerificationService {
     return this.rows<CandidateRow>(result);
   }
 
-  private async verifyCandidate(candidate: CandidateRow, dryRun: boolean) {
+  private async verifyCandidate(
+    candidate: CandidateRow,
+    dryRun: boolean,
+    executionContext?: VerificationExecutionContext,
+  ) {
+    const persist = (outcome: VerificationOutcome) => {
+      // A hard timeout aborts the provider work, but a promise that was already
+      // inside a parser/SDK can still resolve later. Do not let that late
+      // completion reach the catalog boundary even while the lease row is
+      // being transitioned to retry by the owning worker.
+      if (executionContext?.signal?.aborted) return Promise.resolve(false);
+      return this.persistOutcome({
+        ...outcome,
+        verificationOperationId: executionContext?.operationId,
+        verificationLeaseToken: executionContext?.leaseToken,
+        verificationSignal: executionContext?.signal,
+        submissionReviewVersion:
+          executionContext?.submissionReviewVersion ??
+          outcome.submissionReviewVersion,
+      });
+    };
     const expiredAt = this.expiryDate(candidate);
     const now = new Date();
 
@@ -733,8 +783,11 @@ export class OpportunityVerificationService {
       // year-inferred), so a past date alone is not proof the opportunity
       // closed. Re-read the live page — annual programs update it with the
       // next cycle's deadline.
-      const outcome = await this.verifyExpiredAgainstSource(candidate);
-      if (!dryRun && !(await this.persistOutcome(outcome))) {
+      const outcome = await this.verifyExpiredAgainstSource(
+        candidate,
+        executionContext?.signal,
+      );
+      if (!dryRun && !(await persist(outcome))) {
         return this.stalePersistenceOutcome(outcome);
       }
       return outcome;
@@ -753,13 +806,13 @@ export class OpportunityVerificationService {
         nextCheckAt: this.hoursFromNow(24),
         ...this.submissionContext(candidate),
       };
-      if (!dryRun && !(await this.persistOutcome(outcome))) {
+      if (!dryRun && !(await persist(outcome))) {
         return this.stalePersistenceOutcome(outcome);
       }
       return outcome;
     }
 
-    const check = await this.checkUrl(url);
+    const check = await this.checkUrl(url, executionContext?.signal);
     const outcome = this.outcomeFromCheck(candidate, url, check);
 
     // A row with no deadline and no "rolling" signal is in limbo: it can
@@ -770,7 +823,11 @@ export class OpportunityVerificationService {
       !this.expiryDate(candidate) &&
       this.deadlineConfidence(candidate) !== "rolling"
     ) {
-      const refreshed = await this.extractDeadlineFromSource(candidate, url);
+      const refreshed = await this.extractDeadlineFromSource(
+        candidate,
+        url,
+        executionContext?.signal,
+      );
       if (refreshed) {
         outcome.newCloseDate = refreshed.date;
         outcome.newDeadlineConfidence = refreshed.confidence;
@@ -779,7 +836,7 @@ export class OpportunityVerificationService {
       }
     }
 
-    if (!dryRun && !(await this.persistOutcome(outcome))) {
+    if (!dryRun && !(await persist(outcome))) {
       return this.stalePersistenceOutcome(outcome);
     }
     return outcome;
@@ -808,6 +865,7 @@ export class OpportunityVerificationService {
    */
   private async verifyExpiredAgainstSource(
     candidate: CandidateRow,
+    signal?: AbortSignal,
   ): Promise<VerificationOutcome> {
     const url = this.preferredUrl(candidate);
     const base: VerificationOutcome = {
@@ -824,7 +882,7 @@ export class OpportunityVerificationService {
     };
     if (!url) return { ...base, nextCheckAt: null };
 
-    const page = await this.fetchPageText(url);
+    const page = await this.fetchPageText(url, signal);
     base.httpStatus = page.httpStatus;
 
     if (page.error && page.httpStatus === null) {
@@ -864,8 +922,9 @@ export class OpportunityVerificationService {
   private async extractDeadlineFromSource(
     candidate: CandidateRow,
     url: string,
+    signal?: AbortSignal,
   ) {
-    const page = await this.fetchPageText(url);
+    const page = await this.fetchPageText(url, signal);
     if (!page.text) return null;
     const refreshed = this.parsePageDeadline(candidate, page.text);
     if (refreshed?.date) return refreshed;
@@ -873,7 +932,7 @@ export class OpportunityVerificationService {
     // Regex found nothing usable. That's precisely the cohort stuck on
     // deadline_confidence='unknown', so it's worth an LLM call to read the page
     // the way a human would ("applications close six weeks from publication").
-    return await this.extractDeadlineWithAi(candidate, page.text);
+    return await this.extractDeadlineWithAi(candidate, page.text, signal);
   }
 
   private parsePageDeadline(candidate: CandidateRow, pageText: string) {
@@ -894,6 +953,7 @@ export class OpportunityVerificationService {
   private async extractDeadlineWithAi(
     candidate: CandidateRow,
     pageText: string,
+    signal?: AbortSignal,
   ): Promise<{ date: string | null; confidence: DeadlineConfidence } | null> {
     if (process.env.OPPORTUNITY_DEADLINE_AI === "false") return null;
 
@@ -939,6 +999,7 @@ export class OpportunityVerificationService {
         },
         temperature: 0,
         maxOutputTokens: 200,
+        signal,
         metadata: { opportunityId: candidate.id },
       });
 
@@ -997,13 +1058,16 @@ export class OpportunityVerificationService {
     return new Date().toISOString().split("T")[0];
   }
 
-  private async fetchPageText(url: string): Promise<{
+  private async fetchPageText(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<{
     httpStatus: number | null;
     text: string | null;
     error: string | null;
   }> {
     try {
-      const response = await this.fetchWithTimeout(url, "GET", 15000);
+      const response = await this.fetchWithTimeout(url, "GET", 15000, signal);
       if (response.status >= 400) {
         return {
           httpStatus: response.status,
@@ -1011,7 +1075,7 @@ export class OpportunityVerificationService {
           error: `HTTP ${response.status}`,
         };
       }
-      const html = (await response.text()).slice(0, 500_000);
+      const html = await response.text();
       const text = html
         .replace(/<script[\s\S]*?<\/script>/gi, " ")
         .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -1085,8 +1149,21 @@ export class OpportunityVerificationService {
   }
 
   private async persistOutcome(outcome: VerificationOutcome): Promise<boolean> {
+    if (outcome.verificationSignal?.aborted) return false;
     const hasDeadlineUpdate = outcome.newCloseDate !== undefined;
     const result = await db.execute(sql`
+      with fenced_operation as (
+        select operation.id
+        from public.opportunity_verification_operations operation
+        where operation.id = ${outcome.verificationOperationId ?? null}::uuid
+          and operation.opportunity_id = ${outcome.opportunityId}::uuid
+          and operation.status = 'running'
+          and operation.lease_token = ${outcome.verificationLeaseToken ?? null}::uuid
+          and operation.lease_expires_at > now()
+          and operation.review_version = ${outcome.submissionReviewVersion ?? 0}
+          and operation.submission_id = ${outcome.submissionId ?? null}::uuid
+        for update
+      )
       update public.opportunities
       set
         status = ${outcome.opportunityStatus},
@@ -1135,6 +1212,12 @@ export class OpportunityVerificationService {
               = ${outcome.submissionReviewVersion ?? 0}
           )
         )
+        and (
+          ${outcome.verificationOperationId ?? null}::text is null
+          or exists (
+            select 1 from fenced_operation
+          )
+        )
     `);
     const affectedRows =
       typeof result === "object" && result !== null
@@ -1143,15 +1226,15 @@ export class OpportunityVerificationService {
         : undefined;
     const changed =
       affectedRows === undefined ? true : Number(affectedRows) > 0;
-    await this.cache?.delByPrefix("opps:");
+    if (changed) await this.cache?.delByPrefix("opps:");
     return changed;
   }
 
-  private async checkUrl(url: string) {
+  private async checkUrl(url: string, signal?: AbortSignal) {
     try {
-      const head = await this.fetchWithTimeout(url, "HEAD", 12000);
+      const head = await this.fetchWithTimeout(url, "HEAD", 12000, signal);
       if (head.status === 405 || head.status === 403) {
-        const get = await this.fetchWithTimeout(url, "GET", 12000);
+        const get = await this.fetchWithTimeout(url, "GET", 12000, signal);
         return {
           httpStatus: get.status,
           ok: get.status >= 200 && get.status < 400,
@@ -1177,6 +1260,7 @@ export class OpportunityVerificationService {
     url: string,
     method: "HEAD" | "GET",
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<SafeResponse> {
     let currentUrl = url;
     for (
@@ -1185,7 +1269,12 @@ export class OpportunityVerificationService {
       redirectCount += 1
     ) {
       const target = await this.safeOutboundTarget(currentUrl);
-      const response = await this.requestPinned(target, method, timeoutMs);
+      const response = await this.requestPinned(
+        target,
+        method,
+        timeoutMs,
+        signal,
+      );
       if (response.status < 300 || response.status >= 400) return response;
 
       const location = response.headers.location;
@@ -1252,6 +1341,7 @@ export class OpportunityVerificationService {
     },
     method: "HEAD" | "GET",
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<SafeResponse> {
     const transport = target.parsed.protocol === "https:" ? https : http;
     return new Promise((resolve, reject) => {
@@ -1260,6 +1350,7 @@ export class OpportunityVerificationService {
         {
           method,
           headers: { "user-agent": "EdutuOpportunityVerifier/1.0" },
+          signal,
           servername: isIP(target.parsed.hostname)
             ? undefined
             : target.parsed.hostname,
@@ -1273,27 +1364,67 @@ export class OpportunityVerificationService {
           }) as any,
         },
         (response) => {
-          const chunks: Buffer[] = [];
-          response.on("data", (chunk: Buffer) =>
-            chunks.push(Buffer.from(chunk)),
+          const headers = response.headers as Record<
+            string,
+            string | string[] | undefined
+          >;
+          const rawLength = headers["content-length"];
+          const contentLength = Number(
+            Array.isArray(rawLength) ? rawLength[0] : rawLength,
           );
+          let settled = false;
+          const fail = (error: unknown) => {
+            if (settled) return;
+            settled = true;
+            response.destroy?.(error instanceof Error ? error : undefined);
+            request?.destroy?.(error instanceof Error ? error : undefined);
+            reject(error instanceof Error ? error : new Error(String(error)));
+          };
+
+          if (
+            Number.isFinite(contentLength) &&
+            contentLength > MAX_VERIFICATION_RESPONSE_BYTES
+          ) {
+            fail(
+              new Error(
+                `Verification response body exceeds ${MAX_VERIFICATION_RESPONSE_BYTES} bytes`,
+              ),
+            );
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+          response.on("data", (chunk: Buffer) => {
+            if (settled) return;
+            const buffer = Buffer.from(chunk);
+            totalBytes += buffer.byteLength;
+            if (totalBytes > MAX_VERIFICATION_RESPONSE_BYTES) {
+              fail(
+                new Error(
+                  `Verification response body exceeds ${MAX_VERIFICATION_RESPONSE_BYTES} bytes`,
+                ),
+              );
+              return;
+            }
+            chunks.push(buffer);
+          });
           response.on("end", () => {
+            if (settled) return;
+            settled = true;
             resolve({
               status: response.statusCode ?? 0,
-              headers: response.headers as Record<
-                string,
-                string | string[] | undefined
-              >,
+              headers,
               text: async () => Buffer.concat(chunks).toString("utf8"),
             });
           });
-          response.on("error", reject);
+          response.on("error", fail);
         },
       );
       request.setTimeout(timeoutMs, () => {
         request.destroy(new Error("URL check timed out"));
       });
-      request.on("error", reject);
+      request.on("error", (error: Error) => reject(error));
       request.end();
     });
   }
