@@ -2,15 +2,19 @@
 
 Edutu API exposes the opportunity engine as a paid third-party API for apps, agents, scholarship portals, CRMs, and student success platforms.
 
-## Identity
+## Identity and authentication boundary
 
 - Package name: `edutu-api`
 - Base URL: `https://api.edutu.org/v1`
 - Local URL: `http://localhost:3000/v1`
-- Auth: `X-Edutu-API-Key: <api-key>` or `Authorization: Bearer <api-key>`
+- Clerk user session: sign in to Edutu to access `/developer/*` and `/dashboard/developer`, create projects, and manage keys. There is no separate developer login.
+- API access: `/v1/*` requires an Edutu API key, sent as `X-Edutu-API-Key: <api-key>`, `x-api-key: <api-key>`, or `Authorization: Bearer <api-key>`.
+- A Clerk bearer token is not an Edutu API key and is not accepted by `/v1/*`.
 - Integration model: server-to-server by default. Browser-based partner apps need an approved CORS origin before calling the API directly.
 
-## API Keys
+The documentation endpoints `GET /v1`, `GET /v1/llms.txt`, and `GET /v1/openapi.json`, plus `GET /v1/health`, are public. `GET /v1/usage` and `GET /v1/categories` require an Edutu API key but are free.
+
+## Projects and API Keys
 
 Production keys must be high-entropy random values. Store only SHA-256 hashes in `api_consumers.api_key_hash`.
 
@@ -27,11 +31,21 @@ openssl rand -hex 32
 printf '%s' 'edutu_live_<64_hex_chars>' | shasum -a 256
 ```
 
+Create a project and generate a key at [`/dashboard/developer`](https://www.edutu.org/dashboard/developer) without buying credits. The raw key is shown once at creation/rotation; store it in a server-side secret manager. Link users to the dashboard for key generation; keys are not created through the data API.
+
 Required scopes:
 
 - `opportunities:read`
 - `recommendations:read`
 - `events:write`
+
+## Credits and endpoint pricing
+
+- Every new account starts with **0 API credits**.
+- Credit purchases are one-time top-ups. Credits do not expire and there is no recurring API subscription requirement.
+- Free endpoints: `GET /v1/health`, `GET /v1/usage`, and `GET /v1/categories`. A key is still required for usage and categories.
+- Chargeable endpoints: `GET /v1/opportunities`, `GET /v1/opportunities/stats`, `GET /v1/opportunities/sync`, `GET /v1/opportunities/:id`, `POST /v1/recommendations`, and `POST /v1/events`.
+- Each chargeable request costs one credit. With zero credits, the API returns `402 Payment Required` with `code: "credits_exhausted"` before the paid operation runs.
 
 ## Endpoints
 
@@ -39,6 +53,20 @@ Required scopes:
 
 ```http
 GET /v1/health
+X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+```
+
+### Categories (free)
+
+```http
+GET /v1/categories
+X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+```
+
+### Usage (free)
+
+```http
+GET /v1/usage
 X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
 ```
 
@@ -164,7 +192,7 @@ List endpoints return:
 }
 ```
 
-Opportunity objects are normalized for third-party users and do not expose internal status, raw scraper JSON, provider IDs, or admin review fields.
+Opportunity objects are normalized for third-party users and do not expose internal status, raw scraper JSON, provider IDs, or admin review fields. Only approved opportunities are returned. When a user-submitted opportunity is approved, it becomes a global catalog record visible to Edutu users and API customers; pending and rejected submissions are not returned.
 Each opportunity includes a `trust` block:
 
 ```json
@@ -196,13 +224,26 @@ Error bodies use a stable shape:
   "error": {
     "message": "Invalid query payload",
     "status": 400,
+    "code": "invalid_api_key",
     "details": []
   },
   "requestId": "request-id"
 }
 ```
 
-## Monetization
+Zero-credit response (redacted):
+
+```http
+HTTP/1.1 402 Payment Required
+```
+
+```json
+{"error":{"message":"API credits exhausted","status":402,"code":"credits_exhausted"},"requestId":"req_..."}
+```
+
+Common contract codes include `missing_api_key`, `invalid_api_key`, `scope_required`, `rate_limit_exceeded`, `quota_exceeded`, `credits_exhausted`, and `billing_unavailable`.
+
+## Quota and headers
 
 Use `api_consumers.plan`, `monthly_quota`, and `allowed_scopes` to map paid plans to product access:
 
@@ -210,6 +251,10 @@ Use `api_consumers.plan`, `monthly_quota`, and `allowed_scopes` to map paid plan
 - Growth: `10,000` requests/month
 - Scale: custom quota
 
-`api_usage_events` records billable request activity for usage-based billing and reporting.
+`api_usage_events` records request activity for usage and reporting. Chargeable API calls debit the account credit ledger by one credit; free endpoints do not.
 `api_usage_buckets` enforces monthly quota atomically without scanning all usage events on every request.
 `api_partner_events` records partner-side opportunity engagement so Edutu can report performance and improve recommendations.
+
+## Server-to-server integration
+
+Keep Edutu API keys on your backend, worker, or serverless function. A browser-visible key is not secret. Direct browser use requires an approved CORS origin and should be chosen only when exposing the key is acceptable; otherwise proxy requests through your server.

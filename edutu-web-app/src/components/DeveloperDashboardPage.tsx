@@ -113,7 +113,7 @@ function formatBillingAmount(transaction: BillingTransaction) {
 function billingTransactionLabel(transaction: BillingTransaction) {
   if (transaction.type === "credit_topup") return "API credit top-up";
   if (transaction.description) return transaction.description;
-  return "Subscription payment";
+  return "Payment";
 }
 
 function statusTone(status: string) {
@@ -426,9 +426,8 @@ Implement:
                   Create projects, issue keys, and ship against the live scholarship graph.
                 </h1>
                 <p className="max-w-2xl text-base leading-[1.8] sm:text-lg text-text-muted">
-                  Your developer portal keeps API projects, metering, billing credits, and recent request logs
-                  in one place. Generate a key once, rotate it when needed, and keep the whole integration
-                  auditable.
+                  Your developer portal keeps API projects, metering, one-time credits, and recent request logs
+                  in one place. Clerk protects this dashboard; generated Edutu API keys authenticate your /v1 calls.
                 </p>
               </div>
 
@@ -485,7 +484,7 @@ Implement:
                     </span>
                   </div>
                   <p className="text-sm leading-6 text-text-muted">
-                    Credits and subscription status come from the same account dashboard.
+                    Credits are one-time top-ups and never expire; API keys are managed from this dashboard.
                   </p>
                 </div>
               </div>
@@ -550,7 +549,7 @@ Implement:
                     {billing.loading ? "…" : billing.status?.credits?.toLocaleString() ?? "0"}
                   </p>
                   <p className="text-sm text-text-muted">
-                    {billing.status?.subscriptionStatus || "No subscription yet"}
+                    {billing.status?.credits !== undefined ? "Credits available" : "No credit top-ups yet"}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-subtle bg-white p-4">
@@ -1093,17 +1092,16 @@ Implement:
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                      Subscription
+                      Credit purchase policy
                     </p>
                     <p className="mt-1 text-lg font-semibold text-text-primary">
-                      {billing.status?.subscriptionStatus ?? "Inactive"}
+                      One-time top-ups
                     </p>
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-text-muted">
-                  {billing.status?.proExpiresAt
-                    ? `Renews or expires ${formatDate(billing.status.proExpiresAt)}`
-                    : "Top up credits or start a billing plan to keep access active."}
+                  API credit top-ups are one-time purchases and do not expire. Free health, usage, and category
+                  calls do not consume credits; chargeable API calls cost one credit.
                 </p>
                 <div className="mt-4">
                     <button
@@ -1142,7 +1140,7 @@ Implement:
                         Invoices & payments
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
-                        Recent Bachs receipts and subscription records.
+                        Recent payment receipts and API credit top-ups.
                       </p>
                     </div>
                     <span className="rounded-full border border-subtle bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
@@ -1180,8 +1178,8 @@ Implement:
                       ))
                     ) : (
                       <p className="rounded-xl border border-dashed border-subtle px-4 py-4 text-sm leading-6 text-text-muted">
-                        No invoice history yet. Bachs receipts and API credit top-ups will appear here
-                        after the first successful payment.
+                        No payment history yet. Receipts and API credit top-ups will appear here after the first
+                        successful payment.
                       </p>
                     )}
                   </div>

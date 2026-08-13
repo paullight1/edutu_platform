@@ -43,20 +43,20 @@ const capabilities: {
   {
     icon: Sparkles,
     title: 'AI matching',
-    endpoint: 'GET /v1/match',
-    body: 'Ranked recommendations from a learner’s profile, goals and signals. Drop the same intelligence behind Edutu into your own surfaces.',
+    endpoint: 'POST /v1/recommendations',
+    body: 'Ranked recommendations from a learner’s profile, goals and signals. Each request costs one credit.',
   },
   {
     icon: RefreshCw,
-    title: 'Ingestion pipeline',
-    endpoint: 'POST /v1/scraper/run',
-    body: 'Trigger crawls and keep your inventory fresh from thousands of sources with a single call — no scrapers to maintain yourself.',
+    title: 'Catalog sync',
+    endpoint: 'GET /v1/opportunities/sync',
+    body: 'Pull approved catalog changes since your last run with a scoped sync endpoint. Each request costs one credit.',
   },
   {
     icon: ShieldCheck,
-    title: 'Keys & billing',
-    endpoint: 'POST /v1/keys',
-    body: 'Scoped API keys you can rotate or revoke, per-project usage tracking, and secure credit billing through Bachs.',
+    title: 'Keys & credits',
+    endpoint: 'GET /dashboard/developer',
+    body: 'Sign in with Clerk to create project keys without credits. Top-ups are one-time, non-expiring, and chargeable calls cost one credit.',
   },
 ];
 
@@ -64,7 +64,7 @@ const quicksteps: { icon: LucideIcon; title: string; body: string; hint: string 
   {
     icon: KeyRound,
     title: 'Create a key',
-    body: 'Spin up a project in the developer dashboard and generate a scoped API key.',
+    body: 'Sign in with Clerk, open the developer dashboard, and generate a scoped project key without buying credits.',
     hint: 'sk_live_edutu_•••',
   },
   {
@@ -76,7 +76,7 @@ const quicksteps: { icon: LucideIcon; title: string; body: string; hint: string 
   {
     icon: ArrowUpRight,
     title: 'Ship',
-    body: 'Call any endpoint and build. Pagination, filters and stable schemas are included.',
+    body: 'Call the live API from your server. Free endpoints help you inspect health, usage and categories; other calls cost one credit.',
     hint: 'GET /v1/opportunities',
   },
 ];
@@ -140,10 +140,11 @@ const codeTabs: { label: Lang; render: () => React.ReactNode; copy: string }[] =
 
 const faqs = [
   { q: 'How do I get an API key?', a: 'Create an Edutu account, open the developer dashboard, and start a project. Each project gets a scoped key you can rotate or revoke at any time.' },
-  { q: 'Is there a free tier?', a: 'Yes — new accounts receive free credits to test the API. Current pricing and rate limits live in the developer dashboard.' },
-  { q: 'What data does the API cover?', a: 'Scholarships, fellowships, internships, grants and programs from 31+ countries. Every record carries title, organization, deadline, location, eligibility, benefits and an application URL.' },
+  { q: 'Do I need a separate developer login?', a: 'No. Clerk signs you into Edutu and protects the developer dashboard. The API uses a separate project key for /v1 calls.' },
+  { q: 'How do credits work?', a: 'New accounts start at zero. Health, usage and categories are free; each opportunity, recommendation, stats, sync or event request costs one credit. Top-ups are one-time and never expire. A zero-credit chargeable call returns 402 credits_exhausted.' },
+  { q: 'What data does the API cover?', a: 'Approved scholarships, fellowships, internships, grants and programs. Approved user submissions become global catalog records visible to Edutu users and API customers.' },
   { q: 'How fresh is the data?', a: 'The feed updates continuously as new content is ingested through the scraper pipeline and manual curation.' },
-  { q: 'Can I use it in a commercial product?', a: 'Yes. The API is built for school portals, scholarship directories, career platforms and community tools alike.' },
+  { q: 'Can I use it in a browser?', a: 'The default is server-to-server because an API key in browser code is not secret. Direct browser use requires an approved CORS origin and an explicit decision to expose that key.' },
 ];
 
 /* ────────────────────────────────────────────────────────────────────────

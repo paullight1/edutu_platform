@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import ScholarshipApiPage from "../../components/ScholarshipApiPage";
+import DevelopersLandingPage from "../../components/DevelopersLandingPage";
 import DeveloperDashboardPage from "../../components/DeveloperDashboardPage";
 
 const serviceMocks = vi.hoisted(() => ({
@@ -91,6 +92,14 @@ function renderDeveloperDashboardPage() {
   return render(
     <MemoryRouter initialEntries={["/developers"]}>
       <DeveloperDashboardPage />
+    </MemoryRouter>,
+  );
+}
+
+function renderDevelopersLandingPage() {
+  return render(
+    <MemoryRouter initialEntries={["/developers"]}>
+      <DevelopersLandingPage />
     </MemoryRouter>,
   );
 }
@@ -236,6 +245,26 @@ describe("Scholarship Engine pages", () => {
       "href",
       "/opportunities",
     );
+    expect(screen.queryByText("GET /v1/match")).not.toBeInTheDocument();
+    expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
+    expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
+  });
+
+  it("keeps the developer landing page on supported routes and credit policy", () => {
+    renderDevelopersLandingPage();
+
+    expect(screen.getByText("POST /v1/recommendations")).toBeInTheDocument();
+    expect(screen.getByText("GET /v1/opportunities/sync")).toBeInTheDocument();
+    expect(screen.getByText("GET /dashboard/developer")).toBeInTheDocument();
+    expect(screen.queryByText("GET /v1/match")).not.toBeInTheDocument();
+    expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
+    expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /how do credits work/i }));
+    expect(screen.getByText(/new accounts start at zero/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/top-ups are one-time and never expire/i),
+    ).toBeInTheDocument();
   });
 
   it("loads the developer dashboard and supports project creation", async () => {
@@ -255,6 +284,12 @@ describe("Scholarship Engine pages", () => {
     await screen.findByRole("button", { name: /rotate/i });
 
     expect(screen.getByText("API credits")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Clerk protects this dashboard/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/API credit top-ups are one-time purchases and do not expire/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
     expect(screen.getByText("Invoices & payments")).toBeInTheDocument();
     expect(screen.getByText("API credit top-up")).toBeInTheDocument();

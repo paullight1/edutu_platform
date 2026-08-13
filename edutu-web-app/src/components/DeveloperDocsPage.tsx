@@ -31,6 +31,7 @@ type DocLink = { label: string; href: string };
 
 const tocLinks: DocLink[] = [
     { label: 'Getting started', href: '#overview' },
+    { label: 'Access & credits', href: '#access' },
     { label: 'Endpoints', href: '#endpoints' },
     { label: 'The opportunity object', href: '#object' },
     { label: 'Examples', href: '#examples' },
@@ -45,38 +46,65 @@ type Endpoint = { method: Method; path: string; title: string; description: stri
 const endpoints: Endpoint[] = [
     {
         method: 'GET',
+        path: '/health',
+        title: 'Health check',
+        description: 'Public runtime status. Free and available without an API key.',
+    },
+    {
+        method: 'GET',
         path: '/opportunities',
         title: 'Opportunity feed',
         description:
-            'The canonical public feed for scholarships, fellowships, internships and grants, with stable cursor-based pagination. Use it for home pages, filters, search and list views.',
+            'Search and page through approved scholarships, fellowships, internships and grants. This chargeable request costs one credit.',
     },
     {
         method: 'GET',
         path: '/opportunities/:id',
         title: 'Opportunity detail',
         description:
-            'One normalized opportunity record for detail pages, SEO-friendly public shares and application hand-off screens.',
+            'Fetch one approved opportunity record. This chargeable request costs one credit.',
     },
     {
         method: 'GET',
-        path: '/api/scraper/stats',
-        title: 'Scraper health',
+        path: '/opportunities/stats',
+        title: 'Catalog stats',
         description:
-            'Current scrape coverage and sync status, so your admin surface can reflect whether the inventory is fresh.',
+            'Inspect approved catalog coverage and freshness. This chargeable request costs one credit.',
     },
     {
         method: 'GET',
-        path: '/v1/openapi.json',
-        title: 'OpenAPI contract',
+        path: '/opportunities/sync',
+        title: 'Opportunity sync',
         description:
-            'The machine-readable API contract used by SDK generators and docs tools. Point your codegen at it to stay in sync.',
+            'Pull approved rows changed since a timestamp. Requires the opportunities:sync scope and costs one credit.',
+    },
+    {
+        method: 'GET',
+        path: '/categories',
+        title: 'Categories',
+        description:
+            'Discover stable category metadata. Free, but requires an API key with opportunities:read.',
+    },
+    {
+        method: 'GET',
+        path: '/usage',
+        title: 'Usage',
+        description:
+            'Inspect quota and credit balance. Free and does not consume a credit.',
     },
     {
         method: 'POST',
-        path: '/api/scraper/run',
-        title: 'Manual sync trigger',
+        path: '/recommendations',
+        title: 'Recommendations',
         description:
-            'Triggers the ingestion workflow used by the admin panel and automated sources. Ideal for re-syncing after content updates.',
+            'Retrieve ranked approved opportunities for a supplied profile. This chargeable request costs one credit.',
+    },
+    {
+        method: 'POST',
+        path: '/events',
+        title: 'Partner events',
+        description:
+            'Record impressions, clicks, saves, and conversions. This chargeable request costs one credit.',
     },
 ];
 
@@ -92,38 +120,38 @@ type PlatformCard = {
 const platformCards: PlatformCard[] = [
     {
         icon: Globe,
-        title: 'Web app',
-        subtitle: 'Public feed + SEO',
+        title: 'Server application',
+        subtitle: 'Recommended integration',
         accentClass: 'text-brand',
         tintClass: 'bg-brand/10',
         items: [
-            'Use VITE_API_URL or VITE_BACKEND_URL for the live feed',
-            'Render the same normalized contract on list and detail pages',
-            'Keep share pages text-first so search engines index them cleanly',
+            'Keep EDUTU_API_KEY in server-side environment variables',
+            'Proxy browser requests through your backend when the key must remain secret',
+            'Render only approved opportunities from the normalized contract',
         ],
     },
     {
         icon: Smartphone,
-        title: 'Mobile app',
-        subtitle: 'Expo client',
+        title: 'Workers and agents',
+        subtitle: 'Server-to-server',
         accentClass: 'text-accent',
         tintClass: 'bg-accent/10',
         items: [
-            'EXPO_PUBLIC_API_URL keeps mobile on the same source of truth',
-            'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY handles auth',
-            'Bookmark, apply and deadline flows share one opportunity payload',
+            'Use curl, fetch, Python, or an SDK from a trusted server environment',
+            'Send x-edutu-api-key or Authorization: Bearer with the Edutu API key',
+            'Use cursor pagination and /opportunities/sync for durable ingestion',
         ],
     },
     {
         icon: Server,
-        title: 'Admin panel',
-        subtitle: 'Ingestion + review',
+        title: 'Browser integrations',
+        subtitle: 'CORS trade-off',
         accentClass: 'text-success',
         tintClass: 'bg-success/10',
         items: [
-            'VITE_API_URL, VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY keep it connected',
-            'Manual edits and scraper imports merge into one inventory',
-            'Use the sync endpoints to refresh the public feed after changes',
+            'Direct browser calls require an approved CORS origin',
+            'A browser-visible API key is not secret and can be copied by users',
+            'Prefer a server proxy for production integrations',
         ],
     },
 ];
@@ -132,34 +160,29 @@ type CodeSample = { label: string; title: string; code: string };
 
 const codeSamples: CodeSample[] = [
     {
-        label: 'Web',
-        title: 'Load the public opportunity feed',
-        code: `import { fetchOpportunities } from '../services/opportunities';
-
-const opportunities = await fetchOpportunities({
-  status: 'active',
-  category: 'Scholarships',
-  limit: 12,
-});`,
+        label: 'cURL',
+        title: 'Call from your server',
+        code: `curl "${apiBaseUrl}/opportunities?limit=5" \\
+  -H "x-edutu-api-key: $EDUTU_API_KEY"`,
     },
     {
-        label: 'Mobile',
-        title: 'Point Expo at the same backend',
-        code: `const apiUrl =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-
-const response = await fetch(\`\${apiUrl}/opportunities?status=active\`);
-const opportunities = await response.json();`,
+        label: 'JavaScript',
+        title: 'Use a server-side key',
+        code: `const response = await fetch("${apiBaseUrl}/opportunities?limit=5", {
+  headers: { "x-edutu-api-key": process.env.EDUTU_API_KEY },
+});
+const { data, meta } = await response.json();`,
     },
     {
-        label: 'Admin',
-        title: 'Refresh the inventory after scraping',
-        code: `await processN8nWebhook({
-  action: 'bulk_sync',
-  source: 'scraper',
-  timestamp: new Date().toISOString(),
-  opportunities: payload,
-});`,
+        label: '402',
+        title: 'Handle exhausted credits',
+        code: `{
+  "error": {
+    "status": 402,
+    "code": "credits_exhausted"
+  },
+  "requestId": "req_..."
+}`,
     },
     {
         label: 'OpenAPI',
@@ -499,6 +522,43 @@ const DeveloperDocsPage: React.FC = () => {
                                             </code>{' '}
                                             for stable syncs.
                                         </p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* ── Access + credits ───────────────────────── */}
+                            <section id="access" className="scroll-mt-28 pt-14 sm:pt-16">
+                                <h2 className="font-display text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-text-primary">
+                                    Access, credits and visibility
+                                </h2>
+                                <p className="mt-4 max-w-2xl text-base leading-[1.75] text-text-secondary">
+                                    Clerk signs you into Edutu and protects the developer dashboard. The
+                                    API itself uses a separate project key, so a Clerk session token cannot
+                                    be used as an API credential.
+                                </p>
+                                <div className="mt-7 grid gap-4 lg:grid-cols-2">
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
+                                        <div className="flex items-center gap-2 text-text-primary">
+                                            <KeyRound size={16} className="text-brand" />
+                                            <h3 className="text-base font-semibold">Create access</h3>
+                                        </div>
+                                        <ul className="mt-4 space-y-3 text-sm leading-[1.65] text-text-secondary">
+                                            <li>Sign in with Clerk and open <Link to="/dashboard/developer" className="font-semibold text-brand underline-offset-2 hover:underline">/dashboard/developer</Link>.</li>
+                                            <li>Create a project and key immediately; no credit purchase is required.</li>
+                                            <li>The raw key is shown once. Store it server-side and rotate or revoke it from the dashboard.</li>
+                                        </ul>
+                                    </div>
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
+                                        <div className="flex items-center gap-2 text-text-primary">
+                                            <Database size={16} className="text-brand" />
+                                            <h3 className="text-base font-semibold">Credit policy</h3>
+                                        </div>
+                                        <ul className="mt-4 space-y-3 text-sm leading-[1.65] text-text-secondary">
+                                            <li>New accounts start at 0 credits. Top-ups are one-time purchases and never expire.</li>
+                                            <li>Health, usage and categories are free. Each other live API request costs 1 credit.</li>
+                                            <li>A chargeable call at zero returns <code className="font-mono text-xs text-brand">402 credits_exhausted</code> before the operation runs.</li>
+                                            <li>Only approved opportunities are visible. Approved user submissions become global catalog records for Edutu users and API customers.</li>
+                                        </ul>
                                     </div>
                                 </div>
                             </section>
