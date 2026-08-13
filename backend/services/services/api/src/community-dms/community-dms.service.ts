@@ -8,6 +8,7 @@ import {
   Optional,
 } from "@nestjs/common";
 import type { CommunityDmConversation } from "../db/schema";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   COMMUNITY_DMS_STORE,
   DrizzleCommunityDmsStore,
@@ -36,11 +37,14 @@ const MAX_BLOCK_LIST_LIMIT = 100;
 @Injectable()
 export class CommunityDmsService {
   private readonly store: CommunityDmsStore;
+  private readonly notificationsService?: NotificationsService;
 
   constructor(
     @Optional() @Inject(COMMUNITY_DMS_STORE) store?: CommunityDmsStore,
+    @Optional() notificationsService?: NotificationsService,
   ) {
     this.store = store ?? new DrizzleCommunityDmsStore();
+    this.notificationsService = notificationsService;
   }
 
   async relationship(
@@ -93,7 +97,29 @@ export class CommunityDmsService {
     this.refuseExistingRequest(senderId, existing);
 
     try {
-      return await this.store.createRequest(senderId, recipientId, body);
+      const result = await this.store.createRequest(
+        senderId,
+        recipientId,
+        body,
+      );
+      void this.notificationsService
+        ?.broadcast(senderId, {
+          title: "New message request",
+          body: "Someone in the Edutu community wants to connect with you.",
+          kind: "community-request",
+          severity: "info",
+          audience: "specific",
+          targetUserIds: [recipientId],
+          channels: { inApp: true, push: true, email: false },
+          dedupeKey: `community-request:${result.conversation.id}`,
+          metadata: {
+            url: `/discussions/dm/${result.conversation.id}`,
+            conversationId: result.conversation.id,
+            source: "community-dm-request",
+          },
+        })
+        .catch(() => undefined);
+      return result;
     } catch (error) {
       // A canonical pair unique constraint closes the simultaneous-request
       // race. Resolve the winner and return the same stable refusal a normal
@@ -131,7 +157,9 @@ export class CommunityDmsService {
       throw new ConflictException("This message request is no longer pending.");
     }
     if (conversation.requestedBy === actor) {
-      throw new ForbiddenException("Only the recipient can accept this request.");
+      throw new ForbiddenException(
+        "Only the recipient can accept this request.",
+      );
     }
     const otherId = this.otherUserId(conversation, actor);
     if (await this.store.isBlocked(actor, otherId)) {
@@ -140,6 +168,23 @@ export class CommunityDmsService {
     const updated = await this.store.updateStatus(conversation.id, "accepted");
     if (!updated) throw new NotFoundException("Message request not found.");
     await this.store.markRead(updated.id, actor);
+    void this.notificationsService
+      ?.broadcast(actor, {
+        title: "Message request accepted",
+        body: "Your community connection request was accepted.",
+        kind: "community-request",
+        severity: "success",
+        audience: "specific",
+        targetUserIds: [conversation.requestedBy],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `community-request-accepted:${updated.id}`,
+        metadata: {
+          url: `/discussions/dm/${updated.id}`,
+          conversationId: updated.id,
+          source: "community-dm-accepted",
+        },
+      })
+      .catch(() => undefined);
     return this.toDetail(updated, actor, false);
   }
 
@@ -153,7 +198,9 @@ export class CommunityDmsService {
       throw new ConflictException("This message request is no longer pending.");
     }
     if (conversation.requestedBy === actor) {
-      throw new ForbiddenException("Only the recipient can decline this request.");
+      throw new ForbiddenException(
+        "Only the recipient can decline this request.",
+      );
     }
     await this.store.updateStatus(conversation.id, "declined");
     await this.store.hideConversation(conversation.id, actor);
@@ -210,7 +257,8 @@ export class CommunityDmsService {
     return messages.map((message) => ({
       ...message,
       sender:
-        profileById.get(message.senderId) ?? this.fallbackProfile(message.senderId),
+        profileById.get(message.senderId) ??
+        this.fallbackProfile(message.senderId),
     }));
   }
 
@@ -236,6 +284,25 @@ export class CommunityDmsService {
       this.messageBody(dto.body),
     );
     const [sender] = await this.store.findProfiles([actor]);
+    void this.notificationsService
+      ?.broadcast(actor, {
+        title: sender?.displayName
+          ? `${sender.displayName} sent you a message`
+          : "New community message",
+        body: message.body,
+        kind: "community-message",
+        severity: "info",
+        audience: "specific",
+        targetUserIds: [otherId],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `community-message:${message.id}`,
+        metadata: {
+          url: `/discussions/dm/${conversation.id}`,
+          conversationId: conversation.id,
+          source: "community-dm",
+        },
+      })
+      .catch(() => undefined);
     return {
       ...message,
       sender: sender ?? this.fallbackProfile(actor),
@@ -341,10 +408,14 @@ export class CommunityDmsService {
   ): void {
     if (!conversation) return;
     if (conversation.status === "accepted") {
-      throw new ConflictException("You already have a conversation with this person.");
+      throw new ConflictException(
+        "You already have a conversation with this person.",
+      );
     }
     if (conversation.status === "declined") {
-      throw new ForbiddenException("This person isn't accepting messages from you.");
+      throw new ForbiddenException(
+        "This person isn't accepting messages from you.",
+      );
     }
     if (conversation.requestedBy === actor) {
       throw new ConflictException(

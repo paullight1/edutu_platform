@@ -1,7 +1,4 @@
-import type {
-  CommunityDmConversation,
-  CommunityDmMessage,
-} from "../db/schema";
+import type { CommunityDmConversation, CommunityDmMessage } from "../db/schema";
 
 export type DmStatus = "pending" | "accepted" | "declined";
 export type DmRequestDirection = "incoming" | "outgoing";

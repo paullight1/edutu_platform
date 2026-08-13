@@ -10,11 +10,13 @@ export const CreateGroupSchema = z.object({
 });
 export type CreateGroupDto = z.infer<typeof CreateGroupSchema>;
 
-export const UpdateGroupSchema = CreateGroupSchema.partial().omit({
-  opportunityId: true,
-}).extend({
-  coverImageResourceUrl: z.string().url().max(2048).nullable().optional(),
-});
+export const UpdateGroupSchema = CreateGroupSchema.partial()
+  .omit({
+    opportunityId: true,
+  })
+  .extend({
+    coverImageResourceUrl: z.string().url().max(2048).nullable().optional(),
+  });
 export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>;
 
 export const COMMUNITY_IMAGE_MIME_TYPES = [
@@ -34,10 +36,21 @@ const attachmentDisplayName = z
   // Display names are rendered back to every member. Reject path-shaped and
   // control-character names rather than trying to sanitize them differently
   // on each client.
-  .refine(
-    (name) => !/[\\/\u0000-\u001f\u007f]/.test(name) && name !== "." && name !== "..",
-    "Attachment name is not safe",
-  );
+  .refine((name) => {
+    for (let index = 0; index < name.length; index += 1) {
+      const code = name.charCodeAt(index);
+      if (code <= 0x1f || code === 0x7f) {
+        return false;
+      }
+    }
+
+    return (
+      !name.includes("/") &&
+      !name.includes("\\") &&
+      name !== "." &&
+      name !== ".."
+    );
+  }, "Attachment name is not safe");
 
 const attachmentCaption = z.string().trim().max(500).optional();
 const attachmentUrl = z
@@ -127,7 +140,9 @@ export type CommunityGroupImageUploadDto = z.infer<
 >;
 
 function attachmentBody(
-  schema: typeof CommunityImageAttachmentSchema | typeof CommunityFileAttachmentSchema,
+  schema:
+    | typeof CommunityImageAttachmentSchema
+    | typeof CommunityFileAttachmentSchema,
 ) {
   return z
     .string()
@@ -150,7 +165,8 @@ function attachmentBody(
       if (!parsed.success) {
         context.addIssue({
           code: "custom",
-          message: parsed.error.issues[0]?.message ?? "Attachment metadata is invalid",
+          message:
+            parsed.error.issues[0]?.message ?? "Attachment metadata is invalid",
         });
         return z.NEVER;
       }

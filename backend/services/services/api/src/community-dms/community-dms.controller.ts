@@ -123,10 +123,7 @@ export class CommunityDmsController {
   }
 
   @Post("conversations/:id/read")
-  markRead(
-    @CurrentUser("authId") userId: string,
-    @Param("id") id: string,
-  ) {
+  markRead(@CurrentUser("authId") userId: string, @Param("id") id: string) {
     return this.dms.markRead(userId, id);
   }
 

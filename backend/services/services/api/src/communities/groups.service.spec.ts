@@ -159,14 +159,21 @@ class FakeGroupsStore implements GroupsStore {
     const restrict = filter.restrictToGroupIds
       ? new Set(filter.restrictToGroupIds)
       : null;
+    const isOwned = (group: CommunityGroup) =>
+      group.ownerId === filter.includeOwnedBy;
     return (
       this.groups
         .filter((group) => group.archivedAt === null)
-        .filter((group) => !restrict || restrict.has(group.id))
+        .filter(
+          (group) => !restrict || restrict.has(group.id) || isOwned(group),
+        )
         // Applied BEFORE the slice, exactly as the SQL applies it before LIMIT:
         // a fake that filtered afterwards would hide the short-page bug.
         .filter(
-          (group) => group.visibility === "public" || visible.has(group.id),
+          (group) =>
+            group.visibility === "public" ||
+            visible.has(group.id) ||
+            isOwned(group),
         )
         .filter((group) => !group.expiresAt || group.expiresAt.getTime() > now)
         .filter(
@@ -202,7 +209,9 @@ class FakeGroupsStore implements GroupsStore {
   ): Promise<CommunityGroupMember[]> {
     const rank: Record<string, number> = { owner: 0, mod: 1, member: 2 };
     return this.members
-      .filter((member) => member.groupId === groupId && member.status === "active")
+      .filter(
+        (member) => member.groupId === groupId && member.status === "active",
+      )
       .sort(
         (left, right) =>
           (rank[left.role] ?? 3) - (rank[right.role] ?? 3) ||
@@ -989,7 +998,8 @@ describe("GroupsService", () => {
           .map((userId) => ({
             userId,
             fullName: userId === "user_owner" ? "Amina Owner" : "Kofi Member",
-            avatarUrl: userId === "user_owner" ? "https://img.test/amina.jpg" : null,
+            avatarUrl:
+              userId === "user_owner" ? "https://img.test/amina.jpg" : null,
           }));
       },
     };
@@ -1038,12 +1048,14 @@ describe("GroupsService", () => {
       const db = fakeDb({ group: { id: GROUP_ID, visibility: "private" } });
       const service = new GroupsService(db, directory);
 
-      await expect(service.listMembers("user_stranger", GROUP_ID)).rejects.toThrow(
-        /private/i,
-      );
+      await expect(
+        service.listMembers("user_stranger", GROUP_ID),
+      ).rejects.toThrow(/private/i);
 
       await service.invite("user_owner", GROUP_ID, "user_invited");
-      await expect(service.listMembers("user_invited", GROUP_ID)).resolves.toMatchObject({
+      await expect(
+        service.listMembers("user_invited", GROUP_ID),
+      ).resolves.toMatchObject({
         members: [{ membership: { userId: "user_owner", status: "active" } }],
       });
     });
@@ -1069,6 +1081,25 @@ describe("GroupsService", () => {
   });
 
   describe("list", () => {
+    it("keeps an owned group visible when a legacy owner membership row is missing", async () => {
+      const db = fakeDb();
+      const owned = seedGroup(db, {
+        id: randomUUID(),
+        slug: "legacy-owned",
+        name: "My earlier group",
+        ownerId: "user_abc",
+        visibility: "private",
+      });
+      db.members = db.members.filter((row) => row.groupId !== owned.id);
+
+      const rows = await new GroupsService(db).list("user_abc", {
+        mine: true,
+      });
+
+      expect(rows.map((row) => row.group.id)).toEqual([owned.id]);
+      expect(rows[0].membership).toBeNull();
+    });
+
     it("returns public groups plus the caller's own private ones", async () => {
       const db = fakeDb();
       seedGroup(db, {

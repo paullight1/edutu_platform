@@ -633,38 +633,53 @@ describe("MessagesService", () => {
     it.each([
       ["image" as const, imageBody],
       ["file" as const, fileBody],
-    ])("persists a validated %s attachment in kind/body", async (kind, body) => {
-      const db = fakeDb({ members: [{ userId: "user_abc" }] });
-      const message = await messagesService(db).send("user_abc", GROUP_ID, {
-        kind,
-        body,
-      });
+    ])(
+      "persists a validated %s attachment in kind/body",
+      async (kind, body) => {
+        const db = fakeDb({ members: [{ userId: "user_abc" }] });
+        const message = await messagesService(db).send("user_abc", GROUP_ID, {
+          kind,
+          body,
+        });
 
-      expect(message.kind).toBe(kind);
-      expect(JSON.parse(message.body)).toMatchObject(JSON.parse(body));
-      expect(db.groups[0].messageCount).toBe(1);
-    });
+        expect(message.kind).toBe(kind);
+        expect(JSON.parse(message.body)).toMatchObject(JSON.parse(body));
+        expect(db.groups[0].messageCount).toBe(1);
+      },
+    );
 
     it.each([
-      ["non-HTTPS URL", { ...JSON.parse(imageBody), url: "http://cdn.test/x.webp" }],
+      [
+        "non-HTTPS URL",
+        { ...JSON.parse(imageBody), url: "http://cdn.test/x.webp" },
+      ],
       ["unsafe name", { ...JSON.parse(imageBody), name: "../secret.webp" }],
       ["wrong image MIME", { ...JSON.parse(imageBody), mime: "image/gif" }],
-      ["oversized image", { ...JSON.parse(imageBody), size: COMMUNITY_IMAGE_MAX_BYTES + 1 }],
-    ])("rejects image attachment metadata with a %s", async (_case, payload) => {
-      const db = fakeDb({ members: [{ userId: "user_abc" }] });
-      await expect(
-        messagesService(db).send("user_abc", GROUP_ID, {
-          kind: "image",
-          body: JSON.stringify(payload),
-        } as never),
-      ).rejects.toThrow(/attachment can't be sent/i);
-      expect(db.messages).toHaveLength(0);
-    });
+      [
+        "oversized image",
+        { ...JSON.parse(imageBody), size: COMMUNITY_IMAGE_MAX_BYTES + 1 },
+      ],
+    ])(
+      "rejects image attachment metadata with a %s",
+      async (_case, payload) => {
+        const db = fakeDb({ members: [{ userId: "user_abc" }] });
+        await expect(
+          messagesService(db).send("user_abc", GROUP_ID, {
+            kind: "image",
+            body: JSON.stringify(payload),
+          } as never),
+        ).rejects.toThrow(/attachment can't be sent/i);
+        expect(db.messages).toHaveLength(0);
+      },
+    );
 
     it.each([
       ["wrong PDF MIME", { ...JSON.parse(fileBody), mime: "application/zip" }],
       ["wrong extension", { ...JSON.parse(fileBody), name: "guide.exe" }],
-      ["oversized PDF", { ...JSON.parse(fileBody), size: COMMUNITY_PDF_MAX_BYTES + 1 }],
+      [
+        "oversized PDF",
+        { ...JSON.parse(fileBody), size: COMMUNITY_PDF_MAX_BYTES + 1 },
+      ],
       ["extra metadata", { ...JSON.parse(fileBody), executable: true }],
     ])("rejects file attachment metadata with a %s", async (_case, payload) => {
       const db = fakeDb({ members: [{ userId: "user_abc" }] });
@@ -781,7 +796,9 @@ describe("MessagesService", () => {
 
       expect(storage.from).toHaveBeenCalledWith("community-assets");
       expect(storage.createSignedUploadUrl).toHaveBeenCalledTimes(1);
-      expect(reservation.uploadUrl).toMatch(/^https:\/\/storage\.edutu\.test\/upload/);
+      expect(reservation.uploadUrl).toMatch(
+        /^https:\/\/storage\.edutu\.test\/upload/,
+      );
       expect(reservation.resourceUrl).toMatch(
         /^https:\/\/api\.edutu\.test\/communities\/groups\//,
       );

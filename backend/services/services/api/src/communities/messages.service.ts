@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { toDatabaseUserId } from "../common/user-id";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   communityGroupMembers,
   communityGroupMessages,
@@ -123,6 +124,8 @@ export interface MessagesStore {
     groupId: string,
     userId: string,
   ): Promise<CommunityGroupMember | null>;
+  /** Active member subjects used to fan out group activity notifications. */
+  listActiveMemberUserIds?(groupId: string): Promise<string[]>;
   listMessages(
     groupId: string,
     before: MessageCursor | null,
@@ -288,6 +291,19 @@ export class DrizzleMessagesStore implements MessagesStore {
       )
       .limit(1);
     return row ?? null;
+  }
+
+  async listActiveMemberUserIds(groupId: string): Promise<string[]> {
+    const rows = await db
+      .select({ userId: communityGroupMembers.userId })
+      .from(communityGroupMembers)
+      .where(
+        and(
+          eq(communityGroupMembers.groupId, groupId),
+          eq(communityGroupMembers.status, "active"),
+        ),
+      );
+    return rows.map((row) => row.userId);
   }
 
   async listMessages(
@@ -594,6 +610,7 @@ export class MessagesService {
   private readonly blocks: BlockDirectory;
   private readonly storageOverride?: SupabaseClient;
   private cachedStorage?: SupabaseClient;
+  private readonly notificationsService?: NotificationsService;
 
   constructor(
     @Optional() @Inject(MESSAGES_STORE) store?: MessagesStore,
@@ -602,6 +619,7 @@ export class MessagesService {
     @Optional()
     @Inject(COMMUNITY_STORAGE_CLIENT)
     storageOverride?: SupabaseClient,
+    @Optional() notificationsService?: NotificationsService,
   ) {
     this.store = store ?? new DrizzleMessagesStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
@@ -610,6 +628,7 @@ export class MessagesService {
     // here would ship a Block button that records a block and hides nothing.
     this.blocks = blocks ?? new DrizzleBlockDirectory();
     this.storageOverride = storageOverride;
+    this.notificationsService = notificationsService;
   }
 
   private get storage(): SupabaseClient {
@@ -869,8 +888,11 @@ export class MessagesService {
     });
 
     const hasMore = candidates.length > limit || !exhausted;
-    const boundary = selected[selected.length - 1]?.message ??
-      (hasMore ? cursor && { createdAt: cursor.createdAt, id: cursor.id ?? "" } : null);
+    const boundary =
+      selected[selected.length - 1]?.message ??
+      (hasMore
+        ? cursor && { createdAt: cursor.createdAt, id: cursor.id ?? "" }
+        : null);
     return {
       resources,
       nextCursor:
@@ -969,7 +991,49 @@ export class MessagesService {
     // into the page it is already rendering; a message with no `author` would
     // show the sender's own bubble under the fallback name until they refreshed.
     const [withAuthor] = await this.withAuthors([stored]);
+
+    // Group activity has two delivery paths: the Realtime inbox updates open
+    // group lists immediately, while this fan-out covers members who are
+    // offline or currently elsewhere in the app. System posts are created by
+    // separate flows and do not enter this member-authored send path.
+    if (this.notificationsService && this.store.listActiveMemberUserIds) {
+      void this.notifyGroupMembers(group, senderId, withAuthor).catch(
+        () => undefined,
+      );
+    }
     return withAuthor;
+  }
+
+  private async notifyGroupMembers(
+    group: CommunityGroup,
+    senderId: string,
+    message: CommunityMessageWithAuthor,
+  ): Promise<void> {
+    const memberIds = await this.store.listActiveMemberUserIds?.(group.id);
+    const targetUserIds = (memberIds ?? []).filter(
+      (memberId) => memberId !== senderId,
+    );
+    if (!targetUserIds.length) return;
+
+    const body =
+      message.kind === "image" || message.kind === "file"
+        ? `${message.author.displayName} shared an attachment in ${group.name}.`
+        : `${message.author.displayName}: ${message.body.trim().slice(0, 240)}`;
+    await this.notificationsService?.broadcast(senderId, {
+      title: group.name,
+      body,
+      kind: "community-message",
+      audience: "specific",
+      targetUserIds,
+      channels: { inApp: true, push: true, email: false },
+      dedupeKey: `community-group-message:${message.id}`,
+      metadata: {
+        url: `/discussions/${group.id}`,
+        groupId: group.id,
+        messageId: message.id,
+        source: "community-group-message",
+      },
+    });
   }
 
   /**
@@ -1069,7 +1133,10 @@ export class MessagesService {
       this.attachmentApiBaseUrl(),
     );
     url.searchParams.set("path", storagePath);
-    url.searchParams.set("signature", this.signAttachment(groupId, storagePath));
+    url.searchParams.set(
+      "signature",
+      this.signAttachment(groupId, storagePath),
+    );
     return url.toString();
   }
 

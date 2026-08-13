@@ -31,6 +31,7 @@ import {
   type UpdateGroupDto,
 } from "./dto/community.dto";
 import { FormsService, type JoinRequestFilter } from "./forms.service";
+import { CommunityContentService } from "./content.service";
 import { GroupsService } from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ModerationService } from "./moderation.service";
@@ -83,6 +84,7 @@ export class CommunitiesController {
     private readonly messages: MessagesService,
     private readonly forms: FormsService,
     private readonly moderation: ModerationService,
+    private readonly content: CommunityContentService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -410,6 +412,21 @@ export class CommunitiesController {
     @Param("uid") targetUserId: string,
   ) {
     return this.moderation.unblock(userId, targetUserId);
+  }
+
+  /** Stable-id, cursor-paginated content for the signed-in profile screen. */
+  @Get("profile/content")
+  listOwnContent(
+    @CurrentUser("authId") authId: string,
+    @Query("before") before?: string,
+    @Query("beforeId") beforeId?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.content.listMine(authId, {
+      before: this.parseBefore(before),
+      beforeId: beforeId?.trim() || undefined,
+      limit: this.parseLimit(limit),
+    });
   }
 
   // -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   communityGroupMembers,
   communityGroups,
@@ -130,6 +131,13 @@ export type GroupListFilter = {
    * group, which is precisely the bug this filter exists to fix.
    */
   restrictToGroupIds?: string[];
+  /**
+   * Always include groups whose canonical `owner_id` matches this user. Older
+   * groups can predate the transactional owner-membership insert, and a
+   * missing derived membership row must not make a creator lose their group.
+   * Explicit `removed`/`banned` rows are still rejected by the service.
+   */
+  includeOwnedBy?: string;
   /**
    * Group ids whose privacy the caller's own membership row unlocks — `active`
    * or `invited`, per `admitsToPrivateGroup`. NOT the same set as `mine`: a
@@ -449,18 +457,34 @@ export class DrizzleGroupsStore implements GroupsStore {
     // visibility rule is: narrowing after the 50-row cap would return a page
     // that is short of the caller's own groups because public ones filled it.
     if (filter.restrictToGroupIds) {
-      if (filter.restrictToGroupIds.length === 0) return [];
-      conditions.push(inArray(communityGroups.id, filter.restrictToGroupIds));
+      const owned = filter.includeOwnedBy
+        ? eq(communityGroups.ownerId, filter.includeOwnedBy)
+        : null;
+      if (filter.restrictToGroupIds.length === 0) {
+        if (!owned) return [];
+        conditions.push(owned);
+      } else {
+        const restricted = inArray(
+          communityGroups.id,
+          filter.restrictToGroupIds,
+        );
+        conditions.push(owned ? or(restricted, owned)! : restricted);
+      }
     }
     // Visibility filtered here rather than after the fetch, so the LIMIT counts
     // rows the caller can actually see.
     const visible = filter.visibleGroupIds ?? [];
     const isPublic = eq(communityGroups.visibility, "public");
-    conditions.push(
-      visible.length
-        ? or(isPublic, inArray(communityGroups.id, visible))!
-        : isPublic,
-    );
+    const visibilityConditions = [isPublic];
+    if (visible.length) {
+      visibilityConditions.push(inArray(communityGroups.id, visible));
+    }
+    if (filter.includeOwnedBy) {
+      visibilityConditions.push(
+        eq(communityGroups.ownerId, filter.includeOwnedBy),
+      );
+    }
+    conditions.push(or(...visibilityConditions)!);
     return db
       .select()
       .from(communityGroups)
@@ -738,14 +762,17 @@ export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
   private readonly store: GroupsStore;
   private readonly authors: AuthorDirectory;
+  private readonly notificationsService?: NotificationsService;
 
   constructor(
     @Optional() @Inject(GROUPS_STORE) store?: GroupsStore,
     @Optional() @Inject(AUTHOR_DIRECTORY) authors?: AuthorDirectory,
     @Optional() private readonly assets?: MessagesService,
+    @Optional() notificationsService?: NotificationsService,
   ) {
     this.store = store ?? new DrizzleGroupsStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
+    this.notificationsService = notificationsService;
   }
 
   // -------------------------------------------------------------------------
@@ -875,12 +902,22 @@ export class GroupsService {
       ...filter,
       visibleGroupIds,
       restrictToGroupIds: filter.mine ? liveIds : undefined,
+      includeOwnedBy: userId,
     });
     const live = new Set(liveIds);
     return rows
       .map((group) => ({ group, membership: byGroup.get(group.id) ?? null }))
-      .filter(({ group, membership }) => canReadGroup(group, membership))
-      .filter(({ group }) => !filter.mine || live.has(group.id));
+      .filter(
+        ({ group, membership }) =>
+          (group.ownerId === userId && !isDepartedStatus(membership?.status)) ||
+          canReadGroup(group, membership),
+      )
+      .filter(
+        ({ group, membership }) =>
+          !filter.mine ||
+          live.has(group.id) ||
+          (group.ownerId === userId && !isDepartedStatus(membership?.status)),
+      );
   }
 
   async get(userId: string, groupId: string): Promise<GroupWithMembership> {
@@ -889,7 +926,10 @@ export class GroupsService {
     // The shared read rule — `MessagesService.list` calls the same function, so
     // the group and its messages cannot disagree about who may see them. See
     // community-authz.ts for why `invited` reads and `pending` does not.
-    if (!canReadGroup(group, membership)) {
+    if (
+      !canReadGroup(group, membership) &&
+      !(group.ownerId === userId && !isDepartedStatus(membership?.status))
+    ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );
@@ -912,7 +952,10 @@ export class GroupsService {
   ): Promise<CommunityMemberList> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
-    if (!canReadGroup(group, membership)) {
+    if (
+      !canReadGroup(group, membership) &&
+      !(group.ownerId === userId && !isDepartedStatus(membership?.status))
+    ) {
       throw new ForbiddenException(
         "This group is private. Ask an owner for an invite.",
       );
@@ -1004,7 +1047,9 @@ export class GroupsService {
       "You're not allowed to change this group's photo.",
     );
     if (!this.assets) {
-      throw new BadRequestException("Group photos are not configured right now.");
+      throw new BadRequestException(
+        "Group photos are not configured right now.",
+      );
     }
     return this.assets.createAttachmentUpload(userId, groupId, dto);
   }
@@ -1114,6 +1159,24 @@ export class GroupsService {
         role: this.roleOnActivation(existing),
         status: "pending",
       });
+      void this.notificationsService
+        ?.broadcast(joinerId, {
+          title: `New join request for ${group.name}`,
+          body: "Someone is waiting for your group review.",
+          kind: "community-request",
+          severity: "info",
+          audience: "specific",
+          targetUserIds: [group.ownerId],
+          channels: { inApp: true, push: true, email: false },
+          dedupeKey: `community-join-request:${request.id}`,
+          metadata: {
+            url: `/discussions/${group.id}`,
+            groupId: group.id,
+            requestId: request.id,
+            source: "community-join-request",
+          },
+        })
+        .catch(() => undefined);
       return { status: "pending", groupId, membership, request };
     }
 
@@ -1172,12 +1235,30 @@ export class GroupsService {
         "That person is banned from this group. Unban them before inviting them back.",
       );
     }
-    return this.store.upsertMembership({
+    const membership = await this.store.upsertMembership({
       groupId,
       userId: invitee,
       role: this.roleOnActivation(existing),
       status: "invited",
     });
+    void this.notificationsService
+      ?.broadcast(actorId, {
+        title: `You're invited to ${group.name}`,
+        body: "Open the group to accept your invitation.",
+        kind: "community-request",
+        severity: "info",
+        audience: "specific",
+        targetUserIds: [invitee],
+        channels: { inApp: true, push: true, email: false },
+        dedupeKey: `community-invite:${group.id}:${invitee}`,
+        metadata: {
+          url: `/discussions/${group.id}`,
+          groupId: group.id,
+          source: "community-group-invite",
+        },
+      })
+      .catch(() => undefined);
+    return membership;
   }
 
   /**
