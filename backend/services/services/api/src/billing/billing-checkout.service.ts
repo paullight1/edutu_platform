@@ -34,6 +34,8 @@ import {
   type CheckoutServiceConfig,
   type ClockPort,
   type CreateCheckoutRequest,
+  assertApiCreditProductContract,
+  isApiCreditProductKey,
 } from "./types/billing-checkout.types";
 
 const COOLDOWN_SECONDS = 3;
@@ -370,6 +372,29 @@ export class BillingCheckoutService {
       throw new BadRequestException(
         "This billing product has invalid payment settings.",
       );
+    }
+
+    if (isApiCreditProductKey(product.productKey)) {
+      try {
+        assertApiCreditProductContract(product);
+      } catch {
+        throw new BadRequestException(
+          "This API credit product is not correctly configured.",
+        );
+      }
+
+      const configured = this.config.productCatalog?.[product.productKey];
+      if (
+        !configured ||
+        configured.environment !== this.config.environment ||
+        configured.providerProductId !== product.providerProductId ||
+        configured.expectedAmountMinor !== product.expectedAmountMinor ||
+        configured.currency !== product.currency
+      ) {
+        throw new BadRequestException(
+          "This API credit product is not correctly configured.",
+        );
+      }
     }
   }
 

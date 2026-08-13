@@ -42,12 +42,37 @@ const recurringProduct: BillingCheckoutProduct = {
   validityDays: null,
 };
 
+const apiCreditProduct: BillingCheckoutProduct = {
+  productKey: "api_credits_100",
+  provider: "bachs",
+  environment: "sandbox",
+  providerProductId: "prod_api_credits_100_sandbox",
+  fulfillmentKind: "credits",
+  renewalMode: "one_time",
+  expectedAmountMinor: 499,
+  currency: "USD",
+  cadence: "one_time",
+  creditQuantity: 100,
+  validityDays: null,
+  allowedPaymentMethods: ["card"],
+  catalogVersion: 1,
+};
+
 const config: CheckoutServiceConfig = {
   checkoutEnabled: true,
   environment: "sandbox",
   productMappings: {
     [product.productKey]: product.providerProductId!,
     [recurringProduct.productKey]: recurringProduct.providerProductId!,
+    [apiCreditProduct.productKey]: apiCreditProduct.providerProductId!,
+  },
+  productCatalog: {
+    [apiCreditProduct.productKey]: {
+      providerProductId: apiCreditProduct.providerProductId!,
+      expectedAmountMinor: apiCreditProduct.expectedAmountMinor,
+      currency: apiCreditProduct.currency,
+      environment: "sandbox",
+    },
   },
 };
 
@@ -430,5 +455,60 @@ describe("BillingCheckoutService", () => {
     expect(result.renewalMode).toBe("recurring");
     expect(result.productSnapshot.cadence).toBe("monthly");
     expect(result.productSnapshot.validityDays).toBeNull();
+  });
+
+  it.each([
+    ["wrong fulfillment kind", { fulfillmentKind: "pro" }],
+    ["recurring renewal", { renewalMode: "recurring" }],
+    ["non-positive quantity", { creditQuantity: 0 }],
+    ["expiring validity", { validityDays: 30 }],
+    ["wrong provider mapping", { providerProductId: "prod_other" }],
+    ["wrong amount", { expectedAmountMinor: 500 }],
+    ["wrong currency", { currency: "NGN" }],
+    ["missing provider", { provider: undefined }],
+    ["missing environment", { environment: undefined }],
+    ["wrong environment", { environment: "live" }],
+  ])("rejects API credit products with invalid %s", async (_, changes) => {
+    const fixture = createFixture();
+    fixture.repository.product = {
+      ...apiCreditProduct,
+      ...changes,
+    } as BillingCheckoutProduct;
+
+    await expect(
+      fixture.service.createCheckout("user_123", `invalid-${String(_)}`, {
+        productKey: apiCreditProduct.productKey,
+        returnSurface: "web",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fixture.provider.calls).toHaveLength(0);
+  });
+
+  it("creates and replays a server-owned API credit checkout without accepting client pricing fields", async () => {
+    const fixture = createFixture();
+    fixture.repository.product = apiCreditProduct;
+    const result = await fixture.service.createCheckout(
+      "user_123",
+      "api-credit-replay",
+      {
+        productKey: apiCreditProduct.productKey,
+        returnSurface: "pwa",
+        // Runtime callers cannot influence these values; the typed request
+        // only contains productKey and returnSurface.
+        ...({ amountMinor: 1, creditQuantity: 1, currency: "NGN" } as never),
+      } as never,
+    );
+
+    expect(result.productSnapshot).toMatchObject({
+      productKey: "api_credits_100",
+      expectedAmountMinor: 499,
+      currency: "USD",
+      creditQuantity: 100,
+      validityDays: null,
+      renewalMode: "one_time",
+    });
+    expect(fixture.provider.calls[0].productId).toBe(
+      "prod_api_credits_100_sandbox",
+    );
   });
 });

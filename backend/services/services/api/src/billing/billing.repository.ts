@@ -3,6 +3,7 @@ import { randomBytes, createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import {
+  assertApiCreditProductContract,
   assertBillingCheckoutProductContract,
   type BillingCheckoutProduct,
 } from "./types/billing-checkout.types";
@@ -148,6 +149,8 @@ export class BillingRepository {
     if (!row) return null;
     const product: BillingProduct = {
       productKey: String(row.product_key),
+      provider: "bachs",
+      environment,
       fulfillmentKind: this.mapFulfillmentKind(row.fulfillment_kind),
       renewalMode: String(row.renewal_mode) as BillingRenewalMode,
       providerProductId: row.provider_product_id
@@ -166,6 +169,7 @@ export class BillingRepository {
       catalogVersion: Number(row.catalog_version),
     };
     assertBillingCheckoutProductContract(product);
+    assertApiCreditProductContract(product);
     return product;
   }
 
@@ -221,6 +225,8 @@ export class BillingRepository {
         and product.expected_amount_minor = ${input.product.expectedAmountMinor}
         and product.currency = upper(${input.product.currency})::char(3)
         and product.renewal_mode = ${input.product.renewalMode}
+        and product.credit_quantity = ${input.product.creditQuantity}
+        and extract(epoch from product.entitlement_duration) / 86400 is not distinct from ${input.product.validityDays}
         and product.catalog_version = ${input.product.catalogVersion}
       on conflict (provider, environment, user_id, idempotency_key)
         do nothing

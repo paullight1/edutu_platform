@@ -50,6 +50,7 @@ const migrationNames = [
   "20260811122000_atomic_billing_fulfillment.sql",
   "20260811123000_derived_entitlements.sql",
   "20260812120000_bachs_checkout_contract_hardening.sql",
+  "20260813160000_api_credit_products.sql",
 ] as const;
 
 type VerificationManifest = {
@@ -172,7 +173,29 @@ describe("canonical billing schema migrations", () => {
   it("ships every additive root migration in deployment order", () => {
     expect(
       migrationNames.map((name) => existsSync(migrationPath(name))),
-    ).toEqual([true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true]);
+  });
+
+  it("defines distinct server-owned API credit products without changing broader-app credits products", () => {
+    const sql = migration("20260813160000_api_credit_products.sql");
+
+    expect(sql).toMatch(
+      /insert into public\.billing_products[\s\S]*api_credits_100[\s\S]*api_credits_250[\s\S]*api_credits_700/i,
+    );
+    expect(sql).toMatch(
+      /api_credits_100[\s\S]*credit_pack[\s\S]*one_time[\s\S]*100/i,
+    );
+    expect(sql).toMatch(
+      /api_credits_250[\s\S]*credit_pack[\s\S]*one_time[\s\S]*250/i,
+    );
+    expect(sql).toMatch(
+      /api_credits_700[\s\S]*credit_pack[\s\S]*one_time[\s\S]*700/i,
+    );
+    expect(sql).toMatch(/entitlement_duration[\s\S]*is null/i);
+    expect(sql).toMatch(/api_credit_products_contract_check/i);
+    expect(sql).not.toMatch(
+      /update public\.billing_products[\s\S]*product_key in \('credits_100', 'credits_250', 'credits_700'\)/i,
+    );
   });
 
   it("creates provider-neutral canonical tables with raw subjects and explicit money units", () => {
@@ -682,6 +705,8 @@ describe("production API credit contract", () => {
     await expect(
       new BillingRepository().findEnabledProduct("credits_100", "sandbox"),
     ).resolves.toMatchObject({
+      provider: "bachs",
+      environment: "sandbox",
       fulfillmentKind: "credits",
       renewalMode: "one_time",
       creditQuantity: 100,

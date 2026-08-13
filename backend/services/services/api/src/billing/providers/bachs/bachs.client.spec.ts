@@ -13,6 +13,36 @@ const validEnvironment = {
   }),
 };
 
+const validApiCreditEnvironment = {
+  ...validEnvironment,
+  BACHS_PRODUCT_MAPPINGS: JSON.stringify({
+    pro_monthly_card: "prod_monthly",
+    api_credits_100: "prod_api_credits_100_sandbox",
+    api_credits_250: "prod_api_credits_250_sandbox",
+    api_credits_700: "prod_api_credits_700_sandbox",
+  }),
+  BACHS_PRODUCT_CATALOG: JSON.stringify({
+    api_credits_100: {
+      providerProductId: "prod_api_credits_100_sandbox",
+      expectedAmountMinor: 499,
+      currency: "USD",
+      environment: "sandbox",
+    },
+    api_credits_250: {
+      providerProductId: "prod_api_credits_250_sandbox",
+      expectedAmountMinor: 999,
+      currency: "USD",
+      environment: "sandbox",
+    },
+    api_credits_700: {
+      providerProductId: "prod_api_credits_700_sandbox",
+      expectedAmountMinor: 1999,
+      currency: "USD",
+      environment: "sandbox",
+    },
+  }),
+};
+
 const checkoutResponse = {
   checkout_id: "chk_123",
   checkout_url: "https://checkout.bachs.io/c/tok_123",
@@ -30,6 +60,67 @@ describe("BachsClient", () => {
   function createClient() {
     return new BachsClient(loadBachsConfig(validEnvironment));
   }
+
+  it("requires a complete server-owned catalog for API credit mappings", () => {
+    expect(() =>
+      loadBachsConfig({
+        ...validApiCreditEnvironment,
+        BACHS_PRODUCT_CATALOG: JSON.stringify({
+          api_credits_100: {
+            providerProductId: "prod_api_credits_100_sandbox",
+            expectedAmountMinor: 499,
+            currency: "USD",
+            environment: "sandbox",
+          },
+        }),
+      }),
+    ).toThrow(BachsConfigError);
+
+    expect(() =>
+      loadBachsConfig({
+        ...validApiCreditEnvironment,
+        BACHS_PRODUCT_CATALOG: JSON.stringify({
+          api_credits_100: {
+            providerProductId: "prod_api_credits_100_sandbox",
+            expectedAmountMinor: 0,
+            currency: "USD",
+            environment: "sandbox",
+          },
+          api_credits_250: {
+            providerProductId: "prod_api_credits_250_sandbox",
+            expectedAmountMinor: 999,
+            currency: "usd",
+            environment: "sandbox",
+          },
+          api_credits_700: {
+            providerProductId: "prod_api_credits_700_sandbox",
+            expectedAmountMinor: 1999,
+            currency: "USD",
+            environment: "live",
+          },
+        }),
+      }),
+    ).toThrow(BachsConfigError);
+  });
+
+  it("accepts API credit catalog entries only when mapping, price, currency, and environment agree", () => {
+    const config = loadBachsConfig(validApiCreditEnvironment);
+
+    expect(config).toMatchObject({
+      environment: "sandbox",
+      productMappings: {
+        api_credits_100: "prod_api_credits_100_sandbox",
+      },
+      productCatalog: {
+        api_credits_100: {
+          providerProductId: "prod_api_credits_100_sandbox",
+          expectedAmountMinor: 499,
+          currency: "USD",
+          environment: "sandbox",
+        },
+      },
+    });
+  });
 
   it("keeps Bachs disabled by default and rejects incomplete enabled configuration", () => {
     expect(loadBachsConfig({}).checkoutEnabled).toBe(false);

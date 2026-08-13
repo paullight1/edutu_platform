@@ -10,6 +10,21 @@ export type BillingRenewalMode = "recurring" | "one_time";
 export type BillingFulfillmentKind = "pro" | "season_pass" | "credits";
 export type BillingReturnSurface = "web" | "pwa";
 
+export const API_CREDIT_PRODUCT_QUANTITIES = {
+  api_credits_100: 100,
+  api_credits_250: 250,
+  api_credits_700: 700,
+} as const;
+
+export type ApiCreditProductKey = keyof typeof API_CREDIT_PRODUCT_QUANTITIES;
+
+export interface BillingProductCatalogEntry {
+  providerProductId: string;
+  expectedAmountMinor: number;
+  currency: string;
+  environment: BillingEnvironment;
+}
+
 /** Stable Nest tokens used by the composition root when wiring the service. */
 export const BACHS_CHECKOUT_REPOSITORY = Symbol("BACHS_CHECKOUT_REPOSITORY");
 export const BACHS_CHECKOUT_PROVIDER = Symbol("BACHS_CHECKOUT_PROVIDER");
@@ -34,6 +49,8 @@ export interface CheckoutServiceConfig {
   environment: BillingEnvironment;
   /** Maps Edutu catalog keys to the Bachs product in this environment. */
   productMappings: Readonly<Record<string, string>>;
+  /** Server-owned price and environment contract for API credit products. */
+  productCatalog?: Readonly<Record<string, BillingProductCatalogEntry>>;
 }
 
 export interface BillingCheckoutProduct {
@@ -78,6 +95,40 @@ export function assertBillingCheckoutProductContract(
     product.validityDays !== null
   ) {
     throw new Error("Invalid credit product contract");
+  }
+}
+
+export function isApiCreditProductKey(
+  productKey: string,
+): productKey is ApiCreditProductKey {
+  return Object.prototype.hasOwnProperty.call(
+    API_CREDIT_PRODUCT_QUANTITIES,
+    productKey,
+  );
+}
+
+export function assertApiCreditProductContract(
+  product: BillingCheckoutProduct,
+): void {
+  if (!isApiCreditProductKey(product.productKey)) return;
+
+  if (
+    product.provider !== "bachs" ||
+    !product.environment ||
+    product.fulfillmentKind !== "credits" ||
+    product.renewalMode !== "one_time" ||
+    product.creditQuantity !==
+      API_CREDIT_PRODUCT_QUANTITIES[product.productKey] ||
+    !Number.isSafeInteger(product.creditQuantity) ||
+    product.creditQuantity <= 0 ||
+    product.validityDays !== null ||
+    !product.providerProductId ||
+    !Number.isSafeInteger(product.expectedAmountMinor) ||
+    product.expectedAmountMinor <= 0 ||
+    !/^[A-Z]{3}$/.test(product.currency) ||
+    product.catalogVersion <= 0
+  ) {
+    throw new Error("Invalid API credit product contract");
   }
 }
 
