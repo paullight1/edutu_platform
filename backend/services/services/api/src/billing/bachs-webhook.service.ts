@@ -8,6 +8,14 @@ import {
   BachsWebhookVerifier,
 } from "./providers/bachs/bachs-webhook.verifier";
 import type { BachsWebhookEvent } from "./providers/bachs/bachs-webhook.types";
+import {
+  CreditPurchaseService,
+  type CreditPurchaseTransaction,
+} from "./credit-purchase.service";
+import {
+  API_CREDIT_PRODUCT_QUANTITIES,
+  isApiCreditProductKey,
+} from "./types/billing-checkout.types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -55,10 +63,14 @@ export class BachsWebhookService {
   private readonly logger = new Logger(BachsWebhookService.name);
   private readonly verifier: BachsWebhookVerifier;
   private readonly clock: () => number;
+  private readonly creditPurchaseService: CreditPurchaseService;
 
   constructor(
     private readonly config: BachsEnabledConfig,
-    options: { clock?: () => number } = {},
+    options: {
+      clock?: () => number;
+      creditPurchaseService?: CreditPurchaseService;
+    } = {},
   ) {
     this.clock = options.clock ?? Date.now;
     this.verifier = new BachsWebhookVerifier({
@@ -67,13 +79,15 @@ export class BachsWebhookService {
       expectedEnvironment: config.environment,
       clock: this.clock,
     });
+    this.creditPurchaseService =
+      options.creditPurchaseService ?? new CreditPurchaseService();
   }
 
   async handle(
     rawBody: Buffer,
     timestamp: string | undefined,
     signature: string | undefined,
-  ): Promise<{ status: "processed" | "duplicate" | "review" }> {
+  ): Promise<{ status: "fulfilled" | "duplicate" | "review" }> {
     if (!this.config.checkoutEnabled) {
       throw new HttpException("Bachs webhook is not configured", 503);
     }
@@ -119,30 +133,26 @@ export class BachsWebhookService {
       ).rows?.[0];
       if (!insertedRow) return { status: "duplicate" as const };
 
-      if (event.type === "checkout.completed") {
-        await this.markProcessed(tx, insertedRow.id);
-        return { status: "processed" as const };
-      }
-
       if (event.type !== "collection.succeeded") {
         await this.markReview(
           tx,
           insertedRow.id,
           event,
-          "unsupported_event_type",
+          event.type === "checkout.completed"
+            ? "checkout_completion_requires_settled_payment"
+            : "unsupported_event_type",
         );
         return { status: "review" as const };
       }
 
       const processed = await this.fulfillCollection(tx, insertedRow.id, event);
       if (processed === "review") return { status: "review" as const };
-      await this.markProcessed(tx, insertedRow.id);
       return { status: processed };
     });
   }
 
   private async fulfillCollection(
-    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    tx: CreditPurchaseTransaction,
     eventRowId: unknown,
     event: BachsWebhookEvent,
   ): Promise<"processed" | "review"> {
@@ -155,7 +165,11 @@ export class BachsWebhookService {
     const status = stringValue(data.status)?.toLowerCase();
     const metadata = recordValue(data.metadata);
     const metadataIntentId = stringValue(metadata?.edutu_intent_id);
-    const intentId = reference ?? metadataIntentId;
+    if (reference && metadataIntentId && reference !== metadataIntentId) {
+      await this.markReview(tx, eventRowId, event, "intent_reference_mismatch");
+      return "review";
+    }
+    const intentId = metadataIntentId ?? reference;
     const cart = Array.isArray(data.product_cart) ? data.product_cart : [];
     const item = recordValue(cart[0]);
     const productId = stringValue(item?.product_id);
@@ -163,6 +177,7 @@ export class BachsWebhookService {
 
     if (
       !chargeId ||
+      !checkoutId ||
       !intentId ||
       !isUuid(intentId) ||
       !currency ||
@@ -198,11 +213,36 @@ export class BachsWebhookService {
     }
 
     const expectedCurrency = String(intent.currency).trim().toUpperCase();
+    let actualAmount: bigint;
+    try {
+      actualAmount = decimalToMinorUnits(amount, currency);
+    } catch {
+      await this.markReview(
+        tx,
+        eventRowId,
+        event,
+        "collection_amount_invalid",
+        intentId,
+      );
+      return "review";
+    }
     const expectedAmount = BigInt(String(intent.expected_amount_minor));
-    const actualAmount = decimalToMinorUnits(amount, currency);
+    const snapshotProductKey = stringValue(snapshot.productKey);
+    const snapshotQuantity = Number(snapshot.creditQuantity);
+    const snapshotValidity = snapshot.validityDays;
+    const providerUserId =
+      stringValue(metadata?.user_id) ?? stringValue(metadata?.edutu_user_id);
     if (
-      (checkoutId && String(intent.provider_checkout_id) !== checkoutId) ||
+      String(intent.provider_checkout_id) !== checkoutId ||
+      !snapshotProductKey ||
+      !isApiCreditProductKey(snapshotProductKey) ||
+      this.config.productMappings[snapshotProductKey] !== productId ||
       String(snapshot.providerProductId) !== productId ||
+      snapshot.fulfillmentKind !== "credits" ||
+      snapshot.renewalMode !== "one_time" ||
+      snapshotQuantity !== API_CREDIT_PRODUCT_QUANTITIES[snapshotProductKey] ||
+      snapshotValidity !== null ||
+      (providerUserId !== null && providerUserId !== String(intent.user_id)) ||
       expectedCurrency !== currency ||
       expectedAmount !== actualAmount ||
       !["open", "processing", "paid"].includes(String(intent.status))
@@ -217,52 +257,31 @@ export class BachsWebhookService {
       return "review";
     }
 
-    const fulfillmentKind = String(snapshot.fulfillmentKind);
-    const functionName =
-      fulfillmentKind === "credit_pack" || fulfillmentKind === "credits"
-        ? "billing_fulfill_credit_pack"
-        : fulfillmentKind === "one_time_pass" ||
-            fulfillmentKind === "season_pass"
-          ? "billing_fulfill_one_time_purchase"
-          : null;
-    if (!functionName) {
-      await this.markReview(
-        tx,
-        eventRowId,
-        event,
-        "unsupported_product_kind",
+    const fulfillment = await this.creditPurchaseService.fulfillInTransaction(
+      tx,
+      {
+        provider: "bachs",
+        environment: this.config.environment,
+        eventId: event.id,
+        providerReference: chargeId,
+        userId: String(intent.user_id),
+        productKey: snapshotProductKey,
+        creditQuantity: snapshotQuantity,
+        amountMinor: Number(actualAmount),
+        currency,
+      },
+      {
+        eventRowId: String(eventRowId),
+        eventType: event.type,
+        payload: event,
         intentId,
-      );
-      return "review";
-    }
-
-    const result = await tx.execute(sql`
-      select public.${sql.raw(functionName)}(
-        'bachs', ${this.config.environment}, ${chargeId}, ${String(intent.user_id)},
-        ${String(intent.product_key)}, ${actualAmount}::bigint,
-        ${currency}::char(3), ${event.createdAt}::timestamptz,
-        ${intentId}::uuid
-      ) as result
-    `);
-    const fulfillment = (result as { rows?: Array<{ result?: unknown }> })
-      .rows?.[0]?.result;
-    if (
-      !recordValue(fulfillment)?.fulfilled &&
-      !recordValue(fulfillment)?.duplicate
-    ) {
-      throw new Error("Bachs fulfillment did not complete");
-    }
-
-    await tx.execute(sql`
-      update public.billing_checkout_intents
-      set status = 'fulfilled', updated_at = now()
-      where id = ${intentId}::uuid and status in ('open', 'processing', 'paid')
-    `);
-    return "processed";
+      },
+    );
+    return fulfillment.status === "review" ? "review" : "fulfilled";
   }
 
   private async markProcessed(
-    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    tx: CreditPurchaseTransaction,
     eventRowId: unknown,
   ): Promise<void> {
     await tx.execute(sql`
@@ -273,7 +292,7 @@ export class BachsWebhookService {
   }
 
   private async markReview(
-    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    tx: CreditPurchaseTransaction,
     eventRowId: unknown,
     event: BachsWebhookEvent,
     reason: string,

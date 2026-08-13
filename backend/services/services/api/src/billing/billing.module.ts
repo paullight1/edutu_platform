@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { SettingsModule } from "../settings/settings.module";
+import { db } from "../db";
 import {
   BillingCheckoutService,
   CachedBillingCheckoutRateLimiter,
@@ -12,6 +13,10 @@ import { BachsClient } from "./providers/bachs/bachs.client";
 import { loadBachsConfig } from "./providers/bachs/bachs.config";
 import { BillingService } from "./billing.service";
 import { BachsWebhookService } from "./bachs-webhook.service";
+import {
+  CREDIT_PURCHASE_DATABASE,
+  CreditPurchaseService,
+} from "./credit-purchase.service";
 import {
   BACHS_CHECKOUT_CONFIG,
   BACHS_CHECKOUT_PROVIDER,
@@ -29,6 +34,11 @@ import {
   controllers: [BillingController],
   providers: [
     BillingService,
+    CreditPurchaseService,
+    {
+      provide: CREDIT_PURCHASE_DATABASE,
+      useValue: db,
+    },
     BillingRepository,
     BillingCheckoutService,
     BillingPortalService,
@@ -45,9 +55,11 @@ import {
     },
     {
       provide: BACHS_WEBHOOK_SERVICE,
-      useFactory: (config) =>
-        config.checkoutEnabled ? new BachsWebhookService(config) : null,
-      inject: [BACHS_CHECKOUT_CONFIG],
+      useFactory: (config, creditPurchaseService) =>
+        config.checkoutEnabled
+          ? new BachsWebhookService(config, { creditPurchaseService })
+          : null,
+      inject: [BACHS_CHECKOUT_CONFIG, CreditPurchaseService],
     },
     {
       provide: BACHS_PORTAL_PROVIDER,
