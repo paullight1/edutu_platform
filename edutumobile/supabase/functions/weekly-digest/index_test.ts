@@ -1,7 +1,10 @@
 import {
   createWeeklyDigestHandler,
   createWeeklyDigestRunner,
+  fetchUserDigestData,
   type DigestRecipient,
+  type DigestJobClaim,
+  type DigestSendOutcome,
   type WeeklyDigestCounts,
 } from "./index.ts";
 
@@ -72,19 +75,26 @@ function recipient(index: number): DigestRecipient {
 }
 
 function runnerOptions(overrides: {
-  claimJob?: () => Promise<boolean>;
+  claimJob?: () => Promise<DigestJobClaim>;
+  completeJob?: (day: number, date: string, claimToken: string) => Promise<void>;
+  failJob?: (day: number, date: string, claimToken: string) => Promise<void>;
   listRecipients?: (
     day: number,
     page: number,
     pageSize: number,
   ) => Promise<{ recipients: DigestRecipient[]; hasMore: boolean }>;
-  sendDigest?: (recipient: DigestRecipient) => Promise<"sent" | "skipped">;
+  sendDigest?: (recipient: DigestRecipient) => Promise<DigestSendOutcome>;
   pageSize?: number;
   maxRecipients?: number;
 } = {}) {
   return {
     now: () => NOW_MS,
-    claimJob: overrides.claimJob ?? (async () => true),
+    claimJob: overrides.claimJob ?? (async () => ({
+      claimed: true,
+      claimToken: "test-claim",
+    })),
+    completeJob: overrides.completeJob ?? (async () => {}),
+    failJob: overrides.failJob ?? (async () => {}),
     listRecipients: overrides.listRecipients ?? (async () => ({
       recipients: [],
       hasMore: false,
@@ -180,7 +190,7 @@ Deno.test("weekly digest claims the day and execution date before recipient work
   const runner = createWeeklyDigestRunner(runnerOptions({
     claimJob: async () => {
       events.push("claim");
-      return true;
+      return { claimed: true, claimToken: "claim-1" };
     },
     listRecipients: async () => {
       events.push("list");
@@ -201,7 +211,7 @@ Deno.test("weekly digest does no user or email work when the job was already cla
   let listed = false;
   let sent = false;
   const runner = createWeeklyDigestRunner(runnerOptions({
-    claimJob: async () => false,
+    claimJob: async () => ({ claimed: false }),
     listRecipients: async () => {
       listed = true;
       return { recipients: [recipient(1)], hasMore: false };
@@ -216,6 +226,77 @@ Deno.test("weekly digest does no user or email work when the job was already cla
   assertJsonEquals(counts, { sent: 0, skipped: 0 });
   assertEquals(listed, false);
   assertEquals(sent, false);
+});
+
+Deno.test("weekly digest releases failed claims for a later retry", async () => {
+  let claimCount = 0;
+  let sendCount = 0;
+  const failedClaims: string[] = [];
+  const completedClaims: string[] = [];
+  const runner = createWeeklyDigestRunner(runnerOptions({
+    claimJob: async () => {
+      claimCount += 1;
+      return {
+        claimed: true,
+        claimToken: `claim-${claimCount}`,
+      };
+    },
+    listRecipients: async () => ({
+      recipients: [recipient(1)],
+      hasMore: false,
+    }),
+    sendDigest: async () => {
+      sendCount += 1;
+      return sendCount === 1 ? "failed" : "sent";
+    },
+    failJob: async (_day, _date, claimToken) => {
+      failedClaims.push(claimToken);
+    },
+    completeJob: async (_day, _date, claimToken) => {
+      completedClaims.push(claimToken);
+    },
+  }));
+
+  const first = await runner(6, JOB_KEY, EXECUTION_DATE);
+  assertJsonEquals(first, { sent: 0, skipped: 1 });
+  assertJsonEquals(failedClaims, ["claim-1"]);
+  assertJsonEquals(completedClaims, []);
+
+  const second = await runner(6, JOB_KEY, EXECUTION_DATE);
+  assertJsonEquals(second, { sent: 1, skipped: 0 });
+  assertJsonEquals(failedClaims, ["claim-1"]);
+  assertJsonEquals(completedClaims, ["claim-2"]);
+});
+
+Deno.test("weekly digest handler wires retryable claim status callbacks", async () => {
+  const failedClaims: string[] = [];
+  const handler = createWeeklyDigestHandler({
+    env: (name) => {
+      if (name === "WEEKLY_DIGEST_JOB_SECRET") return SECRET;
+      if (name === "SUPABASE_URL") return "https://project.supabase.test";
+      if (name === "SUPABASE_SERVICE_ROLE_KEY") return "service-role-test-key";
+      return undefined;
+    },
+    now: () => NOW_MS,
+    claimJob: async () => ({ claimed: true, claimToken: "handler-claim" }),
+    completeJob: async () => {
+      throw new Error("complete should not run for a failed digest");
+    },
+    failJob: async (_day, _date, claimToken) => {
+      failedClaims.push(claimToken);
+    },
+    listRecipients: async () => ({
+      recipients: [recipient(1)],
+      hasMore: false,
+    }),
+    sendDigest: async () => "failed",
+  });
+
+  const response = await handler(await signedRequest(JSON.stringify({ day: 6 })));
+
+  assertEquals(response.status, 200);
+  assertJsonEquals(JSON.parse(await response.text()), { sent: 0, skipped: 1 });
+  assertJsonEquals(failedClaims, ["handler-claim"]);
 });
 
 Deno.test("weekly digest bounds pages and total recipients", async () => {
@@ -240,4 +321,55 @@ Deno.test("weekly digest bounds pages and total recipients", async () => {
   assertJsonEquals(counts, { sent: 2, skipped: 1 });
   assertJsonEquals(pages, [[0, 2], [1, 2]]);
   assertJsonEquals(sentRecipients, ["user-1", "user-2", "user-3"]);
+});
+
+Deno.test("weekly digest bounds active-goal counts with exact limited queries", async () => {
+  const goalCalls: Array<{
+    selectOptions?: Record<string, unknown>;
+    limit?: number;
+  }> = [];
+  const fakeSupabase = {
+    from(table: string) {
+      const call: {
+        selectOptions?: Record<string, unknown>;
+        limit?: number;
+      } = {};
+      if (table === "goals") goalCalls.push(call);
+      const builder: Record<string, (...args: unknown[]) => unknown> = {
+        select: (_fields: unknown, options?: unknown) => {
+          call.selectOptions = options as Record<string, unknown> | undefined;
+          return builder;
+        },
+        eq: () => builder,
+        gte: () => builder,
+        lte: () => builder,
+        order: () => builder,
+        limit: (value: unknown) => {
+          call.limit = value as number;
+          const goalIndex = goalCalls.indexOf(call);
+          return Promise.resolve({
+            data: [],
+            count: table === "goals" ? (goalIndex === 0 ? 12 : 5) : 0,
+            error: null,
+          });
+        },
+      };
+      return builder;
+    },
+  };
+
+  const digest = await fetchUserDigestData(
+    fakeSupabase,
+    "user-1",
+    () => NOW_MS,
+  );
+
+  assertEquals(digest.activeGoals, 12);
+  assertEquals(digest.completedGoals, 5);
+  const countGoalCalls = goalCalls.filter((call) => call.selectOptions);
+  assertEquals(countGoalCalls.length, 2);
+  for (const call of countGoalCalls) {
+    assertEquals(call.limit, 10);
+    assertJsonEquals(call.selectOptions, { count: "exact", head: true });
+  }
 });

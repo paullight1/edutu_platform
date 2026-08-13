@@ -29,6 +29,13 @@ export type DigestRecipientPage = {
   hasMore: boolean;
 };
 
+export type DigestJobClaim = {
+  claimed: boolean;
+  claimToken?: string;
+};
+
+export type DigestSendOutcome = "sent" | "skipped" | "failed";
+
 type Environment = (name: string) => string | undefined;
 
 type DigestRunnerDependencies = {
@@ -37,13 +44,23 @@ type DigestRunnerDependencies = {
     day: Weekday,
     executionDate: string,
     jobKey: string,
-  ) => Promise<boolean>;
+  ) => Promise<DigestJobClaim>;
+  completeJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<void>;
+  failJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<void>;
   listRecipients: (
     day: Weekday,
     page: number,
     pageSize: number,
   ) => Promise<DigestRecipientPage>;
-  sendDigest: (recipient: DigestRecipient) => Promise<"sent" | "skipped">;
+  sendDigest: (recipient: DigestRecipient) => Promise<DigestSendOutcome>;
   pageSize?: number;
   maxRecipients?: number;
 };
@@ -56,6 +73,8 @@ export type WeeklyDigestHandlerOptions = {
     jobKey: string,
   ) => Promise<WeeklyDigestCounts>;
   claimJob?: DigestRunnerDependencies["claimJob"];
+  completeJob?: DigestRunnerDependencies["completeJob"];
+  failJob?: DigestRunnerDependencies["failJob"];
   listRecipients?: DigestRunnerDependencies["listRecipients"];
   sendDigest?: DigestRunnerDependencies["sendDigest"];
   pageSize?: number;
@@ -241,35 +260,58 @@ export function createWeeklyDigestRunner(
       throw new Error("Invalid execution date");
     }
 
-    const claimed = await dependencies.claimJob(day, date, jobKey);
-    if (!claimed) return { sent: 0, skipped: 0 };
+    const claim = await dependencies.claimJob(day, date, jobKey);
+    if (!claim.claimed) return { sent: 0, skipped: 0 };
+    const claimToken = claim.claimToken?.trim();
+    if (!claimToken) throw new Error("Digest claim unavailable");
 
     let sent = 0;
     let skipped = 0;
     let processed = 0;
     let page = 0;
+    let failed = false;
 
-    while (processed < maxRecipients) {
-      const result = await dependencies.listRecipients(day, page, pageSize);
-      if (result.recipients.length === 0) break;
+    try {
+      while (processed < maxRecipients) {
+        const result = await dependencies.listRecipients(day, page, pageSize);
+        if (result.recipients.length === 0) break;
 
-      for (const recipient of result.recipients) {
-        if (processed >= maxRecipients) break;
-        processed += 1;
-        try {
-          const outcome = await dependencies.sendDigest(recipient);
-          if (outcome === "sent") sent += 1;
-          else skipped += 1;
-        } catch {
-          skipped += 1;
+        for (const recipient of result.recipients) {
+          if (processed >= maxRecipients) break;
+          processed += 1;
+          try {
+            const outcome = await dependencies.sendDigest(recipient);
+            if (outcome === "sent") sent += 1;
+            else {
+              skipped += 1;
+              if (outcome === "failed") failed = true;
+            }
+          } catch {
+            failed = true;
+            skipped += 1;
+          }
         }
+
+        if (!result.hasMore || result.recipients.length < pageSize) break;
+        page += 1;
       }
 
-      if (!result.hasMore || result.recipients.length < pageSize) break;
-      page += 1;
+      if (failed) {
+        await dependencies.failJob(day, date, claimToken);
+      } else {
+        await dependencies.completeJob(day, date, claimToken);
+      }
+      return { sent, skipped };
+    } catch (error) {
+      if (!failed) {
+        try {
+          await dependencies.failJob(day, date, claimToken);
+        } catch {
+          // Preserve the original generic failure and never expose claim details.
+        }
+      }
+      throw error;
     }
-
-    return { sent, skipped };
   };
 }
 
@@ -316,7 +358,33 @@ async function createDefaultDependencies(
         p_execution_date: date,
       });
       responseError(result);
-      return result.data === true;
+      const claim = result.data as {
+        claimed?: unknown;
+        claim_token?: unknown;
+        claimToken?: unknown;
+      } | null;
+      const claimToken = typeof claim?.claim_token === "string"
+        ? claim.claim_token
+        : typeof claim?.claimToken === "string"
+        ? claim.claimToken
+        : undefined;
+      return { claimed: claim?.claimed === true, claimToken };
+    },
+    completeJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("complete_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+    },
+    failJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("fail_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
     },
     listRecipients: async (day, page, pageSize) => {
       const from = page * pageSize;
@@ -358,7 +426,8 @@ async function createDefaultDependencies(
     },
     sendDigest: async (recipient) => {
       const emailApiKey = environment("SUPABASE_EMAIL_API_KEY")?.trim();
-      if (!recipient.email || !emailApiKey) return "skipped";
+      if (!recipient.email) return "failed";
+      if (!emailApiKey) return "failed";
 
       const data = await fetchUserDigestData(supabase, recipient.userId, now);
       const hasContent = data.activeGoals > 0 || data.newSaved.length > 0 ||
@@ -382,7 +451,9 @@ async function createDefaultDependencies(
             html: generateDigestHtml(data, now),
           }),
         });
-        return response.ok ? "sent" : "skipped";
+        return response.ok ? "sent" : "failed";
+      } catch {
+        return "failed";
       } finally {
         clearTimeout(timer);
       }
@@ -390,7 +461,7 @@ async function createDefaultDependencies(
   };
 }
 
-async function fetchUserDigestData(
+export async function fetchUserDigestData(
   supabase: SupabaseClientLike,
   userId: string,
   now: () => number,
@@ -403,10 +474,14 @@ async function fetchUserDigestData(
 }> {
   const weekAgo = new Date(now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const nextWeek = new Date(now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const [goalsResult, savedResult, deadlinesResult, applicationsResult] =
+  const [activeGoalsResult, completedGoalsResult, savedResult, deadlinesResult, applicationsResult] =
     await Promise.all([
-      supabase.from("goals").select("title, progress, status")
-        .eq("user_id", userId).eq("status", "active"),
+      supabase.from("goals").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("status", "active")
+        .limit(MAX_DIGEST_ITEMS),
+      supabase.from("goals").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("status", "active").gte("progress", 100)
+        .limit(MAX_DIGEST_ITEMS),
       supabase.from("bookmarks").select("opportunities(title, organization)")
         .eq("user_id", userId).gte("created_at", weekAgo).limit(MAX_DIGEST_ITEMS),
       supabase.from("goals").select("title, deadline").eq("user_id", userId)
@@ -417,14 +492,14 @@ async function fetchUserDigestData(
         .eq("user_id", userId).gte("updated_at", weekAgo)
         .order("updated_at", { ascending: false }).limit(MAX_DIGEST_ITEMS),
     ]);
-  responseError(goalsResult);
+  responseError(activeGoalsResult);
+  responseError(completedGoalsResult);
   responseError(savedResult);
   responseError(deadlinesResult);
   responseError(applicationsResult);
-  const goals = (goalsResult.data ?? []) as Array<{ progress?: number }>;
   return {
-    activeGoals: goals.length,
-    completedGoals: goals.filter((goal) => (goal.progress ?? 0) >= 100).length,
+    activeGoals: activeGoalsResult.count ?? 0,
+    completedGoals: completedGoalsResult.count ?? 0,
     newSaved: (savedResult.data ?? []) as Array<Record<string, unknown>>,
     upcomingDeadlines: (deadlinesResult.data ?? []) as Array<Record<string, unknown>>,
     applicationUpdates: (applicationsResult.data ?? []) as Array<Record<string, unknown>>,
@@ -486,6 +561,8 @@ export function createWeeklyDigestHandler(
     return runWeeklyDigest(day, jobKey, {
       ...defaults,
       claimJob: options.claimJob ?? defaults.claimJob,
+      completeJob: options.completeJob ?? defaults.completeJob,
+      failJob: options.failJob ?? defaults.failJob,
       listRecipients: options.listRecipients ?? defaults.listRecipients,
       sendDigest: options.sendDigest ?? defaults.sendDigest,
       pageSize: options.pageSize ?? defaults.pageSize,
