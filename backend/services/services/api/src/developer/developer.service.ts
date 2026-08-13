@@ -9,12 +9,13 @@ import * as crypto from "crypto";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { apiConsumers } from "../db/schema";
-import { hashApiKey } from "../common/api-key-hash";
+import { hashApiKey, isValidApiKeyPrefix } from "../common/api-key-hash";
 import type { CreateDeveloperProjectDto } from "./developer.dto";
 
 type DeveloperProjectRow = {
   id: string;
   owner_user_id?: string | null;
+  api_key_hash: string;
   name: string;
   contact_email: string | null;
   key_prefix: string | null;
@@ -322,6 +323,7 @@ export class DeveloperService {
       rawKey,
       project: this.mapProjectRow({
         id: created.id,
+        api_key_hash: created.apiKeyHash,
         name: created.name,
         contact_email: created.contactEmail ?? null,
         key_prefix: created.keyPrefix ?? null,
@@ -348,7 +350,7 @@ export class DeveloperService {
     const ownerUserId = this.requireAuthenticatedUserId(userId);
     const project = await this.findOwnedProject(ownerUserId, projectId);
     const environment = (project.environment ?? "live") as "test" | "live";
-    const { rawKey } = this.buildKeyMaterial(
+    const { rawKey, keyPrefix } = this.buildKeyMaterial(
       environment,
       project.key_prefix ?? undefined,
     );
@@ -357,6 +359,7 @@ export class DeveloperService {
       .update(apiConsumers)
       .set({
         apiKeyHash: hashApiKey(rawKey),
+        keyPrefix,
         status: "active",
         revokedAt: null,
         updatedAt: new Date(),
@@ -365,6 +368,7 @@ export class DeveloperService {
         and(
           eq(apiConsumers.id, projectId),
           this.buildCanonicalOwnershipPredicate(ownerUserId),
+          eq(apiConsumers.apiKeyHash, project.api_key_hash),
         ),
       )
       .returning()
@@ -441,8 +445,13 @@ export class DeveloperService {
     environment: "test" | "live",
     existingKeyPrefix?: string,
   ) {
+    const normalizedExistingPrefix = existingKeyPrefix?.trim();
     const keyPrefix =
-      existingKeyPrefix?.trim() ||
+      (normalizedExistingPrefix &&
+      isValidApiKeyPrefix(normalizedExistingPrefix) &&
+      normalizedExistingPrefix.startsWith(`edu_${environment}_`)
+        ? normalizedExistingPrefix
+        : null) ||
       `edu_${environment}_${crypto.randomBytes(4).toString("hex")}`;
     const secret = crypto.randomBytes(20).toString("hex");
     return {
@@ -509,6 +518,7 @@ export class DeveloperService {
         select
           api_consumers.id,
           api_consumers.owner_user_id,
+          api_consumers.api_key_hash,
           api_consumers.name,
           api_consumers.contact_email,
           api_consumers.key_prefix,

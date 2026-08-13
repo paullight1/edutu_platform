@@ -1,6 +1,11 @@
 import * as crypto from "crypto";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { db } from "../db";
+import {
+  apiKeyMatches,
+  hashApiKey,
+  apiKeyPrefix,
+} from "../common/api-key-hash";
 import { DeveloperService } from "./developer.service";
 
 jest.mock("../db", () => ({
@@ -268,6 +273,9 @@ describe("DeveloperService", () => {
         name: "Scholarship Engine",
         contact_email: "dev@example.com",
         key_prefix: "edu_live_a1b2c3d4",
+        api_key_hash: hashApiKey(
+          "edu_live_a1b2c3d4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
         status: "active",
         plan: "starter",
         environment: "live",
@@ -338,6 +346,157 @@ describe("DeveloperService", () => {
     });
     expect(JSON.stringify(result.project)).not.toContain(result.rawKey);
     expect(JSON.stringify(result.project)).not.toContain("apiKeyHash");
+  });
+
+  it.each([null, "legacy-malformed-prefix"])(
+    "persists a generated prefix and authenticates the returned key for legacy prefix %s",
+    async (legacyPrefix) => {
+      const oldKey =
+        "edu_live_a1b2c3d4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const legacyProject = {
+        id: "consumer-legacy",
+        name: "Legacy Project",
+        contact_email: "dev@example.com",
+        key_prefix: legacyPrefix,
+        api_key_hash: hashApiKey(oldKey),
+        status: "active",
+        plan: "starter",
+        environment: "live",
+        allowed_scopes: ["*"],
+        monthly_quota: 1000,
+        rate_limit_per_minute: 60,
+        last_used_at: null,
+        revoked_at: null,
+        expires_at: null,
+        created_at: "2026-06-19T08:00:00.000Z",
+        updated_at: "2026-06-20T10:00:00.000Z",
+        request_count: 0,
+      };
+      let rotationValues: Record<string, unknown> | undefined;
+      const rotateSpy = jest
+        .spyOn(service as any, "findOwnedProject")
+        .mockResolvedValueOnce(legacyProject)
+        .mockImplementationOnce(async () => ({
+          ...legacyProject,
+          key_prefix: rotationValues?.keyPrefix,
+          api_key_hash: rotationValues?.apiKeyHash,
+        }));
+      const execute = jest.fn().mockResolvedValue([legacyProject]);
+      const returning = jest.fn().mockReturnValue({ execute });
+      const where = jest.fn().mockReturnValue({ returning });
+      const set = jest.fn().mockImplementation((values) => {
+        rotationValues = values;
+        return { where };
+      });
+      mockedDb.update.mockReturnValue({ set });
+
+      const result = await service.rotateProject(
+        "db-user-1",
+        "consumer-legacy",
+      );
+
+      expect(rotateSpy).toHaveBeenCalledTimes(2);
+      expect(rotationValues).toEqual(
+        expect.objectContaining({
+          keyPrefix: expect.stringMatching(/^edu_live_[a-f0-9]{8}$/),
+        }),
+      );
+      expect(result.project.keyPrefix).toBe(rotationValues?.keyPrefix);
+      expect(apiKeyPrefix(result.rawKey)).toBe(rotationValues?.keyPrefix);
+      expect(
+        apiKeyMatches(result.rawKey, String(rotationValues?.apiKeyHash)),
+      ).toBe(true);
+    },
+  );
+
+  it("allows only one concurrent rotation from the same prior key state to succeed", async () => {
+    const oldKey = "edu_live_a1b2c3d4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const initialProject = {
+      id: "consumer-concurrent",
+      name: "Concurrent Project",
+      contact_email: "dev@example.com",
+      key_prefix: null,
+      api_key_hash: hashApiKey(oldKey),
+      status: "active",
+      plan: "starter",
+      environment: "live",
+      allowed_scopes: ["*"],
+      monthly_quota: 1000,
+      rate_limit_per_minute: 60,
+      last_used_at: null,
+      revoked_at: null,
+      expires_at: null,
+      created_at: "2026-06-19T08:00:00.000Z",
+      updated_at: "2026-06-20T10:00:00.000Z",
+      request_count: 0,
+    };
+    let storedProject = {
+      ...initialProject,
+      key_prefix: null as string | null,
+    };
+    let readCount = 0;
+    const rotateSpy = jest
+      .spyOn(service as any, "findOwnedProject")
+      .mockResolvedValueOnce(initialProject)
+      .mockResolvedValueOnce(initialProject)
+      .mockImplementation(async () => storedProject);
+
+    mockedDb.update.mockImplementation(() => {
+      let values: Record<string, unknown>;
+      let predicate: unknown;
+      const execute = jest.fn().mockImplementation(async () => {
+        const hasCompareAndSet = renderedSql(predicate).sql.includes(
+          '"api_consumers"."api_key_hash"',
+        );
+        if (
+          hasCompareAndSet &&
+          storedProject.api_key_hash !== initialProject.api_key_hash
+        ) {
+          return [];
+        }
+        storedProject = {
+          ...storedProject,
+          key_prefix: values.keyPrefix as string,
+          api_key_hash: values.apiKeyHash as string,
+        };
+        return [storedProject];
+      });
+      const returning = jest.fn().mockReturnValue({ execute });
+      const where = jest.fn().mockImplementation((nextPredicate) => {
+        predicate = nextPredicate;
+        return { returning };
+      });
+      const set = jest.fn().mockImplementation((nextValues) => {
+        values = nextValues;
+        return { where };
+      });
+      return { set };
+    });
+    mockedDb.execute.mockImplementation(async () => {
+      readCount += 1;
+      return { rows: [readCount <= 2 ? initialProject : storedProject] };
+    });
+
+    const outcomes = await Promise.allSettled([
+      service.rotateProject("db-user-1", "consumer-concurrent"),
+      service.rotateProject("db-user-1", "consumer-concurrent"),
+    ]);
+    const successful = outcomes.filter(
+      (
+        outcome,
+      ): outcome is PromiseFulfilledResult<
+        Awaited<ReturnType<DeveloperService["rotateProject"]>>
+      > => outcome.status === "fulfilled",
+    );
+
+    expect(rotateSpy).toHaveBeenCalledTimes(3);
+    expect(successful).toHaveLength(1);
+    expect(storedProject.api_key_hash).toBe(
+      hashApiKey(successful[0].value.rawKey),
+    );
+    expect(
+      apiKeyMatches(successful[0].value.rawKey, storedProject.api_key_hash),
+    ).toBe(true);
   });
 
   it("uses the legacy email fallback only for rows without canonical ownership", async () => {

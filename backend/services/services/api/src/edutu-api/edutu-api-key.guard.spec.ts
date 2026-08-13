@@ -1,7 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { db } from "../db";
-import { hashApiKey } from "../common/api-key-hash";
+import { hashApiKey, legacyHashApiKey } from "../common/api-key-hash";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import type { EdutuApiUsageService } from "./edutu-api-usage.service";
 
@@ -42,6 +42,8 @@ function createContext(headers: Record<string, string | undefined>) {
 
 describe("EdutuApiKeyGuard", () => {
   const originalApiKeys = process.env.EDUTU_API_KEYS;
+  const originalPepper = process.env.API_KEY_PEPPER;
+  const originalLegacyCompatibility = process.env.API_KEY_ALLOW_LEGACY_HASHES;
   let usageService: Pick<
     EdutuApiUsageService,
     | "reserveMonthlyQuota"
@@ -75,6 +77,13 @@ describe("EdutuApiKeyGuard", () => {
 
   afterEach(() => {
     process.env.EDUTU_API_KEYS = originalApiKeys;
+    if (originalPepper === undefined) delete process.env.API_KEY_PEPPER;
+    else process.env.API_KEY_PEPPER = originalPepper;
+    if (originalLegacyCompatibility === undefined) {
+      delete process.env.API_KEY_ALLOW_LEGACY_HASHES;
+    } else {
+      process.env.API_KEY_ALLOW_LEGACY_HASHES = originalLegacyCompatibility;
+    }
     jest.restoreAllMocks();
   });
 
@@ -174,6 +183,39 @@ describe("EdutuApiKeyGuard", () => {
       "X-Edutu-Credits-Remaining",
       "10",
     );
+  });
+
+  it("accepts a peppered environment sha256 key only with legacy compatibility enabled", async () => {
+    process.env.API_KEY_PEPPER = "production-pepper-for-task-3";
+    process.env.EDUTU_API_KEYS = `sha256:${legacyHashApiKey(TEST_API_KEY)}`;
+    delete process.env.API_KEY_ALLOW_LEGACY_HASHES;
+    mockedDb.select.mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            execute: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
+    });
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    const disabledContext = createContext({
+      "x-edutu-api-key": TEST_API_KEY,
+    });
+
+    await expect(
+      guard.canActivate(disabledContext.context),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "invalid_api_key" }),
+    });
+
+    process.env.API_KEY_ALLOW_LEGACY_HASHES = "true";
+    const enabledContext = createContext({
+      "x-edutu-api-key": TEST_API_KEY,
+    });
+    await expect(guard.canActivate(enabledContext.context)).resolves.toBe(true);
   });
 
   it("accepts the standard x-api-key header as an alias", async () => {

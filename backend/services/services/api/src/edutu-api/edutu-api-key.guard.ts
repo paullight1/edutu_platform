@@ -17,6 +17,7 @@ import {
   apiKeyPrefix,
   hashApiKey,
   isValidApiKeyFormat,
+  legacyHashApiKey,
   safeEqualHash,
 } from "../common/api-key-hash";
 import { EDUTU_API_SCOPE_KEY } from "./api-scope.decorator";
@@ -349,8 +350,12 @@ export class EdutuApiKeyGuard implements CanActivate {
 
     const matched = configuredKeys.some((value) => {
       if (value.startsWith("sha256:")) {
-        // Pre-hashed configured key (legacy plain SHA-256).
-        return safeEqualHash(value.slice(7), hashApiKey(apiKey));
+        // Pre-hashed configured key (legacy plain SHA-256) remains available
+        // only during the explicit migration window.
+        return (
+          process.env.API_KEY_ALLOW_LEGACY_HASHES === "true" &&
+          safeEqualHash(value.slice(7), legacyHashApiKey(apiKey))
+        );
       }
       // Raw configured key: compare in hashed space to avoid timing leaks.
       return safeEqualHash(hashApiKey(value), hashApiKey(apiKey));

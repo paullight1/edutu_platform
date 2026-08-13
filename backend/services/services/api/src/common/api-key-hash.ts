@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 
+const GENERATED_API_KEY_PREFIX_PATTERN = /^edu_(test|live)_[a-f0-9]{8}$/;
 const GENERATED_API_KEY_PATTERN =
   /^edu_(test|live)_([a-f0-9]{8})_([a-f0-9]{40})$/;
 
@@ -22,6 +23,10 @@ function getPepper(): string | null {
 
 export function isValidApiKeyFormat(rawKey: string): boolean {
   return GENERATED_API_KEY_PATTERN.test(rawKey);
+}
+
+export function isValidApiKeyPrefix(prefix: string): boolean {
+  return GENERATED_API_KEY_PREFIX_PATTERN.test(prefix);
 }
 
 export function apiKeyPrefix(rawKey: string): string | null {
