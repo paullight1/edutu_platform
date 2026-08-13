@@ -3,6 +3,11 @@ import { Reflector } from "@nestjs/core";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import type { EdutuApiUsageService } from "./edutu-api-usage.service";
 
+const TEST_API_KEY =
+  "edu_test_8b2c4f6e_9a1d4c7f8e0b2a5c6d9f1a3b4c5d6e7f8a9b0c1d";
+const LIVE_API_KEY =
+  "edu_live_a1b2c3d4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 function createContext(headers: Record<string, string | undefined>) {
   const request: Record<string, unknown> = { headers };
   const response = { setHeader: jest.fn() };
@@ -70,12 +75,12 @@ describe("EdutuApiKeyGuard", () => {
   });
 
   it("accepts a configured environment API key", async () => {
-    process.env.EDUTU_API_KEYS = "edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b";
+    process.env.EDUTU_API_KEYS = TEST_API_KEY;
     const reflector = new Reflector();
     jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
     const guard = new EdutuApiKeyGuard(reflector, usageService as any);
     const { context, request, response } = createContext({
-      "x-edutu-api-key": "edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b",
+      "x-edutu-api-key": TEST_API_KEY,
     });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
@@ -95,12 +100,12 @@ describe("EdutuApiKeyGuard", () => {
   });
 
   it("accepts the standard x-api-key header as an alias", async () => {
-    process.env.EDUTU_API_KEYS = "edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b";
+    process.env.EDUTU_API_KEYS = TEST_API_KEY;
     const reflector = new Reflector();
     jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
     const guard = new EdutuApiKeyGuard(reflector, usageService as any);
     const { context } = createContext({
-      "x-api-key": "edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b",
+      "x-api-key": TEST_API_KEY,
     });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
@@ -140,7 +145,7 @@ describe("EdutuApiKeyGuard", () => {
       monthlyQuota: null,
     });
     const { context } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
@@ -165,7 +170,7 @@ describe("EdutuApiKeyGuard", () => {
       ownerUserId: "user-1",
     });
     const { context } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
 
     await expect(guard.canActivate(context)).rejects.toMatchObject({
@@ -190,7 +195,7 @@ describe("EdutuApiKeyGuard", () => {
       ownerUserId: "user-1",
     });
     const { context, request } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
     request.method = "GET";
     request.originalUrl = "/v1/categories";
@@ -215,7 +220,7 @@ describe("EdutuApiKeyGuard", () => {
       ownerUserId: "user-1",
     });
     const { context, request } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
     request.method = "GET";
     request.originalUrl = "/v1/opportunities";
@@ -243,7 +248,7 @@ describe("EdutuApiKeyGuard", () => {
       ownerUserId: "user-1",
     });
     const { context, request } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
     request.method = "GET";
     request.originalUrl = "/v1/opportunities";
@@ -302,7 +307,7 @@ describe("EdutuApiKeyGuard", () => {
       },
     );
     const { context, request } = createContext({
-      authorization: "Bearer edutu_live_test",
+      authorization: `Bearer ${LIVE_API_KEY}`,
     });
     request.method = "GET";
     request.originalUrl = "/v1/opportunities";

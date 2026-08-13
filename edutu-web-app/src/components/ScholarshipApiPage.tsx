@@ -505,7 +505,7 @@ const ScholarshipApiPage: React.FC = () => {
                     <Terminal size={13} className="text-slate-400" /> bash
                   </span>
                 }
-                copyValue={`curl ${API_BASE}/opportunities \\\n  -H "Authorization: Bearer sk_live_edutu"`}
+                copyValue={`curl ${API_BASE}/opportunities \\\n  -H "Authorization: Bearer $EDUTU_API_KEY"`}
               >
                 <pre className="font-mono text-xs leading-[1.9] text-slate-200 sm:text-sm">
                   <div>
@@ -513,7 +513,7 @@ const ScholarshipApiPage: React.FC = () => {
                     {API_BASE}/opportunities <span className="text-slate-500">\</span>
                   </div>
                   <div>
-                    {'  '}-H <span className="text-emerald-300">"Authorization: Bearer sk_live_edutu"</span>
+                    {'  '}-H <span className="text-emerald-300">"Authorization: Bearer $EDUTU_API_KEY"</span>
                   </div>
                   <div className="mt-3 text-slate-500"># → 200 OK · application/json</div>
                   <div className="text-slate-400">

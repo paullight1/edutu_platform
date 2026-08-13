@@ -16,22 +16,22 @@ The documentation endpoints `GET /v1`, `GET /v1/llms.txt`, and `GET /v1/openapi.
 
 ## Projects and API Keys
 
-Production keys must be high-entropy random values. With `API_KEY_PEPPER` configured (at least 16 characters), store only the peppered HMAC-SHA256 digest in `api_consumers.api_key_hash`; never store the raw key. Legacy pre-pepper SHA-256 hashes remain accepted only during the migration window, and rotating a key upgrades it to the peppered HMAC form. Without a configured pepper, local development retains the legacy SHA-256 fallback.
+Production keys must be high-entropy random values. With `API_KEY_PEPPER` configured (at least 16 characters), store only the peppered HMAC-SHA256 digest in `api_consumers.api_key_hash`; never store the raw key. Legacy pre-pepper SHA-256 hashes remain accepted indefinitely while the compatibility matcher is enabled; there is no automatic cutoff. Rotate legacy keys as an operational security action to write the peppered HMAC form, and plan any future compatibility deprecation explicitly. Without a configured pepper, local development retains the legacy SHA-256 fallback.
 
 For local development, set `EDUTU_API_KEYS` to a comma-separated list of raw keys or `sha256:<hash>` values.
 
 ```bash
-EDUTU_API_KEYS=edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b npm run dev
+EDUTU_API_KEYS="$EDUTU_API_KEY" npm run dev
 ```
 
 For local development without a pepper, create a legacy SHA-256 value before storage:
 
 ```bash
 openssl rand -hex 32
-printf '%s' 'edutu_live_<64_hex_chars>' | shasum -a 256
+printf '%s' "$EDUTU_API_KEY" | shasum -a 256
 ```
 
-In production, set `API_KEY_PEPPER` and use the server's peppered HMAC-SHA256 hashing path. Existing legacy hashes are migration-only; rotate those keys to upgrade their stored digest.
+In production, set `API_KEY_PEPPER` and use the server's peppered HMAC-SHA256 hashing path. Existing legacy hashes remain compatible indefinitely while the matcher is enabled; rotate those keys as an operational security action to upgrade their stored digest, without relying on an unenforced deadline.
 
 Create a project and generate a key at [`/dashboard/developer`](https://www.edutu.org/dashboard/developer) without buying credits. The raw key is shown once at creation/rotation; store it in a server-side secret manager. Link users to the dashboard for key generation; keys are not created through the data API.
 
@@ -59,28 +59,28 @@ This list is exhaustive. `opportunities:read` covers opportunities, stats, detai
 
 ```http
 GET /v1/health
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 ### Categories (free)
 
 ```http
 GET /v1/categories
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 ### Usage (free)
 
 ```http
 GET /v1/usage
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 ### List Opportunities
 
 ```http
 GET /v1/opportunities?category=scholarship&limit=25&offset=0&sort=updated_desc&updatedSince=2026-05-01
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 Query parameters:
@@ -106,7 +106,7 @@ For continuous partner sync, poll with `sort=updated_asc&updatedSince=<last_seen
 
 ```http
 GET /v1/opportunities/stats
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 Returns active opportunity counts and the latest catalog update timestamp.
@@ -115,7 +115,7 @@ Returns active opportunity counts and the latest catalog update timestamp.
 
 ```http
 GET /v1/opportunities/:id
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 ```
 
 ### Recommendations
@@ -123,7 +123,7 @@ X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
 ```http
 POST /v1/recommendations
 Content-Type: application/json
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 
 {
   "profile": {
@@ -149,7 +149,7 @@ Use this when a user in a partner product views, clicks, saves, dismisses, or ap
 ```http
 POST /v1/events
 Content-Type: application/json
-X-Edutu-API-Key: edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b
+X-Edutu-API-Key: $EDUTU_API_KEY
 
 {
   "eventType": "click",
@@ -250,6 +250,8 @@ HTTP/1.1 402 Payment Required
 
 Common contract codes include `missing_api_key`, `invalid_api_key`, `scope_required`, `rate_limit_exceeded`, `quota_exceeded`, `credits_exhausted`, and `billing_unavailable`.
 
+When credit reservation cannot be verified, a chargeable operation returns `503 Service Unavailable` with `code: "billing_unavailable"`; retry later and do not assume the paid operation executed.
+
 ## Quota and headers
 
 Use `api_consumers.plan`, `monthly_quota`, and `allowed_scopes` to map paid plans to product access:
@@ -257,6 +259,8 @@ Use `api_consumers.plan`, `monthly_quota`, and `allowed_scopes` to map paid plan
 - Starter: `1,000` requests/month
 - Growth: `10,000` requests/month
 - Scale: custom quota
+
+`GET /v1/health` is public. `GET /v1/usage` and `GET /v1/categories` are free in credit terms, but they still require an API key and count toward the applicable per-minute rate limit and monthly quota. Free means no credit debit, not an exemption from those request controls.
 
 `api_usage_events` records request activity for usage and reporting. Chargeable API calls debit the account credit ledger by one credit; free endpoints do not.
 `api_usage_buckets` enforces monthly quota atomically without scanning all usage events on every request.

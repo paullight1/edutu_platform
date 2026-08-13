@@ -65,7 +65,7 @@ const quicksteps: { icon: LucideIcon; title: string; body: string; hint: string 
     icon: KeyRound,
     title: 'Create a key',
     body: 'Sign in with Clerk, open the developer dashboard, and generate a scoped project key without buying credits.',
-    hint: 'sk_live_edutu_•••',
+    hint: '$EDUTU_API_KEY',
   },
   {
     icon: ShieldCheck,

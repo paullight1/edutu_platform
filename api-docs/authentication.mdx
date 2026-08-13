@@ -44,9 +44,11 @@ requests.
 - The full key is returned **exactly once** at creation and rotation.
 - In production, keys are stored as **peppered HMAC-SHA256** digests using the
   server-side `API_KEY_PEPPER`. Legacy pre-pepper SHA-256 hashes remain accepted
-  only during the migration window; rotating a key upgrades it to the peppered
-  form. Without a configured pepper, local development retains the legacy
-  SHA-256 fallback. Edutu cannot recover a lost key — rotate it instead.
+  indefinitely while the compatibility matcher is enabled; there is no automatic
+  cutoff. Rotate legacy keys as an operational security action to upgrade them to
+  the peppered form, and plan any future compatibility deprecation explicitly.
+  Without a configured pepper, local development retains the legacy SHA-256
+  fallback. Edutu cannot recover a lost key — rotate it instead.
 - Every key belongs to a **project** owned by your account.
 - Keys carry **scopes**; a key can only call endpoints its scopes permit.
 

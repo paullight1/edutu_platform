@@ -5,12 +5,20 @@ description: Per-minute throttling, monthly quotas, and credit metering.
 
 # Rate Limits & Quotas
 
-Every authenticated request is subject to two independent controls:
+Every authenticated request is subject to two independent request controls:
 
 1. **Per-minute rate limit** — protects the service from bursts. Returns `429`.
 2. **Monthly quota** — the requests included in your plan each month. Returns `402`.
-3. **API credits** — metered per billable call; top up anytime. Returns `402`
-   when exhausted.
+3. **API credits** — metered per chargeable call; top up anytime. Returns `402`
+   when exhausted. Credit metering is separate from the request controls above.
+
+## Free endpoint policy
+
+`GET /v1/usage` and `GET /v1/categories` are free in credit terms: they do not
+consume an API credit, but they still require an API key and count toward the
+project's per-minute rate limit and monthly quota. `GET /v1/health` is public and
+does not require an API key. The six opportunity, recommendation, and event
+operations are chargeable and consume one credit after the request controls pass.
 
 ## Default plan limits
 
@@ -39,8 +47,10 @@ Every authenticated response includes headers describing the current window:
 
 ## Handling `429`
 
-Back off using `Retry-After` and add jitter. These endpoints are **free** (do not
-consume credits or count toward limits): `GET /v1/health` and `GET /v1/usage`.
+Back off using `Retry-After` and add jitter. Free does not mean exempt from
+request limits: authenticated `GET /v1/usage` and `GET /v1/categories` do not
+consume credits but can still return `429` or `402 quota_exceeded`. Public
+`GET /v1/health` does not use an API-key rate or monthly-quota bucket.
 
 ```json
 {

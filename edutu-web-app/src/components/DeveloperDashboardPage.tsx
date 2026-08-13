@@ -462,7 +462,7 @@ Implement:
                     </span>
                   </div>
                   <p className="text-sm leading-6 text-text-muted">
-                    Raw keys are shown once at creation. Production stores a peppered HMAC-SHA256 hash; legacy SHA-256 hashes are migration-only and rotation upgrades the key.
+                    Raw keys are shown once at creation. Production stores a peppered HMAC-SHA256 hash; legacy SHA-256 hashes remain accepted indefinitely while compatibility is enabled, with no automatic cutoff. Rotate legacy keys as an operational security action and plan any future deprecation explicitly.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-subtle bg-white p-4">

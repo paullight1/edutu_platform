@@ -37,7 +37,7 @@ Always include the `requestId` when contacting support.
 | `402` | Monthly quota exceeded or credits exhausted. |
 | `429` | Per-minute rate limit exceeded. |
 | `500` | Unexpected server error. |
-| `503` | Dependency unavailable (try again). |
+| `503` | Billing/credit reservation unavailable (retry later). |
 
 ## Stable error codes
 
@@ -48,6 +48,10 @@ Branch on `error.code`, not the human message.
 | `rate_limit_exceeded` | `429` | Too many requests in the current minute. |
 | `quota_exceeded` | `402` | Monthly request quota reached. |
 | `credits_exhausted` | `402` | API credit balance is zero. |
+| `billing_unavailable` | `503` | Credit reservation could not be verified; the chargeable operation does not execute. |
+
+For `503 billing_unavailable`, retry the same operation later and do not assume
+that a credit was reserved or that the chargeable operation ran.
 
 <Note>
 Validation errors (`400`) include an `error.details` array of

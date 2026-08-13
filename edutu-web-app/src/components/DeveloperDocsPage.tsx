@@ -43,7 +43,7 @@ const tocLinks: DocLink[] = [
 type Method = 'GET' | 'POST';
 type Endpoint = { method: Method; path: string; title: string; description: string };
 
-const endpoints: Endpoint[] = [
+export const developerDocsEndpoints: Endpoint[] = [
     {
         method: 'GET',
         path: '/health',
@@ -76,7 +76,7 @@ const endpoints: Endpoint[] = [
         path: '/opportunities/sync',
         title: 'Opportunity sync',
         description:
-            'Pull approved rows changed since a timestamp. Requires the opportunities:sync scope and costs one credit.',
+            'Pull approved rows changed since a timestamp. This chargeable request requires the opportunities:sync scope and costs one credit.',
     },
     {
         method: 'GET',
@@ -560,7 +560,7 @@ const DeveloperDocsPage: React.FC = () => {
                                             <li>Sign in with Clerk and open <Link to="/dashboard/developer" className="font-semibold text-brand underline-offset-2 hover:underline">/dashboard/developer</Link>.</li>
                                             <li>Create a project and key immediately; no credit purchase is required.</li>
                                             <li>The raw key is shown once. Store it server-side and rotate or revoke it from the dashboard.</li>
-                                            <li>Production stores a peppered HMAC-SHA256 hash keyed by <code className="font-mono text-xs text-brand">API_KEY_PEPPER</code>. Legacy SHA-256 hashes are accepted only during migration; rotation upgrades the key.</li>
+                                            <li>Production stores a peppered HMAC-SHA256 hash keyed by <code className="font-mono text-xs text-brand">API_KEY_PEPPER</code>. Legacy SHA-256 hashes remain accepted indefinitely while compatibility is enabled; there is no automatic cutoff. Rotation of legacy keys is the operational security action; plan any future deprecation explicitly.</li>
                                             <li>Required scopes are <code className="font-mono text-xs text-brand">opportunities:read</code>, <code className="font-mono text-xs text-brand">opportunities:sync</code>, <code className="font-mono text-xs text-brand">usage:read</code>, <code className="font-mono text-xs text-brand">recommendations:read</code> and <code className="font-mono text-xs text-brand">events:write</code>.</li>
                                         </ul>
                                     </div>
@@ -571,8 +571,9 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                         <ul className="mt-4 space-y-3 text-sm leading-[1.65] text-text-secondary">
                                             <li>New accounts start at 0 credits. Top-ups are one-time purchases and never expire.</li>
-                                            <li>Health, usage and categories are free. Each other live API request costs 1 credit.</li>
+                                            <li>Health is public. Usage and categories are free in credit terms, but their authenticated requests still count toward the per-minute rate limit and monthly quota. Each other live API request costs 1 credit.</li>
                                             <li>A chargeable call at zero returns <code className="font-mono text-xs text-brand">402 credits_exhausted</code> before the operation runs.</li>
+                                            <li>If credit reservation cannot be verified, a chargeable call returns <code className="font-mono text-xs text-brand">503 billing_unavailable</code> and the operation does not run.</li>
                                             <li>Admin approval creates a shared pending/unverified catalog record. Learner and <code className="font-mono text-xs text-brand">/v1</code> visibility begins only after verification/enrichment succeeds and the record transitions to active/verified.</li>
                                         </ul>
                                     </div>
@@ -594,7 +595,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     {...reveal}
                                     className="mt-7 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft"
                                 >
-                                    {endpoints.map((endpoint, i) => (
+                                    {developerDocsEndpoints.map((endpoint, i) => (
                                         <div
                                             key={endpoint.path}
                                             className={`grid grid-cols-1 gap-x-8 gap-y-3 p-5 sm:grid-cols-[minmax(0,280px)_1fr] sm:items-start sm:p-6 ${

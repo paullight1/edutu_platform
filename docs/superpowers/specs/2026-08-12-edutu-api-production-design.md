@@ -69,7 +69,7 @@ Files/components:
 
 - `src/developer/developer.service.ts`: generate high-entropy keys, hash them, create projects, rotate keys, revoke keys, and return only non-secret summaries after creation.
 - `src/edutu-api/edutu-api-key.guard.ts`: resolve active keys by prefix and constant-time secret verification.
-- `src/common/api-key-hash.ts`: use `API_KEY_PEPPER` in production and support legacy hash migration only during the defined rotation window.
+- `src/common/api-key-hash.ts`: use `API_KEY_PEPPER` in production and retain indefinite legacy-hash compatibility while the matcher is enabled; operators should rotate legacy keys as an operational security action, without relying on an unenforced deadline.
 - `src/db/schema.ts` and `supabase/migrations/*api_consumers*`: store ownership, prefix, environment, scope, rate limit, status, revocation, and expiry metadata.
 
 Key contract:

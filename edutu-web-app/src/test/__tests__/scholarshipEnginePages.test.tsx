@@ -4,7 +4,9 @@ import { MemoryRouter } from "react-router-dom";
 import ScholarshipApiPage from "../../components/ScholarshipApiPage";
 import DevelopersLandingPage from "../../components/DevelopersLandingPage";
 import DeveloperDashboardPage from "../../components/DeveloperDashboardPage";
-import DeveloperDocsPage from "../../components/DeveloperDocsPage";
+import DeveloperDocsPage, {
+  developerDocsEndpoints,
+} from "../../components/DeveloperDocsPage";
 
 const serviceMocks = vi.hoisted(() => ({
   getDeveloperDashboard: vi.fn(),
@@ -257,6 +259,9 @@ describe("Scholarship Engine pages", () => {
     expect(screen.queryByText("GET /v1/match")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
+    for (const staleExample of ["edutu_test_", "edutu_live_", "sk_live_edutu"]) {
+      expect(document.body.textContent ?? "").not.toContain(staleExample);
+    }
   });
 
   it("keeps the developer landing page on supported routes and credit policy", () => {
@@ -274,6 +279,10 @@ describe("Scholarship Engine pages", () => {
     expect(
       screen.getByText(/top-ups are one-time and never expire/i),
     ).toBeInTheDocument();
+    expect(document.body.textContent ?? "").toContain("$EDUTU_API_KEY");
+    for (const staleExample of ["edutu_test_", "edutu_live_", "sk_live_edutu"]) {
+      expect(document.body.textContent ?? "").not.toContain(staleExample);
+    }
   });
 
   it("renders the public contract with the live projection, cursor, scopes, and key hashing claims", () => {
@@ -325,9 +334,41 @@ describe("Scholarship Engine pages", () => {
     expect(docs).toContain("peppered HMAC-SHA256");
     expect(docs).toContain("API_KEY_PEPPER");
     expect(docs).toMatch(/legacy SHA-256/i);
-    expect(docs).toContain("rotation");
+    expect(docs).toMatch(/accepted indefinitely/i);
+    expect(docs).not.toMatch(/accepted only during migration/i);
+    expect(docs).toMatch(/rotation/i);
+    expect(docs).toContain("503 billing_unavailable");
+    expect(docs).toMatch(
+      /still count toward the per-minute rate limit and monthly quota/i,
+    );
     expect(docs).toContain("pending/unverified");
     expect(docs).toContain("active/verified");
+
+    expect(
+      developerDocsEndpoints.map(({ method, path }) => ({ method, path })),
+    ).toEqual([
+      { method: "GET", path: "/health" },
+      { method: "GET", path: "/opportunities" },
+      { method: "GET", path: "/opportunities/:id" },
+      { method: "GET", path: "/opportunities/stats" },
+      { method: "GET", path: "/opportunities/sync" },
+      { method: "GET", path: "/categories" },
+      { method: "GET", path: "/usage" },
+      { method: "POST", path: "/recommendations" },
+      { method: "POST", path: "/events" },
+    ]);
+    expect(
+      developerDocsEndpoints.find(({ path }) => path === "/categories")
+        ?.description,
+    ).toMatch(/free/i);
+    expect(
+      developerDocsEndpoints.find(({ path }) => path === "/usage")?.description,
+    ).toMatch(/free/i);
+    expect(
+      developerDocsEndpoints.filter(({ description }) =>
+        /chargeable/i.test(description),
+      ),
+    ).toHaveLength(6);
 
     for (const unsupportedField of [
       "organization",

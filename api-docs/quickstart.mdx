@@ -12,7 +12,7 @@ This guide walks through creating a key and calling the API.
 1. Sign in at [edutu.org](https://www.edutu.org/auth?mode=sign-up).
 2. Open **Developer API** in the workspace menu.
 3. Click **Create project**, choose an environment (`live` or `test`), and pick scopes.
-4. Copy the key. **It is shown only once** and stored as a peppered HMAC-SHA256 hash on the server. Legacy pre-pepper SHA-256 hashes are accepted only during migration; rotate a key to upgrade it.
+4. Copy the key. **It is shown only once** and stored as a peppered HMAC-SHA256 hash on the server. Legacy pre-pepper SHA-256 hashes remain accepted indefinitely while compatibility is enabled; rotate legacy keys as an operational security action to upgrade them, without relying on an unenforced deadline.
 
 ## 2. Make your first request
 
