@@ -31,3 +31,12 @@ COMPLETE
 - Unrelated concurrent worktree changes in `backend/services/services/api/src/main.ts`
   and the raw-body middleware files were preserved and excluded from this
   commit.
+
+## Review follow-up
+
+- Replaced the invalid-signature mutation with a guaranteed-different first
+  base64url character (`A` ↔ `B`), avoiding an unconditional final-character
+  replacement that could theoretically preserve the decoded signature.
+- `npx --yes deno test --allow-env --allow-net supabase/functions/scrape/clerk-verifier_test.ts` — **5 passed, 0 failed**.
+- `npx --yes deno check supabase/functions/scrape/index.ts supabase/functions/scrape/clerk-verifier_test.ts` — **exit code 0**.
+- `git diff --check` — **exit code 0**.

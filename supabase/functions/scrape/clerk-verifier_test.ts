@@ -136,7 +136,8 @@ Deno.test("Clerk verifier rejects unknown key IDs and invalid signatures", async
   await assertRejects(async () => verifier(await signedToken({}, { kid: "unknown-key" }), request()));
   const token = await signedToken();
   const parts = token.split(".");
-  await assertRejects(() => verifier(`${parts[0]}.${parts[1]}.${parts[2].slice(0, -1)}x`, request()));
+  const mutatedSignature = `${parts[2][0] === "A" ? "B" : "A"}${parts[2].slice(1)}`;
+  await assertRejects(() => verifier(`${parts[0]}.${parts[1]}.${mutatedSignature}`, request()));
 });
 
 Deno.test("Clerk verifier forbids non-admin server roles and emails", async () => {
