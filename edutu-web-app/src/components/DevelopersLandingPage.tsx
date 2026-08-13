@@ -142,7 +142,7 @@ const faqs = [
   { q: 'How do I get an API key?', a: 'Create an Edutu account, open the developer dashboard, and start a project. Each project gets a scoped key you can rotate or revoke at any time.' },
   { q: 'Do I need a separate developer login?', a: 'No. Clerk signs you into Edutu and protects the developer dashboard. The API uses a separate project key for /v1 calls.' },
   { q: 'How do credits work?', a: 'New accounts start at zero. Health, usage and categories are free; each opportunity, recommendation, stats, sync or event request costs one credit. Top-ups are one-time and never expire. A zero-credit chargeable call returns 402 credits_exhausted.' },
-  { q: 'What data does the API cover?', a: 'Approved scholarships, fellowships, internships, grants and programs. Approved user submissions become global catalog records visible to Edutu users and API customers.' },
+  { q: 'What data does the API cover?', a: 'The API returns active/verified scholarships, fellowships, internships, grants and programs. Admin approval creates a shared pending/unverified catalog record; learner and /v1 visibility begins only after verification/enrichment succeeds and the record transitions to active/verified.' },
   { q: 'How fresh is the data?', a: 'The feed updates continuously as new content is ingested through the scraper pipeline and manual curation.' },
   { q: 'Can I use it in a browser?', a: 'The default is server-to-server because an API key in browser code is not secret. Direct browser use requires an approved CORS origin and an explicit decision to expose that key.' },
 ];

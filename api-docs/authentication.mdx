@@ -42,8 +42,11 @@ requests.
 ## Security model
 
 - The full key is returned **exactly once** at creation and rotation.
-- Keys are stored **hashed** (HMAC-SHA256 with a server-side pepper). Edutu
-  cannot recover a lost key — rotate it instead.
+- In production, keys are stored as **peppered HMAC-SHA256** digests using the
+  server-side `API_KEY_PEPPER`. Legacy pre-pepper SHA-256 hashes remain accepted
+  only during the migration window; rotating a key upgrades it to the peppered
+  form. Without a configured pepper, local development retains the legacy
+  SHA-256 fallback. Edutu cannot recover a lost key — rotate it instead.
 - Every key belongs to a **project** owned by your account.
 - Keys carry **scopes**; a key can only call endpoints its scopes permit.
 

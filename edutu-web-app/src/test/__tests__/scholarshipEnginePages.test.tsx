@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import ScholarshipApiPage from "../../components/ScholarshipApiPage";
 import DevelopersLandingPage from "../../components/DevelopersLandingPage";
 import DeveloperDashboardPage from "../../components/DeveloperDashboardPage";
+import DeveloperDocsPage from "../../components/DeveloperDocsPage";
 
 const serviceMocks = vi.hoisted(() => ({
   getDeveloperDashboard: vi.fn(),
@@ -100,6 +101,14 @@ function renderDevelopersLandingPage() {
   return render(
     <MemoryRouter initialEntries={["/developers"]}>
       <DevelopersLandingPage />
+    </MemoryRouter>,
+  );
+}
+
+function renderDeveloperDocsPage() {
+  return render(
+    <MemoryRouter initialEntries={["/developers/docs"]}>
+      <DeveloperDocsPage />
     </MemoryRouter>,
   );
 }
@@ -265,6 +274,71 @@ describe("Scholarship Engine pages", () => {
     expect(
       screen.getByText(/top-ups are one-time and never expire/i),
     ).toBeInTheDocument();
+  });
+
+  it("renders the public contract with the live projection, cursor, scopes, and key hashing claims", () => {
+    renderDeveloperDocsPage();
+
+    const docs = document.body.textContent ?? "";
+    const publicFields = [
+      "id",
+      "object",
+      "title",
+      "description",
+      "category",
+      "canonicalCategory",
+      "type",
+      "eligibilityCriteria",
+      "fundingType",
+      "targetRegion",
+      "deadline",
+      "remote",
+      "urls.source",
+      "urls.apply",
+      "imageUrl",
+      "trust.verificationStatus",
+      "trust.lastVerifiedAt",
+      "trust.lastSeenAt",
+      "trust.qualityScore",
+      "match",
+      "matchReasons",
+      "matchRisks",
+      "aiSummary",
+      "aiTags",
+      "updatedAt",
+    ];
+
+    expect(docs).toContain("meta.nextCursor");
+    expect(docs).not.toContain("next_cursor");
+    for (const field of publicFields) expect(docs).toContain(field);
+
+    for (const scope of [
+      "opportunities:read",
+      "opportunities:sync",
+      "usage:read",
+      "recommendations:read",
+      "events:write",
+    ]) {
+      expect(docs).toContain(scope);
+    }
+
+    expect(docs).toContain("peppered HMAC-SHA256");
+    expect(docs).toContain("API_KEY_PEPPER");
+    expect(docs).toMatch(/legacy SHA-256/i);
+    expect(docs).toContain("rotation");
+    expect(docs).toContain("pending/unverified");
+    expect(docs).toContain("active/verified");
+
+    for (const unsupportedField of [
+      "organization",
+      "location",
+      "requirements",
+      "benefits",
+      "applicationProcess",
+      "difficulty",
+    ]) {
+      expect(docs).not.toContain(`"${unsupportedField}"`);
+    }
   });
 
   it("loads the developer dashboard and supports project creation", async () => {

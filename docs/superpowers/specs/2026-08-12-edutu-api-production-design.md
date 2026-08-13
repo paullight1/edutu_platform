@@ -6,7 +6,7 @@
 
 ## Goal
 
-Make the Edutu API production-ready so every signed-in Edutu user can generate an API key immediately, start with zero API credits, purchase non-expiring credits one time at a time, use those credits to retrieve Edutu opportunities, and submit opportunities that become globally available after approval.
+Make the Edutu API production-ready so every signed-in Edutu user can generate an API key immediately, start with zero API credits, purchase non-expiring credits one time at a time, use those credits to retrieve Edutu opportunities, and submit opportunities that enter the shared catalog after admin approval and become globally available only after successful verification/enrichment.
 
 ## Product decisions
 
@@ -18,7 +18,7 @@ Make the Edutu API production-ready so every signed-in Edutu user can generate a
 - Purchased credits never expire and remain available until consumed.
 - API health and usage inspection are free; opportunity/recommendation/event API calls consume one credit per request unless an explicit endpoint policy says otherwise.
 - API requests with zero credits return structured `402 Payment Required` responses and do not execute the paid operation.
-- Approved user-submitted opportunities enter the shared active catalog and are visible to Edutu users and API customers.
+- Admin approval creates a shared catalog record in `pending_review`/`unverified` state. Learner and API visibility begins only after successful verification/enrichment and transition to `active`/`verified`.
 - User submissions remain pending review by default; no user can directly publish an active opportunity.
 
 ## Existing architecture to preserve
@@ -77,7 +77,7 @@ Key contract:
 - Raw key format: `edu_test_<8 hex prefix>_<40 hex secret>` or `edu_live_<8 hex prefix>_<40 hex secret>`.
 - The raw key is returned only in the create/rotate response and never persisted.
 - `api_key_hash` is unique; `key_prefix` is unique for generated projects.
-- Default scopes are limited to the documented opportunity/read, sync, usage, recommendation, and event scopes.
+- The exhaustive scope allowlist is `opportunities:read`, `opportunities:sync`, `usage:read`, `recommendations:read`, and `events:write`.
 - Users may select scopes only from the allowlisted DTO enum.
 - Revoke changes the project to `revoked` and records `revoked_at`; the guard rejects it immediately.
 
@@ -219,7 +219,7 @@ Required production controls:
 - Authenticated users can submit valid opportunities.
 - Submissions are isolated per user in list/detail/respond operations.
 - Users cannot self-approve or publish directly.
-- Admin approval creates/links a catalog opportunity and the active record is visible to all supported clients and API customers.
+- Admin approval creates/links a shared pending-review/unverified catalog opportunity; the record is visible to supported clients and API customers only after verification/enrichment transitions it to active/verified.
 - Rejected and pending submissions are not returned by the public/API catalog.
 
 ### Production readiness

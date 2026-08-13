@@ -16,7 +16,7 @@ The documentation endpoints `GET /v1`, `GET /v1/llms.txt`, and `GET /v1/openapi.
 
 ## Projects and API Keys
 
-Production keys must be high-entropy random values. Store only SHA-256 hashes in `api_consumers.api_key_hash`.
+Production keys must be high-entropy random values. With `API_KEY_PEPPER` configured (at least 16 characters), store only the peppered HMAC-SHA256 digest in `api_consumers.api_key_hash`; never store the raw key. Legacy pre-pepper SHA-256 hashes remain accepted only during the migration window, and rotating a key upgrades it to the peppered HMAC form. Without a configured pepper, local development retains the legacy SHA-256 fallback.
 
 For local development, set `EDUTU_API_KEYS` to a comma-separated list of raw keys or `sha256:<hash>` values.
 
@@ -24,20 +24,26 @@ For local development, set `EDUTU_API_KEYS` to a comma-separated list of raw key
 EDUTU_API_KEYS=edutu_test_8b2c4f6e9a1d4c7f8e0b2a5c6d9f1a3b npm run dev
 ```
 
-Create a production consumer by hashing the key before storage:
+For local development without a pepper, create a legacy SHA-256 value before storage:
 
 ```bash
 openssl rand -hex 32
 printf '%s' 'edutu_live_<64_hex_chars>' | shasum -a 256
 ```
 
+In production, set `API_KEY_PEPPER` and use the server's peppered HMAC-SHA256 hashing path. Existing legacy hashes are migration-only; rotate those keys to upgrade their stored digest.
+
 Create a project and generate a key at [`/dashboard/developer`](https://www.edutu.org/dashboard/developer) without buying credits. The raw key is shown once at creation/rotation; store it in a server-side secret manager. Link users to the dashboard for key generation; keys are not created through the data API.
 
 Required scopes:
 
 - `opportunities:read`
+- `opportunities:sync`
+- `usage:read`
 - `recommendations:read`
 - `events:write`
+
+This list is exhaustive. `opportunities:read` covers opportunities, stats, detail, and categories; `opportunities:sync` covers sync; `usage:read` covers usage; the remaining scopes cover their same-named recommendation and event operations.
 
 ## Credits and endpoint pricing
 
@@ -179,6 +185,7 @@ List endpoints return:
     "limit": 25,
     "offset": 0,
     "nextOffset": null,
+    "nextCursor": null,
     "total": null,
     "hasMore": false,
     "generatedAt": "2026-05-22T00:00:00.000Z",
@@ -192,7 +199,7 @@ List endpoints return:
 }
 ```
 
-Opportunity objects are normalized for third-party users and do not expose internal status, raw scraper JSON, provider IDs, or admin review fields. Only approved opportunities are returned. When a user-submitted opportunity is approved, it becomes a global catalog record visible to Edutu users and API customers; pending and rejected submissions are not returned.
+Opportunity objects are normalized for third-party users and do not expose internal status, raw scraper JSON, provider IDs, or admin review fields. The public projection fields are `id`, `object`, `title`, `description`, `category`, `canonicalCategory`, `type`, `eligibilityCriteria`, `fundingType`, `targetRegion`, `deadline`, `remote`, `urls.source`, `urls.apply`, `imageUrl`, `trust.verificationStatus`, `trust.lastVerifiedAt`, `trust.lastSeenAt`, `trust.qualityScore`, `match`, `matchReasons`, `matchRisks`, `aiSummary`, `aiTags`, and `updatedAt`. Admin approval creates a shared catalog record in `pending_review`/`unverified` state. Learner and `/v1` visibility begins only after verification/enrichment succeeds and the record transitions to `active`/`verified`; pending and rejected submissions are not returned.
 Each opportunity includes a `trust` block:
 
 ```json

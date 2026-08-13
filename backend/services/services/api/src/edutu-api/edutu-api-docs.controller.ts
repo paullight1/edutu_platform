@@ -22,6 +22,19 @@ const CHARGEABLE_ENDPOINTS = [
   "POST /v1/events",
 ];
 
+const REQUIRED_SCOPES = {
+  "opportunities:read": [
+    "GET /v1/opportunities",
+    "GET /v1/opportunities/stats",
+    "GET /v1/opportunities/:id",
+    "GET /v1/categories",
+  ],
+  "opportunities:sync": ["GET /v1/opportunities/sync"],
+  "usage:read": ["GET /v1/usage"],
+  "recommendations:read": ["POST /v1/recommendations"],
+  "events:write": ["POST /v1/events"],
+};
+
 @Public()
 @Controller("v1")
 export class EdutuApiDocsController {
@@ -90,7 +103,8 @@ export class EdutuApiDocsController {
         chargeableEndpoints: CHARGEABLE_ENDPOINTS,
       },
       opportunityVisibility:
-        "Only approved opportunities are returned. Approved user submissions become global catalog records visible to Edutu users and API customers.",
+        "Admin approval creates a shared catalog record in pending_review/unverified state. Learner and /v1 visibility begins only after verification/enrichment succeeds and the record transitions to active/verified; pending and rejected submissions remain hidden.",
+      requiredScopes: REQUIRED_SCOPES,
       endpoints: [
         {
           method: "GET",
@@ -186,7 +200,7 @@ Send an Edutu API key in any of these headers:
     x-api-key: <API_KEY>
     Authorization: Bearer <API_KEY>
 
-Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). Keys are shown once at creation in the dashboard and stored hashed server-side. Keep them on your server by default.
+Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). In production, the server stores a peppered HMAC-SHA256 hash keyed by \`API_KEY_PEPPER\` (at least 16 characters), never the raw key. Legacy pre-pepper SHA-256 hashes remain accepted only during the migration window; rotating a key upgrades it to the peppered HMAC form. Without a configured pepper, local development retains the legacy SHA-256 fallback. Keep keys on your server by default.
 
 ## Projects, credits, and visibility
 
@@ -195,7 +209,8 @@ Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). Keys are sh
 - Free endpoints: \`GET /health\`, \`GET /usage\`, and \`GET /categories\`. Usage and categories still require an API key so Edutu can identify the account.
 - Chargeable endpoints: opportunities, opportunity stats, opportunity sync, opportunity detail, recommendations, and events. Each successful request costs **1 credit**.
 - When a chargeable request has no credits, the API returns HTTP \`402 Payment Required\` with \`code: "credits_exhausted"\` and does not execute the paid operation.
-- Only approved opportunities are returned. An approved user submission becomes a global catalog record visible to Edutu users and API customers.
+- Required scopes are exhaustive: \`opportunities:read\`, \`opportunities:sync\`, \`usage:read\`, \`recommendations:read\`, and \`events:write\`. The endpoint table below maps each protected operation to its scope.
+- Admin approval creates a shared catalog record in \`pending_review\`/\`unverified\` state. Learner and \`/v1\` visibility begins only after verification/enrichment succeeds and the record transitions to \`active\`/\`verified\`; pending and rejected submissions remain hidden.
 - Use the API server-to-server. A browser-visible key is not secret; direct browser use requires an approved CORS origin and should be limited to cases where that trade-off is understood.
 
 ## Endpoints
@@ -234,7 +249,7 @@ Responses include meta.nextCursor when more rows exist. Pass it back as ?cursor=
 
 Lists: { "object": "list", "data": [...], "meta": { limit, nextCursor, hasMore, total, requestId, quota } }
 
-Opportunity object (stable fields): id, title, description, category, canonicalCategory, type, eligibilityCriteria, fundingType, targetRegion, deadline (ISO or null), remote, urls.source, urls.apply, imageUrl, trust.verificationStatus, trust.qualityScore, aiSummary, aiTags, updatedAt.
+Opportunity object (stable fields): id, object, title, description, category, canonicalCategory, type, eligibilityCriteria, fundingType, targetRegion, deadline (ISO or null), remote, urls.source, urls.apply, imageUrl, trust.verificationStatus, trust.lastVerifiedAt, trust.lastSeenAt, trust.qualityScore, match, matchReasons, matchRisks, aiSummary, aiTags, updatedAt.
 
 ## POST /recommendations — body
 
@@ -308,7 +323,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
         title: "Scholarship Engine Public API",
         version: "0.2.0",
         description:
-          "Machine-readable documentation for the public Scholarship Engine API. Clerk authenticates Edutu users on /developer/* and /dashboard/developer; /v1/* uses a separate Edutu API key. Health, usage, and categories are free. Each chargeable opportunity, recommendation, or event request costs one non-expiring credit and returns HTTP 402 with code credits_exhausted at zero. Approved opportunities, including approved user submissions, are shared with Edutu users and API customers.",
+          "Machine-readable documentation for the public Scholarship Engine API. Clerk authenticates Edutu users on /developer/* and /dashboard/developer; /v1/* uses a separate Edutu API key. Health, usage, and categories are free. Each chargeable opportunity, recommendation, or event request costs one non-expiring credit and returns HTTP 402 with code credits_exhausted at zero. Admin-approved submissions enter the shared catalog as pending_review/unverified and are shared with Edutu users and API customers only after successful verification/enrichment transitions them to active/verified.",
         contact: {
           name: "Edutu",
           url: docsUrl,
@@ -333,7 +348,8 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
           },
         },
         opportunityVisibility:
-          "Only approved opportunities are returned. Approved user submissions become global catalog records visible to Edutu users and API customers.",
+          "Admin approval creates a shared catalog record in pending_review/unverified state. Learner and /v1 visibility begins only after verification/enrichment succeeds and the record transitions to active/verified; pending and rejected submissions remain hidden.",
+        requiredScopes: REQUIRED_SCOPES,
         integration:
           "Server-to-server by default. Browser use requires approved CORS and exposes the API key to the browser.",
       },
@@ -482,7 +498,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
             required: false,
             schema: { type: "string" },
             description:
-              "Opaque pagination cursor returned in the previous response meta.next_cursor.",
+              "Opaque pagination cursor returned in the previous response meta.nextCursor.",
           },
           OpportunitySort: {
             name: "sort",

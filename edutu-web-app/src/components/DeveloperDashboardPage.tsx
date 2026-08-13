@@ -462,7 +462,7 @@ Implement:
                     </span>
                   </div>
                   <p className="text-sm leading-6 text-text-muted">
-                    Raw keys are shown once at creation and stored hashed afterwards.
+                    Raw keys are shown once at creation. Production stores a peppered HMAC-SHA256 hash; legacy SHA-256 hashes are migration-only and rotation upgrades the key.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-subtle bg-white p-4">

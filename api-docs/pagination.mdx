@@ -12,9 +12,9 @@ rows when data changes underneath you.
 ## How it works
 
 1. Request the first page with `limit` (max `100`).
-2. Read `meta.next_cursor` from the response.
-3. If `meta.has_more` is `true`, pass `cursor` on the next request.
-4. Stop when `meta.has_more` is `false` or `next_cursor` is `null`.
+2. Read `meta.nextCursor` from the response.
+3. If `meta.hasMore` is `true`, pass `cursor` on the next request.
+4. Stop when `meta.hasMore` is `false` or `nextCursor` is `null`.
 
 ```bash
 curl "https://edutu-platform.onrender.com/v1/opportunities?limit=50&cursor=eyJ1Ijoi..."
@@ -25,8 +25,8 @@ curl "https://edutu-platform.onrender.com/v1/opportunities?limit=50&cursor=eyJ1I
   "object": "list",
   "data": [ /* ... */ ],
   "meta": {
-    "has_more": true,
-    "next_cursor": "eyJ1cGRhdGVkQXQiOjE3..."
+    "hasMore": true,
+    "nextCursor": "eyJ1cGRhdGVkQXQiOjE3..."
   }
 }
 ```

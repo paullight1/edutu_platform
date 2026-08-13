@@ -127,7 +127,7 @@ const platformCards: PlatformCard[] = [
         items: [
             'Keep EDUTU_API_KEY in server-side environment variables',
             'Proxy browser requests through your backend when the key must remain secret',
-            'Render only approved opportunities from the normalized contract',
+            'Render only active/verified opportunities from the normalized contract',
         ],
     },
     {
@@ -193,18 +193,30 @@ const { data, meta } = await response.json();`,
 
 const opportunityFields = [
     'id',
+    'object',
     'title',
-    'organization',
-    'category',
-    'deadline',
-    'location',
     'description',
-    'requirements',
-    'benefits',
-    'applicationProcess',
-    'image',
+    'category',
+    'canonicalCategory',
+    'type',
+    'eligibilityCriteria',
+    'fundingType',
+    'targetRegion',
+    'deadline',
+    'remote',
+    'urls.source',
+    'urls.apply',
+    'imageUrl',
+    'trust.verificationStatus',
+    'trust.lastVerifiedAt',
+    'trust.lastSeenAt',
+    'trust.qualityScore',
     'match',
-    'difficulty',
+    'matchReasons',
+    'matchRisks',
+    'aiSummary',
+    'aiTags',
+    'updatedAt',
 ];
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -490,7 +502,7 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                         <CodeSurface
                                             language="JSON"
-                                            copyValue={`{\n  "data": [ /* opportunity objects */ ],\n  "meta": { "next_cursor": "…", "count": 12 }\n}`}
+                                            copyValue={`{\n  "data": [ /* opportunity objects */ ],\n  "meta": { "nextCursor": "…", "hasMore": true, "total": null }\n}`}
                                         >
                                             <div>{'{'}</div>
                                             <div>
@@ -504,17 +516,19 @@ const DeveloperDocsPage: React.FC = () => {
                                             <div>
                                                 {'  '}
                                                 <span className="text-sky-300">"meta"</span>: {'{'}{' '}
-                                                <span className="text-sky-300">"next_cursor"</span>:{' '}
+                                                <span className="text-sky-300">"nextCursor"</span>:{' '}
                                                 <span className="text-emerald-300">"…"</span>,{' '}
-                                                <span className="text-sky-300">"count"</span>:{' '}
-                                                <span className="text-amber-300">12</span> {'}'}
+                                                <span className="text-sky-300">"hasMore"</span>:{' '}
+                                                <span className="text-amber-300">true</span>,{' '}
+                                                <span className="text-sky-300">"total"</span>:{' '}
+                                                <span className="text-amber-300">null</span> {'}'}
                                             </div>
                                             <div>{'}'}</div>
                                         </CodeSurface>
                                         <p className="mt-2.5 text-sm leading-[1.65] text-text-muted">
                                             Lists are cursor-paginated — pass{' '}
                                             <code className="font-mono text-xs text-text-secondary">
-                                                meta.next_cursor
+                                                meta.nextCursor
                                             </code>{' '}
                                             back as{' '}
                                             <code className="font-mono text-xs text-text-secondary">
@@ -546,6 +560,8 @@ const DeveloperDocsPage: React.FC = () => {
                                             <li>Sign in with Clerk and open <Link to="/dashboard/developer" className="font-semibold text-brand underline-offset-2 hover:underline">/dashboard/developer</Link>.</li>
                                             <li>Create a project and key immediately; no credit purchase is required.</li>
                                             <li>The raw key is shown once. Store it server-side and rotate or revoke it from the dashboard.</li>
+                                            <li>Production stores a peppered HMAC-SHA256 hash keyed by <code className="font-mono text-xs text-brand">API_KEY_PEPPER</code>. Legacy SHA-256 hashes are accepted only during migration; rotation upgrades the key.</li>
+                                            <li>Required scopes are <code className="font-mono text-xs text-brand">opportunities:read</code>, <code className="font-mono text-xs text-brand">opportunities:sync</code>, <code className="font-mono text-xs text-brand">usage:read</code>, <code className="font-mono text-xs text-brand">recommendations:read</code> and <code className="font-mono text-xs text-brand">events:write</code>.</li>
                                         </ul>
                                     </div>
                                     <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
@@ -557,7 +573,7 @@ const DeveloperDocsPage: React.FC = () => {
                                             <li>New accounts start at 0 credits. Top-ups are one-time purchases and never expire.</li>
                                             <li>Health, usage and categories are free. Each other live API request costs 1 credit.</li>
                                             <li>A chargeable call at zero returns <code className="font-mono text-xs text-brand">402 credits_exhausted</code> before the operation runs.</li>
-                                            <li>Only approved opportunities are visible. Approved user submissions become global catalog records for Edutu users and API customers.</li>
+                                            <li>Admin approval creates a shared pending/unverified catalog record. Learner and <code className="font-mono text-xs text-brand">/v1</code> visibility begins only after verification/enrichment succeeds and the record transitions to active/verified.</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -619,13 +635,26 @@ const DeveloperDocsPage: React.FC = () => {
                                         language="opportunity.json"
                                         copyValue={`{
   "id": "opp_8f21c4",
+  "object": "opportunity",
   "title": "Mastercard Foundation Scholars Program",
-  "organization": "Mastercard Foundation",
-  "category": "Scholarships",
-  "deadline": "2026-08-31",
-  "location": "Pan-African",
+  "description": "A verified scholarship opportunity.",
+  "category": "scholarships",
+  "canonicalCategory": "scholarships",
+  "type": "scholarship",
+  "eligibilityCriteria": "Eligible learners",
+  "fundingType": "fully_funded",
+  "targetRegion": "Africa",
+  "deadline": "2026-08-31T00:00:00.000Z",
+  "remote": false,
+  "urls": { "source": "https://…", "apply": "https://…" },
+  "imageUrl": "https://…",
+  "trust": { "verificationStatus": "verified", "qualityScore": 92 },
   "match": 0.92,
-  "difficulty": "medium"
+  "matchReasons": ["Matches your profile"],
+  "matchRisks": [],
+  "aiSummary": "A strong fit for this learner.",
+  "aiTags": ["scholarship"],
+  "updatedAt": "2026-06-22T14:31:00.000Z"
 }`}
                                     >
                                         <div>{'{'}</div>
@@ -644,23 +673,33 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                         <div>
                                             {'  '}
-                                            <span className="text-sky-300">"organization"</span>:{' '}
-                                            <span className="text-emerald-300">"Mastercard Foundation"</span>,
+                                            <span className="text-sky-300">"object"</span>:{' '}
+                                            <span className="text-emerald-300">"opportunity"</span>,
+                                        </div>
+                                        <div>
+                                            {'  '}
+                                            <span className="text-sky-300">"description"</span>:{' '}
+                                            <span className="text-emerald-300">"A verified scholarship opportunity."</span>,
                                         </div>
                                         <div>
                                             {'  '}
                                             <span className="text-sky-300">"category"</span>:{' '}
-                                            <span className="text-emerald-300">"Scholarships"</span>,
+                                            <span className="text-emerald-300">"scholarships"</span>,
                                         </div>
                                         <div>
                                             {'  '}
                                             <span className="text-sky-300">"deadline"</span>:{' '}
-                                            <span className="text-emerald-300">"2026-08-31"</span>,
+                                            <span className="text-emerald-300">"2026-08-31T00:00:00.000Z"</span>,
                                         </div>
                                         <div>
                                             {'  '}
-                                            <span className="text-sky-300">"location"</span>:{' '}
-                                            <span className="text-emerald-300">"Pan-African"</span>,
+                                            <span className="text-sky-300">"urls"</span>:{' '}
+                                            <span className="text-slate-400">{'{'} "source", "apply" {'}'}</span>,
+                                        </div>
+                                        <div>
+                                            {'  '}
+                                            <span className="text-sky-300">"trust"</span>:{' '}
+                                            <span className="text-slate-400">{'{'} "verificationStatus", "qualityScore" {'}'}</span>,
                                         </div>
                                         <div>
                                             {'  '}
@@ -669,8 +708,8 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                         <div>
                                             {'  '}
-                                            <span className="text-sky-300">"difficulty"</span>:{' '}
-                                            <span className="text-emerald-300">"medium"</span>
+                                            <span className="text-sky-300">"aiTags"</span>:{' '}
+                                            <span className="text-slate-400">["scholarship"]</span>
                                         </div>
                                         <div>{'}'}</div>
                                     </CodeSurface>
@@ -830,8 +869,8 @@ const DeveloperDocsPage: React.FC = () => {
                                         <ul className="mt-4 space-y-3 text-sm leading-[1.6] text-text-secondary">
                                             <li className="flex gap-2.5">
                                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                                                Keep title, summary, organization and location visible
-                                                in the first screen.
+                                                Keep title, description, category and trust signals
+                                                visible in the first screen.
                                             </li>
                                             <li className="flex gap-2.5">
                                                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />

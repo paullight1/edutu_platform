@@ -27,6 +27,42 @@ describe("EdutuApiDocsController", () => {
     expect(spec.paths["/health"].get.security).toEqual([]);
     expect(spec.paths["/categories"].get.description).toContain("free");
     expect(spec.paths["/usage"].get.description).toContain("does not consume");
+    expect(spec.components.parameters.OpportunityCursor.description).toContain(
+      "meta.nextCursor",
+    );
+    expect(spec.components.parameters.OpportunityCursor.description).not.toContain(
+      "next_cursor",
+    );
+    expect(spec["x-edutu-contract"].requiredScopes).toEqual({
+      "opportunities:read": [
+        "GET /v1/opportunities",
+        "GET /v1/opportunities/stats",
+        "GET /v1/opportunities/:id",
+        "GET /v1/categories",
+      ],
+      "opportunities:sync": ["GET /v1/opportunities/sync"],
+      "usage:read": ["GET /v1/usage"],
+      "recommendations:read": ["POST /v1/recommendations"],
+      "events:write": ["POST /v1/events"],
+    });
+    expect(spec["x-edutu-contract"].opportunityVisibility).toContain(
+      "pending_review/unverified",
+    );
+    expect(spec["x-edutu-contract"].opportunityVisibility).toContain(
+      "active/verified",
+    );
+    expect(spec.components.schemas.Opportunity.properties).toHaveProperty(
+      "eligibilityCriteria",
+    );
+    expect(spec.components.schemas.Opportunity.properties).toHaveProperty(
+      "imageUrl",
+    );
+    expect(spec.components.schemas.Opportunity.properties).toHaveProperty(
+      "trust",
+    );
+    expect(spec.components.schemas.Opportunity.properties).not.toHaveProperty(
+      "organization",
+    );
     expect(spec.paths["/opportunities"].get.responses["402"].description).toContain(
       "credits_exhausted",
     );
@@ -59,6 +95,9 @@ describe("EdutuApiDocsController", () => {
     ]);
     expect(overview.credits.chargeableRequestCost).toBe(1);
     expect(overview.dashboardUrl).toContain("/dashboard/developer");
+    expect(overview.requiredScopes["opportunities:sync"]).toEqual([
+      "GET /v1/opportunities/sync",
+    ]);
     expect(
       overview.endpoints.some(
         (item: { path: string }) => item.path === "/v1/usage",
@@ -80,6 +119,14 @@ describe("EdutuApiDocsController", () => {
       expect(doc).toContain("Clerk");
       expect(doc).toContain("New accounts start with **0 credits**");
       expect(doc).toContain("one-time purchases");
+      expect(doc).toContain("peppered HMAC-SHA256");
+      expect(doc).toContain("legacy SHA-256");
+      expect(doc).toContain("opportunities:sync");
+      expect(doc).toContain("usage:read");
+      expect(doc).toContain("meta.nextCursor");
+      expect(doc).not.toContain("next_cursor");
+      expect(doc).toContain("pending_review");
+      expect(doc).toContain("active");
       expect(doc).toContain("402 `credits_exhausted`");
       expect(doc).toContain('"code":"credits_exhausted"');
       expect(doc).toContain("server-to-server");
