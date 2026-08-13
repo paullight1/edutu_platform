@@ -27,8 +27,8 @@ describe("CreditPurchaseService", () => {
   it("atomically records a verified purchase and increments the canonical profile once", async () => {
     const execute = jest
       .fn()
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "ledger-row-1" }] })
       .mockResolvedValueOnce({ rows: [{ user_id: "user_123" }] })
       .mockResolvedValueOnce({ rows: [] });
@@ -45,8 +45,8 @@ describe("CreditPurchaseService", () => {
   it("returns duplicate without adding credits when the provider reference already has a matching ledger row", async () => {
     const execute = jest
       .fn()
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
@@ -71,8 +71,8 @@ describe("CreditPurchaseService", () => {
   it("rolls back the transaction when the canonical profile cannot be updated", async () => {
     const execute = jest
       .fn()
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "ledger-row-1" }] })
       .mockResolvedValueOnce({ rows: [] });
     const database = databaseFor(execute);
@@ -93,8 +93,8 @@ describe("CreditPurchaseService", () => {
     async (productKey, creditQuantity) => {
       const execute = jest
         .fn()
-        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
       const service = new CreditPurchaseService(databaseFor(execute));
 
