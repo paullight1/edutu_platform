@@ -20,6 +20,7 @@ async function seed() {
       fullName: "Sarah Johnson",
       email: "sarah.johnson@example.com",
       role: "user",
+      creditsBalance: 0,
       creatorStatus: "approved",
     })
     .returning();
