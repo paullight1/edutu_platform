@@ -131,9 +131,29 @@ function buildHtml(shell, entry) {
  * loudly instead of shipping silently-broken unfurls.
  */
 async function assertRoutingCoverage() {
-  const config = JSON.parse(
-    await readFile(path.resolve(scriptDir, "..", "vercel.json"), "utf8"),
-  );
+  // The production app is mounted as the `frontend` Vercel service from the
+  // repository root. Its root vercel.json controls public routing; the
+  // service-local file is useful for standalone previews but cannot protect
+  // the production deployment from silently falling through to index.html.
+  const configPaths = [
+    path.resolve(scriptDir, "..", "..", "vercel.json"),
+    path.resolve(scriptDir, "..", "vercel.json"),
+  ];
+  let config;
+  let configPath;
+  for (const candidate of configPaths) {
+    try {
+      config = JSON.parse(await readFile(candidate, "utf8"));
+      configPath = candidate;
+      break;
+    } catch {
+      // Try the standalone app config when this package is copied elsewhere.
+    }
+  }
+  if (!config) {
+    throw new Error("Could not find a Vercel routing configuration.");
+  }
+
   const routed = new Set(
     (config.rewrites ?? [])
       .filter((rule) => rule.destination?.endsWith("/index.html"))
@@ -146,7 +166,7 @@ async function assertRoutingCoverage() {
 
   if (missing.length) {
     throw new Error(
-      `vercel.json has no prerender rewrite for: ${missing.join(", ")}\n` +
+      `${path.basename(configPath)} has no prerender rewrite for: ${missing.join(", ")}\n` +
         `Add { "source": "<path>", "destination": "<path>/index.html" } above the SPA catch-all.`,
     );
   }

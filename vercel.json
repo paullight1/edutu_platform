@@ -12,6 +12,90 @@
   },
   "rewrites": [
     {
+      "source": "/blog/:slug",
+      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+    },
+    {
+      "source": "/events/:slugOrId",
+      "destination": "https://edutu-platform.onrender.com/og/event/:slugOrId"
+    },
+    {
+      "source": "/opportunities",
+      "destination": "/opportunities/index.html"
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/index.html"
+    },
+    {
+      "source": "/community",
+      "destination": "/community/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about/index.html"
+    },
+    {
+      "source": "/impact",
+      "destination": "/impact/index.html"
+    },
+    {
+      "source": "/edutuforyou",
+      "destination": "/edutuforyou/index.html"
+    },
+    {
+      "source": "/events",
+      "destination": "/events/index.html"
+    },
+    {
+      "source": "/download",
+      "destination": "/download/index.html"
+    },
+    {
+      "source": "/what-we-believe",
+      "destination": "/what-we-believe/index.html"
+    },
+    {
+      "source": "/upgrade",
+      "destination": "/upgrade/index.html"
+    },
+    {
+      "source": "/mentor",
+      "destination": "/mentor/index.html"
+    },
+    {
+      "source": "/scholarship-engine",
+      "destination": "/scholarship-engine/index.html"
+    },
+    {
+      "source": "/scholarship-api",
+      "destination": "/scholarship-api/index.html"
+    },
+    {
+      "source": "/developers",
+      "destination": "/developers/index.html"
+    },
+    {
+      "source": "/developers/docs",
+      "destination": "/developers/docs/index.html"
+    },
+    {
+      "source": "/help",
+      "destination": "/help/index.html"
+    },
+    {
+      "source": "/careers",
+      "destination": "/careers/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms/index.html"
+    },
+    {
       "source": "/opportunity/:id",
       "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
     },
