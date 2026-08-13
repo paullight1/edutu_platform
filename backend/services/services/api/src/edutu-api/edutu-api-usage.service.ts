@@ -41,6 +41,14 @@ interface RateWindow {
 const RATE_WINDOW_MS = 60_000;
 const MAX_TRACKED_CONSUMERS = 10_000;
 
+export function apiRequestIdempotencyKey(
+  consumerId: string,
+  ownerUserId: string,
+  requestId: string,
+): string {
+  return `api:${consumerId}:${ownerUserId}:${requestId}`;
+}
+
 // Sentinel used to roll back the credit-reservation transaction when the owner
 // has no credits left. Caught in reserveRequestCredit and mapped to null.
 class InsufficientCreditsError extends Error {}
@@ -241,12 +249,20 @@ export class EdutuApiUsageService {
     if (consumer.id === "env") {
       return { balance: null, exhausted: false };
     }
-    if (!consumer.ownerUserId) {
+    if (!consumer.id || !consumer.ownerUserId) {
       throw new EdutuApiBillingUnavailableError();
     }
 
     const ownerUserId = consumer.ownerUserId;
-    const requestId = consumer.requestId ?? null;
+    const requestId = consumer.requestId?.trim();
+    if (!requestId) {
+      throw new EdutuApiBillingUnavailableError();
+    }
+    const idempotencyKey = apiRequestIdempotencyKey(
+      consumer.id,
+      ownerUserId,
+      requestId,
+    );
     const description = `Edutu API request: ${endpoint}`.slice(0, 200);
 
     try {
@@ -256,41 +272,103 @@ export class EdutuApiUsageService {
         // same for our direct (service-role) write. Transaction-local.
         await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
 
-        // Claim the request by inserting its ledger row first. The partial
-        // unique index on (related_type, related_id) makes a retry of the same
-        // requestId a no-op, so one request is never charged twice. type is
-        // 'spend' (constrained enum); the API row is tagged via related_type.
-        let claimed = true;
-        if (requestId) {
-          const claim = await tx.execute(sql`
-            insert into credit_transactions
-              (user_id, amount, type, description, related_id, related_type)
-            values
-              (${ownerUserId}, -1, 'spend', ${description}, ${requestId}, 'api_request')
-            on conflict (related_type, related_id)
-              where related_id is not null
-                and related_type in ('api_request', 'api_credit_purchase')
-            do nothing
-            returning id
-          `);
-          claimed = this.rowCount(claim) > 0;
-        } else {
-          await tx.execute(sql`
-            insert into credit_transactions
-              (user_id, amount, type, description, related_id, related_type)
-            values
-              (${ownerUserId}, -1, 'spend', ${description}, null, 'api_request')
-          `);
+        // Rows written before the scoped key was introduced cannot prove which
+        // consumer owned the client-controlled request id. Do not recharge
+        // such a request or treat it as a valid duplicate.
+        const legacy = await tx.execute(sql`
+          select id
+          from credit_transactions
+          where related_type = 'api_request'
+            and related_id = ${requestId}
+            and api_request_idempotency_key is null
+          limit 2
+        `);
+        if (this.rowCount(legacy) > 0) {
+          throw new EdutuApiBillingUnavailableError();
         }
 
+        // Claim the request with a key scoped to both the authenticated
+        // consumer and its owner. related_id remains populated with the same
+        // scoped key so the legacy API index cannot create cross-owner
+        // collisions. The dedicated API key index closes the race between two
+        // simultaneous deliveries of the same request.
+        const claim = await tx.execute(sql`
+          insert into credit_transactions
+            (
+              user_id,
+              amount,
+              type,
+              description,
+              related_id,
+              related_type,
+              api_consumer_id,
+              api_request_idempotency_key
+            )
+          values
+            (
+              ${ownerUserId},
+              -1,
+              'spend',
+              ${description},
+              ${idempotencyKey},
+              'api_request',
+              ${consumer.id},
+              ${idempotencyKey}
+            )
+          on conflict (
+            related_type,
+            api_consumer_id,
+            user_id,
+            api_request_idempotency_key
+          )
+            where related_type = 'api_request'
+              and api_consumer_id is not null
+              and api_request_idempotency_key is not null
+          do nothing
+          returning id
+        `);
+        const claimed = this.rowCount(claim) > 0;
+
         // Duplicate delivery of an already-charged request: report the current
-        // balance without charging again.
+        // balance without charging again, but only for a matching API spend.
         if (!claimed) {
+          const duplicate = await tx.execute(sql`
+            select
+              id,
+              user_id,
+              api_consumer_id,
+              amount,
+              type,
+              related_id,
+              related_type,
+              api_request_idempotency_key
+            from credit_transactions
+            where related_type = 'api_request'
+              and api_request_idempotency_key = ${idempotencyKey}
+            limit 2
+          `);
+          const duplicateRows = this.rows(duplicate);
+          if (
+            duplicateRows.length !== 1 ||
+            !this.isMatchingApiLedgerRow(
+              duplicateRows[0],
+              consumer,
+              ownerUserId,
+              idempotencyKey,
+            )
+          ) {
+            throw new EdutuApiBillingUnavailableError();
+          }
+
           const current = await tx.execute(sql`
             select credits from profiles where user_id = ${ownerUserId} limit 1
           `);
+          const currentBalance = this.readProfileBalance(current, "credits");
+          if (currentBalance === null) {
+            throw new EdutuApiBillingUnavailableError();
+          }
           return {
-            balance: this.readNumber(current, "credits"),
+            balance: currentBalance,
             exhausted: false,
           } satisfies CreditReservation;
         }
@@ -305,22 +383,26 @@ export class EdutuApiUsageService {
         // A missing row is ambiguous from the guarded UPDATE alone. Read the
         // profile inside the same transaction so confirmed zero is distinct
         // from a missing profile/database inconsistency.
-        if (this.rowCount(decremented) === 0) {
+        const balanceAfterDecrement = this.readProfileBalance(
+          decremented,
+          "credits",
+        );
+        if (balanceAfterDecrement === null) {
           const profile = await tx.execute(sql`
             select credits from profiles where user_id = ${ownerUserId} limit 1
           `);
-          const profileRows = this.rowCount(profile);
-          if (profileRows === 0) {
+          const profileBalance = this.readProfileBalance(profile, "credits");
+          if (profileBalance === null) {
             throw new EdutuApiBillingUnavailableError();
           }
-          if (this.readNumber(profile, "credits") <= 0) {
+          if (profileBalance <= 0) {
             throw new InsufficientCreditsError();
           }
           throw new EdutuApiBillingUnavailableError();
         }
 
         return {
-          balance: this.readNumber(decremented, "credits"),
+          balance: balanceAfterDecrement,
           exhausted: false,
         } satisfies CreditReservation;
       });
@@ -342,12 +424,54 @@ export class EdutuApiUsageService {
     return 0;
   }
 
-  // Reads a numeric column from the first row of a raw db.execute() result.
-  private readNumber(result: unknown, column: string): number {
-    const rows =
-      (result as { rows?: Record<string, unknown>[] }).rows ??
-      (Array.isArray(result) ? (result as Record<string, unknown>[]) : []);
-    return Number(rows[0]?.[column] ?? 0) || 0;
+  private rows(result: unknown): Record<string, unknown>[] {
+    const asObj = result as { rows?: unknown[] };
+    if (Array.isArray(asObj?.rows)) {
+      return asObj.rows.filter(
+        (row): row is Record<string, unknown> =>
+          Boolean(row) && typeof row === "object",
+      );
+    }
+    if (Array.isArray(result)) {
+      return result.filter(
+        (row): row is Record<string, unknown> =>
+          Boolean(row) && typeof row === "object",
+      );
+    }
+    return [];
+  }
+
+  private readProfileBalance(result: unknown, column: string): number | null {
+    const rows = this.rows(result);
+    if (rows.length !== 1) return null;
+    const value = Number(rows[0][column]);
+    return Number.isInteger(value) && value >= 0 ? value : null;
+  }
+
+  private isMatchingApiLedgerRow(
+    row: Record<string, unknown> | undefined,
+    consumer: ApiConsumerContext,
+    ownerUserId: string,
+    idempotencyKey: string,
+  ): boolean {
+    return Boolean(
+      row &&
+      typeof row.id === "string" &&
+      row.id.length > 0 &&
+      String(row.user_id) === ownerUserId &&
+      row.api_consumer_id === consumer.id &&
+      Number(row.amount) === -1 &&
+      row.type === "spend" &&
+      row.related_type === "api_request" &&
+      row.related_id === idempotencyKey &&
+      row.api_request_idempotency_key === idempotencyKey &&
+      idempotencyKey ===
+        apiRequestIdempotencyKey(
+          consumer.id,
+          ownerUserId,
+          consumer.requestId!.trim(),
+        ),
+    );
   }
 
   private exhaustedReservation(
@@ -393,7 +517,7 @@ export class EdutuApiUsageService {
       const result = await db.execute(sql`
         select credits from profiles where user_id = ${ownerUserId} limit 1
       `);
-      return this.readNumber(result, "credits");
+      return this.readProfileBalance(result, "credits");
     } catch (error) {
       this.logger.warn("Unable to read API credit balance");
       return null;

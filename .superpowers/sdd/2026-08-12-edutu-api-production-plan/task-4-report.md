@@ -22,13 +22,27 @@
 Passed:
 
 ```text
-38 focused tests passed
+48 focused tests passed (including the correction-round pipeline suite)
 npm run build
 Task 4-only ESLint
 ```
 
 The full backend lint command was also run. It remains non-zero because of
 unrelated formatting errors in concurrent/pre-existing files:
-`src/edutu-api/edutu-api-docs.controller.ts`,
-`src/edutu-api/edutu-api-docs.controller.spec.ts`, and
-`src/opportunities/opportunity-verification.service.ts`.
+`src/og/page-og.controller.ts` and
+`src/opportunities/opportunities.service.ts`.
+
+## Correction round
+
+- Scoped API idempotency keys to consumer + owner + request ID.
+- Added `api_consumer_id`, `api_request_idempotency_key`, and a unique
+  consumer/owner/request index in `20260813150000_api_request_idempotency_scope.sql`.
+- Duplicate claims now verify the ledger row is the matching one-credit API
+  spend for the same consumer and owner and that the current owner profile
+  exists; malformed, missing, mismatched, and legacy unscoped rows fail closed
+  with `billing_unavailable`.
+- A shared persistence-level test proves the same client request ID is charged
+  independently for different consumers/owners.
+- Added an HTTP request-pipeline test proving zero balance and reservation
+  failure return stable status/code/request ID values without invoking a paid
+  handler.

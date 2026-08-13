@@ -2,6 +2,7 @@ import { db } from "../db";
 import {
   EdutuApiBillingUnavailableError,
   EdutuApiUsageService,
+  apiRequestIdempotencyKey,
 } from "./edutu-api-usage.service";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
@@ -44,27 +45,60 @@ describe("EdutuApiUsageService", () => {
 
   // Models the raw-SQL flow inside db.transaction(cb). tx.execute is called in
   // sequence: (1) set_config guard, (2) claim insert ... returning id, (3) if
-  // claimed -> update ... returning credits, else -> select credits.
+  // claimed -> update ... returning credits, else -> select the matching ledger
+  // row, and (4) read the current profile balance.
   function stubTransaction(opts: {
     claimed: boolean;
     balanceAfterDecrement?: number | null;
     currentBalance?: number;
+    duplicateLedger?: Record<string, unknown> | null;
+    duplicateLedgerMissing?: boolean;
+    duplicateProfileMissing?: boolean;
   }) {
     const txExecute = jest.fn();
     txExecute.mockResolvedValueOnce({ rows: [] }); // set_config
+    txExecute.mockResolvedValueOnce({ rows: [] }); // legacy unscoped lookup
     txExecute.mockResolvedValueOnce({
       rows: opts.claimed ? [{ id: "ledger-1" }] : [], // claim insert
     });
-    txExecute.mockResolvedValueOnce(
-      opts.claimed
-        ? {
-            rows:
-              opts.balanceAfterDecrement === null
-                ? [] // guarded decrement matched no row (exhausted)
-                : [{ credits: opts.balanceAfterDecrement }],
-          }
-        : { rows: [{ credits: opts.currentBalance ?? 0 }] }, // current balance read
-    );
+    if (opts.claimed) {
+      txExecute.mockResolvedValueOnce({
+        rows:
+          opts.balanceAfterDecrement === null
+            ? [] // guarded decrement matched no row (exhausted)
+            : [{ credits: opts.balanceAfterDecrement }],
+      });
+    } else {
+      txExecute.mockResolvedValueOnce({
+        rows: opts.duplicateLedgerMissing
+          ? []
+          : [
+              opts.duplicateLedger ?? {
+                id: "ledger-1",
+                user_id: "user-1",
+                api_consumer_id: "consumer-1",
+                amount: -1,
+                type: "spend",
+                related_id: apiRequestIdempotencyKey(
+                  "consumer-1",
+                  "user-1",
+                  "req-123",
+                ),
+                related_type: "api_request",
+                api_request_idempotency_key: apiRequestIdempotencyKey(
+                  "consumer-1",
+                  "user-1",
+                  "req-123",
+                ),
+              },
+            ],
+      });
+      txExecute.mockResolvedValueOnce({
+        rows: opts.duplicateProfileMissing
+          ? []
+          : [{ credits: opts.currentBalance ?? 0 }],
+      });
+    }
     if (opts.claimed && opts.balanceAfterDecrement === null) {
       txExecute.mockResolvedValueOnce({ rows: [{ credits: 0 }] });
     }
@@ -85,8 +119,8 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 9, exhausted: false });
-    // set_config + claim insert + decrement = 3 statements.
-    expect(txExecute).toHaveBeenCalledTimes(3);
+    // set_config + legacy lookup + claim insert + decrement = 4 statements.
+    expect(txExecute).toHaveBeenCalledTimes(4);
   });
 
   it("does not double-charge when the same request id is retried (idempotent)", async () => {
@@ -102,9 +136,238 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 42, exhausted: false });
-    // set_config + claim (conflict no-op) + current-balance read = 3 statements,
-    // the third being a SELECT, not a decrementing UPDATE.
-    expect(txExecute).toHaveBeenCalledTimes(3);
+    // set_config + legacy lookup + claim (conflict no-op) + matching-ledger
+    // read + current profile read = 5 statements.
+    expect(txExecute).toHaveBeenCalledTimes(5);
+  });
+
+  it("charges the same request id independently for different owners", async () => {
+    const persistedRequestKeys = new Set<string>();
+    mockedDb.transaction.mockImplementation(async (callback: any) => {
+      let claimed = false;
+      const txExecute = jest.fn(async (statement: unknown) => {
+        const text = (statement as { queryChunks?: unknown[] }).queryChunks
+          ?.map((chunk) =>
+            typeof chunk === "string"
+              ? "$param"
+              : ((chunk as { value?: string[] })?.value ?? []).join(""),
+          )
+          .join("");
+        if (text?.includes("set_config")) return { rows: [] };
+        if (text?.includes("api_request_idempotency_key is null")) {
+          return { rows: [] };
+        }
+        if (text?.includes("insert into credit_transactions")) {
+          const chunks =
+            (statement as { queryChunks?: unknown[] }).queryChunks ?? [];
+          const requestKey = chunks.find(
+            (chunk): chunk is string =>
+              typeof chunk === "string" && chunk.startsWith("api:"),
+          );
+          claimed = !persistedRequestKeys.has(requestKey ?? "");
+          if (claimed) persistedRequestKeys.add(requestKey ?? "");
+          return { rows: claimed ? [{ id: "ledger-1" }] : [] };
+        }
+        return {
+          rows: [
+            {
+              credits: claimed ? (persistedRequestKeys.size === 1 ? 9 : 8) : 8,
+            },
+          ],
+        };
+      });
+      return callback({ execute: txExecute });
+    });
+
+    const firstOwner = billableConsumer;
+    const secondOwner: ApiConsumerContext = {
+      ...billableConsumer,
+      id: "consumer-2",
+      ownerUserId: "user-2",
+    };
+
+    const first = await service.reserveRequestCredit(
+      firstOwner,
+      "/v1/opportunities",
+    );
+
+    const second = await service.reserveRequestCredit(
+      secondOwner,
+      "/v1/opportunities",
+    );
+
+    expect(first).toEqual({ balance: 9, exhausted: false });
+    expect(second).toEqual({ balance: 8, exhausted: false });
+    expect(persistedRequestKeys.size).toBe(2);
+    expect(
+      apiRequestIdempotencyKey(
+        firstOwner.id,
+        firstOwner.ownerUserId!,
+        firstOwner.requestId!,
+      ),
+    ).not.toBe(
+      apiRequestIdempotencyKey(
+        secondOwner.id,
+        secondOwner.ownerUserId!,
+        secondOwner.requestId!,
+      ),
+    );
+  });
+
+  it("fails closed when a duplicate ledger row belongs to another owner", async () => {
+    stubTransaction({
+      claimed: false,
+      currentBalance: 42,
+      duplicateLedger: {
+        id: "ledger-1",
+        user_id: "other-owner",
+        amount: -1,
+        type: "spend",
+        related_id: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+        related_type: "api_request",
+        api_request_idempotency_key: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+      },
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed when a duplicate claim has no ledger row to verify", async () => {
+    stubTransaction({
+      claimed: false,
+      duplicateLedgerMissing: true,
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed when a duplicate ledger row has no current profile", async () => {
+    stubTransaction({
+      claimed: false,
+      duplicateProfileMissing: true,
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed when a duplicate ledger row is not a one-credit spend", async () => {
+    stubTransaction({
+      claimed: false,
+      currentBalance: 42,
+      duplicateLedger: {
+        id: "ledger-1",
+        user_id: "user-1",
+        api_consumer_id: "consumer-1",
+        amount: -2,
+        type: "spend",
+        related_id: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+        related_type: "api_request",
+        api_request_idempotency_key: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+      },
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed when a duplicate ledger key belongs to another consumer", async () => {
+    stubTransaction({
+      claimed: false,
+      currentBalance: 42,
+      duplicateLedger: {
+        id: "ledger-1",
+        user_id: "user-1",
+        api_consumer_id: "consumer-2",
+        amount: -1,
+        type: "spend",
+        related_id: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+        related_type: "api_request",
+        api_request_idempotency_key: apiRequestIdempotencyKey(
+          billableConsumer.id,
+          billableConsumer.ownerUserId!,
+          billableConsumer.requestId!,
+        ),
+      },
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed instead of recharging an unscoped legacy API ledger row", async () => {
+    mockedDb.transaction.mockImplementation(async (callback: any) => {
+      const txExecute = jest.fn(async (statement: unknown) => {
+        const text = (statement as { queryChunks?: unknown[] }).queryChunks
+          ?.map((chunk) =>
+            typeof chunk === "string"
+              ? "$param"
+              : ((chunk as { value?: string[] })?.value ?? []).join(""),
+          )
+          .join("");
+        if (text?.includes("set_config")) return { rows: [] };
+        if (text?.includes("from credit_transactions")) {
+          return {
+            rows: [
+              {
+                id: "legacy-ledger-1",
+                user_id: "user-1",
+                amount: -1,
+                type: "spend",
+                related_id: "req-123",
+                related_type: "api_request",
+                api_request_idempotency_key: null,
+              },
+            ],
+          };
+        }
+        if (text?.includes("insert into credit_transactions")) {
+          return { rows: [{ id: "new-ledger-1" }] };
+        }
+        return { rows: [{ credits: 9 }] };
+      });
+      return callback({ execute: txExecute });
+    });
+
+    await expect(
+      service.reserveRequestCredit(billableConsumer, "/v1/opportunities"),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
+  });
+
+  it("fails closed when the request id is missing", async () => {
+    await expect(
+      service.reserveRequestCredit(
+        { ...billableConsumer, requestId: undefined },
+        "/v1/opportunities",
+      ),
+    ).rejects.toMatchObject({ code: "billing_unavailable" });
   });
 
   it("signals exhaustion and does not persist a charge when credits run out", async () => {
@@ -120,7 +383,7 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toEqual({ balance: 0, exhausted: true }); // InsufficientCreditsError rolls back the tx
-    expect(txExecute).toHaveBeenCalledTimes(4);
+    expect(txExecute).toHaveBeenCalledTimes(5);
   });
 
   it("reads the balance for credit-free endpoints without deducting", async () => {
