@@ -71,4 +71,40 @@ describe("submission verification recovery operations", () => {
       expect.objectContaining({ operationId: "operation-2", attempts: 3 }),
     );
   });
+
+  it("reclaims an expired running lease and sends it through retry to critical exhaustion", async () => {
+    mockedDb.execute
+      .mockResolvedValueOnce({ rows: [{ id: "operation-stale" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "operation-stale",
+            opportunity_id: "opportunity-stale",
+            status: "running",
+            attempt_count: 3,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new OpportunityVerificationService(
+      {} as any,
+      undefined,
+      audit as any,
+    );
+    const verifyOne = jest
+      .spyOn(service, "verifyOne")
+      .mockRejectedValue(new Error("crashed worker recovered"));
+
+    await service.runDueSubmissionVerificationOperations();
+
+    expect(verifyOne).toHaveBeenCalledWith("opportunity-stale");
+    expect(audit.log).toHaveBeenCalledWith(
+      "opportunity.verification.exhausted",
+      "system",
+      "opportunity_verification_operation",
+      expect.objectContaining({ operationId: "operation-stale", attempts: 3 }),
+    );
+  });
 });

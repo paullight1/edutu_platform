@@ -1443,7 +1443,7 @@ export class OpportunitiesService {
     // for a worker that already holds the old candidate snapshot.
     await tx.execute(sql`
       update public.opportunity_verification_operations
-      set status = 'cancelled', updated_at = now()
+      set status = 'cancelled', lease_expires_at = null, updated_at = now()
       where submission_id = ${submissionId}::uuid
         and opportunity_id = ${opportunityId}::uuid
         and status in ('queued', 'running', 'retry')
@@ -1515,7 +1515,7 @@ export class OpportunitiesService {
     // that has already completed its network request.
     await tx.execute(sql`
       update public.opportunity_verification_operations
-      set status = 'cancelled', updated_at = now()
+      set status = 'cancelled', lease_expires_at = null, updated_at = now()
       where submission_id = ${submissionId}::uuid
         and opportunity_id = ${opportunityId}::uuid
         and status in ('queued', 'running', 'retry')

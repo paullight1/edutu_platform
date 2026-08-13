@@ -16,7 +16,10 @@ and invalidates learner-feed caches. Repeated decisions are no-ops.
 Catalog insertion is deduplicated by the server-written submission provenance
 key. A stale verifier result is rejected by a conditional database update.
 Verification recovery uses bounded retry/backoff, persists exhaustion, and
-writes a critical audit alert. Review responses distinguish
+writes a critical audit alert. Running operations carry a bounded worker lease;
+the recovery cron reclaims expired or legacy stale-running rows into the same
+retry/exhaustion path, so worker termination cannot strand recovery forever.
+Review responses distinguish
 `approved_for_verification` from `verified_public` and withdrawn states.
 
 The learner catalog and `/v1` service paths require both `status = 'active'`
@@ -58,6 +61,8 @@ and unchanged in this correction round.
   stale-write race, warmed-cache withdrawal/republication, hexadecimal
   mapped/compatible IPv6 initial and redirect targets, durable retry/backoff,
   exhaustion alerting, and approval response states.
+- Recovery lease regression: claimed `running` operation was reclaimed,
+  retried, and exhausted with the critical audit alert emitted.
 - Backend `npm run build`: passed.
 - Targeted backend ESLint over all final Task 8 backend files: passed.
 - Web typecheck — passed.

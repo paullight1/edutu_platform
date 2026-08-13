@@ -64,6 +64,7 @@ type VerificationOutcome = {
 const MAX_OUTBOUND_REDIRECTS = 5;
 const MAX_SUBMISSION_VERIFICATION_ATTEMPTS = 3;
 const SUBMISSION_VERIFICATION_RETRY_DELAYS_MS = [60_000, 300_000];
+const SUBMISSION_VERIFICATION_LEASE_SECONDS = 120;
 
 function ipv4Number(value: string): number | null {
   const parts = value.split(".");
@@ -235,7 +236,26 @@ export class OpportunityVerificationService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async runDueSubmissionVerificationOperations() {
-    const result = await db.execute(sql`
+    // A worker can terminate after claiming an operation and before it can
+    // persist either success or failure. Requeue expired leases first so a
+    // crashed worker cannot strand an approved submission forever. The normal
+    // claim/failure path below still owns the attempt bound and alerting.
+    const reclaimed = await db.execute(sql`
+      update public.opportunity_verification_operations
+      set status = 'retry',
+          next_attempt_at = now(),
+          lease_expires_at = null,
+          last_error = coalesce(
+            last_error,
+            'Verification worker lease expired before completion'
+          ),
+          updated_at = now()
+      where status = 'running'
+        and coalesce(lease_expires_at, updated_at, created_at)
+          <= now() - (${SUBMISSION_VERIFICATION_LEASE_SECONDS}::text || ' seconds')::interval
+      returning id
+    `);
+    const due = await db.execute(sql`
       select id
       from public.opportunity_verification_operations
       where status in ('queued', 'retry')
@@ -243,12 +263,16 @@ export class OpportunityVerificationService {
       order by next_attempt_at, created_at
       limit 25
     `);
-    for (const operation of this.rows<{ id: string }>(result)) {
+    const operationIds = new Set([
+      ...this.rows<{ id: string }>(reclaimed).map((operation) => operation.id),
+      ...this.rows<{ id: string }>(due).map((operation) => operation.id),
+    ]);
+    for (const operationId of operationIds) {
       try {
-        await this.processSubmissionVerificationOperation(operation.id);
+        await this.processSubmissionVerificationOperation(operationId);
       } catch (error) {
         this.logger.error(
-          `Verification recovery persistence failed for ${operation.id}: ${
+          `Verification recovery persistence failed for ${operationId}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -267,6 +291,7 @@ export class OpportunityVerificationService {
       update public.opportunity_verification_operations
       set status = 'running',
           attempt_count = attempt_count + 1,
+          lease_expires_at = now() + (${SUBMISSION_VERIFICATION_LEASE_SECONDS}::text || ' seconds')::interval,
           updated_at = now()
       where id = ${operationId}::uuid
         and status in ('queued', 'retry')
@@ -297,7 +322,10 @@ export class OpportunityVerificationService {
       if (outcome?.status === "verified") {
         await db.execute(sql`
           update public.opportunity_verification_operations
-          set status = 'completed', completed_at = now(), updated_at = now()
+          set status = 'completed',
+              completed_at = now(),
+              lease_expires_at = null,
+              updated_at = now()
           where id = ${operationId}::uuid and status = 'running'
         `);
         return { state: "verified_public" } as const;
@@ -305,7 +333,7 @@ export class OpportunityVerificationService {
       if (outcome?.status === "stale") {
         await db.execute(sql`
           update public.opportunity_verification_operations
-          set status = 'cancelled', updated_at = now()
+          set status = 'cancelled', lease_expires_at = null, updated_at = now()
           where id = ${operationId}::uuid and status = 'running'
         `);
         return { state: "withdrawn" } as const;
@@ -343,6 +371,7 @@ export class OpportunityVerificationService {
           last_error = ${error},
           next_attempt_at = ${exhausted ? new Date() : new Date(Date.now() + delay)},
           exhausted_at = ${exhausted ? new Date() : null},
+          lease_expires_at = null,
           updated_at = now()
       where id = ${operationId}::uuid and status = 'running'
     `);

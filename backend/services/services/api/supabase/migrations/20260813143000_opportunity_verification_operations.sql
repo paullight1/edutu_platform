@@ -7,6 +7,7 @@ create table if not exists public.opportunity_verification_operations (
   status text not null default 'queued',
   attempt_count integer not null default 0,
   next_attempt_at timestamptz not null default now(),
+  lease_expires_at timestamptz,
   last_error text,
   completed_at timestamptz,
   exhausted_at timestamptz,
@@ -17,6 +18,9 @@ create table if not exists public.opportunity_verification_operations (
   constraint opportunity_verification_operations_review_unique
     unique (submission_id, review_version)
 );
+
+alter table public.opportunity_verification_operations
+  add column if not exists lease_expires_at timestamptz;
 
 create index if not exists idx_opportunity_verification_operations_due
   on public.opportunity_verification_operations (status, next_attempt_at);
