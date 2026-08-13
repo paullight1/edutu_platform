@@ -11,6 +11,7 @@ import { BillingRepository } from "./billing.repository";
 import { BachsClient } from "./providers/bachs/bachs.client";
 import { loadBachsConfig } from "./providers/bachs/bachs.config";
 import { BillingService } from "./billing.service";
+import { BachsWebhookService } from "./bachs-webhook.service";
 import {
   BACHS_CHECKOUT_CONFIG,
   BACHS_CHECKOUT_PROVIDER,
@@ -20,6 +21,7 @@ import {
   BILLING_CLOCK,
   BILLING_CUSTOMER_IDENTITY_RESOLVER,
   BILLING_RATE_LIMITER,
+  BACHS_WEBHOOK_SERVICE,
 } from "./types/billing-checkout.types";
 
 @Module({
@@ -39,6 +41,12 @@ import {
     {
       provide: BACHS_CHECKOUT_PROVIDER,
       useFactory: (config) => new BachsClient(config),
+      inject: [BACHS_CHECKOUT_CONFIG],
+    },
+    {
+      provide: BACHS_WEBHOOK_SERVICE,
+      useFactory: (config) =>
+        config.checkoutEnabled ? new BachsWebhookService(config) : null,
       inject: [BACHS_CHECKOUT_CONFIG],
     },
     {

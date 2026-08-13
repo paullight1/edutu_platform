@@ -3,10 +3,14 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
+  Inject,
   Post,
   Query,
   Req,
   UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
@@ -15,8 +19,10 @@ import { AdminGuard } from "../auth/admin.guard";
 import { BillingCheckoutService } from "./billing-checkout.service";
 import { BillingPortalService } from "./billing-portal.service";
 import { BillingService } from "./billing.service";
+import { BachsWebhookService } from "./bachs-webhook.service";
 import { CreateBachsCheckoutDto } from "./dto/create-checkout.dto";
 import type { CreateCheckoutDto } from "./dto/billing.dto";
+import { BACHS_WEBHOOK_SERVICE } from "./types/billing-checkout.types";
 
 @Controller("billing")
 export class BillingController {
@@ -24,6 +30,8 @@ export class BillingController {
     private readonly billingService: BillingService,
     private readonly billingCheckoutService: BillingCheckoutService,
     private readonly billingPortalService: BillingPortalService,
+    @Inject(BACHS_WEBHOOK_SERVICE)
+    private readonly bachsWebhookService: BachsWebhookService | null,
   ) {}
 
   @Get("status")
@@ -126,19 +134,22 @@ export class BillingController {
 
   @Public()
   @Post("webhooks/bachs")
+  @HttpCode(HttpStatus.ACCEPTED)
   handleBachsWebhook(
     @Headers("x-bachs-timestamp") timestamp: string | undefined,
     @Headers("x-bachs-signature") signature: string | undefined,
     @Req() request: any,
   ) {
+    if (!this.bachsWebhookService) {
+      throw new ServiceUnavailableException("Bachs webhook is unavailable.");
+    }
     if (!request.rawBody) {
       throw new UnauthorizedException(
         "Raw request body unavailable; cannot verify webhook signature",
       );
     }
-    return this.billingService.handleBachsWebhook(
+    return this.bachsWebhookService.handle(
       request.rawBody,
-      request.body,
       timestamp,
       signature,
     );

@@ -292,23 +292,21 @@ export class OpportunitySubmissionsService {
     return this.createOpportunityFromSubmission(row);
   }
 
-  private async createOpportunityFromSubmission(
-    row: {
-      title: string;
-      summary: string | null;
-      description: string | null;
-      category: string | null;
-      organization: string | null;
-      location: string | null;
-      type: string | null;
-      eligibility: string | null;
-      isRemote: boolean | null;
-      deadline: Date | null;
-      applyUrl: string | null;
-      sourceUrl: string | null;
-      imageUrl: string | null;
-    },
-  ): Promise<string> {
+  private async createOpportunityFromSubmission(row: {
+    title: string;
+    summary: string | null;
+    description: string | null;
+    category: string | null;
+    organization: string | null;
+    location: string | null;
+    type: string | null;
+    eligibility: string | null;
+    isRemote: boolean | null;
+    deadline: Date | null;
+    applyUrl: string | null;
+    sourceUrl: string | null;
+    imageUrl: string | null;
+  }): Promise<string> {
     try {
       const created = await this.opportunitiesService.create({
         title: row.title,

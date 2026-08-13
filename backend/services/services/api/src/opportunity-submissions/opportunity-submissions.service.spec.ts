@@ -169,9 +169,9 @@ describe("OpportunitySubmissionsService publication state machine", () => {
     mockSelect([]);
     const { service } = makeService();
 
-    await expect(service.getMine(OTHER_USER_ID, "submission-1")).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getMine(OTHER_USER_ID, "submission-1"),
+    ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
       service.respond(OTHER_USER_ID, "submission-1", {
         message: "Here is the requested information.",
@@ -181,7 +181,10 @@ describe("OpportunitySubmissionsService publication state machine", () => {
 
   it("approves by creating an active catalog row and persists its link", async () => {
     const row = submission();
-    const approvedOpportunity = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", status: "active" };
+    const approvedOpportunity = {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      status: "active",
+    };
     mockSelect([row]);
     const update = mockUpdate({
       ...row,
@@ -227,7 +230,10 @@ describe("OpportunitySubmissionsService publication state machine", () => {
 
     expect(opportunities.create).not.toHaveBeenCalled();
     expect(update.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "rejected", approvedOpportunityId: null }),
+      expect.objectContaining({
+        status: "rejected",
+        approvedOpportunityId: null,
+      }),
     );
     expect(result.status).toBe("rejected");
   });

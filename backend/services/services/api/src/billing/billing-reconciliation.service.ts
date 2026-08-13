@@ -181,7 +181,7 @@ export class BillingReconciliationService {
     duplicates: number;
     metric?: string;
   }> {
-    const category = this.classify(payment);
+    const category = this.classify(payment, adapter.environment);
     if (category) {
       await this.options.store.createReviewCase({
         provider: adapter.provider,
@@ -228,7 +228,10 @@ export class BillingReconciliationService {
     };
   }
 
-  private classify(payment: ReconciliationPayment): string | undefined {
+  private classify(
+    payment: ReconciliationPayment,
+    expectedEnvironment: ReconciliationEnvironment,
+  ): string | undefined {
     if (!payment.userId) return "identity_mismatch";
     if (
       this.options.expectedOrganizationId &&
@@ -241,7 +244,7 @@ export class BillingReconciliationService {
     const expectedProduct =
       this.options.expectedProductKey ?? "pro_monthly_pass";
     if (payment.productKey !== expectedProduct) return "product_mismatch";
-    if (payment.environment && payment.environment !== "sandbox")
+    if (payment.environment && payment.environment !== expectedEnvironment)
       return "environment_mismatch";
     if (payment.refundClassification === "unknown")
       return "refund_classification_ambiguous";

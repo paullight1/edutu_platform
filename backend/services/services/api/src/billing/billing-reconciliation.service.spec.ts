@@ -79,6 +79,37 @@ function mockCalls<T extends object, K extends keyof T>(
 }
 
 describe("BillingReconciliationService", () => {
+  it("accepts a matching live payment instead of treating live as a mismatch", async () => {
+    const live = adapter({
+      environment: "live",
+      listPayments: jest
+        .fn()
+        .mockResolvedValue(page([payment({ environment: "live" })], null)),
+    });
+    const reviewStore = store();
+    const repair = jest.fn().mockResolvedValue({ status: "enqueued" });
+    const service = new BillingReconciliationService({
+      adapters: [live],
+      store: reviewStore,
+      repair,
+      checkoutEnabled: true,
+      expectedOrganizationId: "org_123",
+      expectedAmountMinor: 1200n,
+      expectedProductKey: "pro_monthly_pass",
+    });
+
+    await service.reconcileDaily({ now: NOW });
+
+    expect(reviewStore.createReviewCase.mock.calls).toHaveLength(0);
+    expect(repair).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "bachs",
+        environment: "live",
+        providerResourceId: "pay_1",
+      }),
+    );
+  });
+
   it("paginates cursor pages and repairs only a deterministic missing payment", async () => {
     const repair = jest.fn().mockResolvedValue({ status: "enqueued" });
     const bach = adapter({

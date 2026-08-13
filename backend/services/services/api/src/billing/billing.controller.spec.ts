@@ -23,6 +23,7 @@ describe("BillingController Bachs routes", () => {
       legacyBilling,
       checkout,
       portal,
+      null,
     ) as BillingController & {
       createBachsCheckout: (
         rawAuthSubject: string,

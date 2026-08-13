@@ -2,7 +2,9 @@ import { z } from "zod";
 
 const MAX_EXTRA_KEYS = 20;
 
-export function isSafeHttpUrl(value: string | null | undefined): value is string {
+export function isSafeHttpUrl(
+  value: string | null | undefined,
+): value is string {
   if (!value) return false;
   try {
     const protocol = new URL(value).protocol.toLowerCase();
@@ -36,23 +38,25 @@ const SubmissionExtraSchema = z
 
 // A user proposing an opportunity for the Edutu catalog. Only `title` is truly
 // required — the more they fill in, the less likely a "needs more info" query.
-export const SubmitOpportunitySchema = z.object({
-  title: z.string().trim().min(3).max(200),
-  organization: z.string().trim().max(200).optional(),
-  category: z.string().trim().max(80).optional(),
-  type: z.string().trim().max(80).optional(),
-  summary: z.string().trim().max(500).optional(),
-  description: z.string().trim().max(6000).optional(),
-  location: z.string().trim().max(200).optional(),
-  isRemote: z.boolean().optional(),
-  eligibility: z.string().trim().max(3000).optional(),
-  benefits: z.string().trim().max(3000).optional(),
-  deadline: z.string().datetime().optional(),
-  applyUrl: SafeHttpUrlSchema.optional(),
-  sourceUrl: SafeHttpUrlSchema.optional(),
-  imageUrl: SafeHttpUrlSchema.optional(),
-  extra: SubmissionExtraSchema.optional(),
-}).strict();
+export const SubmitOpportunitySchema = z
+  .object({
+    title: z.string().trim().min(3).max(200),
+    organization: z.string().trim().max(200).optional(),
+    category: z.string().trim().max(80).optional(),
+    type: z.string().trim().max(80).optional(),
+    summary: z.string().trim().max(500).optional(),
+    description: z.string().trim().max(6000).optional(),
+    location: z.string().trim().max(200).optional(),
+    isRemote: z.boolean().optional(),
+    eligibility: z.string().trim().max(3000).optional(),
+    benefits: z.string().trim().max(3000).optional(),
+    deadline: z.string().datetime().optional(),
+    applyUrl: SafeHttpUrlSchema.optional(),
+    sourceUrl: SafeHttpUrlSchema.optional(),
+    imageUrl: SafeHttpUrlSchema.optional(),
+    extra: SubmissionExtraSchema.optional(),
+  })
+  .strict();
 
 export type SubmitOpportunityDto = z.infer<typeof SubmitOpportunitySchema>;
 

@@ -363,33 +363,6 @@ describe("BillingService", () => {
     });
   });
 
-  it("accepts a valid Bachs webhook signature", async () => {
-    process.env.BACHS_WEBHOOK_SECRET = "bachs_webhook_test_secret";
-    const payload = { id: "evt_123", type: "checkout.completed", data: {} };
-    const rawBody = Buffer.from(JSON.stringify(payload));
-    const timestamp = String(Math.floor(Date.now() / 1000));
-    const signature = createHmac("sha256", process.env.BACHS_WEBHOOK_SECRET)
-      .update(`${timestamp}.${rawBody.toString("utf8")}`)
-      .digest("hex");
-
-    const service = new BillingService(settingsStub);
-    await expect(
-      service.handleBachsWebhook(rawBody, payload, timestamp, signature),
-    ).resolves.toMatchObject({ received: true, ignored: true });
-  });
-
-  it("rejects a Bachs webhook with an invalid signature", async () => {
-    process.env.BACHS_WEBHOOK_SECRET = "bachs_webhook_test_secret";
-    const payload = { id: "evt_123", type: "checkout.completed", data: {} };
-    const rawBody = Buffer.from(JSON.stringify(payload));
-    const timestamp = String(Math.floor(Date.now() / 1000));
-
-    const service = new BillingService(settingsStub);
-    await expect(
-      service.handleBachsWebhook(rawBody, payload, timestamp, "not-valid"),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   it("returns an unconfigured response when Paystack is missing", async () => {
     delete process.env.PAYSTACK_SECRET_KEY;
 

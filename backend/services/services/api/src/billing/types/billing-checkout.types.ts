@@ -21,6 +21,7 @@ export const BILLING_CUSTOMER_IDENTITY_RESOLVER = Symbol(
 export const BILLING_CLOCK = Symbol("BILLING_CLOCK");
 export const BILLING_RATE_LIMITER = Symbol("BILLING_RATE_LIMITER");
 export const BACHS_CHECKOUT_CONFIG = Symbol("BACHS_CHECKOUT_CONFIG");
+export const BACHS_WEBHOOK_SERVICE = Symbol("BACHS_WEBHOOK_SERVICE");
 
 export const BACHS_CHECKOUT_SUCCESS_URL = "https://pay.edutu.org/result";
 export const BACHS_CHECKOUT_CANCEL_URL =
