@@ -3587,5 +3587,12 @@ ${sourceText || "No source page text was available. Still write a complete summa
       process.env.APP_URL ||
       "https://www.edutu.org"
     ).replace(/\/$/, "");
+
+    // Keep public SEO/share URLs on the canonical host. Preserve explicit
+    // subdomains such as app.edutu.org for staging or app-specific flows.
+    return configured.replace(
+      /^https?:\/\/edutu\.org(?=\/|$)/i,
+      "https://www.edutu.org",
+    );
   }
 }

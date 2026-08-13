@@ -48,4 +48,18 @@ describe("OpportunitiesService public app URL", () => {
 
     expect(service.getPublicAppBaseUrl()).toBe("https://app.edutu.org");
   });
+
+  it("normalizes the bare public domain to the canonical www host", () => {
+    process.env.EDUTU_PUBLIC_APP_URL = "https://edutu.org/";
+
+    const service = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    expect(service.getPublicAppBaseUrl()).toBe("https://www.edutu.org");
+  });
 });

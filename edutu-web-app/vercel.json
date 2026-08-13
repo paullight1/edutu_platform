@@ -4,14 +4,6 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/sitemap.xml",
-      "destination": "https://edutu-platform.onrender.com/sitemap.xml"
-    },
-    {
-      "source": "/robots.txt",
-      "destination": "https://edutu-platform.onrender.com/robots.txt"
-    },
-    {
       "source": "/opportunity/:id",
       "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
     },
@@ -37,6 +29,10 @@
     {
       "source": "/blog/:slug",
       "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+    },
+    {
+      "source": "/events/:slugOrId",
+      "destination": "https://edutu-platform.onrender.com/og/event/:slugOrId"
     },
     {
       "source": "/blog",
