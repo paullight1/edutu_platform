@@ -235,10 +235,16 @@
 - Modify: `supabase/functions/scrape/index.ts`
 - Create: `supabase/functions/scrape/index_test.ts`
 - Create: `supabase/functions/_shared/safe-fetch.ts`
+- Modify: `backend/services/services/api/src/scraper/scraper-http-client.ts`
+- Create: `backend/services/services/api/src/scraper/scraper-egress.controller.ts`
+- Create: `backend/services/services/api/src/scraper/scraper-egress.service.ts`
+- Modify: `backend/services/services/api/src/scraper/scraper.module.ts`
+- Modify: `backend/services/services/api/src/scraper/scraper.config.ts`
+- Create: backend scraper egress unit/integration tests
 - Document: `docs/security/scrape-function-runbook.md`
 
 **Interfaces:**
-- Produces: `safeFetchApprovedPage(url: string): Promise<{ text: string; finalUrl: string }>` with HTTPS/host/private-network/size/timeout/redirect enforcement.
+- Produces: `safeFetchApprovedPage(url: string): Promise<{ text: string; finalUrl: string }>` with HTTPS/host/private-network/size/timeout/redirect enforcement. Because Supabase Edge `fetch(hostname)` cannot bind a prevalidated DNS address to its TLS connection, approved page retrieval must use a signed internal backend egress endpoint that pins the resolved public address while preserving TLS hostname verification; direct Edge fetching must fail closed unless that endpoint is configured.
 - Consumes: an authenticated/admin or internal-job credential and the existing AI extraction contract.
 
 - [ ] **Step 1: Write failing tests**
@@ -251,7 +257,7 @@
 
 - [ ] **Step 3: Implement safe fetching**
 
-  Parse and normalize the URL, allow only `https:`, compare the hostname against an explicit source allowlist, resolve and reject private/link-local/metadata addresses, use an abort timeout, cap redirects, stream-read no more than the configured byte limit, and reject non-HTML content when appropriate.
+  Parse and normalize the URL, allow only `https:`, compare the hostname against an explicit source allowlist, resolve and reject private/link-local/metadata addresses, use an abort timeout, cap redirects, stream-read no more than the configured byte limit, and reject non-HTML content when appropriate. Do not perform an unpinned DNS-check-then-`fetch(hostname)` sequence. Add the backend egress endpoint with signed internal authentication, a complete global-unicast classifier, address-pinned TLS/SNI transport, and the same redirect/size/timeout controls.
 
 - [ ] **Step 4: Add abuse controls and generic errors**
 
