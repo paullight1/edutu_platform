@@ -73,12 +73,6 @@ export type ManageDestination =
 const APP_STORE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
 const PLAY_STORE_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
 const BACHS_CHECKOUT_ORIGINS = new Set(['https://checkout.bachs.io']);
-const API_CREDIT_PRODUCT_KEYS: Record<number, string> = {
-  100: 'api_credits_100',
-  250: 'api_credits_250',
-  700: 'api_credits_700',
-};
-
 const activeCheckoutRequests = new Map<string, Promise<CheckoutResponse>>();
 
 async function requestBilling<T>(
@@ -126,61 +120,42 @@ export async function getBillingStatus(token: string): Promise<BillingStatus> {
   return requestBilling<BillingStatus>('/billing/status', token);
 }
 
-function isConfiguredCreditPack(value: unknown): value is { credits: number; price: number; label?: string } {
+function isBillingCreditProduct(value: unknown): value is CreditProduct {
   if (!value || typeof value !== 'object') return false;
-  const pack = value as Record<string, unknown>;
-  return Number.isSafeInteger(pack.credits) &&
-    Number(pack.credits) > 0 &&
-    typeof pack.price === 'number' &&
-    Number.isFinite(pack.price) &&
-    pack.price > 0;
+  const product = value as Record<string, unknown>;
+  return typeof product.productKey === 'string' &&
+    product.productKey.startsWith('api_credits_') &&
+    Number.isSafeInteger(product.creditQuantity) &&
+    Number(product.creditQuantity) > 0 &&
+    typeof product.price === 'number' &&
+    Number.isFinite(product.price) &&
+    product.price > 0 &&
+    typeof product.currency === 'string' &&
+    /^[A-Z]{3}$/.test(product.currency) &&
+    product.renewalMode === 'one_time' &&
+    product.validityDays === null;
 }
 
 /**
- * Loads display-only pack metadata from the public admin configuration. A
- * product is shown only when its quantity maps to a known server catalog key;
- * the browser never sends its price or quantity to checkout.
+ * Reads display metadata from the billing catalog that also resolves checkout.
+ * The browser does not map quantities to product keys or fall back to the
+ * general admin pricing config; all displayed values come from this response.
  */
-export async function getCreditProducts(): Promise<CreditProduct[]> {
-  const apiBaseUrl = getApiBaseUrl('Billing products API');
-  const response = await fetch(`${apiBaseUrl}/mobile-control/config`);
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new BillingRequestError(
-      response.status,
-      response.status === 503 ? 'billing_unavailable' : 'billing_products_unavailable',
-      'Credit packs are temporarily unavailable. Please try again later.',
-    );
-  }
-
-  const pricing = data && typeof data === 'object' && 'pricing' in data
-    ? (data as { pricing?: unknown }).pricing
+export async function getCreditProducts(token: string): Promise<CreditProduct[]> {
+  const data = await requestBilling<unknown>('/billing/catalog', token);
+  const products = data && typeof data === 'object' && 'products' in data
+    ? (data as { products?: unknown }).products
     : null;
-  if (!pricing || typeof pricing !== 'object') return [];
 
-  const pricingRecord = pricing as Record<string, unknown>;
-  const currency = typeof pricingRecord.currency === 'string'
-    ? pricingRecord.currency.trim().toUpperCase()
-    : '';
-  if (!currency || currency.length !== 3) return [];
-
-  const packs = Array.isArray(pricingRecord.creditPacks)
-    ? pricingRecord.creditPacks.filter(isConfiguredCreditPack)
+  return Array.isArray(products)
+    ? products.filter(isBillingCreditProduct).map((product) => ({
+        ...product,
+        currency: product.currency.toUpperCase(),
+        label: typeof product.label === 'string' && product.label.trim()
+          ? product.label.trim()
+          : undefined,
+      }))
     : [];
-
-  return packs.flatMap((pack) => {
-    const productKey = API_CREDIT_PRODUCT_KEYS[pack.credits];
-    if (!productKey) return [];
-    return [{
-      productKey,
-      creditQuantity: pack.credits,
-      price: pack.price,
-      currency,
-      label: typeof pack.label === 'string' && pack.label.trim() ? pack.label.trim() : undefined,
-      renewalMode: 'one_time' as const,
-      validityDays: null,
-    }];
-  });
 }
 
 /** Bachs is opt-in until the server-side launch gate has passed. */

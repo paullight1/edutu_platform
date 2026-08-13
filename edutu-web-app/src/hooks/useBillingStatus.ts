@@ -43,7 +43,7 @@ export function useBillingStatus() {
 
       const [statusResult, productsResult] = await Promise.allSettled([
         getBillingStatus(token),
-        getCreditProducts(),
+        getCreditProducts(token),
       ]);
 
       if (version !== requestVersion.current) return;

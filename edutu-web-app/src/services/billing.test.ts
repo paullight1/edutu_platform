@@ -182,24 +182,41 @@ describe('getCreditProducts', () => {
     vi.unstubAllGlobals();
   });
 
-  it('exposes only valid configured credit packs and keeps price display-only', async () => {
+  it('reads API credit products from the billing catalog response', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({
-        pricing: {
-          currency: 'NGN',
-          creditPacks: [
-            { credits: 100, price: 1500, label: 'Starter' },
-            { credits: 700, price: 7000 },
-            { credits: 0, price: 1 },
-            { credits: 250, price: -1 },
-            { credits: 999, price: 9999 },
-          ],
-        },
+        products: [
+          {
+            productKey: 'api_credits_100',
+            creditQuantity: 100,
+            price: 1500,
+            currency: 'NGN',
+            label: 'Starter',
+            renewalMode: 'one_time',
+            validityDays: null,
+          },
+          {
+            productKey: 'api_credits_700',
+            creditQuantity: 700,
+            price: 7000,
+            currency: 'NGN',
+            renewalMode: 'one_time',
+            validityDays: null,
+          },
+          {
+            productKey: 'pro_monthly_pass',
+            creditQuantity: null,
+            price: 6500,
+            currency: 'NGN',
+            renewalMode: 'recurring',
+            validityDays: 31,
+          },
+        ],
       }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(getCreditProducts()).resolves.toEqual([
+    await expect(getCreditProducts('clerk-token')).resolves.toEqual([
       {
         productKey: 'api_credits_100',
         creditQuantity: 100,
@@ -220,6 +237,10 @@ describe('getCreditProducts', () => {
       },
     ]);
 
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/billing\/catalog$/);
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer clerk-token' }),
+    }));
     const [, request] = fetchMock.mock.calls[0];
     expect(request?.body).toBeUndefined();
   });
