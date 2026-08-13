@@ -15,6 +15,9 @@ alter table public.opportunities
       'careers'::text,
       'leadership'::text,
       'global_programs'::text,
+      'graduate_programs'::text,
+      'bootcamps'::text,
+      'events'::text,
       'other'::text
     ])
   );
