@@ -26,6 +26,7 @@ import {
 } from "../services/billing";
 import { useBillingStatus } from "../hooks/useBillingStatus";
 import PublicEditorialShell from "./PublicEditorialShell";
+import CreditPurchasePanel from "./developer/CreditPurchasePanel";
 import {
   createDeveloperProject,
   getDeveloperDashboard,
@@ -167,9 +168,10 @@ export default function DeveloperDashboardPage() {
   const [creating, setCreating] = useState(false);
   const [mutatingProjectId, setMutatingProjectId] = useState<string | null>(null);
   const [generatedKey, setGeneratedKey] = useState<GeneratedKey | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutLoadingProductKey, setCheckoutLoadingProductKey] = useState<string | null>(null);
   const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
-  const checkoutActionKey = useRef<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<{ code: string | null; message: string } | null>(null);
+  const checkoutActionKeys = useRef<Record<string, string>>({});
   const checkoutEnabled = isBachsCheckoutEnabled();
 
   const loadDashboard = useCallback(async () => {
@@ -209,8 +211,12 @@ export default function DeveloperDashboardPage() {
     () => [
       {
         label: "API credits",
-        value: billing.status?.credits?.toLocaleString() ?? "0",
-        note: billing.status?.isPro ? "Pro billing active" : "Starter billing",
+        value: billing.loading
+          ? "…"
+          : billing.status
+            ? billing.status.credits.toLocaleString()
+            : "Unavailable",
+        note: "One-time top-ups · never expire",
         icon: CreditCard,
       },
       {
@@ -235,7 +241,7 @@ export default function DeveloperDashboardPage() {
         icon: Database,
       },
     ],
-    [billing.status, dashboard],
+    [billing.loading, billing.status, dashboard],
   );
 
   const toggleScope = (scope: string) => {
@@ -331,31 +337,35 @@ export default function DeveloperDashboardPage() {
     }
   };
 
-  const handleTopUpCredits = async () => {
-    if (!checkoutEnabled || checkoutLoading || checkoutToConfirm) return;
+  const handleTopUpCredits = async (productKey: string) => {
+    if (!checkoutEnabled || checkoutLoadingProductKey || checkoutToConfirm) return;
     const token = await getToken();
     if (!token) return;
 
-    setCheckoutLoading(true);
-    setError(null);
+    setCheckoutLoadingProductKey(productKey);
+    setCheckoutError(null);
     try {
-      const idempotencyKey = checkoutActionKey.current ?? uuidv4();
-      checkoutActionKey.current = idempotencyKey;
+      const idempotencyKey = checkoutActionKeys.current[productKey] ?? uuidv4();
+      checkoutActionKeys.current[productKey] = idempotencyKey;
       const checkout = await createCheckout(token, {
-        productKey: "credits_700",
+        productKey,
         returnSurface: "web",
         idempotencyKey,
       });
-      checkoutActionKey.current = null;
+      delete checkoutActionKeys.current[productKey];
       setCheckoutToConfirm(checkout);
+      await billing.refresh();
     } catch (checkoutError) {
-      setError(
-        checkoutError instanceof Error
-          ? checkoutError.message
-          : "Unable to start checkout",
-      );
+      setCheckoutError({
+        code:
+          checkoutError && typeof checkoutError === "object" && "code" in checkoutError
+            ? String((checkoutError as { code: unknown }).code)
+            : null,
+        message:
+          checkoutError instanceof Error ? checkoutError.message : "Unable to start checkout",
+      });
     } finally {
-      setCheckoutLoading(false);
+      setCheckoutLoadingProductKey(null);
     }
   };
 
@@ -363,6 +373,14 @@ export default function DeveloperDashboardPage() {
     if (!checkoutToConfirm) return;
     window.location.assign(checkoutToConfirm.checkoutUrl);
   };
+
+  const hasPendingPayment = Boolean(
+    billing.status?.transactions?.some(
+      (transaction) =>
+        transaction.type === "credit_topup" &&
+        ["pending", "processing", "created"].includes(transaction.status.toLowerCase()),
+    ),
+  );
 
   const copyGeneratedKey = async () => {
     if (!generatedKey?.rawKey) return;
@@ -546,10 +564,14 @@ Implement:
                     </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text-primary">
-                    {billing.loading ? "…" : billing.status?.credits?.toLocaleString() ?? "0"}
+                    {billing.loading
+                      ? "…"
+                      : billing.status
+                        ? billing.status.credits.toLocaleString()
+                        : "Unavailable"}
                   </p>
                   <p className="text-sm text-text-muted">
-                    {billing.status?.credits !== undefined ? "Credits available" : "No credit top-ups yet"}
+                    {billing.status ? "Credits available" : "Balance unavailable"}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-subtle bg-white p-4">
@@ -1074,66 +1096,26 @@ Implement:
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 p-4">
-                <div className="flex items-center gap-2 text-brand">
-                  <CreditCard size={15} />
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em]">
-                    Billing snapshot
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                      Credits
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text-primary">
-                      {billing.loading ? "…" : billing.status?.credits?.toLocaleString() ?? "0"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                      Credit purchase policy
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text-primary">
-                      One-time top-ups
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-text-muted">
-                  API credit top-ups are one-time purchases and do not expire. Free health, usage, and category
-                  calls do not consume credits; chargeable API calls cost one credit.
-                </p>
-                <div className="mt-4">
-                    <button
-                      type="button"
-                      onClick={() => void handleTopUpCredits()}
-                    disabled={!checkoutEnabled || checkoutLoading || checkoutToConfirm !== null}
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {checkoutLoading ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <CreditCard size={15} />
-                    )}
-                    Buy 700 credits
-                  </button>
-                  {checkoutToConfirm ? (
-                    <div className="mt-3 rounded-xl border border-brand/40 bg-brand/5 p-3" aria-live="polite">
-                      <p className="text-sm text-text-secondary">
-                        This is a one-time credit purchase. Credits do not renew automatically.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={continueToCheckout}
-                        className="mt-2 rounded-full bg-brand px-3 py-2 text-sm font-semibold text-white"
-                      >
-                        Continue to secure checkout
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+              <CreditPurchasePanel
+                balance={billing.status ? billing.status.credits : null}
+                products={billing.products}
+                productsLoading={billing.productsLoading}
+                productsError={billing.productsError}
+                checkoutEnabled={checkoutEnabled}
+                checkoutLoadingProductKey={checkoutLoadingProductKey}
+                checkoutToConfirm={checkoutToConfirm}
+                checkoutError={checkoutError ?? (billing.errorCode ? {
+                  code: billing.errorCode,
+                  message: billing.error ?? "Unable to load billing status",
+                } : null)}
+                hasPendingPayment={hasPendingPayment}
+                onPurchase={(productKey) => void handleTopUpCredits(productKey)}
+                onContinueToCheckout={continueToCheckout}
+                onRefreshBilling={() => void billing.refresh()}
+                onRetryProducts={() => void billing.refresh()}
+              />
 
-                <div className="mt-5 rounded-2xl border border-subtle bg-white p-4">
+              <div className="mt-5 rounded-2xl border border-subtle bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">
@@ -1185,7 +1167,6 @@ Implement:
                   </div>
                 </div>
               </div>
-            </div>
           </motion.section>
 
           <motion.section

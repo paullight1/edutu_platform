@@ -14,6 +14,17 @@ export interface BillingStatus {
   transactions: BillingTransaction[];
 }
 
+/** Server-configured display metadata. None of these values are sent to checkout. */
+export interface CreditProduct {
+  productKey: string;
+  creditQuantity: number;
+  price: number;
+  currency: string;
+  label?: string;
+  renewalMode: 'one_time';
+  validityDays: null;
+}
+
 export interface BillingTransaction {
   id: string;
   provider: string;
@@ -30,8 +41,20 @@ export interface CheckoutResponse {
   intentId: string;
   checkoutUrl: string;
   expiresAt: string;
-  renewalMode: RenewalMode;
+  /** Optional for compatibility while the checkout controller rolls out the richer response. */
+  renewalMode?: RenewalMode;
   accessUntil?: string | null;
+}
+
+export class BillingRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'BillingRequestError';
+  }
 }
 
 export interface CreateCheckoutInput {
@@ -50,6 +73,11 @@ export type ManageDestination =
 const APP_STORE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
 const PLAY_STORE_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
 const BACHS_CHECKOUT_ORIGINS = new Set(['https://checkout.bachs.io']);
+const API_CREDIT_PRODUCT_KEYS: Record<number, string> = {
+  100: 'api_credits_100',
+  250: 'api_credits_250',
+  700: 'api_credits_700',
+};
 
 const activeCheckoutRequests = new Map<string, Promise<CheckoutResponse>>();
 
@@ -70,7 +98,25 @@ async function requestBilling<T>(
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.message || 'Billing request failed');
+    const body = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const nestedError = body.error && typeof body.error === 'object'
+      ? body.error as Record<string, unknown>
+      : {};
+    const code = typeof body.code === 'string'
+      ? body.code
+      : typeof nestedError.code === 'string'
+        ? nestedError.code
+        : response.status === 402
+          ? 'credits_exhausted'
+          : response.status === 503
+            ? 'billing_unavailable'
+            : 'billing_request_failed';
+    const message = typeof body.message === 'string'
+      ? body.message
+      : typeof nestedError.message === 'string'
+        ? nestedError.message
+        : 'Billing request failed';
+    throw new BillingRequestError(response.status, code, message);
   }
 
   return data as T;
@@ -78,6 +124,63 @@ async function requestBilling<T>(
 
 export async function getBillingStatus(token: string): Promise<BillingStatus> {
   return requestBilling<BillingStatus>('/billing/status', token);
+}
+
+function isConfiguredCreditPack(value: unknown): value is { credits: number; price: number; label?: string } {
+  if (!value || typeof value !== 'object') return false;
+  const pack = value as Record<string, unknown>;
+  return Number.isSafeInteger(pack.credits) &&
+    Number(pack.credits) > 0 &&
+    typeof pack.price === 'number' &&
+    Number.isFinite(pack.price) &&
+    pack.price > 0;
+}
+
+/**
+ * Loads display-only pack metadata from the public admin configuration. A
+ * product is shown only when its quantity maps to a known server catalog key;
+ * the browser never sends its price or quantity to checkout.
+ */
+export async function getCreditProducts(): Promise<CreditProduct[]> {
+  const apiBaseUrl = getApiBaseUrl('Billing products API');
+  const response = await fetch(`${apiBaseUrl}/mobile-control/config`);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new BillingRequestError(
+      response.status,
+      response.status === 503 ? 'billing_unavailable' : 'billing_products_unavailable',
+      'Credit packs are temporarily unavailable. Please try again later.',
+    );
+  }
+
+  const pricing = data && typeof data === 'object' && 'pricing' in data
+    ? (data as { pricing?: unknown }).pricing
+    : null;
+  if (!pricing || typeof pricing !== 'object') return [];
+
+  const pricingRecord = pricing as Record<string, unknown>;
+  const currency = typeof pricingRecord.currency === 'string'
+    ? pricingRecord.currency.trim().toUpperCase()
+    : '';
+  if (!currency || currency.length !== 3) return [];
+
+  const packs = Array.isArray(pricingRecord.creditPacks)
+    ? pricingRecord.creditPacks.filter(isConfiguredCreditPack)
+    : [];
+
+  return packs.flatMap((pack) => {
+    const productKey = API_CREDIT_PRODUCT_KEYS[pack.credits];
+    if (!productKey) return [];
+    return [{
+      productKey,
+      creditQuantity: pack.credits,
+      price: pack.price,
+      currency,
+      label: typeof pack.label === 'string' && pack.label.trim() ? pack.label.trim() : undefined,
+      renewalMode: 'one_time' as const,
+      validityDays: null,
+    }];
+  });
 }
 
 /** Bachs is opt-in until the server-side launch gate has passed. */
@@ -113,7 +216,9 @@ function validateCheckoutResponse(value: unknown): CheckoutResponse {
   if (
     typeof response.intentId !== 'string' ||
     typeof response.expiresAt !== 'string' ||
-    (response.renewalMode !== 'recurring' && response.renewalMode !== 'one_time')
+    (response.renewalMode !== undefined &&
+      response.renewalMode !== 'recurring' &&
+      response.renewalMode !== 'one_time')
   ) {
     throw new Error('Billing returned an invalid checkout response.');
   }

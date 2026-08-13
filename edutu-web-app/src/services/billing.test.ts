@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as billing from './billing';
-import { createCheckout } from './billing';
+import { createCheckout, getCreditProducts, BillingRequestError } from './billing';
 
 type CheckoutCreator = (
   token: string,
@@ -130,6 +130,98 @@ describe('createCheckout', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveResponse?.(new Response(JSON.stringify(checkoutResponse()), { status: 200 }));
     await expect(Promise.all([first, duplicate])).resolves.toHaveLength(2);
+  });
+
+  it('accepts the backend checkout shape when renewal policy is server-owned and omitted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({
+          intentId: 'intent_123',
+          checkoutUrl: 'https://checkout.bachs.io/session/session_123',
+          expiresAt: '2026-08-11T12:00:00.000Z',
+        }), { status: 200 }),
+      ),
+    );
+
+    await expect(createBachsCheckout('clerk-token', {
+      productKey: 'api_credits_700',
+      returnSurface: 'web',
+      idempotencyKey: 'a6db6b54-e7d7-4f18-a4ba-1e26b2e96c11',
+    })).resolves.toMatchObject({
+      intentId: 'intent_123',
+      renewalMode: undefined,
+    });
+  });
+
+  it('preserves billing error codes for safe UI handling', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({
+          code: 'billing_unavailable',
+          message: 'Bachs checkout is unavailable.',
+        }), { status: 503 }),
+      ),
+    );
+
+    const error = await createBachsCheckout('clerk-token', {
+      productKey: 'api_credits_700',
+      returnSurface: 'web',
+      idempotencyKey: 'cf7a0e3d-f5bf-4f0d-98ee-16a9ce6e6f1b',
+    }).catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(BillingRequestError);
+    expect(error).toMatchObject({ status: 503, code: 'billing_unavailable' });
+  });
+});
+
+describe('getCreditProducts', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('exposes only valid configured credit packs and keeps price display-only', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        pricing: {
+          currency: 'NGN',
+          creditPacks: [
+            { credits: 100, price: 1500, label: 'Starter' },
+            { credits: 700, price: 7000 },
+            { credits: 0, price: 1 },
+            { credits: 250, price: -1 },
+            { credits: 999, price: 9999 },
+          ],
+        },
+      }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getCreditProducts()).resolves.toEqual([
+      {
+        productKey: 'api_credits_100',
+        creditQuantity: 100,
+        price: 1500,
+        currency: 'NGN',
+        label: 'Starter',
+        renewalMode: 'one_time',
+        validityDays: null,
+      },
+      {
+        productKey: 'api_credits_700',
+        creditQuantity: 700,
+        price: 7000,
+        currency: 'NGN',
+        label: undefined,
+        renewalMode: 'one_time',
+        validityDays: null,
+      },
+    ]);
+
+    const [, request] = fetchMock.mock.calls[0];
+    expect(request?.body).toBeUndefined();
   });
 });
 

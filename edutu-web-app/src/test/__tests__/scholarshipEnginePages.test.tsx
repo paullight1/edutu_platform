@@ -65,8 +65,22 @@ vi.mock("../../hooks/useBillingStatus", () => ({
         },
       ],
     },
+    products: [
+      {
+        productKey: "api_credits_700",
+        creditQuantity: 700,
+        price: 7000,
+        currency: "NGN",
+        label: "Builder pack",
+        renewalMode: "one_time",
+        validityDays: null,
+      },
+    ],
     loading: false,
+    productsLoading: false,
     error: null,
+    errorCode: null,
+    productsError: null,
     refresh: vi.fn(),
   }),
 }));
@@ -398,12 +412,12 @@ describe("Scholarship Engine pages", () => {
     // it wins on a fast local machine and loses on CI.
     await screen.findByRole("button", { name: /rotate/i });
 
-    expect(screen.getByText("API credits")).toBeInTheDocument();
+    expect(screen.getAllByText("API credits").length).toBeGreaterThan(0);
     expect(
       screen.getByText(/Clerk protects this dashboard/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/API credit top-ups are one-time purchases and do not expire/i),
+      screen.getByText(/one-time purchase.*credits never expire/i),
     ).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
     expect(screen.getByText("Invoices & payments")).toBeInTheDocument();
