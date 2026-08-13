@@ -6,21 +6,25 @@
   verified zero balances are shown clearly, project creation remains available
   at zero credits, and the dashboard states “One-time purchase. Credits never
   expire.”
-- Loaded display-only credit pack metadata from the server configuration and
-  mapped only the API catalog products (`api_credits_100`,
-  `api_credits_250`, and `api_credits_700`). Prices, quantities, provider
-  product IDs, and provider credentials are never sent by browser checkout
-  code.
+- Loaded display-only API credit pack metadata from the authenticated,
+  read-only billing catalog response (`GET /billing/catalog`). The response
+  supplies the product key, quantity, price, currency, and one-time contract;
+  the dashboard no longer reads or maps values from general pricing config.
+  Prices, quantities, provider product IDs, and provider credentials are never
+  sent by browser checkout code.
 - Kept checkout requests limited to `productKey` and `returnSurface` in the
   JSON body, with the stable action idempotency key in the request header.
   Checkout responses accept server-owned renewal policy and validate the
   returned URL against the approved Bachs checkout origin.
 - Added safe billing error handling for `credits_exhausted` and
-  `billing_unavailable`, plus a pending-payment state that tells users credits
-  appear only after provider verification and provides a balance retry action.
-- Extended `useBillingStatus` to refresh status and products together, refresh
-  on tab visibility, and clear unverified stale balances or products when a
-  billing read fails.
+  `billing_unavailable`, plus a dashboard-aware Bachs handoff. Checkout opens
+  in a new tab while the dashboard keeps a short-lived, non-secret intent
+  handoff in session storage; focus/visibility return triggers authenticated
+  billing status refresh. The dashboard renders a conservative pending state
+  until the verified balance increases, then shows confirmed.
+- Extended `useBillingStatus` to refresh authenticated status and catalog
+  together, refresh on tab visibility, and clear unverified stale balances or
+  products when a billing read fails.
 
 ## Scoped files
 
@@ -34,8 +38,8 @@
 
 ## Verification
 
-- Focused web tests: 3 files, 17 tests passed.
-- Full web tests: 51 files, 305 tests passed.
+- Focused web tests: 3 files, 19 tests passed.
+- Full web tests: 51 files, 307 tests passed.
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with `--max-warnings 0`.
 - `npm run build`: passed. Vite emitted the existing ineffective dynamic-import

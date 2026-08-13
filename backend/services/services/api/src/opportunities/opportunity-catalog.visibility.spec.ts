@@ -27,6 +27,7 @@ const RACE_ID = "55555555-5555-4555-8555-555555555555";
 const OPERATION_ID = "66666666-6666-4666-8666-666666666666";
 const OLD_LEASE_TOKEN = "77777777-7777-4777-8777-777777777777";
 const NEW_LEASE_TOKEN = "88888888-8888-4888-8888-888888888888";
+const RECOMMENDATION_USER_ID = "99999999-9999-4999-8999-999999999999";
 
 const consumer = {
   id: "consumer-1",
@@ -263,6 +264,53 @@ describe("persisted shared catalog visibility", () => {
       (await learnerService.findAll(20, 0, "active")).map((row: any) => row.id),
     ).toContain(APPROVED_ID);
     expect(cache.delByPrefix).toHaveBeenCalledWith("opps:");
+  });
+
+  it("withdraws a warmed personalized recommendation when catalog visibility changes", async () => {
+    let withdrawn = false;
+    const rankingService = new OpportunityRankingService({} as any, {} as any);
+    jest
+      .spyOn(rankingService as any, "getUserProfile")
+      .mockResolvedValue(null);
+    jest
+      .spyOn(rankingService as any, "getUserPreferences")
+      .mockResolvedValue(null);
+    jest
+      .spyOn(rankingService as any, "getUserGoals")
+      .mockResolvedValue([]);
+    const query = jest
+      .spyOn(rankingService, "queryRecommendations")
+      .mockImplementation(async () =>
+        ({
+          opportunities: withdrawn ? [] : [{ id: APPROVED_ID }],
+        }) as any,
+      );
+    const learnerService = new OpportunitiesService(
+      rankingService,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const before = await rankingService.getRecommendationsForUser(
+      RECOMMENDATION_USER_ID,
+    );
+    expect((before as any).opportunities).toEqual([{ id: APPROVED_ID }]);
+
+    withdrawn = true;
+    await database.exec(`
+      update opportunities
+      set status = 'rejected', verification_status = 'unverified'
+      where id = '${APPROVED_ID}'
+    `);
+    await learnerService.invalidateCatalogCache();
+
+    const after = await rankingService.getRecommendationsForUser(
+      RECOMMENDATION_USER_ID,
+    );
+    expect((after as any).opportunities).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(2);
   });
 
   it("database condition rejects a stale verifier after withdrawal", async () => {

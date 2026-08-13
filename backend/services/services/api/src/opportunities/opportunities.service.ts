@@ -286,11 +286,13 @@ export class OpportunitiesService {
   // edits are visible immediately rather than after the TTL lapses.
   private invalidateReadCaches(): void {
     void this.cache?.delByPrefix(OPPS_CACHE_PREFIX);
+    this.opportunityRankingService.invalidateAllResponseCache?.();
   }
 
   /** Invalidate learner-feed reads after a lifecycle write performed elsewhere. */
   async invalidateCatalogCache(): Promise<void> {
     await this.cache?.delByPrefix(OPPS_CACHE_PREFIX);
+    this.opportunityRankingService.invalidateAllResponseCache?.();
   }
 
   constructor(

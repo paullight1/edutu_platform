@@ -388,6 +388,12 @@ export class OpportunityRankingService {
     this.responseCacheKeysByUser.delete(userId);
   }
 
+  /** Drops all personalized feeds after a catalog visibility change. */
+  invalidateAllResponseCache(): void {
+    this.responseCache.clear();
+    this.responseCacheKeysByUser.clear();
+  }
+
   async queryRecommendations(
     request: RecommendationQueryDto & { userId?: string },
   ) {
