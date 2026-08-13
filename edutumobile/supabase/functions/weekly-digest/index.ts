@@ -36,6 +36,12 @@ export type DigestJobClaim = {
 
 export type DigestSendOutcome = "sent" | "skipped" | "failed";
 
+export type DigestDeliveryClaim = {
+  claimed: boolean;
+  claimToken?: string;
+  status?: "sent" | "skipped" | "failed";
+};
+
 type Environment = (name: string) => string | undefined;
 
 type DigestRunnerDependencies = {
@@ -53,6 +59,29 @@ type DigestRunnerDependencies = {
   failJob: (
     day: Weekday,
     executionDate: string,
+    claimToken: string,
+  ) => Promise<void>;
+  renewJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<boolean>;
+  claimDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
+  ) => Promise<DigestDeliveryClaim>;
+  completeDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
+    claimToken: string,
+    status: "sent" | "skipped",
+  ) => Promise<void>;
+  failDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
     claimToken: string,
   ) => Promise<void>;
   listRecipients: (
@@ -75,6 +104,10 @@ export type WeeklyDigestHandlerOptions = {
   claimJob?: DigestRunnerDependencies["claimJob"];
   completeJob?: DigestRunnerDependencies["completeJob"];
   failJob?: DigestRunnerDependencies["failJob"];
+  renewJob?: DigestRunnerDependencies["renewJob"];
+  claimDelivery?: DigestRunnerDependencies["claimDelivery"];
+  completeDelivery?: DigestRunnerDependencies["completeDelivery"];
+  failDelivery?: DigestRunnerDependencies["failDelivery"];
   listRecipients?: DigestRunnerDependencies["listRecipients"];
   sendDigest?: DigestRunnerDependencies["sendDigest"];
   pageSize?: number;
@@ -279,16 +312,60 @@ export function createWeeklyDigestRunner(
         for (const recipient of result.recipients) {
           if (processed >= maxRecipients) break;
           processed += 1;
+          if (!await dependencies.renewJob(day, date, claimToken)) {
+            throw new Error("Digest lease lost");
+          }
+          const delivery = await dependencies.claimDelivery(
+            day,
+            date,
+            recipient.userId,
+          );
+          if (!delivery.claimed) {
+            skipped += 1;
+            continue;
+          }
+          const deliveryToken = delivery.claimToken?.trim();
+          if (!deliveryToken) throw new Error("Digest delivery claim unavailable");
           try {
             const outcome = await dependencies.sendDigest(recipient);
-            if (outcome === "sent") sent += 1;
-            else {
+            if (outcome === "sent") {
+              sent += 1;
+              await dependencies.completeDelivery(
+                day,
+                date,
+                recipient.userId,
+                deliveryToken,
+                "sent",
+              );
+            } else {
               skipped += 1;
-              if (outcome === "failed") failed = true;
+              if (outcome === "failed") {
+                failed = true;
+                await dependencies.failDelivery(
+                  day,
+                  date,
+                  recipient.userId,
+                  deliveryToken,
+                );
+              } else {
+                await dependencies.completeDelivery(
+                  day,
+                  date,
+                  recipient.userId,
+                  deliveryToken,
+                  "skipped",
+                );
+              }
             }
           } catch {
             failed = true;
             skipped += 1;
+            await dependencies.failDelivery(
+              day,
+              date,
+              recipient.userId,
+              deliveryToken,
+            );
           }
         }
 
@@ -382,6 +459,55 @@ async function createDefaultDependencies(
       const result = await supabase.rpc("fail_weekly_digest_job", {
         p_digest_day: day,
         p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+    },
+    renewJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("renew_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+      return result.data === true;
+    },
+    claimDelivery: async (day, date, userId) => {
+      const result = await supabase.rpc("claim_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
+      });
+      responseError(result);
+      const claim = result.data as {
+        claimed?: unknown;
+        claim_token?: unknown;
+        status?: unknown;
+      } | null;
+      return {
+        claimed: claim?.claimed === true,
+        claimToken: typeof claim?.claim_token === "string"
+          ? claim.claim_token
+          : undefined,
+        status: claim?.status === "sent" || claim?.status === "skipped" ||
+            claim?.status === "failed" ? claim.status : undefined,
+      };
+    },
+    completeDelivery: async (day, date, userId, claimToken, status) => {
+      const result = await supabase.rpc("complete_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
+        p_claim_token: claimToken,
+        p_status: status,
+      });
+      responseError(result);
+    },
+    failDelivery: async (day, date, userId, claimToken) => {
+      const result = await supabase.rpc("fail_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
         p_claim_token: claimToken,
       });
       responseError(result);
@@ -563,6 +689,10 @@ export function createWeeklyDigestHandler(
       claimJob: options.claimJob ?? defaults.claimJob,
       completeJob: options.completeJob ?? defaults.completeJob,
       failJob: options.failJob ?? defaults.failJob,
+      renewJob: options.renewJob ?? defaults.renewJob,
+      claimDelivery: options.claimDelivery ?? defaults.claimDelivery,
+      completeDelivery: options.completeDelivery ?? defaults.completeDelivery,
+      failDelivery: options.failDelivery ?? defaults.failDelivery,
       listRecipients: options.listRecipients ?? defaults.listRecipients,
       sendDigest: options.sendDigest ?? defaults.sendDigest,
       pageSize: options.pageSize ?? defaults.pageSize,
