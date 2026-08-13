@@ -82,7 +82,7 @@ const CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS = 30 * 60 * 1000;
 
 type CreditCheckoutHandoff = {
   intentId: string;
-  startingCredits: number;
+  startingCredits: number | null;
   state: "pending" | "confirmed";
 };
 
@@ -413,7 +413,7 @@ export default function DeveloperDashboardPage() {
         const candidate = parsed as Record<string, unknown>;
         if (
           typeof candidate.intentId === "string" &&
-          typeof candidate.startingCredits === "number" &&
+          (candidate.startingCredits === null || typeof candidate.startingCredits === "number") &&
           (candidate.state === "pending" || candidate.state === "confirmed") &&
           (candidate.startedAt === undefined || typeof candidate.startedAt === "number")
         ) {
@@ -453,7 +453,10 @@ export default function DeveloperDashboardPage() {
 
   useEffect(() => {
     if (!checkoutHandoff || checkoutHandoff.state !== "pending" || !billing.status) return;
-    if (billing.status.credits <= checkoutHandoff.startingCredits) return;
+    if (
+      checkoutHandoff.startingCredits === null ||
+      billing.status.credits <= checkoutHandoff.startingCredits
+    ) return;
 
     setCheckoutHandoff({ ...checkoutHandoff, state: "confirmed" });
     sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
