@@ -116,10 +116,7 @@ export async function bootstrap() {
   });
 
   app.use(helmet());
-  app.use(
-    "/internal/scraper-egress",
-    createScraperEgressBodyLimitMiddleware(),
-  );
+  app.use("/internal/scraper-egress", createScraperEgressBodyLimitMiddleware());
   app.useBodyParser("json", { limit: "1mb" });
   app.useBodyParser("urlencoded", { extended: true, limit: "1mb" });
 

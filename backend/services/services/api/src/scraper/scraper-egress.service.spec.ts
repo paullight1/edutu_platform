@@ -49,9 +49,7 @@ function createService(
 ): ScraperEgressService {
   return new ScraperEgressService(config, {
     now: () => NOW_MS,
-    resolveHost: async () => [
-      { address: "93.184.216.34", family: 4 as const },
-    ],
+    resolveHost: async () => [{ address: "93.184.216.34", family: 4 as const }],
     transport: async () => ({
       status: 200,
       contentType: "text/html; charset=utf-8",
@@ -147,10 +145,14 @@ describe("address-pinned HTTPS transport contract", () => {
     const lookup = options.lookup as (...args: any[]) => void;
     const result = await new Promise<{ address: string; family: number }>(
       (resolve, reject) => {
-        lookup("approved.example", {}, (error: Error | null, address: string, family: number) => {
-          if (error) reject(error);
-          else resolve({ address, family });
-        });
+        lookup(
+          "approved.example",
+          {},
+          (error: Error | null, address: string, family: number) => {
+            if (error) reject(error);
+            else resolve({ address, family });
+          },
+        );
       },
     );
     expect(result).toEqual({ address: "93.184.216.34", family: 4 });
@@ -278,14 +280,17 @@ describe("ScraperEgressService", () => {
       { ...config, timeoutMs: 10 },
       {
         now: () => NOW_MS,
-        resolveHost: async () => [
-          { address: "93.184.216.34", family: 4 },
-        ],
+        resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
         transport: ({ signal }) =>
           new Promise((_resolve, reject) => {
             signal.addEventListener(
               "abort",
-              () => reject(signal.reason),
+              () =>
+                reject(
+                  signal.reason instanceof Error
+                    ? signal.reason
+                    : new Error(String(signal.reason)),
+                ),
               { once: true },
             );
           }),

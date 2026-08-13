@@ -19,10 +19,7 @@ function createParserApp() {
   const app = express();
   let egressHandlerCalled = false;
 
-  app.use(
-    "/internal/scraper-egress",
-    createScraperEgressBodyLimitMiddleware(),
-  );
+  app.use("/internal/scraper-egress", createScraperEgressBodyLimitMiddleware());
   app.use(express.json({ limit: "1mb", verify: captureRawBody }));
   app.post("/internal/scraper-egress", (_req, res) => {
     egressHandlerCalled = true;
@@ -69,8 +66,9 @@ describe("scraper egress request body limit", () => {
         Buffer.alloc(SCRAPER_EGRESS_MAX_REQUEST_BYTES / 2 + 1, 0x61),
       );
       bodyRequest.end((error, result) => {
-        if (error) reject(error);
-        else resolve(result);
+        if (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        } else resolve(result);
       });
     });
 

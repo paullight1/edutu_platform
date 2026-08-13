@@ -45,7 +45,10 @@ export class PageOgController {
       "https://www.edutu.org"
     ).replace(/\/+$/, "");
 
-    return configured.replace(/^https?:\/\/edutu\.org(?=\/|$)/i, "https://www.edutu.org");
+    return configured.replace(
+      /^https?:\/\/edutu\.org(?=\/|$)/i,
+      "https://www.edutu.org",
+    );
   }
 
   /** Absolute URL of a build-time hero capture (see scripts/page-seo.mjs). */

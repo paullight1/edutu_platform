@@ -282,7 +282,7 @@ async function awaitWithAbort<T>(
       },
       (error) => {
         signal.removeEventListener("abort", onAbort);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       },
     );
   });
@@ -416,7 +416,10 @@ function isValidPrincipal(principal: string): boolean {
   return (
     principal.length > 0 &&
     Buffer.byteLength(principal, "utf8") <= 256 &&
-    !/[\u0000-\u001f\u007f-\u009f]/.test(principal)
+    !Array.from(principal).some((character) => {
+      const code = character.charCodeAt(0);
+      return (code >= 0 && code <= 31) || (code >= 127 && code <= 159);
+    })
   );
 }
 
@@ -473,9 +476,7 @@ export class ScraperEgressService {
       input.signature,
       input.principal,
     );
-    if (
-      !this.limiter.consume(input.principal ?? "anonymous", input.clientIp)
-    ) {
+    if (!this.limiter.consume(input.principal ?? "anonymous", input.clientIp)) {
       throw new ScraperEgressRequestError(429);
     }
 

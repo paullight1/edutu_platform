@@ -10,9 +10,9 @@ describe("ScraperEgressController", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("is public only to the global Clerk guard and still requires its internal signature", () => {
-    expect(
-      Reflect.getMetadata(IS_PUBLIC_KEY, ScraperEgressController),
-    ).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, ScraperEgressController)).toBe(
+      true,
+    );
   });
 
   it("passes the exact raw bytes and signature headers to the service", async () => {
@@ -46,7 +46,10 @@ describe("ScraperEgressController", () => {
 
     let thrown: unknown;
     try {
-      await controller.fetch({ rawBody: Buffer.from("{}"), get: () => undefined } as any);
+      await controller.fetch({
+        rawBody: Buffer.from("{}"),
+        get: () => undefined,
+      } as any);
     } catch (error) {
       thrown = error;
     }
