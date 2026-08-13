@@ -4,30 +4,21 @@ import helmet from "helmet";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import WebSocket from "ws";
 import { AppModule } from "./app.module";
+import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
 
 if (typeof globalThis.WebSocket === "undefined") {
   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 }
 
-function validateEnvironment(): void {
+export function validateEnvironment(): void {
   const logger = new Logger("Bootstrap");
-  const isProd = process.env.NODE_ENV === "production";
-
-  const requiredForBilling = ["PAYSTACK_SECRET_KEY"];
-  const recommended = [
-    "SUPABASE_URL",
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "CLERK_SECRET_KEY",
-  ];
-
-  const missingRecommended = recommended.filter((key) => !process.env[key]);
-  if (missingRecommended.length > 0) {
-    logger.warn(
-      `Recommended environment variables are not set: ${missingRecommended.join(
-        ", ",
-      )}. Some features (auth, data access, payments) will be degraded.`,
+  const nodeEnv = process.env.NODE_ENV?.trim();
+  if (!nodeEnv || !["development", "test", "production"].includes(nodeEnv)) {
+    throw new Error(
+      "NODE_ENV must be explicitly set to development, test, or production.",
     );
   }
+  const isProd = nodeEnv === "production";
 
   if (process.env.COMMUNITY_CALLS_ENABLED === "true") {
     const tokenSecret = process.env.COMMUNITY_CALL_TOKEN_SECRET || "";
@@ -54,19 +45,55 @@ function validateEnvironment(): void {
   }
 
   if (isProd) {
-    const missingBilling = requiredForBilling.filter(
-      (key) => !process.env[key],
+    const required = [
+      "DATABASE_URL",
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+    ];
+    const missing = required.filter((key) => !process.env[key]?.trim());
+    const clerkPublishableKey =
+      process.env.CLERK_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.VITE_CLERK_PUBLISHABLE_KEY ||
+      process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    const hasClerkVerification = Boolean(
+      process.env.CLERK_SECRET_KEY?.trim() ||
+      process.env.CLERK_JWT_KEY?.trim() ||
+      (process.env.CLERK_ISSUER_URL?.trim() && clerkPublishableKey?.trim()),
     );
-    if (missingBilling.length > 0) {
-      logger.error(
-        `Production is missing payment configuration: ${missingBilling.join(
+
+    if (!hasClerkVerification) missing.push("Clerk verification configuration");
+    if (missing.length > 0) {
+      throw new Error(
+        `Production environment is missing required configuration: ${missing.join(
           ", ",
-        )}. Checkout will be unavailable.`,
+        )}.`,
       );
     }
-    if (!process.env.API_KEY_PEPPER) {
+
+    const pepper = process.env.API_KEY_PEPPER?.trim() || "";
+    if (pepper.length < 16) {
       throw new Error(
-        "API_KEY_PEPPER must be set in production. Refusing to start: API keys would be hashed without a server-side pepper.",
+        "API_KEY_PEPPER must be at least 16 characters in production. Refusing to start: API keys would be hashed without a strong server-side pepper.",
+      );
+    }
+
+    if (process.env.EDUTU_LOCAL_ADMIN_BYPASS === "true") {
+      throw new Error(
+        "EDUTU_LOCAL_ADMIN_BYPASS must be disabled in production.",
+      );
+    }
+
+    // The provider loader validates every required Bachs field and the
+    // environment-specific API origin when checkout is enabled.
+    loadBachsConfig();
+
+    const legacyPaystackEnabled =
+      process.env.LEGACY_PAYSTACK_WEBHOOK_ENABLED === "true" ||
+      process.env.PAYSTACK_WEBHOOK_ENABLED === "true";
+    if (legacyPaystackEnabled && !process.env.PAYSTACK_SECRET_KEY?.trim()) {
+      throw new Error(
+        "PAYSTACK_SECRET_KEY is required when the legacy Paystack webhook is enabled.",
       );
     }
   } else if (!process.env.API_KEY_PEPPER) {
@@ -76,7 +103,7 @@ function validateEnvironment(): void {
   }
 }
 
-async function bootstrap() {
+export async function bootstrap() {
   validateEnvironment();
 
   // bodyParser: false + useBodyParser keeps the raw-body capture (needed for
@@ -158,4 +185,7 @@ async function bootstrap() {
   await app.listen(port);
   new Logger("Bootstrap").log(`API server running on http://localhost:${port}`);
 }
-void bootstrap();
+
+if (process.env.JEST_WORKER_ID === undefined) {
+  void bootstrap();
+}
