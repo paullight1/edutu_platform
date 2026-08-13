@@ -9,6 +9,7 @@ import {
   type ScraperEgressTransportRequest,
 } from "./scraper-egress.service";
 import type { ScraperEgressEnabledConfig } from "./scraper-egress.config";
+import { ScraperEgressLimiter } from "./scraper-egress.limiter";
 
 const NOW_MS = 1_700_000_000_000;
 const TIMESTAMP = "1700000000";
@@ -23,18 +24,23 @@ const config: ScraperEgressEnabledConfig = {
   maxRedirects: 2,
   signatureMaxAgeSeconds: 300,
   maxRequestBytes: 4_096,
+  rateLimitPerMinute: 10,
 };
 
-function signedRequest(url = "https://approved.example/page") {
+function signedRequest(
+  url = "https://approved.example/page",
+  principal?: string,
+) {
   const rawBody = Buffer.from(JSON.stringify({ url }), "utf8");
   const signature = createHmac("sha256", SHARED_SECRET)
-    .update(`${TIMESTAMP}.`)
+    .update(`${TIMESTAMP}.${principal ? `${principal}.` : ""}`)
     .update(rawBody)
     .digest("hex");
   return {
     rawBody,
     timestamp: TIMESTAMP,
     signature: `v1=${signature}`,
+    ...(principal ? { principal } : {}),
   };
 }
 
@@ -65,7 +71,10 @@ describe("scraper egress address policy", () => {
     "172.16.0.1",
     "192.0.0.1",
     "192.0.2.1",
+    "192.31.196.1",
+    "192.52.193.1",
     "192.168.1.1",
+    "192.175.48.1",
     "198.18.0.1",
     "198.51.100.1",
     "203.0.113.1",
@@ -80,10 +89,18 @@ describe("scraper egress address policy", () => {
     "64:ff9b::a00:1",
     "64:ff9b:1::808:808",
     "100::1",
+    "100:0:0:1::1",
     "2001::1",
+    "2001:1::1",
+    "2001:3::1",
+    "2001:4:112::1",
+    "2001:20::1",
+    "2001:30::1",
     "2001:db8::1",
     "2002:0808:0808::1",
     "3fff::1",
+    "2620:4f:8000::1",
+    "5f00::1",
     "fc00::1",
     "fec0::1",
     "fe80::1",
@@ -98,6 +115,7 @@ describe("scraper egress address policy", () => {
     "93.184.216.34",
     "2606:4700:4700::1111",
     "2a00:1450:4009:80b::200e",
+    "2001:4800::1",
   ])("accepts global-unicast address %s", (address) => {
     expect(isGlobalUnicastAddress(address)).toBe(true);
   });
@@ -151,6 +169,30 @@ describe("ScraperEgressService", () => {
     ).rejects.toMatchObject({ status: 401 });
     expect(resolveHost).not.toHaveBeenCalled();
     expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("limits authenticated signed callers by principal before DNS or transport", async () => {
+    const limiter = new ScraperEgressLimiter({
+      limit: 1,
+      now: () => NOW_MS,
+    });
+    const resolveHost = jest.fn(async () => [
+      { address: "93.184.216.34", family: 4 as const },
+    ]);
+    const transport = jest.fn(async () => ({
+      status: 200,
+      contentType: "text/html",
+      body: "<html>approved</html>",
+    }));
+    const service = createService({ limiter, resolveHost, transport });
+    const request = signedRequest("https://approved.example/page", "job:a");
+
+    await expect(service.fetchSigned(request)).resolves.toBeDefined();
+    await expect(service.fetchSigned(request)).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(resolveHost).toHaveBeenCalledTimes(1);
+    expect(transport).toHaveBeenCalledTimes(1);
   });
 
   it("rejects every DNS result when any answer is non-global", async () => {

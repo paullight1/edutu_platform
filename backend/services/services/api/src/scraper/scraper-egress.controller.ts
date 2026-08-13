@@ -8,6 +8,7 @@ import {
 type RawBodyRequest = {
   rawBody?: Buffer;
   get?: (name: string) => string | undefined;
+  socket?: { remoteAddress?: string };
 };
 
 @Public()
@@ -22,6 +23,12 @@ export class ScraperEgressController {
         rawBody: request.rawBody as Buffer,
         timestamp: request.get?.("x-edutu-egress-timestamp"),
         signature: request.get?.("x-edutu-egress-signature"),
+        ...(request.get?.("x-edutu-egress-principal")
+          ? { principal: request.get("x-edutu-egress-principal") }
+          : {}),
+        ...(request.socket?.remoteAddress
+          ? { clientIp: request.socket.remoteAddress }
+          : {}),
       });
     } catch (error) {
       const status =

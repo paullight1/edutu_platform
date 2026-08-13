@@ -18,6 +18,7 @@ export type ScraperEgressEnabledConfig = {
   maxRedirects: number;
   signatureMaxAgeSeconds: number;
   maxRequestBytes: number;
+  rateLimitPerMinute: number;
 };
 
 export type ScraperEgressConfig =
@@ -36,6 +37,8 @@ const DEFAULT_SIGNATURE_MAX_AGE_SECONDS = 300;
 const MAX_SIGNATURE_MAX_AGE_SECONDS = 900;
 const DEFAULT_MAX_REQUEST_BYTES = 4_096;
 const MAX_REQUEST_BYTES = 16_384;
+const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
+const MAX_RATE_LIMIT_PER_MINUTE = 10_000;
 
 function readBoundedInteger(
   environment: Environment,
@@ -154,6 +157,12 @@ export function loadScraperEgressConfig(
       "SCRAPE_EGRESS_MAX_REQUEST_BYTES",
       DEFAULT_MAX_REQUEST_BYTES,
       MAX_REQUEST_BYTES,
+    ),
+    rateLimitPerMinute: readBoundedInteger(
+      environment,
+      "SCRAPE_EGRESS_RATE_LIMIT_PER_MINUTE",
+      DEFAULT_RATE_LIMIT_PER_MINUTE,
+      MAX_RATE_LIMIT_PER_MINUTE,
     ),
   };
 }

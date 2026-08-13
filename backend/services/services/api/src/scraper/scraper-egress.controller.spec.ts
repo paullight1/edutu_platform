@@ -57,4 +57,28 @@ describe("ScraperEgressController", () => {
       error: "Request could not be processed",
     });
   });
+
+  it("passes the signed principal and socket address without trusting forwarded headers", async () => {
+    fetchSigned.mockResolvedValue({
+      text: "<html>approved</html>",
+      finalUrl: "https://approved.example/page",
+    });
+
+    await expect(
+      controller.fetch({
+        rawBody: Buffer.from('{"url":"https://approved.example/page"}'),
+        get: (name: string) =>
+          ({ "x-edutu-egress-principal": "job:a" })[name.toLowerCase()],
+        socket: { remoteAddress: "203.0.113.10" },
+        headers: { "x-forwarded-for": "198.51.100.7" },
+      } as any),
+    ).resolves.toBeDefined();
+
+    expect(fetchSigned).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: "job:a",
+        clientIp: "203.0.113.10",
+      }),
+    );
+  });
 });

@@ -18,6 +18,7 @@ describe("loadScraperEgressConfig", () => {
         SCRAPE_EGRESS_TIMEOUT_MS: "12000",
         SCRAPE_EGRESS_MAX_RESPONSE_BYTES: "1500000",
         SCRAPE_EGRESS_MAX_REDIRECTS: "4",
+        SCRAPE_EGRESS_RATE_LIMIT_PER_MINUTE: "75",
       }),
     ).toEqual({
       enabled: true,
@@ -28,6 +29,7 @@ describe("loadScraperEgressConfig", () => {
       maxRedirects: 4,
       signatureMaxAgeSeconds: 300,
       maxRequestBytes: 4_096,
+      rateLimitPerMinute: 75,
     });
   });
 

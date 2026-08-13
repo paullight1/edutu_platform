@@ -8,6 +8,7 @@ import type {
   ScraperEgressConfig,
   ScraperEgressEnabledConfig,
 } from "./scraper-egress.config";
+import { ScraperEgressLimiter } from "./scraper-egress.limiter";
 
 export class ScraperEgressRequestError extends Error {
   constructor(public readonly status: number = 502) {
@@ -36,6 +37,7 @@ export type ScraperEgressTransportResponse = {
 
 export type ScraperEgressDependencies = {
   now?: () => number;
+  limiter?: ScraperEgressLimiter;
   resolveHost?: (
     hostname: string,
     signal?: AbortSignal,
@@ -54,8 +56,11 @@ const IPV4_RANGES: Array<[number, number]> = [
   [0xac100000, 12], // RFC1918
   [0xc0000000, 24], // IETF protocol assignments
   [0xc0000200, 24], // TEST-NET-1
+  [0xc01fc400, 24], // AS112-v4
+  [0xc034c100, 24], // AMT
   [0xc0586300, 24], // 6to4 relay anycast
   [0xc0a80000, 16], // RFC1918
+  [0xc0af3000, 24], // Direct Delegation AS112 service
   [0xc6120000, 15], // benchmarking
   [0xc6336400, 24], // TEST-NET-2
   [0xcb007100, 24], // TEST-NET-3
@@ -66,15 +71,27 @@ const IPV4_RANGES: Array<[number, number]> = [
 const IPV6_RANGES: Array<[bigint, number]> = [
   [0n, 128], // unspecified
   [1n, 128], // loopback
+  [0xffff00000000000000000000n, 96], // IPv4-mapped
   [0x0064ff9b000000000000000000000000n, 96], // NAT64 well-known prefix
   [0x0064ff9b000100000000000000000000n, 48], // NAT64 local-use prefix
   [0x01000000000000000000000000000000n, 64], // discard-only
+  [0x01000000000000010000000000000000n, 64], // dummy prefix
+  [0x20010000000000000000000000000000n, 23], // IETF assignments
   [0x20010000000000000000000000000000n, 32], // Teredo
-  [0x20010001000000000000000000000000n, 32], // benchmarking
+  [0x20010001000000000000000000000001n, 128], // PCP anycast
+  [0x20010001000000000000000000000002n, 128], // NAT traversal anycast
+  [0x20010001000000000000000000000003n, 128], // DNS-SD anycast
+  [0x20010002000000000000000000000000n, 48], // benchmarking
+  [0x20010003000000000000000000000000n, 32], // AMT
+  [0x20010004011200000000000000000000n, 48], // AS112-v6
+  [0x20010010000000000000000000000000n, 28], // deprecated ORCHID
+  [0x20010020000000000000000000000000n, 28], // ORCHIDv2
+  [0x20010030000000000000000000000000n, 28], // Drone Remote ID
   [0x20010db8000000000000000000000000n, 32], // documentation
   [0x20020000000000000000000000000000n, 16], // 6to4
-  [0x20010010000000000000000000000000n, 28], // ORCHID
+  [0x2620004f800000000000000000000000n, 48], // Direct Delegation AS112
   [0x3fff0000000000000000000000000000n, 20], // documentation
+  [0x5f000000000000000000000000000000n, 16], // SRv6 SIDs
   [0xfc000000000000000000000000000000n, 7], // ULA
   [0xfe800000000000000000000000000000n, 10], // link-local
   [0xfec00000000000000000000000000000n, 10], // site-local
@@ -395,10 +412,19 @@ function validResolvedAddress(
   );
 }
 
+function isValidPrincipal(principal: string): boolean {
+  return (
+    principal.length > 0 &&
+    Buffer.byteLength(principal, "utf8") <= 256 &&
+    !/[\u0000-\u001f\u007f-\u009f]/.test(principal)
+  );
+}
+
 @Injectable()
 export class ScraperEgressService {
   private readonly config: ScraperEgressConfig;
   private readonly now: () => number;
+  private readonly limiter: ScraperEgressLimiter;
   private readonly resolveHost: NonNullable<
     ScraperEgressDependencies["resolveHost"]
   >;
@@ -412,6 +438,12 @@ export class ScraperEgressService {
   ) {
     this.config = config;
     this.now = dependencies.now ?? Date.now;
+    this.limiter =
+      dependencies.limiter ??
+      new ScraperEgressLimiter({
+        limit: config.enabled ? config.rateLimitPerMinute : 1,
+        now: this.now,
+      });
     this.resolveHost = dependencies.resolveHost ?? defaultResolveHost;
     this.transport =
       dependencies.transport ??
@@ -425,6 +457,8 @@ export class ScraperEgressService {
     rawBody: Buffer;
     timestamp?: string;
     signature?: string;
+    principal?: string;
+    clientIp?: string;
   }): Promise<{ text: string; finalUrl: string }> {
     if (!this.config.enabled) throw new ScraperEgressRequestError(404);
     if (
@@ -433,7 +467,17 @@ export class ScraperEgressService {
     ) {
       throw new ScraperEgressRequestError(401);
     }
-    this.verifySignature(input.rawBody, input.timestamp, input.signature);
+    this.verifySignature(
+      input.rawBody,
+      input.timestamp,
+      input.signature,
+      input.principal,
+    );
+    if (
+      !this.limiter.consume(input.principal ?? "anonymous", input.clientIp)
+    ) {
+      throw new ScraperEgressRequestError(429);
+    }
 
     const url = this.parseRequestBody(input.rawBody);
     const controller = new AbortController();
@@ -519,8 +563,12 @@ export class ScraperEgressService {
     rawBody: Buffer,
     timestamp: string | undefined,
     signature: string | undefined,
+    principal: string | undefined,
   ): void {
     if (!this.config.enabled) throw new ScraperEgressRequestError(404);
+    if (principal !== undefined && !isValidPrincipal(principal)) {
+      throw new ScraperEgressRequestError(401);
+    }
     if (
       !timestamp ||
       !/^\d{10}$/.test(timestamp) ||
@@ -540,7 +588,7 @@ export class ScraperEgressService {
     }
 
     const expected = createHmac("sha256", this.config.sharedSecret)
-      .update(`${timestamp}.`)
+      .update(`${timestamp}.${principal === undefined ? "" : `${principal}.`}`)
       .update(rawBody)
       .digest("hex");
     const supplied = Buffer.from(signature, "utf8");

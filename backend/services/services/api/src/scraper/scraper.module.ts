@@ -8,6 +8,7 @@ import { AiModule } from "../ai";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
 import { ScraperEgressController } from "./scraper-egress.controller";
 import { ScraperEgressService } from "./scraper-egress.service";
+import { ScraperEgressLimiter } from "./scraper-egress.limiter";
 import { loadScraperEgressConfig } from "./scraper-egress.config";
 
 @Module({
@@ -16,10 +17,20 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
   providers: [
     { provide: "SCRAPER_EGRESS_CONFIG", useFactory: loadScraperEgressConfig },
     {
-      provide: ScraperEgressService,
+      provide: ScraperEgressLimiter,
       useFactory: (config: ReturnType<typeof loadScraperEgressConfig>) =>
-        new ScraperEgressService(config),
+        new ScraperEgressLimiter({
+          limit: config.enabled ? config.rateLimitPerMinute : 1,
+        }),
       inject: ["SCRAPER_EGRESS_CONFIG"],
+    },
+    {
+      provide: ScraperEgressService,
+      useFactory: (
+        config: ReturnType<typeof loadScraperEgressConfig>,
+        limiter: ScraperEgressLimiter,
+      ) => new ScraperEgressService(config, { limiter }),
+      inject: ["SCRAPER_EGRESS_CONFIG", ScraperEgressLimiter],
     },
     ScraperService,
     ScraperAlertsService,
