@@ -24,6 +24,11 @@ export interface SitemapEventEntry {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const EVENT_REGISTRATION_UNIQUE_CONSTRAINTS = new Set([
+  "event_registrations_event_user_unique",
+  "event_registrations_event_email_ci_unique",
+]);
+
 function toLimit(value: EventListQuery["limit"], fallback = 20): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -108,14 +113,10 @@ export class EventsService {
   }
 
   async findOne(slugOrId: string): Promise<Event | null> {
-    const condition = UUID_PATTERN.test(slugOrId)
-      ? or(eq(events.id, slugOrId), eq(events.slug, slugOrId))
-      : eq(events.slug, slugOrId);
-
     const rows = await db
       .select()
       .from(events)
-      .where(condition)
+      .where(this.eventLookupCondition(slugOrId))
       .limit(1)
       .execute();
 
@@ -211,33 +212,97 @@ export class EventsService {
   }
 
   async join(slugOrId: string, dto: JoinEventDto) {
-    const event = await this.findOnePublic(slugOrId);
+    const userId = dto.userId?.trim() || undefined;
+    const email = dto.email?.trim().toLowerCase() || undefined;
+    const duplicateConditions: SQL[] = [];
+    if (userId) duplicateConditions.push(eq(eventRegistrations.userId, userId));
+    if (email) duplicateConditions.push(eq(eventRegistrations.email, email));
+    const duplicateCondition = or(...duplicateConditions);
 
-    if (event.capacity) {
-      const [{ count }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(eventRegistrations)
-        .where(eq(eventRegistrations.eventId, event.id))
-        .execute();
-
-      if (Number(count) >= event.capacity) {
-        throw new BadRequestException("Event is at capacity");
-      }
+    // A public registration without a stable identity cannot be retried safely
+    // and can be repeated indefinitely, so it cannot be counted as a seat.
+    if (!duplicateCondition) {
+      throw new BadRequestException(
+        "Email or user ID is required to join this event.",
+      );
     }
 
-    if (dto.userId || dto.email) {
-      const duplicateConditions: SQL[] = [];
-      if (dto.userId)
-        duplicateConditions.push(eq(eventRegistrations.userId, dto.userId));
-      if (dto.email)
-        duplicateConditions.push(eq(eventRegistrations.email, dto.email));
-      const duplicateCondition = or(...duplicateConditions);
-      if (!duplicateCondition) {
-        throw new BadRequestException(
-          "Email or user ID is required to join this event.",
-        );
-      }
+    try {
+      return await db.transaction(async (tx) => {
+        // The event row is the serialization point for its registrations. A
+        // second join waits here, then sees the first registration in the
+        // duplicate/capacity checks below instead of overselling the event.
+        const eventRows = await tx
+          .select()
+          .from(events)
+          .where(this.eventLookupCondition(slugOrId))
+          .limit(1)
+          .for("update")
+          .execute();
+        const event = eventRows[0];
+        if (!event || event.status !== "published") {
+          throw new NotFoundException("Event not found");
+        }
 
+        // Check idempotency before capacity so a learner who already has a
+        // seat can safely retry after the event fills.
+        const existing = await tx
+          .select()
+          .from(eventRegistrations)
+          .where(
+            and(eq(eventRegistrations.eventId, event.id), duplicateCondition),
+          )
+          .limit(1)
+          .execute();
+        if (existing[0]) {
+          return {
+            success: true,
+            event,
+            registration: existing[0],
+            ctaUrl: event.ctaUrl,
+          };
+        }
+
+        if (event.capacity !== null && event.capacity !== undefined) {
+          const [{ count }] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(eventRegistrations)
+            .where(eq(eventRegistrations.eventId, event.id))
+            .execute();
+
+          if (Number(count) >= event.capacity) {
+            throw new BadRequestException("Event is at capacity");
+          }
+        }
+
+        const rows = await tx
+          .insert(eventRegistrations)
+          .values({
+            eventId: event.id,
+            userId,
+            name: dto.name,
+            email,
+            source: dto.source,
+            metadata: dto.metadata,
+          })
+          .returning()
+          .execute();
+
+        return {
+          success: true,
+          event,
+          registration: rows[0],
+          ctaUrl: event.ctaUrl,
+        };
+      });
+    } catch (error) {
+      // The transaction lock handles normal races. The matching database
+      // constraints below are a second line of defence for old deployments or
+      // manual writes; turn their duplicate-key error into the same idempotent
+      // response instead of exposing a 500 to the learner.
+      if (!this.isRegistrationIdentityConflict(error)) throw error;
+
+      const event = await this.findOnePublic(slugOrId);
       const existing = await db
         .select()
         .from(eventRegistrations)
@@ -246,36 +311,15 @@ export class EventsService {
         )
         .limit(1)
         .execute();
+      if (!existing[0]) throw error;
 
-      if (existing[0]) {
-        return {
-          success: true,
-          event,
-          registration: existing[0],
-          ctaUrl: event.ctaUrl,
-        };
-      }
+      return {
+        success: true,
+        event,
+        registration: existing[0],
+        ctaUrl: event.ctaUrl,
+      };
     }
-
-    const rows = await db
-      .insert(eventRegistrations)
-      .values({
-        eventId: event.id,
-        userId: dto.userId,
-        name: dto.name,
-        email: dto.email || undefined,
-        source: dto.source,
-        metadata: dto.metadata,
-      })
-      .returning()
-      .execute();
-
-    return {
-      success: true,
-      event,
-      registration: rows[0],
-      ctaUrl: event.ctaUrl,
-    };
   }
 
   async listSitemapEvents(limit = 5000): Promise<SitemapEventEntry[]> {
@@ -320,6 +364,22 @@ export class EventsService {
       .execute();
 
     return Boolean(rows[0] && rows[0].id !== currentEventId);
+  }
+
+  private eventLookupCondition(slugOrId: string) {
+    return UUID_PATTERN.test(slugOrId)
+      ? or(eq(events.id, slugOrId), eq(events.slug, slugOrId))
+      : eq(events.slug, slugOrId);
+  }
+
+  private isRegistrationIdentityConflict(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const databaseError = error as { code?: unknown; constraint?: unknown };
+    return (
+      databaseError.code === "23505" &&
+      typeof databaseError.constraint === "string" &&
+      EVENT_REGISTRATION_UNIQUE_CONSTRAINTS.has(databaseError.constraint)
+    );
   }
 
   private assertDateRange(

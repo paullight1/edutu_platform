@@ -10,6 +10,9 @@ export type NotificationKind =
   | "community-call-reminder"
   | "community-call-started"
   | "community-call-missed"
+  | "community-message"
+  | "community-request"
+  | "application-status"
   | "admin-broadcast"
   | "system";
 
@@ -90,6 +93,9 @@ export const BroadcastNotificationSchema = z.object({
       "community-call-reminder",
       "community-call-started",
       "community-call-missed",
+      "community-message",
+      "community-request",
+      "application-status",
       "admin-broadcast",
       "system",
     ])

@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
@@ -84,6 +85,7 @@ export class EventsController {
 
   @Post(":slugOrId/join")
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   join(
     @Param("slugOrId") slugOrId: string,
     @Body(new ZodValidationPipe(JoinEventSchema)) body: JoinEventDto,
