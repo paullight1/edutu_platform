@@ -19,11 +19,11 @@ function KeyIcon() {
   );
 }
 
-export default async function AdminPage({ searchParams }: { searchParams: Search }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<Search> }) {
   // Session-cookie auth only — the token itself must never live in a URL
   // (history, logs and referrer headers all leak query strings).
-  const authed = verifyAdminSession(cookies().get(ADMIN_COOKIE)?.value);
-  const loginError = first(searchParams.error) === 'bad_token';
+  const authed = verifyAdminSession((await cookies()).get(ADMIN_COOKIE)?.value);
+  const loginError = first((await searchParams).error) === 'bad_token';
 
   if (!authed) {
     return (

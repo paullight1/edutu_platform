@@ -33,8 +33,8 @@ function PhoneIcon() {
   );
 }
 
-export default async function AccountPage({ searchParams }: { searchParams: Search }) {
-  const uid = first(searchParams.uid)?.trim();
+export default async function AccountPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const uid = first((await searchParams).uid)?.trim();
 
   if (!uid) {
     return (
@@ -51,7 +51,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   // Ownership: the /account/start handler set a signed cookie after verifying a
   // Clerk token. If session verification isn't configured yet, allow management
   // (uid-trusting fallback) so the flow still works pre-setup.
-  const sessionUid = verifySession(cookies().get(SESSION_COOKIE)?.value);
+  const sessionUid = verifySession((await cookies()).get(SESSION_COOKIE)?.value);
   const canManage = sessionConfigured() ? sessionUid === uid : true;
 
   const status = await getEntitlementStatus(uid);
