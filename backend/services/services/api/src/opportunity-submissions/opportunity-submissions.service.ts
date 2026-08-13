@@ -3,13 +3,19 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from "@nestjs/common";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { opportunitySubmissions } from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
 import { NotificationsService } from "../notifications/notifications.service";
-import { OpportunitiesService } from "../opportunities/opportunities.service";
+import {
+  OpportunitiesService,
+  type OpportunityDbTransaction,
+  type SubmissionCatalogInput,
+} from "../opportunities/opportunities.service";
+import { OpportunityVerificationService } from "../opportunities/opportunity-verification.service";
 import {
   MonetizationService,
   type CreditCharge,
@@ -24,6 +30,7 @@ import type {
   RespondSubmissionDto,
   ReviewSubmissionDto,
 } from "./dto/opportunity-submission.dto";
+import { isSafeHttpUrl } from "./dto/opportunity-submission.dto";
 
 type ThreadEntry = { role: "admin" | "user"; message: string; at: string };
 
@@ -36,6 +43,8 @@ export class OpportunitySubmissionsService {
     private readonly opportunitiesService: OpportunitiesService,
     private readonly settingsService: SettingsService,
     private readonly monetizationService: MonetizationService,
+    @Optional()
+    private readonly opportunityVerificationService?: OpportunityVerificationService,
   ) {}
 
   // ─── User side ──────────────────────────────────────────────────────────
@@ -89,13 +98,6 @@ export class OpportunitySubmissionsService {
       throw error;
     }
 
-    // Admin approval switched off → publish immediately. Best-effort: if the
-    // catalog insert fails the submission simply stays in the review queue
-    // (never refunded — the submission itself succeeded).
-    if (!policy.requireApproval) {
-      row = (await this.autoPublish(row)) ?? row;
-    }
-
     return this.serialize(row);
   }
 
@@ -106,34 +108,6 @@ export class OpportunitySubmissionsService {
     } catch {
       // Fail SAFE: default policy reviews everything and charges nothing.
       return DEFAULT_ADMIN_SETTINGS.userContent;
-    }
-  }
-
-  // Publish a submission straight to the live catalog (requireApproval off).
-  private async autoPublish(
-    row: typeof opportunitySubmissions.$inferSelect,
-  ): Promise<typeof opportunitySubmissions.$inferSelect | null> {
-    try {
-      const opportunityId = await this.createOpportunityFromSubmission(
-        row,
-        "active",
-      );
-      const [updated] = await db
-        .update(opportunitySubmissions)
-        .set({
-          status: "approved",
-          approvedOpportunityId: opportunityId,
-          updatedAt: new Date(),
-        })
-        .where(eq(opportunitySubmissions.id, row.id))
-        .returning();
-      return updated ?? null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(
-        `Auto-publish failed for submission ${row.id}; left in review queue: ${message}`,
-      );
-      return null;
     }
   }
 
@@ -245,106 +219,154 @@ export class OpportunitySubmissionsService {
     return this.serialize(row);
   }
 
-  // Admin approves / rejects / queries a submission. On approval a real
-  // opportunity is created (status pending_review so it still flows through the
-  // normal verification pipeline) and linked back. Every decision notifies the
-  // submitter (in-app + push).
+  // Admin approves / rejects / queries a submission. The submission row lock,
+  // catalog insert/status change, and approved_opportunity_id link share one
+  // transaction. Verification owns the only transition to active/verified.
   async review(id: string, adminId: string, dto: ReviewSubmissionDto) {
-    const [row] = await db
-      .select()
-      .from(opportunitySubmissions)
-      .where(eq(opportunitySubmissions.id, id));
-    if (!row) throw new NotFoundException("Submission not found");
-
     if (dto.decision === "needs_info" && !dto.adminNote?.trim()) {
       throw new BadRequestException(
         "A note is required when requesting more information.",
       );
     }
 
-    let approvedOpportunityId: string | null =
-      row.approvedOpportunityId ?? null;
+    const outcome = await db.transaction(async (tx) => {
+      const row = await this.selectSubmissionForUpdate(tx, id);
+      if (!row) throw new NotFoundException("Submission not found");
 
-    if (dto.decision === "approved") {
-      approvedOpportunityId = await this.createOpportunityFromSubmission(row);
+      const repeatedDecision = row.status === dto.decision;
+      let approvedOpportunityId = row.approvedOpportunityId ?? null;
+      let shouldVerify = false;
+
+      if (dto.decision === "approved") {
+        approvedOpportunityId = approvedOpportunityId
+          ? await this.opportunitiesService.prepareSubmissionOpportunityForApproval(
+              tx,
+              approvedOpportunityId,
+              row.id,
+            )
+          : await this.opportunitiesService.createPendingReviewFromSubmission(
+              tx,
+              this.toCatalogInput(row),
+            );
+        shouldVerify = true;
+      } else if (approvedOpportunityId && !repeatedDecision) {
+        await this.opportunitiesService.setSubmissionCatalogReviewState(
+          tx,
+          approvedOpportunityId,
+          row.id,
+          dto.decision,
+        );
+      }
+
+      if (repeatedDecision && dto.decision !== "approved") {
+        return { row, shouldVerify: false, notify: false };
+      }
+
+      const thread = dto.adminNote?.trim()
+        ? this.appendThread(row.thread, "admin", dto.adminNote.trim())
+        : ((row.thread as ThreadEntry[] | null) ?? []);
+      const [updated] = await tx
+        .update(opportunitySubmissions)
+        .set({
+          status: dto.decision,
+          adminNote: dto.adminNote ?? row.adminNote ?? null,
+          reviewedBy: toDatabaseUserId(adminId),
+          reviewedAt: new Date(),
+          approvedOpportunityId,
+          thread,
+          updatedAt: new Date(),
+        })
+        .where(eq(opportunitySubmissions.id, id))
+        .returning();
+
+      if (!updated) throw new Error("Submission review could not be persisted");
+      return { row: updated, shouldVerify, notify: !repeatedDecision };
+    });
+
+    if (
+      outcome.shouldVerify &&
+      outcome.row.approvedOpportunityId &&
+      this.opportunityVerificationService
+    ) {
+      try {
+        await this.opportunityVerificationService.verifyOne(
+          outcome.row.approvedOpportunityId,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Submission verification could not run for ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
 
-    const thread = dto.adminNote?.trim()
-      ? this.appendThread(row.thread, "admin", dto.adminNote.trim())
-      : ((row.thread as ThreadEntry[] | null) ?? []);
-
-    const [updated] = await db
-      .update(opportunitySubmissions)
-      .set({
-        status: dto.decision,
-        adminNote: dto.adminNote ?? row.adminNote ?? null,
-        reviewedBy: toDatabaseUserId(adminId),
-        reviewedAt: new Date(),
-        approvedOpportunityId,
-        thread,
-        updatedAt: new Date(),
-      })
-      .where(eq(opportunitySubmissions.id, id))
-      .returning();
-
-    await this.notifySubmitter(adminId, row, dto);
+    if (outcome.notify) {
+      await this.notifySubmitter(adminId, outcome.row, dto);
+    }
 
     this.logger.log(
       `Opportunity submission ${id} → ${dto.decision} by admin ${adminId}`,
     );
 
-    return this.serialize(updated);
+    return this.serialize(outcome.row);
   }
 
-  private async createOpportunityFromSubmission(
-    row: {
-      title: string;
-      summary: string | null;
-      description: string | null;
-      category: string | null;
-      organization: string | null;
-      location: string | null;
-      type: string | null;
-      eligibility: string | null;
-      isRemote: boolean | null;
-      deadline: Date | null;
-      applyUrl: string | null;
-      sourceUrl: string | null;
-      imageUrl: string | null;
-    },
-    // Admin approvals keep the normal verification pipeline (pending_review);
-    // auto-publish (requireApproval off) goes straight to `active`.
-    status: "pending_review" | "active" = "pending_review",
-  ): Promise<string | null> {
-    try {
-      const created = await this.opportunitiesService.create({
-        title: row.title,
-        summary: row.summary ?? undefined,
-        description: row.description ?? undefined,
-        category: row.category ?? undefined,
-        organization: row.organization ?? undefined,
-        location: row.location ?? undefined,
-        type: row.type ?? undefined,
-        eligibility: row.eligibility ?? undefined,
-        isRemote: row.isRemote ?? undefined,
-        deadline: row.deadline ? row.deadline.toISOString() : undefined,
-        applyUrl: row.applyUrl ?? undefined,
-        sourceUrl: row.sourceUrl ?? undefined,
-        imageUrl: row.imageUrl ?? undefined,
-        // Admin approvals go through the normal review/verification pipeline
-        // (pending_review); auto-publish passes `active`.
-        status,
-      } as any);
-      return (created as { id?: string })?.id ?? null;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      this.logger.error(
-        `Failed to create opportunity from submission: ${message}`,
-      );
+  private async selectSubmissionForUpdate(
+    tx: OpportunityDbTransaction,
+    id: string,
+  ): Promise<typeof opportunitySubmissions.$inferSelect | null> {
+    const result = await tx.execute(sql`
+      select * from public.opportunity_submissions
+      where id = ${id}::uuid
+      for update
+    `);
+    const raw = (result as { rows?: Record<string, unknown>[] }).rows?.[0];
+    if (!raw) return null;
+    return {
+      ...(raw as any),
+      userId: raw.userId ?? raw.user_id,
+      isRemote: raw.isRemote ?? raw.is_remote,
+      applyUrl: raw.applyUrl ?? raw.apply_url,
+      sourceUrl: raw.sourceUrl ?? raw.source_url,
+      imageUrl: raw.imageUrl ?? raw.image_url,
+      adminNote: raw.adminNote ?? raw.admin_note,
+      userResponse: raw.userResponse ?? raw.user_response,
+      reviewedBy: raw.reviewedBy ?? raw.reviewed_by,
+      reviewedAt: raw.reviewedAt ?? raw.reviewed_at,
+      approvedOpportunityId:
+        raw.approvedOpportunityId ?? raw.approved_opportunity_id,
+      submittedAt: raw.submittedAt ?? raw.submitted_at,
+      updatedAt: raw.updatedAt ?? raw.updated_at,
+    } as typeof opportunitySubmissions.$inferSelect;
+  }
+
+  private toCatalogInput(
+    row: typeof opportunitySubmissions.$inferSelect,
+  ): SubmissionCatalogInput {
+    if (!isSafeHttpUrl(row.applyUrl)) {
       throw new BadRequestException(
-        "Could not create the opportunity from this submission.",
+        "A valid http(s) apply URL is required before approval.",
       );
     }
+    return {
+      id: row.id,
+      userId: row.userId,
+      title: row.title,
+      summary: row.summary,
+      description: row.description,
+      category: row.category,
+      organization: row.organization,
+      location: row.location,
+      type: row.type,
+      eligibility: row.eligibility,
+      benefits: row.benefits,
+      isRemote: row.isRemote,
+      deadline: row.deadline,
+      applyUrl: row.applyUrl,
+      sourceUrl: row.sourceUrl,
+      imageUrl: row.imageUrl,
+    };
   }
 
   private async notifySubmitter(
@@ -378,7 +400,7 @@ export class OpportunitySubmissionsService {
       await this.notificationsService.broadcast(adminId, {
         title: copy.title,
         body: copy.body,
-        kind: "admin-broadcast",
+        kind: "application-status",
         severity: copy.severity,
         audience: "specific",
         targetUserIds: [row.userId],
@@ -388,6 +410,7 @@ export class OpportunitySubmissionsService {
           submissionStatus: dto.decision,
           url: `/opportunities/submissions`,
         },
+        dedupeKey: `submission-status:${row.id}:${dto.decision}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
