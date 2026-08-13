@@ -16,9 +16,9 @@ The documentation endpoints `GET /v1`, `GET /v1/llms.txt`, and `GET /v1/openapi.
 
 ## Projects and API Keys
 
-Production keys must be high-entropy random values. With `API_KEY_PEPPER` configured (at least 16 characters), store only the peppered HMAC-SHA256 digest in `api_consumers.api_key_hash`; never store the raw key. Legacy pre-pepper SHA-256 hashes remain accepted indefinitely while the compatibility matcher is enabled; there is no automatic cutoff. Rotate legacy keys as an operational security action to write the peppered HMAC form, and plan any future compatibility deprecation explicitly. Without a configured pepper, local development retains the legacy SHA-256 fallback.
+Production keys must be high-entropy random values. With `API_KEY_PEPPER` configured (at least 16 characters), store only the peppered HMAC-SHA256 digest in `api_consumers.api_key_hash`; never store the raw key. Legacy pre-pepper SHA-256 hashes are accepted only when the explicit `API_KEY_ALLOW_LEGACY_HASHES=true` compatibility switch is enabled, and should be rotated to the peppered form under a reviewed exception. Without a configured pepper, local development retains the legacy SHA-256 fallback.
 
-For local development, set `EDUTU_API_KEYS` to a comma-separated list of raw keys or `sha256:<hash>` values.
+For local development, set `EDUTU_API_KEYS` to a comma-separated list of raw keys. A `sha256:<hash>` entry is a compatibility-only path and is accepted only when `API_KEY_ALLOW_LEGACY_HASHES=true` and `API_KEY_PEPPER` is configured.
 
 ```bash
 EDUTU_API_KEYS="$EDUTU_API_KEY" npm run dev
@@ -31,7 +31,7 @@ openssl rand -hex 32
 printf '%s' "$EDUTU_API_KEY" | shasum -a 256
 ```
 
-In production, set `API_KEY_PEPPER` and use the server's peppered HMAC-SHA256 hashing path. Existing legacy hashes remain compatible indefinitely while the matcher is enabled; rotate those keys as an operational security action to upgrade their stored digest, without relying on an unenforced deadline.
+In production, set `API_KEY_PEPPER` and use the server's peppered HMAC-SHA256 hashing path. Keep `API_KEY_ALLOW_LEGACY_HASHES=false` unless a reviewed, time-bounded compatibility exception is required.
 
 Create a project and generate a key at [`/dashboard/developer`](https://www.edutu.org/dashboard/developer) without buying credits. The raw key is shown once at creation/rotation; store it in a server-side secret manager. Link users to the dashboard for key generation; keys are not created through the data API.
 
@@ -52,6 +52,38 @@ This list is exhaustive. `opportunities:read` covers opportunities, stats, detai
 - Free endpoints: `GET /v1/health`, `GET /v1/usage`, and `GET /v1/categories`. A key is still required for usage and categories.
 - Chargeable endpoints: `GET /v1/opportunities`, `GET /v1/opportunities/stats`, `GET /v1/opportunities/sync`, `GET /v1/opportunities/:id`, `POST /v1/recommendations`, and `POST /v1/events`.
 - Each chargeable request costs one credit. With zero credits, the API returns `402 Payment Required` with `code: "credits_exhausted"` before the paid operation runs.
+
+## Clerk billing routes and provider webhooks
+
+Credit checkout is an authenticated Edutu app flow, separate from `/v1` API-key authentication. Use the Clerk session from the signed-in developer dashboard; do not send an Edutu API key to these routes.
+
+```http
+GET /billing/status
+Authorization: Bearer <clerk-session-token>
+```
+
+The status response includes the canonical API-credit balance and recent billing state. A new account has `credits: 0` unless a verified server-side fulfillment has been recorded.
+
+```http
+POST /billing/checkout
+Authorization: Bearer <clerk-session-token>
+Idempotency-Key: checkout-request-123
+Content-Type: application/json
+
+{
+  "productKey": "api_credits_100",
+  "returnSurface": "web"
+}
+```
+
+The server resolves the price, currency, credit quantity, provider product ID, and environment from its enabled catalog. The supported API-credit product keys are `api_credits_100`, `api_credits_250`, and `api_credits_700`; clients cannot submit an amount, currency, quantity, or provider product ID. A successful response contains `checkoutUrl`, `intentId`, and `expiresAt`. Checkout returns `503 Service Unavailable` while Bachs is disabled or not ready.
+
+The signed provider endpoints are operational endpoints, not consumer API endpoints:
+
+- `POST /billing/webhooks/bachs` accepts the exact raw body plus `x-bachs-timestamp` and `x-bachs-signature`. Only a verified `collection.succeeded` event can fulfill a matching local intent; a replay is a duplicate with no second balance change, and a product, amount, currency, organization, environment, or intent mismatch is routed to review without a grant.
+- `POST /billing/webhooks/paystack` is retained only for existing legacy integrations. It requires the exact raw request bytes and `x-paystack-signature`; new API-credit checkout should use the Bachs catalog flow.
+
+Never log provider secrets, raw API keys, or raw webhook payloads. Follow the [production launch checklist](../../../../docs/operations/edutu-api-launch-checklist.md) before enabling live checkout.
 
 ## Endpoints
 
@@ -245,7 +277,14 @@ HTTP/1.1 402 Payment Required
 ```
 
 ```json
-{"error":{"message":"API credits exhausted","status":402,"code":"credits_exhausted"},"requestId":"req_..."}
+{
+  "error": {
+    "message": "API credits exhausted",
+    "status": 402,
+    "code": "credits_exhausted"
+  },
+  "requestId": "req_..."
+}
 ```
 
 Common contract codes include `missing_api_key`, `invalid_api_key`, `scope_required`, `rate_limit_exceeded`, `quota_exceeded`, `credits_exhausted`, and `billing_unavailable`.
