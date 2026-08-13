@@ -42,7 +42,7 @@ begin
         (canonical_user_id, legacy_user_id, source)
       select
         p.user_id::text,
-        public.clerk_id_to_uuid(p.user_id::text),
+        public.clerk_id_to_uuid(p.user_id::text)::uuid,
         'deterministic_clerk_uuid'
       from public.profiles p
       where p.user_id::text ~ '^user_'
