@@ -254,16 +254,6 @@ begin
     select 1
     from pg_catalog.pg_attribute
     where attrelid = to_regclass('public.profiles')
-      and attname = 'credits_balance'
-      and not attisdropped
-  ) then
-    update public.profiles
-    set credits_balance = coalesce(credits_balance, 0) + v_product.credit_quantity
-    where user_id::text = p_user_id;
-  elsif exists (
-    select 1
-    from pg_catalog.pg_attribute
-    where attrelid = to_regclass('public.profiles')
       and attname = 'credits'
       and not attisdropped
   ) then
@@ -271,7 +261,7 @@ begin
     set credits = coalesce(credits, 0) + v_product.credit_quantity
     where user_id::text = p_user_id;
   else
-    raise exception 'profiles has no recognized credit balance column';
+    raise exception 'profiles.credits does not exist';
   end if;
 
   if not found then

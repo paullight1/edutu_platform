@@ -670,11 +670,11 @@ declare
 begin
   if not exists (
     select 1 from pg_catalog.pg_constraint
-    where conname = 'billing_checkout_intents_provider_environment_user_idempotency_key'
+    where conname = 'billing_checkout_intents_provider_environment_user_idempotency_'
       and conrelid = 'public.billing_checkout_intents'::regclass
   ) then
     alter table public.billing_checkout_intents
-      add constraint billing_checkout_intents_provider_environment_user_idempotency_key
+      add constraint billing_checkout_intents_provider_environment_user_idempotency_
       unique (provider, environment, user_id, idempotency_key);
   end if;
 

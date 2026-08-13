@@ -69,6 +69,12 @@ type VerificationManifest = {
     validated: boolean | null;
     definition: string;
   }>;
+  triggers: Array<{
+    name: string;
+    table: string;
+    function: string;
+    definition: string;
+  }>;
   productMapping: Record<string, unknown>;
 };
 
@@ -102,6 +108,7 @@ function validVerificationFixture(manifest: VerificationManifest) {
     })),
     indexes: manifest.indexes.map((index) => ({ ...index })),
     constraints: manifest.constraints.map((constraint) => ({ ...constraint })),
+    triggers: manifest.triggers.map((trigger) => ({ ...trigger })),
     privileges: Object.entries(manifest.tables).flatMap(
       ([table, requirement]) =>
         (requirement.serviceRolePrivileges ?? []).map((privilege) => ({
@@ -328,6 +335,10 @@ describe("canonical billing schema migrations", () => {
       /update public\.profiles[\s\S]*?credits(?:_balance)?\s*=/i,
     );
     expect(sql).toMatch(
+      /update public\.profiles[\s\S]*?set credits\s*=\s*coalesce\(credits,\s*0\)\s*\+/i,
+    );
+    expect(sql).not.toMatch(/set credits_balance\s*=/i);
+    expect(sql).toMatch(
       /revoke all on function public\.billing_fulfill_credit_pack[\s\S]*?from public, anon, authenticated/i,
     );
     expect(sql).toMatch(
@@ -439,7 +450,7 @@ describe("production API credit contract", () => {
     expect(sql).toMatch(/api_usage_buckets_consumer_period_unique/i);
     expect(sql).toMatch(/billing_products_api_credit_contract_check/i);
     expect(sql).toMatch(
-      /billing_checkout_intents_provider_environment_user_idempotency_key/i,
+      /billing_checkout_intents_provider_environment_user_idempotency_/i,
     );
     expect(sql).toMatch(
       /billing_checkout_intents_product_provider_environment_fkey/i,
@@ -582,6 +593,27 @@ describe("production API credit contract", () => {
     expect(result.stdout).toContain(
       "upgrade gate audited the mismatch and preserved the divergent balances",
     );
+    expect(result.stdout).toContain(
+      "credits-only upgrade completed without a legacy mirror",
+    );
+  });
+
+  it("reruns the checkout idempotency constraint block without duplicating the catalog constraint", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "-r",
+        "ts-node/register/transpile-only",
+        resolve(apiRoot, "test/task-1/constraint-rerun-pglite-runner.ts"),
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(
+      "checkout idempotency constraint rerun remained idempotent",
+    );
   });
 
   it("returns only non-expiring one-time credit products with positive quantity", async () => {
@@ -710,6 +742,8 @@ describe("production API credit contract", () => {
     expect(script).toMatch(/rel\.relrowsecurity/i);
     expect(script).toMatch(/has_table_privilege/i);
     expect(script).toMatch(/aclexplode/i);
+    expect(script).toMatch(/pg_catalog\.pg_trigger/i);
+    expect(script).toMatch(/pg_get_triggerdef/i);
     expect(script).toMatch(/invalid_enabled_credit_product_keys/i);
   });
 
@@ -780,6 +814,53 @@ describe("production API credit contract", () => {
     );
     expect(result.stderr).toContain(
       "invalid enabled credit products: credits_legacy_bad",
+    );
+  });
+
+  it("rejects a legacy balance schema without the controlled compatibility trigger", () => {
+    const manifest = verificationManifest();
+    const fixture = validVerificationFixture(manifest);
+    fixture.columns.push({
+      table_name: "profiles",
+      column_name: "credits_balance",
+      data_type: "integer",
+      is_nullable: "YES",
+      column_default: null,
+    });
+    fixture.triggers = [];
+
+    const result = runVerificationFixture(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "trigger public.trg_00_sync_profile_credit_balance_compat",
+    );
+  });
+
+  it("rejects a compatibility trigger that does not cover canonical credit writes", () => {
+    const manifest = verificationManifest();
+    const fixture = validVerificationFixture(manifest);
+    fixture.columns.push({
+      table_name: "profiles",
+      column_name: "credits_balance",
+      data_type: "integer",
+      is_nullable: "YES",
+      column_default: null,
+    });
+    fixture.triggers = [
+      {
+        name: "trg_00_sync_profile_credit_balance_compat",
+        table: "profiles",
+        function: "sync_profile_credit_balance_compat",
+        definition: "BEFORE UPDATE ON public.profiles",
+      },
+    ];
+
+    const result = runVerificationFixture(fixture);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "trigger public.trg_00_sync_profile_credit_balance_compat definition",
     );
   });
 

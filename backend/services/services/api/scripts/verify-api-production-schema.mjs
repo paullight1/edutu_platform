@@ -225,6 +225,15 @@ const REQUIRED = Object.freeze({
       definition: "UNIQUE (provider, environment, event_id)",
     },
   ],
+  triggers: [
+    {
+      name: "trg_00_sync_profile_credit_balance_compat",
+      table: "profiles",
+      function: "sync_profile_credit_balance_compat",
+      definition:
+        "BEFORE INSERT OR UPDATE OF credits, credits_balance ON public.profiles",
+    },
+  ],
   productMapping: {
     provider: "bachs",
     environment: "BILLING_ENVIRONMENT (default: live)",
@@ -288,6 +297,9 @@ function evaluateSnapshot(snapshot, environment) {
   const constraints = new Map(
     snapshot.constraints.map((row) => [row.name, row]),
   );
+  const triggers = new Map(
+    (snapshot.triggers ?? []).map((row) => [row.name, row]),
+  );
 
   for (const [tableName, requirement] of Object.entries(REQUIRED.tables)) {
     for (const column of requirement.columns) {
@@ -346,6 +358,33 @@ function evaluateSnapshot(snapshot, environment) {
     violations.push(
       "contract public.profiles.credits integer not null default 0",
     );
+  }
+
+  if (columns.has("profiles.credits_balance")) {
+    for (const requirement of REQUIRED.triggers) {
+      const actual = triggers.get(requirement.name);
+      if (!actual) {
+        violations.push(`trigger public.${requirement.name}`);
+        continue;
+      }
+      if (actual.table !== requirement.table) {
+        violations.push(
+          `trigger public.${requirement.name} table public.${requirement.table}`,
+        );
+      }
+      if (actual.function !== requirement.function) {
+        violations.push(
+          `trigger public.${requirement.name} function public.${requirement.function}`,
+        );
+      }
+      if (
+        !normalizedSql(actual.definition).includes(
+          normalizedSql(requirement.definition),
+        )
+      ) {
+        violations.push(`trigger public.${requirement.name} definition`);
+      }
+    }
   }
 
   for (const requirement of REQUIRED.indexes) {
@@ -436,8 +475,9 @@ async function loadDatabaseSnapshot(client, environment) {
   const tableNames = Object.keys(REQUIRED.tables);
   const indexNames = REQUIRED.indexes.map(({ name }) => name);
   const constraintNames = REQUIRED.constraints.map(({ name }) => name);
-  const [columns, tables, indexes, constraints, privileges] = await Promise.all(
-    [
+  const triggerNames = REQUIRED.triggers.map(({ name }) => name);
+  const [columns, tables, indexes, constraints, triggers, privileges] =
+    await Promise.all([
       client.query(
         `select table_name, column_name, data_type, is_nullable, column_default
        from information_schema.columns
@@ -486,6 +526,21 @@ async function loadDatabaseSnapshot(client, environment) {
         [constraintNames],
       ),
       client.query(
+        `select
+         trg.tgname as name,
+         rel.relname as "table",
+         proc.proname as function,
+         pg_catalog.pg_get_triggerdef(trg.oid, true) as definition
+       from pg_catalog.pg_trigger trg
+       join pg_catalog.pg_class rel on rel.oid = trg.tgrelid
+       join pg_catalog.pg_namespace ns on ns.oid = rel.relnamespace
+       join pg_catalog.pg_proc proc on proc.oid = trg.tgfoid
+       where not trg.tgisinternal
+         and ns.nspname = 'public'
+         and trg.tgname = any($1::text[])`,
+        [triggerNames],
+      ),
+      client.query(
         `with target_tables as (
          select rel.oid, rel.relname as table_name, rel.relacl, rel.relowner
          from pg_catalog.pg_class rel
@@ -522,8 +577,7 @@ async function loadDatabaseSnapshot(client, environment) {
        select table_name, role_name, privilege_type from public_grants`,
         [tableNames, DATA_PRIVILEGES],
       ),
-    ],
-  );
+    ]);
 
   const hasProductTables = [
     ...REQUIRED.tables.billing_products.columns.map((column) =>
@@ -587,6 +641,7 @@ async function loadDatabaseSnapshot(client, environment) {
     tables: tables.rows,
     indexes: indexes.rows,
     constraints: constraints.rows,
+    triggers: triggers.rows,
     privileges: privileges.rows,
     product_mapping_present: productMappingPresent,
     invalid_enabled_credit_product_keys: invalidEnabledCreditProductKeys,

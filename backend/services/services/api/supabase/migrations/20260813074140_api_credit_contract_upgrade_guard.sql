@@ -12,12 +12,8 @@ begin
     select 1 from pg_catalog.pg_attribute
     where attrelid = 'public.profiles'::regclass
       and attname = 'credits' and not attisdropped
-  ) or not exists (
-    select 1 from pg_catalog.pg_attribute
-    where attrelid = 'public.profiles'::regclass
-      and attname = 'credits_balance' and not attisdropped
   ) then
-    raise exception 'Both profiles.credits and profiles.credits_balance are required for the API credit upgrade audit';
+    raise exception 'profiles.credits is required for the API credit upgrade audit';
   end if;
 end;
 $$;
@@ -28,6 +24,7 @@ create table if not exists public.api_credit_cutover_upgrade_audit (
   migration_history_table_present boolean not null,
   original_contract_recorded boolean not null,
   corrected_reconciliation_marker_present boolean not null,
+  legacy_column_preexisting boolean not null default false,
   profile_count bigint not null,
   divergent_profile_count bigint not null,
   credit_transaction_count bigint,
@@ -35,6 +32,9 @@ create table if not exists public.api_credit_cutover_upgrade_audit (
   legacy_billing_transaction_count bigint,
   observed_at timestamptz not null default now()
 );
+
+alter table public.api_credit_cutover_upgrade_audit
+  add column if not exists legacy_column_preexisting boolean not null default false;
 
 create table if not exists public.api_credit_cutover_upgrade_attestations (
   migration_version text primary key,
@@ -54,6 +54,7 @@ declare
   history_present boolean;
   original_recorded boolean := false;
   corrected_marker boolean := false;
+  legacy_present boolean;
   profile_total bigint;
   divergent_total bigint;
   credit_total bigint;
@@ -76,13 +77,25 @@ begin
       select 1
       from public.api_credit_balance_reconciliation_state
       where migration_key = '20260812090000_api_production_contract'
+        and initial_reconciliation_completed
     ) into corrected_marker;
   end if;
 
-  select count(*), count(*) filter (
-    where credits is distinct from credits_balance
-  ) into profile_total, divergent_total
-  from public.profiles;
+  select exists (
+    select 1
+    from pg_catalog.pg_attribute
+    where attrelid = 'public.profiles'::regclass
+      and attname = 'credits_balance'
+      and not attisdropped
+  ) into legacy_present;
+
+  select count(*) into profile_total from public.profiles;
+  if legacy_present then
+    execute 'select count(*) filter (where credits is distinct from credits_balance) from public.profiles'
+      into divergent_total;
+  else
+    divergent_total := 0;
+  end if;
 
   if to_regclass('public.credit_transactions') is not null then
     select count(*) into credit_total from public.credit_transactions;
@@ -99,6 +112,7 @@ begin
     migration_history_table_present,
     original_contract_recorded,
     corrected_reconciliation_marker_present,
+    legacy_column_preexisting,
     profile_count,
     divergent_profile_count,
     credit_transaction_count,
@@ -109,6 +123,7 @@ begin
     history_present,
     original_recorded,
     corrected_marker,
+    legacy_present,
     profile_total,
     divergent_total,
     credit_total,
@@ -139,7 +154,8 @@ begin
     raise exception 'Task 1 migration 20260812090000 is not recorded. Repair migration ordering before applying the API credit upgrade guard.';
   end if;
 
-  if not audit_row.corrected_reconciliation_marker_present
+  if audit_row.legacy_column_preexisting
+     and not audit_row.corrected_reconciliation_marker_present
      and not exists (
        select 1
        from public.api_credit_cutover_upgrade_attestations
@@ -204,7 +220,16 @@ insert into public.api_credit_balance_reconciliation_state (
   legacy_column_preexisting,
   initial_reconciliation_completed
 ) values (
-  '20260812090000_api_production_contract', true, true, false
+  '20260812090000_api_production_contract',
+  true,
+  exists (
+    select 1
+    from pg_catalog.pg_attribute
+    where attrelid = 'public.profiles'::regclass
+      and attname = 'credits_balance'
+      and not attisdropped
+  ),
+  false
 ) on conflict (migration_key) do nothing;
 
 -- SHARE ROW EXCLUSIVE conflicts with ordinary INSERT/UPDATE/DELETE writers.
@@ -212,46 +237,45 @@ insert into public.api_credit_balance_reconciliation_state (
 -- and the final invariant check so no one-column write can cross the cutover.
 lock table public.profiles in share row exclusive mode;
 
-insert into public.api_credit_balance_reconciliation_audit (
-  migration_key,
-  user_id,
-  snapshot_fingerprint,
-  observed_credits,
-  observed_credits_balance,
-  reconciliation_status
-)
-select
-  '20260813074140_api_credit_contract_upgrade_guard',
-  profile.user_id::text,
-  md5(coalesce(profile.credits::text, '<null>') || '|' ||
-      coalesce(profile.credits_balance::text, '<null>')),
-  profile.credits,
-  profile.credits_balance,
-  'requires_resolution'
-from public.profiles profile
-where profile.credits is distinct from profile.credits_balance
-on conflict (migration_key, user_id, snapshot_fingerprint) do nothing;
-
 do $$
 declare
+  legacy_present boolean;
   unresolved_count bigint;
   unresolved_sample text;
 begin
-  select count(*) into unresolved_count
-  from public.profiles profile
-  where profile.credits is distinct from profile.credits_balance
-    and not exists (
-      select 1
-      from public.api_credit_balance_reconciliation_resolutions resolution
-      where resolution.user_id = profile.user_id::text
-        and resolution.expected_credits is not distinct from profile.credits
-        and resolution.expected_credits_balance is not distinct from profile.credits_balance
-    );
+  select exists (
+    select 1
+    from pg_catalog.pg_attribute
+    where attrelid = 'public.profiles'::regclass
+      and attname = 'credits_balance'
+      and not attisdropped
+  ) into legacy_present;
 
-  if unresolved_count > 0 then
-    select string_agg(user_id, ', ' order by user_id) into unresolved_sample
-    from (
-      select profile.user_id::text as user_id
+  if legacy_present then
+    execute $sql$
+      insert into public.api_credit_balance_reconciliation_audit (
+        migration_key,
+        user_id,
+        snapshot_fingerprint,
+        observed_credits,
+        observed_credits_balance,
+        reconciliation_status
+      )
+      select
+        '20260813074140_api_credit_contract_upgrade_guard',
+        profile.user_id::text,
+        md5(coalesce(profile.credits::text, '<null>') || '|' ||
+            coalesce(profile.credits_balance::text, '<null>')),
+        profile.credits,
+        profile.credits_balance,
+        'requires_resolution'
+      from public.profiles profile
+      where profile.credits is distinct from profile.credits_balance
+      on conflict (migration_key, user_id, snapshot_fingerprint) do nothing
+    $sql$;
+
+    execute $sql$
+      select count(*)
       from public.profiles profile
       where profile.credits is distinct from profile.credits_balance
         and not exists (
@@ -261,70 +285,101 @@ begin
             and resolution.expected_credits is not distinct from profile.credits
             and resolution.expected_credits_balance is not distinct from profile.credits_balance
         )
-      order by profile.user_id::text
-      limit 10
-    ) sample;
-    raise exception 'Found % unresolved credit balance mismatch(es) under the profiles cutover lock (sample user_ids: %). Add exact approved reconciliation resolutions before retrying.',
-      unresolved_count, coalesce(unresolved_sample, '<none>');
-  end if;
-end;
-$$;
+    $sql$ into unresolved_count;
 
-select set_config('app.credit_op', 'on', true);
-
-update public.profiles profile
-set credits = resolution.resolved_balance,
-    credits_balance = resolution.resolved_balance
-from public.api_credit_balance_reconciliation_resolutions resolution
-where resolution.user_id = profile.user_id::text
-  and resolution.expected_credits is not distinct from profile.credits
-  and resolution.expected_credits_balance is not distinct from profile.credits_balance
-  and profile.credits is distinct from profile.credits_balance;
-
-create or replace function public.sync_profile_credit_balance_compat()
-returns trigger
-language plpgsql
-set search_path = ''
-as $function$
-begin
-  if tg_op = 'INSERT' then
-    new.credits_balance := new.credits;
-  elsif new.credits is distinct from old.credits then
-    new.credits_balance := new.credits;
-  elsif new.credits_balance is distinct from old.credits_balance then
-    if current_user in ('anon', 'authenticated')
-       and coalesce(current_setting('app.credit_op', true), '') <> 'on' then
-      raise exception 'Cannot modify protected profile fields'
-        using errcode = '42501';
+    if unresolved_count > 0 then
+      execute $sql$
+        select string_agg(user_id, ', ' order by user_id)
+        from (
+          select profile.user_id::text as user_id
+          from public.profiles profile
+          where profile.credits is distinct from profile.credits_balance
+            and not exists (
+              select 1
+              from public.api_credit_balance_reconciliation_resolutions resolution
+              where resolution.user_id = profile.user_id::text
+                and resolution.expected_credits is not distinct from profile.credits
+                and resolution.expected_credits_balance is not distinct from profile.credits_balance
+            )
+          order by profile.user_id::text
+          limit 10
+        ) sample
+      $sql$ into unresolved_sample;
+      raise exception 'Found % unresolved credit balance mismatch(es) under the profiles cutover lock (sample user_ids: %). Add exact approved reconciliation resolutions before retrying.',
+        unresolved_count, coalesce(unresolved_sample, '<none>');
     end if;
-    new.credits := new.credits_balance;
-  end if;
-  return new;
-end;
-$function$;
 
-revoke all on function public.sync_profile_credit_balance_compat() from public, anon, authenticated;
-drop trigger if exists trg_00_sync_profile_credit_balance_compat on public.profiles;
-create trigger trg_00_sync_profile_credit_balance_compat
-before insert or update of credits, credits_balance on public.profiles
-for each row execute function public.sync_profile_credit_balance_compat();
+    perform set_config('app.credit_op', 'on', true);
 
-do $$
-declare
-  remaining_mismatches bigint;
-begin
-  select count(*) into remaining_mismatches
-  from public.profiles
-  where credits is distinct from credits_balance;
-  if remaining_mismatches > 0 then
-    raise exception 'Credit reconciliation invariant failed after trigger installation with % remaining mismatch(es)',
-      remaining_mismatches;
+    execute $sql$
+      update public.profiles profile
+      set credits = resolution.resolved_balance,
+          credits_balance = resolution.resolved_balance
+      from public.api_credit_balance_reconciliation_resolutions resolution
+      where resolution.user_id = profile.user_id::text
+        and resolution.expected_credits is not distinct from profile.credits
+        and resolution.expected_credits_balance is not distinct from profile.credits_balance
+        and profile.credits is distinct from profile.credits_balance
+    $sql$;
+
+    execute $sql$
+      create or replace function public.sync_profile_credit_balance_compat()
+      returns trigger
+      language plpgsql
+      set search_path = ''
+      as $function$
+      begin
+        if tg_op = 'INSERT' then
+          new.credits_balance := new.credits;
+        elsif new.credits is distinct from old.credits then
+          new.credits_balance := new.credits;
+        elsif new.credits_balance is distinct from old.credits_balance then
+          if current_user in ('anon', 'authenticated')
+             and coalesce(current_setting('app.credit_op', true), '') <> 'on' then
+            raise exception 'Cannot modify protected profile fields'
+              using errcode = '42501';
+          end if;
+          new.credits := new.credits_balance;
+        end if;
+        return new;
+      end;
+      $function$
+    $sql$;
+
+    execute $sql$
+      revoke all on function public.sync_profile_credit_balance_compat() from public, anon, authenticated
+    $sql$;
+    execute $sql$
+      drop trigger if exists trg_00_sync_profile_credit_balance_compat on public.profiles
+    $sql$;
+    execute $sql$
+      create trigger trg_00_sync_profile_credit_balance_compat
+      before insert or update of credits, credits_balance on public.profiles
+      for each row execute function public.sync_profile_credit_balance_compat()
+    $sql$;
+
+    execute $sql$
+      select count(*)
+      from public.profiles
+      where credits is distinct from credits_balance
+    $sql$ into unresolved_count;
+    if unresolved_count > 0 then
+      raise exception 'Credit reconciliation invariant failed after trigger installation with % remaining mismatch(es)',
+        unresolved_count;
+    end if;
   end if;
 end;
 $$;
 
 update public.api_credit_balance_reconciliation_state
-set initial_reconciliation_completed = true
+set initial_reconciliation_completed = true,
+    legacy_column_preexisting = exists (
+      select 1
+      from pg_catalog.pg_attribute
+      where attrelid = 'public.profiles'::regclass
+        and attname = 'credits_balance'
+        and not attisdropped
+    )
 where migration_key = '20260812090000_api_production_contract';
 
 -- Normalize historical SQL-fulfillment rows and the active partial index to

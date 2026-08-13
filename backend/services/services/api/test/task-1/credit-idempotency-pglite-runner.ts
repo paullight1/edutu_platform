@@ -180,18 +180,18 @@ async function main() {
       insert into public.profiles (user_id) values ('user-1');
     `);
 
-    const delivery = `
+    const deliveryFor = (paymentId: string, userId: string) => `
       select public.billing_fulfill_credit_pack(
-        'bachs', 'sandbox', 'payment-1', 'user-1', 'credits_100',
+        'bachs', 'sandbox', '${paymentId}', '${userId}', 'credits_100',
         499, 'USD', now(), null
       ) as result
     `;
     const firstDelivery = await atomicDatabase.query<{
       result: { fulfilled: boolean };
-    }>(delivery);
+    }>(deliveryFor("payment-1", "user-1"));
     const duplicateDelivery = await atomicDatabase.query<{
       result: { fulfilled: boolean; duplicate: boolean };
-    }>(delivery);
+    }>(deliveryFor("payment-1", "user-1"));
     const atomicState = await atomicDatabase.query<{
       credits: number;
       creditsBalance: number;
@@ -209,7 +209,8 @@ async function main() {
       firstDelivery.rows[0]?.result.fulfilled !== true ||
       duplicateDelivery.rows[0]?.result.fulfilled !== false ||
       duplicateDelivery.rows[0]?.result.duplicate !== true ||
-      atomicState.rows[0]?.creditsBalance !== 100 ||
+      atomicState.rows[0]?.credits !== 100 ||
+      atomicState.rows[0]?.creditsBalance !== 0 ||
       atomicState.rows[0]?.ledgerEntries !== 1
     ) {
       throw new Error(
@@ -222,6 +223,74 @@ async function main() {
     }
     process.stdout.write(
       "atomic credit_pack first delivery fulfilled once; duplicate ignored\n",
+    );
+
+    await atomicDatabase.exec(`
+      create or replace function public.sync_profile_credit_balance_compat()
+      returns trigger
+      language plpgsql
+      set search_path = ''
+      as $function$
+      begin
+        if tg_op = 'INSERT' then
+          new.credits_balance := new.credits;
+        elsif new.credits is distinct from old.credits then
+          new.credits_balance := new.credits;
+        elsif new.credits_balance is distinct from old.credits_balance then
+          if current_user in ('anon', 'authenticated')
+             and coalesce(current_setting('app.credit_op', true), '') <> 'on' then
+            raise exception 'Cannot modify protected profile fields'
+              using errcode = '42501';
+          end if;
+          new.credits := new.credits_balance;
+        end if;
+        return new;
+      end;
+      $function$;
+      create trigger trg_00_sync_profile_credit_balance_compat
+      before insert or update of credits, credits_balance on public.profiles
+      for each row execute function public.sync_profile_credit_balance_compat();
+      insert into public.profiles (user_id) values ('user-2');
+    `);
+
+    const triggeredFirstDelivery = await atomicDatabase.query<{
+      result: { fulfilled: boolean };
+    }>(deliveryFor("payment-2", "user-2"));
+    const triggeredDuplicateDelivery = await atomicDatabase.query<{
+      result: { fulfilled: boolean; duplicate: boolean };
+    }>(deliveryFor("payment-2", "user-2"));
+    const triggeredState = await atomicDatabase.query<{
+      credits: number;
+      creditsBalance: number;
+      ledgerEntries: number;
+    }>(`
+      select
+        profiles.credits,
+        profiles.credits_balance as "creditsBalance",
+        (select count(*)::integer from public.credit_transactions
+          where user_id = 'user-2') as "ledgerEntries"
+      from public.profiles
+      where user_id = 'user-2'
+    `);
+
+    if (
+      triggeredFirstDelivery.rows[0]?.result.fulfilled !== true ||
+      triggeredDuplicateDelivery.rows[0]?.result.fulfilled !== false ||
+      triggeredDuplicateDelivery.rows[0]?.result.duplicate !== true ||
+      triggeredState.rows[0]?.credits !== 100 ||
+      triggeredState.rows[0]?.creditsBalance !== 100 ||
+      triggeredState.rows[0]?.ledgerEntries !== 1
+    ) {
+      throw new Error(
+        `Unexpected triggered atomic fulfillment result: ${JSON.stringify({
+          firstDelivery: triggeredFirstDelivery.rows,
+          duplicateDelivery: triggeredDuplicateDelivery.rows,
+          atomicState: triggeredState.rows,
+        })}`,
+      );
+    }
+    process.stdout.write(
+      "atomic canonical balance and compatibility mirror verified\n",
     );
   } finally {
     await atomicDatabase.close();
