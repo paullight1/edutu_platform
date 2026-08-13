@@ -85,7 +85,10 @@ and unchanged in this correction round.
 - Final narrow correction focus: 7 suites, 57 tests passed, including the
   warmed personalized-recommendation withdrawal and both admin
   approval/rejection response interleavings.
-- Backend `npm run lint` — passed after formatting the final scoped files.
+- Backend full `npm run lint` — blocked by the unrelated dirty
+  `src/billing/credit-purchase.service.spec.ts` formatting error.
+- Targeted `npx eslint` over the six final Task 8 implementation/test files —
+  passed.
 - Backend `npm run build` — passed after the final narrow correction.
 - Backend `npx tsc --noEmit`: remains blocked by pre-existing unrelated dirty
   billing, communities, events, and developer test/type changes, plus the
