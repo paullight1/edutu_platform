@@ -1188,10 +1188,14 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (!existingProfile) {
-      await supabase.from("profiles").insert({
-        user_id: safeUserId,
-        full_name: "Edutu User",
-      });
+      await supabase.from("profiles").upsert(
+        {
+          user_id: safeUserId,
+          full_name: "Edutu User",
+          credits: 0,
+        },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      );
     }
 
     if (!activeThreadId) {

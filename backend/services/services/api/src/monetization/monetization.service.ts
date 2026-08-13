@@ -973,9 +973,10 @@ export class MonetizationService {
       0,
       Math.round(pricing.aiCosts.voicePerMinute),
     );
-    const actionCreditLimit = perMinuteCost > 0
-      ? Math.floor(fairUseCredits / perMinuteCost)
-      : fairUseCredits;
+    const actionCreditLimit =
+      perMinuteCost > 0
+        ? Math.floor(fairUseCredits / perMinuteCost)
+        : fairUseCredits;
     return Math.min(proVoiceDailyMinutes(), actionCreditLimit);
   }
 }
