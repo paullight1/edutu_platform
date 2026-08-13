@@ -24,6 +24,7 @@ import type {
   RespondSubmissionDto,
   ReviewSubmissionDto,
 } from "./dto/opportunity-submission.dto";
+import { isSafeHttpUrl } from "./dto/opportunity-submission.dto";
 
 type ThreadEntry = { role: "admin" | "user"; message: string; at: string };
 
@@ -89,13 +90,6 @@ export class OpportunitySubmissionsService {
       throw error;
     }
 
-    // Admin approval switched off → publish immediately. Best-effort: if the
-    // catalog insert fails the submission simply stays in the review queue
-    // (never refunded — the submission itself succeeded).
-    if (!policy.requireApproval) {
-      row = (await this.autoPublish(row)) ?? row;
-    }
-
     return this.serialize(row);
   }
 
@@ -106,34 +100,6 @@ export class OpportunitySubmissionsService {
     } catch {
       // Fail SAFE: default policy reviews everything and charges nothing.
       return DEFAULT_ADMIN_SETTINGS.userContent;
-    }
-  }
-
-  // Publish a submission straight to the live catalog (requireApproval off).
-  private async autoPublish(
-    row: typeof opportunitySubmissions.$inferSelect,
-  ): Promise<typeof opportunitySubmissions.$inferSelect | null> {
-    try {
-      const opportunityId = await this.createOpportunityFromSubmission(
-        row,
-        "active",
-      );
-      const [updated] = await db
-        .update(opportunitySubmissions)
-        .set({
-          status: "approved",
-          approvedOpportunityId: opportunityId,
-          updatedAt: new Date(),
-        })
-        .where(eq(opportunitySubmissions.id, row.id))
-        .returning();
-      return updated ?? null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(
-        `Auto-publish failed for submission ${row.id}; left in review queue: ${message}`,
-      );
-      return null;
     }
   }
 
@@ -266,7 +232,12 @@ export class OpportunitySubmissionsService {
       row.approvedOpportunityId ?? null;
 
     if (dto.decision === "approved") {
-      approvedOpportunityId = await this.createOpportunityFromSubmission(row);
+      try {
+        approvedOpportunityId = await this.ensureActiveOpportunity(row);
+      } catch (error) {
+        await this.persistApprovalFailure(row);
+        throw error;
+      }
     }
 
     const thread = dto.adminNote?.trim()
@@ -296,6 +267,31 @@ export class OpportunitySubmissionsService {
     return this.serialize(updated);
   }
 
+  private async ensureActiveOpportunity(
+    row: typeof opportunitySubmissions.$inferSelect,
+  ): Promise<string> {
+    if (row.approvedOpportunityId) {
+      const existing = await this.opportunitiesService.findOne(
+        row.approvedOpportunityId,
+      );
+      if (existing && existing.status !== "active") {
+        await this.opportunitiesService.updateStatus(
+          row.approvedOpportunityId,
+          "active",
+        );
+      }
+      if (existing) return row.approvedOpportunityId;
+    }
+
+    if (!isSafeHttpUrl(row.applyUrl)) {
+      throw new BadRequestException(
+        "A valid http(s) apply URL is required before approval.",
+      );
+    }
+
+    return this.createOpportunityFromSubmission(row);
+  }
+
   private async createOpportunityFromSubmission(
     row: {
       title: string;
@@ -312,10 +308,7 @@ export class OpportunitySubmissionsService {
       sourceUrl: string | null;
       imageUrl: string | null;
     },
-    // Admin approvals keep the normal verification pipeline (pending_review);
-    // auto-publish (requireApproval off) goes straight to `active`.
-    status: "pending_review" | "active" = "pending_review",
-  ): Promise<string | null> {
+  ): Promise<string> {
     try {
       const created = await this.opportunitiesService.create({
         title: row.title,
@@ -331,11 +324,13 @@ export class OpportunitySubmissionsService {
         applyUrl: row.applyUrl ?? undefined,
         sourceUrl: row.sourceUrl ?? undefined,
         imageUrl: row.imageUrl ?? undefined,
-        // Admin approvals go through the normal review/verification pipeline
-        // (pending_review); auto-publish passes `active`.
-        status,
+        // Approval is the publication boundary: only an admin review can
+        // create the globally visible active catalog row.
+        status: "active",
       } as any);
-      return (created as { id?: string })?.id ?? null;
+      const id = (created as { id?: string })?.id;
+      if (!id) throw new Error("Catalog opportunity was created without an id");
+      return id;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       this.logger.error(
@@ -343,6 +338,37 @@ export class OpportunitySubmissionsService {
       );
       throw new BadRequestException(
         "Could not create the opportunity from this submission.",
+      );
+    }
+  }
+
+  private async persistApprovalFailure(
+    row: typeof opportunitySubmissions.$inferSelect,
+  ) {
+    const note =
+      "We couldn't publish this submission yet. It remains in review and can be retried.";
+    this.logger.error(
+      `OPPORTUNITY_SUBMISSION_APPROVAL_FAILED submission=${row.id}`,
+    );
+
+    try {
+      await db
+        .update(opportunitySubmissions)
+        .set({
+          status: "pending",
+          adminNote: note,
+          reviewedBy: null,
+          reviewedAt: null,
+          approvedOpportunityId: row.approvedOpportunityId ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(opportunitySubmissions.id, row.id))
+        .returning();
+    } catch (error) {
+      this.logger.error(
+        `Could not persist recoverable review state for submission ${row.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }

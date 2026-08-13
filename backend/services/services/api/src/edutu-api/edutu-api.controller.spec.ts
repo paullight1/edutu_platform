@@ -130,6 +130,20 @@ describe("EdutuApiController", () => {
     });
   });
 
+  it("returns an approved active catalog opportunity through the API surface", async () => {
+    service.listOpportunities.mockResolvedValueOnce({
+      object: "list",
+      data: [{ id: "approved-opp-1", title: "Approved community scholarship" }],
+      meta: { requestId: "req-123" },
+    });
+
+    await expect(
+      controller.listOpportunities({ limit: "10" } as any, consumer),
+    ).resolves.toMatchObject({
+      data: [{ id: "approved-opp-1" }],
+    });
+  });
+
   it("returns not found when a requested opportunity is missing", async () => {
     service.getOpportunity.mockResolvedValueOnce(null);
 

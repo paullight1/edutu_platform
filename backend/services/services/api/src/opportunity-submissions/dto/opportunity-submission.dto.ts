@@ -1,5 +1,39 @@
 import { z } from "zod";
 
+const MAX_EXTRA_KEYS = 20;
+
+export function isSafeHttpUrl(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    const protocol = new URL(value).protocol.toLowerCase();
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const SafeHttpUrlSchema = z
+  .string()
+  .trim()
+  .url()
+  .max(2000)
+  .refine(isSafeHttpUrl, "URL must use http or https");
+
+const SubmissionExtraSchema = z
+  .record(
+    z.string().trim().min(1).max(64),
+    z.union([
+      z.string().trim().max(500),
+      z.number().refine(Number.isFinite, "Value must be finite"),
+      z.boolean(),
+      z.null(),
+    ]),
+  )
+  .refine(
+    (value) => Object.keys(value).length <= MAX_EXTRA_KEYS,
+    `Extra metadata cannot contain more than ${MAX_EXTRA_KEYS} keys`,
+  );
+
 // A user proposing an opportunity for the Edutu catalog. Only `title` is truly
 // required — the more they fill in, the less likely a "needs more info" query.
 export const SubmitOpportunitySchema = z.object({
@@ -14,11 +48,11 @@ export const SubmitOpportunitySchema = z.object({
   eligibility: z.string().trim().max(3000).optional(),
   benefits: z.string().trim().max(3000).optional(),
   deadline: z.string().datetime().optional(),
-  applyUrl: z.string().url().max(2000).optional(),
-  sourceUrl: z.string().url().max(2000).optional(),
-  imageUrl: z.string().url().max(2000).optional(),
-  extra: z.record(z.string(), z.unknown()).optional(),
-});
+  applyUrl: SafeHttpUrlSchema.optional(),
+  sourceUrl: SafeHttpUrlSchema.optional(),
+  imageUrl: SafeHttpUrlSchema.optional(),
+  extra: SubmissionExtraSchema.optional(),
+}).strict();
 
 export type SubmitOpportunityDto = z.infer<typeof SubmitOpportunitySchema>;
 
