@@ -16,6 +16,10 @@ import type {
 } from "./dto/billing.dto";
 import { SettingsService } from "../settings/settings.service";
 import {
+  CREDIT_PACK_LEDGER_RELATED_TYPE,
+  recordCreditPurchaseInTransaction,
+} from "./billing-credit-ledger.sql";
+import {
   DEFAULT_ADMIN_SETTINGS,
   type PricingSettings,
 } from "../settings/settings.dto";
@@ -463,7 +467,10 @@ export class BillingService {
         credits,
         reference,
         payload: data,
-        source: feature === "credits" ? "credit_pack" : "api_credit_purchase",
+        source:
+          feature === "credits"
+            ? CREDIT_PACK_LEDGER_RELATED_TYPE
+            : "api_credit_purchase",
       });
       return { received: true };
     }
@@ -715,7 +722,7 @@ export class BillingService {
     credits: number;
     reference: string;
     payload: any;
-    source: "credit_pack" | "api_credit_purchase";
+    source: typeof CREDIT_PACK_LEDGER_RELATED_TYPE | "api_credit_purchase";
   }) {
     const supabase = this.getSupabase();
     if (!supabase) {
@@ -742,49 +749,17 @@ export class BillingService {
     // delivery actually inserted the row. Both writes share one transaction, and
     // set the app.credit_op guard flag so the profile trigger allows the update.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
-
       const description =
-        input.source === "credit_pack"
+        input.source === CREDIT_PACK_LEDGER_RELATED_TYPE
           ? `Credit pack purchase: +${input.credits}`
           : `API credit top-up: +${input.credits}`;
-      const inserted =
-        input.source === "credit_pack"
-          ? await tx.execute(sql`
-              insert into credit_transactions
-                (user_id, amount, type, description, related_id, related_type)
-              values
-                (${input.userId}, ${input.credits}, 'purchase',
-                 ${description}, ${input.reference}, 'credit_pack')
-              on conflict (related_type, related_id)
-                where related_id is not null
-                  and related_type in ('credit_pack')
-              do nothing
-              returning id
-            `)
-          : await tx.execute(sql`
-              insert into credit_transactions
-                (user_id, amount, type, description, related_id, related_type)
-              values
-                (${input.userId}, ${input.credits}, 'purchase',
-                 ${description}, ${input.reference}, 'api_credit_purchase')
-              on conflict (related_type, related_id)
-                where related_id is not null
-                  and related_type in ('api_request', 'api_credit_purchase')
-              do nothing
-              returning id
-            `);
-
-      const insertedRows = (inserted as { rows?: unknown[] }).rows ?? [];
-      if (insertedRows.length === 0) {
-        // Webhook redelivery — credits were already granted for this reference.
-        return;
-      }
-
-      await tx.execute(sql`
-        update profiles set credits = credits + ${input.credits}, updated_at = now()
-        where user_id = ${input.userId}
-      `);
+      await recordCreditPurchaseInTransaction(tx, {
+        userId: input.userId,
+        credits: input.credits,
+        description,
+        reference: input.reference,
+        relatedType: input.source,
+      });
     });
   }
 
