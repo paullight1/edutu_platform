@@ -3,6 +3,7 @@ import {
   createWeeklyDigestRunner,
   fetchUserDigestData,
   type DigestRecipient,
+  type DigestDeliveryClaim,
   type DigestJobClaim,
   type DigestSendOutcome,
   type WeeklyDigestCounts,
@@ -78,6 +79,10 @@ function runnerOptions(overrides: {
   claimJob?: () => Promise<DigestJobClaim>;
   completeJob?: (day: number, date: string, claimToken: string) => Promise<void>;
   failJob?: (day: number, date: string, claimToken: string) => Promise<void>;
+  renewJob?: (day: number, date: string, claimToken: string) => Promise<boolean>;
+  claimDelivery?: (day: number, date: string, userId: string) => Promise<DigestDeliveryClaim>;
+  completeDelivery?: (day: number, date: string, userId: string, claimToken: string, status: "sent" | "skipped") => Promise<void>;
+  failDelivery?: (day: number, date: string, userId: string, claimToken: string) => Promise<void>;
   listRecipients?: (
     day: number,
     page: number,
@@ -95,6 +100,13 @@ function runnerOptions(overrides: {
     })),
     completeJob: overrides.completeJob ?? (async () => {}),
     failJob: overrides.failJob ?? (async () => {}),
+    renewJob: overrides.renewJob ?? (async () => true),
+    claimDelivery: overrides.claimDelivery ?? (async () => ({
+      claimed: true,
+      claimToken: "delivery-claim",
+    })),
+    completeDelivery: overrides.completeDelivery ?? (async () => {}),
+    failDelivery: overrides.failDelivery ?? (async () => {}),
     listRecipients: overrides.listRecipients ?? (async () => ({
       recipients: [],
       hasMore: false,
@@ -268,6 +280,55 @@ Deno.test("weekly digest releases failed claims for a later retry", async () => 
   assertJsonEquals(completedClaims, ["claim-2"]);
 });
 
+Deno.test("weekly digest renews the job lease before each recipient", async () => {
+  let renewals = 0;
+  const runner = createWeeklyDigestRunner(runnerOptions({
+    maxRecipients: 2,
+    listRecipients: async () => ({
+      recipients: [recipient(1), recipient(2)],
+      hasMore: false,
+    }),
+    renewJob: async () => {
+      renewals += 1;
+      return true;
+    },
+  }));
+
+  await runner(6, JOB_KEY, EXECUTION_DATE);
+  assertEquals(renewals, 2);
+});
+
+Deno.test("weekly digest does not resend a completed recipient on retry", async () => {
+  let jobAttempt = 0;
+  const delivered = new Set<string>();
+  const sent: string[] = [];
+  const runner = createWeeklyDigestRunner(runnerOptions({
+    claimJob: async () => ({
+      claimed: true,
+      claimToken: `job-${++jobAttempt}`,
+    }),
+    listRecipients: async () => ({
+      recipients: [recipient(1), recipient(2)],
+      hasMore: false,
+    }),
+    claimDelivery: async (_day, _date, userId) => delivered.has(userId)
+      ? { claimed: false, status: "sent" }
+      : { claimed: true, claimToken: `delivery-${userId}` },
+    sendDigest: async (user) => {
+      sent.push(user.userId);
+      return user.userId === "user-2" && jobAttempt === 1 ? "failed" : "sent";
+    },
+    completeDelivery: async (_day, _date, userId) => {
+      delivered.add(userId);
+    },
+    failDelivery: async () => {},
+  }));
+
+  await runner(6, JOB_KEY, EXECUTION_DATE);
+  await runner(6, JOB_KEY, EXECUTION_DATE);
+  assertJsonEquals(sent, ["user-1", "user-2", "user-2"]);
+});
+
 Deno.test("weekly digest handler wires retryable claim status callbacks", async () => {
   const failedClaims: string[] = [];
   const handler = createWeeklyDigestHandler({
@@ -285,6 +346,13 @@ Deno.test("weekly digest handler wires retryable claim status callbacks", async 
     failJob: async (_day, _date, claimToken) => {
       failedClaims.push(claimToken);
     },
+    renewJob: async () => true,
+    claimDelivery: async () => ({
+      claimed: true,
+      claimToken: "handler-delivery-claim",
+    }),
+    completeDelivery: async () => {},
+    failDelivery: async () => {},
     listRecipients: async () => ({
       recipients: [recipient(1)],
       hasMore: false,

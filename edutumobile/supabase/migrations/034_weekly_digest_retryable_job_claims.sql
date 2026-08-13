@@ -46,34 +46,36 @@ begin
       message = 'Invalid weekly digest job key';
   end if;
 
+  insert into public.weekly_digest_jobs (
+    digest_day,
+    execution_date,
+    status,
+    claim_token,
+    lease_expires_at,
+    attempt_count,
+    claimed_at,
+    completed_at,
+    last_failed_at
+  ) values (
+    p_digest_day::smallint,
+    p_execution_date,
+    'in_flight',
+    new_claim_token,
+    now() + interval '15 minutes',
+    1,
+    now(),
+    null,
+    null
+  )
+  on conflict (digest_day, execution_date) do nothing;
+
   select * into existing
   from public.weekly_digest_jobs
   where digest_day = p_digest_day::smallint
     and execution_date = p_execution_date
   for update;
 
-  if not found then
-    insert into public.weekly_digest_jobs (
-      digest_day,
-      execution_date,
-      status,
-      claim_token,
-      lease_expires_at,
-      attempt_count,
-      claimed_at,
-      completed_at,
-      last_failed_at
-    ) values (
-      p_digest_day::smallint,
-      p_execution_date,
-      'in_flight',
-      new_claim_token,
-      now() + interval '15 minutes',
-      1,
-      now(),
-      null,
-      null
-    );
+  if existing.claim_token = new_claim_token then
     return jsonb_build_object('claimed', true, 'claim_token', new_claim_token);
   end if;
 
@@ -122,6 +124,28 @@ begin
 end;
 $$;
 
+create or replace function public.renew_weekly_digest_job(
+  p_digest_day integer,
+  p_execution_date date,
+  p_claim_token text
+)
+returns boolean
+language plpgsql
+security invoker
+set search_path = pg_catalog, public
+as $$
+begin
+  update public.weekly_digest_jobs
+  set lease_expires_at = now() + interval '15 minutes'
+  where digest_day = p_digest_day::smallint
+    and execution_date = p_execution_date
+    and status = 'in_flight'
+    and claim_token = p_claim_token
+    and lease_expires_at > now();
+  return found;
+end;
+$$;
+
 create or replace function public.fail_weekly_digest_job(
   p_digest_day integer,
   p_execution_date date,
@@ -149,11 +173,15 @@ revoke all on function public.claim_weekly_digest_job(integer, date)
 from public, anon, authenticated;
 revoke all on function public.complete_weekly_digest_job(integer, date, text)
 from public, anon, authenticated;
+revoke all on function public.renew_weekly_digest_job(integer, date, text)
+from public, anon, authenticated;
 revoke all on function public.fail_weekly_digest_job(integer, date, text)
 from public, anon, authenticated;
 grant execute on function public.claim_weekly_digest_job(integer, date)
 to service_role;
 grant execute on function public.complete_weekly_digest_job(integer, date, text)
+to service_role;
+grant execute on function public.renew_weekly_digest_job(integer, date, text)
 to service_role;
 grant execute on function public.fail_weekly_digest_job(integer, date, text)
 to service_role;
