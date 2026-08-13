@@ -85,9 +85,9 @@ and unchanged in this correction round.
 ## Scope protection
 
 Billing files, billing types, new Bachs files, unrelated docs, migrations, and
-temporary Supabase files were not staged. The final commit will be assembled
-from an explicit Task 8 path list only.
+temporary Supabase files were not staged. The focused Task 8 commit was
+assembled from an explicit Task 8 path list only.
 
 ## Commit
 
-`4261e3d fix: fence Task 8 verification leases`
+`54ee61f fix: fence Task 8 verification leases`
