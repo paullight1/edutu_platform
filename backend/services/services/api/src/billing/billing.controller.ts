@@ -39,6 +39,11 @@ export class BillingController {
     return this.billingService.getStatus(userId);
   }
 
+  @Get("catalog")
+  getCatalog(@CurrentUser("id") _userId: string) {
+    return this.billingCheckoutService.getPublicApiCreditCatalog();
+  }
+
   @Post("checkout")
   async createBachsCheckout(
     @CurrentUser("authId") rawAuthSubject: string,
@@ -83,6 +88,14 @@ export class BillingController {
     @CurrentUser("email") email: string | undefined,
     @Body() dto: CreateCheckoutDto,
   ) {
+    if (
+      process.env.BACHS_CHECKOUT_ENABLED === "true" ||
+      process.env.LEGACY_PAYSTACK_CHECKOUT_ENABLED !== "true"
+    ) {
+      throw new ServiceUnavailableException(
+        "New Paystack checkout is disabled; use the Bachs checkout.",
+      );
+    }
     return this.billingService.createCheckout(userId, email, dto);
   }
 

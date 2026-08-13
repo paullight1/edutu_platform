@@ -37,6 +37,10 @@ const schemaVerificationScriptPath = resolve(
   "scripts/verify-api-production-schema.mjs",
 );
 const apiMigrationDirectory = resolve(apiRoot, "supabase/migrations");
+const task6FulfillmentMigrationPath = resolve(
+  repositoryRoot,
+  "supabase/migrations/20260813170000_verified_api_credit_fulfillment.sql",
+);
 
 function apiCreditUpgradeMigrationPath(): string | null {
   const name = readdirSync(apiMigrationDirectory).find((entry) =>
@@ -579,13 +583,13 @@ describe("production API credit contract", () => {
     );
   });
 
-  it("uses credit_pack as the only purchase-ledger discriminator", () => {
+  it("keeps legacy credit packs separate from the verified API-credit boundary", () => {
     const apiMigration = readFileSync(apiProductionMigrationPath, "utf8");
     const atomicMigration = migration(
       "20260811122000_atomic_billing_fulfillment.sql",
     );
-    const billingService = readFileSync(
-      resolve(apiRoot, "src/billing/billing.service.ts"),
+    const creditPurchaseService = readFileSync(
+      resolve(apiRoot, "src/billing/credit-purchase.service.ts"),
       "utf8",
     );
     const billingLedgerSql = readFileSync(
@@ -608,10 +612,16 @@ describe("production API credit contract", () => {
     expect(billingLedgerSql).toMatch(
       /on conflict \(related_type, related_id\)[\s\S]*?related_type = 'credit_pack'/i,
     );
-    expect(billingService).toMatch(/CREDIT_PACK_LEDGER_RELATED_TYPE/i);
-    expect(billingService).toMatch(/recordCreditPurchaseInTransaction/i);
+    const task6Migration = readFileSync(task6FulfillmentMigrationPath, "utf8");
+    expect(task6Migration).toMatch(
+      /create unique index[^;]*credit_transactions_api_ref_unique[\s\S]*?related_type in \('api_request', 'api_credit_purchase'\)/i,
+    );
+    expect(creditPurchaseService).toMatch(
+      /on conflict \(related_type, related_id\)[\s\S]*?related_type in \('api_request', 'api_credit_purchase'\)/i,
+    );
+    expect(creditPurchaseService).toMatch(/api_credit_purchase/i);
     expect(
-      `${apiMigration}\n${atomicMigration}\n${billingService}\n${billingLedgerSql}`,
+      `${apiMigration}\n${atomicMigration}\n${creditPurchaseService}\n${billingLedgerSql}`,
     ).not.toContain("billing_credit_pack");
   });
 

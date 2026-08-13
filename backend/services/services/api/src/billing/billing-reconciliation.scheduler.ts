@@ -40,4 +40,10 @@ export class BillingReconciliationScheduler {
       this.active = false;
     }
   }
+
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async purgeExpiredPayloads(): Promise<{ purged: number }> {
+    const purged = await this.service.purgeExpiredProviderPayloads();
+    return { purged };
+  }
 }

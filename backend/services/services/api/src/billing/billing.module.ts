@@ -13,6 +13,19 @@ import { BachsClient } from "./providers/bachs/bachs.client";
 import { loadBachsConfig } from "./providers/bachs/bachs.config";
 import { BillingService } from "./billing.service";
 import { BachsWebhookService } from "./bachs-webhook.service";
+import { BillingReconciliationScheduler } from "./billing-reconciliation.scheduler";
+import { BillingReconciliationService } from "./billing-reconciliation.service";
+import {
+  BachsReconciliationAdapter,
+  BillingReconciliationRepair,
+  BillingReconciliationStoreService,
+  PaystackReconciliationAdapter,
+} from "./billing-reconciliation.providers";
+import { BILLING_RECONCILIATION_OPTIONS } from "./reconciliation/reconciliation.types";
+import {
+  API_CREDIT_PRODUCT_QUANTITIES,
+  type BillingProductCatalogEntry,
+} from "./types/billing-checkout.types";
 import {
   CREDIT_PURCHASE_DATABASE,
   CreditPurchaseService,
@@ -34,6 +47,49 @@ import {
   controllers: [BillingController],
   providers: [
     BillingService,
+    BillingReconciliationScheduler,
+    BachsReconciliationAdapter,
+    PaystackReconciliationAdapter,
+    BillingReconciliationStoreService,
+    BillingReconciliationRepair,
+    {
+      provide: BILLING_RECONCILIATION_OPTIONS,
+      useFactory: (bachsAdapter, paystackAdapter, store, repair, config) => ({
+        adapters: [bachsAdapter, paystackAdapter],
+        store,
+        repair: (input) => repair.repair(input),
+        checkoutEnabled: config.checkoutEnabled,
+        expectedOrganizationId: config.expectedOrganizationId,
+        expectedProducts: config.productCatalog
+          ? Object.fromEntries(
+              Object.entries(config.productCatalog).map(
+                ([productKey, rawEntry]) => {
+                  const entry = rawEntry as BillingProductCatalogEntry;
+                  return [
+                    productKey,
+                    {
+                      amountMinor: BigInt(entry.expectedAmountMinor),
+                      currency: entry.currency,
+                      creditQuantity:
+                        API_CREDIT_PRODUCT_QUANTITIES[
+                          productKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES
+                        ],
+                    },
+                  ];
+                },
+              ),
+            )
+          : undefined,
+      }),
+      inject: [
+        BachsReconciliationAdapter,
+        PaystackReconciliationAdapter,
+        BillingReconciliationStoreService,
+        BillingReconciliationRepair,
+        BACHS_CHECKOUT_CONFIG,
+      ],
+    },
+    BillingReconciliationService,
     CreditPurchaseService,
     {
       provide: CREDIT_PURCHASE_DATABASE,
@@ -56,7 +112,7 @@ import {
     {
       provide: BACHS_WEBHOOK_SERVICE,
       useFactory: (config, creditPurchaseService) =>
-        config.checkoutEnabled
+        config.webhookEnabled
           ? new BachsWebhookService(config, { creditPurchaseService })
           : null,
       inject: [BACHS_CHECKOUT_CONFIG, CreditPurchaseService],

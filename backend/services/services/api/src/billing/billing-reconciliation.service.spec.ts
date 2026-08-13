@@ -233,6 +233,89 @@ describe("BillingReconciliationService", () => {
     },
   );
 
+  it("does not repair pending or wrong-currency credit payments", async () => {
+    const repair = jest.fn();
+    const billingStore = store();
+    const bach = adapter({
+      listPayments: jest
+        .fn()
+        .mockResolvedValue(
+          page(
+            [
+              payment({ status: "pending" }),
+              payment({ id: "pay_currency", currency: "NGN" }),
+            ],
+            null,
+          ),
+        ),
+    });
+    const service = new BillingReconciliationService({
+      adapters: [bach],
+      store: billingStore,
+      repair,
+      checkoutEnabled: true,
+      expectedAmountMinor: 1200n,
+      expectedCurrency: "USD",
+      expectedProductKey: "pro_monthly_pass",
+    });
+
+    const result = await service.reconcileDaily({ now: NOW });
+
+    expect(jest.mocked(repair)).not.toHaveBeenCalled();
+    expect(result.reviewCases).toBe(2);
+    expect(mockCalls(billingStore, "createReviewCase")).toEqual(
+      expect.arrayContaining([
+        [expect.objectContaining({ category: "payment_not_successful" })],
+        [expect.objectContaining({ category: "currency_mismatch" })],
+      ]),
+    );
+  });
+
+  it("accepts an exact API credit catalog payment for reconciliation repair", async () => {
+    const repair = jest.fn().mockResolvedValue({ status: "enqueued" });
+    const billingStore = store();
+    const bach = adapter({
+      listPayments: jest.fn().mockResolvedValue(
+        page(
+          [
+            payment({
+              productKey: "api_credits_100",
+              amountMinor: 499n,
+              currency: "USD",
+            }),
+          ],
+          null,
+        ),
+      ),
+    });
+    const service = new BillingReconciliationService({
+      adapters: [bach],
+      store: billingStore,
+      repair,
+      checkoutEnabled: true,
+      expectedProducts: {
+        api_credits_100: {
+          amountMinor: 499n,
+          currency: "USD",
+          creditQuantity: 100,
+        },
+      },
+    });
+
+    await service.reconcileDaily({ now: NOW });
+
+    expect(mockCalls(billingStore, "createReviewCase")).toHaveLength(0);
+    expect(repair).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerResourceId: "pay_1",
+        productKey: "api_credits_100",
+        amountMinor: 499n,
+        currency: "USD",
+        userId: "user_123",
+      }),
+    );
+  });
+
   it("retries one timeout at the read boundary, then records provider outage without guessing", async () => {
     const timeout = Object.assign(new Error("provider timed out"), {
       code: "timeout",

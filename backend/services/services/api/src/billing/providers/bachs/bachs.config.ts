@@ -12,21 +12,30 @@ export const BACHS_PORTAL_ORIGIN = "https://portal.bachs.io";
 
 export interface BachsDisabledConfig {
   checkoutEnabled: false;
+  webhookEnabled: false;
   environment: BachsEnvironment;
 }
 
-export interface BachsEnabledConfig {
-  checkoutEnabled: true;
+export interface BachsWebhookConfig {
+  checkoutEnabled: boolean;
+  webhookEnabled: true;
   environment: BachsEnvironment;
-  apiBaseUrl: string;
-  apiKey: string;
   webhookSecret: string;
   expectedOrganizationId: string;
   productMappings: Readonly<Record<string, string>>;
   productCatalog?: Readonly<Record<string, BillingProductCatalogEntry>>;
 }
 
-export type BachsConfig = BachsDisabledConfig | BachsEnabledConfig;
+export interface BachsEnabledConfig extends BachsWebhookConfig {
+  checkoutEnabled: true;
+  apiBaseUrl: string;
+  apiKey: string;
+}
+
+export type BachsConfig =
+  | BachsDisabledConfig
+  | BachsWebhookConfig
+  | BachsEnabledConfig;
 
 export class BachsConfigError extends Error {
   readonly code = "bachs_configuration_invalid";
@@ -45,6 +54,18 @@ function required(environment: Environment, key: string): string {
     throw new BachsConfigError(`${key} is required when Bachs is enabled.`);
   }
   return value;
+}
+
+function booleanFlag(
+  environment: Environment,
+  key: string,
+  defaultValue: boolean,
+): boolean {
+  const value = environment[key]?.trim();
+  if (!value) return defaultValue;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new BachsConfigError(`${key} must be exactly true or false.`);
 }
 
 function parseProductMappings(value: string): Readonly<Record<string, string>> {
@@ -170,29 +191,59 @@ function parseProductCatalog(
 }
 
 /**
- * Reads only Bachs configuration. Calling this during application bootstrap is
- * the readiness gate; no Bachs request can occur while the feature is disabled.
+ * Checkout creation and webhook ingress are separate readiness gates. A
+ * rollback can disable new sessions while signed webhooks continue settling
+ * already-created sessions and feeding reconciliation.
  */
 export function loadBachsConfig(
   environment: Environment = process.env,
 ): BachsConfig {
-  const enabledValue = environment.BACHS_CHECKOUT_ENABLED?.trim();
-  if (!enabledValue || enabledValue === "false") {
+  const checkoutEnabled = booleanFlag(
+    environment,
+    "BACHS_CHECKOUT_ENABLED",
+    false,
+  );
+  const webhookEnabled = booleanFlag(
+    environment,
+    "BACHS_WEBHOOK_ENABLED",
+    checkoutEnabled ||
+      Boolean(
+        environment.BACHS_WEBHOOK_SECRET?.trim() ||
+        environment.BACHS_EXPECTED_ORGANIZATION_ID?.trim(),
+      ),
+  );
+  if (!checkoutEnabled && !webhookEnabled) {
     return {
       checkoutEnabled: false,
+      webhookEnabled: false,
       environment:
         environment.BACHS_ENVIRONMENT === "live" ? "live" : "sandbox",
     };
-  }
-  if (enabledValue !== "true") {
-    throw new BachsConfigError(
-      "BACHS_CHECKOUT_ENABLED must be exactly true or false.",
-    );
   }
 
   const environmentName = required(environment, "BACHS_ENVIRONMENT");
   if (environmentName !== "sandbox" && environmentName !== "live") {
     throw new BachsConfigError("BACHS_ENVIRONMENT must be sandbox or live.");
+  }
+
+  const webhookConfig = webhookEnabled
+    ? {
+        webhookSecret: required(environment, "BACHS_WEBHOOK_SECRET"),
+        expectedOrganizationId: required(
+          environment,
+          "BACHS_EXPECTED_ORGANIZATION_ID",
+        ),
+      }
+    : null;
+
+  if (!checkoutEnabled) {
+    return {
+      checkoutEnabled: false,
+      webhookEnabled: true,
+      environment: environmentName,
+      ...webhookConfig!,
+      productMappings: Object.freeze({}),
+    };
   }
 
   const apiBaseUrl = required(environment, "BACHS_API_BASE_URL");
@@ -212,14 +263,11 @@ export function loadBachsConfig(
 
   return {
     checkoutEnabled: true,
+    webhookEnabled: webhookEnabled as true,
     environment: environmentName,
     apiBaseUrl,
     apiKey: required(environment, "BACHS_API_KEY"),
-    webhookSecret: required(environment, "BACHS_WEBHOOK_SECRET"),
-    expectedOrganizationId: required(
-      environment,
-      "BACHS_EXPECTED_ORGANIZATION_ID",
-    ),
+    ...webhookConfig!,
     productMappings,
     productCatalog: parseProductCatalog(
       environment.BACHS_PRODUCT_CATALOG,
@@ -230,8 +278,12 @@ export function loadBachsConfig(
 }
 
 export function assertBachsReadiness(config: BachsConfig): BachsEnabledConfig {
-  if (!config.checkoutEnabled) {
+  if (
+    !config.checkoutEnabled ||
+    !("apiBaseUrl" in config) ||
+    !("apiKey" in config)
+  ) {
     throw new BachsConfigError("Bachs checkout is disabled.");
   }
-  return config;
+  return config as BachsEnabledConfig;
 }

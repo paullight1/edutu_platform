@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { BILLING_RECONCILIATION_OPTIONS } from "./reconciliation/reconciliation.types";
 import type {
   BillingReconciliationStore,
   ProviderReadAdapter,
@@ -24,6 +25,7 @@ export class BillingReconciliationService {
   private readonly logger = new Logger(BillingReconciliationService.name);
 
   constructor(
+    @Inject(BILLING_RECONCILIATION_OPTIONS)
     private readonly options: {
       adapters: ProviderReadAdapter[];
       store: BillingReconciliationStore;
@@ -31,7 +33,14 @@ export class BillingReconciliationService {
       checkoutEnabled: boolean;
       expectedOrganizationId?: string;
       expectedAmountMinor?: bigint;
+      expectedCurrency?: string;
       expectedProductKey?: string;
+      expectedProducts?: Readonly<
+        Record<
+          string,
+          { amountMinor: bigint; currency: string; creditQuantity: number }
+        >
+      >;
       maxPages?: number;
       maxReadAttempts?: number;
     },
@@ -53,6 +62,10 @@ export class BillingReconciliationService {
       statuses: ["received", "retrying", "dead_letter"],
     });
     return this.scanProviders(now, false);
+  }
+
+  async purgeExpiredProviderPayloads(): Promise<number> {
+    return this.options.store.purgeExpiredRawPayloads?.() ?? 0;
   }
 
   async reconcileDaily(
@@ -211,6 +224,14 @@ export class BillingReconciliationService {
       providerResourceId: payment.id,
       source: "reconciliation",
       provenance: { reason: "deterministic_missing_provider_event" },
+      userId: payment.userId ?? undefined,
+      productKey: payment.productKey ?? undefined,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      eventId: payment.eventId,
+      creditQuantity: this.creditQuantity(payment),
+      checkoutIntentId: payment.checkoutIntentId ?? undefined,
+      metadata: payment.metadata,
     });
     if (repair.status === "duplicate") {
       return {
@@ -232,6 +253,13 @@ export class BillingReconciliationService {
     payment: ReconciliationPayment,
     expectedEnvironment: ReconciliationEnvironment,
   ): string | undefined {
+    if (
+      !["succeeded", "success", "paid", "completed"].includes(
+        payment.status.toLowerCase(),
+      )
+    ) {
+      return "payment_not_successful";
+    }
     if (!payment.userId) return "identity_mismatch";
     if (
       this.options.expectedOrganizationId &&
@@ -239,16 +267,46 @@ export class BillingReconciliationService {
     ) {
       return "organization_mismatch";
     }
-    const expectedAmount = this.options.expectedAmountMinor ?? 1_200n;
-    if (payment.amountMinor !== expectedAmount) return "amount_mismatch";
-    const expectedProduct =
-      this.options.expectedProductKey ?? "pro_monthly_pass";
-    if (payment.productKey !== expectedProduct) return "product_mismatch";
+    if (this.options.expectedProducts) {
+      const expectedProduct = payment.productKey
+        ? this.options.expectedProducts[payment.productKey]
+        : undefined;
+      if (!expectedProduct) return "product_mismatch";
+      if (payment.amountMinor !== expectedProduct.amountMinor) {
+        return "amount_mismatch";
+      }
+      if (
+        payment.currency.toUpperCase() !==
+        expectedProduct.currency.toUpperCase()
+      ) {
+        return "currency_mismatch";
+      }
+    } else {
+      const expectedAmount = this.options.expectedAmountMinor ?? 1_200n;
+      if (payment.amountMinor !== expectedAmount) return "amount_mismatch";
+      const expectedProduct =
+        this.options.expectedProductKey ?? "pro_monthly_pass";
+      if (payment.productKey !== expectedProduct) return "product_mismatch";
+      if (
+        this.options.expectedCurrency &&
+        payment.currency.toUpperCase() !==
+          this.options.expectedCurrency.toUpperCase()
+      ) {
+        return "currency_mismatch";
+      }
+    }
     if (payment.environment && payment.environment !== expectedEnvironment)
       return "environment_mismatch";
     if (payment.refundClassification === "unknown")
       return "refund_classification_ambiguous";
     return undefined;
+  }
+
+  private creditQuantity(payment: ReconciliationPayment): number | undefined {
+    const value = payment.metadata.credit_quantity ?? payment.metadata.credits;
+    return typeof value === "number" && Number.isSafeInteger(value)
+      ? value
+      : undefined;
   }
 
   private addMetric(

@@ -142,6 +142,30 @@ export class BillingCheckoutService {
     private readonly config: CheckoutServiceConfig,
   ) {}
 
+  async getPublicApiCreditCatalog(): Promise<
+    Array<{
+      productKey: string;
+      creditQuantity: number;
+      amountMinor: number;
+      currency: string;
+      catalogVersion: number;
+    }>
+  > {
+    const products =
+      (await this.repository.listEnabledApiCreditProducts?.(
+        this.config.environment,
+      )) ?? [];
+    return products
+      .filter((product) => isApiCreditProductKey(product.productKey))
+      .map((product) => ({
+        productKey: product.productKey,
+        creditQuantity: product.creditQuantity!,
+        amountMinor: product.expectedAmountMinor,
+        currency: product.currency,
+        catalogVersion: product.catalogVersion,
+      }));
+  }
+
   async createCheckout(
     rawAuthSubject: string,
     idempotencyKey: string,

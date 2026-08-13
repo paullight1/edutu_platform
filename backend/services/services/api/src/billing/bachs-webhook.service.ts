@@ -2,7 +2,7 @@ import { HttpException, Injectable, Logger } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import type { BachsEnabledConfig } from "./providers/bachs/bachs.config";
+import type { BachsWebhookConfig } from "./providers/bachs/bachs.config";
 import {
   BachsWebhookError,
   BachsWebhookVerifier,
@@ -16,6 +16,7 @@ import {
   API_CREDIT_PRODUCT_QUANTITIES,
   isApiCreditProductKey,
 } from "./types/billing-checkout.types";
+import { redactProviderPayload } from "./provider-payload-redaction";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -66,7 +67,7 @@ export class BachsWebhookService {
   private readonly creditPurchaseService: CreditPurchaseService;
 
   constructor(
-    private readonly config: BachsEnabledConfig,
+    private readonly config: BachsWebhookConfig,
     options: {
       clock?: () => number;
       creditPurchaseService?: CreditPurchaseService;
@@ -88,7 +89,7 @@ export class BachsWebhookService {
     timestamp: string | undefined,
     signature: string | undefined,
   ): Promise<{ status: "fulfilled" | "duplicate" | "review" }> {
-    if (!this.config.checkoutEnabled) {
+    if (!this.config.webhookEnabled) {
       throw new HttpException("Bachs webhook is not configured", 503);
     }
 
@@ -123,7 +124,7 @@ export class BachsWebhookService {
         ) values (
           'bachs', ${this.config.environment}, ${event.id}, ${event.type},
           ${event.organizationId}, now(), 'processing', ${payloadHash},
-          ${JSON.stringify(payload)}::jsonb, now()
+          ${JSON.stringify(redactProviderPayload(payload))}::jsonb, now()
         )
         on conflict (provider, environment, event_id) do nothing
         returning id
@@ -131,7 +132,35 @@ export class BachsWebhookService {
       const insertedRow = (
         inserted as unknown as { rows?: Array<{ id: unknown }> }
       ).rows?.[0];
-      if (!insertedRow) return { status: "duplicate" as const };
+      if (!insertedRow) {
+        const existingResult = await tx.execute(sql`
+          select id, status, payload_hash
+          from public.billing_provider_events
+          where provider = 'bachs'
+            and environment = ${this.config.environment}
+            and event_id = ${event.id}
+          limit 1
+        `);
+        const existing = (
+          existingResult as unknown as {
+            rows?: Array<{
+              id: unknown;
+              status?: unknown;
+              payload_hash?: unknown;
+            }>;
+          }
+        ).rows?.[0];
+        if (existing && String(existing.payload_hash) !== payloadHash) {
+          await this.markReview(
+            tx,
+            existing.id,
+            event,
+            "provider_event_payload_conflict",
+          );
+          return { status: "review" as const };
+        }
+        return { status: "duplicate" as const };
+      }
 
       if (event.type !== "collection.succeeded") {
         await this.markReview(
@@ -155,7 +184,7 @@ export class BachsWebhookService {
     tx: CreditPurchaseTransaction,
     eventRowId: unknown,
     event: BachsWebhookEvent,
-  ): Promise<"processed" | "review"> {
+  ): Promise<"fulfilled" | "review"> {
     const data = event.data;
     const chargeId = stringValue(data.charge_id);
     const checkoutId = stringValue(data.checkout_id);
@@ -230,8 +259,12 @@ export class BachsWebhookService {
     const snapshotProductKey = stringValue(snapshot.productKey);
     const snapshotQuantity = Number(snapshot.creditQuantity);
     const snapshotValidity = snapshot.validityDays;
-    const providerUserId =
-      stringValue(metadata?.user_id) ?? stringValue(metadata?.edutu_user_id);
+    const userId = stringValue(metadata?.user_id);
+    const edutuUserId = stringValue(metadata?.edutu_user_id);
+    const providerUserId = userId ?? edutuUserId;
+    const providerIdentityIsExact =
+      Boolean(providerUserId) &&
+      (!userId || !edutuUserId || userId === edutuUserId);
     if (
       String(intent.provider_checkout_id) !== checkoutId ||
       !snapshotProductKey ||
@@ -242,7 +275,8 @@ export class BachsWebhookService {
       snapshot.renewalMode !== "one_time" ||
       snapshotQuantity !== API_CREDIT_PRODUCT_QUANTITIES[snapshotProductKey] ||
       snapshotValidity !== null ||
-      (providerUserId !== null && providerUserId !== String(intent.user_id)) ||
+      !providerIdentityIsExact ||
+      providerUserId !== String(intent.user_id) ||
       expectedCurrency !== currency ||
       expectedAmount !== actualAmount ||
       !["open", "processing", "paid"].includes(String(intent.status))
@@ -273,7 +307,7 @@ export class BachsWebhookService {
       {
         eventRowId: String(eventRowId),
         eventType: event.type,
-        payload: event,
+        payload: redactProviderPayload(event),
         intentId,
       },
     );

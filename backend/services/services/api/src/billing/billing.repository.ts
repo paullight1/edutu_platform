@@ -173,6 +173,59 @@ export class BillingRepository {
     return product;
   }
 
+  async listEnabledApiCreditProducts(
+    environment: BillingEnvironment,
+  ): Promise<BillingProduct[]> {
+    this.assertEnvironment(environment);
+    const result = await db.execute(sql`
+      select product.product_key, product.fulfillment_kind, product.renewal_mode,
+             mapping.provider_product_id, product.expected_amount_minor,
+             product.currency, product.cadence, product.credit_quantity,
+             extract(epoch from product.entitlement_duration) / 86400 as validity_days,
+             coalesce(product.payment_method_policy->'allowed_methods', '[]'::jsonb)
+               as allowed_payment_methods,
+             product.catalog_version
+      from billing_products product
+      inner join billing_product_provider_mappings mapping
+        on mapping.product_key = product.product_key
+       and mapping.provider = 'bachs'
+       and mapping.environment = ${environment}
+      where product.enabled = true
+        and product.product_key in ('api_credits_100', 'api_credits_250', 'api_credits_700')
+      order by product.credit_quantity asc
+    `);
+    return ((result as RowResult<Record<string, unknown>>).rows ?? [])
+      .map((row) => ({
+        productKey: String(row.product_key),
+        provider: "bachs" as const,
+        environment,
+        fulfillmentKind: "credits" as const,
+        renewalMode: String(row.renewal_mode) as BillingRenewalMode,
+        providerProductId: row.provider_product_id
+          ? String(row.provider_product_id)
+          : null,
+        expectedAmountMinor: Number(row.expected_amount_minor),
+        currency: String(row.currency).toUpperCase(),
+        cadence: row.cadence ? String(row.cadence) : null,
+        creditQuantity: Number(row.credit_quantity),
+        validityDays:
+          row.validity_days == null ? null : Number(row.validity_days),
+        allowedPaymentMethods: Array.isArray(row.allowed_payment_methods)
+          ? (row.allowed_payment_methods as BillingProduct["allowedPaymentMethods"])
+          : (["card"] as BillingProduct["allowedPaymentMethods"]),
+        catalogVersion: Number(row.catalog_version),
+      }))
+      .filter((product) => {
+        try {
+          assertBillingCheckoutProductContract(product);
+          assertApiCreditProductContract(product);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+  }
+
   async createOrReuseIntent(input: {
     userId: string;
     environment: BillingEnvironment;

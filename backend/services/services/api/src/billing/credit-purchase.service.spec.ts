@@ -13,12 +13,11 @@ const purchase: VerifiedCreditPurchase = {
   currency: "USD",
 };
 
-function databaseFor(
-  execute: jest.Mock,
-): { transaction: jest.Mock } {
+function databaseFor(execute: jest.Mock): { transaction: jest.Mock } {
   return {
-    transaction: jest.fn(async (callback: (tx: { execute: jest.Mock }) => unknown) =>
-      callback({ execute }),
+    transaction: jest.fn(
+      async (callback: (tx: { execute: jest.Mock }) => unknown) =>
+        callback({ execute }),
     ),
   };
 }
@@ -104,4 +103,23 @@ describe("CreditPurchaseService", () => {
       expect(execute).toHaveBeenCalledTimes(3);
     },
   );
+
+  it.each([
+    ["bad environment", { environment: "production" as unknown as "sandbox" }],
+    ["zero quantity", { creditQuantity: 0 }],
+    ["unsupported currency", { currency: "ZZZ" }],
+  ] as const)("reviews %s instead of granting", async (_name, overrides) => {
+    const execute = jest
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+      .mockResolvedValue({ rows: [] });
+    const service = new CreditPurchaseService(databaseFor(execute));
+
+    await expect(
+      service.fulfill({ ...purchase, ...overrides }),
+    ).resolves.toMatchObject({
+      status: "review",
+      creditsAdded: 0,
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { matchUserIdRef } from "../common/user-id";
 import { API_CREDIT_PRODUCT_QUANTITIES } from "./types/billing-checkout.types";
+import { redactProviderPayload } from "./provider-payload-redaction";
 
 export type VerifiedCreditPurchase = {
   provider: "bachs" | "paystack";
@@ -42,6 +43,13 @@ export type CreditPurchaseContext = {
   payloadHash?: string;
   intentId?: string;
   allowLegacyPaystackProduct?: boolean;
+  legacyAudit?: {
+    providerReference: string;
+    userId: string;
+    amountMajor: number;
+    currency: string;
+    payload: unknown;
+  };
 };
 
 type Row = Record<string, unknown>;
@@ -57,14 +65,19 @@ export class CreditPurchaseService {
     private readonly database: CreditPurchaseDatabase = db as unknown as CreditPurchaseDatabase,
   ) {}
 
-  async fulfill(input: VerifiedCreditPurchase): Promise<CreditPurchaseResult> {
+  async fulfill(
+    input: VerifiedCreditPurchase,
+    context: CreditPurchaseContext = {},
+  ): Promise<CreditPurchaseResult> {
     return this.database.transaction((transaction) =>
       this.fulfillInTransaction(transaction, input, {
         eventType:
-          input.provider === "bachs"
+          context.eventType ??
+          (input.provider === "bachs"
             ? "collection.succeeded"
-            : "charge.success",
-        payload: input,
+            : "charge.success"),
+        payload: context.payload ?? input,
+        ...context,
       }),
     );
   }
@@ -96,6 +109,32 @@ export class CreditPurchaseService {
         context.intentId,
       );
       return { status: "review", creditsAdded: 0, ledgerId: null };
+    }
+
+    if (context.legacyAudit) {
+      const audit = await transaction.execute(sql`
+        update public.billing_transactions
+        set status = 'completed',
+            metadata = ${JSON.stringify(
+              redactProviderPayload(context.legacyAudit.payload),
+            )}::jsonb
+        where provider = 'paystack'
+          and provider_reference = ${context.legacyAudit.providerReference}
+          and user_id = ${context.legacyAudit.userId}
+          and amount = ${context.legacyAudit.amountMajor}
+          and upper(currency) = upper(${context.legacyAudit.currency})
+          and status in ('pending', 'processing', 'completed')
+        returning id
+      `);
+      if (!this.firstRow(audit)) {
+        await this.markReview(
+          transaction,
+          eventRowId,
+          "legacy_audit_write_failed",
+          context.intentId,
+        );
+        return { status: "review", creditsAdded: 0, ledgerId: null };
+      }
     }
 
     await transaction.execute(
@@ -227,6 +266,14 @@ export class CreditPurchaseService {
     if (String(existingRow.status) === "review") {
       return { eventRowId: null };
     }
+    if (String(existingRow.payload_hash) !== payloadHash) {
+      await this.markReview(
+        transaction,
+        String(existingRow.id),
+        "provider_event_payload_conflict",
+        context.intentId,
+      );
+    }
     return { eventRowId: null };
   }
 
@@ -237,10 +284,23 @@ export class CreditPurchaseService {
     if (!input.eventId.trim() || !input.providerReference.trim())
       return "missing_provider_identity";
     if (!input.userId.trim()) return "missing_user_identity";
+    if (input.environment !== "sandbox" && input.environment !== "live")
+      return "invalid_environment";
     if (!/^[A-Z]{3}$/.test(input.currency.trim().toUpperCase()))
       return "invalid_currency";
+    if (
+      !Intl.supportedValuesOf("currency").includes(
+        input.currency.trim().toUpperCase(),
+      )
+    )
+      return "unsupported_currency";
     if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0)
       return "invalid_amount";
+    if (
+      !Number.isSafeInteger(input.creditQuantity) ||
+      input.creditQuantity <= 0
+    )
+      return "invalid_credit_quantity";
     if (
       input.provider === "bachs" &&
       (!Object.prototype.hasOwnProperty.call(

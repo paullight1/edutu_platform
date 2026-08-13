@@ -74,6 +74,10 @@ const paymentResponseSchema = z.object({
   currency: isoCurrencySchema,
   created_at: dateTimeSchema,
   updated_at: dateTimeSchema,
+  metadata: metadataSchema.optional(),
+  checkout_id: identifierSchema.nullable().optional(),
+  product_id: identifierSchema.nullable().optional(),
+  user_id: z.string().min(1).nullable().optional(),
 });
 
 const subscriptionResponseSchema = z.object({
@@ -494,6 +498,13 @@ export class BachsClient {
         retryable: false,
       });
     }
+    if (!("apiBaseUrl" in this.config) || !("apiKey" in this.config)) {
+      throw new BachsProviderError({
+        code: "bachs_disabled",
+        operation,
+        retryable: false,
+      });
+    }
     const config = this.config;
     const retryableRequest =
       method === "GET" || Boolean(options.idempotencyKey);
@@ -664,6 +675,14 @@ export class BachsClient {
       currency: value.currency,
       createdAt: value.created_at,
       updatedAt: value.updated_at,
+      ...(value.metadata ? { metadata: value.metadata } : {}),
+      ...(value.checkout_id !== undefined
+        ? { checkoutId: value.checkout_id }
+        : {}),
+      ...(value.product_id !== undefined
+        ? { productId: value.product_id }
+        : {}),
+      ...(value.user_id !== undefined ? { userId: value.user_id } : {}),
     };
   }
   private refund(operation: BachsOperation, response: unknown): BachsRefund {

@@ -186,6 +186,9 @@ export interface BillingCheckoutRepositoryPort {
     productKey: string,
     environment: BillingEnvironment,
   ): Promise<BillingCheckoutProduct | null>;
+  listEnabledApiCreditProducts?(
+    environment: BillingEnvironment,
+  ): Promise<BillingCheckoutProduct[]>;
   createOrReuseIntent(input: {
     userId: string;
     environment: BillingEnvironment;

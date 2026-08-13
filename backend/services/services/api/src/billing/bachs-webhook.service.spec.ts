@@ -9,6 +9,7 @@ import type { CreditPurchaseService } from "./credit-purchase.service";
 
 const config: BachsEnabledConfig = {
   checkoutEnabled: true,
+  webhookEnabled: true,
   environment: "sandbox",
   apiBaseUrl: "https://sandbox-api.bachs.io",
   apiKey: "test-key",
@@ -34,6 +35,7 @@ function signedPayload(overrides: Record<string, unknown> = {}) {
       product_cart: [{ product_id: "prod_api_credits_100", quantity: 1 }],
       metadata: {
         edutu_intent_id: "11111111-1111-4111-8111-111111111111",
+        user_id: "user_123",
       },
     },
     ...overrides,
@@ -81,12 +83,13 @@ describe("BachsWebhookService", () => {
         })
         .mockResolvedValue({ rows: [] }),
     };
+    const fulfillInTransaction = jest.fn().mockResolvedValue({
+      status: "fulfilled",
+      creditsAdded: 100,
+      ledgerId: "ledger-1",
+    });
     const creditPurchaseService = {
-      fulfillInTransaction: jest.fn().mockResolvedValue({
-        status: "fulfilled",
-        creditsAdded: 100,
-        ledgerId: "ledger-1",
-      }),
+      fulfillInTransaction,
     } as unknown as CreditPurchaseService;
     jest
       .spyOn(db, "transaction")
@@ -105,8 +108,8 @@ describe("BachsWebhookService", () => {
       service.handle(signed.rawBody, signed.timestamp, signed.signature),
     ).resolves.toEqual({ status: "duplicate" });
 
-    expect(tx.execute).toHaveBeenCalledTimes(3);
-    expect(creditPurchaseService.fulfillInTransaction).toHaveBeenCalledWith(
+    expect(tx.execute).toHaveBeenCalledTimes(4);
+    expect(fulfillInTransaction).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
         productKey: "api_credits_100",
@@ -138,8 +141,9 @@ describe("BachsWebhookService", () => {
     jest
       .spyOn(db, "transaction")
       .mockImplementation(async (callback) => callback(tx as never));
+    const fulfillInTransaction = jest.fn();
     const creditPurchaseService = {
-      fulfillInTransaction: jest.fn(),
+      fulfillInTransaction,
     } as unknown as CreditPurchaseService;
 
     await expect(
@@ -148,7 +152,7 @@ describe("BachsWebhookService", () => {
         creditPurchaseService,
       }).handle(signed.rawBody, signed.timestamp, signed.signature),
     ).resolves.toEqual({ status: "review" });
-    expect(creditPurchaseService.fulfillInTransaction).not.toHaveBeenCalled();
+    expect(fulfillInTransaction).not.toHaveBeenCalled();
   });
 
   it("does not grant access for an untrusted organization", async () => {

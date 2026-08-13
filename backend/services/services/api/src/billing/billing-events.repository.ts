@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-export type BillingEventProvider = "bachs" | "revenuecat";
+export type BillingEventProvider = "bachs" | "paystack" | "revenuecat";
 export type BillingEventEnvironment = "sandbox" | "live";
 export type BillingEventStatus =
   | "received"
@@ -16,6 +16,7 @@ export interface BillingEventRecord {
   environment: BillingEventEnvironment;
   eventId: string;
   eventType: string;
+  providerReference: string | null;
   organizationId: string | null;
   providerAccountId: string | null;
   payloadHash: string;
@@ -35,6 +36,7 @@ export interface BillingEventsPersistence {
     environment: BillingEventEnvironment;
     eventId: string;
     eventType: string;
+    providerReference?: string;
     organizationId?: string;
     providerAccountId?: string;
     payloadHash: string;
@@ -87,6 +89,7 @@ export class BillingEventsRepository {
     environment: BillingEventEnvironment;
     eventId: string;
     eventType: string;
+    providerReference?: string;
     organizationId?: string;
     providerAccountId?: string;
     payload: unknown;

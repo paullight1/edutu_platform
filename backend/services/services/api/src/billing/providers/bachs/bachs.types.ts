@@ -71,6 +71,10 @@ export interface BachsPayment {
   currency: string;
   createdAt: string;
   updatedAt: string;
+  metadata?: Record<string, unknown>;
+  checkoutId?: string | null;
+  productId?: string | null;
+  userId?: string | null;
 }
 
 export interface BachsSubscription {

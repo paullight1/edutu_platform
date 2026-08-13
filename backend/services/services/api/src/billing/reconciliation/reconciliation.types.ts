@@ -1,5 +1,9 @@
-export type ReconciliationProvider = "bachs" | "revenuecat";
+export type ReconciliationProvider = "bachs" | "paystack" | "revenuecat";
 export type ReconciliationEnvironment = "sandbox" | "live";
+
+export const BILLING_RECONCILIATION_OPTIONS = Symbol(
+  "BILLING_RECONCILIATION_OPTIONS",
+);
 
 export interface ReconciliationPage<T> {
   items: T[];
@@ -83,6 +87,7 @@ export interface BillingReconciliationStore {
     resourceId: string;
   }): Promise<boolean>;
   createReviewCase(input: ReconciliationReviewCase): Promise<void>;
+  purgeExpiredRawPayloads?(): Promise<number>;
 }
 
 export interface ProviderReadAdapter {
@@ -112,6 +117,14 @@ export interface ReconciliationRepairInput {
   providerResourceId: string;
   source: "reconciliation";
   provenance: { reason: string };
+  userId?: string;
+  productKey?: string;
+  amountMinor?: bigint;
+  currency?: string;
+  eventId?: string | null;
+  creditQuantity?: number;
+  checkoutIntentId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ReconciliationRepairResult {

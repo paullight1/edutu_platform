@@ -4,6 +4,7 @@ import { BillingService } from "./billing.service";
 import { SettingsService } from "../settings/settings.service";
 import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
 import { db } from "../db";
+import type { CreditPurchaseService } from "./credit-purchase.service";
 
 // Settings stub: hand the service the default (NGN) pricing config.
 const settingsStub = {
@@ -316,51 +317,23 @@ describe("BillingService", () => {
     expect(daysFromNow).toBe(31);
   });
 
-  it("initializes an API credits checkout with the correct Paystack metadata", async () => {
+  it("rejects new Paystack API-credit checkout initialization", async () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
     process.env.BILLING_PUBLIC_URL = "https://app.edutu.org";
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        status: true,
-        data: {
-          authorization_url: "https://paystack.example/checkout",
-          access_code: "ac_123",
-        },
-      }),
-    } as any);
+    const fetchMock = jest.spyOn(globalThis, "fetch");
 
     const service = new BillingService(settingsStub);
-    const result = await service.createCheckout("user-1", "dev@example.com", {
-      feature: "api_credits",
-      credits: 1500,
-      returnTo: "/developers",
-    });
-
-    expect(result).toMatchObject({
-      provider: "paystack",
-      configured: true,
-      authorizationUrl: "https://paystack.example/checkout",
-      accessCode: "ac_123",
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, requestInit] = fetchMock.mock.calls[0];
-    const parsedBody = JSON.parse(String(requestInit?.body));
-    expect(parsedBody).toMatchObject({
-      email: "dev@example.com",
-      amount: 150000,
-      currency: "NGN",
-      metadata: {
-        user_id: "user-1",
+    await expect(
+      service.createCheckout("user-1", "dev@example.com", {
         feature: "api_credits",
         credits: 1500,
-        return_to: "/developers",
-      },
-    });
+        returnTo: "/developers",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns an unconfigured response when Paystack is missing", async () => {
@@ -418,6 +391,152 @@ describe("BillingService", () => {
         "invalid-signature",
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("routes a locally verified legacy Paystack credit success through the shared fulfillment service", async () => {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
+    const payload = {
+      event: "charge.success",
+      data: {
+        id: 777,
+        reference: "ref_legacy_100",
+        amount: 10000,
+        currency: "NGN",
+        status: "success",
+        metadata: {
+          user_id: "user-1",
+          feature: "api_credits",
+          product_key: "api_credits_100",
+          credits: 100,
+          domain: "test",
+        },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = createHmac("sha512", "sk_test_123")
+      .update(rawBody)
+      .digest("hex");
+    const fulfill = jest.fn().mockResolvedValue({
+      status: "fulfilled",
+      creditsAdded: 100,
+      ledgerId: "ledger-1",
+    });
+    const service = new BillingService(settingsStub, {
+      fulfill,
+    } as unknown as CreditPurchaseService);
+    (service as any).supabase = {
+      from: (table: string) => {
+        if (table !== "billing_transactions")
+          throw new Error("unexpected table");
+        const query = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data: {
+                user_id: "user-1",
+                amount: 100,
+                currency: "NGN",
+                status: "pending",
+                type: "credit_topup",
+                metadata: payload.data.metadata,
+              },
+              error: null,
+            }),
+          upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
+        };
+        return query;
+      },
+    };
+
+    await expect(
+      service.handlePaystackWebhook(rawBody, payload, signature),
+    ).resolves.toMatchObject({ received: true });
+    expect(fulfill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "paystack",
+        environment: "sandbox",
+        eventId: "777",
+        providerReference: "ref_legacy_100",
+        productKey: "api_credits_100",
+        creditQuantity: 100,
+        amountMinor: 10000,
+      }),
+      expect.objectContaining({ allowLegacyPaystackProduct: false }),
+    );
+  });
+
+  it("does not fulfill a legacy Paystack credit when the local checkout amount differs", async () => {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
+    const payload = {
+      event: "charge.success",
+      data: {
+        reference: "ref_mismatch",
+        amount: 10001,
+        currency: "NGN",
+        metadata: { user_id: "user-1", feature: "api_credits", credits: 100 },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = createHmac("sha512", "sk_test_123")
+      .update(rawBody)
+      .digest("hex");
+    const fulfill = jest.fn();
+    const service = new BillingService(settingsStub, {
+      fulfill,
+    } as unknown as CreditPurchaseService);
+    (service as any).supabase = {
+      from: () => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data: {
+                user_id: "user-1",
+                amount: 100,
+                currency: "NGN",
+                status: "pending",
+                metadata: payload.data.metadata,
+              },
+              error: null,
+            }),
+        };
+        return query;
+      },
+    };
+
+    await expect(
+      service.handlePaystackWebhook(rawBody, payload, signature),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fulfill).not.toHaveBeenCalled();
+  });
+
+  it("does not fulfill a Paystack charge event whose provider status is pending", async () => {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
+    const payload = {
+      event: "charge.success",
+      data: {
+        reference: "ref_pending",
+        amount: 10000,
+        currency: "NGN",
+        status: "pending",
+        metadata: { user_id: "user-1", feature: "api_credits", credits: 100 },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = createHmac("sha512", "sk_test_123")
+      .update(rawBody)
+      .digest("hex");
+    const fulfill = jest.fn();
+    const service = new BillingService(settingsStub, {
+      fulfill,
+    } as unknown as CreditPurchaseService);
+
+    await expect(
+      service.handlePaystackWebhook(rawBody, payload, signature),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fulfill).not.toHaveBeenCalled();
   });
 
   it("includes recent billing transactions on billing status responses", async () => {

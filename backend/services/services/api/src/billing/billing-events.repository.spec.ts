@@ -10,6 +10,7 @@ function eventInput(overrides: Record<string, unknown> = {}) {
     environment: "sandbox" as const,
     eventId: "evt_123",
     eventType: "collection.succeeded",
+    providerReference: "charge_123",
     organizationId: "org_edutu",
     payload: {
       id: "evt_123",
@@ -48,6 +49,7 @@ class MemoryEventsPersistence implements BillingEventsPersistence {
       environment: input.environment,
       eventId: input.eventId,
       eventType: input.eventType,
+      providerReference: input.providerReference ?? null,
       organizationId: input.organizationId ?? null,
       providerAccountId: input.providerAccountId ?? null,
       payloadHash: input.payloadHash,
@@ -130,6 +132,7 @@ describe("BillingEventsRepository", () => {
     );
 
     expect(first.kind).toBe("inserted");
+    expect(first.event.providerReference).toBe("charge_123");
     expect(duplicate.kind).toBe("duplicate");
     expect(conflict.kind).toBe("conflict");
     expect(persistence.records.size).toBe(1);

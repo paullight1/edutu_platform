@@ -16,13 +16,18 @@ import type {
 } from "./dto/billing.dto";
 import { SettingsService } from "../settings/settings.service";
 import {
-  CREDIT_PACK_LEDGER_RELATED_TYPE,
-  recordCreditPurchaseInTransaction,
-} from "./billing-credit-ledger.sql";
-import {
   DEFAULT_ADMIN_SETTINGS,
   type PricingSettings,
 } from "../settings/settings.dto";
+import { Optional } from "@nestjs/common";
+import {
+  CreditPurchaseService,
+  LEGACY_PAYSTACK_PRODUCT,
+} from "./credit-purchase.service";
+import {
+  redactProviderPayload,
+  safeProviderError,
+} from "./provider-payload-redaction";
 
 const PRO_FEATURES = [
   "ai_roadmap",
@@ -120,7 +125,10 @@ export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private supabase: SupabaseClient | null = null;
 
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(
+    private readonly settingsService: SettingsService,
+    @Optional() private readonly creditPurchaseService?: CreditPurchaseService,
+  ) {}
 
   // Admin-controlled pricing (currency, plan amounts, credit packs, promo).
   private async getPricing(): Promise<PricingSettings> {
@@ -339,8 +347,9 @@ export class BillingService {
       chargeAmount = pack.price;
     } else if (isApiCredits) {
       // Legacy developer API top-up: ₦1 per credit.
-      creditCount = Math.max(Number(dto.credits ?? 1000) || 1000, 1);
-      chargeAmount = creditCount;
+      throw new BadRequestException(
+        "New Paystack API-credit checkout is disabled; use Bachs products.",
+      );
     } else {
       chargeAmount = this.planAmount(pricing, plan);
     }
@@ -357,6 +366,11 @@ export class BillingService {
         plan,
         feature: dto.feature ?? "pro",
         credits: creditCount,
+        domain: secretKey.startsWith("sk_test") ? "test" : "live",
+        ...(isApiCredits &&
+        (creditCount === 100 || creditCount === 250 || creditCount === 700)
+          ? { product_key: `api_credits_${creditCount}` }
+          : {}),
         return_to: dto.returnTo ?? null,
       },
     };
@@ -382,7 +396,9 @@ export class BillingService {
 
     const result: any = await response.json().catch(() => null);
     if (!response.ok || !result?.status || !result?.data?.authorization_url) {
-      this.logger.error(`Paystack checkout failed: ${JSON.stringify(result)}`);
+      this.logger.error(
+        `Paystack checkout failed: ${safeProviderError(result)}`,
+      );
       throw new InternalServerErrorException(
         "Unable to initialize payment checkout",
       );
@@ -456,21 +472,23 @@ export class BillingService {
     }
 
     if (feature === "api_credits" || feature === "credits") {
-      const credits = Math.max(
-        Number(
-          data.metadata?.credits ?? Math.round(Number(data.amount ?? 0) / 100),
-        ) || 0,
-        1,
-      );
+      if (
+        data.status !== undefined &&
+        String(data.status).toLowerCase() !== "success"
+      ) {
+        throw new BadRequestException("Paystack payment is not successful");
+      }
+      const credits = Number(data.metadata?.credits);
+      if (!Number.isSafeInteger(credits) || credits <= 0) {
+        throw new BadRequestException(
+          "Webhook missing server-owned credit quantity",
+        );
+      }
       await this.recordCreditsPurchase({
         userId,
         credits,
         reference,
         payload: data,
-        source:
-          feature === "credits"
-            ? CREDIT_PACK_LEDGER_RELATED_TYPE
-            : "api_credit_purchase",
       });
       return { received: true };
     }
@@ -718,49 +736,128 @@ export class BillingService {
   }
 
   private async recordCreditsPurchase(input: {
+    // CREDIT_PACK_LEDGER_RELATED_TYPE and recordCreditPurchaseInTransaction
+    // remain in billing-credit-ledger.sql for legacy credit-pack rows. New
+    // verified API purchases use CreditPurchaseService and api_credit_purchase.
     userId: string;
     credits: number;
     reference: string;
     payload: any;
-    source: typeof CREDIT_PACK_LEDGER_RELATED_TYPE | "api_credit_purchase";
   }) {
     const supabase = this.getSupabase();
-    if (!supabase) {
-      throw new InternalServerErrorException("Supabase is not configured");
+    if (!supabase || !this.creditPurchaseService) {
+      throw new InternalServerErrorException(
+        "Verified credit fulfillment is unavailable",
+      );
     }
 
-    await supabase.from("billing_transactions").upsert(
-      {
-        user_id: input.userId,
-        provider: "paystack",
-        provider_reference: input.reference,
-        type: "credit_topup",
-        amount: input.credits,
-        currency: input.payload.currency ?? "NGN",
-        status: "completed",
-        metadata: input.payload,
-      },
-      { onConflict: "provider,provider_reference" },
+    const local = await this.findLegacyPaystackCreditIntent(
+      supabase,
+      input.reference,
     );
+    const payloadCurrency = String(input.payload.currency ?? "").toUpperCase();
+    const localCurrency = String(local.currency ?? "").toUpperCase();
+    const localMetadata = this.recordMetadata(local.metadata);
+    const localUserId = String(local.user_id ?? "");
+    const expectedAmountMinor = Math.round(Number(local.amount ?? 0) * 100);
+    const actualAmountMinor = Number(input.payload.amount ?? 0);
+    const localCredits = Number(localMetadata.credits);
+    const localProductKey = String(localMetadata.product_key ?? "");
+    const payloadUserId = String(input.payload.metadata?.user_id ?? "");
+    const payloadCredits = Number(input.payload.metadata?.credits);
+    const localDomain = String(localMetadata.domain ?? "").toLowerCase();
+    const payloadDomain = String(
+      input.payload.metadata?.domain ?? "",
+    ).toLowerCase();
+    const configuredEnvironment = String(
+      process.env.PAYSTACK_SECRET_KEY,
+    ).startsWith("sk_test")
+      ? "test"
+      : "live";
 
-    // Paystack retries webhooks, so the credit grant must be idempotent. Insert
-    // the ledger row into credit_transactions (the real ledger) keyed by
-    // (related_type, related_id) first; only credit profiles.credits when this
-    // delivery actually inserted the row. Both writes share one transaction, and
-    // set the app.credit_op guard flag so the profile trigger allows the update.
-    await db.transaction(async (tx) => {
-      const description =
-        input.source === CREDIT_PACK_LEDGER_RELATED_TYPE
-          ? `Credit pack purchase: +${input.credits}`
-          : `API credit top-up: +${input.credits}`;
-      await recordCreditPurchaseInTransaction(tx, {
-        userId: input.userId,
-        credits: input.credits,
-        description,
-        reference: input.reference,
-        relatedType: input.source,
-      });
-    });
+    if (
+      localUserId !== input.userId ||
+      !payloadUserId ||
+      payloadUserId !== localUserId ||
+      !Number.isSafeInteger(localCredits) ||
+      localCredits <= 0 ||
+      !localProductKey ||
+      payloadCredits !== localCredits ||
+      (payloadDomain !== "test" && payloadDomain !== "live") ||
+      localDomain !== payloadDomain ||
+      localDomain !== configuredEnvironment ||
+      expectedAmountMinor !== actualAmountMinor ||
+      !payloadCurrency ||
+      payloadCurrency !== localCurrency ||
+      !["pending", "processing", "completed"].includes(
+        String(local.status).toLowerCase(),
+      )
+    ) {
+      throw new BadRequestException("Paystack credit purchase requires review");
+    }
+
+    const environment = payloadDomain === "test" ? "sandbox" : "live";
+    const result = await this.creditPurchaseService.fulfill(
+      {
+        provider: "paystack",
+        environment,
+        eventId: String(input.payload.id ?? `paystack:${input.reference}`),
+        providerReference: input.reference,
+        userId: localUserId,
+        productKey: localProductKey,
+        creditQuantity: localCredits,
+        amountMinor: actualAmountMinor,
+        currency: payloadCurrency,
+      },
+      {
+        eventType: "charge.success",
+        payload: redactProviderPayload(input.payload),
+        allowLegacyPaystackProduct: localProductKey === LEGACY_PAYSTACK_PRODUCT,
+        legacyAudit: {
+          providerReference: input.reference,
+          userId: localUserId,
+          amountMajor: Number(local.amount),
+          currency: localCurrency,
+          payload: input.payload,
+        },
+      },
+    );
+    if (result.status === "review") {
+      throw new BadRequestException("Paystack credit purchase requires review");
+    }
+  }
+
+  private async findLegacyPaystackCreditIntent(
+    supabase: SupabaseClient,
+    reference: string,
+  ): Promise<Record<string, unknown>> {
+    const result = await supabase
+      .from("billing_transactions")
+      .select("user_id, amount, currency, status, type, metadata")
+      .eq("provider", "paystack")
+      .eq("provider_reference", reference)
+      .maybeSingle();
+    if (result.error || !result.data) {
+      throw new BadRequestException("Paystack credit purchase requires review");
+    }
+    const row = result.data as Record<string, unknown>;
+    const metadata = this.recordMetadata(row.metadata);
+    if (row.type && row.type !== "credit_topup") {
+      throw new BadRequestException("Paystack credit purchase requires review");
+    }
+    if (
+      metadata.feature &&
+      !["api_credits", "credits"].includes(String(metadata.feature))
+    ) {
+      throw new BadRequestException("Paystack credit purchase requires review");
+    }
+    return row;
+  }
+
+  private recordMetadata(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
   private mapBillingTransactionRows(
