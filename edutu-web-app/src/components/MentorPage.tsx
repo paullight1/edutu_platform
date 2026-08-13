@@ -25,7 +25,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
-import { getMentorDashboard } from '../services/mentor';
+import { getMentorDashboard, submitMentorApplication } from '../services/mentor';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 
@@ -108,6 +108,21 @@ const LANDING_OPTIONS = [
     },
 ];
 
+const MENTOR_HERO_SLIDES = [
+    {
+        src: '/mentor/hero-library-mentor.jpg',
+        alt: 'A Nigerian mentor guiding two learners through an application in a university library',
+    },
+    {
+        src: '/mentor/hero-campus-walk.jpg',
+        alt: 'A Nigerian mentor and university learner discussing a plan on campus',
+    },
+    {
+        src: '/mentor/hero-application-review.jpg',
+        alt: 'A mentor and learner reviewing an application together in a study space',
+    },
+] as const;
+
 const MentorPage: React.FC = () => {
     const reduceMotion = useReducedMotion();
     const { userId, isSignedIn, getToken } = useAuth();
@@ -134,6 +149,7 @@ const MentorPage: React.FC = () => {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [isApprovedMentor, setIsApprovedMentor] = useState(false);
+    const [activeHeroSlide, setActiveHeroSlide] = useState(0);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
 
@@ -168,6 +184,16 @@ const MentorPage: React.FC = () => {
         })();
         return () => { active = false; };
     }, [isSignedIn, getToken]);
+
+    React.useEffect(() => {
+        if (reduceMotion) return;
+
+        const interval = window.setInterval(() => {
+            setActiveHeroSlide((current) => (current + 1) % MENTOR_HERO_SLIDES.length);
+        }, 6000);
+
+        return () => window.clearInterval(interval);
+    }, [reduceMotion]);
 
     const startApplication = () => {
         if (!isSignedIn) {
@@ -212,13 +238,8 @@ const MentorPage: React.FC = () => {
 
         if (error) throw error;
 
-        const { data: urlData } = supabase.storage
-            .from('creator-proofs')
-            .getPublicUrl(data.path);
-
         return {
             path: data.path,
-            url: urlData.publicUrl,
         };
     };
 
@@ -246,61 +267,30 @@ const MentorPage: React.FC = () => {
         setSubmitError(null);
         try {
             const proof = await uploadProofFile(userId, proofFile);
-            const now = new Date().toISOString();
-
-            // Only self-service columns can be written directly — role /
-            // creator_status / creator_metadata are grant-protected and would
-            // fail the whole upsert with 42501. Status goes through the
-            // SECURITY DEFINER RPC; the application row below carries the
-            // full metadata for review.
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    user_id: userId,
-                    full_name: formData.displayName,
-                    email: formData.email,
-                    country: formData.country,
-                    updated_at: now,
-                }, { onConflict: 'user_id' });
-
-            if (profileError) throw profileError;
-
-            const { error: statusError } = await supabase
-                .rpc('set_creator_status', { p_status: 'pending' });
-            if (statusError) {
-                console.warn('Could not flag creator status as pending', statusError);
+            const token = await getToken();
+            if (!token) {
+                throw new Error('Your session has expired. Please sign in again.');
             }
 
-            // Canonical creator_applications columns (snake_case; applied_at is
-            // the real timestamp column). This row is what admins review — its
-            // failure must fail the submission, not be swallowed.
-            const { error } = await supabase
-                .from('creator_applications')
-                .insert({
-                    user_id: userId,
-                    application_kind: 'creator',
-                    display_name: formData.displayName,
-                    email: formData.email,
-                    phone_number: formData.phoneNumber,
-                    country: formData.country,
-                    bio: formData.bio,
-                    motivation: formData.motivation || null,
-                    content_type: formData.contentType,
-                    experience: formData.experience || 'Not specified',
-                    linkedin_url: formData.linkedInUrl || null,
-                    portfolio_url: formData.portfolioUrl || null,
-                    sample_content_url: formData.portfolioUrl || formData.linkedInUrl,
-                    proof_file_name: proofFile?.name || null,
-                    proof_file_type: proofFile?.type || null,
-                    proof_file_size: proofFile?.size || null,
-                    proof_url: proof.url,
-                    proof_path: proof.path,
-                    consent_accepted: consentAccepted,
-                    status: 'pending',
-                    applied_at: now,
-                });
+            await submitMentorApplication(token, {
+                displayName: formData.displayName,
+                email: formData.email,
+                phoneNumber: formData.phoneNumber,
+                country: formData.country,
+                bio: formData.bio,
+                motivation: formData.motivation || undefined,
+                contentType: formData.contentType,
+                experience: formData.experience || 'Not specified',
+                linkedinUrl: formData.linkedInUrl || undefined,
+                portfolioUrl: formData.portfolioUrl || undefined,
+                sampleContentUrl: formData.portfolioUrl || formData.linkedInUrl || undefined,
+                proofPath: proof.path,
+                proofFileName: proofFile.name,
+                proofFileType: proofFile.type,
+                proofFileSize: proofFile.size,
+                consentAccepted,
+            });
 
-            if (error) throw error;
             setIsSubmitted(true);
         } catch (err) {
             console.error('Submission error:', err);
@@ -341,27 +331,42 @@ const MentorPage: React.FC = () => {
     if (!showApplication) {
         return (
             <div className="min-h-[100dvh] bg-surface-body font-body text-text-primary">
-                <PublicHeader fixed />
+                <PublicHeader fixed darkAtTop />
 
                 <main>
                     <motion.section
                         initial={reduceMotion ? undefined : { opacity: 0 }}
                         whileInView={reduceMotion ? undefined : { opacity: 1 }}
                         viewport={{ once: true, margin: "-100px" }}
-                        className="relative overflow-hidden"
+                        className="relative isolate min-h-[min(760px,100dvh)] overflow-hidden bg-slate-950 text-white"
                     >
-                        <div
-                            className="pointer-events-none absolute inset-0"
-                            style={{
-                                background:
-                                    'radial-gradient(circle at 50% 10%, rgb(var(--color-brand-500) / 0.10), transparent 34%)',
-                            }}
-                        />
-                        <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 pt-32 pb-20 md:pt-36 md:pb-28 text-center">
+                        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                            {MENTOR_HERO_SLIDES.map((slide, index) => (
+                                <motion.img
+                                    key={slide.src}
+                                    src={slide.src}
+                                    alt=""
+                                    aria-hidden="true"
+                                    initial={false}
+                                    animate={{
+                                        opacity: index === activeHeroSlide ? 1 : 0,
+                                        scale: index === activeHeroSlide ? 1 : 1.035,
+                                    }}
+                                    transition={{ duration: 1.2, ease: 'easeInOut' }}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                    loading={index === 0 ? 'eager' : 'lazy'}
+                                    fetchPriority={index === 0 ? 'high' : 'auto'}
+                                />
+                            ))}
+                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,10,22,0.96)_0%,rgba(5,10,22,0.82)_38%,rgba(5,10,22,0.48)_72%,rgba(5,10,22,0.54)_100%)]" />
+                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,22,0.78)_0%,rgba(5,10,22,0.08)_35%,rgba(5,10,22,0.74)_100%)]" />
+                        </div>
+                        <div className="relative z-10 mx-auto flex min-h-[min(760px,100dvh)] max-w-[1200px] items-center px-4 pb-20 pt-32 text-center sm:px-6 md:pb-28 md:pt-36">
+                            <div className="w-full">
                             <motion.div
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-brand/10 text-brand border border-brand/20"
+                                className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-300/30 bg-slate-950/35 px-4 py-2 text-brand-100 shadow-soft backdrop-blur-md"
                             >
                                 <Sparkles size={14} />
                                 <span className="text-xs font-semibold uppercase tracking-[0.2em]">Mentor with Edutu</span>
@@ -371,17 +376,17 @@ const MentorPage: React.FC = () => {
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ delay: 0.05 }}
-                                className="max-w-3xl mx-auto font-display text-[clamp(2rem,4.4vw,3.35rem)] md:text-[clamp(2.35rem,4.6vw,4rem)] font-semibold tracking-tight leading-[1.06] mb-7 text-text-primary"
+                                className="mx-auto mb-7 max-w-3xl font-display text-[clamp(2rem,4.4vw,3.35rem)] font-semibold leading-[1.06] tracking-tight text-white md:text-[clamp(2.35rem,4.6vw,4rem)]"
                             >
                                 Help ambitious learners turn opportunity into{' '}
-                                <span className="text-brand">real outcomes.</span>
+                                <span className="text-brand-300">real outcomes.</span>
                             </motion.h1>
 
                             <motion.p
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 }}
-                                className="max-w-2xl mx-auto text-base md:text-lg leading-relaxed mb-10 text-text-secondary"
+                                className="mx-auto mb-10 max-w-2xl text-base leading-relaxed text-slate-200/85 md:text-lg"
                             >
                                 Join Edutu as a mentor or resource expert. Share what worked for you and help students prepare stronger applications, career plans, and next steps.
                             </motion.p>
@@ -396,14 +401,14 @@ const MentorPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={startApplication}
-                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand px-8 py-4 text-sm font-semibold text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-300/60 sm:w-auto"
                                     >
                                         Become a Mentor <ArrowRight size={16} />
                                     </button>
                                 )}
                                 <a
                                     href="#options"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold border border-strong bg-surface-layer text-text-primary transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/50"
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/35 bg-slate-950/25 px-8 py-4 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-white/60 sm:w-auto"
                                 >
                                     Explore Options <PlayCircle size={16} />
                                 </a>
@@ -411,12 +416,25 @@ const MentorPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/mentor/dashboard')}
-                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-semibold bg-brand text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand px-8 py-4 text-sm font-semibold text-white shadow-elevated transition-all duration-300 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-300/60 sm:w-auto"
                                     >
                                         Go to Mentor Studio <ArrowRight size={16} />
                                     </button>
                                 )}
                             </motion.div>
+                            <div className="mt-10 flex items-center justify-center gap-2" aria-label="Mentor hero images">
+                                {MENTOR_HERO_SLIDES.map((slide, index) => (
+                                    <span
+                                        key={slide.src}
+                                        className={`h-1.5 rounded-full transition-all duration-500 ${index === activeHeroSlide ? 'w-8 bg-brand-300' : 'w-1.5 bg-white/45'}`}
+                                        aria-hidden="true"
+                                    />
+                                ))}
+                            </div>
+                            <span className="sr-only" aria-live="polite">
+                                {MENTOR_HERO_SLIDES[activeHeroSlide].alt}
+                            </span>
+                            </div>
                         </div>
                     </motion.section>
 

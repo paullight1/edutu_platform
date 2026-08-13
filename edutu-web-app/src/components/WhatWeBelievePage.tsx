@@ -1,361 +1,270 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import {
-    ArrowRight,
-    Sparkles,
-    Globe,
-    Scale,
-    Mail,
-    Cpu,
-    Heart,
-    BookOpen,
-    Waves,
-    Users,
-    Compass,
-    Check,
-    type LucideIcon,
-} from 'lucide-react';
+import { ArrowRight, Check, Heart } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
+import { useDarkMode } from '../hooks/useDarkMode';
 
-const fadeUp = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } },
-};
+const illustrationSheet = '/illustrations/beliefs-sheet.png';
+const darkIllustrationSheet = '/illustrations/beliefs-sheet-dark.png';
 
-const staggerContainer = {
-    hidden: { opacity: 0 },
-    visible: {
-        opacity: 1,
-        transition: { staggerChildren: 0.08, delayChildren: 0.1 },
-    },
-};
-
-interface Belief {
-    icon: LucideIcon;
+type Belief = {
+    number: string;
     headline: string;
-    lines: string[];
-    accentClass: string;
-    tintClass: string;
-}
+    statement: string;
+    position: string;
+    layout: string;
+    tone: string;
+};
 
 const beliefs: Belief[] = [
     {
-        icon: Globe,
+        number: '01',
         headline: 'Talent is everywhere.',
-        lines: [
-            'Brilliant young people live in every village, town, city, and country.',
-            'Talent is not limited by geography, income, or the school someone attended.',
-            "The world simply hasn't discovered everyone yet.",
-        ],
-        accentClass: 'text-brand',
-        tintClass: 'bg-brand/10',
+        statement: 'Brilliance is not owned by a postcode.',
+        position: '0% 0%',
+        layout: 'md:col-span-1 xl:col-span-7',
+        tone: 'bg-surface-layer',
     },
     {
-        icon: Scale,
-        headline: 'Opportunity should never be a privilege.',
-        lines: [
-            'A scholarship should not depend on who you know.',
-            'A fellowship should not depend on where you were born.',
-            'A job should not be impossible because you never heard about it.',
-            'Everyone deserves a fair chance.',
-        ],
-        accentClass: 'text-accent',
-        tintClass: 'bg-accent/10',
+        number: '02',
+        headline: 'Opportunity should be fair.',
+        statement: 'Where you start should not decide how far you go.',
+        position: '50% 0%',
+        layout: 'md:col-span-1 xl:col-span-5',
+        tone: 'bg-surface-brand',
     },
     {
-        icon: Mail,
+        number: '03',
         headline: 'Information changes lives.',
-        lines: [
-            'Sometimes the difference between success and regret is one email.',
-            'One application.',
-            'One opportunity discovered before the deadline.',
-            'Access to information is access to possibility.',
-        ],
-        accentClass: 'text-success',
-        tintClass: 'bg-success/10',
+        statement: 'The right link, at the right time, can change everything.',
+        position: '100% 0%',
+        layout: 'md:col-span-1 xl:col-span-4',
+        tone: 'bg-surface-layer',
     },
     {
-        icon: Cpu,
+        number: '04',
         headline: 'AI should empower people.',
-        lines: [
-            'Artificial Intelligence should not replace dreams.',
-            'It should help people pursue them.',
-            'Technology should make opportunity easier to find, easier to understand, and easier to access.',
-        ],
-        accentClass: 'text-brand',
-        tintClass: 'bg-brand/10',
+        statement: 'Technology should clear the path, not take the wheel.',
+        position: '0% 50%',
+        layout: 'md:col-span-1 xl:col-span-4',
+        tone: 'bg-surface-layer',
     },
     {
-        icon: Heart,
+        number: '05',
         headline: 'Confidence matters.',
-        lines: [
-            'Too many young people reject themselves before anyone else does.',
-            'We want every user to believe:',
-            '“Maybe this opportunity is for me.”',
-            'Because courage often starts with possibility.',
-        ],
-        accentClass: 'text-danger',
-        tintClass: 'bg-danger/10',
+        statement: 'Sometimes the first breakthrough is simply applying.',
+        position: '50% 50%',
+        layout: 'md:col-span-1 xl:col-span-4',
+        tone: 'bg-surface-brand',
     },
     {
-        icon: BookOpen,
+        number: '06',
         headline: 'Learning never ends.',
-        lines: [
-            'Getting a scholarship is not the finish line.',
-            'Neither is getting a job.',
-            'Growth is a lifelong journey.',
-            "We're here for every step.",
-        ],
-        accentClass: 'text-warning',
-        tintClass: 'bg-warning/10',
+        statement: 'Every next step is still part of the journey.',
+        position: '100% 50%',
+        layout: 'md:col-span-1 xl:col-span-5',
+        tone: 'bg-surface-layer',
     },
     {
-        icon: Waves,
-        headline: 'One opportunity can change generations.',
-        lines: [
-            'A scholarship can educate a student.',
-            'A graduate can support a family.',
-            'A founder can employ hundreds.',
-            'A teacher can inspire thousands.',
-            'One opportunity rarely changes one life.',
-            'It creates a ripple effect.',
-        ],
-        accentClass: 'text-accent',
-        tintClass: 'bg-accent/10',
+        number: '07',
+        headline: 'One opportunity can ripple outward.',
+        statement: 'A single yes can reach a whole family.',
+        position: '0% 100%',
+        layout: 'md:col-span-1 xl:col-span-7',
+        tone: 'bg-surface-layer',
     },
     {
-        icon: Users,
+        number: '08',
         headline: "Africa's greatest resource is its people.",
-        lines: [
-            'Not oil.',
-            'Not minerals.',
-            'Not land.',
-            'People.',
-            'When young Africans succeed, communities grow.',
-            'When communities grow, nations prosper.',
-        ],
-        accentClass: 'text-success',
-        tintClass: 'bg-success/10',
+        statement: 'Invest in people and communities move forward.',
+        position: '50% 100%',
+        layout: 'md:col-span-1 xl:col-span-4',
+        tone: 'bg-surface-brand',
     },
     {
-        icon: Compass,
-        headline: "No dream should die because someone didn't know where to look.",
-        lines: [
-            'That is why Edutu exists.',
-            'To make opportunity easier to find.',
-            'To make applications less intimidating.',
-            'To help young people believe in themselves.',
-            'To open doors that once felt out of reach.',
-        ],
-        accentClass: 'text-brand',
-        tintClass: 'bg-brand/10',
+        number: '09',
+        headline: 'No dream should die from not knowing where to look.',
+        statement: 'Make the next door easier to find.',
+        position: '100% 100%',
+        layout: 'md:col-span-2 xl:col-span-8',
+        tone: 'bg-surface-layer',
     },
 ];
 
-const Eyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">{children}</span>
-);
+const fadeUp = {
+    hidden: { opacity: 0, y: 22 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.62, ease: [0.16, 1, 0.3, 1] },
+    },
+};
+
+const stagger = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.07, delayChildren: 0.08 },
+    },
+};
 
 const WhatWeBelievePage: React.FC = () => {
     const reduceMotion = useReducedMotion();
-
+    const { isDarkMode } = useDarkMode();
+    const activeIllustrationSheet = isDarkMode ? darkIllustrationSheet : illustrationSheet;
     const reveal = reduceMotion
         ? {}
         : {
               variants: fadeUp,
               initial: 'hidden' as const,
               whileInView: 'visible' as const,
-              viewport: { once: true, margin: '-80px' },
+              viewport: { once: true, margin: '-72px' },
           };
-    const stagger = reduceMotion
+    const listReveal = reduceMotion
         ? {}
         : {
-              variants: staggerContainer,
+              variants: stagger,
               initial: 'hidden' as const,
               whileInView: 'visible' as const,
-              viewport: { once: true, margin: '-80px' },
+              viewport: { once: true, margin: '-72px' },
           };
-    const childVariants = reduceMotion ? undefined : fadeUp;
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
             <PageSeo path="/what-we-believe" />
             <PublicHeader />
 
-            <main className="relative z-10">
-                {/* Hero */}
-                <section className="pt-40 pb-24 px-4 sm:px-6">
-                    <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5"
-                        >
-                            <Sparkles size={14} className="text-brand" />
-                            <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">
-                                What we believe
+            <main>
+                <section className="relative overflow-hidden border-b border-subtle px-4 pb-20 pt-24 sm:px-6 sm:pb-28 sm:pt-32">
+                    <div className="pointer-events-none absolute left-1/2 top-0 h-[24rem] w-[44rem] -translate-x-1/2 rounded-full bg-brand/10 blur-3xl" />
+                    <div className="mx-auto flex max-w-[900px] flex-col items-center text-center">
+                        <motion.div {...reveal} className="flex flex-col items-center">
+                            <span className="inline-flex items-center rounded-full border border-brand/20 bg-brand/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-[0.18em] text-brand">
+                                A note from Edutu
                             </span>
+                            <h1 className="mt-7 max-w-[860px] font-display text-[clamp(2.9rem,7vw,5.5rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-text-primary text-balance">
+                                Talent is everywhere.
+                                <br />
+                                <span className="text-brand">Opportunity should be too.</span>
+                            </h1>
+                            <p className="mx-auto mt-7 max-w-[620px] text-lg leading-[1.65] text-text-secondary sm:text-xl">
+                                These are the ideas behind the product: fewer closed doors, clearer next steps,
+                                and more people seeing a future they can act on.
+                            </p>
+                            <div className="mt-9 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-medium text-text-muted">
+                                <span className="font-display text-base font-semibold text-text-primary">09 beliefs</span>
+                                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-brand/60" />
+                                <span>that shape the work</span>
+                            </div>
                         </motion.div>
-
-                        <motion.h1
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 30 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                            className="font-display text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.06] tracking-tight mb-8 text-text-primary"
-                        >
-                            Talent is everywhere.
-                            <br />
-                            <span className="text-brand">Opportunity should be too.</span>
-                        </motion.h1>
-
-                        <motion.p
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-                            className="max-w-[720px] text-base leading-relaxed text-text-secondary sm:text-lg"
-                        >
-                            These are the beliefs behind everything we build. They shape how we design,
-                            what we prioritise, and the promise we make to every young person who opens
-                            Edutu.
-                        </motion.p>
                     </div>
                 </section>
 
-                {/* Beliefs */}
-                <section className="pb-24 px-4 sm:px-6 border-t border-subtle">
-                    <div className="max-w-[1000px] mx-auto pt-16">
-                        <div className="mb-16 text-center">
-                            <Eyebrow>Our Beliefs</Eyebrow>
-                            <h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight leading-[1.1] mt-4 text-text-primary">
-                                Nine things we hold <span className="text-brand">to be true</span>
+                <section className="relative px-4 py-20 sm:px-6 sm:py-28">
+                    <div className="mx-auto max-w-[1200px]">
+                        <motion.div {...reveal} className="mb-12 max-w-[620px] sm:mb-16">
+                            <h2 className="font-display text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-text-primary text-balance">
+                                What guides the way
                             </h2>
-                        </div>
+                            <p className="mt-5 max-w-[560px] text-base leading-[1.7] text-text-secondary sm:text-lg">
+                                Short answers to a big question: what should opportunity feel like?
+                            </p>
+                        </motion.div>
 
-                        <motion.div {...stagger} className="grid gap-6 md:grid-cols-2">
-                            {beliefs.map((belief, i) => (
+                        <motion.div {...listReveal} className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-12">
+                            {beliefs.map((belief) => (
                                 <motion.article
-                                    key={belief.headline}
-                                    variants={childVariants}
-                                    className={`group flex flex-col rounded-3xl border border-subtle bg-surface-layer p-8 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated ${
-                                        i === beliefs.length - 1 && beliefs.length % 2 === 1
-                                            ? 'md:col-span-2'
-                                            : ''
-                                    }`}
+                                    key={belief.number}
+                                    variants={reduceMotion ? undefined : fadeUp}
+                                    className={`group flex flex-col rounded-3xl border border-subtle p-3 shadow-soft transition duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated ${belief.layout} ${belief.tone}`}
                                 >
-                                    <div className="mb-6 flex items-start gap-4">
-                                        <div
-                                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${belief.tintClass}`}
-                                        >
-                                            <belief.icon size={22} className={belief.accentClass} />
+                                    <div
+                                        role="img"
+                                        aria-label={`${belief.headline} illustration`}
+                                        className="aspect-[1.35] w-full overflow-hidden rounded-[1.35rem] border border-black/5 bg-surface-elevated bg-cover bg-no-repeat transition duration-500 group-hover:scale-[0.985] dark:border-white/10"
+                                        style={{
+                                            backgroundImage: `url(${activeIllustrationSheet})`,
+                                            backgroundPosition: belief.position,
+                                            backgroundSize: '300% 300%',
+                                        }}
+                                    />
+                                    <div className="flex flex-1 flex-col px-3 pb-3 pt-5 sm:px-4 sm:pb-4 sm:pt-6">
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <span className="font-mono text-2xs font-medium tracking-[0.16em] text-brand">
+                                                {belief.number}
+                                            </span>
+                                            <span className="h-px w-12 bg-brand/25" aria-hidden="true" />
                                         </div>
-                                        <h3 className="font-display text-xl sm:text-2xl font-semibold tracking-tight leading-snug text-text-primary">
-                                            <span className="text-text-muted">We believe </span>
+                                        <h3 className="max-w-[25rem] font-display text-2xl font-semibold leading-[1.08] tracking-[-0.025em] text-text-primary sm:text-[1.7rem]">
                                             {belief.headline}
                                         </h3>
+                                        <p className="mt-4 max-w-[30rem] text-base leading-[1.65] text-text-secondary">
+                                            {belief.statement}
+                                        </p>
                                     </div>
-
-                                    <ul className="space-y-3">
-                                        {belief.lines.map((line) => (
-                                            <li
-                                                key={line}
-                                                className="flex gap-3 text-base leading-relaxed text-text-secondary"
-                                            >
-                                                <span
-                                                    className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${belief.tintClass.replace(
-                                                        '/10',
-                                                        '/60',
-                                                    )}`}
-                                                    aria-hidden="true"
-                                                />
-                                                <span>{line}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
                                 </motion.article>
                             ))}
                         </motion.div>
                     </div>
                 </section>
 
-                {/* Our Promise */}
-                <section className="py-24 px-4 sm:px-6 border-t border-subtle bg-surface-elevated">
-                    <div className="max-w-[820px] mx-auto text-center">
-                        <motion.div
-                            {...reveal}
-                            className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-brand/10 border border-brand/20"
-                        >
-                            <Heart size={14} className="text-brand" />
-                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-                                Our Promise
-                            </span>
+                <section className="border-y border-subtle bg-surface-elevated px-4 py-20 sm:px-6 sm:py-28">
+                    <div className="mx-auto grid max-w-[1200px] items-center gap-10 lg:grid-cols-[0.7fr_1.3fr] lg:gap-20">
+                        <motion.div {...reveal}>
+                            <span className="font-mono text-2xs font-medium uppercase tracking-[0.18em] text-brand">Our promise</span>
+                            <h2 className="mt-5 max-w-[440px] font-display text-[clamp(2rem,4vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-text-primary text-balance">
+                                Keep asking who this helps.
+                            </h2>
                         </motion.div>
 
-                        <motion.h2
-                            {...reveal}
-                            className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-[1.08] mt-6 mb-6 text-text-primary"
-                        >
-                            Every decision comes back to{' '}
-                            <span className="text-brand">one question.</span>
-                        </motion.h2>
-
-                        <motion.p
-                            {...reveal}
-                            className="mx-auto max-w-[640px] text-xl sm:text-2xl font-display font-medium leading-relaxed text-text-primary"
-                        >
-                            “Will this help one more young person discover an opportunity that could
-                            change their life?”
-                        </motion.p>
-
-                        <motion.div {...stagger} className="mt-12 grid gap-4 sm:grid-cols-2 text-left">
-                            <motion.div
-                                variants={childVariants}
-                                className="flex items-center gap-4 rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft"
-                            >
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success/10">
-                                    <Check size={20} className="text-success" />
+                        <motion.div {...reveal} className="rounded-3xl bg-brand-700 p-7 text-white shadow-elevated sm:p-10 dark:bg-brand-800">
+                            <Heart size={24} strokeWidth={1.8} aria-hidden="true" />
+                            <p className="mt-7 max-w-[700px] font-display text-[clamp(1.55rem,3vw,2.45rem)] font-medium leading-[1.14] tracking-[-0.025em]">
+                                “Will this help one more young person discover an opportunity that could change their life?”
+                            </p>
+                            <div className="mt-9 grid gap-3 border-t border-white/20 pt-6 sm:grid-cols-2">
+                                <div className="flex items-center gap-3 text-sm font-semibold text-white/95">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                                        <Check size={16} aria-hidden="true" />
+                                    </span>
+                                    If yes, build it.
                                 </div>
-                                <p className="text-base leading-relaxed text-text-secondary">
-                                    If the answer is yes,{' '}
-                                    <span className="font-semibold text-text-primary">we'll build it.</span>
-                                </p>
-                            </motion.div>
-                            <motion.div
-                                variants={childVariants}
-                                className="flex items-center gap-4 rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft"
-                            >
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-danger/10">
-                                    <ArrowRight size={20} className="text-danger rotate-180" />
+                                <div className="flex items-center gap-3 text-sm font-semibold text-white/90">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">—</span>
+                                    If not, leave it.
                                 </div>
-                                <p className="text-base leading-relaxed text-text-secondary">
-                                    If not,{' '}
-                                    <span className="font-semibold text-text-primary">we won't.</span>
-                                </p>
-                            </motion.div>
+                            </div>
                         </motion.div>
                     </div>
                 </section>
 
-                {/* CTA */}
-                <section className="py-32 px-4 sm:px-6 border-t border-subtle">
-                    <div className="max-w-[1000px] mx-auto text-center p-12 lg:p-20 rounded-3xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-elevated">
-                        <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] mb-6 text-white">
-                            Maybe this opportunity is for you.
-                        </h2>
-                        <p className="max-w-[520px] mx-auto text-base leading-relaxed mb-10 text-white/80 sm:text-lg">
-                            Courage often starts with possibility. Start exploring the opportunities
-                            waiting to be discovered.
-                        </p>
+                <section className="px-4 py-20 sm:px-6 sm:py-28">
+                    <motion.div
+                        {...reveal}
+                        className="mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-8 overflow-hidden rounded-3xl bg-brand-700 px-7 py-10 text-white shadow-elevated sm:px-12 sm:py-14 lg:flex-row lg:items-center lg:px-16 dark:bg-brand-800"
+                    >
+                        <div className="relative z-10 max-w-[620px]">
+                            <h2 className="font-display text-[clamp(2rem,4vw,3.45rem)] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
+                                Maybe the next opportunity is for you.
+                            </h2>
+                            <p className="mt-4 max-w-[500px] text-base leading-[1.65] text-white/90 sm:text-lg">
+                                Start with one search. See what opens up.
+                            </p>
+                        </div>
                         <Link
                             to="/opportunities"
-                            className="inline-flex items-center gap-2 px-10 py-4 text-base font-semibold rounded-xl bg-white text-brand shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
+                            className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-xl bg-white px-5 py-3.5 text-sm font-semibold text-brand-800 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-700 dark:text-brand-900 dark:focus-visible:ring-offset-brand-800"
                         >
-                            Browse Opportunities <ArrowRight size={16} />
+                            Browse opportunities <ArrowRight size={16} aria-hidden="true" />
                         </Link>
-                    </div>
+                        <div
+                            aria-hidden="true"
+                            className="absolute -bottom-28 -right-16 hidden h-72 w-72 rounded-full border-[22px] border-white/10 sm:block"
+                        />
+                    </motion.div>
                 </section>
             </main>
 

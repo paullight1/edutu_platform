@@ -56,7 +56,7 @@ const capabilities: {
     icon: ShieldCheck,
     title: 'Keys & billing',
     endpoint: 'POST /v1/keys',
-    body: 'Scoped API keys you can rotate or revoke, per-project usage tracking, and credit billing through Paystack.',
+    body: 'Scoped API keys you can rotate or revoke, per-project usage tracking, and secure credit billing through Bachs.',
   },
 ];
 

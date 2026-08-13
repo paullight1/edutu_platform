@@ -111,19 +111,26 @@ export async function fetchEvents(
     params.set("search", options.search.trim());
   }
 
-  const response = await fetch(buildBackendUrl("/events", params), {
-    method: "GET",
-    signal: options.signal,
-    headers: { Accept: "application/json" },
-  });
+  try {
+    const response = await fetch(buildBackendUrl("/events", params), {
+      method: "GET",
+      signal: options.signal,
+      headers: { Accept: "application/json" },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Events request failed with ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Events request failed with ${response.status}`);
+    }
+
+    const events = extractRows(await response.json()).map(normaliseEvent);
+    cachedEvents = events;
+    return events;
+  } catch (error) {
+    if (!options.signal?.aborted && cachedEvents !== null) {
+      return cachedEvents;
+    }
+    throw error;
   }
-
-  const events = extractRows(await response.json()).map(normaliseEvent);
-  cachedEvents = events;
-  return events;
 }
 
 export async function getEvent(slugOrId: string): Promise<EdutuEvent | null> {

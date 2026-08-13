@@ -1,22 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock } from 'lucide-react';
-import PublicHeader from './PublicHeader';
-import SiteFooter from './SiteFooter';
-import Seo from './Seo';
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import PublicHeader from "./PublicHeader";
+import SiteFooter from "./SiteFooter";
+import Seo from "./Seo";
 import {
   fetchPostBySlug,
   fetchPublishedPosts,
-  agedPublishDate,
-  relativeDateLabel,
+  formatPostDate,
   readingTime,
   type BlogPost,
-} from '../services/blog';
+} from "../services/blog";
 
-type LoadState = 'loading' | 'ready' | 'not-found' | 'error';
+type LoadState = "loading" | "ready" | "not-found" | "error";
 
-const FALLBACK_COVER = 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1600&q=80';
+const FALLBACK_COVER =
+  "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1600&q=80";
+
+function metaDescription(post: BlogPost): string {
+  const source = (post.excerpt || post.content.replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!source) return `${post.title} — insights from the Edutu team.`;
+  if (source.length <= 160) return source;
+
+  const shortened = source.slice(0, 159);
+  const lastSpace = shortened.lastIndexOf(" ");
+  return `${shortened.slice(0, lastSpace > 100 ? lastSpace : 159).trimEnd()}…`;
+}
 
 const RelatedCard: React.FC<{ post: BlogPost }> = ({ post }) => (
   <Link
@@ -32,13 +44,18 @@ const RelatedCard: React.FC<{ post: BlogPost }> = ({ post }) => (
       />
     </div>
     <div className="flex flex-1 flex-col p-5">
-      <span className="mb-2 text-xs font-medium text-text-muted">
-        {relativeDateLabel(agedPublishDate(post))}
-      </span>
+      <time
+        dateTime={post.publishedAt || post.createdAt}
+        className="mb-2 text-xs font-medium text-text-muted"
+      >
+        {formatPostDate(post.publishedAt || post.createdAt)}
+      </time>
       <h3 className="mb-2 line-clamp-2 font-display text-base font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
         {post.title}
       </h3>
-      <span className="mt-auto text-xs text-text-muted">{readingTime(post.content)}</span>
+      <span className="mt-auto text-xs text-text-muted">
+        {readingTime(post.content)}
+      </span>
     </div>
   </Link>
 );
@@ -47,29 +64,29 @@ const BlogPostPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const reduceMotion = useReducedMotion();
   const [post, setPost] = useState<BlogPost | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
+  const [state, setState] = useState<LoadState>("loading");
   const [related, setRelated] = useState<BlogPost[]>([]);
 
   useEffect(() => {
     if (!slug) {
-      setState('not-found');
+      setState("not-found");
       return;
     }
     const controller = new AbortController();
-    setState('loading');
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    setState("loading");
+    window.scrollTo({ top: 0, behavior: "auto" });
     fetchPostBySlug(slug, { signal: controller.signal })
       .then((data) => {
         setPost(data);
-        setState('ready');
+        setState("ready");
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        if (err instanceof Error && err.message === 'NOT_FOUND') {
-          setState('not-found');
+        if (err instanceof Error && err.message === "NOT_FOUND") {
+          setState("not-found");
         } else {
-          console.error('Failed to load blog post:', err);
-          setState('error');
+          console.error("Failed to load blog post:", err);
+          setState("error");
         }
       });
     return () => controller.abort();
@@ -80,7 +97,9 @@ const BlogPostPage: React.FC = () => {
     if (!slug) return;
     const controller = new AbortController();
     fetchPublishedPosts({ limit: 7, signal: controller.signal })
-      .then((rows) => setRelated(rows.filter((p) => p.slug !== slug).slice(0, 3)))
+      .then((rows) =>
+        setRelated(rows.filter((p) => p.slug !== slug).slice(0, 3)),
+      )
       .catch(() => undefined);
     return () => controller.abort();
   }, [slug]);
@@ -123,7 +142,7 @@ const BlogPostPage: React.FC = () => {
             <ArrowLeft size={16} /> Back to Blog
           </Link>
 
-          {state === 'loading' && (
+          {state === "loading" && (
             <div className="mt-8 space-y-4">
               <div className="h-8 w-3/4 animate-pulse rounded-lg bg-surface-layer" />
               <div className="h-4 w-1/2 animate-pulse rounded bg-surface-layer" />
@@ -131,15 +150,17 @@ const BlogPostPage: React.FC = () => {
             </div>
           )}
 
-          {(state === 'not-found' || state === 'error') && (
+          {(state === "not-found" || state === "error") && (
             <div className="mt-16 text-center">
               <h1 className="mb-2 font-display text-2xl font-semibold tracking-tight text-text-primary">
-                {state === 'not-found' ? 'Article not found' : 'Unable to load article'}
+                {state === "not-found"
+                  ? "Article not found"
+                  : "Unable to load article"}
               </h1>
               <p className="mb-6 text-text-muted">
-                {state === 'not-found'
-                  ? 'This post may have been moved or unpublished.'
-                  : 'Please try again in a moment.'}
+                {state === "not-found"
+                  ? "This post may have been moved or unpublished."
+                  : "Please try again in a moment."}
               </p>
               <Link
                 to="/blog"
@@ -150,7 +171,7 @@ const BlogPostPage: React.FC = () => {
             </div>
           )}
 
-          {state === 'ready' && post && (
+          {state === "ready" && post && (
             <motion.div
               initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -159,32 +180,38 @@ const BlogPostPage: React.FC = () => {
             >
               <Seo
                 title={`${post.title} — Edutu Blog`}
-                description={post.excerpt ?? `${post.title} — insights from the Edutu team.`}
+                description={metaDescription(post)}
                 path={`/blog/${post.slug}`}
                 image={post.coverImage}
                 type="article"
                 jsonLd={{
-                  '@context': 'https://schema.org',
-                  '@type': 'BlogPosting',
+                  "@context": "https://schema.org",
+                  "@type": "BlogPosting",
                   headline: post.title,
-                  description: post.excerpt ?? '',
+                  description: metaDescription(post),
                   ...(post.coverImage ? { image: [post.coverImage] } : {}),
-                  ...(post.publishedAt ? { datePublished: post.publishedAt } : {}),
+                  ...(post.publishedAt
+                    ? { datePublished: post.publishedAt }
+                    : {}),
                   ...(post.updatedAt || post.publishedAt
                     ? { dateModified: post.updatedAt ?? post.publishedAt }
                     : {}),
-                  author: { '@type': 'Organization', name: 'Edutu' },
+                  author: {
+                    "@type": "Person",
+                    name: post.authorName || "Edutu",
+                    ...(post.authorAvatar ? { image: post.authorAvatar } : {}),
+                  },
                   publisher: {
-                    '@type': 'Organization',
-                    name: 'Edutu',
+                    "@type": "Organization",
+                    name: "Edutu",
                     logo: {
-                      '@type': 'ImageObject',
-                      url: 'https://www.edutu.org/icons/icon-512x512.png',
+                      "@type": "ImageObject",
+                      url: "https://www.edutu.org/icons/icon-512x512.png",
                     },
                   },
                   mainEntityOfPage: {
-                    '@type': 'WebPage',
-                    '@id': `https://www.edutu.org/blog/${post.slug}`,
+                    "@type": "WebPage",
+                    "@id": `https://www.edutu.org/blog/${post.slug}`,
                   },
                 }}
               />
@@ -194,14 +221,18 @@ const BlogPostPage: React.FC = () => {
               </h1>
 
               <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-text-muted">
-                <span className="inline-flex items-center gap-2">
+                <time
+                  dateTime={post.publishedAt || post.createdAt}
+                  className="inline-flex items-center gap-2"
+                >
                   <Calendar size={14} />
-                  {relativeDateLabel(agedPublishDate(post))}
-                </span>
+                  {formatPostDate(post.publishedAt || post.createdAt)}
+                </time>
                 <span className="inline-flex items-center gap-2">
                   <Clock size={14} />
                   {readingTime(post.content)}
                 </span>
+                <span>By {post.authorName || "Edutu"}</span>
               </div>
 
               {post.coverImage && (
@@ -224,13 +255,16 @@ const BlogPostPage: React.FC = () => {
         </article>
 
         {/* More articles — quick navigation to other posts */}
-        {state === 'ready' && related.length > 0 && (
+        {state === "ready" && related.length > 0 && (
           <section className="mx-auto mt-20 max-w-[1120px] border-t border-subtle pt-12">
             <div className="mb-6 flex items-baseline justify-between">
               <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary md:text-2xl">
                 More articles
               </h2>
-              <Link to="/blog" className="text-sm font-semibold text-brand no-underline hover:underline">
+              <Link
+                to="/blog"
+                className="text-sm font-semibold text-brand no-underline hover:underline"
+              >
                 View all
               </Link>
             </div>

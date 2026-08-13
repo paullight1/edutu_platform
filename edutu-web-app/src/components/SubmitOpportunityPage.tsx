@@ -130,7 +130,7 @@ export default function SubmitOpportunityPage() {
     setSubmitting(true);
     try {
       const token = await resolveToken();
-      const created = await submitOpportunity(
+      await submitOpportunity(
         {
           ...form,
           deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined,
@@ -138,11 +138,10 @@ export default function SubmitOpportunityPage() {
         token,
       );
       setForm(EMPTY_FORM);
-      setFormSuccess(
-        created.status === 'approved'
-          ? 'Submitted and published! It is live in the opportunity catalog.'
-          : 'Submitted for review! Our team will get back to you — track it under “My submissions”.',
-      );
+      // User submissions are always pending until an admin approves them.
+      // Keep the copy aligned with the server state machine even if an older
+      // backend responds with an unexpected status.
+      setFormSuccess('Submitted for review! Our team will get back to you — track it under “My submissions”.');
     } catch (error) {
       if (isUpgradeRequiredError(error) && error.code === 'insufficient_credits') {
         setCreditsError({ required: error.required });
@@ -205,9 +204,7 @@ export default function SubmitOpportunityPage() {
         {tab === 'submit' ? (
           <div className="space-y-4">
             <p className="rounded-2xl border border-subtle bg-surface-elevated p-4 text-sm text-text-secondary">
-              {policy && !policy.requireApproval
-                ? 'Tell us about an opportunity you found. Approved details help others discover it faster.'
-                : 'Tell us about an opportunity you found. Our team reviews every submission before it goes live — the more detail you add, the faster it gets approved.'}
+              Tell us about an opportunity you found. Our team reviews every submission before it goes live — the more detail you add, the faster it gets approved.
             </p>
 
             {feeCredits > 0 && (
@@ -218,11 +215,9 @@ export default function SubmitOpportunityPage() {
                     Submitting costs {feeCredits} {feeCredits === 1 ? 'credit' : 'credits'} — your balance is deducted
                     when you submit.
                   </p>
-                  {policy?.requireApproval && (
-                    <p className="mt-1 text-text-secondary">
-                      Your submission still goes through admin review before it appears in the catalog.
-                    </p>
-                  )}
+                  <p className="mt-1 text-text-secondary">
+                    Your submission still goes through admin review before it appears in the catalog.
+                  </p>
                 </div>
               </div>
             )}
@@ -306,7 +301,7 @@ export default function SubmitOpportunityPage() {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white transition hover:opacity-90 disabled:opacity-60"
             >
               {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              {policy && !policy.requireApproval ? 'Submit' : 'Submit for review'}
+              Submit for review
               {feeCredits > 0 ? ` (${feeCredits} ${feeCredits === 1 ? 'credit' : 'credits'})` : ''}
             </button>
           </div>

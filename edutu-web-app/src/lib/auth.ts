@@ -287,15 +287,23 @@ export const authService = {
   },
 
   async upsertProfile(profile: Profile) {
-    const payload = {
+    const profileUpdate = {
       ...pickSelfServiceProfileColumns(profile),
-      user_id: profile.user_id,
       updated_at: profile.updated_at ?? new Date().toISOString(),
     };
 
+    const { error: createError } = await supabase
+      .from("profiles")
+      .upsert(
+        { user_id: profile.user_id, credits: 0 },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      );
+    if (createError) throw createError;
+
     const { data, error } = await supabase
       .from("profiles")
-      .upsert([payload], { onConflict: "user_id" })
+      .update(profileUpdate)
+      .eq("user_id", profile.user_id)
       .select()
       .single();
     if (error) throw error;

@@ -39,14 +39,6 @@ export function useBillingStatus() {
   }, [refresh]);
 
   useEffect(() => {
-    const handleBillingInvalidation = (event: StorageEvent) => {
-      if (event.key === 'edutu:billing-invalidated') void refresh();
-    };
-    window.addEventListener('storage', handleBillingInvalidation);
-    return () => window.removeEventListener('storage', handleBillingInvalidation);
-  }, [refresh]);
-
-  useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') void refresh();
     };

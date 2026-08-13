@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -17,7 +17,13 @@ import {
 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@clerk/clerk-react";
-import { createCheckout, type BillingTransaction } from "../services/billing";
+import { v4 as uuidv4 } from "uuid";
+import {
+  createCheckout,
+  isBachsCheckoutEnabled,
+  type BillingTransaction,
+  type CheckoutResponse,
+} from "../services/billing";
 import { useBillingStatus } from "../hooks/useBillingStatus";
 import PublicEditorialShell from "./PublicEditorialShell";
 import {
@@ -162,6 +168,9 @@ export default function DeveloperDashboardPage() {
   const [mutatingProjectId, setMutatingProjectId] = useState<string | null>(null);
   const [generatedKey, setGeneratedKey] = useState<GeneratedKey | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
+  const checkoutActionKey = useRef<string | null>(null);
+  const checkoutEnabled = isBachsCheckoutEnabled();
 
   const loadDashboard = useCallback(async () => {
     if (!isLoaded) return;
@@ -323,35 +332,36 @@ export default function DeveloperDashboardPage() {
   };
 
   const handleTopUpCredits = async () => {
+    if (!checkoutEnabled || checkoutLoading || checkoutToConfirm) return;
     const token = await getToken();
     if (!token) return;
 
     setCheckoutLoading(true);
     setError(null);
     try {
+      const idempotencyKey = checkoutActionKey.current ?? uuidv4();
+      checkoutActionKey.current = idempotencyKey;
       const checkout = await createCheckout(token, {
-        feature: "api_credits",
-        credits: 1000,
-        returnTo: "/dashboard/developer",
+        productKey: "credits_700",
+        returnSurface: "web",
+        idempotencyKey,
       });
-
-      if (!checkout.configured || !checkout.authorizationUrl) {
-        throw new Error(
-          checkout.message ||
-            "Billing is not configured yet. Please contact support.",
-        );
-      }
-
-      window.location.assign(checkout.authorizationUrl);
+      checkoutActionKey.current = null;
+      setCheckoutToConfirm(checkout);
     } catch (checkoutError) {
       setError(
         checkoutError instanceof Error
           ? checkoutError.message
-          : "Unable to start the Paystack checkout",
+          : "Unable to start checkout",
       );
     } finally {
       setCheckoutLoading(false);
     }
+  };
+
+  const continueToCheckout = () => {
+    if (!checkoutToConfirm) return;
+    window.location.assign(checkoutToConfirm.checkoutUrl);
   };
 
   const copyGeneratedKey = async () => {
@@ -1096,10 +1106,10 @@ Implement:
                     : "Top up credits or start a billing plan to keep access active."}
                 </p>
                 <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => void handleTopUpCredits()}
-                    disabled={checkoutLoading}
+                    <button
+                      type="button"
+                      onClick={() => void handleTopUpCredits()}
+                    disabled={!checkoutEnabled || checkoutLoading || checkoutToConfirm !== null}
                     className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {checkoutLoading ? (
@@ -1107,8 +1117,22 @@ Implement:
                     ) : (
                       <CreditCard size={15} />
                     )}
-                    Buy 1,000 credits
+                    Buy 700 credits
                   </button>
+                  {checkoutToConfirm ? (
+                    <div className="mt-3 rounded-xl border border-brand/40 bg-brand/5 p-3" aria-live="polite">
+                      <p className="text-sm text-text-secondary">
+                        This is a one-time credit purchase. Credits do not renew automatically.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={continueToCheckout}
+                        className="mt-2 rounded-full bg-brand px-3 py-2 text-sm font-semibold text-white"
+                      >
+                        Continue to secure checkout
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-subtle bg-white p-4">
@@ -1118,7 +1142,7 @@ Implement:
                         Invoices & payments
                       </p>
                       <p className="mt-1 text-sm text-text-muted">
-                        Recent Paystack receipts and subscription records.
+                        Recent Bachs receipts and subscription records.
                       </p>
                     </div>
                     <span className="rounded-full border border-subtle bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
@@ -1156,7 +1180,7 @@ Implement:
                       ))
                     ) : (
                       <p className="rounded-xl border border-dashed border-subtle px-4 py-4 text-sm leading-6 text-text-muted">
-                        No invoice history yet. Paystack receipts and API credit top-ups will appear here
+                        No invoice history yet. Bachs receipts and API credit top-ups will appear here
                         after the first successful payment.
                       </p>
                     )}

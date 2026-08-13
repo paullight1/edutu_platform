@@ -76,10 +76,10 @@ export const PAGE_SEO = [
   {
     path: "/blog",
     slug: "blog",
-    title: "Blog — Edutu",
+    title: "Scholarship & Career Guides for African Students | Edutu",
     description:
-      "Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities.",
-    imageAlt: "The Edutu blog",
+      "Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu.",
+    imageAlt: "Edutu scholarship and career guides for African students",
     settleMs: 1500,
   },
   {
@@ -147,7 +147,7 @@ export const PAGE_SEO = [
     slug: "upgrade",
     title: "Edutu Pro — AI coaching, CV tools and smarter tracking",
     description:
-      "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Pay by card, mobile money, or bank transfer via Paystack.",
+      "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Payment terms are confirmed before secure checkout.",
     imageAlt: "Edutu Pro",
   },
   {

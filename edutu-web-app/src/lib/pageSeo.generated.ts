@@ -14,6 +14,12 @@ export interface PageSeoEntry {
   imageAlt: string;
 }
 
+export const OG_METADATA = {
+  width: 1200,
+  height: 630,
+  mimeType: "image/jpeg",
+} as const;
+
 export const PAGE_SEO: Record<string, PageSeoEntry> = {
   "/": {
     slug: "home",
@@ -31,10 +37,10 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
   },
   "/blog": {
     slug: "blog",
-    title: "Blog — Edutu",
-    description: "Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities.",
+    title: "Scholarship & Career Guides for African Students | Edutu",
+    description: "Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu.",
     image: "https://www.edutu.org/og/blog.jpg",
-    imageAlt: "The Edutu blog",
+    imageAlt: "Edutu scholarship and career guides for African students",
   },
   "/community": {
     slug: "community",
@@ -88,7 +94,7 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
   "/upgrade": {
     slug: "upgrade",
     title: "Edutu Pro — AI coaching, CV tools and smarter tracking",
-    description: "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Pay by card, mobile money, or bank transfer via Paystack.",
+    description: "Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Payment terms are confirmed before secure checkout.",
     image: "https://www.edutu.org/og/upgrade.jpg",
     imageAlt: "Edutu Pro",
   },

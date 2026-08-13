@@ -35,6 +35,10 @@
       "destination": "/opportunities/index.html"
     },
     {
+      "source": "/blog/:slug",
+      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+    },
+    {
       "source": "/blog",
       "destination": "/blog/index.html"
     },

@@ -76,6 +76,7 @@ vi.mock("../../services/developer", () => ({
 
 vi.mock("../../services/billing", () => ({
   createCheckout: serviceMocks.createCheckout,
+  isBachsCheckoutEnabled: () => false,
 }));
 
 function renderScholarshipApiPage() {
@@ -268,7 +269,7 @@ describe("Scholarship Engine pages", () => {
       "href",
       "/scholarship-engine",
     );
-    expect(screen.getByRole("button", { name: /buy 1,000 credits/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /buy 700 credits/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /rotate/i }));
     await waitFor(() => {

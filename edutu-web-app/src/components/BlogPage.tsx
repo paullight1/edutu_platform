@@ -1,18 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
-import { Search, ChevronRight, TrendingUp, Lightbulb } from 'lucide-react';
-import PublicHeader from './PublicHeader';
-import SiteFooter from './SiteFooter';
-import Seo from './Seo';
-import Pagination from './ui/Pagination';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { Search, ChevronRight, TrendingUp, Lightbulb } from "lucide-react";
+import PublicHeader from "./PublicHeader";
+import SiteFooter from "./SiteFooter";
+import Seo from "./Seo";
+import Pagination from "./ui/Pagination";
 import {
   fetchPublishedPosts,
-  agedPublishDate,
-  relativeDateLabel,
+  formatPostDate,
   readingTime,
   type BlogPost,
-} from '../services/blog';
+} from "../services/blog";
 
 const PAGE_SIZE = 6;
 
@@ -21,8 +20,12 @@ function prettyTag(value: string): string {
   return value
     .split(/[-_\s]+/)
     .filter(Boolean)
-    .map((word) => (word.toLowerCase() === 'ai' ? 'AI' : word.charAt(0).toUpperCase() + word.slice(1)))
-    .join(' ');
+    .map((word) =>
+      word.toLowerCase() === "ai"
+        ? "AI"
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(" ");
 }
 
 function topicLabel(post: BlogPost): string | null {
@@ -39,7 +42,7 @@ const TopicChip: React.FC<{ label: string }> = ({ label }) => (
 
 const BlogPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -54,7 +57,7 @@ const BlogPage: React.FC = () => {
       .then((rows) => setPosts(rows))
       .catch((err) => {
         if (controller.signal.aborted) return;
-        console.error('Failed to load blog posts:', err);
+        console.error("Failed to load blog posts:", err);
         setError(true);
       })
       .finally(() => {
@@ -67,31 +70,30 @@ const BlogPage: React.FC = () => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return posts;
     return posts.filter((post) => {
-      const excerpt = post.excerpt ?? '';
+      const excerpt = post.excerpt ?? "";
       return (
         post.title.toLowerCase().includes(query) ||
         excerpt.toLowerCase().includes(query) ||
-        (post.category ?? '').toLowerCase().includes(query) ||
+        (post.category ?? "").toLowerCase().includes(query) ||
         (post.tags ?? []).some((tag) => tag.toLowerCase().includes(query))
       );
     });
   }, [posts, searchQuery]);
 
-  const featuredPost = useMemo(() => posts.find((p) => p.featured) ?? null, [posts]);
-
-  // Newest-first rank per post → drives well-spaced, back-dated publish labels.
-  const rankById = useMemo(() => {
-    const map = new Map<string, number>();
-    posts.forEach((post, index) => map.set(post.id, index));
-    return map;
-  }, [posts]);
+  const featuredPost = useMemo(
+    () => posts.find((p) => p.featured) ?? null,
+    [posts],
+  );
 
   const publishedLabel = (post: BlogPost): string =>
-    relativeDateLabel(agedPublishDate(post, rankById.get(post.id)));
+    formatPostDate(post.publishedAt || post.createdAt);
 
-  const showFeatured = Boolean(featuredPost) && searchQuery === '';
+  const showFeatured = Boolean(featuredPost) && searchQuery === "";
   const gridPosts = useMemo(
-    () => filteredPosts.filter((post) => !showFeatured || post.id !== featuredPost?.id),
+    () =>
+      filteredPosts.filter(
+        (post) => !showFeatured || post.id !== featuredPost?.id,
+      ),
     [filteredPosts, showFeatured, featuredPost],
   );
 
@@ -109,8 +111,9 @@ const BlogPage: React.FC = () => {
   const goToPage = (next: number) => {
     setPage(next);
     if (gridRef.current) {
-      const top = gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
-      window.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
+      const top =
+        gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
+      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
     }
   };
 
@@ -119,8 +122,8 @@ const BlogPage: React.FC = () => {
       <PublicHeader fixed />
 
       <Seo
-        title="Blog — Edutu"
-        description="Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities."
+        title="Scholarship & Career Guides for African Students | Edutu"
+        description="Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu."
         path="/blog"
         type="website"
       />
@@ -138,10 +141,13 @@ const BlogPage: React.FC = () => {
               From the Blog
             </span>
             <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-text-primary md:text-4xl">
-              Insights &amp; <span className="text-brand">Resources</span>
+              Scholarship, Career &amp;{" "}
+              <span className="text-brand">Opportunity Guides</span>
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base text-text-secondary md:text-lg">
-              Founder notes, success stories, and guides to help you unlock global opportunities.
+              Practical guides and research to help African students find
+              scholarships, build stronger applications, and unlock global
+              opportunities.
             </p>
           </motion.div>
         </section>
@@ -150,7 +156,10 @@ const BlogPage: React.FC = () => {
           {/* Search */}
           <div className="mb-12 flex justify-center">
             <div className="relative w-full max-w-xl">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
+              />
               <input
                 type="text"
                 value={searchQuery}
@@ -165,7 +174,10 @@ const BlogPage: React.FC = () => {
           {loading && (
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-80 animate-pulse rounded-2xl border border-subtle bg-surface-layer" />
+                <div
+                  key={i}
+                  className="h-80 animate-pulse rounded-2xl border border-subtle bg-surface-layer"
+                />
               ))}
             </div>
           )}
@@ -184,7 +196,10 @@ const BlogPage: React.FC = () => {
               >
                 <div className="overflow-hidden rounded-2xl shadow-soft lg:col-span-5">
                   <img
-                    src={featuredPost.coverImage ?? 'https://www.edutu.org/backgrounds/dark-hero.jpg'}
+                    src={
+                      featuredPost.coverImage ??
+                      "https://www.edutu.org/backgrounds/dark-hero.jpg"
+                    }
                     alt={featuredPost.title}
                     loading="lazy"
                     className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] lg:h-[380px]"
@@ -192,10 +207,17 @@ const BlogPage: React.FC = () => {
                 </div>
                 <div className="lg:col-span-7">
                   <div className="mb-4 flex items-center gap-3">
-                    <span className="text-sm font-medium text-text-muted">
+                    <time
+                      dateTime={
+                        featuredPost.publishedAt || featuredPost.createdAt
+                      }
+                      className="text-sm font-medium text-text-muted"
+                    >
                       {publishedLabel(featuredPost)}
-                    </span>
-                    {topicLabel(featuredPost) && <TopicChip label={topicLabel(featuredPost)!} />}
+                    </time>
+                    {topicLabel(featuredPost) && (
+                      <TopicChip label={topicLabel(featuredPost)!} />
+                    )}
                   </div>
                   <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand md:text-4xl">
                     {featuredPost.title}
@@ -207,7 +229,10 @@ const BlogPage: React.FC = () => {
                   )}
                   <div className="mt-6 flex items-center gap-2 text-sm font-medium text-brand">
                     Read article
-                    <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+                    <ChevronRight
+                      size={16}
+                      className="transition-transform group-hover:translate-x-1"
+                    />
                   </div>
                 </div>
               </Link>
@@ -216,7 +241,10 @@ const BlogPage: React.FC = () => {
 
           {/* Blog grid */}
           {!loading && pagedPosts.length > 0 && (
-            <div ref={gridRef} className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <div
+              ref={gridRef}
+              className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+            >
               {pagedPosts.map((post, index) => (
                 <motion.article
                   key={post.id}
@@ -230,7 +258,10 @@ const BlogPage: React.FC = () => {
                   >
                     <div className="overflow-hidden">
                       <img
-                        src={post.coverImage ?? 'https://www.edutu.org/backgrounds/dark-hero.jpg'}
+                        src={
+                          post.coverImage ??
+                          "https://www.edutu.org/backgrounds/dark-hero.jpg"
+                        }
                         alt={post.title}
                         loading="lazy"
                         className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
@@ -238,10 +269,15 @@ const BlogPage: React.FC = () => {
                     </div>
                     <div className="flex flex-1 flex-col p-6">
                       <div className="mb-3 flex items-center gap-3">
-                        <span className="text-xs font-medium text-text-muted">
+                        <time
+                          dateTime={post.publishedAt || post.createdAt}
+                          className="text-xs font-medium text-text-muted"
+                        >
                           {publishedLabel(post)}
-                        </span>
-                        {topicLabel(post) && <TopicChip label={topicLabel(post)!} />}
+                        </time>
+                        {topicLabel(post) && (
+                          <TopicChip label={topicLabel(post)!} />
+                        )}
                       </div>
                       <h3 className="mb-2 line-clamp-2 font-display text-lg font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
                         {post.title}
@@ -252,7 +288,9 @@ const BlogPage: React.FC = () => {
                         </p>
                       )}
                       <div className="mt-auto flex items-center gap-3 border-t border-subtle pt-4">
-                        <span className="text-xs font-medium text-text-muted">{readingTime(post.content)}</span>
+                        <span className="text-xs font-medium text-text-muted">
+                          {readingTime(post.content)}
+                        </span>
                         <ChevronRight
                           size={18}
                           className="ml-auto text-brand transition-transform group-hover:translate-x-1"
@@ -280,14 +318,18 @@ const BlogPage: React.FC = () => {
             <div className="py-16 text-center">
               <Lightbulb size={48} className="mx-auto mb-4 text-text-muted" />
               <h3 className="mb-2 font-display text-xl font-semibold tracking-tight text-text-primary">
-                {error ? 'Unable to load articles' : searchQuery ? 'No articles found' : 'No articles yet'}
+                {error
+                  ? "Unable to load articles"
+                  : searchQuery
+                    ? "No articles found"
+                    : "No articles yet"}
               </h3>
               <p className="text-text-muted">
                 {error
-                  ? 'Please try again in a moment.'
+                  ? "Please try again in a moment."
                   : searchQuery
-                    ? 'Try a different search term or category.'
-                    : 'Check back soon for new insights and resources.'}
+                    ? "Try a different search term or category."
+                    : "Check back soon for new insights and resources."}
               </p>
             </div>
           )}
@@ -302,7 +344,8 @@ const BlogPage: React.FC = () => {
             <div
               className="pointer-events-none absolute inset-0"
               style={{
-                background: 'radial-gradient(circle at 50% 0%, rgb(var(--color-brand-300) / 0.35), transparent 60%)',
+                background:
+                  "radial-gradient(circle at 50% 0%, rgb(var(--color-brand-300) / 0.35), transparent 60%)",
               }}
             />
             <div className="relative z-10">
@@ -313,7 +356,8 @@ const BlogPage: React.FC = () => {
                 Stay Ahead of the Curve
               </h2>
               <p className="mx-auto mb-6 max-w-lg text-white/80">
-                Get weekly insights on scholarships, fellowships, and career opportunities delivered to your inbox.
+                Get weekly insights on scholarships, fellowships, and career
+                opportunities delivered to your inbox.
               </p>
               <div className="mx-auto flex max-w-md flex-col gap-3 sm:flex-row">
                 <input

@@ -84,67 +84,48 @@ const EdutuForYouStoryPage: React.FC = () => {
 
             <main>
                 {/* ─── Hero ─────────────────────────────────────────────── */}
-                <section className="relative isolate overflow-hidden bg-[#0B0F19] px-4 pb-16 pt-24 text-[#F8FAFC] sm:px-6 sm:pb-20 sm:pt-32">
+                <section className="relative isolate overflow-hidden bg-[#0B0F19] px-4 pb-10 pt-5 text-[#F8FAFC] sm:px-6 sm:pb-16 sm:pt-16">
                     <div className="absolute inset-0 -z-10">
                         <ImageWithFallback
                             src={story.heroImage}
                             alt={story.heroAlt}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover object-[58%_center] sm:object-center"
                         />
                         <div
                             aria-hidden="true"
-                            className="absolute inset-0 bg-gradient-to-r from-[#0B0F19]/95 via-[#0B0F19]/80 to-[#0B0F19]/35"
+                            className="absolute inset-0 bg-gradient-to-b from-[#0B0F19]/80 via-[#0B0F19]/78 to-[#0B0F19]/96 sm:bg-gradient-to-r sm:from-[#0B0F19]/95 sm:via-[#0B0F19]/80 sm:to-[#0B0F19]/35"
                         />
                     </div>
 
                     <div className="mx-auto max-w-[880px]">
                         <Link
                             to={PROGRAM_PATH}
-                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#C7D2FE] no-underline transition hover:text-white"
+                            className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[#C7D2FE] no-underline transition hover:text-white sm:text-[0.9375rem]"
                         >
                             <ArrowLeft size={16} aria-hidden="true" />
                             {PROGRAM_NAME}
                         </Link>
 
                         <motion.div {...fade}>
-                            <span className="mt-6 inline-flex rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#C7D2FE]">
+                            <span className="mt-4 inline-flex max-w-full rounded-pill border border-white/15 bg-white/[0.08] px-3 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-[#E0E7FF] backdrop-blur sm:mt-6 sm:text-xs">
                                 {story.outcome}
                             </span>
 
-                            <h1 className="mt-5 font-display text-[2rem] font-bold leading-[1.1] tracking-[-0.025em] text-[#F8FAFC] sm:text-[3rem]">
+                            <h1 className="mt-5 font-display text-[clamp(2.25rem,10vw,3rem)] font-bold leading-[1.02] tracking-[-0.035em] text-[#F8FAFC] sm:text-[3rem]">
                                 {story.name}, {story.age}
                             </h1>
-                            <p className="mt-2 text-lg text-[#94A3B8]">{story.place}</p>
+                            <p className="mt-2 text-[1.0625rem] text-[#B7C2D6] sm:text-lg">{story.place}</p>
 
-                            <blockquote className="mt-8 border-l-2 border-brand pl-5 font-display text-xl leading-[1.4] text-[#F8FAFC] sm:text-2xl">
+                            <blockquote className="mt-7 max-w-[38rem] border-l-2 border-brand-300 pl-4 font-display text-[1.2rem] leading-[1.42] tracking-[-0.015em] text-[#F8FAFC] text-pretty sm:mt-8 sm:pl-5 sm:text-2xl">
                                 “{story.quote}”
                             </blockquote>
                         </motion.div>
                     </div>
                 </section>
 
-                {/* ─── Stats ────────────────────────────────────────────── */}
-                <section className="border-b border-subtle px-4 py-10 sm:px-6">
-                    <dl className="mx-auto grid max-w-[880px] grid-cols-1 gap-6 sm:grid-cols-3">
-                        {story.stats.map((stat) => (
-                            <div key={stat.label}>
-                                <dt className="sr-only">{stat.label}</dt>
-                                <dd className="m-0">
-                                    <span className="block font-display text-3xl font-bold text-brand">
-                                        {stat.value}
-                                    </span>
-                                    <span className="mt-1 block text-[0.9375rem] leading-[1.5] text-text-secondary">
-                                        {stat.label}
-                                    </span>
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
-                </section>
-
                 {/* ─── The story ────────────────────────────────────────── */}
-                <article className="px-4 py-16 sm:px-6 sm:py-20">
-                    <div className="mx-auto flex max-w-[720px] flex-col gap-12">
+                <article className="px-4 py-12 sm:px-6 sm:py-20">
+                    <div className="mx-auto flex max-w-[720px] flex-col gap-10 sm:gap-12">
                         {story.chapters.map((chapter) => (
                             <section key={chapter.heading}>
                                 <h2 className="font-display text-2xl font-bold leading-[1.2] text-text-primary">
@@ -174,13 +155,13 @@ const EdutuForYouStoryPage: React.FC = () => {
                 </article>
 
                 {/* ─── Next + CTA ───────────────────────────────────────── */}
-                <section className="border-t border-subtle bg-surface-elevated px-4 py-16 sm:px-6 sm:py-20">
-                    <div className="mx-auto grid max-w-[880px] gap-6 md:grid-cols-2">
+                <section className="border-t border-subtle bg-surface-elevated px-4 py-12 sm:px-6 sm:py-20">
+                    <div className="mx-auto grid max-w-[880px] gap-4 md:grid-cols-2 md:gap-6">
                         <Link
                             to={`/edutuforyou/stories/${next.slug}`}
-                            className="group flex items-center gap-5 rounded-3xl border border-subtle bg-surface p-5 no-underline transition hover:shadow-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                            className="group flex min-h-[6.75rem] items-center gap-4 rounded-3xl border border-subtle bg-surface p-4 no-underline transition hover:shadow-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:gap-5 sm:p-5"
                         >
-                            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl">
+                            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl sm:h-20 sm:w-20">
                                 <ImageWithFallback
                                     src={next.portrait}
                                     alt={next.portraitAlt}
@@ -205,23 +186,23 @@ const EdutuForYouStoryPage: React.FC = () => {
                             />
                         </Link>
 
-                        <div className="flex flex-col justify-center gap-3 rounded-3xl border border-subtle bg-surface p-6">
+                        <div className="flex flex-col justify-center gap-3 rounded-3xl border border-subtle bg-surface p-5 sm:p-6">
                             <p className="text-[0.9375rem] leading-[1.6] text-text-secondary">
                                 Stories like this are why {PROGRAM_NAME} exists.
                             </p>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:flex-wrap">
                                 <a
                                     href={WHATSAPP_JOIN_URL}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 rounded-pill bg-brand px-5 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 min-[420px]:w-auto dark:bg-brand-800 dark:hover:bg-brand-900"
                                 >
                                     <MessageCircle size={16} aria-hidden="true" />
                                     {JOIN_CTA_LABEL}
                                 </a>
                                 <Link
                                     to={PROGRAM_PATH}
-                                    className="inline-flex items-center gap-2 rounded-pill border border-strong px-5 py-2.5 text-sm font-semibold text-text-primary no-underline transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-pill border border-strong px-5 py-2.5 text-sm font-semibold text-text-primary no-underline transition hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand min-[420px]:w-auto"
                                 >
                                     All stories
                                 </Link>

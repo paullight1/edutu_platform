@@ -1,12 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles, Zap } from 'lucide-react';
-import { useAuth, useUser } from '@clerk/clerk-react';
+import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
-import { broadcastBillingInvalidation, createCheckout } from '../../services/billing';
+import {
+  createCheckout,
+  isBachsCheckoutEnabled,
+  type CheckoutResponse,
+} from '../../services/billing';
 import {
   FALLBACK_CREDIT_PACKS,
+  PAYMENT_RENEWAL_DISCLOSURE,
   PRO_PLANS,
+  SEASON_PASS_PRODUCT_KEY,
+  creditPackProductKey,
   effectivePrice,
   formatMoney,
   useProPricing,
@@ -15,7 +23,7 @@ import {
 // This modal is the COMPACT form of the /upgrade page: same plan catalogue,
 // same price source, same badge/highlight language (see ../../lib/proPricing).
 // It intentionally holds NO prices of its own — a hardcoded amount here could
-// disagree with what pay.edutu.org actually charges, so while the shared
+// disagree with the server-owned catalogue, so while the shared
 // pricing loads we render a skeleton instead of a number.
 
 export interface UpgradeModalProps {
@@ -23,8 +31,6 @@ export interface UpgradeModalProps {
   onClose: () => void;
   /** Optional context line, e.g. the message from a 402/429 response. */
   reason?: string | null;
-  /** Path to return to after checkout completes. */
-  returnTo?: string;
 }
 
 const PriceSkeleton: React.FC = () => (
@@ -34,11 +40,13 @@ const PriceSkeleton: React.FC = () => (
   />
 );
 
-const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, returnTo }) => {
+const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason }) => {
   const { getToken } = useAuth();
-  const { user } = useUser();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const actionKeys = useRef<Record<string, string>>({});
+  const checkoutEnabled = isBachsCheckoutEnabled();
 
   // Only fetch while the dialog is actually open; the shared session cache means
   // reopening it (or visiting /upgrade) never refetches.
@@ -63,57 +71,45 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
       (pack) => typeof pack.credits === 'number' && typeof pack.price === 'number',
     );
     const resolved = packs?.length ? packs.slice(0, 3) : FALLBACK_CREDIT_PACKS;
-    return resolved.map((pack) => ({
-      credits: pack.credits,
-      price: formatMoney(pack.price, displayPricing.currency),
-    }));
+    return resolved.flatMap((pack) => {
+      const productKey = creditPackProductKey(pack.credits);
+      return productKey
+        ? [{ credits: pack.credits, productKey, price: formatMoney(pack.price, displayPricing.currency) }]
+        : [];
+    });
   }, [pricing, displayPricing]);
 
-  // One-off Season Pass — admin-configured and only offered when signed in (an
-  // empty uid must never reach the hosted checkout). Unlike the recurring plans
-  // (which go through the backend billing checkout), the season pass is a direct
-  // pay.edutu.org one-off link (`plan=season`), the only surface that mints it.
-  const seasonPass = pricing?.seasonPass?.enabled && user?.id ? pricing.seasonPass : null;
-
-  const openSeasonCheckout = () => {
-    if (!seasonPass || !user?.id || pendingKey) return;
-    const base = (pricing?.checkoutBaseUrl || 'https://pay.edutu.org').replace(/\/$/, '');
-    const params = new URLSearchParams({ uid: user.id, plan: 'season', ref: 'edutu-web', platform: 'web' });
-    const email = user.primaryEmailAddress?.emailAddress;
-    if (email) params.set('email', email);
-    window.location.assign(`${base}/checkout?${params.toString()}`);
-  };
+  const seasonPass = pricing?.seasonPass?.enabled ? pricing.seasonPass : null;
 
   const startCheckout = async (
     key: string,
-    input: { plan?: 'weekly' | 'monthly' | 'yearly'; feature?: string; credits?: number },
+    productKey: string,
   ) => {
-    if (pendingKey) return;
+    if (!checkoutEnabled || pendingKey || checkoutToConfirm) return;
     setPendingKey(key);
     setError(null);
     try {
       const token = await getToken();
       if (!token) throw new Error('Please sign in to upgrade.');
+      const idempotencyKey = actionKeys.current[key] ?? uuidv4();
+      actionKeys.current[key] = idempotencyKey;
       const checkout = await createCheckout(token, {
-        ...input,
-        returnTo: returnTo ?? window.location.pathname,
-        // Plan checkouts go to pay.edutu.org, which identifies the buyer from
-        // these; credit top-ups ignore them and use the bearer token.
-        uid: user?.id,
-        email: user?.primaryEmailAddress?.emailAddress,
-        pricing,
+        productKey,
+        returnSurface: 'web',
+        idempotencyKey,
       });
-      if (checkout.configured === false || !checkout.authorizationUrl) {
-        setError(checkout.message || 'Payments are not configured yet. Please try again later or contact support.');
-        return;
-      }
-      broadcastBillingInvalidation();
-      window.location.assign(checkout.authorizationUrl);
+      delete actionKeys.current[key];
+      setCheckoutToConfirm(checkout);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Unable to start checkout.');
     } finally {
       setPendingKey(null);
     }
+  };
+
+  const continueToCheckout = () => {
+    if (!checkoutToConfirm) return;
+    window.location.assign(checkoutToConfirm.checkoutUrl);
   };
 
   return (
@@ -133,12 +129,12 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Edutu Pro</h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {proPlans.map(({ plan, label, cadence, price, badge, highlighted }) => (
+              {proPlans.map(({ plan, productKey, label, cadence, price, badge, highlighted, renewalHint }) => (
                 <button
                   key={plan}
                   type="button"
-                  disabled={pendingKey !== null}
-                  onClick={() => void startCheckout(`plan-${plan}`, { plan })}
+                  disabled={!checkoutEnabled || pendingKey !== null || checkoutToConfirm !== null}
+                  onClick={() => void startCheckout(`plan-${plan}`, productKey)}
                   className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     highlighted
                       ? 'border-brand bg-surface-layer ring-1 ring-brand/40'
@@ -154,6 +150,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
                     <PriceSkeleton />
                   )}
                   <span className="text-2xs text-text-muted">{cadence}</span>
+                  <span className="text-2xs leading-snug text-text-secondary">{renewalHint}</span>
                   {badge ? <span className="text-xs text-text-secondary">{badge}</span> : null}
                 </button>
               ))}
@@ -162,10 +159,10 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
 
           {seasonPass ? (
             <section>
-              <button
-                type="button"
-                disabled={pendingKey !== null}
-                onClick={openSeasonCheckout}
+                <button
+                  type="button"
+                  disabled={!checkoutEnabled || pendingKey !== null || checkoutToConfirm !== null}
+                  onClick={() => void startCheckout('season-pass', SEASON_PASS_PRODUCT_KEY)}
                 className="flex w-full items-center justify-between gap-3 rounded-xl border border-brand/40 bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="flex flex-col gap-0.5">
@@ -187,12 +184,12 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
               Credit packs
             </h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {creditPacks.map(({ credits, price }) => (
+              {creditPacks.map(({ credits, productKey, price }) => (
                 <button
                   key={credits}
                   type="button"
-                  disabled={pendingKey !== null}
-                  onClick={() => void startCheckout(`credits-${credits}`, { feature: 'credits', credits })}
+                  disabled={!checkoutEnabled || pendingKey !== null || checkoutToConfirm !== null}
+                  onClick={() => void startCheckout(`credits-${credits}`, productKey)}
                   className="flex flex-col items-start gap-1 rounded-xl border border-subtle bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="text-sm font-medium text-text-primary">{credits} credits</span>
@@ -214,9 +211,28 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
             </p>
           ) : null}
 
+          {checkoutToConfirm ? (
+            <section className="rounded-xl border border-brand/40 bg-brand/5 p-3" aria-live="polite">
+              <p className="text-sm font-semibold text-text-primary">
+                {checkoutToConfirm.renewalMode === 'recurring'
+                  ? 'This card purchase renews automatically until you cancel.'
+                  : `This is one-time access${checkoutToConfirm.accessUntil ? ` until ${new Date(checkoutToConfirm.accessUntil).toLocaleDateString()}` : ''}; renew manually when it ends.`}
+              </p>
+              <button
+                type="button"
+                onClick={continueToCheckout}
+                className="mt-3 inline-flex items-center rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white"
+              >
+                Continue to secure checkout
+              </button>
+            </section>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-text-secondary">
-              Payments are processed securely by Paystack. You will be redirected to complete your purchase.
+              {checkoutEnabled
+                ? `Payments are processed securely by Bachs. ${PAYMENT_RENEWAL_DISCLOSURE}`
+                : 'Payments are not available yet.'}
             </p>
             <Link
               to="/upgrade"

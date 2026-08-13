@@ -55,12 +55,20 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
         // Only allow pulling down
         if (diff > 0) {
+            // Prevent the browser's own overscroll refresh from firing at the
+            // same time as the in-app gesture.
+            if (e.cancelable) e.preventDefault();
             // Apply resistance
             const resistance = 0.5;
             const adjustedDiff = Math.min(diff * resistance, pullThreshold * 1.5);
             pullDistance.set(adjustedDiff);
         }
     }, [isPulling, disabled, isRefreshing, pullThreshold, pullDistance]);
+
+    const handleTouchCancel = useCallback(() => {
+        setIsPulling(false);
+        animate(pullDistance, 0, { type: 'spring', stiffness: 400, damping: 30 });
+    }, [pullDistance]);
 
     const handleTouchEnd = useCallback(async () => {
         if (!isPulling || disabled) return;
@@ -92,6 +100,7 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
         >
             {/* Pull indicator */}
             <motion.div
@@ -118,6 +127,9 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
                 >
                     <RefreshCw size={20} />
                 </motion.div>
+                <span className="sr-only" role="status" aria-live="polite">
+                    {isRefreshing ? 'Refreshing content' : 'Pull down to refresh'}
+                </span>
             </motion.div>
 
             {/* Content wrapper */}
