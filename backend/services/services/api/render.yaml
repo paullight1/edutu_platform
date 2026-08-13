@@ -43,6 +43,14 @@ services:
         sync: false
       - key: CLERK_SECRET_KEY
         sync: false
+      - key: CLERK_ISSUER_URL
+        value: https://clerk.edutu.org
+      - key: API_KEY_PEPPER
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: BACHS_WEBHOOK_SECRET
+        sync: false
       - key: ADMIN_EMAILS
         sync: false
       - key: DEEPSEEK_API_KEY

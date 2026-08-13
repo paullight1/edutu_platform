@@ -55,6 +55,20 @@ function validateEnvironment(): void {
   }
 
   if (isProd) {
+    const requiredSecurity = [
+      "DATABASE_URL",
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "CLERK_SECRET_KEY",
+      "CLERK_ISSUER_URL",
+      "API_KEY_PEPPER",
+    ];
+    const missingSecurity = requiredSecurity.filter((key) => !process.env[key]);
+    if (missingSecurity.length > 0) {
+      throw new Error(
+        `Production security configuration is incomplete: ${missingSecurity.join(", ")}.`,
+      );
+    }
     const missingBilling = requiredForBilling.filter(
       (key) => !process.env[key],
     );
@@ -63,11 +77,6 @@ function validateEnvironment(): void {
         `Production is missing payment configuration: ${missingBilling.join(
           ", ",
         )}. Checkout will be unavailable.`,
-      );
-    }
-    if (!process.env.API_KEY_PEPPER) {
-      throw new Error(
-        "API_KEY_PEPPER must be set in production. Refusing to start: API keys would be hashed without a server-side pepper.",
       );
     }
   } else if (!process.env.API_KEY_PEPPER) {
