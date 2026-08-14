@@ -92,12 +92,16 @@ export class CreditPurchaseService {
     input: VerifiedCreditPurchase,
     context: CreditPurchaseContext = {},
   ): Promise<CreditPurchaseResult> {
-    const eventRowId =
-      context.eventRowId ??
-      (await this.insertEvent(transaction, input, context)).eventRowId;
-
+    const eventRecord = context.eventRowId
+      ? { eventRowId: context.eventRowId }
+      : await this.insertEvent(transaction, input, context);
+    const eventRowId = eventRecord.eventRowId;
     if (!eventRowId) {
-      return { status: "duplicate", creditsAdded: 0, ledgerId: null };
+      return {
+        status: eventRecord.conflict ? "review" : "duplicate",
+        creditsAdded: 0,
+        ledgerId: null,
+      };
     }
 
     const invalidReason = this.invalidInputReason(input, context);
@@ -231,7 +235,7 @@ export class CreditPurchaseService {
     transaction: CreditPurchaseTransaction,
     input: VerifiedCreditPurchase,
     context: CreditPurchaseContext,
-  ): Promise<{ eventRowId: string | null }> {
+  ): Promise<{ eventRowId: string | null; conflict?: boolean }> {
     const payload = context.payload ?? input;
     const payloadHash =
       context.payloadHash ??
@@ -264,7 +268,7 @@ export class CreditPurchaseService {
       throw new Error("billing event insert was inconclusive");
     }
     if (String(existingRow.status) === "review") {
-      return { eventRowId: null };
+      return { eventRowId: null, conflict: true };
     }
     if (String(existingRow.payload_hash) !== payloadHash) {
       await this.markReview(
@@ -273,6 +277,7 @@ export class CreditPurchaseService {
         "provider_event_payload_conflict",
         context.intentId,
       );
+      return { eventRowId: null, conflict: true };
     }
     return { eventRowId: null };
   }
