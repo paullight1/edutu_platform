@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { BILLING_RECONCILIATION_OPTIONS } from "./reconciliation/reconciliation.types";
+import { logSafeObservability } from "../edutu-api/edutu-api-usage.service";
 import type {
   BillingReconciliationStore,
   ProviderReadAdapter,
@@ -61,7 +62,9 @@ export class BillingReconciliationService {
       until: now,
       statuses: ["received", "retrying", "dead_letter"],
     });
-    return this.scanProviders(now, false);
+    const result = await this.scanProviders(now, false);
+    this.logRun("recent", result);
+    return result;
   }
 
   async purgeExpiredProviderPayloads(): Promise<number> {
@@ -72,7 +75,25 @@ export class BillingReconciliationService {
     input: { now?: Date } = {},
   ): Promise<ReconciliationRunResult> {
     const now = input.now ?? new Date();
-    return this.scanProviders(now, true);
+    const result = await this.scanProviders(now, true);
+    this.logRun("daily", result);
+    return result;
+  }
+
+  private logRun(category: string, result: ReconciliationRunResult): void {
+    logSafeObservability(
+      this.logger,
+      "billing_reconciliation_run",
+      {
+        category,
+        outcome: result.providerErrors > 0 ? "degraded" : "completed",
+        repaired: result.repaired,
+        reviewCases: result.reviewCases,
+        duplicates: result.duplicates,
+        providerErrors: result.providerErrors,
+      },
+      result.providerErrors > 0 ? "warn" : "log",
+    );
   }
 
   private async scanProviders(

@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
+import { logSafeObservability } from "../edutu-api/edutu-api-usage.service";
 import type { BachsWebhookConfig } from "./providers/bachs/bachs.config";
 import {
   BachsWebhookError,
@@ -103,6 +104,17 @@ export class BachsWebhookService {
       });
     } catch (error) {
       if (error instanceof BachsWebhookError) {
+        logSafeObservability(
+          this.logger,
+          "billing_webhook_verification_failed",
+          {
+            provider: "bachs",
+            environment: this.config.environment,
+            outcome: "rejected",
+            category: String(error.statusCode),
+          },
+          "warn",
+        );
         throw new HttpException(error.message, error.statusCode);
       }
       throw error;
@@ -175,7 +187,26 @@ export class BachsWebhookService {
       }
 
       const processed = await this.fulfillCollection(tx, insertedRow.id, event);
-      if (processed === "review") return { status: "review" as const };
+      if (processed === "review") {
+        logSafeObservability(
+          this.logger,
+          "billing_webhook_review",
+          {
+            provider: "bachs",
+            environment: this.config.environment,
+            outcome: "review",
+            category: event.type,
+          },
+          "warn",
+        );
+        return { status: "review" as const };
+      }
+      logSafeObservability(this.logger, "billing_webhook_fulfilled", {
+        provider: "bachs",
+        environment: this.config.environment,
+        outcome: processed,
+        category: event.type,
+      });
       return { status: processed };
     });
   }

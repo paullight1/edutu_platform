@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { matchUserIdRef } from "../common/user-id";
+import { logSafeObservability } from "../edutu-api/edutu-api-usage.service";
 import { API_CREDIT_PRODUCT_QUANTITIES } from "./types/billing-checkout.types";
 import { redactProviderPayload } from "./provider-payload-redaction";
 
@@ -69,7 +70,7 @@ export class CreditPurchaseService {
     input: VerifiedCreditPurchase,
     context: CreditPurchaseContext = {},
   ): Promise<CreditPurchaseResult> {
-    return this.database.transaction((transaction) =>
+    const result = await this.database.transaction((transaction) =>
       this.fulfillInTransaction(transaction, input, {
         eventType:
           context.eventType ??
@@ -80,6 +81,13 @@ export class CreditPurchaseService {
         ...context,
       }),
     );
+    logSafeObservability(this.logger, `billing_purchase_${result.status}`, {
+      provider: input.provider,
+      environment: input.environment,
+      outcome: result.status,
+      category: input.productKey,
+    });
+    return result;
   }
 
   /**
