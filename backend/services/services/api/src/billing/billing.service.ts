@@ -517,7 +517,7 @@ export class BillingService {
         amount: Math.round(Number(data.amount ?? 0) / 100),
         currency: data.currency ?? "NGN",
         status: "completed",
-        metadata: data,
+        metadata: redactProviderPayload(data),
       },
       { onConflict: "provider,provider_reference" },
     );
@@ -537,7 +537,7 @@ export class BillingService {
         // endpoint's `pro_expires_at ?? current_period_end` fallback disagrees
         // with the row the mobile app actually reads.
         current_period_end: periodEnd.toISOString(),
-        metadata: data,
+        metadata: redactProviderPayload(data),
       },
       { onConflict: "provider,provider_subscription_id" },
     );
@@ -763,6 +763,10 @@ export class BillingService {
     const actualAmountMinor = Number(input.payload.amount ?? 0);
     const localCredits = Number(localMetadata.credits);
     const localProductKey = String(localMetadata.product_key ?? "");
+    const isLegacyCreditPack =
+      localProductKey === LEGACY_PAYSTACK_PRODUCT ||
+      (localMetadata.feature === "credits" &&
+        /^credits_[1-9]\d*$/.test(localProductKey));
     const payloadUserId = String(input.payload.metadata?.user_id ?? "");
     const payloadCredits = Number(input.payload.metadata?.credits);
     const localDomain = String(localMetadata.domain ?? "").toLowerCase();
@@ -782,6 +786,8 @@ export class BillingService {
       !Number.isSafeInteger(localCredits) ||
       localCredits <= 0 ||
       !localProductKey ||
+      (!isLegacyCreditPack &&
+        !/^api_credits_(100|250|700)$/.test(localProductKey)) ||
       payloadCredits !== localCredits ||
       (payloadDomain !== "test" && payloadDomain !== "live") ||
       localDomain !== payloadDomain ||
@@ -804,7 +810,9 @@ export class BillingService {
         eventId: String(input.payload.id ?? `paystack:${input.reference}`),
         providerReference: input.reference,
         userId: localUserId,
-        productKey: localProductKey,
+        productKey: isLegacyCreditPack
+          ? LEGACY_PAYSTACK_PRODUCT
+          : localProductKey,
         creditQuantity: localCredits,
         amountMinor: actualAmountMinor,
         currency: payloadCurrency,
@@ -812,7 +820,7 @@ export class BillingService {
       {
         eventType: "charge.success",
         payload: redactProviderPayload(input.payload),
-        allowLegacyPaystackProduct: localProductKey === LEGACY_PAYSTACK_PRODUCT,
+        allowLegacyPaystackProduct: isLegacyCreditPack,
         legacyAudit: {
           providerReference: input.reference,
           userId: localUserId,

@@ -133,6 +133,48 @@ describe("BachsClient", () => {
     ).toThrow(BachsConfigError);
   });
 
+  it("keeps signed settlement and reconciliation reads available when checkout is rolled back", async () => {
+    const config = loadBachsConfig({
+      ...validApiCreditEnvironment,
+      BACHS_CHECKOUT_ENABLED: "false",
+      BACHS_WEBHOOK_ENABLED: "true",
+    });
+    expect(config).toMatchObject({
+      checkoutEnabled: false,
+      webhookEnabled: true,
+      apiBaseUrl: "https://sandbox-api.bachs.io",
+      apiKey: "test-api-key",
+      productMappings: expect.objectContaining({
+        api_credits_100: "prod_api_credits_100_sandbox",
+      }),
+    });
+
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [],
+          pagination: {
+            next_cursor: null,
+            prev_cursor: null,
+            has_more: false,
+            limit: 100,
+            offset: 0,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    await expect(new BachsClient(config).listPayments()).resolves.toMatchObject(
+      {
+        items: [],
+      },
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sandbox-api.bachs.io/v1/payments",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("allows the application to boot with Bachs disabled and makes no provider request", async () => {
     const fetchMock = jest.spyOn(global, "fetch");
     const client = new BachsClient(loadBachsConfig({}));

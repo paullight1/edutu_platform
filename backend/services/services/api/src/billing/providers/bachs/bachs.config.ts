@@ -20,6 +20,8 @@ export interface BachsWebhookConfig {
   checkoutEnabled: boolean;
   webhookEnabled: true;
   environment: BachsEnvironment;
+  apiBaseUrl: string;
+  apiKey: string;
   webhookSecret: string;
   expectedOrganizationId: string;
   productMappings: Readonly<Record<string, string>>;
@@ -28,8 +30,6 @@ export interface BachsWebhookConfig {
 
 export interface BachsEnabledConfig extends BachsWebhookConfig {
   checkoutEnabled: true;
-  apiBaseUrl: string;
-  apiKey: string;
 }
 
 export type BachsConfig =
@@ -236,16 +236,6 @@ export function loadBachsConfig(
       }
     : null;
 
-  if (!checkoutEnabled) {
-    return {
-      checkoutEnabled: false,
-      webhookEnabled: true,
-      environment: environmentName,
-      ...webhookConfig!,
-      productMappings: Object.freeze({}),
-    };
-  }
-
   const apiBaseUrl = required(environment, "BACHS_API_BASE_URL");
   const expectedApiBaseUrl =
     environmentName === "sandbox"
@@ -262,7 +252,7 @@ export function loadBachsConfig(
   );
 
   return {
-    checkoutEnabled: true,
+    checkoutEnabled,
     webhookEnabled: webhookEnabled as true,
     environment: environmentName,
     apiBaseUrl,

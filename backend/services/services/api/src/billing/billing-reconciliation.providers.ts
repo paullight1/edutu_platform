@@ -172,23 +172,117 @@ export class PaystackReconciliationAdapter implements ProviderReadAdapter {
 
 @Injectable()
 export class BillingReconciliationStoreService implements BillingReconciliationStorePort {
-  async listRecentIntents(): Promise<[]> {
+  async listRecentIntents(input: {
+    since: Date;
+    until: Date;
+    statuses: string[];
+  }): Promise<Array<{ id: string; status: string }>> {
+    const result = await db.execute(sql`
+      select id, status
+      from public.billing_checkout_intents
+      where updated_at >= ${input.since.toISOString()}::timestamptz
+        and updated_at <= ${input.until.toISOString()}::timestamptz
+        and status = any(${input.statuses}::text[])
+      order by updated_at asc
+      limit 1000
+    `);
+    return (
+      (result as { rows?: Array<{ id?: unknown; status?: unknown }> }).rows ??
+      []
+    )
+      .filter((row) => row.id != null && row.status != null)
+      .map((row) => ({ id: String(row.id), status: String(row.status) }));
+  }
+  async listRecentEvents(input: {
+    since: Date;
+    until: Date;
+    statuses: string[];
+  }): Promise<Array<{ id: string; status: string }>> {
+    const result = await db.execute(sql`
+      select id, status
+      from public.billing_provider_events
+      where updated_at >= ${input.since.toISOString()}::timestamptz
+        and updated_at <= ${input.until.toISOString()}::timestamptz
+        and status = any(${input.statuses}::text[])
+      order by updated_at asc
+      limit 1000
+    `);
+    return (
+      (result as { rows?: Array<{ id?: unknown; status?: unknown }> }).rows ??
+      []
+    )
+      .filter((row) => row.id != null && row.status != null)
+      .map((row) => ({ id: String(row.id), status: String(row.status) }));
+  }
+  async listLocalPayments(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<ReconciliationPayment[]> {
+    const result = await db.execute(sql`
+      select provider_resource_id, provider_event_id, user_id, amount_minor,
+             currency, occurred_at, status, metadata
+      from public.billing_payment_ledger
+      where provider = ${input.provider}
+        and environment = ${input.environment}
+      order by occurred_at desc
+      limit 5000
+    `);
+    return (
+      (result as { rows?: Array<Record<string, unknown>> }).rows ?? []
+    ).map((row) => ({
+      id: String(row.provider_resource_id),
+      eventId:
+        row.provider_event_id == null ? null : String(row.provider_event_id),
+      eventType: "payment.recorded",
+      status: String(row.status ?? ""),
+      userId: row.user_id == null ? null : String(row.user_id),
+      productKey: null,
+      amountMinor: BigInt(String(row.amount_minor ?? 0)),
+      currency: String(row.currency ?? "").toUpperCase(),
+      organizationId: null,
+      checkoutIntentId: null,
+      occurredAt: new Date(String(row.occurred_at)).toISOString(),
+      metadata: asMetadata(row.metadata),
+      environment: input.environment,
+      refundClassification: "unknown" as const,
+    }));
+  }
+  async listLocalRefunds(): Promise<unknown[]> {
     return [];
   }
-  async listRecentEvents(): Promise<[]> {
+  async listLocalSubscriptions(): Promise<unknown[]> {
     return [];
   }
-  async listLocalPayments(): Promise<[]> {
-    return [];
-  }
-  async listLocalRefunds(): Promise<[]> {
-    return [];
-  }
-  async listLocalSubscriptions(): Promise<[]> {
-    return [];
-  }
-  async listLocalGrants(): Promise<[]> {
-    return [];
+  async listLocalGrants(input: {
+    provider: ReconciliationProvider;
+    environment: ReconciliationEnvironment;
+  }): Promise<
+    Array<{
+      provider: ReconciliationProvider;
+      environment: ReconciliationEnvironment;
+      sourceResourceId: string;
+      userId: string | null;
+      status: string;
+    }>
+  > {
+    const result = await db.execute(sql`
+      select related_id, user_id, metadata
+      from public.credit_transactions
+      where type = 'purchase'
+        and related_type = 'api_credit_purchase'
+        and metadata->>'provider' = ${input.provider}
+        and metadata->>'environment' = ${input.environment}
+      limit 5000
+    `);
+    return ((result as { rows?: Array<Record<string, unknown>> }).rows ?? [])
+      .filter((row) => row.related_id != null)
+      .map((row) => ({
+        provider: input.provider,
+        environment: input.environment,
+        sourceResourceId: String(row.related_id),
+        userId: row.user_id == null ? null : String(row.user_id),
+        status: "fulfilled",
+      }));
   }
 
   async hasResource(input: {
@@ -206,6 +300,12 @@ export class BillingReconciliationStoreService implements BillingReconciliationS
       where provider = ${input.provider}
         and environment = ${input.environment}
         and event_id = ${input.resourceId}
+      union all
+      select 1 from public.credit_transactions
+      where related_type = 'api_credit_purchase'
+        and related_id = ${input.resourceId}
+        and metadata->>'provider' = ${input.provider}
+        and metadata->>'environment' = ${input.environment}
       limit 1
     `);
     return Boolean((result as { rows?: unknown[] }).rows?.length);

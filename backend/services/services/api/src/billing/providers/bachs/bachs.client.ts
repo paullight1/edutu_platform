@@ -491,7 +491,7 @@ export class BachsClient {
     path: string,
     options: { body?: Record<string, unknown>; idempotencyKey?: string } = {},
   ): Promise<unknown> {
-    if (!this.config.checkoutEnabled) {
+    if (!this.config.checkoutEnabled && method !== "GET") {
       throw new BachsProviderError({
         code: "bachs_disabled",
         operation,
