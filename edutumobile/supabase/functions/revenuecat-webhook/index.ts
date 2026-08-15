@@ -202,6 +202,8 @@ type RevenueCatEvent = {
       entitlement_id?: string;
       entitlement_ids?: string[];
       presented_offering_id?: string;
+      /** Stable subscription lineage; renewal transaction IDs change per cycle. */
+      original_transaction_id?: string;
     };
   };
 };
@@ -442,6 +444,35 @@ type OneTimePurchaseData = {
   environment?: string;
 };
 
+type ConsumerTier = "lite" | "pro" | "scholar";
+
+export function consumerTierForSubscription(
+  data: RevenueCatEvent["event"]["data"],
+): ConsumerTier | null {
+  const entitlements = new Set([
+    ...(data.entitlement_ids ?? []),
+    ...(data.entitlement_id ? [data.entitlement_id] : []),
+  ]);
+  if (entitlements.has("scholar") || data.product_id?.startsWith("scholar_")) {
+    return "scholar";
+  }
+  if (entitlements.has("pro") || data.product_id?.startsWith("pro_")) {
+    return "pro";
+  }
+  if (entitlements.has("lite") || data.product_id?.startsWith("lite_")) {
+    return "lite";
+  }
+  return null;
+}
+
+export function isActiveEntitlement(row: {
+  status?: string | null;
+  expires_at?: string | null;
+}): boolean {
+  if (row.status !== "active") return false;
+  return !row.expires_at || new Date(row.expires_at).getTime() > Date.now();
+}
+
 const CANONICAL_CREDIT_PACKS = new Set([
   "credits_100",
   "credits_250",
@@ -650,8 +681,9 @@ async function handleSubscriptionActive(
   data: RevenueCatEvent["event"]["data"],
   type: string,
 ) {
-  const isPro = data.entitlement_ids?.includes("pro") ||
-    data.entitlement_id === "pro";
+  const tier = consumerTierForSubscription(data);
+  const isPro = tier !== null;
+  const subscriptionId = data.original_transaction_id || data.transaction_id;
   const expiresAt = data.expiration_at_ms
     ? new Date(parseInt(data.expiration_at_ms))
     : null;
@@ -666,7 +698,7 @@ async function handleSubscriptionActive(
     p_user_id: userId,
     p_is_pro: isPro,
     p_pro_since: new Date().toISOString(),
-    p_subscription_id: data.transaction_id,
+    p_subscription_id: subscriptionId,
   });
 
   // Upsert subscription record
@@ -674,7 +706,7 @@ async function handleSubscriptionActive(
     .from("subscriptions")
     .upsert({
       user_id: userId,
-      revenuecat_id: data.transaction_id,
+      revenuecat_id: subscriptionId,
       product_id: data.product_id,
       store: normalizeStore(data.store),
       status: "active",
@@ -683,7 +715,7 @@ async function handleSubscriptionActive(
       auto_renewing: type === "RENEWAL",
       will_renew: true,
       environment: normalizeEnvironment(data.environment),
-      original_transaction_id: data.transaction_id,
+      original_transaction_id: subscriptionId,
       latest_transaction_id: data.transaction_id,
       raw_data: data,
     }, {
@@ -698,8 +730,12 @@ async function handleSubscriptionActive(
     user_id: userId,
     provider: "revenuecat",
     provider_customer_id: userId,
-    provider_subscription_id: data.transaction_id,
-    plan: data.product_id?.includes("year") ? "yearly" : "monthly",
+    provider_subscription_id: subscriptionId,
+    plan: data.product_id?.includes("year")
+      ? "yearly"
+      : data.product_id?.includes("week")
+        ? "weekly"
+        : "monthly",
     status: "active",
     current_period_start: new Date().toISOString(),
     current_period_end: expiresAt?.toISOString(),
@@ -708,10 +744,10 @@ async function handleSubscriptionActive(
     onConflict: "provider,provider_subscription_id",
   });
 
-  if (isPro) {
+  if (tier) {
     await supabaseAdmin.from("billing_entitlements").upsert({
       user_id: userId,
-      feature_key: "pro",
+      feature_key: tier,
       status: "active",
       source: "revenuecat",
       expires_at: expiresAt?.toISOString(),
@@ -749,6 +785,7 @@ async function handleSubscriptionCancelled(
   data: RevenueCatEvent["event"]["data"],
 ) {
   console.log(`Subscription cancelled for user ${userId}`);
+  const subscriptionId = data.original_transaction_id || data.transaction_id;
 
   // Update subscription record
   await supabaseAdmin
@@ -759,7 +796,7 @@ async function handleSubscriptionCancelled(
       unsubscribe_detected_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("revenuecat_id", data.transaction_id);
+    .eq("revenuecat_id", subscriptionId);
 
   // Note: Don't set is_pro to false yet - user still has access until expires_at
   await supabaseAdmin
@@ -769,7 +806,7 @@ async function handleSubscriptionCancelled(
       metadata: data,
     })
     .eq("provider", "revenuecat")
-    .eq("provider_subscription_id", data.transaction_id);
+    .eq("provider_subscription_id", subscriptionId);
 }
 
 async function handleSubscriptionExpired(
@@ -778,11 +815,14 @@ async function handleSubscriptionExpired(
 ) {
   console.log(`Subscription expired for user ${userId}`);
 
+  const tier = consumerTierForSubscription(data);
+  const subscriptionId = data.original_transaction_id || data.transaction_id;
+
   // RevenueCat can deliver an old expiration after a renewal. Do not revoke
   // the user's aggregate entitlement while another provider subscription or
   // a newer entitlement is still active.
   const now = new Date();
-  const [{ data: otherActive }, { data: currentEntitlement }] = await Promise
+  const [{ data: otherActive }, { data: currentEntitlement }, { data: allEntitlements }] = await Promise
     .all([
       supabaseAdmin
         .from("billing_subscriptions")
@@ -790,21 +830,29 @@ async function handleSubscriptionExpired(
         .eq("user_id", userId)
         .eq("provider", "revenuecat")
         .eq("status", "active")
-        .neq("provider_subscription_id", data.transaction_id),
+        .neq("provider_subscription_id", subscriptionId),
       supabaseAdmin
         .from("billing_entitlements")
         .select("status,expires_at")
         .eq("user_id", userId)
-        .eq("feature_key", "pro")
+        .eq("feature_key", tier ?? "pro")
         .maybeSingle(),
+      supabaseAdmin
+        .from("billing_entitlements")
+        .select("feature_key,status,expires_at")
+        .eq("user_id", userId)
+        .in("feature_key", ["lite", "pro", "scholar"]),
     ]);
   const hasOtherActiveSubscription = (otherActive ?? []).some((row) =>
     row.current_period_end &&
     new Date(row.current_period_end).getTime() > now.getTime()
   );
-  const entitlementStillActive = currentEntitlement?.status === "active" &&
-    currentEntitlement.expires_at &&
-    new Date(currentEntitlement.expires_at).getTime() > now.getTime();
+  const entitlementStillActive = currentEntitlement
+    ? isActiveEntitlement(currentEntitlement)
+    : false;
+  const anotherPaidEntitlementActive = (allEntitlements ?? []).some((row) =>
+    row.feature_key !== (tier ?? "pro") && isActiveEntitlement(row)
+  );
 
   // Update subscription record
   await supabaseAdmin
@@ -813,9 +861,9 @@ async function handleSubscriptionExpired(
       status: "expired",
       updated_at: new Date().toISOString(),
     })
-    .eq("revenuecat_id", data.transaction_id);
+    .eq("revenuecat_id", subscriptionId);
 
-  if (hasOtherActiveSubscription || entitlementStillActive) {
+  if (hasOtherActiveSubscription || entitlementStillActive || anotherPaidEntitlementActive) {
     console.log(
       `Ignoring aggregate Pro revocation for superseded expiration ${data.transaction_id}`,
     );
@@ -835,7 +883,7 @@ async function handleSubscriptionExpired(
       metadata: data,
     })
     .eq("provider", "revenuecat")
-    .eq("provider_subscription_id", data.transaction_id);
+    .eq("provider_subscription_id", subscriptionId);
 
   await supabaseAdmin
     .from("billing_entitlements")
@@ -845,7 +893,7 @@ async function handleSubscriptionExpired(
       metadata: data,
     })
     .eq("user_id", userId)
-    .eq("feature_key", "pro");
+    .eq("feature_key", tier ?? "pro");
 }
 
 export async function handleOneTimePurchase(

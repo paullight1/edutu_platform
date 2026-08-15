@@ -4,6 +4,8 @@ import {
   fulfillOneTimePurchase,
   handleOneTimePurchase,
   normalizeStore,
+  consumerTierForSubscription,
+  isActiveEntitlement,
   shouldProcessProviderEvent,
 } from "./index.ts";
 
@@ -13,6 +15,30 @@ Deno.test("normalizes RevenueCat store values to the legacy billing schema", () 
   assertEquals(normalizeStore("STRIPE"), "stripe");
   assertEquals(normalizeStore("UNKNOWN_STORE"), null);
   assertEquals(normalizeStore(undefined), null);
+});
+
+Deno.test("maps all consumer RevenueCat products to the correct paid tier", () => {
+  const base = {
+    app_user_id: "user_1",
+    transaction_id: "txn_1",
+    store: "APP_STORE",
+    price: 10,
+    currency: "USD",
+    period_type: "NORMAL",
+    is_trial_conversion: false,
+    expiration_at_ms: String(Date.now() + 86_400_000),
+    environment: "PRODUCTION",
+  };
+  assertEquals(consumerTierForSubscription({ ...base, product_id: "lite_monthly" }), "lite");
+  assertEquals(consumerTierForSubscription({ ...base, product_id: "pro_monthly" }), "pro");
+  assertEquals(consumerTierForSubscription({ ...base, product_id: "scholar_monthly" }), "scholar");
+  assertEquals(consumerTierForSubscription({ ...base, product_id: "unknown" }), null);
+});
+
+Deno.test("treats perpetual active entitlements as active", () => {
+  assertEquals(isActiveEntitlement({ status: "active", expires_at: null }), true);
+  assertEquals(isActiveEntitlement({ status: "expired", expires_at: null }), false);
+  assertEquals(isActiveEntitlement({ status: "active", expires_at: new Date(Date.now() - 1_000).toISOString() }), false);
 });
 
 Deno.test("fulfills a canonical credit pack through the atomic billing RPC", async () => {
