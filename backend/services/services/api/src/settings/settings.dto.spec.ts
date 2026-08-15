@@ -70,6 +70,29 @@ describe("mergeAdminSettings — mobileApp app control", () => {
   });
 });
 
+describe("mergeAdminSettings — consumer subscription pricing", () => {
+  it("defaults the Lite and Pro USD price ladders and 10x usage positioning", () => {
+    const pricing = DEFAULT_ADMIN_SETTINGS.pricing;
+
+    expect(pricing.currency).toBe("USD");
+    expect(pricing.lite.weeklyPrice).toBe(3.99);
+    expect(pricing.lite.monthlyPrice).toBe(10);
+    expect(pricing.lite.yearlyPrice).toBe(100);
+    expect(pricing.pro.weeklyPrice).toBe(5);
+    expect(pricing.pro.monthlyPrice).toBe(15);
+    expect(pricing.pro.yearlyPrice).toBe(150);
+    expect(pricing.scholar.weeklyPrice).toBe(7.99);
+    expect(pricing.scholar.monthlyPrice).toBe(24.99);
+    expect(pricing.scholar.yearlyPrice).toBe(200);
+    expect(pricing.liteFairUse.dailyActionCredits * 10).toBe(
+      pricing.proFairUse.dailyActionCredits,
+    );
+    expect(pricing.liteFairUse.dailyVoiceMinutes * 6).toBe(
+      pricing.proFairUse.dailyVoiceMinutes,
+    );
+  });
+});
+
 describe("mergeAdminSettings — safety crisis contact", () => {
   it("fills the default crisis contact when the safety group is absent (old stored row)", () => {
     // A row stored before the safety group existed: omitting it must NOT

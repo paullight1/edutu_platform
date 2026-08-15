@@ -137,6 +137,12 @@ const CreditPackSchema = z.object({
   label: z.string().trim().max(60).default(""),
 });
 
+const PlanPriceSchema = z.object({
+  weeklyPrice: z.number().min(0).max(10_000_000),
+  monthlyPrice: z.number().min(0).max(10_000_000),
+  yearlyPrice: z.number().min(0).max(10_000_000),
+});
+
 // Credit price of each AI action. Debited server-side by the metering
 // interceptor for non-Pro users; Pro users count against the fair-use caps.
 const AiCostsSchema = z.object({
@@ -158,6 +164,19 @@ const FreeTierSchema = z.object({
 const ProFairUseSchema = z.object({
   dailyChatMessages: z.number().int().min(0).max(100_000),
   dailyActionCredits: z.number().int().min(0).max(1_000_000),
+  dailyVoiceMinutes: z.number().int().min(1).max(1_440).default(30),
+});
+
+const LiteFairUseSchema = z.object({
+  dailyChatMessages: z.number().int().min(0).max(100_000),
+  dailyActionCredits: z.number().int().min(0).max(1_000_000),
+  dailyVoiceMinutes: z.number().int().min(1).max(1_440),
+});
+
+const ScholarFairUseSchema = z.object({
+  dailyChatMessages: z.number().int().min(0).max(100_000),
+  dailyActionCredits: z.number().int().min(0).max(1_000_000),
+  dailyVoiceMinutes: z.number().int().min(1).max(1_440),
 });
 
 // Admin-controlled paywall design + copy, delivered over the same remote
@@ -276,6 +295,11 @@ const PricingSettingsSchema = z.object({
   weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
   monthlyPrice: z.number().min(0).max(10_000_000),
   yearlyPrice: z.number().min(0).max(10_000_000),
+  // Tiered consumer subscriptions. The legacy top-level prices remain as the
+  // Pro aliases so older clients keep rendering a valid paywall.
+  lite: PlanPriceSchema,
+  pro: PlanPriceSchema,
+  scholar: PlanPriceSchema,
   creditPacks: z.array(CreditPackSchema).max(8).default([]),
   aiCosts: AiCostsSchema.default({
     chatMessage: 1,
@@ -292,6 +316,17 @@ const PricingSettingsSchema = z.object({
   proFairUse: ProFairUseSchema.default({
     dailyChatMessages: 200,
     dailyActionCredits: 300,
+    dailyVoiceMinutes: 30,
+  }),
+  liteFairUse: LiteFairUseSchema.default({
+    dailyChatMessages: 20,
+    dailyActionCredits: 30,
+    dailyVoiceMinutes: 5,
+  }),
+  scholarFairUse: ScholarFairUseSchema.default({
+    dailyChatMessages: 600,
+    dailyActionCredits: 900,
+    dailyVoiceMinutes: 60,
   }),
   checkoutBaseUrl: z.string().trim().url().max(300),
   manageUrl: z.string().trim().url().max(300),
@@ -425,16 +460,17 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
   // Nigeria-first pricing (NGN, Paystack). Sustainability model 2026-07:
   // covers 3-person payroll + infra at ~100 paying subscribers.
   pricing: {
-    currency: "NGN",
+    currency: "USD",
     usdToNgnRate: 1000,
-    weeklyPrice: 2000,
-    monthlyPrice: 6500,
-    yearlyPrice: 60000,
-    creditPacks: [
-      { credits: 100, price: 1500, label: "Starter" },
-      { credits: 250, price: 3000, label: "Best value" },
-      { credits: 700, price: 7000, label: "Power" },
-    ],
+    weeklyPrice: 5,
+    monthlyPrice: 15,
+    yearlyPrice: 150,
+    lite: { weeklyPrice: 3.99, monthlyPrice: 10, yearlyPrice: 100 },
+    pro: { weeklyPrice: 5, monthlyPrice: 15, yearlyPrice: 150 },
+    scholar: { weeklyPrice: 7.99, monthlyPrice: 24.99, yearlyPrice: 200 },
+    // API credits are developer-only and are intentionally not exposed as
+    // consumer top-up packs in the app wallet/paywall.
+    creditPacks: [],
     aiCosts: {
       chatMessage: 1,
       roadmapGeneration: 10,
@@ -444,7 +480,21 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
       voicePerMinute: 5,
     },
     freeTier: { dailyChatMessages: 10, signupCredits: 50 },
-    proFairUse: { dailyChatMessages: 200, dailyActionCredits: 300 },
+    proFairUse: {
+      dailyChatMessages: 200,
+      dailyActionCredits: 300,
+      dailyVoiceMinutes: 30,
+    },
+    liteFairUse: {
+      dailyChatMessages: 20,
+      dailyActionCredits: 30,
+      dailyVoiceMinutes: 5,
+    },
+    scholarFairUse: {
+      dailyChatMessages: 600,
+      dailyActionCredits: 900,
+      dailyVoiceMinutes: 60,
+    },
     checkoutBaseUrl: "https://pay.edutu.org",
     manageUrl: "https://pay.edutu.org/account",
     promo: {
@@ -574,6 +624,26 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       proFairUse: {
         ...DEFAULT_ADMIN_SETTINGS.pricing.proFairUse,
         ...(partial.pricing?.proFairUse ?? {}),
+      },
+      liteFairUse: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.liteFairUse,
+        ...(partial.pricing?.liteFairUse ?? {}),
+      },
+      scholarFairUse: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.scholarFairUse,
+        ...(partial.pricing?.scholarFairUse ?? {}),
+      },
+      lite: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.lite,
+        ...(partial.pricing?.lite ?? {}),
+      },
+      pro: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.pro,
+        ...(partial.pricing?.pro ?? {}),
+      },
+      scholar: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.scholar,
+        ...(partial.pricing?.scholar ?? {}),
       },
       promo: {
         ...DEFAULT_ADMIN_SETTINGS.pricing.promo,
