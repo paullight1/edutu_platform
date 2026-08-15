@@ -81,6 +81,35 @@ describe("EdutuForYouPage", () => {
     ).toHaveAttribute("href", "/signup");
   });
 
+  it("presents the scholarship journey as an interactive text slideshow", async () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("region", { name: "Scholarship journey" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Mastercard Foundation Scholars Program"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next scholarship slide" }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/application asked for a story/i),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: /show slide 4/i }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Chevening became a next step/i),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("renders the learner journey with feature actions and a timeline", () => {
     renderPage();
 
@@ -193,6 +222,13 @@ describe("EdutuForYouPage", () => {
     }
   });
 
+  it("adds a prominent partnership CTA below the partner lanes", () => {
+    renderPage();
+    expect(
+      screen.getByRole("link", { name: /start a partnership conversation/i }),
+    ).toHaveAttribute("href", expect.stringContaining(`mailto:${PARTNER_EMAIL}`));
+  });
+
   it("opens the WhatsApp community in a new tab without leaking the referrer", () => {
     renderPage();
     for (const link of screen.getAllByRole("link", {
@@ -209,7 +245,6 @@ describe("EdutuForYouPage", () => {
     expect(
       screen.getByText("UN DESA, World Population Prospects"),
     ).toBeInTheDocument();
-    expect(screen.getByText("African Development Bank")).toBeInTheDocument();
     expect(screen.getAllByText("Edutu platform data")).toHaveLength(2);
   });
 

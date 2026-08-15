@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, type Variants } from 'framer-motion';
-import { ArrowRight, ArrowUpRight, Mail, MessageCircle } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
+import {
+    ArrowRight,
+    ArrowUpRight,
+    ChevronLeft,
+    ChevronRight,
+    Mail,
+    MessageCircle,
+} from 'lucide-react';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
@@ -19,7 +26,6 @@ import {
     JOIN_ELIGIBILITY,
     JOIN_STEPS,
     MILESTONES,
-    MOSAIC,
     NARRATIVE_BEAT,
     PARTNER_EMAIL,
     PARTNER_LANES,
@@ -95,6 +101,18 @@ const Reveal: React.FC<{ children: React.ReactNode; className?: string }> = ({
 const EdutuForYouPage: React.FC = () => {
     const [stories, setStories] = useState<Story[]>(SEED_STORIES);
     const [showAllStories, setShowAllStories] = useState(false);
+    const [scholarshipSlide, setScholarshipSlide] = useState(0);
+    const reduceMotion = useReducedMotion();
+    const slides = NARRATIVE_BEAT.slides;
+    const activeSlide = slides[scholarshipSlide];
+
+    useEffect(() => {
+        if (reduceMotion) return;
+        const timer = window.setInterval(() => {
+            setScholarshipSlide((current) => (current + 1) % slides.length);
+        }, 7000);
+        return () => window.clearInterval(timer);
+    }, [reduceMotion, slides.length]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -180,24 +198,103 @@ const EdutuForYouPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* ─── The human moment ────────────────────────────────── */}
+                {/* ─── The scholarship journey ─────────────────────────── */}
                 <section className="border-b border-subtle bg-surface-elevated px-4 py-14 sm:px-6 sm:py-20">
-                    <Reveal className="mx-auto max-w-[900px]">
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
-                            {NARRATIVE_BEAT.label}
-                        </span>
-                        <motion.blockquote
+                    <Reveal className={`${SHELL} grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:items-end lg:gap-14`}>
+                        <div>
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+                                {NARRATIVE_BEAT.label}
+                            </span>
+                            <motion.h2
+                                variants={fadeUp}
+                                className="mt-4 font-display text-[1.9rem] font-bold leading-[1.1] tracking-[-0.025em] text-text-primary sm:text-[2.7rem]"
+                            >
+                                {NARRATIVE_BEAT.title}
+                            </motion.h2>
+                            <motion.p
+                                variants={fadeUp}
+                                className="mt-4 max-w-[34ch] text-base leading-[1.7] text-text-secondary sm:text-lg"
+                            >
+                                {NARRATIVE_BEAT.body}
+                            </motion.p>
+                        </div>
+
+                        <motion.div
                             variants={fadeUp}
-                            className="mt-5 max-w-[780px] font-display text-[1.75rem] font-semibold leading-[1.2] tracking-[-0.02em] text-text-primary sm:text-[2.75rem]"
+                            role="region"
+                            aria-roledescription="carousel"
+                            aria-label="Scholarship journey"
+                            className="rounded-[1.75rem] border border-subtle bg-surface p-5 shadow-soft sm:p-7"
                         >
-                            “{NARRATIVE_BEAT.quote}”
-                        </motion.blockquote>
-                        <motion.p
-                            variants={fadeUp}
-                            className="mt-5 max-w-[54ch] text-base leading-[1.7] text-text-secondary sm:text-lg"
-                        >
-                            {NARRATIVE_BEAT.body}
-                        </motion.p>
+                            <div className="flex items-center justify-between gap-4">
+                                <span className="rounded-pill bg-brand/[0.1] px-3 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-brand">
+                                    {activeSlide.tag}
+                                </span>
+                                <span className="font-mono text-xs font-semibold text-text-muted">
+                                    {String(scholarshipSlide + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
+                                </span>
+                            </div>
+
+                            <div className="mt-7 min-h-[13rem]" aria-live="polite">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                        key={activeSlide.title}
+                                        initial={reduceMotion ? false : { opacity: 0, x: 18 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={reduceMotion ? undefined : { opacity: 0, x: -18 }}
+                                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                                    >
+                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+                                            {activeSlide.eyebrow}
+                                        </p>
+                                        <h3 className="mt-3 max-w-[28ch] font-display text-[1.45rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary sm:text-[1.9rem]">
+                                            {activeSlide.title}
+                                        </h3>
+                                        <p className="mt-4 max-w-[58ch] text-[0.98rem] leading-[1.7] text-text-secondary sm:text-base">
+                                            {activeSlide.body}
+                                        </p>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
+
+                            <div className="mt-6 flex items-center justify-between gap-4 border-t border-subtle pt-5">
+                                <div className="flex items-center gap-2" role="tablist" aria-label="Choose story slide">
+                                    {slides.map((slide, index) => (
+                                        <button
+                                            key={slide.eyebrow}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={index === scholarshipSlide}
+                                            aria-label={`Show slide ${index + 1}: ${slide.eyebrow}`}
+                                            onClick={() => setScholarshipSlide(index)}
+                                            className={`h-2 rounded-pill transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                                                index === scholarshipSlide
+                                                    ? 'w-8 bg-brand'
+                                                    : 'w-2 bg-text-muted/40 hover:bg-text-muted'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        aria-label="Previous scholarship slide"
+                                        onClick={() => setScholarshipSlide((current) => (current - 1 + slides.length) % slides.length)}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-primary transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    >
+                                        <ChevronLeft size={18} aria-hidden="true" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label="Next scholarship slide"
+                                        onClick={() => setScholarshipSlide((current) => (current + 1) % slides.length)}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-primary transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    >
+                                        <ChevronRight size={18} aria-hidden="true" />
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
                     </Reveal>
                 </section>
 
@@ -211,7 +308,7 @@ const EdutuForYouPage: React.FC = () => {
                             {GAP_THESIS}
                         </motion.p>
 
-                        <div className="mt-9 grid grid-cols-1 gap-x-6 gap-y-8 min-[420px]:grid-cols-2 sm:mt-10 lg:grid-cols-4">
+                        <div className="mt-8 grid gap-x-6 gap-y-7 sm:mt-10 sm:grid-cols-3">
                             {GAP_STATS.map((stat) => (
                                 <motion.div
                                     key={stat.label}
@@ -242,29 +339,7 @@ const EdutuForYouPage: React.FC = () => {
                             ))}
                         </div>
 
-                        {/* Image strip — carries the section's weight now that the
-                            prose is cut back to two sentences. */}
-                        <motion.div
-                            variants={fadeUp}
-                            className="mt-8 grid grid-cols-2 gap-3 min-[420px]:grid-cols-3 sm:mt-10 sm:grid-cols-5 sm:gap-4"
-                        >
-                            {MOSAIC.map((image, index) => (
-                                <div
-                                    key={image.src}
-                                    className={`h-24 overflow-hidden rounded-2xl min-[420px]:h-28 sm:h-36 ${
-                                        index >= 3 ? 'hidden sm:block' : ''
-                                    }`}
-                                >
-                                    <ImageWithFallback
-                                        src={image.src}
-                                        alt={image.alt}
-                                        className="h-full w-full object-cover"
-                                    />
-                                </div>
-                            ))}
-                        </motion.div>
-
-                        <motion.p variants={fadeUp} className="mt-7">
+                        <motion.p variants={fadeUp} className="mt-8">
                             <Link
                                 to="/impact"
                                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand no-underline hover:underline"
@@ -572,6 +647,38 @@ const EdutuForYouPage: React.FC = () => {
                                 </a>{' '}
                                 directly.
                             </p>
+                        </motion.div>
+                    </Reveal>
+                </section>
+
+                {/* ─── Partner CTA ────────────────────────────────────── */}
+                <section className="relative isolate overflow-hidden bg-brand-700 px-4 py-16 text-white sm:px-6 sm:py-24 dark:bg-brand-800">
+                    <div aria-hidden="true" className="absolute inset-0 -z-10 opacity-30 [background:radial-gradient(circle_at_80%_20%,white,transparent_32%)]" />
+                    <Reveal className={`${SHELL} relative text-center`}>
+                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                            The next door needs a partner
+                        </span>
+                        <motion.h2
+                            variants={fadeUp}
+                            className="mx-auto mt-4 max-w-[15ch] font-display text-[2.25rem] font-bold leading-[1.04] tracking-[-0.035em] text-white sm:text-[4rem]"
+                        >
+                            Put the next scholarship within reach.
+                        </motion.h2>
+                        <motion.p
+                            variants={fadeUp}
+                            className="mx-auto mt-5 max-w-[54ch] text-base leading-[1.7] text-white/75 sm:text-lg"
+                        >
+                            Fund a cohort, bring Edutu into a community, list an opportunity, or give an hour of mentorship. We will help turn the contribution into a path someone can follow.
+                        </motion.p>
+                        <motion.div variants={fadeUp} className="mt-8 flex flex-col items-center justify-center gap-3 sm:mt-10 sm:flex-row">
+                            <a
+                                href={PARTNER_MAILTO}
+                                className="inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-pill bg-white px-8 py-4 text-lg font-bold text-brand-800 no-underline shadow-[0_12px_30px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-auto sm:px-10 sm:text-xl"
+                            >
+                                <Mail size={21} aria-hidden="true" />
+                                Start a partnership conversation
+                                <ArrowRight size={21} aria-hidden="true" />
+                            </a>
                         </motion.div>
                     </Reveal>
                 </section>

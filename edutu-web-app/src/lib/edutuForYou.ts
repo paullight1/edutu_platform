@@ -127,13 +127,6 @@ export const GAP_STATS: GapStat[] = [
     sourceHref: "https://www.un.org/ohrlls/locked-out",
   },
   {
-    value: "2 in 3",
-    label: "non-student youth are unemployed or underemployed",
-    source: "African Development Bank",
-    sourceHref:
-      "https://aec.afdb.org/en/past-aecs-african-economic-conference-2019/context",
-  },
-  {
     value: "67,000",
     label: "young people reached by Edutu",
     source: "Edutu platform data",
@@ -409,11 +402,40 @@ export const HERO_PRIMARY_LABEL = "Help open the next door";
 export const HERO_SECONDARY_LABEL = "Find my opportunities";
 
 export const NARRATIVE_BEAT = {
-  label: "Illustrative composite",
-  quote:
-    "Aisha could write the code. What she could not find was the one-page guide to writing about herself.",
+  label: "Illustrative scholarship journey",
+  title: "One scholarship can change how you see the next door.",
   body:
-    "The fellowship was real. The ability was real. The missing piece was a path from one to the other.",
+    "A composite story about finding Mastercard, surviving the application, and realising Chevening is not reserved for people with a secret map.",
+  slides: [
+    {
+      eyebrow: "01 / Find the door",
+      title: "The Mastercard opportunity was real. Finding it was the first hurdle.",
+      body:
+        "Zainab had the grades and the ambition, but no reliable way to know which scholarship matched her. A community message finally put the Mastercard Foundation Scholars Program in front of her before the deadline.",
+      tag: "Mastercard Foundation Scholars Program",
+    },
+    {
+      eyebrow: "02 / Make the case",
+      title: "The application asked for a story nobody had taught her to tell.",
+      body:
+        "Her experience was strong. Her first draft hid it behind generic language. With a clear prompt, a deadline, and someone to review the shape of the answer, she turned what she had lived into evidence of leadership.",
+      tag: "Application coaching",
+    },
+    {
+      eyebrow: "03 / Get the yes",
+      title: "The scholarship was not a miracle. It was a prepared application on time.",
+      body:
+        "Zainab earned a place in the Mastercard Foundation Scholars Program. The result mattered, but so did the repeatable process: find the right door, understand the question, and submit before it closes.",
+      tag: "A supported submission",
+    },
+    {
+      eyebrow: "04 / Keep going",
+      title: "Chevening became a next step, not a secret world.",
+      body:
+        "Once the language of scholarships stopped feeling hidden, the next opportunity became easier to recognise. Chevening was still competitive — just no longer invisible or impossible to imagine.",
+      tag: "Chevening and the next door",
+    },
+  ],
 };
 
 /** The homepage band's shorter framing. */
