@@ -35,13 +35,13 @@ export class BillingController {
   ) {}
 
   @Get("status")
-  getStatus(@CurrentUser("id") userId: string) {
+  getStatus(@CurrentUser("authId") userId: string) {
     return this.billingService.getStatus(userId);
   }
 
   @Get("catalog")
-  getCatalog(@CurrentUser("id") _userId: string) {
-    return this.billingCheckoutService.getPublicApiCreditCatalog();
+  getCatalog(@CurrentUser("authId") userId: string) {
+    return this.billingCheckoutService.getPublicApiCreditCatalog(userId);
   }
 
   @Post("checkout")

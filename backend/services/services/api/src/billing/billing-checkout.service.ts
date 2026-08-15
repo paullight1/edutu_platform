@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -142,7 +143,9 @@ export class BillingCheckoutService {
     private readonly config: CheckoutServiceConfig,
   ) {}
 
-  async getPublicApiCreditCatalog(): Promise<
+  async getPublicApiCreditCatalog(
+    userId: string,
+  ): Promise<
     Array<{
       productKey: string;
       creditQuantity: number;
@@ -151,6 +154,7 @@ export class BillingCheckoutService {
       catalogVersion: number;
     }>
   > {
+    if (!(await this.repository.hasActiveApiConsumer(userId))) return [];
     const products =
       (await this.repository.listEnabledApiCreditProducts?.(
         this.config.environment,
@@ -182,6 +186,15 @@ export class BillingCheckoutService {
       this.config.environment,
     );
     this.assertProduct(product, request.productKey);
+
+    if (isApiCreditProductKey(product.productKey)) {
+      const isDeveloper = await this.repository.hasActiveApiConsumer(rawAuthSubject);
+      if (!isDeveloper) {
+        throw new ForbiddenException(
+          "API credits are available only to developer API accounts.",
+        );
+      }
+    }
 
     const customer =
       verifiedCustomer ??

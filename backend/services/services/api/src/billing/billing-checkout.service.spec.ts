@@ -122,9 +122,14 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
   nextCreated = true;
   intentCounter = 0;
   currentIntent: BillingCheckoutIntentRecord | null = null;
+  developer = false;
 
   async findEnabledProduct() {
     return this.product;
+  }
+
+  async hasActiveApiConsumer() {
+    return this.developer;
   }
 
   async createOrReuseIntent(
@@ -487,6 +492,7 @@ describe("BillingCheckoutService", () => {
   it("creates and replays a server-owned API credit checkout without accepting client pricing fields", async () => {
     const fixture = createFixture();
     fixture.repository.product = apiCreditProduct;
+    fixture.repository.developer = true;
     const result = await fixture.service.createCheckout(
       "user_123",
       "api-credit-replay",
@@ -510,5 +516,18 @@ describe("BillingCheckoutService", () => {
     expect(fixture.provider.calls[0].productId).toBe(
       "prod_api_credits_100_sandbox",
     );
+  });
+
+  it("rejects API credit checkout for an account without a developer API consumer", async () => {
+    const fixture = createFixture();
+    fixture.repository.product = apiCreditProduct;
+
+    await expect(
+      fixture.service.createCheckout("user_123", "api-credit-consumer-only", {
+        productKey: apiCreditProduct.productKey,
+        returnSurface: "web",
+      }),
+    ).rejects.toThrow("developer API account");
+    expect(fixture.provider.calls).toHaveLength(0);
   });
 });
