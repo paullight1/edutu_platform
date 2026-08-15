@@ -6,6 +6,7 @@ import {
     User,
     ChevronDown,
     Bell,
+    X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -205,6 +206,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [announcement, setAnnouncement] = useState<WebAnnouncement>(
         DEFAULT_WEB_ANNOUNCEMENT,
     );
+    const [announcementDismissed, setAnnouncementDismissed] = useState(false);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -282,19 +284,19 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <PageSeo path="/" />
             <PublicHeader fixed onPrimaryAction={onGetStarted} />
 
-            {announcement.enabled && announcement.text ? (
+            {announcement.enabled && announcement.text && !announcementDismissed ? (
                 <aside
                     role="status"
-                    className="relative z-20 mt-16 border-b border-brand/15 bg-brand-50/90 px-4 py-3 text-text-primary backdrop-blur dark:bg-brand-950/70 sm:px-6"
+                    className="relative z-20 mt-16 border-b border-brand/15 bg-brand-50/90 px-4 py-2.5 text-text-primary backdrop-blur dark:bg-brand-950/70 sm:px-6 sm:py-3"
                 >
-                    <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 text-sm sm:text-[0.9375rem]">
-                        <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="mx-auto flex max-w-[1200px] items-start gap-2.5 pr-8 text-xs sm:items-center sm:justify-between sm:gap-4 sm:text-[0.9375rem]">
+                        <div className="flex min-w-0 items-start gap-2.5 sm:items-center">
                             <Bell
-                                size={17}
+                                size={15}
                                 aria-hidden="true"
                                 className="shrink-0 text-brand-700 dark:text-brand-300"
                             />
-                            <p className="min-w-0 leading-[1.45] text-text-secondary">
+                            <p className="min-w-0 leading-[1.35] text-text-secondary sm:leading-[1.45]">
                                 {announcement.text}
                             </p>
                         </div>
@@ -303,21 +305,27 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 href={announcementUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline dark:text-brand-300 dark:hover:text-brand-200"
+                                className="hidden shrink-0 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline sm:inline-flex dark:text-brand-300 dark:hover:text-brand-200"
                             >
-                                <span className="hidden sm:inline">{announcement.linkLabel}</span>
-                                <ArrowRight size={16} aria-hidden="true" />
+                                <span>{announcement.linkLabel}</span>
                             </a>
                         ) : (
                             <Link
                                 to={announcementUrl}
-                                className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline dark:text-brand-300 dark:hover:text-brand-200"
+                                className="hidden shrink-0 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline sm:inline-flex dark:text-brand-300 dark:hover:text-brand-200"
                             >
-                                <span className="hidden sm:inline">{announcement.linkLabel}</span>
-                                <ArrowRight size={16} aria-hidden="true" />
+                                <span>{announcement.linkLabel}</span>
                             </Link>
                         )}
                     </div>
+                    <button
+                        type="button"
+                        aria-label="Dismiss announcement"
+                        onClick={() => setAnnouncementDismissed(true)}
+                        className="absolute right-3 top-2.5 flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition hover:bg-brand/10 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
+                    >
+                        <X size={16} aria-hidden="true" />
+                    </button>
                 </aside>
             ) : null}
 
@@ -548,8 +556,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
                 {/* ─── Impact ───────────────────────────────────────────── */}
                 <section className="border-t border-subtle bg-surface-elevated px-4 py-14 sm:px-6 sm:py-16">
-                    <div className="mx-auto max-w-[1200px]">
-                        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+                    <div className="mx-auto grid max-w-[1200px] items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(240px,360px)] md:gap-12">
+                        <div>
                             <div className="max-w-2xl">
                                 <h2 className={SECTION_TITLE}>
                                     Opportunity, shared across{' '}
@@ -563,12 +571,24 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
                             <Link
                                 to="/impact"
-                                className="inline-flex items-center gap-2 self-start rounded-xl border border-subtle bg-surface-layer px-5 py-3 text-base font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
+                                className="mt-6 inline-flex items-center gap-2 rounded-xl border border-subtle bg-surface-layer px-5 py-3 text-base font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
                             >
                                 Read our impact story
                                 <ArrowRight size={16} />
                             </Link>
                         </div>
+                        <motion.div
+                            {...fadeUp}
+                            className="flex justify-center md:justify-end"
+                        >
+                            <motion.img
+                                src="/illustrations/edutu-global-opportunity-globe.png"
+                                alt="Hand-drawn globe showing opportunity moving across borders"
+                                className="w-full max-w-[250px] drop-shadow-[0_18px_24px_rgba(24,86,220,0.18)] sm:max-w-[310px]"
+                                animate={reduceMotion ? undefined : { rotate: [0, 3, -3, 0], y: [0, -5, 0] }}
+                                transition={reduceMotion ? undefined : { duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+                            />
+                        </motion.div>
                     </div>
                 </section>
 
