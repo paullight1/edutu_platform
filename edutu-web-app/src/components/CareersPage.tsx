@@ -1,36 +1,42 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Briefcase, Globe, Heart, Rocket, Sparkles, Users, type LucideIcon } from 'lucide-react';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 
 interface Perk {
-    icon: LucideIcon;
+    illustration: string;
+    illustrationAlt: string;
     title: string;
     desc: string;
 }
 
 const perks: Perk[] = [
-    { icon: Globe, title: 'Remote-first', desc: 'Work from anywhere in Africa and beyond. We care about impact, not location.' },
-    { icon: Rocket, title: 'Real ownership', desc: 'Small team, big scope. You will ship work that reaches learners on day one.' },
-    { icon: Heart, title: 'Mission that matters', desc: 'Everything we build helps someone reach an opportunity they might have missed.' },
-    { icon: Users, title: 'Grow together', desc: 'Mentorship, learning budgets, and a team that wants you to level up.' },
-];
-
-interface Role {
-    title: string;
-    team: string;
-    location: string;
-    type: string;
-}
-
-const roles: Role[] = [
-    { title: 'Senior Frontend Engineer', team: 'Product Engineering', location: 'Remote (Africa)', type: 'Full-time' },
-    { title: 'AI / ML Engineer', team: 'Matching & Recommendations', location: 'Remote', type: 'Full-time' },
-    { title: 'Product Designer', team: 'Design', location: 'Remote (Africa)', type: 'Full-time' },
-    { title: 'Community & Partnerships Lead', team: 'Growth', location: 'Lagos / Remote', type: 'Full-time' },
+    {
+        illustration: '/illustrations/careers-remote-first.png',
+        illustrationAlt: 'Hand-drawn laptop and globe connected by route lines',
+        title: 'Remote-first',
+        desc: 'Work from anywhere in Africa and beyond. We care about impact, not location.',
+    },
+    {
+        illustration: '/illustrations/careers-ownership.png',
+        illustrationAlt: 'Hand-drawn builder holding a flag beside a rising rocket',
+        title: 'Real ownership',
+        desc: 'Small team, big scope. You will ship work that reaches learners on day one.',
+    },
+    {
+        illustration: '/illustrations/careers-mission.png',
+        illustrationAlt: 'Hand-drawn heart opening a doorway toward a glowing opportunity',
+        title: 'Mission that matters',
+        desc: 'Everything we build helps someone reach an opportunity they might have missed.',
+    },
+    {
+        illustration: '/illustrations/careers-grow-together.png',
+        illustrationAlt: 'Hand-drawn teammates watering a growing plant together',
+        title: 'Grow together',
+        desc: 'Mentorship, learning budgets, and a team that wants you to level up.',
+    },
 ];
 
 const CareersPage: React.FC = () => {
@@ -53,8 +59,7 @@ const CareersPage: React.FC = () => {
                 {/* Hero */}
                 <section className="px-4 pb-16 pt-40 sm:px-6">
                     <div className="mx-auto max-w-[820px] text-center">
-                        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
-                            <Sparkles size={14} className="text-brand" />
+                        <div className="mb-6 inline-flex items-center rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5">
                             <span className="text-2xs font-semibold uppercase tracking-[0.2em] text-brand">Careers</span>
                         </div>
                         <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-text-primary sm:text-5xl md:text-6xl">
@@ -71,14 +76,30 @@ const CareersPage: React.FC = () => {
                 <section className="border-t border-subtle px-4 py-20 sm:px-6">
                     <div className="mx-auto max-w-[1000px]">
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                            {perks.map((perk) => (
+                            {perks.map((perk, index) => (
                                 <motion.div
                                     key={perk.title}
                                     {...reveal}
-                                    className="rounded-3xl border border-subtle bg-surface-layer p-8 shadow-soft"
+                                    className="group overflow-visible rounded-3xl border border-subtle bg-surface-layer p-8 shadow-soft"
                                 >
-                                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10">
-                                        <perk.icon size={22} className="text-brand" />
+                                    <div className="relative -mx-6 -mt-8 mb-2 h-48 sm:h-56">
+                                        <motion.img
+                                            src={perk.illustration}
+                                            alt={perk.illustrationAlt}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="absolute -inset-[10%] h-[120%] w-[120%] max-w-none object-contain transition-transform duration-500 group-hover:scale-[1.04]"
+                                            animate={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : { y: [0, -7, 0], rotate: [0, index % 2 === 0 ? 1.2 : -1.2, 0] }
+                                            }
+                                            transition={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : { duration: 6 + index, repeat: Infinity, ease: 'easeInOut', delay: index * 0.15 }
+                                            }
+                                        />
                                     </div>
                                     <h3 className="mb-2 font-display text-xl font-semibold tracking-tight text-text-primary">
                                         {perk.title}
@@ -94,49 +115,14 @@ const CareersPage: React.FC = () => {
                 <section className="border-t border-subtle bg-surface-elevated px-4 py-20 sm:px-6">
                     <div className="mx-auto max-w-[900px]">
                         <div className="mb-12 text-center">
-                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Open Roles</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Hiring status</span>
                             <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-                                Come build with us
+                                None available at the moment
                             </h2>
+                            <p className="mx-auto mt-4 max-w-[560px] text-base leading-relaxed text-text-secondary sm:text-lg">
+                                There are no open roles right now. Please check back soon for the next opportunity to join the team.
+                            </p>
                         </div>
-
-                        <div className="space-y-4">
-                            {roles.map((role) => (
-                                <motion.div
-                                    key={role.title}
-                                    {...reveal}
-                                    className="group flex flex-col gap-4 rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-elevated sm:flex-row sm:items-center sm:justify-between"
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10">
-                                            <Briefcase size={20} className="text-brand" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-display text-lg font-semibold tracking-tight text-text-primary">
-                                                {role.title}
-                                            </h3>
-                                            <p className="mt-1 text-sm text-text-muted">
-                                                {role.team} · {role.location} · {role.type}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <a
-                                        href={`mailto:careers@edutu.org?subject=${encodeURIComponent(`Application: ${role.title}`)}`}
-                                        className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-brand/30 px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/10"
-                                    >
-                                        Apply <ArrowRight size={15} />
-                                    </a>
-                                </motion.div>
-                            ))}
-                        </div>
-
-                        <p className="mt-10 text-center text-base text-text-secondary">
-                            Do not see your role? We are always happy to meet great people. Email us at{' '}
-                            <a href="mailto:careers@edutu.org" className="font-semibold text-brand hover:underline">
-                                careers@edutu.org
-                            </a>
-                            .
-                        </p>
                     </div>
                 </section>
 
@@ -151,9 +137,9 @@ const CareersPage: React.FC = () => {
                         </p>
                         <Link
                             to="/about"
-                            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
+                            className="mt-8 inline-flex rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
                         >
-                            Our story <ArrowRight size={16} />
+                            Our story
                         </Link>
                     </div>
                 </section>
