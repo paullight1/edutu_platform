@@ -281,18 +281,9 @@ create index if not exists analytics_snapshots_lookup_idx on public.analytics_sn
 
 alter table public.analytics_snapshots enable row level security;
 
-create policy "Admins view analytics snapshots"
-  on public.analytics_snapshots
-  for select
-  using (
-    auth.role() = 'service_role'
-    or exists (
-      select 1
-      from public.profiles p
-      where p.user_id = auth.uid()
-        and coalesce(p.preferences->>'role', '') = 'admin'
-    )
-  );
+-- Analytics are read through the backend service-role path. Do not create a
+-- browser-admin policy here: this schema does not harden a client-writable
+-- role column before this point.
 
 create policy "Service role manages analytics snapshots"
   on public.analytics_snapshots
@@ -868,18 +859,8 @@ create policy "Users manage own cv records"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy "Admins view cv records"
-  on public.cv_records
-  for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles p
-      where p.user_id = auth.uid()
-        and coalesce(p.preferences->>'role', '') = 'admin'
-    )
-  );
+-- Cross-user CV access is backend/service-role only. The preceding user-owned
+-- policy remains the sole client policy for this relation.
 
 -- ------------------------------------------------------------------
 -- CV storage bucket & policies

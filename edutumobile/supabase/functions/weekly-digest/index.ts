@@ -1,154 +1,733 @@
-/**
- * Weekly Digest Edge Function
- *
- * Cron schedule (Supabase Dashboard → Edge Functions → Schedule):
- *   0 9 * * 6  (Every Saturday at 9:00 AM UTC)
- *
- * Gathers user's weekly activity (goals, saved opportunities, deadlines,
- * application updates) and sends an HTML email digest.
- */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const GENERIC_ERROR = { error: "Request could not be processed" } as const;
+const MAX_REQUEST_BYTES = 16_384;
+const SIGNATURE_MAX_AGE_SECONDS = 300;
+const DEFAULT_JOB_KEY = "weekly-digest";
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_MAX_RECIPIENTS = 500;
+const MAX_RECIPIENTS = 5_000;
+const DEFAULT_EMAIL_TIMEOUT_MS = 10_000;
+const MAX_EMAIL_TIMEOUT_MS = 30_000;
+const MAX_DIGEST_ITEMS = 10;
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const EMAIL_API_KEY = Deno.env.get('SUPABASE_EMAIL_API_KEY');
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+export type WeeklyDigestCounts = {
+  sent: number;
+  skipped: number;
 };
 
-interface UserDigestPrefs {
-  user_id: string;
+export type DigestRecipient = {
+  userId: string;
   email: string | null;
+};
+
+export type DigestRecipientPage = {
+  recipients: DigestRecipient[];
+  hasMore: boolean;
+};
+
+export type DigestJobClaim = {
+  claimed: boolean;
+  claimToken?: string;
+};
+
+export type DigestSendOutcome = "sent" | "skipped" | "failed";
+
+export type DigestDeliveryClaim = {
+  claimed: boolean;
+  claimToken?: string;
+  status?: "sent" | "skipped" | "failed";
+};
+
+type Environment = (name: string) => string | undefined;
+
+type DigestRunnerDependencies = {
+  now?: () => number;
+  claimJob: (
+    day: Weekday,
+    executionDate: string,
+    jobKey: string,
+  ) => Promise<DigestJobClaim>;
+  completeJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<void>;
+  failJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<void>;
+  renewJob: (
+    day: Weekday,
+    executionDate: string,
+    claimToken: string,
+  ) => Promise<boolean>;
+  claimDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
+  ) => Promise<DigestDeliveryClaim>;
+  completeDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
+    claimToken: string,
+    status: "sent" | "skipped",
+  ) => Promise<void>;
+  failDelivery: (
+    day: Weekday,
+    executionDate: string,
+    userId: string,
+    claimToken: string,
+  ) => Promise<void>;
+  listRecipients: (
+    day: Weekday,
+    page: number,
+    pageSize: number,
+  ) => Promise<DigestRecipientPage>;
+  sendDigest: (recipient: DigestRecipient) => Promise<DigestSendOutcome>;
+  pageSize?: number;
+  maxRecipients?: number;
+};
+
+export type WeeklyDigestHandlerOptions = {
+  env?: Environment;
+  now?: () => number;
+  runDigest?: (
+    day: Weekday,
+    jobKey: string,
+  ) => Promise<WeeklyDigestCounts>;
+  claimJob?: DigestRunnerDependencies["claimJob"];
+  completeJob?: DigestRunnerDependencies["completeJob"];
+  failJob?: DigestRunnerDependencies["failJob"];
+  renewJob?: DigestRunnerDependencies["renewJob"];
+  claimDelivery?: DigestRunnerDependencies["claimDelivery"];
+  completeDelivery?: DigestRunnerDependencies["completeDelivery"];
+  failDelivery?: DigestRunnerDependencies["failDelivery"];
+  listRecipients?: DigestRunnerDependencies["listRecipients"];
+  sendDigest?: DigestRunnerDependencies["sendDigest"];
+  pageSize?: number;
+  maxRecipients?: number;
+};
+
+function env(name: string): string | undefined {
+  return Deno.env.get(name);
 }
 
-async function fetchUsersWithDigestEnabled(
-  supabase: ReturnType<typeof createClient>,
-  targetDay: number,
-): Promise<UserDigestPrefs[]> {
-  const { data } = await supabase
-    .from('notification_preferences')
-    .select('user_id, weekly_digest_email')
-    .eq('weekly_digest_enabled', true)
-    .eq('weekly_digest_day', targetDay);
-
-  if (!data?.length) return [];
-
-  const userIds = data.map((d) => d.user_id);
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('user_id, email')
-    .in('user_id', userIds);
-
-  const emailMap = new Map((profiles || []).map((p) => [p.user_id, p.email]));
-  return data.map((d) => ({
-    user_id: d.user_id,
-    email: d.weekly_digest_email || emailMap.get(d.user_id) || null,
-  }));
+function jsonResponse(status: number, body: unknown = GENERIC_ERROR): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
-async function fetchUserDigestData(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-) {
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  let mismatch = leftBytes.length ^ rightBytes.length;
+  const length = Math.max(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  }
+  return mismatch === 0;
+}
 
-  const [goalsRes, savedRes, deadlinesRes, appsRes] = await Promise.all([
-    supabase.from('goals').select('title, progress, status').eq('user_id', userId).eq('status', 'active'),
-    supabase.from('bookmarks').select('opportunities(title, organization)').eq('user_id', userId).gte('created_at', weekAgo).limit(10),
-    supabase.from('goals').select('title, deadline').eq('user_id', userId).eq('status', 'active').gte('deadline', new Date().toISOString()).lte('deadline', nextWeek).order('deadline'),
-    supabase.from('opportunity_applications').select('status, updated_at, opportunities(title)').eq('user_id', userId).gte('updated_at', weekAgo).order('updated_at', { ascending: false }).limit(10),
-  ]);
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
-  return {
-    activeGoals: (goalsRes.data || []).length,
-    completedGoals: (goalsRes.data || []).filter((g: any) => g.progress >= 100).length,
-    newSaved: savedRes.data || [],
-    upcomingDeadlines: deadlinesRes.data || [],
-    applicationUpdates: appsRes.data || [],
+function validJobKey(value: string): boolean {
+  return /^[a-zA-Z0-9:_-]{1,80}$/.test(value);
+}
+
+function parseWeekday(value: unknown): Weekday | null {
+  if (
+    typeof value !== "number" || !Number.isInteger(value) || value < 1 ||
+    value > 7
+  ) return null;
+  return value as Weekday;
+}
+
+function boundedInteger(
+  value: number | undefined,
+  fallback: number,
+  maximum: number,
+  name: string,
+): number {
+  const selected = value ?? fallback;
+  if (!Number.isSafeInteger(selected) || selected <= 0 || selected > maximum) {
+    throw new Error(`Invalid ${name}`);
+  }
+  return selected;
+}
+
+async function readBoundedBody(request: Request): Promise<string | null> {
+  const advertised = request.headers.get("content-length");
+  if (advertised !== null) {
+    const length = Number(advertised);
+    if (!Number.isSafeInteger(length) || length < 0 || length > MAX_REQUEST_BYTES) {
+      return null;
+    }
+  }
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  let bytesRead = 0;
+  let body = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return body + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function signSchedulerPayload(
+  secret: string,
+  timestamp: string,
+  jobKey: string,
+  rawBody: string,
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${timestamp}.${jobKey}.${rawBody}`),
+    ),
+  );
+  return `v1=${bytesToHex(digest)}`;
+}
+
+export async function authenticateSchedulerRequest(
+  request: Request,
+  rawBody: string,
+  options: {
+    secret?: string;
+    jobKey?: string;
+    now?: () => number;
+  } = {},
+): Promise<{ ok: true; jobKey: string } | { ok: false }> {
+  const secret = options.secret;
+  const configuredJobKey = options.jobKey ?? DEFAULT_JOB_KEY;
+  const suppliedJobKey = request.headers.get("x-edutu-digest-job-key")?.trim();
+  const timestamp = request.headers.get("x-edutu-digest-timestamp")?.trim();
+  const suppliedSignature = request.headers.get("x-edutu-digest-signature")
+    ?.trim();
+
+  if (
+    !secret || new TextEncoder().encode(secret).byteLength < 32 ||
+    !validJobKey(configuredJobKey) || suppliedJobKey !== configuredJobKey ||
+    !timestamp || !/^\d{10}$/.test(timestamp) || !suppliedSignature ||
+    !/^v1=[a-f0-9]{64}$/.test(suppliedSignature)
+  ) return { ok: false };
+
+  const now = Math.floor((options.now ?? Date.now)() / 1000);
+  const timestampSeconds = Number(timestamp);
+  if (
+    !Number.isSafeInteger(timestampSeconds) ||
+    Math.abs(now - timestampSeconds) > SIGNATURE_MAX_AGE_SECONDS
+  ) return { ok: false };
+
+  const expected = await signSchedulerPayload(
+    secret,
+    timestamp,
+    configuredJobKey,
+    rawBody,
+  );
+  return constantTimeEqual(suppliedSignature, expected)
+    ? { ok: true, jobKey: configuredJobKey }
+    : { ok: false };
+}
+
+function executionDate(nowMs: number): string {
+  return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+export function createWeeklyDigestRunner(
+  dependencies: DigestRunnerDependencies,
+): (
+  day: Weekday,
+  jobKey: string,
+  executionDateOverride?: string,
+) => Promise<WeeklyDigestCounts> {
+  const pageSize = boundedInteger(
+    dependencies.pageSize,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    "page size",
+  );
+  const maxRecipients = boundedInteger(
+    dependencies.maxRecipients,
+    DEFAULT_MAX_RECIPIENTS,
+    MAX_RECIPIENTS,
+    "recipient limit",
+  );
+  const now = dependencies.now ?? Date.now;
+
+  return async (day, jobKey, executionDateOverride) => {
+    if (!validJobKey(jobKey)) throw new Error("Invalid scheduler job key");
+    const date = executionDateOverride ?? executionDate(now());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error("Invalid execution date");
+    }
+
+    const claim = await dependencies.claimJob(day, date, jobKey);
+    if (!claim.claimed) return { sent: 0, skipped: 0 };
+    const claimToken = claim.claimToken?.trim();
+    if (!claimToken) throw new Error("Digest claim unavailable");
+
+    let sent = 0;
+    let skipped = 0;
+    let processed = 0;
+    let page = 0;
+    let failed = false;
+
+    try {
+      while (processed < maxRecipients) {
+        const result = await dependencies.listRecipients(day, page, pageSize);
+        if (result.recipients.length === 0) break;
+
+        for (const recipient of result.recipients) {
+          if (processed >= maxRecipients) break;
+          processed += 1;
+          if (!await dependencies.renewJob(day, date, claimToken)) {
+            throw new Error("Digest lease lost");
+          }
+          const delivery = await dependencies.claimDelivery(
+            day,
+            date,
+            recipient.userId,
+          );
+          if (!delivery.claimed) {
+            skipped += 1;
+            continue;
+          }
+          const deliveryToken = delivery.claimToken?.trim();
+          if (!deliveryToken) throw new Error("Digest delivery claim unavailable");
+          try {
+            const outcome = await dependencies.sendDigest(recipient);
+            if (outcome === "sent") {
+              sent += 1;
+              await dependencies.completeDelivery(
+                day,
+                date,
+                recipient.userId,
+                deliveryToken,
+                "sent",
+              );
+            } else {
+              skipped += 1;
+              if (outcome === "failed") {
+                failed = true;
+                await dependencies.failDelivery(
+                  day,
+                  date,
+                  recipient.userId,
+                  deliveryToken,
+                );
+              } else {
+                await dependencies.completeDelivery(
+                  day,
+                  date,
+                  recipient.userId,
+                  deliveryToken,
+                  "skipped",
+                );
+              }
+            }
+          } catch {
+            failed = true;
+            skipped += 1;
+            await dependencies.failDelivery(
+              day,
+              date,
+              recipient.userId,
+              deliveryToken,
+            );
+          }
+        }
+
+        if (!result.hasMore || result.recipients.length < pageSize) break;
+        page += 1;
+      }
+
+      if (failed) {
+        await dependencies.failJob(day, date, claimToken);
+      } else {
+        await dependencies.completeJob(day, date, claimToken);
+      }
+      return { sent, skipped };
+    } catch (error) {
+      if (!failed) {
+        try {
+          await dependencies.failJob(day, date, claimToken);
+        } catch {
+          // Preserve the original generic failure and never expose claim details.
+        }
+      }
+      throw error;
+    }
   };
 }
 
-function generateDigestHTML(userId: string, data: Awaited<ReturnType<typeof fetchUserDigestData>>): string {
-  const e = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+type SupabaseClientLike = any;
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
-<tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:32px 24px;text-align:center;">
-<h1 style="color:#fff;margin:0;font-size:24px;">Your Week in Review</h1>
-<p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:14px;">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-</td></tr>
-<tr><td style="padding:24px;">
-<h2 style="color:#1e293b;font-size:18px;margin:0 0 12px;">📊 Goal Progress</h2>
-<p style="color:#475569;margin:0;">${data.activeGoals} active goals · ${data.completedGoals} completed this week</p>
-</td></tr>
-${data.newSaved.length ? `<tr><td style="padding:0 24px 24px;"><h2 style="color:#1e293b;font-size:18px;margin:0 0 12px;">💼 New Saved Opportunities</h2>${data.newSaved.map((s: any) => `<p style="color:#1e293b;margin:4px 0;font-weight:600;">${e(s.opportunities?.title || 'Untitled')}</p><p style="color:#64748b;margin:0 0 12px;font-size:13px;">${e(s.opportunities?.organization || '')}</p>`).join('')}</td></tr>` : ''}
-${data.upcomingDeadlines.length ? `<tr><td style="padding:0 24px 24px;"><h2 style="color:#1e293b;font-size:18px;margin:0 0 12px;">⏰ Upcoming Deadlines</h2>${(data.upcomingDeadlines as any[]).map((d: any) => `<p style="color:#1e293b;margin:4px 0;">${e(d.title)} — <span style="color:#ef4444;font-weight:600;">${new Date(d.deadline).toLocaleDateString()}</span></p>`).join('')}</td></tr>` : ''}
-<tr><td style="background:#f8fafc;padding:20px 24px;text-align:center;">
-<p style="color:#94a3b8;font-size:12px;margin:0;">Manage preferences in Edutu app settings.<br>© ${new Date().getFullYear()} Edutu.</p>
-</td></tr></table></body></html>`;
+function requireEnvironment(environment: Environment): {
+  url: string;
+  serviceRoleKey: string;
+} {
+  const url = environment("SUPABASE_URL")?.trim();
+  const serviceRoleKey = environment("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!url || !serviceRoleKey) throw new Error("Digest service unavailable");
+  return { url, serviceRoleKey };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+function responseError(result: { error?: unknown }): void {
+  if (result.error) throw new Error("Digest service unavailable");
+}
 
-  try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const targetDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-    const url = new URL(req.url);
-    const effectiveDay = parseInt(url.searchParams.get('day') || String(targetDay), 10);
+async function createDefaultDependencies(
+  environment: Environment,
+  now: () => number,
+): Promise<DigestRunnerDependencies> {
+  const { url, serviceRoleKey } = requireEnvironment(environment);
+  const supabase: SupabaseClientLike = createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const emailTimeoutRaw = environment("WEEKLY_DIGEST_EMAIL_TIMEOUT_MS")?.trim();
+  const emailTimeoutMs = boundedInteger(
+    emailTimeoutRaw ? Number(emailTimeoutRaw) : undefined,
+    DEFAULT_EMAIL_TIMEOUT_MS,
+    MAX_EMAIL_TIMEOUT_MS,
+    "email timeout",
+  );
 
-    console.log(`Running weekly digest for day ${effectiveDay}…`);
-    const users = await fetchUsersWithDigestEnabled(supabase, effectiveDay);
-    console.log(`Found ${users.length} users.`);
+  return {
+    now,
+    pageSize: Number(environment("WEEKLY_DIGEST_PAGE_SIZE")) || undefined,
+    maxRecipients: Number(environment("WEEKLY_DIGEST_MAX_RECIPIENTS")) ||
+      undefined,
+    claimJob: async (day, date) => {
+      const result = await supabase.rpc("claim_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+      });
+      responseError(result);
+      const claim = result.data as {
+        claimed?: unknown;
+        claim_token?: unknown;
+        claimToken?: unknown;
+      } | null;
+      const claimToken = typeof claim?.claim_token === "string"
+        ? claim.claim_token
+        : typeof claim?.claimToken === "string"
+        ? claim.claimToken
+        : undefined;
+      return { claimed: claim?.claimed === true, claimToken };
+    },
+    completeJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("complete_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+    },
+    failJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("fail_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+    },
+    renewJob: async (day, date, claimToken) => {
+      const result = await supabase.rpc("renew_weekly_digest_job", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+      return result.data === true;
+    },
+    claimDelivery: async (day, date, userId) => {
+      const result = await supabase.rpc("claim_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
+      });
+      responseError(result);
+      const claim = result.data as {
+        claimed?: unknown;
+        claim_token?: unknown;
+        status?: unknown;
+      } | null;
+      return {
+        claimed: claim?.claimed === true,
+        claimToken: typeof claim?.claim_token === "string"
+          ? claim.claim_token
+          : undefined,
+        status: claim?.status === "sent" || claim?.status === "skipped" ||
+            claim?.status === "failed" ? claim.status : undefined,
+      };
+    },
+    completeDelivery: async (day, date, userId, claimToken, status) => {
+      const result = await supabase.rpc("complete_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
+        p_claim_token: claimToken,
+        p_status: status,
+      });
+      responseError(result);
+    },
+    failDelivery: async (day, date, userId, claimToken) => {
+      const result = await supabase.rpc("fail_weekly_digest_delivery", {
+        p_digest_day: day,
+        p_execution_date: date,
+        p_user_id: userId,
+        p_claim_token: claimToken,
+      });
+      responseError(result);
+    },
+    listRecipients: async (day, page, pageSize) => {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      const preferencesResult = await supabase
+        .from("notification_preferences")
+        .select("user_id, weekly_digest_email")
+        .eq("weekly_digest_enabled", true)
+        .eq("weekly_digest_day", day)
+        .order("user_id", { ascending: true })
+        .range(from, to);
+      responseError(preferencesResult);
+      const preferences = (preferencesResult.data ?? []) as Array<{
+        user_id: string;
+        weekly_digest_email?: string | null;
+      }>;
+      if (preferences.length === 0) return { recipients: [], hasMore: false };
 
-    const results: { userId: string; email: string; sent: boolean }[] = [];
+      const userIds = preferences.map((preference) => preference.user_id);
+      const profilesResult = await supabase
+        .from("profiles")
+        .select("user_id, email")
+        .in("user_id", userIds);
+      responseError(profilesResult);
+      const emailByUserId = new Map(
+        ((profilesResult.data ?? []) as Array<{
+          user_id: string;
+          email?: string | null;
+        }>).map((profile) => [profile.user_id, profile.email ?? null]),
+      );
+      return {
+        recipients: preferences.map((preference) => ({
+          userId: preference.user_id,
+          email: preference.weekly_digest_email ??
+            emailByUserId.get(preference.user_id) ?? null,
+        })),
+        hasMore: preferences.length === pageSize,
+      };
+    },
+    sendDigest: async (recipient) => {
+      const emailApiKey = environment("SUPABASE_EMAIL_API_KEY")?.trim();
+      if (!recipient.email) return "failed";
+      if (!emailApiKey) return "failed";
 
-    for (const user of users) {
-      if (!user.email) continue;
+      const data = await fetchUserDigestData(supabase, recipient.userId, now);
+      const hasContent = data.activeGoals > 0 || data.newSaved.length > 0 ||
+        data.upcomingDeadlines.length > 0 || data.applicationUpdates.length > 0;
+      if (!hasContent) return "skipped";
 
-      const data = await fetchUserDigestData(supabase, user.user_id);
-      const hasContent = data.activeGoals > 0 || data.newSaved.length > 0 || data.upcomingDeadlines.length > 0;
-      if (!hasContent) continue;
-
-      const html = generateDigestHTML(user.user_id, data);
-      const sent = EMAIL_API_KEY ? false : false; // Requires email provider API key
-
-      if (EMAIL_API_KEY) {
-        try {
-          const emailRes = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: 'Edutu <digest@edutu.app>', to: user.email, subject: 'Your Weekly Edutu Digest', html }),
-          });
-          results.push({ userId: user.user_id, email: user.email, sent: emailRes.ok });
-        } catch {
-          results.push({ userId: user.user_id, email: user.email, sent: false });
-        }
-      } else {
-        console.log(`Would send digest to ${user.email} — EMAIL_API_KEY not set`);
-        results.push({ userId: user.user_id, email: user.email, sent: false });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), emailTimeoutMs);
+      try {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            authorization: `Bearer ${emailApiKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Edutu <digest@edutu.app>",
+            to: recipient.email,
+            subject: "Your Weekly Edutu Digest",
+            html: generateDigestHtml(data, now),
+          }),
+        });
+        return response.ok ? "sent" : "failed";
+      } catch {
+        return "failed";
+      } finally {
+        clearTimeout(timer);
       }
-    }
+    },
+  };
+}
 
-    return new Response(JSON.stringify({
-      success: true,
-      usersProcessed: users.length,
-      digestsGenerated: results.filter((r) => r.sent).length,
-      results,
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+export async function fetchUserDigestData(
+  supabase: SupabaseClientLike,
+  userId: string,
+  now: () => number,
+): Promise<{
+  activeGoals: number;
+  completedGoals: number;
+  newSaved: Array<Record<string, unknown>>;
+  upcomingDeadlines: Array<Record<string, unknown>>;
+  applicationUpdates: Array<Record<string, unknown>>;
+}> {
+  const weekAgo = new Date(now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const nextWeek = new Date(now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [activeGoalsResult, completedGoalsResult, savedResult, deadlinesResult, applicationsResult] =
+    await Promise.all([
+      supabase.from("goals").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("status", "active")
+        .limit(MAX_DIGEST_ITEMS),
+      supabase.from("goals").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("status", "active").gte("progress", 100)
+        .limit(MAX_DIGEST_ITEMS),
+      supabase.from("bookmarks").select("opportunities(title, organization)")
+        .eq("user_id", userId).gte("created_at", weekAgo).limit(MAX_DIGEST_ITEMS),
+      supabase.from("goals").select("title, deadline").eq("user_id", userId)
+        .eq("status", "active").gte("deadline", new Date(now()).toISOString())
+        .lte("deadline", nextWeek).order("deadline").limit(MAX_DIGEST_ITEMS),
+      supabase.from("opportunity_applications")
+        .select("status, updated_at, opportunities(title)")
+        .eq("user_id", userId).gte("updated_at", weekAgo)
+        .order("updated_at", { ascending: false }).limit(MAX_DIGEST_ITEMS),
+    ]);
+  responseError(activeGoalsResult);
+  responseError(completedGoalsResult);
+  responseError(savedResult);
+  responseError(deadlinesResult);
+  responseError(applicationsResult);
+  return {
+    activeGoals: activeGoalsResult.count ?? 0,
+    completedGoals: completedGoalsResult.count ?? 0,
+    newSaved: (savedResult.data ?? []) as Array<Record<string, unknown>>,
+    upcomingDeadlines: (deadlinesResult.data ?? []) as Array<Record<string, unknown>>,
+    applicationUpdates: (applicationsResult.data ?? []) as Array<Record<string, unknown>>,
+  };
+}
 
-  } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function generateDigestHtml(
+  data: Awaited<ReturnType<typeof fetchUserDigestData>>,
+  now: () => number,
+): string {
+  const saved = data.newSaved.slice(0, MAX_DIGEST_ITEMS).map((item) => {
+    const opportunity = item.opportunities as Record<string, unknown> | undefined;
+    return `<li>${escapeHtml(String(opportunity?.title ?? "Untitled"))}</li>`;
+  }).join("");
+  const deadlines = data.upcomingDeadlines.slice(0, MAX_DIGEST_ITEMS).map((item) =>
+    `<li>${escapeHtml(String(item.title ?? "Upcoming deadline"))}</li>`
+  ).join("");
+  return `<!doctype html><html><body><h1>Your Week in Review</h1><p>${new Date(now()).toISOString().slice(0, 10)}</p><p>${data.activeGoals} active goals; ${data.completedGoals} completed.</p>${saved ? `<h2>Saved opportunities</h2><ul>${saved}</ul>` : ""}${deadlines ? `<h2>Upcoming deadlines</h2><ul>${deadlines}</ul>` : ""}</body></html>`;
+}
+
+export async function runWeeklyDigest(
+  day: Weekday,
+  jobToken: string,
+  dependencies?: DigestRunnerDependencies,
+): Promise<WeeklyDigestCounts> {
+  const now = dependencies?.now ?? Date.now;
+  const runner = createWeeklyDigestRunner(
+    dependencies ?? await createDefaultDependencies(env, now),
+  );
+  return runner(day, jobToken, executionDate(now()));
+}
+
+function parseRequestDay(rawBody: string): Weekday | null {
+  try {
+    const payload = JSON.parse(rawBody) as Record<string, unknown>;
+    if (
+      !payload || Array.isArray(payload) || Object.keys(payload).length !== 1 ||
+      !Object.hasOwn(payload, "day")
+    ) return null;
+    return parseWeekday(payload.day);
+  } catch {
+    return null;
   }
-});
+}
+
+export function createWeeklyDigestHandler(
+  options: WeeklyDigestHandlerOptions = {},
+): (request: Request) => Promise<Response> {
+  const environment = options.env ?? env;
+  const now = options.now ?? Date.now;
+  const runDigest = options.runDigest ?? (async (day: Weekday, jobKey: string) => {
+    const defaults = await createDefaultDependencies(environment, now);
+    return runWeeklyDigest(day, jobKey, {
+      ...defaults,
+      claimJob: options.claimJob ?? defaults.claimJob,
+      completeJob: options.completeJob ?? defaults.completeJob,
+      failJob: options.failJob ?? defaults.failJob,
+      renewJob: options.renewJob ?? defaults.renewJob,
+      claimDelivery: options.claimDelivery ?? defaults.claimDelivery,
+      completeDelivery: options.completeDelivery ?? defaults.completeDelivery,
+      failDelivery: options.failDelivery ?? defaults.failDelivery,
+      listRecipients: options.listRecipients ?? defaults.listRecipients,
+      sendDigest: options.sendDigest ?? defaults.sendDigest,
+      pageSize: options.pageSize ?? defaults.pageSize,
+      maxRecipients: options.maxRecipients ?? defaults.maxRecipients,
+    });
+  });
+
+  return async (request: Request): Promise<Response> => {
+    if (request.method !== "POST") return jsonResponse(405);
+    const rawBody = await readBoundedBody(request);
+    if (!rawBody) return jsonResponse(400);
+
+    const authentication = await authenticateSchedulerRequest(request, rawBody, {
+      secret: environment("WEEKLY_DIGEST_JOB_SECRET"),
+      jobKey: environment("WEEKLY_DIGEST_JOB_KEY") ?? DEFAULT_JOB_KEY,
+      now,
+    }).catch(() => ({ ok: false } as const));
+    if (!authentication.ok) return jsonResponse(401);
+
+    const day = parseRequestDay(rawBody);
+    if (day === null) return jsonResponse(400);
+
+    try {
+      const counts = await runDigest(day, authentication.jobKey);
+      return jsonResponse(200, {
+        sent: Math.max(0, Math.floor(counts.sent)),
+        skipped: Math.max(0, Math.floor(counts.skipped)),
+      });
+    } catch {
+      console.error("weekly_digest_failed");
+      return jsonResponse(500);
+    }
+  };
+}
+
+export const handler = createWeeklyDigestHandler();
+
+if (import.meta.main) Deno.serve(handler);

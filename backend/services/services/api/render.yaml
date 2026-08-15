@@ -17,6 +17,24 @@ services:
         value: "true"
       - key: OPPORTUNITY_VERIFICATION_ENABLED
         value: "true"
+      # Keep the internal Edge-to-Render egress endpoint closed until its
+      # signed caller and exact source-host allowlist are configured.
+      - key: SCRAPE_EGRESS_ENABLED
+        value: "false"
+      - key: SCRAPE_EGRESS_SHARED_SECRET
+        sync: false
+      - key: SCRAPE_EGRESS_ALLOWED_HOSTS
+        sync: false
+      - key: SCRAPE_EGRESS_TIMEOUT_MS
+        value: "10000"
+      - key: SCRAPE_EGRESS_MAX_RESPONSE_BYTES
+        value: "1000000"
+      - key: SCRAPE_EGRESS_MAX_REDIRECTS
+        value: "3"
+      - key: SCRAPE_EGRESS_SIGNATURE_MAX_AGE_SECONDS
+        value: "300"
+      - key: SCRAPE_EGRESS_MAX_REQUEST_BYTES
+        value: "4096"
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL
@@ -24,6 +42,14 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_ISSUER_URL
+        value: https://clerk.edutu.org
+      - key: API_KEY_PEPPER
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: BACHS_WEBHOOK_SECRET
         sync: false
       - key: ADMIN_EMAILS
         sync: false

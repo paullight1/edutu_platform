@@ -1,4 +1,25 @@
-import { UpdateHomeCategoryLayoutSchema } from "./profile.dto";
+import {
+  UpdateHomeCategoryLayoutSchema,
+  UpdateProfileSchema,
+} from "./profile.dto";
+
+describe("UpdateProfileSchema authorization boundary", () => {
+  it("rejects client-supplied role and admin metadata", () => {
+    expect(
+      UpdateProfileSchema.safeParse({
+        fullName: "Regular User",
+        role: "admin",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      UpdateProfileSchema.safeParse({
+        fullName: "Regular User",
+        admin: true,
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe("UpdateHomeCategoryLayoutSchema", () => {
   it("accepts a versioned, unique tile layout", () => {

@@ -12,7 +12,12 @@ const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+// Keep module loading safe for tests and fail closed at invocation time when
+// the service-role connection is not configured.
+const supabaseAdmin = createClient(
+  SUPABASE_URL || "https://invalid.supabase.local",
+  SUPABASE_SERVICE_ROLE_KEY || "unavailable-service-role-key",
+);
 
 // Fallback pass length when the admin config can't be read — mirrors the backend
 // PricingSettingsSchema default (durationDays 90) so grants stay sane offline.
@@ -20,6 +25,11 @@ const SEASON_FALLBACK_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 type ProviderEventStatus = "received" | "processing" | "failed" | "processed";
+
+export type ProviderEventClaim = {
+  claimed: boolean;
+  claimToken?: string;
+};
 
 export function shouldProcessProviderEvent(
   status: string | null | undefined,
@@ -38,98 +48,69 @@ async function sha256(value: string): Promise<string> {
   ).join("");
 }
 
-async function claimProviderEvent(
+export async function claimProviderEvent(
   client: SupabaseClientLike,
   eventId: string,
   eventType: string,
   userId: string,
   environment: "sandbox" | "live",
   rawBody: string,
-): Promise<boolean> {
-  const { error: insertError } = await client.from("billing_provider_events")
-    .insert({
-      provider: "revenuecat",
-      environment,
-      event_id: eventId,
-      event_type: eventType,
-      status: "received",
-      payload_hash: await sha256(rawBody),
-      raw_payload: JSON.parse(rawBody),
-    });
-  if (!insertError) return true;
-  if (insertError.code !== "23505") {
+): Promise<ProviderEventClaim> {
+  const { data, error } = await client.rpc("claim_billing_provider_event", {
+    p_provider: "revenuecat",
+    p_environment: environment,
+    p_event_id: eventId,
+    p_event_type: eventType,
+    p_user_id: userId,
+    p_payload_hash: await sha256(rawBody),
+    p_raw_payload: JSON.parse(rawBody),
+  });
+  if (error) {
     throw new Error(
-      `Failed to persist RevenueCat event receipt: ${insertError.message}`,
+      `Failed to claim RevenueCat event receipt: ${error.message}`,
     );
   }
 
-  const { data: existing, error: readError } = await client
-    .from("billing_provider_events")
-    .select("status,attempt_count")
-    .eq("provider", "revenuecat")
-    .eq("environment", environment)
-    .eq("event_id", eventId)
-    .maybeSingle();
-  if (readError || !existing) {
+  const claim = data as { claimed?: boolean; claim_token?: string } | null;
+  if (!claim?.claimed) return { claimed: false };
+  if (!claim.claim_token) {
     throw new Error(
-      `Failed to read RevenueCat event receipt: ${
-        readError?.message ?? "missing duplicate receipt"
-      }`,
+      "RevenueCat claim succeeded without a claim token",
     );
   }
-  if (!shouldProcessProviderEvent(existing.status)) return false;
-
-  const { error: reclaimError } = await client
-    .from("billing_provider_events")
-    .update({
-      status: "processing",
-      attempt_count: (existing.attempt_count ?? 0) + 1,
-      last_error: null,
-      next_retry_at: null,
-    })
-    .eq("provider", "revenuecat")
-    .eq("environment", environment)
-    .eq("event_id", eventId);
-  if (reclaimError) {
-    throw new Error(
-      `Failed to reclaim RevenueCat event: ${reclaimError.message}`,
-    );
-  }
-  return true;
+  return { claimed: true, claimToken: claim.claim_token };
 }
 
-async function markProviderEvent(
+export async function markProviderEvent(
   client: SupabaseClientLike,
   eventId: string,
   environment: "sandbox" | "live",
   status: Extract<ProviderEventStatus, "processed" | "failed">,
+  claimToken: string,
   error?: unknown,
-): Promise<void> {
-  const update = status === "processed"
-    ? {
-      status,
-      processed_at: new Date().toISOString(),
-      last_error: null,
-      next_retry_at: null,
-    }
-    : {
-      status,
-      last_error: error instanceof Error
-        ? error.message.slice(0, 500)
-        : "Webhook processing failed",
-      next_retry_at: new Date().toISOString(),
-    };
-  const { error: updateError } = await client
-    .from("billing_provider_events")
-    .update(update)
-    .eq("provider", "revenuecat")
-    .eq("environment", environment)
-    .eq("event_id", eventId);
+): Promise<boolean> {
+  const rpcName = status === "processed"
+    ? "complete_billing_provider_event"
+    : "fail_billing_provider_event";
+  const { data, error: updateError } = await client.rpc(rpcName, {
+    p_provider: "revenuecat",
+    p_environment: environment,
+    p_event_id: eventId,
+    p_claim_token: claimToken,
+    ...(status === "failed"
+      ? {
+        p_error: error instanceof Error
+          ? error.message.slice(0, 500)
+          : "Webhook processing failed",
+      }
+      : {}),
+  });
   if (updateError) {
     throw new Error(
       `Failed to update RevenueCat event receipt: ${updateError.message}`,
     );
   }
+  return data === true;
 }
 
 /**
@@ -210,6 +191,12 @@ type RevenueCatEvent = {
 
 serve(async (req) => {
   try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Webhook service unavailable" }),
+        { status: 500, headers: SECURITY_HEADERS },
+      );
+    }
     const webhookSecret = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
     if (!webhookSecret) {
       return new Response(
@@ -300,7 +287,7 @@ serve(async (req) => {
     // Retries reclaim non-terminal receipts, while resource-level idempotency
     // in the fulfillment RPCs protects effects after a partial failure.
     const billingEnvironment = normalizeBillingEnvironment(data.environment);
-    const shouldProcess = await claimProviderEvent(
+    const claim = await claimProviderEvent(
       supabaseAdmin,
       eventData.id,
       eventData.type,
@@ -308,7 +295,7 @@ serve(async (req) => {
       billingEnvironment,
       rawBody,
     );
-    if (!shouldProcess) {
+    if (!claim.claimed) {
       console.log(
         "Duplicate processed RevenueCat event, skipping:",
         eventData.id,
@@ -358,6 +345,7 @@ serve(async (req) => {
           eventData.id,
           billingEnvironment,
           "failed",
+          claim.claimToken!,
           handlerError,
         );
       } catch (receiptError) {
@@ -369,12 +357,16 @@ serve(async (req) => {
       throw handlerError;
     }
 
-    await markProviderEvent(
+    const completed = await markProviderEvent(
       supabaseAdmin,
       eventData.id,
       billingEnvironment,
       "processed",
+      claim.claimToken!,
     );
+    if (!completed) {
+      throw new Error("RevenueCat event claim was lost before completion");
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
