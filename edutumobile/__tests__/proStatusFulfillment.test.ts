@@ -4,6 +4,7 @@ import { useProStatus } from '../packages/core/src/hooks/useProStatus';
 jest.mock('@edutu/core/src/services/payments', () => ({
   initRevenueCat: jest.fn(async () => false),
   isProSubscriber: jest.fn(async () => false),
+  getActiveEntitlements: jest.fn(async () => []),
 }));
 
 jest.mock('@edutu/core/src/utils/auth', () => ({
@@ -32,11 +33,18 @@ function createSupabase(entitlements: () => Entitlement[]) {
       }
 
       let eqCount = 0;
+      let inCount = 0;
       const query = {
         select: jest.fn(() => query),
         eq: jest.fn(() => {
           eqCount += 1;
           return eqCount === 2
+            ? Promise.resolve({ data: entitlements(), error: null })
+            : query;
+        }),
+        in: jest.fn(() => {
+          inCount += 1;
+          return inCount === 2
             ? Promise.resolve({ data: entitlements(), error: null })
             : query;
         }),

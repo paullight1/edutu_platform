@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { toSafeUUID } from '../utils/auth';
-import { initRevenueCat, isProSubscriber } from '../services/payments';
+import { getActiveEntitlements, initRevenueCat, isProSubscriber } from '../services/payments';
+
+export type SubscriptionTier = 'none' | 'lite' | 'pro' | 'scholar';
 
 interface UseProStatusReturn {
   isPro: boolean;
+  planTier: SubscriptionTier;
   isLoading: boolean;
   proSince: string | null;
   subscriptionId: string | null;
@@ -15,6 +18,7 @@ interface UseProStatusReturn {
 
 type ServerProStatus = {
   displayPro: boolean;
+  displayTier: SubscriptionTier;
   confirmedPro: boolean;
   proSince: string | null;
   subscriptionId: string | null;
@@ -37,28 +41,37 @@ async function readServerProStatus(supabase: SupabaseClient, userId: string): Pr
   const { data: entitlements, error: entitlementsError } = await supabase
     .from('billing_entitlements')
     .select('feature_key, status, expires_at')
-    .eq('user_id', userId)
-    .eq('feature_key', 'pro');
+    .in('user_id', lookupIds)
+    .in('feature_key', ['lite', 'pro', 'scholar']);
 
-  const proEntitlements = (entitlements || []).filter(
-    (entitlement: any) => entitlement.feature_key === 'pro',
+  const paidEntitlements = (entitlements || []).filter(
+    (entitlement: any) => ['lite', 'pro', 'scholar'].includes(entitlement.feature_key),
   );
-  const entitlementPro = proEntitlements.some((entitlement: any) => {
+  const isActivePaidEntitlement = (entitlement: any) => {
     const expiresAt = entitlement.expires_at ? new Date(entitlement.expires_at).getTime() : null;
     return entitlement.status === 'active' && (!expiresAt || expiresAt > Date.now());
-  });
+  };
+  const paidEntitlement = paidEntitlements.some(isActivePaidEntitlement);
+  const activePaidEntitlements = paidEntitlements.filter(isActivePaidEntitlement);
 
   // A completion screen needs proof that the webhook fulfilled the purchase,
   // so only a live canonical entitlement can turn it into a success. The
   // compatibility profile remains available for normal legacy status display.
-  const hasEntitlementData = !entitlementsError && proEntitlements.length > 0;
+  const hasEntitlementData = !entitlementsError && paidEntitlements.length > 0;
   const mirrorFallbackPro = entitlementsError
     ? profileMirrorPro
     : profileMirrorPro && profileExpiresAt !== null;
 
   return {
-    displayPro: hasEntitlementData ? entitlementPro : mirrorFallbackPro,
-    confirmedPro: !entitlementsError && entitlementPro,
+    displayPro: hasEntitlementData ? paidEntitlement : mirrorFallbackPro,
+    displayTier: activePaidEntitlements.some((entitlement: any) => entitlement.feature_key === 'scholar')
+      ? 'scholar'
+      : activePaidEntitlements.some((entitlement: any) => entitlement.feature_key === 'pro') || mirrorFallbackPro
+        ? 'pro'
+        : activePaidEntitlements.some((entitlement: any) => entitlement.feature_key === 'lite')
+          ? 'lite'
+          : 'none',
+    confirmedPro: !entitlementsError && paidEntitlement,
     proSince: profile?.pro_since || null,
     subscriptionId: profile?.subscription_id || null,
   };
@@ -66,6 +79,7 @@ async function readServerProStatus(supabase: SupabaseClient, userId: string): Pr
 
 export function useProStatus(supabase: SupabaseClient, userId: string | null): UseProStatusReturn {
   const [isPro, setIsPro] = useState(false);
+  const [planTier, setPlanTier] = useState<SubscriptionTier>('none');
   const [isLoading, setIsLoading] = useState(true);
   const [proSince, setProSince] = useState<string | null>(null);
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
@@ -75,7 +89,10 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
   const [prevUserId, setPrevUserId] = useState(userId);
   if (prevUserId !== userId) {
     setPrevUserId(userId);
-    if (!userId) setIsPro(false);
+    if (!userId) {
+      setIsPro(false);
+      setPlanTier('none');
+    }
   }
 
   // Internal fetch as an explicit promise chain: all state updates happen in
@@ -90,11 +107,27 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
       .then(async () => {
         // Check RevenueCat subscription status
         const rcPro = await isProSubscriber();
+        const rcEntitlements = await getActiveEntitlements();
 
         const serverStatus = await readServerProStatus(supabase, userId);
-        const actualPro = rcPro || serverStatus.displayPro;
+        const rcTier: SubscriptionTier = rcEntitlements.includes('scholar')
+          ? 'scholar'
+          : rcEntitlements.includes('pro')
+            ? 'pro'
+            : rcEntitlements.includes('lite')
+              ? 'lite'
+              : 'none';
+        const actualPro = rcPro || rcTier !== 'none' || serverStatus.displayPro;
+        const actualTier: SubscriptionTier = serverStatus.displayTier !== 'none'
+          ? serverStatus.displayTier
+          : rcTier !== 'none'
+            ? rcTier
+            : actualPro
+              ? 'pro'
+              : 'none';
 
         setIsPro(actualPro);
+        setPlanTier(actualTier);
         setProSince(serverStatus.proSince);
         setSubscriptionId(serverStatus.subscriptionId);
 
@@ -115,6 +148,7 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
   const checkStatus = useCallback(async () => {
     if (!userId) {
       setIsPro(false);
+      setPlanTier('none');
       setIsLoading(false);
       return;
     }
@@ -130,6 +164,7 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
       const serverStatus = await readServerProStatus(supabase, userId);
       if (serverStatus.confirmedPro) {
         setIsPro(true);
+        setPlanTier(serverStatus.displayTier);
         setProSince(serverStatus.proSince);
         setSubscriptionId(serverStatus.subscriptionId);
       }
@@ -191,6 +226,7 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
 
   return {
     isPro,
+    planTier,
     // Never report "loading" while signed out — the mount effect only fetches
     // when a user is present.
     isLoading: userId ? isLoading : false,

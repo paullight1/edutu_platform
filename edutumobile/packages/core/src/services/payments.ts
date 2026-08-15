@@ -37,12 +37,20 @@ let configuredUserId: string | null = null;
 // Entitlements (configured in RevenueCat dashboard)
 export const ENTITLEMENTS = {
   PRO: 'pro',
+  LITE: 'lite',
+  SCHOLAR: 'scholar',
   CREDITS: 'credits',
 } as const;
 
 // Product identifiers (configured in RevenueCat dashboard)
 export const PRODUCTS = {
-  // Pro subscription
+  // Consumer subscriptions. Lite and Pro are separate store products.
+  LITE_WEEKLY: 'lite_weekly',
+  LITE_MONTHLY: 'lite_monthly',
+  LITE_YEARLY: 'lite_yearly',
+  SCHOLAR_WEEKLY: 'scholar_weekly',
+  SCHOLAR_MONTHLY: 'scholar_monthly',
+  SCHOLAR_YEARLY: 'scholar_yearly',
   PRO_WEEKLY: 'pro_weekly',
   PRO_MONTHLY: 'pro_monthly',
   PRO_YEARLY: 'pro_yearly',
