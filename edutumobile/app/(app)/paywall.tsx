@@ -40,6 +40,7 @@ import {
   type PricingConfig,
   type PaywallContent,
   type BillingPlan,
+  type SubscriptionTier,
   effectivePrice,
   hasPromoDiscount,
   formatMoney,
@@ -79,6 +80,7 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const {
     isPro,
+    planTier,
     isLoading: proLoading,
     refreshStatus,
     refreshServerStatus = async () => false,
@@ -89,6 +91,7 @@ export default function PaywallScreen() {
   const userId = user?.id;
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(USE_NATIVE_IAP ? 'monthly' : 'weekly');
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('pro');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
   // Admin-controlled design + copy overrides (mobile-control config). Empty
   // fields fall back to the built-in translated copy below.
@@ -177,7 +180,7 @@ export default function PaywallScreen() {
     })();
   }, [loadIapOfferings]);
 
-  const iapPackageForPlan = (plan: BillingPlan) => nativePackageForPlan(plan, iapPackages);
+  const iapPackageForPlan = (plan: BillingPlan) => nativePackageForPlan(plan, iapPackages, selectedTier);
   const displayedPlans = visibleBillingPlans(Platform.OS, iapPackages);
   const selectedPackage = iapPackageForPlan(selectedPlan);
   // True when this purchase will actually be charged by the store — i.e. we're
@@ -320,7 +323,7 @@ export default function PaywallScreen() {
       checkoutIdempotencyKeyRef.current = idempotencyKey;
       const checkout = await requestBachsCheckout({
         accessToken: token,
-        productKey: webProductKeyForPlan(selectedPlan),
+        productKey: webProductKeyForPlan(selectedPlan, selectedTier),
         idempotencyKey,
       });
       await openExternal(checkout.checkoutUrl);
@@ -330,7 +333,7 @@ export default function PaywallScreen() {
       // Give the app-switch a beat before releasing the button spinner.
       setTimeout(() => setRedirecting(false), 800);
     }
-  }, [userId, getToken, selectedPlan, openExternal, t]);
+  }, [userId, getToken, selectedPlan, selectedTier, openExternal, t]);
 
   const handleRestore = useCallback(async () => {
     setRestoring(true);
@@ -463,14 +466,14 @@ export default function PaywallScreen() {
     const storePrice = storeProductForPlan(plan)?.price;
     return typeof storePrice === 'number' && Number.isFinite(storePrice)
       ? storePrice
-      : effectivePrice(pricing, plan);
+      : effectivePrice(pricing, plan, selectedTier, { applyPromo: false });
   };
   const displayCurrency = (plan: BillingPlan) => storeProductForPlan(plan)?.currencyCode || pricing.currency;
   const displayPriceText = (plan: BillingPlan) =>
     storeProductForPlan(plan)?.priceString || formatMoney(displayPrice(plan), displayCurrency(plan));
 
   const regularPriceOf = (plan: BillingPlan) =>
-    plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+    plan === 'weekly' ? pricing[selectedTier].weeklyPrice : plan === 'monthly' ? pricing[selectedTier].monthlyPrice : pricing[selectedTier].yearlyPrice;
 
   const planLabel = (plan: BillingPlan) =>
     plan === 'weekly' ? t('paywall.weekly') : plan === 'monthly' ? t('paywall.monthly') : t('paywall.yearly');
@@ -529,9 +532,14 @@ export default function PaywallScreen() {
   const promoOffPct = (plan: BillingPlan) => {
     const regular = regularPriceOf(plan);
     const price = displayPrice(plan);
-    if (!hasPromoDiscount(pricing, plan) || regular <= 0) return 0;
+    if (!hasPromoDiscount(pricing, plan, selectedTier, { applyPromo: false }) || regular <= 0) return 0;
     return Math.max(0, Math.round((1 - price / regular) * 100));
   };
+
+  // Lite has premium access but can still upgrade to Pro or Scholar. Full Pro
+  // and Scholar users should see their active state instead of another plan
+  // purchase surface.
+  const canUpgrade = planTier === 'none' || planTier === 'lite';
 
   if (proLoading) {
     return (
@@ -632,15 +640,19 @@ export default function PaywallScreen() {
               admin copy stays on two lines instead of stealing vertical space. */}
           <View style={styles.headline}>
             <Text style={[styles.headlineLine, headlineType, { color: accent }]} numberOfLines={2}>
-              {isPro ? t('paywall.premiumIsActive') : copy(paywall.heroLine1, t('paywall.heroLine1'))}
+              {planTier === 'pro' || planTier === 'scholar'
+                ? t('paywall.premiumIsActive')
+                : planTier === 'lite'
+                  ? 'You are on Lite — upgrade to Pro for 10× more daily usage.'
+                  : copy(paywall.heroLine1, t('paywall.heroLine1'))}
             </Text>
-            {!isPro && (
+            {canUpgrade && (
               <Text style={[styles.headlineLine, headlineType, { color: '#FFFFFF' }]} numberOfLines={2}>
                 {copy(paywall.heroLine2, t('paywall.heroLine2'))}
               </Text>
             )}
           </View>
-          {isPro ? (
+          {!canUpgrade ? (
             <Text style={styles.subtitle} numberOfLines={2}>
               {t('paywall.heroActive')}
             </Text>
@@ -669,13 +681,31 @@ export default function PaywallScreen() {
 
         {/* BOTTOM: plans, CTA, legal */}
         <View style={styles.bottomGroup}>
-        {!isPro ? (
+        {canUpgrade ? (
           <>
+            <View style={styles.tierToggle}>
+              {(['lite', 'pro', 'scholar'] as const).map((tier) => (
+                <TouchableOpacity
+                  key={tier}
+                  onPress={() => {
+                    setSelectedTier(tier);
+                    checkoutIdempotencyKeyRef.current = null;
+                  }}
+                  style={[styles.tierOption, selectedTier === tier && { backgroundColor: accent }]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedTier === tier }}
+                >
+                  <Text style={[styles.tierOptionText, selectedTier === tier && { color: CANVAS }]}>
+                    {tier === 'lite' ? 'Lite' : tier === 'pro' ? 'Pro · 10× usage' : 'Scholar · max'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             {/* Plan cards — badge slot / name / per-week rate / total + cadence */}
             <View style={styles.planRow}>
               {displayedPlans.map((plan) => {
                 const active = selectedPlan === plan;
-                    const discounted = !USE_NATIVE_IAP && hasPromoDiscount(pricing, plan);
+                    const discounted = hasPromoDiscount(pricing, plan, selectedTier, { applyPromo: false });
                 const offPct = promoOffPct(plan);
                 const badge = planBadge(plan);
                 return (
@@ -926,7 +956,7 @@ export default function PaywallScreen() {
         >
           <X size={19} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
-        {USE_NATIVE_IAP && !isPro ? (
+        {USE_NATIVE_IAP && canUpgrade ? (
           <TouchableOpacity
             onPress={handleRestore}
             disabled={restoring}
@@ -1113,6 +1143,22 @@ const styles = StyleSheet.create({
   },
 
   // ── Plan cards ──
+  tierToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    borderRadius: 999,
+    padding: 3,
+    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  tierOption: {
+    minWidth: 112,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  tierOptionText: { color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: '800' },
   planRow: { flexDirection: 'row', gap: 9, marginBottom: 14, alignItems: 'flex-end' },
   planCard: {
     flex: 1,
