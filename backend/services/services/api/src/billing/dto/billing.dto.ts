@@ -1,4 +1,5 @@
 export type BillingInterval = "weekly" | "monthly" | "yearly";
+export type SubscriptionTier = "none" | "lite" | "pro" | "scholar";
 
 export interface CreateCheckoutDto {
   plan?: BillingInterval;
@@ -9,6 +10,7 @@ export interface CreateCheckoutDto {
 
 export interface BillingStatus {
   isPro: boolean;
+  planTier: SubscriptionTier;
   proSince: string | null;
   proExpiresAt: string | null;
   credits: number;

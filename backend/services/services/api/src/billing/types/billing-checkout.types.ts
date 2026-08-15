@@ -189,6 +189,8 @@ export interface BillingCheckoutRepositoryPort {
   listEnabledApiCreditProducts?(
     environment: BillingEnvironment,
   ): Promise<BillingCheckoutProduct[]>;
+  /** API credits are not consumer top-ups; only developer accounts may buy them. */
+  hasActiveApiConsumer(userId: string): Promise<boolean>;
   createOrReuseIntent(input: {
     userId: string;
     environment: BillingEnvironment;
