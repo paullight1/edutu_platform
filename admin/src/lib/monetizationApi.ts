@@ -23,6 +23,13 @@ export interface FreeTier {
 export interface ProFairUse {
   dailyChatMessages: number;
   dailyActionCredits: number;
+  dailyVoiceMinutes: number;
+}
+
+export interface PlanPricing {
+  weeklyPrice: number;
+  monthlyPrice: number;
+  yearlyPrice: number;
 }
 
 export interface PromoConfig {
@@ -40,10 +47,15 @@ export interface PricingSettings {
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
+  lite: PlanPricing;
+  pro: PlanPricing;
+  scholar: PlanPricing;
   creditPacks: CreditPack[];
   aiCosts: AiCosts;
   freeTier: FreeTier;
   proFairUse: ProFairUse;
+  liteFairUse: ProFairUse;
+  scholarFairUse: ProFairUse;
   checkoutBaseUrl: string;
   manageUrl: string;
   promo: PromoConfig;
@@ -91,6 +103,9 @@ export const DEFAULT_PRICING: PricingSettings = {
   weeklyPrice: 0,
   monthlyPrice: 0,
   yearlyPrice: 0,
+  lite: { weeklyPrice: 3.99, monthlyPrice: 10, yearlyPrice: 100 },
+  pro: { weeklyPrice: 5, monthlyPrice: 15, yearlyPrice: 150 },
+  scholar: { weeklyPrice: 7.99, monthlyPrice: 24.99, yearlyPrice: 200 },
   creditPacks: [],
   aiCosts: {
     chatMessage: 1,
@@ -101,7 +116,9 @@ export const DEFAULT_PRICING: PricingSettings = {
     voicePerMinute: 2,
   },
   freeTier: { dailyChatMessages: 10, signupCredits: 20 },
-  proFairUse: { dailyChatMessages: 200, dailyActionCredits: 500 },
+  proFairUse: { dailyChatMessages: 200, dailyActionCredits: 300, dailyVoiceMinutes: 30 },
+  liteFairUse: { dailyChatMessages: 20, dailyActionCredits: 30, dailyVoiceMinutes: 5 },
+  scholarFairUse: { dailyChatMessages: 600, dailyActionCredits: 900, dailyVoiceMinutes: 60 },
   checkoutBaseUrl: '',
   manageUrl: '',
   promo: {
@@ -121,6 +138,11 @@ export function mergePricing(pricing?: Partial<PricingSettings>): PricingSetting
     aiCosts: { ...DEFAULT_PRICING.aiCosts, ...(pricing?.aiCosts || {}) },
     freeTier: { ...DEFAULT_PRICING.freeTier, ...(pricing?.freeTier || {}) },
     proFairUse: { ...DEFAULT_PRICING.proFairUse, ...(pricing?.proFairUse || {}) },
+    liteFairUse: { ...DEFAULT_PRICING.liteFairUse, ...(pricing?.liteFairUse || {}) },
+    scholarFairUse: { ...DEFAULT_PRICING.scholarFairUse, ...(pricing?.scholarFairUse || {}) },
+    lite: { ...DEFAULT_PRICING.lite, ...(pricing?.lite || {}) },
+    pro: { ...DEFAULT_PRICING.pro, ...(pricing?.pro || {}) },
+    scholar: { ...DEFAULT_PRICING.scholar, ...(pricing?.scholar || {}) },
     promo: { ...DEFAULT_PRICING.promo, ...(pricing?.promo || {}) },
   };
 }
