@@ -88,9 +88,13 @@ export function LoginOfferModal() {
         return () => { cancelled = true; };
     }, [user?.id, proLoading, isPro, welcomeActive, upgradeFlowOpen]);
 
-    const promoActive = hasPromoDiscount(pricing, 'monthly');
+    // Consumer checkout prices are provider/catalogue-owned. The admin promo
+    // may be stale or unsupported by the active store/Bachs product, so this
+    // unsolicited offer must never advertise a lower amount than checkout can
+    // actually charge.
+    const promoActive = hasPromoDiscount(pricing, 'monthly', 'pro', { applyPromo: false });
     const regular = pricing.monthlyPrice;
-    const promoPrice = effectivePrice(pricing, 'monthly');
+    const promoPrice = effectivePrice(pricing, 'monthly', 'pro', { applyPromo: false });
     const discountPct = useMemo(
         () => (promoActive && regular > 0 ? Math.round((1 - promoPrice / regular) * 100) : 0),
         [promoActive, regular, promoPrice],

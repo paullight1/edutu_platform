@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -38,6 +38,7 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Slide>);
+const AUTO_ADVANCE_DELAY_MS = 2000;
 
 type SlideId = 'discover' | 'match' | 'coach' | 'deadlines';
 
@@ -179,6 +180,20 @@ export default function OnboardingWelcome() {
   const goToGetStarted = useCallback(() => {
     router.push('/get-started');
   }, [router]);
+
+  useEffect(() => {
+    // Give each slide's visual animation time to play before moving on. The
+    // effect resets whenever the user advances or swipes manually.
+    if (isLast) return;
+
+    const timer = setTimeout(() => {
+      const next = index + 1;
+      listRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
+      setIndex(next);
+    }, AUTO_ADVANCE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [index, isLast]);
 
   const handleContinue = useCallback(() => {
     if (isLast) {
