@@ -2,10 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import ImageWithFallback from './ImageWithFallback';
 import {
     BAND_BODY,
-    MOSAIC,
     PROGRAM_HEADLINE,
     PROGRAM_KICKER,
     PROGRAM_NAME,
@@ -93,7 +91,7 @@ const EdutuForYouBand: React.FC = () => {
                 className="pointer-events-none absolute -bottom-40 right-0 h-[380px] w-[380px] rounded-full bg-accent/15 blur-[120px]"
             />
 
-            <div className="relative mx-auto grid max-w-[1200px] items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+            <div className="relative mx-auto max-w-[760px]">
                 {/* ─── Copy ─────────────────────────────────────────────── */}
                 <motion.div {...fade}>
                     <span className="inline-flex items-center gap-2 rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#C7D2FE]">
@@ -152,39 +150,6 @@ const EdutuForYouBand: React.FC = () => {
                     </div>
                 </motion.div>
 
-                {/* ─── Portrait mosaic ──────────────────────────────────── */}
-                <motion.div
-                    {...fade}
-                    transition={
-                        reduceMotion
-                            ? undefined
-                            : { duration: 0.6, delay: 0.12, ease: [0.16, 1, 0.3, 1] }
-                    }
-                    // Five images across three columns: the first spans both
-                    // rows, so the remaining four fill the other two columns
-                    // exactly. A plain 3-col flow would leave a hole bottom-right.
-                    className="grid auto-rows-[minmax(0,1fr)] grid-cols-3 grid-rows-2 gap-3 sm:gap-4"
-                >
-                    {MOSAIC.map((image, index) => (
-                        <div
-                            key={image.src}
-                            className={[
-                                'overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]',
-                                // The lead portrait runs the full height of the block.
-                                index === 0 ? 'row-span-2 h-full min-h-[18rem] sm:min-h-[24rem]' : '',
-                                index > 0 ? 'h-36 sm:h-[11.5rem]' : '',
-                            ]
-                                .filter(Boolean)
-                                .join(' ')}
-                        >
-                            <ImageWithFallback
-                                src={image.src}
-                                alt={image.alt}
-                                className="h-full w-full object-cover"
-                            />
-                        </div>
-                    ))}
-                </motion.div>
             </div>
         </section>
     );
