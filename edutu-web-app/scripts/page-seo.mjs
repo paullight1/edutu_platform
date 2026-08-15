@@ -205,9 +205,9 @@ export const PAGE_SEO = [
   {
     path: "/help",
     slug: "help",
-    title: "Help Centre — Edutu",
+    title: "Edutu Help Centre — scholarships, internships and account support",
     description:
-      "Answers to the questions we get most: accounts, deadlines, saved opportunities, Edutu Pro billing, and how to reach a human when you need one.",
+      "Get help using Edutu: create an account, find scholarships and internships, save opportunities, track deadlines, use AI matching, and contact support.",
     imageAlt: "Edutu Help Centre",
   },
   {

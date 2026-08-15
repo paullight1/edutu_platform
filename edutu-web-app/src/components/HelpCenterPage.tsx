@@ -3,14 +3,10 @@ import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
     ArrowRight,
-    BookOpen,
-    Compass,
     LifeBuoy,
     Mail,
     MessageCircle,
-    Search,
     Sparkles,
-    type LucideIcon,
 } from 'lucide-react';
 import PageSeo from './PageSeo';
 import PublicHeader from './PublicHeader';
@@ -18,17 +14,35 @@ import SiteFooter from './SiteFooter';
 import ContactSupportForm from './ContactSupportForm';
 
 interface HelpCategory {
-    icon: LucideIcon;
+    illustration: string;
+    illustrationAlt: string;
     title: string;
     desc: string;
     to: string;
-    external?: boolean;
 }
 
 const categories: HelpCategory[] = [
-    { icon: Compass, title: 'Getting started', desc: 'Set up your profile and get matched with your first opportunities.', to: '/about' },
-    { icon: Search, title: 'Finding opportunities', desc: 'Search, filter, and save scholarships, internships, and fellowships.', to: '/opportunities' },
-    { icon: BookOpen, title: 'Developer & API', desc: 'Integrate the Scholarship Engine and read our developer docs.', to: '/scholarship-engine' },
+    {
+        illustration: '/illustrations/help-getting-started.png',
+        illustrationAlt: 'Hand-drawn profile notebook, compass, and path to a bright doorway',
+        title: 'Getting started',
+        desc: 'Set up your profile and get matched with your first opportunities.',
+        to: '/about',
+    },
+    {
+        illustration: '/illustrations/help-finding-opportunities.png',
+        illustrationAlt: 'Hand-drawn magnifying glass over a world map and opportunity papers',
+        title: 'Finding opportunities',
+        desc: 'Search, filter, and save scholarships, internships, and fellowships.',
+        to: '/opportunities',
+    },
+    {
+        illustration: '/illustrations/help-developer-api.png',
+        illustrationAlt: 'Hand-drawn hands building an API bridge between a browser and globe',
+        title: 'Developer & API',
+        desc: 'Integrate the Scholarship Engine and read our developer docs.',
+        to: '/scholarship-engine',
+    },
 ];
 
 interface Faq {
@@ -57,7 +71,60 @@ const faqs: Faq[] = [
         q: 'How do I become a mentor?',
         a: 'We would love that. Visit the Become a Mentor page to learn what is involved and register your interest.',
     },
+    {
+        q: 'What scholarships can I find on Edutu?',
+        a: 'Edutu lists scholarships, fellowships, internships, grants, and other global programs for students and early-career professionals. Use your profile and filters to narrow the feed to opportunities that fit you.',
+    },
+    {
+        q: 'How do I create an Edutu profile?',
+        a: 'Choose Get started, create your account, and answer a few questions about your education, interests, location, and goals. Your profile helps Edutu surface more relevant opportunities.',
+    },
+    {
+        q: 'How do I save a scholarship or internship?',
+        a: 'Open any opportunity and choose Save. Saved scholarships, internships, and fellowships stay in your account so you can return to them before the deadline.',
+    },
+    {
+        q: 'Can Edutu remind me before an application deadline?',
+        a: 'Yes. Save an opportunity and keep its deadline visible in your tracking view. Notification options may vary by device and account settings, so check your preferences regularly.',
+    },
+    {
+        q: 'Does Edutu support African students applying globally?',
+        a: 'Yes. Edutu is built for African learners looking for local, regional, and international scholarships, fellowships, internships, grants, and career programs.',
+    },
+    {
+        q: 'How do I change my interests or eligibility details?',
+        a: 'Open your profile or settings while signed in and update your education, interests, location, and goals. Refreshing these details improves future opportunity matching.',
+    },
+    {
+        q: 'Can I use Edutu on my phone?',
+        a: 'Yes. Edutu works in a mobile browser and is designed for smaller screens. You can also install the Edutu app where it is available for your device.',
+    },
+    {
+        q: 'What is Edutu Pro?',
+        a: 'Edutu Pro is an optional set of advanced tools for deeper application support, including AI coaching and CV help in the mobile app. The core opportunity discovery experience remains free.',
+    },
+    {
+        q: 'How do I report an incorrect or expired opportunity?',
+        a: 'Use the support form below to tell us the opportunity title, source, and issue you found. We review reports and update or remove listings when the official source confirms a change.',
+    },
+    {
+        q: 'Is my personal data safe on Edutu?',
+        a: 'We use your information to provide matching and account features, and we do not sell personal data. Read our Privacy Policy for details about access, exports, deletion, and your choices.',
+    },
 ];
+
+const helpFaqJsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+        '@type': 'Question',
+        name: faq.q,
+        acceptedAnswer: {
+            '@type': 'Answer',
+            text: faq.a,
+        },
+    })),
+};
 
 const HelpCenterPage: React.FC = () => {
     const reduceMotion = useReducedMotion();
@@ -72,7 +139,7 @@ const HelpCenterPage: React.FC = () => {
 
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
-            <PageSeo path="/help" />
+            <PageSeo path="/help" jsonLd={helpFaqJsonLd} />
             <PublicHeader />
 
             <main className="relative z-10">
@@ -95,11 +162,27 @@ const HelpCenterPage: React.FC = () => {
                 {/* Categories */}
                 <section className="px-4 pb-8 sm:px-6">
                     <div className="mx-auto grid max-w-[1000px] grid-cols-1 gap-6 sm:grid-cols-3">
-                        {categories.map((cat) => {
+                        {categories.map((cat, index) => {
                             const inner = (
                                 <>
-                                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10">
-                                        <cat.icon size={22} className="text-brand" />
+                                    <div className="relative -mx-4 -mt-4 mb-3 h-44 sm:h-48">
+                                        <motion.img
+                                            src={cat.illustration}
+                                            alt={cat.illustrationAlt}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="absolute -inset-[10%] h-[120%] w-[120%] max-w-none object-contain transition-transform duration-500 hover:scale-[1.04]"
+                                            animate={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : { y: [0, -6, 0], rotate: [0, index % 2 === 0 ? 1 : -1, 0] }
+                                            }
+                                            transition={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : { duration: 6 + index, repeat: Infinity, ease: 'easeInOut', delay: index * 0.15 }
+                                            }
+                                        />
                                     </div>
                                     <h3 className="mb-2 font-display text-lg font-semibold tracking-tight text-text-primary">
                                         {cat.title}

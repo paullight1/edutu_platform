@@ -19,10 +19,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
-import { getOpenApiUrl, getPublicApiBaseUrl } from '../lib/apiProductUrls';
+import { getPublicApiBaseUrl } from '../lib/apiProductUrls';
 
 const apiBaseUrl = getPublicApiBaseUrl();
-const apiSpecUrl = getOpenApiUrl();
 
 /* ────────────────────────────────────────────────────────────────────────
  * Content
@@ -184,11 +183,6 @@ const { data, meta } = await response.json();`,
   "requestId": "req_..."
 }`,
     },
-    {
-        label: 'OpenAPI',
-        title: 'Fetch the machine-readable contract',
-        code: `curl "${apiSpecUrl}"`,
-    },
 ];
 
 const opportunityFields = [
@@ -341,26 +335,27 @@ const DeveloperDocsPage: React.FC = () => {
                         }}
                     />
                     <motion.div
-                        className="relative mx-auto max-w-[1200px]"
+                        className="relative mx-auto grid max-w-[1200px] gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end"
                         initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     >
-                        <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 font-mono text-xs text-text-secondary shadow-soft">
+                        <div className="min-w-0">
+                            <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3.5 py-1.5 font-mono text-xs text-text-secondary shadow-soft">
                             <Terminal size={14} className="text-brand" />
                             Developer API · Reference
-                        </span>
+                            </span>
 
-                        <h1 className="mt-6 max-w-3xl font-display text-[clamp(2.1rem,4.2vw,3.4rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-text-primary text-balance">
+                            <h1 className="mt-6 max-w-3xl font-display text-[clamp(2.1rem,4.2vw,3.4rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-text-primary text-balance">
                             The Edutu API, end to end.
-                        </h1>
-                        <p className="mt-5 max-w-2xl text-base leading-[1.7] text-text-secondary sm:text-lg">
+                            </h1>
+                            <p className="mt-5 max-w-2xl text-base leading-[1.7] text-text-secondary sm:text-lg">
                             One normalized opportunity contract powers the web feed, the Expo mobile
                             client and the admin ingestion pipeline. Authenticate, call an endpoint,
                             and read the same shape everywhere.
-                        </p>
+                            </p>
 
-                        <div className="mt-8 flex flex-wrap items-center gap-3">
+                            <div className="mt-8 flex flex-wrap items-center gap-3">
                             <Link
                                 to="/auth?mode=sign-up&redirect=/dashboard/developer"
                                 className="group inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-base font-semibold text-white no-underline shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700"
@@ -372,21 +367,64 @@ const DeveloperDocsPage: React.FC = () => {
                                     className="transition-transform duration-200 group-hover:translate-x-0.5"
                                 />
                             </Link>
-                            <a
-                                href={apiSpecUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-strong bg-surface-layer px-5 py-3 text-base font-semibold text-text-primary no-underline transition-colors duration-200 hover:border-brand/50 hover:text-brand"
-                            >
-                                <FileJson size={16} />
-                                OpenAPI spec
-                            </a>
+                            </div>
+                        </div>
+
+                        <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#0b1020] shadow-elevated">
+                            <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
+                                <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
+                                <span className="h-2.5 w-2.5 rounded-full bg-amber-300/80" />
+                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                                <span className="ml-2 font-mono text-xs text-slate-500">first-request.sh</span>
+                            </div>
+                            <div className="px-5 py-6">
+                                <p className="font-mono text-xs leading-7 text-slate-300">
+                                    <span className="text-brand-300">curl</span>{' '}
+                                    <span className="text-emerald-300">{apiBaseUrl}/health</span>
+                                </p>
+                                <p className="mt-5 text-sm leading-relaxed text-slate-400">
+                                    Start with a free health check, then add your scoped key when you are ready to query opportunities.
+                                </p>
+                                <div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5">
+                                    {[
+                                        ['9', 'endpoints'],
+                                        ['1', 'contract'],
+                                        ['∞', 'sync-ready'],
+                                    ].map(([value, label]) => (
+                                        <div key={label}>
+                                            <p className="font-display text-xl font-semibold text-white">{value}</p>
+                                            <p className="mt-1 text-2xs uppercase tracking-[0.14em] text-slate-500">{label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
                 </section>
 
                 {/* ── Docs body: sticky TOC + content ──────────────────── */}
                 <div className="mx-auto max-w-[1200px] px-4 pb-4 pt-14 sm:px-6 sm:pt-16">
+                    <nav
+                        aria-label="Documentation sections"
+                        className="mb-8 flex gap-2 overflow-x-auto pb-2 lg:hidden"
+                    >
+                        {tocLinks.map((link) => {
+                            const isActive = activeId === link.href.slice(1);
+                            return (
+                                <a
+                                    key={link.href}
+                                    href={link.href}
+                                    className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold no-underline transition-colors ${
+                                        isActive
+                                            ? 'border-brand/30 bg-brand/10 text-brand'
+                                            : 'border-subtle bg-surface-layer text-text-secondary hover:border-brand/30 hover:text-text-primary'
+                                    }`}
+                                >
+                                    {link.label}
+                                </a>
+                            );
+                        })}
+                    </nav>
                     <div className="grid gap-x-12 gap-y-10 lg:grid-cols-[212px_minmax(0,1fr)]">
                         {/* TOC */}
                         <aside className="hidden lg:block">
@@ -593,26 +631,24 @@ const DeveloperDocsPage: React.FC = () => {
 
                                 <motion.div
                                     {...reveal}
-                                    className="mt-7 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft"
+                                    className="mt-7 grid gap-3 md:grid-cols-2"
                                 >
-                                    {developerDocsEndpoints.map((endpoint, i) => (
+                                    {developerDocsEndpoints.map((endpoint) => (
                                         <div
                                             key={endpoint.path}
-                                            className={`grid grid-cols-1 gap-x-8 gap-y-3 p-5 sm:grid-cols-[minmax(0,280px)_1fr] sm:items-start sm:p-6 ${
-                                                i > 0 ? 'border-t border-subtle' : ''
-                                            }`}
+                                            className="group min-w-0 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-elevated"
                                         >
                                             <div className="flex min-w-0 items-center gap-2.5">
                                                 <MethodBadge method={endpoint.method} />
-                                                <code className="min-w-0 break-all font-mono text-sm text-text-primary">
+                                                <code className="min-w-0 break-all font-mono text-xs text-text-primary sm:text-sm">
                                                     {endpoint.path}
                                                 </code>
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="text-base font-semibold text-text-primary">
+                                                <h3 className="mt-5 text-base font-semibold text-text-primary">
                                                     {endpoint.title}
                                                 </h3>
-                                                <p className="mt-1.5 text-sm leading-[1.7] text-text-secondary">
+                                                <p className="mt-2 text-sm leading-[1.7] text-text-secondary">
                                                     {endpoint.description}
                                                 </p>
                                             </div>
@@ -773,14 +809,12 @@ const DeveloperDocsPage: React.FC = () => {
 
                                 <motion.div
                                     {...reveal}
-                                    className="mt-7 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft"
+                                    className="mt-7 grid gap-3 md:grid-cols-3"
                                 >
-                                    {platformCards.map((card, i) => (
+                                    {platformCards.map((card) => (
                                         <div
                                             key={card.title}
-                                            className={`grid grid-cols-1 gap-x-8 gap-y-4 p-6 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-start sm:p-7 ${
-                                                i > 0 ? 'border-t border-subtle' : ''
-                                            }`}
+                                            className="min-w-0 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft"
                                         >
                                             <div className="flex items-start gap-3.5">
                                                 <span
@@ -799,7 +833,7 @@ const DeveloperDocsPage: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <ul className="space-y-2.5">
+                                            <ul className="mt-5 space-y-2.5">
                                                 {card.items.map((item) => (
                                                     <li
                                                         key={item}

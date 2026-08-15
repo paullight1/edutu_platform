@@ -135,8 +135,8 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
   },
   "/help": {
     slug: "help",
-    title: "Help Centre — Edutu",
-    description: "Answers to the questions we get most: accounts, deadlines, saved opportunities, Edutu Pro billing, and how to reach a human when you need one.",
+    title: "Edutu Help Centre — scholarships, internships and account support",
+    description: "Get help using Edutu: create an account, find scholarships and internships, save opportunities, track deadlines, use AI matching, and contact support.",
     image: "https://www.edutu.org/og/help.jpg",
     imageAlt: "Edutu Help Centre",
   },
