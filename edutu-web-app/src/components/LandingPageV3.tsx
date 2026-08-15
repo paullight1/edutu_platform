@@ -25,14 +25,6 @@ import {
     type WebAnnouncement,
 } from '../services/webConfig';
 import type { Opportunity } from '../types/opportunity';
-import {
-    OpportunityMatchIcon,
-    DeadlineIcon,
-    GlobalNetworkIcon,
-    TrackingIcon,
-} from './AnimatedFeatureIcons';
-
-type FeatureIcon = (props: { size?: number; className?: string }) => JSX.Element;
 
 interface LandingPageProps {
     onGetStarted: () => void;
@@ -142,9 +134,9 @@ interface LandingArticle {
 interface AboutFeature {
     title: string;
     desc: string;
-    icon: FeatureIcon;
+    illustration: string;
+    illustrationAlt: string;
     cardBg: string;
-    iconColor: string;
     titleColor: string;
     descColor: string;
 }
@@ -255,10 +247,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const announcementIsExternal = /^https?:\/\//i.test(announcementUrl);
 
     const aboutFeatures: AboutFeature[] = [
-        { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: OpportunityMatchIcon, cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', iconColor: '#2455d6', titleColor: '#132a5c', descColor: '#42568c' },
-        { title: 'Deadline Awareness', desc: 'Important dates stay visible before applications close.', icon: DeadlineIcon, cardBg: 'linear-gradient(160deg,#fbe9c6 0%,#f6d79b 100%)', iconColor: '#c2740b', titleColor: '#4a3410', descColor: '#7a5f2c' },
-        { title: 'Global Network', desc: 'Connect with mentors and peers building careers in your niche around the world.', icon: GlobalNetworkIcon, cardBg: 'linear-gradient(160deg,#cbecf1 0%,#ade0e8 100%)', iconColor: '#0e7490', titleColor: '#0d3b45', descColor: '#356b76' },
-        { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', icon: TrackingIcon, cardBg: 'linear-gradient(160deg,#d0ead9 0%,#b3e0c5 100%)', iconColor: '#0f8a4d', titleColor: '#123a26', descColor: '#3a6b50' },
+        { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', illustration: '/illustrations/feature-opportunity-matching.png', illustrationAlt: 'Hand-drawn compass finding an opportunity on a map', cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', titleColor: '#132a5c', descColor: '#42568c' },
+        { title: 'Deadline Awareness', desc: 'Important dates stay visible before applications close.', illustration: '/illustrations/feature-deadline-awareness.png', illustrationAlt: 'Hand-drawn calendar and clock marking an application deadline', cardBg: 'linear-gradient(160deg,#fbe9c6 0%,#f6d79b 100%)', titleColor: '#4a3410', descColor: '#7a5f2c' },
+        { title: 'Global Network', desc: 'Connect with mentors and peers building careers in your niche around the world.', illustration: '/illustrations/feature-global-network.png', illustrationAlt: 'Hand-drawn globe connecting learners across borders', cardBg: 'linear-gradient(160deg,#cbecf1 0%,#ade0e8 100%)', titleColor: '#0d3b45', descColor: '#356b76' },
+        { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', illustration: '/illustrations/feature-application-tracking.png', illustrationAlt: 'Hand-drawn checklist path showing application progress', cardBg: 'linear-gradient(160deg,#d0ead9 0%,#b3e0c5 100%)', titleColor: '#123a26', descColor: '#3a6b50' },
     ];
 
     useEffect(() => {
@@ -540,9 +532,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </p>
                     </div>
 
-                    <div className="relative" aria-hidden="true">
-                        <div className="landing-country-fade-left pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-32" />
-                        <div className="landing-country-fade-right pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-32" />
+                    <div className="relative overflow-hidden" aria-hidden="true">
+                        <div className="landing-country-fade-left pointer-events-none absolute bottom-0 left-0 top-0 z-10 hidden w-32 sm:block" />
+                        <div className="landing-country-fade-right pointer-events-none absolute bottom-0 right-0 top-0 z-10 hidden w-32 sm:block" />
 
                         <div className="landing-marquee flex gap-6">
                             {[...flags, ...flags].map((flag, i) => (
@@ -659,11 +651,29 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     className="group rounded-[22px] p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-8"
                                     style={{ background: feature.cardBg }}
                                 >
-                                    <div
-                                        className="mb-5 transition-transform duration-300 group-hover:scale-105 sm:mb-7"
-                                        style={{ color: feature.iconColor }}
-                                    >
-                                        <feature.icon size={44} />
+                                    <div className="relative -mx-3 -mt-3 mb-3 h-44 sm:-mx-5 sm:-mt-5 sm:mb-5 sm:h-52">
+                                        <motion.img
+                                            src={feature.illustration}
+                                            alt={feature.illustrationAlt}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="absolute -inset-[10%] h-[120%] w-[120%] max-w-none object-contain transition-transform duration-500 group-hover:scale-[1.04]"
+                                            animate={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : { y: [0, -7, 0], rotate: [0, 1.5, 0] }
+                                            }
+                                            transition={
+                                                reduceMotion
+                                                    ? undefined
+                                                    : {
+                                                          duration: 6 + i,
+                                                          repeat: Infinity,
+                                                          ease: 'easeInOut',
+                                                          delay: i * 0.2,
+                                                      }
+                                            }
+                                        />
                                     </div>
                                     <h3 className="mb-2 font-display text-xl font-bold sm:mb-3 sm:text-xl" style={{ color: feature.titleColor }}>
                                         {feature.title}
