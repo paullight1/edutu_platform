@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Loader2, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
@@ -10,14 +10,15 @@ import {
   type CheckoutResponse,
 } from '../../services/billing';
 import {
-  FALLBACK_CREDIT_PACKS,
   PAYMENT_RENEWAL_DISCLOSURE,
+  LITE_PLANS,
   PRO_PLANS,
+  SCHOLAR_PLANS,
   SEASON_PASS_PRODUCT_KEY,
-  creditPackProductKey,
   effectivePrice,
   formatMoney,
   useProPricing,
+  type SubscriptionTier,
 } from '../../lib/proPricing';
 
 // This modal is the COMPACT form of the /upgrade page: same plan catalogue,
@@ -43,6 +44,7 @@ const PriceSkeleton: React.FC = () => (
 const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason }) => {
   const { getToken } = useAuth();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('pro');
   const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const actionKeys = useRef<Record<string, string>>({});
@@ -53,31 +55,21 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason }) =>
   const { pricing, loading, displayPricing } = useProPricing(open);
   const showPrices = !loading;
 
-  const proPlans = useMemo(
+  const plans = useMemo(
     () =>
-      PRO_PLANS.map((meta) => ({
+      (selectedTier === 'lite' ? LITE_PLANS : selectedTier === 'scholar' ? SCHOLAR_PLANS : PRO_PLANS).map((meta) => ({
         ...meta,
         badge:
-          displayPricing.promo?.active && displayPricing.promo.label
+          !checkoutEnabled && displayPricing.promo?.active && displayPricing.promo.label
             ? displayPricing.promo.label
             : meta.defaultBadge,
-        price: formatMoney(effectivePrice(displayPricing, meta.plan), displayPricing.currency),
+        price: formatMoney(
+          effectivePrice(displayPricing, meta.plan, meta.tier, { applyPromo: !checkoutEnabled }),
+          displayPricing.currency,
+        ),
       })),
-    [displayPricing],
+    [checkoutEnabled, displayPricing, selectedTier],
   );
-
-  const creditPacks = useMemo(() => {
-    const packs = pricing?.creditPacks?.filter(
-      (pack) => typeof pack.credits === 'number' && typeof pack.price === 'number',
-    );
-    const resolved = packs?.length ? packs.slice(0, 3) : FALLBACK_CREDIT_PACKS;
-    return resolved.flatMap((pack) => {
-      const productKey = creditPackProductKey(pack.credits);
-      return productKey
-        ? [{ credits: pack.credits, productKey, price: formatMoney(pack.price, displayPricing.currency) }]
-        : [];
-    });
-  }, [pricing, displayPricing]);
 
   const seasonPass = pricing?.seasonPass?.enabled ? pricing.seasonPass : null;
 
@@ -121,15 +113,29 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason }) =>
             Upgrade to keep going
           </DialogTitle>
           <DialogDescription>
-            {reason || 'That is a Pro feature. Go Pro to unlock it, or top up credits.'}
+            {reason || 'Choose the plan that matches how much AI coaching and voice you need.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-5 space-y-5">
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Edutu Pro</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              {selectedTier === 'lite' ? 'Edutu Lite' : selectedTier === 'pro' ? 'Edutu Pro' : 'Edutu Scholar'}
+            </h3>
+            <div className="mt-2 flex rounded-xl border border-subtle bg-surface-layer p-1">
+              {(['lite', 'pro', 'scholar'] as const).map((tier) => (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => setSelectedTier(tier)}
+                  className={`flex-1 rounded-lg px-2 py-2 text-xs font-semibold ${selectedTier === tier ? 'bg-brand text-white' : 'text-text-secondary'}`}
+                >
+                  {tier === 'lite' ? 'Lite' : tier === 'pro' ? 'Pro · 10×' : 'Scholar · max'}
+                </button>
+              ))}
+            </div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {proPlans.map(({ plan, productKey, label, cadence, price, badge, highlighted, renewalHint }) => (
+              {plans.map(({ plan, productKey, label, cadence, price, badge, highlighted, renewalHint }) => (
                 <button
                   key={plan}
                   type="button"
@@ -177,33 +183,6 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason }) =>
               </button>
             </section>
           ) : null}
-
-          <section>
-            <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-              Credit packs
-            </h3>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {creditPacks.map(({ credits, productKey, price }) => (
-                <button
-                  key={credits}
-                  type="button"
-                  disabled={!checkoutEnabled || pendingKey !== null || checkoutToConfirm !== null}
-                  onClick={() => void startCheckout(`credits-${credits}`, productKey)}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-subtle bg-surface-layer p-3 text-left transition-colors hover:border-brand hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span className="text-sm font-medium text-text-primary">{credits} credits</span>
-                  {pendingKey === `credits-${credits}` ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-brand" aria-label="Starting checkout" />
-                  ) : showPrices ? (
-                    <span className="text-base font-semibold text-brand">{price}</span>
-                  ) : (
-                    <PriceSkeleton />
-                  )}
-                </button>
-              ))}
-            </div>
-          </section>
 
           {error ? (
             <p role="alert" className="rounded-lg border border-subtle bg-surface-elevated px-3 py-2 text-sm text-text-secondary">
