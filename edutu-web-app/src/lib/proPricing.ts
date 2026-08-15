@@ -16,16 +16,18 @@ import { fetchMobileControlConfig, type RemotePricing } from '../services/mobile
 import type { BillingInterval } from '../services/billing';
 
 export const FALLBACK_PRICING: RemotePricing = {
-  currency: 'NGN',
-  weeklyPrice: 2000,
-  monthlyPrice: 6500,
-  yearlyPrice: 60000,
+  currency: 'USD',
+  weeklyPrice: 5,
+  monthlyPrice: 15,
+  yearlyPrice: 150,
+  lite: { weeklyPrice: 3.99, monthlyPrice: 10, yearlyPrice: 100 },
+  pro: { weeklyPrice: 5, monthlyPrice: 15, yearlyPrice: 150 },
+  scholar: { weeklyPrice: 7.99, monthlyPrice: 24.99, yearlyPrice: 200 },
 };
 
 export const FALLBACK_CREDIT_PACKS: Array<{ credits: number; price: number }> = [
-  { credits: 100, price: 1500 },
-  { credits: 250, price: 3000 },
-  { credits: 700, price: 7000 },
+  // API credits are developer-only; consumer paywalls do not fall back to
+  // generic credit top-ups.
 ];
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -43,10 +45,24 @@ export function formatMoney(amount: number, currency: string): string {
 }
 
 /** The price actually charged for a plan (an active promo override wins). */
-export function effectivePrice(pricing: RemotePricing, plan: BillingInterval): number {
-  const regular =
-    plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
-  if (!pricing.promo?.active) return regular;
+export type SubscriptionTier = 'lite' | 'pro' | 'scholar';
+
+export interface PriceOptions {
+  /** Bachs catalog prices are fixed; do not render an admin promo as chargeable. */
+  applyPromo?: boolean;
+}
+
+export function effectivePrice(
+  pricing: RemotePricing,
+  plan: BillingInterval,
+  tier: SubscriptionTier = 'pro',
+  options: PriceOptions = {},
+): number {
+  const tierPricing = pricing[tier];
+  const regular = tierPricing
+    ? plan === 'weekly' ? tierPricing.weeklyPrice : plan === 'monthly' ? tierPricing.monthlyPrice : tierPricing.yearlyPrice
+    : plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+  if (options.applyPromo === false || !pricing.promo?.active) return regular;
   const override =
     plan === 'weekly'
       ? pricing.promo.weeklyPrice
@@ -125,6 +141,7 @@ export function useProPricing(active: boolean = true): PricingState {
 // ─── Plan catalogue (shared by the modal and the /upgrade page) ──────────────
 
 export interface ProPlanMeta {
+  tier: SubscriptionTier;
   plan: BillingInterval;
   /** Server-owned catalogue key. It intentionally does not encode a price. */
   productKey: string;
@@ -145,16 +162,18 @@ export interface ProPlanMeta {
 /** Weekly is deliberately kept system-wide — weekly = 7 days of Pro. */
 export const PRO_PLANS: ProPlanMeta[] = [
   {
+    tier: 'pro',
     plan: 'weekly',
     productKey: 'pro_weekly_pass',
     label: 'Pro Weekly',
     longLabel: 'Weekly',
     cadence: 'per week',
     hint: 'Try Pro for a big week — perfect around a deadline.',
-    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
+    renewalHint: 'One-time access for 7 days; renew manually when it ends.',
     highlighted: false,
   },
   {
+    tier: 'pro',
     plan: 'monthly',
     productKey: 'pro_monthly_pass',
     label: 'Pro Monthly',
@@ -162,10 +181,11 @@ export const PRO_PLANS: ProPlanMeta[] = [
     cadence: 'per month',
     defaultBadge: 'Most popular',
     hint: 'Full access for the month.',
-    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
+    renewalHint: 'One-time access for 31 days; renew manually when it ends.',
     highlighted: false,
   },
   {
+    tier: 'pro',
     plan: 'yearly',
     productKey: 'pro_yearly_pass',
     label: 'Pro Yearly',
@@ -173,10 +193,37 @@ export const PRO_PLANS: ProPlanMeta[] = [
     cadence: 'per year',
     defaultBadge: 'Best value',
     hint: 'A full year of Pro at our best price.',
-    renewalHint: 'The payment page will show whether this purchase renews or is one-time access.',
+    renewalHint: 'One-time access for 366 days; renew manually when it ends.',
     highlighted: true,
   },
 ];
+
+export const LITE_PLANS: ProPlanMeta[] = PRO_PLANS.map((plan) => ({
+  ...plan,
+  tier: 'lite',
+  productKey: plan.productKey.replace(/^pro_/, 'lite_'),
+  label: plan.label.replace('Pro', 'Lite'),
+  longLabel: plan.longLabel,
+  highlighted: plan.plan === 'monthly',
+  defaultBadge: plan.plan === 'monthly' ? 'Best starting point' : undefined,
+  hint:
+    plan.plan === 'monthly'
+      ? 'Core AI coaching and voice for everyday applications.'
+      : 'A lighter plan for focused weeks and deadlines.',
+}));
+
+export const SCHOLAR_PLANS: ProPlanMeta[] = PRO_PLANS.map((plan) => ({
+  ...plan,
+  tier: 'scholar',
+  productKey: plan.productKey.replace(/^pro_/, 'scholar_'),
+  label: plan.label.replace('Pro', 'Scholar'),
+  highlighted: plan.plan === 'monthly',
+  defaultBadge: plan.plan === 'monthly' ? 'Most capable' : undefined,
+  hint:
+    plan.plan === 'monthly'
+      ? 'Highest AI and voice allowance for serious applications.'
+      : 'Maximum room for intensive scholarship and career work.',
+}));
 
 export const SEASON_PASS_PRODUCT_KEY = 'season_pass';
 
@@ -191,4 +238,4 @@ export function creditPackProductKey(credits: number): string | null {
 }
 
 export const PAYMENT_RENEWAL_DISCLOSURE =
-  'The secure payment page will show whether the selected payment method renews automatically or provides one-time access.';
+  'Current web plans provide one-time access for the selected period; renew manually when access ends.';
