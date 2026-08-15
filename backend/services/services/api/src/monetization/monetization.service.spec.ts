@@ -32,7 +32,11 @@ const daysAgoIso = (days: number): string =>
 
 interface Scenario {
   // Row returned by the combined billing/profile lookup.
-  billing: { is_pro: boolean | null; created_at: string | null };
+  billing: {
+    is_pro: boolean | null;
+    is_lite?: boolean | null;
+    created_at: string | null;
+  };
   // chat_messages the daily-usage upsert reports back after the bump.
   chatMessages: number;
   // Whether the credit debit should succeed (row updated) or run dry.
@@ -57,6 +61,7 @@ const setup = (scenario: Scenario): MonetizationService => {
         rows: [
           {
             is_pro: scenario.billing.is_pro,
+            is_lite: scenario.billing.is_lite,
             created_at: scenario.billing.created_at,
           },
         ],
@@ -280,6 +285,22 @@ describe("MonetizationService voice metering and premium authorization", () => {
     expect(debitCalls).toBe(0);
   });
 
+  it("includes voice and fair-use AI usage for Lite subscribers without debiting credits", async () => {
+    const service = setup({
+      billing: { is_pro: false, is_lite: true, created_at: daysAgoIso(10) },
+      chatMessages: 0,
+      voiceMinutes: 0,
+    });
+
+    await expect(
+      service.meter("user-1", "voicePerMinute", 1),
+    ).resolves.toMatchObject({ charged: 0, voiceMinutesCredited: 1 });
+
+    const action = await service.meter("user-1", "roadmapGeneration");
+    expect(action.charged).toBe(0);
+    expect(debitCalls).toBe(0);
+  });
+
   it("requires the edge function to provide server-derived units", async () => {
     const service = setup({
       billing: { is_pro: true, created_at: daysAgoIso(10) },
@@ -315,14 +336,14 @@ describe("MonetizationService voice metering and premium authorization", () => {
     });
   });
 
-  it("applies the conservative 5 provider-minute daily default", async () => {
+  it("applies the Pro plan's 30-minute daily voice limit", async () => {
     const service = setup({
       billing: { is_pro: true, created_at: daysAgoIso(10) },
       chatMessages: 0,
     });
 
     await expect(
-      service.meter("user-1", "voicePerMinute", 6),
+      service.meter("user-1", "voicePerMinute", 31),
     ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
       response: { error: "voice_fair_use_exceeded" },

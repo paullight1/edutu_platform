@@ -18,6 +18,7 @@ import {
   type PricingSettings,
 } from "../settings/settings.dto";
 import type { AiMeteredAction } from "./ai-metered.decorator";
+import type { SubscriptionTier } from "../billing/plan-tiers";
 
 export interface MeterCharge {
   userId: string;
@@ -90,12 +91,12 @@ const PRICING_CACHE_MS = 60_000;
 // before the meter bites. Env-tunable (ops can flip without a redeploy);
 // `0` disables the grace entirely; malformed → the 7-day default.
 const DEFAULT_FREE_CHAT_GRACE_DAYS = 7;
-// Voice is metered separately for STT and TTS, so a "5 minute" user turn can
-// consume two provider-minute reservations. Keep the default deliberately
-// conservative until production cost telemetry is available. Operators can
-// lower or raise it per deployment with PRO_VOICE_DAILY_MINUTES, but the
-// existing Pro action-credit ceiling remains a second hard upper bound.
-const DEFAULT_PRO_VOICE_DAILY_MINUTES = 5;
+// Voice is metered separately for STT and TTS, so a user turn can consume two
+// provider-minute reservations. The plan fair-use limits are the product
+// limits; this is only an optional deployment-wide hard cap. Keep the default
+// high enough for Scholar, while operators can lower it with
+// PRO_VOICE_DAILY_MINUTES when cost telemetry requires it.
+const DEFAULT_PRO_VOICE_DAILY_MINUTES = 60;
 
 function freeChatGraceDays(): number {
   const raw = process.env.FREE_CHAT_GRACE_DAYS;
@@ -159,8 +160,10 @@ export class MonetizationService {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    if (!billing.isPro) {
-      throw new ForbiddenException("Premium voice requires an active Pro plan");
+    if (billing.planTier === "none") {
+      throw new ForbiddenException(
+        "Voice requires an active Lite, Pro, or Scholar plan",
+      );
     }
   }
 
@@ -177,7 +180,12 @@ export class MonetizationService {
    */
   private async loadBilling(
     userId: string,
-  ): Promise<{ isPro: boolean; createdAt: Date | null; available: boolean }> {
+  ): Promise<{
+    isPro: boolean;
+    planTier: "none" | SubscriptionTier;
+    createdAt: Date | null;
+    available: boolean;
+  }> {
     try {
       // profiles/billing_entitlements user_id may hold the raw auth subject
       // or the derived uuid — match both (see matchUserIdRef).
@@ -191,6 +199,22 @@ export class MonetizationService {
               and e.status = 'active'
               and (e.expires_at is null or e.expires_at > now())
           ) as is_pro,
+          exists (
+            select 1
+            from billing_entitlements e
+            where ${matchUserIdRef("e.user_id", userId)}
+              and e.feature_key = 'lite'
+              and e.status = 'active'
+              and (e.expires_at is null or e.expires_at > now())
+          ) as is_lite,
+          exists (
+            select 1
+            from billing_entitlements e
+            where ${matchUserIdRef("e.user_id", userId)}
+              and e.feature_key = 'scholar'
+              and e.status = 'active'
+              and (e.expires_at is null or e.expires_at > now())
+          ) as is_scholar,
           min(p.created_at) as created_at
         from profiles p
         where ${matchUserIdRef("p.user_id", userId)}
@@ -200,6 +224,8 @@ export class MonetizationService {
           result as unknown as {
             rows?: Array<{
               is_pro: boolean | null;
+              is_lite: boolean | null;
+              is_scholar: boolean | null;
               created_at: string | Date | null;
             }>;
           }
@@ -208,7 +234,18 @@ export class MonetizationService {
       const createdRaw = row?.created_at ?? null;
       const createdAt = createdRaw ? new Date(createdRaw) : null;
       return {
-        isPro: row?.is_pro === true,
+        isPro:
+          row?.is_pro === true ||
+          row?.is_lite === true ||
+          row?.is_scholar === true,
+        planTier:
+          row?.is_scholar === true
+            ? "scholar"
+            : row?.is_pro === true
+            ? "pro"
+            : row?.is_lite === true
+              ? "lite"
+              : "none",
         createdAt:
           createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
         available: true,
@@ -221,7 +258,12 @@ export class MonetizationService {
           error instanceof Error ? error.message : "unknown"
         }`,
       );
-      return { isPro: false, createdAt: null, available: false };
+      return {
+        isPro: false,
+        planTier: "none",
+        createdAt: null,
+        available: false,
+      };
     }
   }
 
@@ -261,7 +303,7 @@ export class MonetizationService {
       Math.round(pricing.aiCosts[action] ?? 0) * unitCount,
     );
     const billing = await this.loadBilling(userId);
-    const { isPro: pro, createdAt } = billing;
+    const { planTier, createdAt } = billing;
     const isChat = action === "chatMessage";
 
     // Voice is a Pro-only provider capability. Keep this check in the
@@ -279,16 +321,16 @@ export class MonetizationService {
           HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
-      if (!pro) {
+      if (planTier === "none") {
         throw new ForbiddenException(
-          "Premium voice requires an active Pro plan",
+          "Voice requires an active Lite, Pro, or Scholar plan",
         );
       }
 
       const voiceUsage = await this.reserveVoiceMinutes(
         userId,
         unitCount,
-        this.dailyVoiceMinuteLimit(pricing),
+        this.dailyVoiceMinuteLimit(pricing, planTier),
       );
       if (!voiceUsage) {
         throw new HttpException(
@@ -315,16 +357,22 @@ export class MonetizationService {
       };
     }
 
-    if (pro) {
+    if (planTier !== "none") {
+      const fairUse =
+        planTier === "scholar"
+          ? pricing.scholarFairUse
+          : planTier === "pro"
+            ? pricing.proFairUse
+            : pricing.liteFairUse;
       const usage = await this.bumpDailyUsage(
         userId,
         isChat ? 1 : 0,
         isChat ? 0 : cost,
       );
       const overChat =
-        isChat && usage.chatMessages > pricing.proFairUse.dailyChatMessages;
+        isChat && usage.chatMessages > fairUse.dailyChatMessages;
       const overActions =
-        !isChat && usage.actionCredits > pricing.proFairUse.dailyActionCredits;
+        !isChat && usage.actionCredits > fairUse.dailyActionCredits;
       if (overChat || overActions) {
         // The bump above already landed, and this request is being REFUSED —
         // leaving it would let rejected traffic inflate the counter further
@@ -356,7 +404,7 @@ export class MonetizationService {
         remaining: isChat
           ? Math.max(
               0,
-              pricing.proFairUse.dailyChatMessages - usage.chatMessages,
+              fairUse.dailyChatMessages - usage.chatMessages,
             )
           : null,
         day: usage.day,
@@ -956,18 +1004,26 @@ export class MonetizationService {
   }
 
   /**
-   * The daily reservation is deliberately conservative: 5 provider minutes
-   * per day by default (roughly 35/week, 150/30-day month, or 1,825/year
-   * before a user changes plans). STT and TTS each reserve their own started
-   * minutes, so a complete turn normally consumes two units. Operators can
-   * lower the cap with PRO_VOICE_DAILY_MINUTES; pricing action credits remain
-   * a second hard upper bound. The cap is minute-based and never trusts a
-   * client-reported duration.
+   * The daily reservation follows the selected plan's fair-use voice limit.
+   * STT and TTS each reserve their own started minutes, so a complete turn
+   * normally consumes two units. Operators can lower the deployment-wide cap
+   * with PRO_VOICE_DAILY_MINUTES; pricing action credits remain a second hard
+   * upper bound. The cap is minute-based and never trusts a client-reported
+   * duration.
    */
-  private dailyVoiceMinuteLimit(pricing: PricingSettings): number {
+  private dailyVoiceMinuteLimit(
+    pricing: PricingSettings,
+    planTier: "lite" | "pro" | "scholar",
+  ): number {
+    const fairUse =
+      planTier === "scholar"
+        ? pricing.scholarFairUse
+        : planTier === "pro"
+          ? pricing.proFairUse
+          : pricing.liteFairUse;
     const fairUseCredits = Math.max(
       0,
-      Math.floor(pricing.proFairUse.dailyActionCredits),
+      Math.floor(fairUse.dailyActionCredits),
     );
     const perMinuteCost = Math.max(
       0,
@@ -977,7 +1033,11 @@ export class MonetizationService {
       perMinuteCost > 0
         ? Math.floor(fairUseCredits / perMinuteCost)
         : fairUseCredits;
-    return Math.min(proVoiceDailyMinutes(), actionCreditLimit);
+    return Math.min(
+      fairUse.dailyVoiceMinutes,
+      proVoiceDailyMinutes(),
+      actionCreditLimit,
+    );
   }
 }
 
