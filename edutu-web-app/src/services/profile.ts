@@ -84,13 +84,6 @@ export async function saveOnboardingProfile(
       ? data.age
       : null;
 
-  await authService.updateUserProfile({
-    name: sanitizedName,
-    full_name: sanitizedName,
-    ...(age !== null ? { age } : {}),
-    ...(sanitizedCourse ? { course_of_study: sanitizedCourse } : {}),
-  });
-
   if (!token) {
     throw new Error("Onboarding save requires a backend session token.");
   }
@@ -100,6 +93,21 @@ export async function saveOnboardingProfile(
     ...(sanitizedCourse ? { courseOfStudy: sanitizedCourse } : {}),
     ...(age !== null ? { age } : {}),
   });
+
+  // The backend profile is the durable source of truth. Clerk metadata is a
+  // convenience mirror for fast client hydration, so an unavailable Clerk
+  // global must not turn a successful profile save into a failed onboarding
+  // flow.
+  try {
+    await authService.updateUserProfile({
+      name: sanitizedName,
+      full_name: sanitizedName,
+      ...(age !== null ? { age } : {}),
+      ...(sanitizedCourse ? { course_of_study: sanitizedCourse } : {}),
+    });
+  } catch (error) {
+    console.warn("Onboarding: could not mirror profile to Clerk", error);
+  }
 
   return onboardingState;
 }
