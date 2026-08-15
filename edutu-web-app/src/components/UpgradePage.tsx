@@ -22,11 +22,14 @@ import {
 } from '../services/billing';
 import { usePaywall } from '../hooks/usePaywall';
 import {
+  LITE_PLANS,
   PRO_PLANS,
+  SCHOLAR_PLANS,
   PAYMENT_RENEWAL_DISCLOSURE,
   effectivePrice,
   formatMoney,
   useProPricing,
+  type SubscriptionTier,
 } from '../lib/proPricing';
 
 // The full-page form of the upgrade surface. It shares its plan catalogue,
@@ -34,6 +37,7 @@ import {
 // ../lib/proPricing, so a price can never differ between the two.
 
 interface PlanCard {
+  tier: SubscriptionTier;
   plan: BillingInterval;
   productKey: string;
   label: string;
@@ -64,25 +68,25 @@ const BENEFITS: string[] = [
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: 'What is Edutu Pro?',
-    a: 'Pro unlocks everything Edutu can do to help you win. In the Edutu mobile app, that means unlimited AI coaching on essays and applications, plus standout CV templates. Here on the web, it means seeing closed and expired opportunities and exporting your roadmap straight to your calendar. One subscription covers both.',
+    a: 'Pro unlocks everything Edutu can do to help you win. In the Edutu mobile app, that means unlimited AI coaching on essays and applications, plus standout CV templates. Here on the web, it means seeing closed and expired opportunities and exporting your roadmap straight to your calendar. One purchase covers both while the pass is active.',
   },
   {
     q: 'How do I pay?',
-    a: 'You can pay with your card, mobile money, or a bank transfer through Bachs. Card purchases can renew automatically; bank transfers and mobile-money payments are one-time access for the selected period and renew manually.',
+    a: 'You can pay with your card, mobile money, or a bank transfer through Bachs. The current web plans are one-time access passes for the selected period; renew manually when access ends.',
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Card subscriptions can be cancelled before their next renewal. Bank transfer and mobile-money purchases are one-time access passes, so they do not renew automatically.',
+    a: 'The current web plans do not renew automatically. Access remains available for the purchased period, and you can purchase another pass when it ends.',
   },
   {
     q: 'Does it work on mobile too?',
-    a: 'Yes — and that is where the AI coach and CV builder live. Pro follows your account across the web app and the Edutu mobile app, so paying once activates it wherever you sign in. On the web, Pro unlocks closed-opportunity filters and roadmap calendar exports.',
+    a: 'Yes — and that is where the AI coach and CV builder live. Pro follows your account across the web app and the Edutu mobile app, so the active pass works wherever you sign in. On the web, Pro unlocks closed-opportunity filters and roadmap calendar exports.',
   },
 ];
 
 const UpgradePage: React.FC = () => {
   const { getToken, isSignedIn } = useAuth();
-  const { isPro } = usePaywall();
+  const { isPro, planTier } = usePaywall();
 
   // Shared admin pricing (session-cached, same hook the modal uses). Billing
   // status is owned by useBillingStatus under PaywallProvider, which already
@@ -92,22 +96,32 @@ const UpgradePage: React.FC = () => {
   const showPrices = !pricingLoading;
 
   const [pendingPlan, setPendingPlan] = useState<BillingInterval | null>(null);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('pro');
   const [checkoutToConfirm, setCheckoutToConfirm] = useState<CheckoutResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const actionKeys = useRef<Partial<Record<BillingInterval, string>>>({});
+  const actionKeys = useRef<Record<string, string>>({});
   const checkoutEnabled = isBachsCheckoutEnabled();
 
   // Yearly vs. paying monthly for a year — leaned into as the headline saving.
   const yearlySavingPct = useMemo(() => {
-    const monthlyForYear = effectivePrice(pricing, 'monthly') * 12;
-    const yearly = effectivePrice(pricing, 'yearly');
+    const priceOptions = { applyPromo: !checkoutEnabled };
+    const monthlyForYear = effectivePrice(pricing, 'monthly', selectedTier, priceOptions) * 12;
+    const yearly = effectivePrice(pricing, 'yearly', selectedTier, priceOptions);
     if (monthlyForYear <= 0 || yearly <= 0 || yearly >= monthlyForYear) return 0;
     return Math.round((1 - yearly / monthlyForYear) * 100);
-  }, [pricing]);
+  }, [pricing, selectedTier]);
 
   const plans = useMemo<PlanCard[]>(() => {
-    const promoLabel = pricing.promo?.active && pricing.promo.label ? pricing.promo.label : undefined;
-    return PRO_PLANS.map((meta) => {
+    const promoLabel = !checkoutEnabled && pricing.promo?.active && pricing.promo.label
+      ? pricing.promo.label
+      : undefined;
+    const tierPlans =
+      selectedTier === 'lite'
+        ? LITE_PLANS
+        : selectedTier === 'scholar'
+          ? SCHOLAR_PLANS
+          : PRO_PLANS;
+    return tierPlans.map((meta) => {
       // The "save N%" claim is derived from prices, so it waits for the real
       // ones too — a fallback-derived percentage would be a guess.
       const savingBadge =
@@ -116,20 +130,24 @@ const UpgradePage: React.FC = () => {
           : meta.defaultBadge;
       return {
         plan: meta.plan,
+        tier: meta.tier,
         productKey: meta.productKey,
         label: meta.longLabel,
         cadence: meta.cadence,
-        price: formatMoney(effectivePrice(pricing, meta.plan), pricing.currency),
+        price: formatMoney(
+          effectivePrice(pricing, meta.plan, meta.tier, { applyPromo: !checkoutEnabled }),
+          pricing.currency,
+        ),
         badge: promoLabel ?? savingBadge,
         hint:
           showPrices && meta.plan === 'yearly' && yearlySavingPct > 0
-            ? `A full year of Pro for roughly ${yearlySavingPct}% less than paying monthly.`
+            ? `A full year of ${meta.tier === 'lite' ? 'Lite' : meta.tier === 'scholar' ? 'Scholar' : 'Pro'} for roughly ${yearlySavingPct}% less than paying monthly.`
             : meta.hint,
         renewalHint: meta.renewalHint,
         highlighted: meta.highlighted,
       };
     });
-  }, [pricing, yearlySavingPct, showPrices]);
+  }, [checkoutEnabled, pricing, yearlySavingPct, showPrices, selectedTier]);
 
   const startCheckout = async (card: Pick<PlanCard, 'plan' | 'productKey'>) => {
     if (!checkoutEnabled || pendingPlan || checkoutToConfirm) return;
@@ -142,14 +160,15 @@ const UpgradePage: React.FC = () => {
         setError('Please sign in to continue to checkout.');
         return;
       }
-      const idempotencyKey = actionKeys.current[plan] ?? uuidv4();
-      actionKeys.current[plan] = idempotencyKey;
+      const actionKey = `${selectedTier}-${plan}`;
+      const idempotencyKey = actionKeys.current[actionKey] ?? uuidv4();
+      actionKeys.current[actionKey] = idempotencyKey;
       const checkout = await createCheckout(token, {
         productKey,
         returnSurface: 'web',
         idempotencyKey,
       });
-      delete actionKeys.current[plan];
+      delete actionKeys.current[actionKey];
       setCheckoutToConfirm(checkout);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Unable to start checkout.');
@@ -167,7 +186,7 @@ const UpgradePage: React.FC = () => {
     <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
       <Seo
         title="Edutu Pro — AI coaching, CV tools and smarter tracking"
-        description="Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Card purchases can renew automatically; local payment methods provide bounded access."
+        description="Go Pro on Edutu for unlimited AI coaching and CV tools in the Edutu mobile app, plus closed-opportunity filters and calendar exports on the web. Current web plans provide bounded one-time access."
         path="/upgrade"
       />
       <PublicHeader />
@@ -202,7 +221,7 @@ const UpgradePage: React.FC = () => {
           </div>
         </section>
 
-        {isPro ? (
+        {isPro && planTier !== 'lite' ? (
           /* ── Already Pro ────────────────────────────────────── */
           <section className="px-4 pb-28 sm:px-6">
             <div className="mx-auto max-w-[640px] rounded-[32px] border border-subtle bg-surface-layer p-10 text-center shadow-soft sm:p-14">
@@ -234,6 +253,26 @@ const UpgradePage: React.FC = () => {
           <>
             {/* ── Plans ──────────────────────────────────────────── */}
             <section className="px-4 pb-8 sm:px-6">
+              <div className="mx-auto mb-8 flex max-w-[420px] rounded-2xl border border-subtle bg-surface-layer p-1.5">
+                {(['lite', 'pro', 'scholar'] as const).map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() => setSelectedTier(tier)}
+                    className={`flex-1 rounded-xl px-5 py-3 text-sm font-semibold transition-colors ${
+                      selectedTier === tier
+                        ? 'bg-brand text-white shadow-soft'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    {tier === 'lite'
+                      ? 'Lite — essentials'
+                      : tier === 'pro'
+                        ? 'Pro — 10× usage'
+                        : 'Scholar — maximum'}
+                  </button>
+                ))}
+              </div>
               <div className="mx-auto grid max-w-[1080px] gap-5 md:grid-cols-3">
                 {plans.map((card) => {
                   const isPending = pendingPlan === card.plan;
@@ -258,7 +297,7 @@ const UpgradePage: React.FC = () => {
                         </span>
                       ) : null}
                       <h3 className="font-display text-xl font-semibold text-text-primary">
-                        {card.label}
+                        {selectedTier === 'lite' ? 'Lite' : selectedTier === 'pro' ? 'Pro' : 'Scholar'} {card.label}
                       </h3>
                       <div className="mt-3 flex items-baseline gap-1.5">
                         {showPrices ? (
@@ -440,8 +479,8 @@ const UpgradePage: React.FC = () => {
                 </h2>
                 <p className="mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-white/85 sm:text-lg">
                   Go Pro today and give every application your best shot. Card, mobile money or bank
-                  transfer — secure checkout via Bachs. Card purchases can renew automatically;
-                  local-method purchases are bounded access and renew manually.
+                  transfer — secure checkout via Bachs. Current web plans are bounded one-time
+                  access and renew manually.
                 </p>
                 {isSignedIn ? (
                   <button
