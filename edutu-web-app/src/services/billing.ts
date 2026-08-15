@@ -5,6 +5,7 @@ export type RenewalMode = 'recurring' | 'one_time';
 
 export interface BillingStatus {
   isPro: boolean;
+  planTier: 'none' | 'lite' | 'pro' | 'scholar';
   proSince: string | null;
   proExpiresAt: string | null;
   credits: number;

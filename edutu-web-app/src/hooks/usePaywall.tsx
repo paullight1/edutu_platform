@@ -23,6 +23,7 @@ export interface OpenPaywallInput {
 interface PaywallContextValue {
   /** True when the signed-in user has an active Pro entitlement. */
   isPro: boolean;
+  planTier: BillingStatus['planTier'];
   /** Full billing status (credits, expiry, transactions) or null when signed out. */
   billing: BillingStatus | null;
   billingLoading: boolean;
@@ -84,6 +85,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PaywallContextValue>(
     () => ({
       isPro: status?.isPro ?? false,
+      planTier: status?.planTier ?? 'none',
       billing: status,
       billingLoading: loading,
       openPaywall,

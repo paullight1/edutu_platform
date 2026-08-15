@@ -26,6 +26,9 @@ export interface RemotePricing {
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
+  lite?: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
+  pro?: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
+  scholar?: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
   creditPacks?: Array<{ credits: number; price: number; label?: string }>;
   promo?: {
     active: boolean;
