@@ -104,8 +104,24 @@ export interface AppControlConfig {
 // payment secrets here.
 export interface PricingConfig {
   currency: string;
+  weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
+  lite: {
+    weeklyPrice: number;
+    monthlyPrice: number;
+    yearlyPrice: number;
+  };
+  pro: {
+    weeklyPrice: number;
+    monthlyPrice: number;
+    yearlyPrice: number;
+  };
+  scholar: {
+    weeklyPrice: number;
+    monthlyPrice: number;
+    yearlyPrice: number;
+  };
   checkoutBaseUrl: string;
   manageUrl: string;
   promo: {
