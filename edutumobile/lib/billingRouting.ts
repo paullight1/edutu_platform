@@ -1,4 +1,4 @@
-import type { BillingPlan, CheckoutPlan } from './pricing';
+import type { BillingPlan, CheckoutPlan, SubscriptionTier } from './pricing';
 
 export type PaymentRail = 'revenuecat' | 'bachs';
 export type RuntimePlatform = 'ios' | 'android' | 'web' | string;
@@ -19,17 +19,43 @@ type BillingRequest = (url: string, init: RequestInit) => Promise<BillingRespons
 const BACHS_CHECKOUT_ORIGIN = 'https://checkout.bachs.io';
 const BACHS_PORTAL_ORIGIN = 'https://portal.bachs.io';
 
-const NATIVE_PRODUCT_IDS: Record<BillingPlan, string> = {
-  weekly: 'pro_weekly',
-  monthly: 'pro_monthly',
-  yearly: 'pro_yearly',
+const NATIVE_PRODUCT_IDS: Record<SubscriptionTier, Record<BillingPlan, string>> = {
+  lite: {
+    weekly: 'lite_weekly',
+    monthly: 'lite_monthly',
+    yearly: 'lite_yearly',
+  },
+  pro: {
+    weekly: 'pro_weekly',
+    monthly: 'pro_monthly',
+    yearly: 'pro_yearly',
+  },
+  scholar: {
+    weekly: 'scholar_weekly',
+    monthly: 'scholar_monthly',
+    yearly: 'scholar_yearly',
+  },
 };
 
-const WEB_PRODUCT_KEYS: Record<CheckoutPlan, string> = {
-  weekly: 'pro_weekly_pass',
-  monthly: 'pro_monthly_pass',
-  yearly: 'pro_yearly_pass',
-  season: 'season_pass',
+const WEB_PRODUCT_KEYS: Record<SubscriptionTier, Record<CheckoutPlan, string>> = {
+  lite: {
+    weekly: 'lite_weekly_pass',
+    monthly: 'lite_monthly_pass',
+    yearly: 'lite_yearly_pass',
+    season: 'season_pass',
+  },
+  pro: {
+    weekly: 'pro_weekly_pass',
+    monthly: 'pro_monthly_pass',
+    yearly: 'pro_yearly_pass',
+    season: 'season_pass',
+  },
+  scholar: {
+    weekly: 'scholar_weekly_pass',
+    monthly: 'scholar_monthly_pass',
+    yearly: 'scholar_yearly_pass',
+    season: 'season_pass',
+  },
 };
 
 const WEB_CREDIT_PRODUCT_KEYS = new Set([
@@ -57,13 +83,17 @@ export function visibleBillingPlans(
 export function nativePackageForPlan<T extends RevenueCatPackageLike>(
   plan: BillingPlan,
   packages: T[],
+  tier: SubscriptionTier = 'pro',
 ): T | undefined {
-  const productId = NATIVE_PRODUCT_IDS[plan];
+  const productId = NATIVE_PRODUCT_IDS[tier][plan];
   return packages.find((pkg) => pkg.product?.identifier === productId);
 }
 
-export function webProductKeyForPlan(plan: CheckoutPlan): string {
-  return WEB_PRODUCT_KEYS[plan];
+export function webProductKeyForPlan(
+  plan: CheckoutPlan,
+  tier: SubscriptionTier = 'pro',
+): string {
+  return WEB_PRODUCT_KEYS[tier][plan];
 }
 
 export function webProductKeyForCredit(productId: string): string {

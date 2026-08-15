@@ -41,6 +41,9 @@ export interface PricingConfig {
   weeklyPrice: number;
   monthlyPrice: number;
   yearlyPrice: number;
+  lite: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
+  pro: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
+  scholar: { weeklyPrice: number; monthlyPrice: number; yearlyPrice: number };
   promo: PricingPromo;
   /** Optional credit top-up packs (admin-configured). */
   creditPacks?: CreditPack[];
@@ -49,10 +52,13 @@ export interface PricingConfig {
 }
 
 export const DEFAULT_PRICING: PricingConfig = {
-  currency: 'NGN',
-  weeklyPrice: 2000,
-  monthlyPrice: 6500,
-  yearlyPrice: 60000,
+  currency: 'USD',
+  weeklyPrice: 5,
+  monthlyPrice: 15,
+  yearlyPrice: 150,
+  lite: { weeklyPrice: 3.99, monthlyPrice: 10, yearlyPrice: 100 },
+  pro: { weeklyPrice: 5, monthlyPrice: 15, yearlyPrice: 150 },
+  scholar: { weeklyPrice: 7.99, monthlyPrice: 24.99, yearlyPrice: 200 },
   promo: { active: false, label: '', weeklyPrice: null, monthlyPrice: null, yearlyPrice: null },
   seasonPass: { enabled: false, price: 15000, durationDays: 90, label: 'Season Pass' },
 };
@@ -90,6 +96,9 @@ export function normalisePricing(payload: unknown): PricingConfig {
   const yearly = toFiniteNumber(r.yearlyPrice);
   const promo = r.promo && typeof r.promo === 'object' ? r.promo : {};
   const season = r.seasonPass && typeof r.seasonPass === 'object' ? r.seasonPass : {};
+  const lite = r.lite && typeof r.lite === 'object' ? r.lite : {};
+  const pro = r.pro && typeof r.pro === 'object' ? r.pro : {};
+  const scholar = r.scholar && typeof r.scholar === 'object' ? r.scholar : {};
 
   // The admin payload may also carry creditPacks, aiCosts, freeTier and
   // proFairUse — creditPacks is normalised below; the rest are server-side
@@ -134,6 +143,21 @@ export function normalisePricing(payload: unknown): PricingConfig {
     weeklyPrice: fill(weekly, DEFAULT_PRICING.weeklyPrice, monthlyBase != null ? monthlyBase * weeklyRatio : null),
     monthlyPrice: fill(monthly, DEFAULT_PRICING.monthlyPrice, monthlyBase),
     yearlyPrice: fill(yearly, DEFAULT_PRICING.yearlyPrice, monthlyBase != null ? monthlyBase * yearlyRatio : null),
+    lite: {
+      weeklyPrice: toFiniteNumber(lite.weeklyPrice) ?? DEFAULT_PRICING.lite.weeklyPrice,
+      monthlyPrice: toFiniteNumber(lite.monthlyPrice) ?? DEFAULT_PRICING.lite.monthlyPrice,
+      yearlyPrice: toFiniteNumber(lite.yearlyPrice) ?? DEFAULT_PRICING.lite.yearlyPrice,
+    },
+    pro: {
+      weeklyPrice: toFiniteNumber(pro.weeklyPrice) ?? fill(weekly, DEFAULT_PRICING.pro.weeklyPrice, null),
+      monthlyPrice: toFiniteNumber(pro.monthlyPrice) ?? fill(monthly, DEFAULT_PRICING.pro.monthlyPrice, null),
+      yearlyPrice: toFiniteNumber(pro.yearlyPrice) ?? fill(yearly, DEFAULT_PRICING.pro.yearlyPrice, null),
+    },
+    scholar: {
+      weeklyPrice: toFiniteNumber(scholar.weeklyPrice) ?? DEFAULT_PRICING.scholar.weeklyPrice,
+      monthlyPrice: toFiniteNumber(scholar.monthlyPrice) ?? DEFAULT_PRICING.scholar.monthlyPrice,
+      yearlyPrice: toFiniteNumber(scholar.yearlyPrice) ?? DEFAULT_PRICING.scholar.yearlyPrice,
+    },
     promo: {
       active: promo.active === true,
       label: typeof promo.label === 'string' ? promo.label : '',
@@ -248,15 +272,32 @@ export function normalisePaywallContent(payload: unknown): PaywallContent {
   };
 }
 
-function regularPrice(pricing: PricingConfig, plan: BillingPlan): number {
-  if (plan === 'weekly') return pricing.weeklyPrice;
-  return plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+export type SubscriptionTier = 'lite' | 'pro' | 'scholar';
+
+export interface PriceOptions {
+  /** Bachs catalog prices are fixed; do not render an admin promo as chargeable. */
+  applyPromo?: boolean;
+}
+
+function regularPrice(
+  pricing: PricingConfig,
+  plan: BillingPlan,
+  tier: SubscriptionTier = 'pro',
+): number {
+  const tierPricing = pricing[tier];
+  if (plan === 'weekly') return tierPricing.weeklyPrice;
+  return plan === 'monthly' ? tierPricing.monthlyPrice : tierPricing.yearlyPrice;
 }
 
 /** The price actually charged for a plan (promo override wins when active). */
-export function effectivePrice(pricing: PricingConfig, plan: BillingPlan): number {
-  const regular = regularPrice(pricing, plan);
-  if (!pricing.promo.active) return regular;
+export function effectivePrice(
+  pricing: PricingConfig,
+  plan: BillingPlan,
+  tier: SubscriptionTier = 'pro',
+  options: PriceOptions = {},
+): number {
+  const regular = regularPrice(pricing, plan, tier);
+  if (options.applyPromo === false || !pricing.promo.active) return regular;
   const override =
     plan === 'weekly'
       ? pricing.promo.weeklyPrice
@@ -267,7 +308,12 @@ export function effectivePrice(pricing: PricingConfig, plan: BillingPlan): numbe
 }
 
 /** True when a promo is active AND actually discounts this plan. */
-export function hasPromoDiscount(pricing: PricingConfig, plan: BillingPlan): boolean {
-  if (!pricing.promo.active) return false;
-  return effectivePrice(pricing, plan) < regularPrice(pricing, plan);
+export function hasPromoDiscount(
+  pricing: PricingConfig,
+  plan: BillingPlan,
+  tier: SubscriptionTier = 'pro',
+  options: PriceOptions = {},
+): boolean {
+  if (options.applyPromo === false || !pricing.promo.active) return false;
+  return effectivePrice(pricing, plan, tier, options) < regularPrice(pricing, plan, tier);
 }
