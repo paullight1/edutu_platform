@@ -55,6 +55,15 @@ interface PricingForm {
     weeklyPrice: string;
     monthlyPrice: string;
     yearlyPrice: string;
+    liteWeeklyPrice: string;
+    liteMonthlyPrice: string;
+    liteYearlyPrice: string;
+    proWeeklyPrice: string;
+    proMonthlyPrice: string;
+    proYearlyPrice: string;
+    scholarWeeklyPrice: string;
+    scholarMonthlyPrice: string;
+    scholarYearlyPrice: string;
     promoActive: boolean;
     promoLabel: string;
     promoWeeklyPrice: string;
@@ -69,6 +78,15 @@ function toForm(p: PricingConfig): PricingForm {
         weeklyPrice: String(p.weeklyPrice),
         monthlyPrice: String(p.monthlyPrice),
         yearlyPrice: String(p.yearlyPrice),
+        liteWeeklyPrice: String(p.lite.weeklyPrice),
+        liteMonthlyPrice: String(p.lite.monthlyPrice),
+        liteYearlyPrice: String(p.lite.yearlyPrice),
+        proWeeklyPrice: String(p.pro.weeklyPrice),
+        proMonthlyPrice: String(p.pro.monthlyPrice),
+        proYearlyPrice: String(p.pro.yearlyPrice),
+        scholarWeeklyPrice: String(p.scholar.weeklyPrice),
+        scholarMonthlyPrice: String(p.scholar.monthlyPrice),
+        scholarYearlyPrice: String(p.scholar.yearlyPrice),
         promoActive: p.promo.active,
         promoLabel: p.promo.label,
         promoWeeklyPrice: p.promo.weeklyPrice != null ? String(p.promo.weeklyPrice) : '',
@@ -182,14 +200,23 @@ function AdminPricingContent() {
         const weekly = parsePrice(form.weeklyPrice);
         const monthly = parsePrice(form.monthlyPrice);
         const yearly = parsePrice(form.yearlyPrice);
+        const liteWeekly = parsePrice(form.liteWeeklyPrice);
+        const liteMonthly = parsePrice(form.liteMonthlyPrice);
+        const liteYearly = parsePrice(form.liteYearlyPrice);
+        const proWeekly = parsePrice(form.proWeeklyPrice);
+        const proMonthly = parsePrice(form.proMonthlyPrice);
+        const proYearly = parsePrice(form.proYearlyPrice);
+        const scholarWeekly = parsePrice(form.scholarWeeklyPrice);
+        const scholarMonthly = parsePrice(form.scholarMonthlyPrice);
+        const scholarYearly = parsePrice(form.scholarYearlyPrice);
         const currency = form.currency.trim().toUpperCase();
 
         if (currency.length < 3 || currency.length > 4) {
             Alert.alert('Invalid currency', 'Use a 3-letter ISO code like NGN, USD or GHS.');
             return;
         }
-        if (weekly == null || monthly == null || yearly == null) {
-            Alert.alert('Invalid price', 'Weekly, monthly and yearly prices must be valid non-negative numbers.');
+        if ([weekly, monthly, yearly, liteWeekly, liteMonthly, liteYearly, proWeekly, proMonthly, proYearly, scholarWeekly, scholarMonthly, scholarYearly].some((value) => value == null)) {
+            Alert.alert('Invalid price', 'Every Lite, Pro and Scholar weekly, monthly and yearly price must be valid.');
             return;
         }
         // Ignore fully-empty rows; reject half-filled ones.
@@ -236,9 +263,12 @@ function AdminPricingContent() {
             // doesn't edit.
             ...((fullSettings.pricing as object) ?? {}),
             currency,
-            weeklyPrice: weekly,
-            monthlyPrice: monthly,
-            yearlyPrice: yearly,
+            weeklyPrice: weekly!,
+            monthlyPrice: monthly!,
+            yearlyPrice: yearly!,
+            lite: (fullSettings.pricing as PricingConfig | undefined)?.lite ?? DEFAULT_PRICING.lite,
+            pro: { weeklyPrice: proWeekly!, monthlyPrice: proMonthly!, yearlyPrice: proYearly! },
+            scholar: { weeklyPrice: scholarWeekly!, monthlyPrice: scholarMonthly!, yearlyPrice: scholarYearly! },
             promo: {
                 active: form.promoActive,
                 label: form.promoLabel.trim(),
@@ -253,6 +283,10 @@ function AdminPricingContent() {
             seasonPass:
                 ((fullSettings.pricing as PricingConfig | undefined)?.seasonPass) ?? DEFAULT_PRICING.seasonPass,
         };
+        pricing.lite = { weeklyPrice: liteWeekly!, monthlyPrice: liteMonthly!, yearlyPrice: liteYearly! };
+        pricing.weeklyPrice = pricing.pro.weeklyPrice;
+        pricing.monthlyPrice = pricing.pro.monthlyPrice;
+        pricing.yearlyPrice = pricing.pro.yearlyPrice;
 
         setSaving(true);
         const response = await requestProductApi<AdminSettingsPayload>(
@@ -345,6 +379,25 @@ function AdminPricingContent() {
                         {field('Weekly price', form.weeklyPrice, (v) => set('weeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: '2000' })}
                         {field('Monthly price', form.monthlyPrice, (v) => set('monthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '6500' })}
                         {field('Yearly price', form.yearlyPrice, (v) => set('yearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '60000' })}
+                    </View>
+
+                    <View style={styles.sectionHeader}>
+                        <Coins size={16} color={colors.accent} />
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Tier prices</Text>
+                    </View>
+                    <View style={[styles.card, { backgroundColor: cardBg, borderColor: inputBorder }]}>
+                        <Text style={[styles.tierHeading, { color: textPrimary }]}>Lite</Text>
+                        {field('Lite weekly', form.liteWeeklyPrice, (v) => set('liteWeeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: '3.99' })}
+                        {field('Lite monthly', form.liteMonthlyPrice, (v) => set('liteMonthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '10' })}
+                        {field('Lite yearly', form.liteYearlyPrice, (v) => set('liteYearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '100' })}
+                        <Text style={[styles.tierHeading, { color: textPrimary }]}>Pro</Text>
+                        {field('Pro weekly', form.proWeeklyPrice, (v) => set('proWeeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: '5' })}
+                        {field('Pro monthly', form.proMonthlyPrice, (v) => set('proMonthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '15' })}
+                        {field('Pro yearly', form.proYearlyPrice, (v) => set('proYearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '150' })}
+                        <Text style={[styles.tierHeading, { color: textPrimary }]}>Scholar</Text>
+                        {field('Scholar weekly', form.scholarWeeklyPrice, (v) => set('scholarWeeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: '7.99' })}
+                        {field('Scholar monthly', form.scholarMonthlyPrice, (v) => set('scholarMonthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '24.99' })}
+                        {field('Scholar yearly', form.scholarYearlyPrice, (v) => set('scholarYearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '200' })}
                     </View>
 
                     <View style={styles.sectionHeader}>
@@ -520,6 +573,7 @@ const styles = StyleSheet.create({
     previewPromo: { fontSize: 13, fontWeight: '700' },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
     sectionTitle: { fontSize: 15, fontWeight: '700' },
+    tierHeading: { fontSize: 14, fontWeight: '700', marginTop: 8, marginBottom: 2 },
     card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 20, gap: 14 },
     field: { gap: 6 },
     fieldLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
