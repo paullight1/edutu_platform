@@ -35,6 +35,7 @@ import {
   type BillingTransaction,
   type CreditPack,
   type PricingSettings,
+  type PlanPricing,
   type VoiceUsageSummary,
 } from '../lib/monetizationApi';
 
@@ -195,6 +196,21 @@ export default function Monetization() {
 
   function updatePricing(patch: Partial<PricingSettings>) {
     setPricing((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function updateTier(tier: 'lite' | 'pro' | 'scholar', patch: Partial<PlanPricing>) {
+    if (!pricing) return;
+    const nextTier = { ...pricing[tier], ...patch };
+    updatePricing({
+      [tier]: nextTier,
+      ...(tier === 'pro'
+        ? {
+            weeklyPrice: nextTier.weeklyPrice,
+            monthlyPrice: nextTier.monthlyPrice,
+            yearlyPrice: nextTier.yearlyPrice,
+          }
+        : {}),
+    } as Partial<PricingSettings>);
   }
 
   function updatePack(index: number, patch: Partial<CreditPack>) {
@@ -814,6 +830,18 @@ export default function Monetization() {
                   onChange={(usdToNgnRate) => updatePricing({ usdToNgnRate })}
                 />
               </div>
+              <div className="mz-tier-grid" style={{ marginTop: 16 }}>
+                {(['lite', 'pro', 'scholar'] as const).map((tier) => (
+                  <div key={tier} className="card" style={{ padding: 14, borderTop: `3px solid ${tier === 'lite' ? '#10b981' : tier === 'pro' ? '#0071e3' : '#af52de'}` }}>
+                    <strong style={{ textTransform: 'capitalize' }}>{tier} tier</strong>
+                    <div className="mz-form" style={{ marginTop: 10 }}>
+                      <NumField label="Weekly" value={pricing[tier].weeklyPrice} onChange={(weeklyPrice) => updateTier(tier, { weeklyPrice })} />
+                      <NumField label="Monthly" value={pricing[tier].monthlyPrice} onChange={(monthlyPrice) => updateTier(tier, { monthlyPrice })} />
+                      <NumField label="Yearly" value={pricing[tier].yearlyPrice} onChange={(yearlyPrice) => updateTier(tier, { yearlyPrice })} />
+                    </div>
+                  </div>
+                ))}
+              </div>
               {pricing.monthlyPrice > 0 && pricing.yearlyPrice > 0 && (
                 <p className="mz-hint">
                   Yearly = {formatMoney(pricing.yearlyPrice / 12, currency)}/mo effective (
@@ -923,6 +951,13 @@ export default function Monetization() {
                 <NumField label="Free: signup credits" value={pricing.freeTier.signupCredits} onChange={(signupCredits) => updatePricing({ freeTier: { ...pricing.freeTier, signupCredits } })} />
                 <NumField label="Pro: daily chat msgs" value={pricing.proFairUse.dailyChatMessages} onChange={(dailyChatMessages) => updatePricing({ proFairUse: { ...pricing.proFairUse, dailyChatMessages } })} />
                 <NumField label="Pro: daily action credits" value={pricing.proFairUse.dailyActionCredits} onChange={(dailyActionCredits) => updatePricing({ proFairUse: { ...pricing.proFairUse, dailyActionCredits } })} />
+                <NumField label="Pro: daily voice minutes" value={pricing.proFairUse.dailyVoiceMinutes} onChange={(dailyVoiceMinutes) => updatePricing({ proFairUse: { ...pricing.proFairUse, dailyVoiceMinutes } })} />
+                <NumField label="Lite: daily chat msgs" value={pricing.liteFairUse.dailyChatMessages} onChange={(dailyChatMessages) => updatePricing({ liteFairUse: { ...pricing.liteFairUse, dailyChatMessages } })} />
+                <NumField label="Lite: daily action credits" value={pricing.liteFairUse.dailyActionCredits} onChange={(dailyActionCredits) => updatePricing({ liteFairUse: { ...pricing.liteFairUse, dailyActionCredits } })} />
+                <NumField label="Lite: daily voice minutes" value={pricing.liteFairUse.dailyVoiceMinutes} onChange={(dailyVoiceMinutes) => updatePricing({ liteFairUse: { ...pricing.liteFairUse, dailyVoiceMinutes } })} />
+                <NumField label="Scholar: daily chat msgs" value={pricing.scholarFairUse.dailyChatMessages} onChange={(dailyChatMessages) => updatePricing({ scholarFairUse: { ...pricing.scholarFairUse, dailyChatMessages } })} />
+                <NumField label="Scholar: daily action credits" value={pricing.scholarFairUse.dailyActionCredits} onChange={(dailyActionCredits) => updatePricing({ scholarFairUse: { ...pricing.scholarFairUse, dailyActionCredits } })} />
+                <NumField label="Scholar: daily voice minutes" value={pricing.scholarFairUse.dailyVoiceMinutes} onChange={(dailyVoiceMinutes) => updatePricing({ scholarFairUse: { ...pricing.scholarFairUse, dailyVoiceMinutes } })} />
               </div>
             </EditorCard>
 
