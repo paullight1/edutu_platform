@@ -17,6 +17,10 @@ import {
   API_CREDIT_PRODUCT_QUANTITIES,
   isApiCreditProductKey,
 } from "./types/billing-checkout.types";
+import {
+  getSubscriptionTierForProductKey,
+  isSubscriptionProductKey,
+} from "./plan-tiers";
 import { redactProviderPayload } from "./provider-payload-redaction";
 
 type JsonRecord = Record<string, unknown>;
@@ -290,28 +294,46 @@ export class BachsWebhookService {
     const snapshotProductKey = stringValue(snapshot.productKey);
     const snapshotQuantity = Number(snapshot.creditQuantity);
     const snapshotValidity = snapshot.validityDays;
+    const subscriptionTier = snapshotProductKey
+      ? getSubscriptionTierForProductKey(snapshotProductKey)
+      : null;
+    const isApiCredit = Boolean(
+      snapshotProductKey && isApiCreditProductKey(snapshotProductKey),
+    );
+    const isOneTimeSubscription = Boolean(
+      snapshotProductKey && isSubscriptionProductKey(snapshotProductKey),
+    );
     const userId = stringValue(metadata?.user_id);
     const edutuUserId = stringValue(metadata?.edutu_user_id);
     const providerUserId = userId ?? edutuUserId;
     const providerIdentityIsExact =
       Boolean(providerUserId) &&
       (!userId || !edutuUserId || userId === edutuUserId);
-    if (
+    const commonIntentValid =
       String(intent.provider_checkout_id) !== checkoutId ||
       !snapshotProductKey ||
-      !isApiCreditProductKey(snapshotProductKey) ||
       this.config.productMappings[snapshotProductKey] !== productId ||
       String(snapshot.providerProductId) !== productId ||
-      snapshot.fulfillmentKind !== "credits" ||
-      snapshot.renewalMode !== "one_time" ||
-      snapshotQuantity !== API_CREDIT_PRODUCT_QUANTITIES[snapshotProductKey] ||
-      snapshotValidity !== null ||
       !providerIdentityIsExact ||
       providerUserId !== String(intent.user_id) ||
       expectedCurrency !== currency ||
       expectedAmount !== actualAmount ||
-      !["open", "processing", "paid"].includes(String(intent.status))
-    ) {
+      !["open", "processing", "paid"].includes(String(intent.status));
+    const validApiCredit =
+      isApiCredit &&
+      snapshot.fulfillmentKind === "credits" &&
+      snapshot.renewalMode === "one_time" &&
+      snapshotQuantity === API_CREDIT_PRODUCT_QUANTITIES[snapshotProductKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES] &&
+      snapshotValidity === null;
+    const validOneTimeSubscription =
+      isOneTimeSubscription &&
+      Boolean(subscriptionTier) &&
+      snapshot.fulfillmentKind === "pro" &&
+      snapshot.renewalMode === "one_time" &&
+      Number.isInteger(snapshotValidity) &&
+      Number(snapshotValidity) > 0;
+
+    if (commonIntentValid || (!validApiCredit && !validOneTimeSubscription)) {
       await this.markReview(
         tx,
         eventRowId,
@@ -320,6 +342,29 @@ export class BachsWebhookService {
         intentId,
       );
       return "review";
+    }
+
+    if (validOneTimeSubscription) {
+      await tx.execute(sql`
+        select public.billing_fulfill_one_time_purchase(
+          'bachs',
+          ${this.config.environment},
+          ${chargeId},
+          ${String(intent.user_id)},
+          ${snapshotProductKey},
+          ${Number(actualAmount)},
+          ${currency}::char(3),
+          ${event.createdAt}::timestamptz,
+          ${intentId}::uuid
+        )
+      `);
+      await tx.execute(sql`
+        update public.billing_checkout_intents
+        set status = 'fulfilled', updated_at = now()
+        where id = ${intentId}::uuid
+      `);
+      await this.markProcessed(tx, eventRowId);
+      return "fulfilled";
     }
 
     const fulfillment = await this.creditPurchaseService.fulfillInTransaction(

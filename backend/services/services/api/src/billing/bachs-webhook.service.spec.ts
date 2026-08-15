@@ -119,6 +119,70 @@ describe("BachsWebhookService", () => {
     );
   });
 
+  it("fulfills a Lite/Pro one-time pass into the entitlement grant function", async () => {
+    const subscriptionConfig = {
+      ...config,
+      productMappings: {
+        ...config.productMappings,
+        pro_monthly_pass: "prod_pro_monthly",
+      },
+    };
+    const signed = signedPayload({
+      data: {
+        ...(signedPayload().payload.data as Record<string, unknown>),
+        amount: "15.00",
+        product_cart: [{ product_id: "prod_pro_monthly", quantity: 1 }],
+      },
+    });
+    const data = signed.payload.data as Record<string, unknown>;
+    data.metadata = {
+      edutu_intent_id: "11111111-1111-4111-8111-111111111111",
+      user_id: "user_123",
+    };
+    signed.rawBody = Buffer.from(JSON.stringify(signed.payload));
+    signed.signature = createHmac("sha256", subscriptionConfig.webhookSecret)
+      .update(`${signed.timestamp}.${signed.rawBody.toString("utf8")}`)
+      .digest("hex");
+
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              user_id: "user_123",
+              product_key: "pro_monthly_pass",
+              provider_checkout_id: "chk_1234567890abcdef",
+              expected_amount_minor: "1500",
+              currency: "USD",
+              status: "open",
+              product_snapshot: {
+                productKey: "pro_monthly_pass",
+                providerProductId: "prod_pro_monthly",
+                fulfillmentKind: "pro",
+                renewalMode: "one_time",
+                creditQuantity: 0,
+                validityDays: 31,
+              },
+            },
+          ],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    await expect(
+      new BachsWebhookService(subscriptionConfig, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "fulfilled" });
+    expect(tx.execute).toHaveBeenCalledTimes(5);
+  });
+
   it("quarantines a signed success whose event identity disagrees with the checkout owner", async () => {
     const signed = signedPayload();
     signed.payload.data = {
