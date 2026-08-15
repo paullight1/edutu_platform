@@ -1,0 +1,4 @@
+interface:
+  display_name: "Split Commits"
+  short_description: "Turn mixed changes into clean logical commits"
+  default_prompt: "Use $split-commits to separate my current changes into clean, reviewable Git commits."
