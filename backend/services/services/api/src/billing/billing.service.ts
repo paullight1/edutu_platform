@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "../db";
+import { toDatabaseUserId } from "../common/user-id";
 import type {
   BillingInterval,
   BillingTransactionSummary,
@@ -144,12 +145,13 @@ export class BillingService {
   }
 
   private planAmount(pricing: PricingSettings, plan: BillingInterval): number {
+    const proPricing = pricing.pro;
     const base =
       plan === "weekly"
-        ? pricing.weeklyPrice
+        ? proPricing.weeklyPrice
         : plan === "yearly"
-          ? pricing.yearlyPrice
-          : pricing.monthlyPrice;
+          ? proPricing.yearlyPrice
+          : proPricing.monthlyPrice;
     if (!pricing.promo?.active) return base;
     const promo =
       plan === "weekly"
@@ -166,6 +168,9 @@ export class BillingService {
     }
 
     const supabase = this.getSupabase();
+    const lookupUserIds = Array.from(
+      new Set([userId, toDatabaseUserId(userId)].filter(Boolean)),
+    );
     let profile: any = null;
     let creditProfile: { credits?: number | null } | null = null;
     let activeEntitlements: any[] = [];
@@ -183,27 +188,25 @@ export class BillingService {
       ] = await Promise.all([
         supabase
           .from("profiles")
-          .select("is_pro, pro_since, pro_expires_at, credits")
-          .eq("user_id", userId)
-          .maybeSingle(),
+          .select("user_id, is_pro, pro_since, pro_expires_at, credits")
+          .in("user_id", lookupUserIds),
         supabase
           .from("billing_entitlements")
           .select("feature_key, expires_at, status")
-          .eq("user_id", userId)
+          .in("user_id", lookupUserIds)
           .eq("status", "active"),
         supabase
           .from("billing_subscriptions")
           .select("status, current_period_end")
-          .eq("user_id", userId)
+          .in("user_id", lookupUserIds)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .limit(1),
         supabase
           .from("billing_transactions")
           .select(
             "id, provider, provider_reference, type, amount, currency, status, metadata, created_at",
           )
-          .eq("user_id", userId)
+          .in("user_id", lookupUserIds)
           .order("created_at", { ascending: false })
           .limit(5),
       ]);
@@ -213,7 +216,13 @@ export class BillingService {
           `Unable to load billing profile for ${userId}: ${profileResult.error.message}`,
         );
       } else {
-        profile = profileResult.data;
+        const profiles = Array.isArray(profileResult.data)
+          ? profileResult.data
+          : profileResult.data
+            ? [profileResult.data]
+            : [];
+        profile =
+          profiles.find((item) => item.user_id === userId) ?? profiles[0] ?? null;
       }
 
       if (!entitlementResult.error) {
@@ -224,7 +233,9 @@ export class BillingService {
       }
 
       if (!subscriptionResult.error) {
-        activeSubscription = subscriptionResult.data;
+        activeSubscription = Array.isArray(subscriptionResult.data)
+          ? subscriptionResult.data[0] ?? null
+          : subscriptionResult.data ?? null;
       }
 
       if (!transactionResult.error) {
@@ -259,7 +270,27 @@ export class BillingService {
     const entitlementProActive = activeEntitlements.some(
       (item) => item.feature_key === "pro",
     );
-    const isPro = profileProActive || entitlementProActive;
+    const entitlementLiteActive = activeEntitlements.some(
+      (item) => item.feature_key === "lite",
+    );
+    const entitlementScholarActive = activeEntitlements.some(
+      (item) => item.feature_key === "scholar",
+    );
+    // `isPro` is the legacy name used by feature gates. Every paid consumer
+    // tier includes the premium feature set; the tier-specific fair-use meter
+    // decides how much usage is available.
+    const isPro =
+      profileProActive ||
+      entitlementProActive ||
+      entitlementLiteActive ||
+      entitlementScholarActive;
+    const planTier = entitlementScholarActive
+      ? ("scholar" as const)
+      : entitlementProActive || profileProActive
+        ? ("pro" as const)
+        : entitlementLiteActive
+          ? ("lite" as const)
+          : ("none" as const);
     const entitlements = new Set(
       activeEntitlements.map((item) => item.feature_key),
     );
@@ -272,8 +303,13 @@ export class BillingService {
 
     return {
       isPro,
+      planTier,
       proSince: profile?.pro_since ?? null,
-      proExpiresAt,
+      proExpiresAt:
+        planTier === "lite" || planTier === "scholar"
+          ? (activeEntitlements.find((item) => item.feature_key === planTier)
+              ?.expires_at ?? null)
+          : proExpiresAt,
       credits: Number(profile?.credits ?? creditProfile?.credits ?? 0),
       subscriptionStatus:
         activeSubscription?.status ?? (isPro ? "active" : null),

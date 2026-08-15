@@ -97,6 +97,7 @@ describe("BillingService", () => {
 
     const createQuery = (result: any) => ({
       select: () => createQuery(result),
+      in: () => createQuery(result),
       eq: () => createQuery(result),
       order: () => createQuery(result),
       limit: () => createQuery(result),
@@ -572,6 +573,7 @@ describe("BillingService", () => {
     const emptyList = { data: [], error: null };
     const createQuery = (result: any) => ({
       select: () => createQuery(result),
+      in: () => createQuery(result),
       eq: () => createQuery(result),
       order: () => createQuery(result),
       limit: () => createQuery(result),

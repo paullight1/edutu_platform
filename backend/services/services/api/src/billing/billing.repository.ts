@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { randomBytes, createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
+import { toDatabaseUserId } from "../common/user-id";
 import {
   assertApiCreditProductContract,
   assertBillingCheckoutProductContract,
@@ -171,6 +172,18 @@ export class BillingRepository {
     assertBillingCheckoutProductContract(product);
     assertApiCreditProductContract(product);
     return product;
+  }
+
+  async hasActiveApiConsumer(userId: string): Promise<boolean> {
+    const databaseUserId = toDatabaseUserId(userId);
+    const result = await db.execute(sql`
+      select 1
+      from api_consumers
+      where owner_user_id = ${databaseUserId}::uuid
+        and status = 'active'
+      limit 1
+    `);
+    return ((result as RowResult<unknown>).rows ?? []).length > 0;
   }
 
   async listEnabledApiCreditProducts(
