@@ -55,6 +55,10 @@
       "destination": "/edutuforyou/index.html"
     },
     {
+      "source": "/whats-new",
+      "destination": "/whats-new/index.html"
+    },
+    {
       "source": "/events",
       "destination": "/events/index.html"
     },

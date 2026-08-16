@@ -31,6 +31,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.edutu.org/whats-new</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.edutu.org/opportunities?category=scholarships</loc>
     <lastmod>2026-08-15</lastmod>
     <changefreq>daily</changefreq>

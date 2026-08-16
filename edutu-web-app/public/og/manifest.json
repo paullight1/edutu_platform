@@ -12,6 +12,11 @@
       "file": "/og/home.jpg"
     },
     {
+      "path": "/whats-new",
+      "slug": "whats-new",
+      "file": "/og/whats-new.jpg"
+    },
+    {
       "path": "/opportunities",
       "slug": "opportunities",
       "file": "/og/opportunities.jpg"

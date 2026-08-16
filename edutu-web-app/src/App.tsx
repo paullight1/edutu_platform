@@ -53,6 +53,7 @@ const AboutPage = lazy(() => import("./components/AboutPage"));
 const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
 const ImpactPage = lazy(() => import("./components/ImpactPage"));
 const EdutuForYouPage = lazy(() => import("./components/EdutuForYouPage"));
+const WhatsNewPage = lazy(() => import("./components/WhatsNewPage"));
 const EdutuForYouStoryPage = lazy(
   () => import("./components/EdutuForYouStoryPage"),
 );
@@ -547,6 +548,7 @@ function App() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/impact" element={<ImpactPage />} />
       <Route path="/edutuforyou" element={<EdutuForYouPage />} />
+      <Route path="/whats-new" element={<WhatsNewPage />} />
       <Route
         path="/edutuforyou/stories/:slug"
         element={<EdutuForYouStoryPage />}

@@ -348,6 +348,12 @@ async function main() {
       changefreq: "monthly",
       priority: "0.7",
     },
+    {
+      loc: toAbsoluteUrl("/whats-new"),
+      lastmod: today,
+      changefreq: "monthly",
+      priority: "0.7",
+    },
     // Category collection landing pages (crawler meta injected by the
     // opportunities-og edge function).
     ...["scholarships", "internships", "fellowships", "programs"].map(

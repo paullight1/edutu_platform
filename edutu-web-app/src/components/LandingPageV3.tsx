@@ -7,6 +7,7 @@ import {
     ChevronDown,
     Bell,
     X,
+    Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -398,6 +399,35 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </Link>
                         </motion.div>
 
+                    </div>
+                </section>
+
+                {/* ─── What's new ─────────────────────────────────────── */}
+                <section className="border-t border-subtle px-4 py-8 sm:px-6 sm:py-10">
+                    <div className="mx-auto max-w-[1000px]">
+                        <motion.div
+                            {...fadeUp}
+                            className="group grid items-center gap-5 rounded-[22px] border border-brand/20 bg-brand-50 px-5 py-5 transition duration-300 hover:border-brand/40 hover:shadow-soft dark:bg-brand-950/45 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:px-7"
+                        >
+                            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white shadow-soft">
+                                <Sparkles size={19} aria-hidden="true" />
+                            </span>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">What&apos;s new</p>
+                                <h2 className="mt-1 font-display text-xl font-semibold tracking-[-0.02em] text-text-primary sm:text-2xl">
+                                    Edutu just got sharper, calmer, and more dependable.
+                                </h2>
+                                <p className="mt-1 text-sm leading-6 text-text-secondary">
+                                    Meet the updated AI engine, web app experience, and Edutu For You.
+                                </p>
+                            </div>
+                            <Link
+                                to="/whats-new"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-brand no-underline transition group-hover:translate-x-0.5"
+                            >
+                                See what&apos;s new <ArrowRight size={16} aria-hidden="true" />
+                            </Link>
+                        </motion.div>
                     </div>
                 </section>
 

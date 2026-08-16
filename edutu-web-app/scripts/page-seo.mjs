@@ -65,6 +65,14 @@ export const PAGE_SEO = [
     settleMs: 2500,
   },
   {
+    path: "/whats-new",
+    slug: "whats-new",
+    title: "What's new at Edutu — smarter matching, clearer opportunities",
+    description:
+      "See what is new at Edutu: an updated AI matching engine, a more dependable opportunity feed, a calmer web app, and Edutu For You.",
+    imageAlt: "What's new at Edutu",
+  },
+  {
     path: "/opportunities",
     slug: "opportunities",
     title: "Updated scholarships, internships and grants | Edutu",

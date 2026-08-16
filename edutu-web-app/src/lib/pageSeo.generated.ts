@@ -28,6 +28,13 @@ export const PAGE_SEO: Record<string, PageSeoEntry> = {
     image: "https://www.edutu.org/og/home.jpg",
     imageAlt: "Edutu homepage — AI-powered global opportunities",
   },
+  "/whats-new": {
+    slug: "whats-new",
+    title: "What's new at Edutu — smarter matching, clearer opportunities",
+    description: "See what is new at Edutu: an updated AI matching engine, a more dependable opportunity feed, a calmer web app, and Edutu For You.",
+    image: "https://www.edutu.org/og/whats-new.jpg",
+    imageAlt: "What's new at Edutu",
+  },
   "/opportunities": {
     slug: "opportunities",
     title: "Updated scholarships, internships and grants | Edutu",

@@ -26,6 +26,7 @@ const coreNavItems: NavItem[] = [
 ];
 
 const moreNavItems: NavItem[] = [
+  { label: "What's new", to: "/whats-new" },
   { label: "Scholarship Engine", to: "/scholarship-engine" },
   { label: "Docs", to: docsUrl, external: isExternalDocsUrl() },
   { label: "About", to: "/about" },
