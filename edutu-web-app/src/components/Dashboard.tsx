@@ -49,16 +49,11 @@ import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import { fetchHeroBanners } from "../services/webConfig";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import type { Opportunity } from "../types/opportunity";
-import {
-  getDeadlineBadge,
-  urgencyTextClasses,
-} from "../services/deadlineUrgency";
 import { isOpportunityExpired } from "../services/opportunities";
 import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
-import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
 import DashboardOpportunityCard from "./dashboard/DashboardOpportunityCard";
 import {
   createOpportunityShuffleSeed,
@@ -311,15 +306,7 @@ const BannerCarousel = React.memo(function BannerCarousel({
       </AnimatePresence>
 
       {banners.length > 1 ? (
-        <div className="absolute bottom-3 right-4 flex items-center gap-2 rounded-full bg-black/25 px-2.5 py-1.5 backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={() => setIsPaused((paused) => !paused)}
-            aria-label={isPaused ? "Resume banner rotation" : "Pause banner rotation"}
-            className="flex h-5 w-5 items-center justify-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-          >
-            <span className="text-[0.55rem]">{isPaused ? "▶" : "Ⅱ"}</span>
-          </button>
+        <div className="absolute bottom-3 right-4 rounded-full bg-black/25 px-2.5 py-2 backdrop-blur-sm">
           <div className="flex items-center gap-1.5" role="tablist" aria-label="Dashboard promotions">
             {banners.map((banner, index) => (
               <button
@@ -333,7 +320,7 @@ const BannerCarousel = React.memo(function BannerCarousel({
                   setIsPaused(false);
                 }}
                 className={`h-1.5 rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                  index === current ? "w-5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/75"
+                  index === current ? "w-1.5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/75"
                 }`}
               />
             ))}
@@ -1616,43 +1603,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
                   {bestShots.length > 0 ? (
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {bestShots.map(({ opportunity, match }) => {
-                        const deadlineBadge = getDeadlineBadge(
-                          opportunity.deadline,
-                        );
-                        return (
-                          <article
-                            key={opportunity.id}
-                            className="flex flex-col rounded-2xl border border-subtle bg-surface-elevated p-4"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <MatchScoreBadge score={match.score} />
-                              {deadlineBadge.level !== "none" ? (
-                                <span
-                                  className={`inline-flex items-center gap-1 text-xs text-text-muted ${urgencyTextClasses(deadlineBadge.level)}`}
-                                >
-                                  <Clock size={12} />
-                                  {deadlineBadge.label}
-                                </span>
-                              ) : null}
-                            </div>
-                            <h3 className="mt-2.5 line-clamp-2 text-sm font-semibold leading-5 text-text-primary">
-                              {opportunity.title}
-                            </h3>
-                            <TopMatchReason reason={match.reasons[0]} />
-                            <div className="mt-auto pt-3">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenOpportunity(opportunity)}
-                                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 active:scale-[0.98]"
-                              >
-                                Start here
-                                <ChevronRight size={15} />
-                              </button>
-                            </div>
-                          </article>
-                        );
-                      })}
+                      {bestShots.map(({ opportunity }) => (
+                        <DashboardOpportunityCard
+                          key={opportunity.id}
+                          opportunity={opportunity}
+                          variant="grid"
+                          isBookmarked={isOppBookmarked(opportunity.id)}
+                          isDarkMode={isDarkMode}
+                          onOpen={handleOpenOpportunity}
+                          onToggleBookmark={handleToggleBookmark}
+                          onShare={handleShareOpportunity}
+                        />
+                      ))}
                     </div>
                   ) : (
                     <div className="mt-4 rounded-2xl border border-dashed border-subtle bg-surface-elevated p-5 text-center">
