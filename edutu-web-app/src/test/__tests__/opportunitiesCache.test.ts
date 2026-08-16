@@ -121,6 +121,34 @@ describe("opportunities snapshot cache", () => {
     expect(row.image).toBe("https://cdn.example.test/share-card.png");
   });
 
+  it("preserves paragraph breaks in full opportunity descriptions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              ...backendRow,
+              description: "Short source summary.",
+              metadata: {
+                full_description:
+                  "Overview paragraph.\n\nWho can apply:\n- Current students\n- Recent graduates\n\nApply before the deadline.",
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    const service = await importOpportunities();
+    const [row] = await service.fetchOpportunities();
+
+    expect(row.description).toContain("Overview paragraph.\n\nWho can apply:");
+    expect(row.description).toContain("- Current students\n- Recent graduates");
+  });
+
   it("notifies subscribers when the cache updates", async () => {
     mockFetchSuccess();
     const service = await importOpportunities();

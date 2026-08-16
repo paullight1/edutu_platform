@@ -348,6 +348,36 @@ function cleanOpportunityText(value: unknown): string {
     .trim();
 }
 
+/**
+ * Keep the source's long-form structure for detail pages. Short labels can
+ * safely collapse whitespace, but descriptions often use blank lines, bullets,
+ * and deliberate line breaks to separate application instructions.
+ */
+function cleanOpportunityLongFormText(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/<br\s*\/?>(?=\s*)/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6])>/gi, "\n\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\bBy\s+Admin\s+On\s+[A-Z][a-z]+\s+\d{1,2},\s+20\d{2}\b/g, " ")
+    .replace(/\bBy\s+Admin\b/gi, " ")
+    .replace(/\b(?:posted|written)\s+by\s+[^.]{1,60}/gi, " ")
+    .replace(SOURCE_BRAND_RE, "the official organizer")
+    .replace(SCRAPER_ARTIFACT_RE, " ")
+    .replace(/\s*(?:\[\s*(?:\.{3}|…)\s*\]|\(\s*(?:\.{3}|…)\s*\))/gu, "")
+    .replace(/\s*(?:\.{3}|…)\s*$/u, "")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function isSourceArtifact(value: unknown): boolean {
   if (typeof value !== "string") return false;
   return SOURCE_BRAND_RE.test(value) || SCRAPER_ARTIFACT_RE.test(value);
@@ -395,7 +425,7 @@ function pickLongestStringValue(
   ...values: unknown[]
 ): string {
   const candidates = values
-    .map(cleanOpportunityText)
+    .map(cleanOpportunityLongFormText)
     .filter(Boolean)
     .sort((left, right) => right.length - left.length);
 

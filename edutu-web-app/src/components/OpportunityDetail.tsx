@@ -112,6 +112,19 @@ function normaliseVisibleText(value?: string | null): string {
     .trim();
 }
 
+function normaliseLongFormText(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function normaliseVisibleList(values: string[]): string[] {
   return values.map(normaliseVisibleText).filter(Boolean);
 }
@@ -233,32 +246,48 @@ function RelatedOpportunityCard({
   return (
     <Link
       to={detailPath}
-      className="group relative flex h-full flex-col rounded-xl border border-subtle bg-surface-layer p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-elevated"
+      className="group block w-[82vw] max-w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-elevated sm:w-[280px]"
     >
-      {opportunity.category ? (
-        <span className="inline-flex w-fit items-center rounded-md border border-brand/20 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
-          {opportunity.category}
-        </span>
-      ) : null}
-      <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
-        {opportunity.title}
-      </h3>
-      {organizationLabel(opportunity.organization, opportunity.title) ? (
-        <p className="mt-1 truncate text-xs text-text-muted">
-          {organizationLabel(opportunity.organization, opportunity.title)}
-        </p>
-      ) : null}
-      <div className="mt-auto flex flex-wrap gap-3 pt-3 text-xs text-text-muted">
-        {opportunity.location ? (
-          <span className="inline-flex items-center gap-1">
-            <MapPin size={12} />
-            {opportunity.location}
+      <div className="relative aspect-[16/10] overflow-hidden bg-surface-elevated">
+        <ImageWithFallback
+          src={opportunity.image}
+          fallbackSrc={opportunity.imageFallback}
+          alt={`${opportunity.title} opportunity image`}
+          category={opportunity.category}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          fallbackClassName="h-full w-full"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/70 to-transparent"
+        />
+        {opportunity.category ? (
+          <span className="absolute left-3 top-3 inline-flex max-w-[calc(100%-1.5rem)] truncate rounded-full border border-white/20 bg-slate-950/65 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+            {opportunity.category}
           </span>
         ) : null}
-        <span className={`inline-flex items-center gap-1 ${deadlineClass}`}>
-          <CalendarDays size={12} />
-          {formatCompactDeadline(opportunity.deadline)}
-        </span>
+      </div>
+      <div className="p-4">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
+          {opportunity.title}
+        </h3>
+        {organizationLabel(opportunity.organization, opportunity.title) ? (
+          <p className="mt-1 truncate text-xs text-text-muted">
+            {organizationLabel(opportunity.organization, opportunity.title)}
+          </p>
+        ) : null}
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-text-muted">
+          {opportunity.location ? (
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              <MapPin size={12} className="shrink-0" />
+              {opportunity.location}
+            </span>
+          ) : null}
+          <span className={`inline-flex items-center gap-1 ${deadlineClass}`}>
+            <CalendarDays size={12} />
+            {formatCompactDeadline(opportunity.deadline)}
+          </span>
+        </div>
       </div>
     </Link>
   );
@@ -304,7 +333,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     ? `${opportunity.applicants} applicants`
     : "Not published";
   // Only show real scraped content — never a synthesized filler paragraph.
-  const fullDescription = normaliseVisibleText(
+  const fullDescription = normaliseLongFormText(
     opportunity.description || opportunity.summary,
   );
   const descriptionParagraphs = fullDescription
@@ -860,7 +889,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0 space-y-7">
             <header className="space-y-4 border-b border-subtle pb-6">
-              <div className="relative overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
+              <div className="relative aspect-square overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
                 <ImageWithFallback
                   src={opportunity.image || seoImage}
                   fallbackSrc={opportunity.imageFallback}
@@ -870,8 +899,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                       : "Opportunity image"
                   }
                   category={opportunity.category}
-                  className="h-52 w-full object-cover sm:h-72"
-                  fallbackClassName="h-52 w-full sm:h-72"
+                  className="h-full w-full object-cover"
+                  fallbackClassName="h-full w-full"
                 />
               </div>
               <p className="text-sm font-semibold text-brand">
@@ -886,10 +915,13 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   {organizationLabel(opportunity.organization, opportunity.title)}
                 </p>
               ) : null}
-              <div className="max-w-3xl space-y-3 break-words text-base leading-7 text-text-secondary [overflow-wrap:anywhere]">
+              <div className="max-w-3xl space-y-5 break-words text-base leading-8 text-text-secondary [overflow-wrap:anywhere]">
                 {descriptionParagraphs.length > 0 ? (
                   descriptionParagraphs.map((paragraph, index) => (
-                    <p key={`${paragraph.slice(0, 40)}-${index}`}>
+                    <p
+                      key={`${paragraph.slice(0, 40)}-${index}`}
+                      className="whitespace-pre-line"
+                    >
                       {paragraph}
                     </p>
                   ))
@@ -1106,11 +1138,27 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </div>
       </section>
       {relatedOpportunities.length > 0 ? (
-        <section className="mt-10 border-t border-subtle pt-8">
-          <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-            Related opportunities
-          </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-10 border-t border-subtle pt-8" aria-labelledby="related-opportunities-title">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2
+                id="related-opportunities-title"
+                className="font-display text-xl font-semibold tracking-tight text-text-primary"
+              >
+                Related opportunities
+              </h2>
+              <p className="mt-1 text-sm text-text-muted">More like this</p>
+            </div>
+            <span className="hidden shrink-0 text-xs font-semibold text-text-muted sm:inline">
+              Swipe to explore
+            </span>
+          </div>
+          <div
+            className="-mx-4 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+            role="region"
+            tabIndex={0}
+            aria-label="Related opportunities"
+          >
             {relatedOpportunities.map((related) => (
               <RelatedOpportunityCard
                 key={related.id}
