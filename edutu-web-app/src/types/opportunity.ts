@@ -14,6 +14,8 @@ export interface Opportunity {
   benefits: string[];
   applicationProcess: string[];
   image?: string | null;
+  /** Stable Edutu-hosted/generated image to use when the primary source is unavailable. */
+  imageFallback?: string | null;
   match: number;
   difficulty?: OpportunityDifficulty | null;
   applicants?: string;

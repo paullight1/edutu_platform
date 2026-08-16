@@ -293,6 +293,18 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
             })
             .sort((a, b) => b.matchScore - a.matchScore);
 
+        if (personalizedOpportunities.length === 0 && dataRef.current.length > 0) {
+          // A successful empty fallback is still an incomplete read. Keep the
+          // last recommendation set visible rather than making the dashboard
+          // flicker to an empty state during a transient catalog outage.
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            error: backendError instanceof Error ? backendError.message : null,
+          }));
+          return;
+        }
+
         setState({
           data: personalizedOpportunities,
           loading: false,
@@ -316,7 +328,7 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           loading: false,
           error: message,
           userPreferences: prev.userPreferences,
-          data: [],
+          data: prev.data,
         }));
       }
     }

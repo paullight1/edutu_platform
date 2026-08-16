@@ -76,6 +76,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         <div className="pointer-events-none relative z-10 h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
             alt={
               opportunity.title
                 ? `${opportunity.title} opportunity image`
@@ -131,6 +132,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         <div className="pointer-events-none relative z-10 h-20 shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
             alt={
               opportunity.title
                 ? `${opportunity.title} opportunity image`
@@ -188,6 +190,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         <div className="mobile-more-opportunity-media pointer-events-none relative z-10 h-[76px] w-full shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
             alt={
               opportunity.title
                 ? `${opportunity.title} opportunity image`
@@ -247,6 +250,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
       <div className="pointer-events-none relative z-10 h-32 shrink-0 overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
+          fallbackSrc={opportunity.imageFallback}
           alt={
             opportunity.title
               ? `${opportunity.title} opportunity image`

@@ -83,6 +83,44 @@ describe("opportunities snapshot cache", () => {
     expect(rows[0].title).toBe("Test Scholarship");
   });
 
+  it("keeps the last known catalog when a forced refresh returns an empty feed", async () => {
+    mockFetchSuccess();
+    const service = await importOpportunities();
+    const initialRows = await service.fetchOpportunities();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      }),
+    );
+
+    const refreshedRows = await service.fetchOpportunities({ force: true });
+
+    expect(refreshedRows).toEqual(initialRows);
+    expect(service.getCachedOpportunitiesSync()).toEqual(initialRows);
+  });
+
+  it("normalizes the generated share card when the source has no image", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ ...backendRow, image_url: null, share_image_url: "https://cdn.example.test/share-card.png" }],
+        }),
+      }),
+    );
+
+    const service = await importOpportunities();
+    const [row] = await service.fetchOpportunities();
+
+    expect(row.image).toBe("https://cdn.example.test/share-card.png");
+  });
+
   it("notifies subscribers when the cache updates", async () => {
     mockFetchSuccess();
     const service = await importOpportunities();

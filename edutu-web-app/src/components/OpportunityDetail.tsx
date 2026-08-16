@@ -345,7 +345,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           " from ",
         )}. See eligibility, benefits, deadline, and application link on Edutu.`,
   );
-  const seoImage = opportunity.image || getDefaultSeoImage();
+  const seoImage =
+    opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
   const seoJsonLd = useMemo(() => {
     const deadlineIso = deadlineToIso(opportunity.deadline);
     const stipendValue =
@@ -862,6 +863,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <div className="relative overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
                 <ImageWithFallback
                   src={opportunity.image || seoImage}
+                  fallbackSrc={opportunity.imageFallback}
                   alt={
                     opportunity.title
                       ? `${opportunity.title} opportunity image`

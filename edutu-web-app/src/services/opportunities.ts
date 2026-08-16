@@ -522,6 +522,22 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.summary,
     metadata.summary,
   );
+  const primaryImage = pickNullableString(
+    row.image,
+    row.image_url,
+    row.cover_image,
+    row.imageUrl,
+    metadata.image,
+    metadata.image_url,
+    metadata.source_image_url,
+    row.source_image_url,
+  );
+  const shareCard = pickRecord(metadata.share_card, metadata.shareCard);
+  const stableImage = pickNullableString(
+    row.share_image_url,
+    row.shareImageUrl,
+    shareCard?.url,
+  );
 
   return {
     id: String(
@@ -549,19 +565,8 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       metadata.application_process,
       metadata.applicationProcess,
     ),
-    image: pickNullableString(
-      row.image,
-      row.image_url,
-      row.cover_image,
-      row.imageUrl,
-      metadata.image,
-      metadata.image_url,
-      // Last resort before nothing: the scraped opportunity's own page image
-      // (its source OG image), so shares/SEO still carry a relevant picture
-      // even when Edutu has no branded image for it.
-      metadata.source_image_url,
-      row.source_image_url,
-    ),
+    image: primaryImage ?? stableImage,
+    imageFallback: primaryImage ? stableImage : null,
     match: Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0,
     difficulty: normaliseDifficulty(rawDifficulty),
     applicants: pickOptionalString(row.applicants, metadata.applicants),
@@ -807,8 +812,20 @@ export async function fetchOpportunities(
       normalised.length > 0
         ? normalised
         : await requestStaticOpportunitySnapshot(options);
-    if (resolvedOpportunities.length > 0 || !cachedOpportunities) {
+    if (resolvedOpportunities.length > 0) {
       setOpportunityCache(resolvedOpportunities);
+    }
+
+    // An empty response is not proof that the catalog is empty. A transient
+    // database/API read must never erase a known-good feed or turn it into a
+    // sticky in-memory empty cache. Keep the last usable catalog and let the
+    // next refresh try the source again.
+    if (resolvedOpportunities.length === 0) {
+      const staleCache = getCachedOpportunitiesSync();
+      if (staleCache && staleCache.length > 0) {
+        console.warn("Empty opportunity response; keeping the last known catalog");
+        return staleCache;
+      }
     }
 
     if (resolvedOpportunities.length > 0) {

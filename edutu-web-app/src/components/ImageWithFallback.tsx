@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Award,
   BookOpen,
@@ -13,6 +13,7 @@ import type { LucideIcon } from 'lucide-react';
 
 interface ImageWithFallbackProps {
   src: string | null | undefined;
+  fallbackSrc?: string | null;
   alt: string;
   className?: string;
   fallbackIcon?: 'globe' | 'building';
@@ -76,15 +77,32 @@ const DEFAULT_CATEGORY_FALLBACK = {
 
 const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   src,
+  fallbackSrc,
   alt,
   className = '',
   fallbackIcon = 'globe',
   fallbackClassName = '',
   category,
 }) => {
-  const [hasError, setHasError] = useState(false);
+  const [primaryFailed, setPrimaryFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
 
-  if (hasError || !src) {
+  useEffect(() => {
+    setPrimaryFailed(false);
+    setFallbackFailed(false);
+  }, [src, fallbackSrc]);
+
+  const primarySource = typeof src === 'string' && src.trim() ? src : null;
+  const fallbackSource =
+    typeof fallbackSrc === 'string' && fallbackSrc.trim() ? fallbackSrc : null;
+  const imageSource =
+    primarySource && !primaryFailed
+      ? primarySource
+      : fallbackSource && !fallbackFailed
+        ? fallbackSource
+        : null;
+
+  if (!imageSource) {
     if (category !== undefined) {
       const match =
         (category
@@ -112,10 +130,16 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
 
   return (
     <img
-      src={src}
+      src={imageSource}
       alt={alt}
       className={className}
-      onError={() => setHasError(true)}
+      onError={() => {
+        if (primarySource && !primaryFailed && fallbackSource) {
+          setPrimaryFailed(true);
+        } else {
+          setFallbackFailed(true);
+        }
+      }}
       loading="lazy"
       decoding="async"
       // Scraped og:image URLs often sit behind hotlink protection that keys on

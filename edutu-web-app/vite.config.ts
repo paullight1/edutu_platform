@@ -51,9 +51,11 @@ export default defineConfig({
         importScripts: ['sw-custom.js'],
         runtimeCaching: [
           {
-            // Public catalog reads — identical for every visitor, so the cached
-            // copy paints instantly and revalidates behind the scenes instead of
-            // blocking on the network every time.
+            // Public catalog reads — the live API must win when it is available.
+            // StaleWhileRevalidate could serve a cached empty 200 for a day
+            // after a transient backend/database response, making the feed look
+            // randomly empty between visits. The app service owns the validated
+            // local snapshot fallback, so this cache only serves when offline.
             //
             // The allowlist is deliberate. Everything user-scoped stays on
             // NetworkFirst below, because stale-while-revalidate serves the
@@ -88,9 +90,10 @@ export default defineConfig({
                 ].includes(m[1])
               );
             },
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'edutu-catalog',
+              networkTimeoutSeconds: 8,
               expiration: {
                 maxEntries: 120,
                 maxAgeSeconds: 60 * 60 * 24, // 1 day
