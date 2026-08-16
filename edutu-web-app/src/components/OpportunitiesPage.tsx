@@ -1376,7 +1376,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           </section>
         ) : (
           <section className="mb-6">
-            <div className="mb-4 flex items-end justify-between gap-3">
+            <div className="mb-4 hidden items-end justify-between gap-3 sm:flex">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
                   {t("navigation.explore")}

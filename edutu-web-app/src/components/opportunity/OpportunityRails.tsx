@@ -40,22 +40,33 @@ function RailCard({
   palette,
   match,
   onOpen,
+  featured = false,
 }: {
   opportunity: Opportunity;
   detailPath: string;
   palette: RailPalette;
   match?: MatchResult | null;
   onOpen?: (opportunity: Opportunity) => void;
+  featured?: boolean;
 }) {
   const deadlineBadge = getDeadlineBadge(opportunity.deadline);
 
   return (
     <article
-      className={`group relative flex h-full w-[236px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:w-[252px] ${RAIL_CARD_SURFACE}`}
+      className={`group relative flex h-full shrink-0 snap-start flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated ${
+        featured
+          ? "w-[min(86vw,360px)] sm:w-[360px]"
+          : "w-[236px] sm:w-[252px]"
+      } ${RAIL_CARD_SURFACE}`}
     >
-      <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
+      <div
+        className={`relative overflow-hidden bg-surface-elevated ${
+          featured ? "aspect-[16/8.5]" : "aspect-[16/9]"
+        }`}
+      >
         <ImageWithFallback
           src={opportunity.image}
+          fallbackSrc={opportunity.imageFallback}
           alt={`${opportunity.title} cover image`}
           category={opportunity.category}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
@@ -67,8 +78,8 @@ function RailCard({
           className="absolute left-2.5 top-2.5 shadow-sm backdrop-blur"
         />
       </div>
-      <div className="relative flex flex-1 flex-col p-3">
-        <div className="mb-2 flex flex-wrap gap-1.5">
+      <div className={`relative flex flex-1 flex-col ${featured ? "p-4" : "p-3"}`}>
+        <div className={`flex flex-wrap gap-1.5 ${featured ? "mb-2.5" : "mb-2"}`}>
           <MatchScoreBadge score={match?.score} minScore={40} />
           {opportunity.category ? (
             <span
@@ -78,11 +89,15 @@ function RailCard({
             </span>
           ) : null}
         </div>
-        <h3 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
+        <h3
+          className={`line-clamp-2 font-display font-semibold leading-snug text-text-primary transition group-hover:text-brand ${
+            featured ? "text-base sm:text-lg" : "text-sm"
+          }`}
+        >
           {opportunity.title}
         </h3>
         {opportunity.organization ? (
-          <p className="mt-1 truncate text-xs text-text-muted">
+          <p className={`mt-1 truncate text-text-muted ${featured ? "text-sm" : "text-xs"}`}>
             {opportunity.organization}
           </p>
         ) : null}
@@ -127,8 +142,15 @@ function Rail({
   }, []);
 
   return (
-    <section aria-label={rail.title}>
-      <div className="mb-2.5 flex items-center justify-between gap-3">
+    <section
+      aria-label={rail.title}
+      className={
+        rail.key === "recommended"
+          ? "rounded-2xl border border-brand/15 bg-surface-layer/60 p-3 sm:p-4"
+          : undefined
+      }
+    >
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
             className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${rail.accent}`}
@@ -136,7 +158,7 @@ function Rail({
             <rail.Icon size={16} />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate font-display text-base font-semibold tracking-tight text-text-primary">
+            <h2 className="truncate font-display text-base font-semibold tracking-tight text-text-primary sm:text-lg">
               {rail.title}
             </h2>
             {rail.subtitle ? (
@@ -168,7 +190,11 @@ function Rail({
       </div>
       <div
         ref={scrollerRef}
-        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 [&::-webkit-scrollbar]:hidden"
+        className={`flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          rail.key === "recommended"
+            ? "-mx-3 px-3 sm:-mx-4 sm:px-4"
+            : "-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+        }`}
       >
         {rail.items.map((opportunity, index) => (
           <ImpressionTracker
@@ -185,6 +211,7 @@ function Rail({
               palette={getPalette(opportunity)}
               match={matchInsights?.get(opportunity.id) ?? null}
               onOpen={onOpen}
+              featured={rail.key === "recommended"}
             />
           </ImpressionTracker>
         ))}
