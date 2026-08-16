@@ -528,6 +528,7 @@ function OpportunityCard({
       <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
+          fallbackSrc={opportunity.imageFallback}
           alt={`${opportunity.title} cover image`}
           category={opportunity.category}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
