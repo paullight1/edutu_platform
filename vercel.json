@@ -1,5 +1,5 @@
 {
-  "experimentalServices": {
+  "services": {
     "frontend": {
       "entrypoint": "edutu-web-app",
       "routePrefix": "/",
