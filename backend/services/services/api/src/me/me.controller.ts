@@ -9,6 +9,11 @@ import {
 } from "@nestjs/common";
 import { CurrentUser } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
+import { ApplicationHistoryService } from "./application-history.service";
+import {
+  AddApplicationReflectionSchema,
+  type AddApplicationReflectionDto,
+} from "./dto/application-history.dto";
 import {
   CreateApplicationSchema,
   SaveBookmarkSchema,
@@ -21,7 +26,10 @@ import { MeService } from "./me.service";
 
 @Controller("me")
 export class MeController {
-  constructor(private readonly meService: MeService) {}
+  constructor(
+    private readonly meService: MeService,
+    private readonly applicationHistory: ApplicationHistoryService,
+  ) {}
 
   @Get("opportunities/bookmarks")
   listBookmarks(@CurrentUser("id") userId: string) {
@@ -65,6 +73,28 @@ export class MeController {
     body: CreateApplicationDto,
   ) {
     return this.meService.createApplication(userId, body);
+  }
+
+  @Get("applications/:id/history")
+  listApplicationHistory(
+    @CurrentUser("id") userId: string,
+    @Param("id") applicationId: string,
+  ) {
+    return this.applicationHistory.list(userId, applicationId);
+  }
+
+  @Post("applications/:id/reflections")
+  addApplicationReflection(
+    @CurrentUser("id") userId: string,
+    @Param("id") applicationId: string,
+    @Body(new ZodValidationPipe(AddApplicationReflectionSchema))
+    body: AddApplicationReflectionDto,
+  ) {
+    return this.applicationHistory.addReflection(
+      userId,
+      applicationId,
+      body.reflection,
+    );
   }
 
   @Patch("applications/:id")
