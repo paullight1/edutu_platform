@@ -1,4 +1,4 @@
-name: Apply hardening formatting fixes
+name: Apply hardening fixes
 
 on:
   pull_request:
@@ -22,27 +22,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Format inherited backend lint drift
-        working-directory: backend/services/services/api
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run lint:fix
+      - name: Verify mobile audit policy tests
+        run: node --test scripts/check-mobile-audit.test.mjs
       - name: Fix web hook dependency lint
-        working-directory: edutu-web-app
         run: |
           set -euo pipefail
-          npm ci
-          npx eslint src/components/UpgradePage.tsx --fix
-      - name: Commit formatting repairs
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('edutu-web-app/src/components/UpgradePage.tsx')
+          text = path.read_text()
+          old = "  }, [pricing, selectedTier]);"
+          new = "  }, [checkoutEnabled, pricing, selectedTier]);"
+          if old not in text and new not in text:
+              raise SystemExit('Expected UpgradePage dependency list not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit targeted repair
         run: |
           set -euo pipefail
-          git add backend/services/services/api/src edutu-web-app/src/components/UpgradePage.tsx
+          git add edutu-web-app/src/components/UpgradePage.tsx
           if git diff --cached --quiet; then
-            echo "Formatting already clean."
+            echo "Targeted repair already applied."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "style: repair inherited lint drift"
+          git commit -m "fix(web): include checkout state in pricing memo"
           git push origin HEAD:${{ github.head_ref }}
