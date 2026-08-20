@@ -29,3 +29,19 @@ Deno.test("normalizes a present webhook API key", () => {
     "present x-api-key should be trimmed before validation",
   );
 });
+
+Deno.test("checks the webhook key before creating the service-role client", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  const keyCheck = source.indexOf("requireWebhookApiKey(");
+  const clientCreation = source.indexOf("createClient(supabaseUrl, supabaseServiceKey)");
+
+  if (keyCheck < 0) {
+    throw new Error("index.ts must call requireWebhookApiKey");
+  }
+  if (clientCreation < 0) {
+    throw new Error("index.ts service-role client creation was not found");
+  }
+  if (keyCheck > clientCreation) {
+    throw new Error("webhook API key must be required before service-role client creation");
+  }
+});
