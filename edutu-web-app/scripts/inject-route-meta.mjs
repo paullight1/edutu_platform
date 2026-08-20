@@ -157,9 +157,7 @@ async function assertRoutingCoverage() {
   const routed = new Set(
     (config.rewrites ?? [])
       .filter(
-        (rule) =>
-          typeof rule.destination === "string" &&
-          rule.destination.endsWith("/index.html"),
+        (rule) => typeof rule.destination === "string" && rule.destination.endsWith("/index.html"),
       )
       .map((rule) => rule.source),
   );
