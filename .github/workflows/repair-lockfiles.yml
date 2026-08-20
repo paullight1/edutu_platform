@@ -1,4 +1,4 @@
-name: Repair hardening lockfiles
+name: Apply hardening formatting fixes
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  repair-lockfiles:
+  apply-hardening-fixes:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.head_ref == 'fix/production-hardening-p0-p1'
@@ -22,25 +22,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply non-breaking dependency repairs
+      - name: Format inherited backend lint drift
+        working-directory: backend/services/services/api
         run: |
           set -euo pipefail
-          (cd edutumobile && npm install --package-lock-only --ignore-scripts && npm audit fix --package-lock-only --ignore-scripts || true)
-          (cd backend/services/services/voice && npm install --package-lock-only --ignore-scripts && npm audit fix --package-lock-only --ignore-scripts || true)
-          (cd admin && npm audit fix --package-lock-only --ignore-scripts || true)
-          (cd edutu-web-app && npm audit fix --package-lock-only --ignore-scripts || true)
-      - name: Commit lockfile repairs
+          npm ci
+          npm run lint:fix
+      - name: Fix web hook dependency lint
+        working-directory: edutu-web-app
         run: |
           set -euo pipefail
-          git add edutumobile/package-lock.json \
-            backend/services/services/voice/package-lock.json \
-            admin/package-lock.json \
-            edutu-web-app/package-lock.json
+          npm ci
+          npx eslint src/components/UpgradePage.tsx --fix
+      - name: Commit formatting repairs
+        run: |
+          set -euo pipefail
+          git add backend/services/services/api/src edutu-web-app/src/components/UpgradePage.tsx
           if git diff --cached --quiet; then
-            echo "Lockfiles already contain all non-breaking repairs."
+            echo "Formatting already clean."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: apply non-breaking dependency repairs"
+          git commit -m "style: repair inherited lint drift"
           git push origin HEAD:${{ github.head_ref }}
