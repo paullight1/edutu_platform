@@ -34,6 +34,9 @@
 **/*.tmp.*
 **/*.tmp.*
 
+# Supabase CLI local cache (machine-specific)
+**/supabase/.temp/
+
 # Local Render env template — contains secrets, never commit
 render.backend.env
 .vercel

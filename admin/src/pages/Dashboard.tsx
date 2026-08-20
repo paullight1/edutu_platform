@@ -13,9 +13,12 @@ import {
   CheckCircle2,
   Download,
   Send,
+  AlertTriangle,
+  Lightbulb,
+  RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { backendFetchJson } from "../lib/backend";
 import {
   type AdminDashboardActivity,
@@ -148,6 +151,7 @@ function getActivityIcon(type: AdminDashboardActivity["type"]): LucideIcon {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState<AdminDashboardStats>({
     totalUsers: 0,
     activeOpportunities: 0,
@@ -161,6 +165,7 @@ const Dashboard = () => {
     [],
   );
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsageSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataBanner, setDataBanner] = useState<{ type: string; message: string } | null>(
@@ -172,6 +177,8 @@ const Dashboard = () => {
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
+    setDataBanner(null);
+    setHealthError(null);
     try {
       const [dashboardResult, healthResult, aiUsageResult] =
         await Promise.allSettled([
@@ -236,17 +243,7 @@ const Dashboard = () => {
               ? healthResult.reason.message
               : "Health check failed"
             : "Health check failed";
-        setDataBanner((current) =>
-          current
-            ? {
-                ...current,
-                message: `${current.message} Health: ${message}`,
-              }
-            : {
-                type: "warning",
-                message: `Dashboard loaded, but health check failed: ${message}`,
-              },
-        );
+        setHealthError(message);
       }
     } catch (error) {
       const message =
@@ -262,6 +259,7 @@ const Dashboard = () => {
       });
       setRecentActivity([]);
       setHealth(null);
+      setHealthError(null);
       setDataBanner({ type: "error", message });
     } finally {
       setLoading(false);
@@ -338,6 +336,41 @@ const Dashboard = () => {
     },
   ];
 
+  const dashboardTabs = [
+    { label: "Overview", path: "/" },
+    { label: "Opportunities", path: "/opportunities" },
+    { label: "Users", path: "/users" },
+    { label: "Submissions", path: "/submissions" },
+    { label: "AI engine", path: "/engine" },
+  ];
+
+  const insightItems = [
+    {
+      label: "Creator queue",
+      value: stats.pendingCreators.toLocaleString(),
+      description:
+        stats.pendingCreators > 0
+          ? "profiles need review"
+          : "nothing waiting for review",
+      icon: Users,
+      tone: "blue",
+    },
+    {
+      label: "Opportunity flow",
+      value: stats.newOpportunitiesThisWeek.toLocaleString(),
+      description: "new this week",
+      icon: Target,
+      tone: "green",
+    },
+    {
+      label: "AI signal",
+      value: aiUsage ? formatTokens(aiUsage.totals.totalTokens) : "—",
+      description: aiUsage ? "tokens in the last 30 days" : "tracking unavailable",
+      icon: Lightbulb,
+      tone: "orange",
+    },
+  ] as const;
+
   const healthMetrics: DashboardMetric[] = useMemo(() => {
     const databaseConnected = health?.database.status === "connected";
     const memoryPercent = health
@@ -393,7 +426,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
+      <div className="page-header dashboard-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <h1 className="page-title">Dashboard</h1>
@@ -412,7 +445,7 @@ const Dashboard = () => {
             Welcome back. Here&apos;s what is happening across the platform.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={18} />
             <span className="btn-label">Export</span>
@@ -426,42 +459,61 @@ const Dashboard = () => {
 
       {dataBanner && (
         <div
-          className="card"
-          style={{
-            padding: "16px 20px",
-            border: `1px solid ${
-              dataBanner.type === "error"
-                ? "#fca5a5"
-                : "#fcd34d"
-            }`,
-            background:
-              dataBanner.type === "error" ? "#fef2f2" : "#fffbeb",
-            color: "var(--text-primary)",
-          }}
+          className={`dashboard-alert dashboard-alert--${dataBanner.type}`}
+          role={dataBanner.type === "error" ? "alert" : "status"}
         >
-          {dataBanner.message}
+          <AlertTriangle size={18} aria-hidden="true" />
+          <span>{dataBanner.message}</span>
+        </div>
+      )}
+
+      {healthError && (
+        <div className="dashboard-alert dashboard-alert--warning" role="status">
+          <AlertTriangle size={18} aria-hidden="true" />
+          <span>
+            Health telemetry is unavailable: {healthError}
+          </span>
+          <button
+            type="button"
+            className="dashboard-alert-action"
+            onClick={() => void fetchDashboard()}
+            disabled={loading}
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Retry
+          </button>
         </div>
       )}
 
       {actionBanner && (
         <div
-          className="card"
-          style={{
-            padding: "16px 20px",
-            border: "1px solid #86efac",
-            background: "#f0fdf4",
-            color: "var(--text-primary)",
-          }}
+          className="dashboard-alert dashboard-alert--success"
+          role="status"
         >
-          {actionBanner.message}
+          <CheckCircle2 size={18} aria-hidden="true" />
+          <span>{actionBanner.message}</span>
         </div>
       )}
+
+      <nav className="dashboard-tabs" aria-label="Dashboard sections">
+        {dashboardTabs.map((tab) => (
+          <button
+            key={tab.path}
+            type="button"
+            className={`dashboard-tab ${location.pathname === tab.path ? "active" : ""}`}
+            aria-current={location.pathname === tab.path ? "page" : undefined}
+            onClick={() => navigate(tab.path)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
       <div className="stats-grid">
         {mainStats.map((stat, index) => (
           <div
             key={index}
-            className="card card-hover tooltip"
+            className="card card-hover tooltip dashboard-stat-card"
             title={stat.label}
             style={{
               padding: "24px",
@@ -472,7 +524,7 @@ const Dashboard = () => {
             }}
           >
             <div
-              className="stat-value"
+              className="stat-value dashboard-stat-value"
               style={{
                 fontSize: "32px",
                 marginBottom: "4px",
@@ -483,79 +535,75 @@ const Dashboard = () => {
             >
               {loading ? "-" : stat.value.toLocaleString()}
             </div>
-            <div style={{ fontWeight: 600, color: "#ffffff", marginBottom: "2px", fontSize: "15px" }}>
+            <div className="dashboard-stat-label">
               {stat.label}
             </div>
-            <div style={{ position: "absolute", top: "20px", right: "20px", opacity: 0.95 }}>
+            <div className="dashboard-stat-icon">
               <stat.icon size={28} strokeWidth={1.5} style={{ color: stat.iconColor }} />
             </div>
           </div>
         ))}
       </div>
 
+      <section className="dashboard-insights" aria-labelledby="dashboard-insights-title">
+        <div className="dashboard-insights-heading">
+          <div className="dashboard-section-kicker">
+            <Lightbulb size={15} aria-hidden="true" />
+            Operating cues
+          </div>
+          <h2 id="dashboard-insights-title">What needs your attention</h2>
+          <p>Small signals that help you decide what to do next.</p>
+        </div>
+        <div className="dashboard-insight-list">
+          {insightItems.map((item) => (
+            <div key={item.label} className={`dashboard-insight dashboard-insight--${item.tone}`}>
+              <span className="dashboard-insight-icon">
+                <item.icon size={17} aria-hidden="true" />
+              </span>
+              <div className="dashboard-insight-copy">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.description}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div>
-        <h3 style={{ marginBottom: "16px", fontSize: "19px", fontWeight: 600 }}>Quick Actions</h3>
-        <div className="grid grid-cols-4">
+        <div className="dashboard-section-heading">
+          <div>
+            <h2>Quick Actions</h2>
+            <p>Jump straight into the work that keeps Edutu moving.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 dashboard-actions-grid">
           {quickActions.map((action, index) => (
-            <div
+            <button
               key={index}
-              className="card card-hover tooltip"
+              type="button"
+              className="card card-hover tooltip dashboard-action-card"
               title={action.label}
               onClick={action.action}
-              style={{
-                padding: "24px",
-                cursor: "pointer",
-                position: "relative",
-                overflow: "hidden",
-                background: action.bgPattern,
-              }}
+              style={{ background: action.bgPattern }}
             >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "12px",
-                  background: action.color,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  marginBottom: "16px",
-                  boxShadow: `0 4px 16px ${action.color}40`,
-                }}
-              >
+              <div className="dashboard-action-icon" style={{ background: action.color, boxShadow: `0 4px 16px ${action.color}40` }}>
                 <action.icon size={22} strokeWidth={1.5} />
               </div>
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: "4px",
-                  fontSize: "16px",
-                }}
-              >
+              <div className="dashboard-action-label">
                 {action.label}
               </div>
-              <div style={{ fontSize: "14px", color: "var(--text-tertiary)" }}>
+              <div className="dashboard-action-description">
                 {action.desc}
               </div>
-              <ArrowRight
-                size={18}
-                style={{
-                  position: "absolute",
-                  bottom: "24px",
-                  right: "24px",
-                  color: "var(--text-tertiary)",
-                  opacity: 0.5,
-                }}
-              />
-            </div>
+              <ArrowRight size={18} className="dashboard-action-arrow" aria-hidden="true" />
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2">
-        <div className="card" style={{ overflow: "hidden" }}>
+      <div className="grid grid-cols-2 dashboard-lower-grid">
+        <div className="card dashboard-activity-card" style={{ overflow: "hidden" }}>
           <div
             style={{
               padding: "20px 24px",
@@ -628,21 +676,23 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="card" style={{ padding: "24px" }}>
+        <div className="card dashboard-health-card" style={{ padding: "24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start" }}>
             <div>
               <h3 style={{ margin: "0 0 8px 0", fontSize: "17px", fontWeight: 600 }}>
                 Platform Health
               </h3>
               <p style={{ margin: 0, color: "var(--text-tertiary)", fontSize: "14px" }}>
-                {health ? `Last refreshed ${formatTimeAgo(health.timestamp)}` : "Live server telemetry"}
-              </p>
+                {health
+                  ? `Last refreshed ${formatTimeAgo(health.timestamp)}`
+                  : "Live server telemetry unavailable"}
+            </p>
             </div>
-            {health && (
-              <span className={`badge ${health.status === "ok" ? "badge-success" : "badge-warning"}`}>
-                {health.status === "ok" ? "Healthy" : "Degraded"}
-              </span>
-            )}
+            <span
+              className={`badge ${health ? (health.status === "ok" ? "badge-success" : "badge-warning") : "badge-danger"}`}
+            >
+              {health ? (health.status === "ok" ? "Healthy" : "Degraded") : "Unavailable"}
+            </span>
           </div>
 
           <div style={{ marginTop: "20px", marginBottom: "18px", color: "var(--text-secondary)", fontSize: "14px" }}>
@@ -717,7 +767,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card dashboard-ai-card" style={{ overflow: "hidden" }}>
         <div
           style={{
             padding: "20px 24px",

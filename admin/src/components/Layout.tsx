@@ -124,6 +124,8 @@ const Layout = () => {
     (e) => e.kind === "group" && e.id === openGroup,
   ) as Extract<NavEntry, { kind: "group" }> | undefined;
   const railMode = openGroup !== null;
+  const mobileTitle =
+    activeGroup?.label || (location.pathname === "/" ? "Overview" : "Admin console");
 
   const closeAfterNav = () => {
     setIsMobileMenuOpen(false);
@@ -134,6 +136,7 @@ const Layout = () => {
     <div className="app-container">
       {/* Sidebar */}
       <aside
+        id="admin-sidebar"
         className={`sidebar ${isSidebarCollapsed || railMode ? "collapsed" : ""} ${railMode ? "rail" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}
       >
         {/* Sidebar Header with Logo and Collapse Toggle */}
@@ -351,16 +354,43 @@ const Layout = () => {
         </div>
       )}
 
-      {/* Main Content — no top header; content gets the full height */}
+      {/* Main Content — desktop uses the side rail; mobile gets a compact top bar. */}
       <div className="main-content">
-        {/* Floating menu button (mobile only) since the top header is removed */}
-        <button
-          className="mobile-menu-btn floating"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        <header className="mobile-topbar">
+          <button
+            type="button"
+            className="mobile-menu-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="admin-sidebar"
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+          <div className="mobile-topbar-brand">
+            <img src="/logo.png" alt="" aria-hidden="true" />
+            <div>
+              <strong>Edutu Admin</strong>
+              <span>{mobileTitle}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="mobile-theme-btn"
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </header>
+        {isMobileMenuOpen && (
+          <button
+            type="button"
+            className="mobile-drawer-scrim"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close navigation"
+          />
+        )}
 
         <main className="page-content animate-fade-in">
           <Outlet />
@@ -403,6 +433,61 @@ const Layout = () => {
           background: var(--bg-secondary);
           color: var(--text-secondary);
           border-radius: 10px;
+          cursor: pointer;
+        }
+
+        .mobile-topbar,
+        .mobile-drawer-scrim {
+          display: none;
+        }
+
+        .mobile-topbar-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .mobile-topbar-brand img {
+          width: 30px;
+          height: 30px;
+          object-fit: contain;
+          flex-shrink: 0;
+        }
+
+        .mobile-topbar-brand div {
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          gap: 1px;
+        }
+
+        .mobile-topbar-brand strong {
+          color: var(--text-primary);
+          font-size: 13px;
+          line-height: 1.2;
+        }
+
+        .mobile-topbar-brand span {
+          overflow: hidden;
+          color: var(--text-tertiary);
+          font-size: 11px;
+          line-height: 1.2;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .mobile-theme-btn {
+          display: flex;
+          width: 36px;
+          height: 36px;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          border: 1px solid var(--border-light);
+          border-radius: 10px;
+          background: var(--bg-tertiary);
+          color: var(--text-secondary);
           cursor: pointer;
         }
 
@@ -661,6 +746,43 @@ const Layout = () => {
 
         /* Mobile Responsive */
         @media (max-width: 768px) {
+          .mobile-topbar {
+            position: fixed;
+            z-index: 45;
+            top: 0;
+            right: 0;
+            left: 0;
+            display: flex;
+            min-height: 60px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+          }
+
+          .mobile-topbar .mobile-menu-btn {
+            display: flex !important;
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+          }
+
+          .mobile-drawer-scrim {
+            position: fixed;
+            z-index: 48;
+            inset: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: rgba(15, 23, 42, 0.38);
+            cursor: pointer;
+          }
+
           .sidebar {
             transform: translateX(-100%);
             width: 280px; /* Slightly wider side panel */
@@ -693,7 +815,7 @@ const Layout = () => {
 
           /* Clear space for the floating menu button now that there's no header. */
           .page-content {
-            padding-top: 64px;
+            padding: 76px 16px 24px !important;
           }
         }
 
@@ -897,6 +1019,23 @@ const Layout = () => {
           .sidebar.rail .nav-label {
             opacity: 1;
             width: auto;
+          }
+
+          .sidebar.mobile-open .logo-container img {
+            width: 36px;
+            opacity: 1;
+          }
+
+          .sidebar.mobile-open .logo-text {
+            display: block;
+            width: auto;
+            opacity: 1;
+          }
+
+          .sidebar.mobile-open .profile-info {
+            display: flex;
+            width: auto;
+            opacity: 1;
           }
           .sidebar.mobile-open .nav-parent .nav-caret {
             opacity: 0.55;
