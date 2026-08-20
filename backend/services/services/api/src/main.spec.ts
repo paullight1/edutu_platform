@@ -11,6 +11,7 @@ describe("production environment validation", () => {
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
       CLERK_SECRET_KEY: "sk_live_clerk",
+      CLERK_ISSUER_URL: "https://clerk.example.com",
       API_KEY_PEPPER: "0123456789abcdef",
       BACHS_CHECKOUT_ENABLED: "false",
       LEGACY_PAYSTACK_WEBHOOK_ENABLED: "false",
