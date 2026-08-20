@@ -10,7 +10,7 @@ type CatalogSort = "newest" | "deadline";
 type CatalogCursor = {
   v: 1;
   sort: CatalogSort;
-  value: string;
+  value: string | null;
   id: string;
 };
 
@@ -20,7 +20,7 @@ export type OpportunityCatalogPage = {
   hasMore: boolean;
 };
 
-function encodeCursor(cursor: CatalogCursor): string {
+export function encodeCatalogCursor(cursor: CatalogCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
@@ -33,11 +33,14 @@ export function decodeCatalogCursor(
     const parsed = JSON.parse(
       Buffer.from(value, "base64url").toString("utf8"),
     ) as Partial<CatalogCursor>;
+    const validCursorValue =
+      expectedSort === "deadline"
+        ? parsed.value === null || typeof parsed.value === "string"
+        : typeof parsed.value === "string" && parsed.value.length > 0;
     if (
       parsed.v !== 1 ||
       parsed.sort !== expectedSort ||
-      typeof parsed.value !== "string" ||
-      parsed.value.length === 0 ||
+      !validCursorValue ||
       typeof parsed.id !== "string" ||
       parsed.id.length === 0
     ) {
@@ -73,10 +76,13 @@ export class OpportunityCatalogService {
 
     const cursorPredicate = cursor
       ? sort === "deadline"
-        ? sql`and (
-            o.close_date > ${cursor.value}::date
-            or (o.close_date = ${cursor.value}::date and o.id > ${cursor.id}::uuid)
-          )`
+        ? cursor.value === null
+          ? sql`and o.close_date is null and o.id > ${cursor.id}::uuid`
+          : sql`and (
+              o.close_date > ${cursor.value}::date
+              or o.close_date is null
+              or (o.close_date = ${cursor.value}::date and o.id > ${cursor.id}::uuid)
+            )`
         : sql`and (
             o.created_at < ${cursor.value}::timestamptz
             or (o.created_at = ${cursor.value}::timestamptz and o.id < ${cursor.id}::uuid)
@@ -127,9 +133,11 @@ export class OpportunityCatalogService {
     if (hasMore && last) {
       const cursorValue =
         sort === "deadline"
-          ? String(last.close_date ?? "9999-12-31")
+          ? last.close_date === null || last.close_date === undefined
+            ? null
+            : String(last.close_date)
           : new Date(last.created_at).toISOString();
-      nextCursor = encodeCursor({
+      nextCursor = encodeCatalogCursor({
         v: 1,
         sort,
         value: cursorValue,
