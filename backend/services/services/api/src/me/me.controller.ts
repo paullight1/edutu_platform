@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from "@nestjs/common";
@@ -78,7 +79,7 @@ export class MeController {
   @Get("applications/:id/history")
   listApplicationHistory(
     @CurrentUser("id") userId: string,
-    @Param("id") applicationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
   ) {
     return this.applicationHistory.list(userId, applicationId);
   }
@@ -86,7 +87,7 @@ export class MeController {
   @Post("applications/:id/reflections")
   addApplicationReflection(
     @CurrentUser("id") userId: string,
-    @Param("id") applicationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
     @Body(new ZodValidationPipe(AddApplicationReflectionSchema))
     body: AddApplicationReflectionDto,
   ) {
@@ -100,7 +101,7 @@ export class MeController {
   @Patch("applications/:id")
   updateApplication(
     @CurrentUser("id") userId: string,
-    @Param("id") applicationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
     @Body(new ZodValidationPipe(UpdateApplicationSchema))
     body: UpdateApplicationDto,
   ) {
@@ -110,7 +111,7 @@ export class MeController {
   @Delete("applications/:id")
   deleteApplication(
     @CurrentUser("id") userId: string,
-    @Param("id") applicationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
   ) {
     return this.meService.deleteApplication(userId, applicationId);
   }
