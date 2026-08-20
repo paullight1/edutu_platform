@@ -15,14 +15,18 @@ describe("mentor proof validation", () => {
         Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       ),
     ).toEqual({ extension: "png", contentType: "image/png" });
-    expect(detectMentorProofType(Buffer.from([0xff, 0xd8, 0xff, 0xdb]))).toEqual({
+    expect(
+      detectMentorProofType(Buffer.from([0xff, 0xd8, 0xff, 0xdb])),
+    ).toEqual({
       extension: "jpg",
       contentType: "image/jpeg",
     });
   });
 
   it("rejects executable/text content even when a client could label it as an image", () => {
-    expect(detectMentorProofType(Buffer.from("<script>alert(1)</script>"))).toBeNull();
+    expect(
+      detectMentorProofType(Buffer.from("<script>alert(1)</script>")),
+    ).toBeNull();
   });
 
   it("rejects missing files before storage access", async () => {
