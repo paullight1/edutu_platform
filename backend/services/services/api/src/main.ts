@@ -5,6 +5,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import WebSocket from "ws";
 import { AppModule } from "./app.module";
 import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
+import { requestIdMiddleware } from "./common/request-id.middleware";
 import { createScraperEgressBodyLimitMiddleware } from "./scraper/scraper-egress-body-limit.middleware";
 
 if (typeof globalThis.WebSocket === "undefined") {
@@ -116,6 +117,7 @@ export async function bootstrap() {
   });
 
   app.use(helmet());
+  app.use(requestIdMiddleware);
   app.use("/internal/scraper-egress", createScraperEgressBodyLimitMiddleware());
   app.useBodyParser("json", { limit: "1mb" });
   app.useBodyParser("urlencoded", { extended: true, limit: "1mb" });
