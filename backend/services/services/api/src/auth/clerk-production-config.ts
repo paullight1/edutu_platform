@@ -47,7 +47,10 @@ export function assertProductionClerkIssuerLock(
     env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
     env.VITE_CLERK_PUBLISHABLE_KEY ||
     env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  if (publishableKey?.startsWith("pk_test_") && env.CLERK_ALLOW_TEST_INSTANCE !== "true") {
+  if (
+    publishableKey?.startsWith("pk_test_") &&
+    env.CLERK_ALLOW_TEST_INSTANCE !== "true"
+  ) {
     throw new Error(
       "Production must not trust a Clerk test instance. Configure a live issuer/key, or set CLERK_ALLOW_TEST_INSTANCE=true only for an explicitly isolated non-production environment.",
     );
