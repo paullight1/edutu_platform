@@ -35,7 +35,9 @@ export class ApplicationHistoryService {
       .order("created_at", { ascending: true });
 
     if (error) {
-      throw new ServiceUnavailableException("Could not load application history");
+      throw new ServiceUnavailableException(
+        "Could not load application history",
+      );
     }
     return data ?? [];
   }
@@ -69,7 +71,9 @@ export class ApplicationHistoryService {
       .single();
 
     if (error) {
-      throw new ServiceUnavailableException("Could not save application reflection");
+      throw new ServiceUnavailableException(
+        "Could not save application reflection",
+      );
     }
     return data;
   }
@@ -83,7 +87,9 @@ export class ApplicationHistoryService {
       .maybeSingle();
 
     if (error) {
-      throw new ServiceUnavailableException("Could not verify application ownership");
+      throw new ServiceUnavailableException(
+        "Could not verify application ownership",
+      );
     }
     if (!data) {
       throw new NotFoundException("Application not found");
@@ -93,7 +99,9 @@ export class ApplicationHistoryService {
 
   private get client(): SupabaseClient {
     if (!this.supabase) {
-      throw new ServiceUnavailableException("Application storage is unavailable");
+      throw new ServiceUnavailableException(
+        "Application storage is unavailable",
+      );
     }
     return this.supabase;
   }
