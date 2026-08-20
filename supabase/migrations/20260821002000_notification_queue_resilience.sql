@@ -31,6 +31,15 @@ begin
 end
 $$;
 
+-- The original queue constraint predates immediate-send audit rows (`sent`)
+-- and the new terminal dead-letter state. Keep status validation strict while
+-- making the actual application states explicit.
+alter table public.notification_queue
+  drop constraint if exists notification_queue_status_check;
+alter table public.notification_queue
+  add constraint notification_queue_status_check
+  check (status in ('pending', 'processing', 'completed', 'failed', 'sent', 'dead_letter'));
+
 create index if not exists notification_queue_pending_schedule_idx
   on public.notification_queue (scheduled_for, id)
   where status = 'pending';
