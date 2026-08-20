@@ -1,8 +1,13 @@
-import { normalizeRequestId, requestIdMiddleware } from "./request-id.middleware";
+import {
+  normalizeRequestId,
+  requestIdMiddleware,
+} from "./request-id.middleware";
 
 describe("requestIdMiddleware", () => {
   it("preserves a valid caller request id and exposes it on the response", () => {
-    const request = { headers: { "x-request-id": "client-request-123" } } as any;
+    const request = {
+      headers: { "x-request-id": "client-request-123" },
+    } as any;
     const response = { setHeader: jest.fn() } as any;
     const next = jest.fn();
 
