@@ -1,16 +1,16 @@
 name: PR 51 scoped autofix
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/production-hardening-p0-p1
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply-fixes:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.number == 51 && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -132,23 +132,16 @@ jobs:
     );
     const webAuth = source(\"../../../../edutu-web-app/src/lib/auth.ts\");
 
-    // Clerk webhook runs with the service role, so it may initialize a new row
-    // explicitly. ignoreDuplicates keeps an existing balance untouched.
     expect(mobileWebhook).toMatch(
       /credits:\\s*0[\\s\\S]*?ignoreDuplicates:\\s*true/,
     );
 
-    // The mobile editor is an authenticated client. Its upsert payload must
-    // never mention the protected credits column; the schema default handles
-    // first-row creation and a normal conflict update writes safe fields only.
     const mobileUpsert = mobileEdit.match(
       /\\.upsert\\(\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\\{\\s*onConflict:\\s*['\"]user_id['\"]\\s*\\}\\s*\\)/,
     );
     expect(mobileUpsert).not.toBeNull();
     expect(mobileUpsert?.[1]).not.toMatch(/\\bcredits\\s*:/);
 
-    // Web self-service writes are built from explicit allowlists. Keep credits
-    // out of both insert and update column lists even as profile fields evolve.
     const insertColumns = webAuth.match(
       /const SELF_SERVICE_PROFILE_INSERT_COLUMNS = \\[([\\s\\S]*?)\\] as const;/,
     );
