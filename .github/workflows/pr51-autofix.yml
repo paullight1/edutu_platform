@@ -1,0 +1,182 @@
+name: PR 51 scoped autofix
+
+on:
+  push:
+    branches:
+      - fix/production-hardening-p0-p1
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fixes:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/production-hardening-p0-p1
+          fetch-depth: 0
+
+      - name: Apply verified corrective patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected snippet not found in {path}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_exact(
+              "edutumobile/app/(app)/paywall.tsx",
+              "  const canUpgrade = planTier === 'none' || planTier === 'lite';",
+              "  // planTier is canonical. isPro is a backwards-compatible fallback for\\n"
+              "  // older/mocked status providers that have not supplied planTier yet.\\n"
+              "  const canUpgrade = planTier == null\\n"
+              "    ? !isPro\\n"
+              "    : planTier === 'none' || planTier === 'lite';",
+          )
+
+          replace_exact(
+              "edutumobile/app/(app)/profile/edit.tsx",
+              """            // Persist straight to Supabase, keyed by the raw Clerk id. RLS
+            // authorizes the write (current_app_user_id() = user_id) and it
+            // lands on the row the rest of the app reads — no dependence on the
+            // product API, which was rejecting the mobile token (401 → the old
+            // \"silent not-saving\" bug).
+            const { error: createError } = await supabase
+                .from('profiles')
+                .upsert(
+                    {
+                        user_id: user.id,
+                        credits: 0,
+                    },
+                    { onConflict: 'user_id', ignoreDuplicates: true },
+                );
+
+            if (createError) throw createError;
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: toNullable(profile.full_name),
+                    country: toNullable(profile.country),
+                    school: toNullable(profile.school),
+                    major: toNullable(profile.major),
+                    cgpa: cgpaValue,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', user.id);
+
+            if (error) throw error;
+""",
+              """            // Persist only self-service profile fields. The database owns
+            // protected account state (credits, role, Pro/subscription flags).
+            // On first insert credits receives its schema default of 0; on
+            // conflict this upsert cannot reset an existing balance because the
+            // protected column is absent from the payload. UPDATE(user_id) is
+            // grant-safe and RLS still pins the row to the current Clerk user.
+            const { error } = await supabase
+                .from('profiles')
+                .upsert(
+                    {
+                        user_id: user.id,
+                        full_name: toNullable(profile.full_name),
+                        country: toNullable(profile.country),
+                        school: toNullable(profile.school),
+                        major: toNullable(profile.major),
+                        cgpa: cgpaValue,
+                        updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: 'user_id' },
+                );
+
+            if (error) throw error;
+""",
+          )
+
+          replace_exact(
+              "backend/services/services/api/src/profile/profile-creation.contract.spec.ts",
+              """  it(\"covers mobile and web profile bootstraps without resetting balances\", () => {
+    const mobileWebhook = source(
+      \"../../../../edutumobile/supabase/functions/clerk-webhook/index.ts\",
+    );
+    const mobileEdit = source(
+      \"../../../../edutumobile/app/(app)/profile/edit.tsx\",
+    );
+    const webAuth = source(\"../../../../edutu-web-app/src/lib/auth.ts\");
+
+    for (const profilePath of [mobileWebhook, mobileEdit, webAuth]) {
+      expect(profilePath).toMatch(/credits:\\s*0/);
+      expect(profilePath).toMatch(/ignoreDuplicates:\\s*true/);
+      expect(profilePath).toMatch(/\\.update\\(/);
+    }
+  });
+""",
+              """  it(\"keeps trusted bootstrap explicit while client profile writes stay credit-free\", () => {
+    const mobileWebhook = source(
+      \"../../../../edutumobile/supabase/functions/clerk-webhook/index.ts\",
+    );
+    const mobileEdit = source(
+      \"../../../../edutumobile/app/(app)/profile/edit.tsx\",
+    );
+    const webAuth = source(\"../../../../edutu-web-app/src/lib/auth.ts\");
+
+    // Clerk webhook runs with the service role, so it may initialize a new row
+    // explicitly. ignoreDuplicates keeps an existing balance untouched.
+    expect(mobileWebhook).toMatch(
+      /credits:\\s*0[\\s\\S]*?ignoreDuplicates:\\s*true/,
+    );
+
+    // The mobile editor is an authenticated client. Its upsert payload must
+    // never mention the protected credits column; the schema default handles
+    // first-row creation and a normal conflict update writes safe fields only.
+    const mobileUpsert = mobileEdit.match(
+      /\\.upsert\\(\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\\{\\s*onConflict:\\s*['\"]user_id['\"]\\s*\\}\\s*\\)/,
+    );
+    expect(mobileUpsert).not.toBeNull();
+    expect(mobileUpsert?.[1]).not.toMatch(/\\bcredits\\s*:/);
+
+    // Web self-service writes are built from explicit allowlists. Keep credits
+    // out of both insert and update column lists even as profile fields evolve.
+    for (const constantName of [
+      \"SELF_SERVICE_PROFILE_INSERT_COLUMNS\",
+      \"SELF_SERVICE_PROFILE_UPDATE_COLUMNS\",
+    ]) {
+      const columns = webAuth.match(
+        new RegExp(`const ${constantName} = \\[([\\\\s\\\\S]*?)\\\\] as const;`),
+      );
+      expect(columns).not.toBeNull();
+      expect(columns?.[1]).not.toMatch(/[\"']credits[\"']/);
+    }
+    expect(webAuth).toMatch(/buildSelfServiceProfileInsert\\(profile\\)/);
+    expect(webAuth).toMatch(/buildSelfServiceProfileUpdate\\(profile\\)/);
+  });
+""",
+          )
+
+          # Static safety assertions before committing.
+          mobile_edit = Path("edutumobile/app/(app)/profile/edit.tsx").read_text()
+          assert "user_id: user.id,\n                        credits: 0" not in mobile_edit
+          assert "{ onConflict: 'user_id' }" in mobile_edit
+          paywall = Path("edutumobile/app/(app)/paywall.tsx").read_text()
+          assert "planTier == null" in paywall and "? !isPro" in paywall
+          PY
+
+      - name: Commit corrective patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            'edutumobile/app/(app)/paywall.tsx' \
+            'edutumobile/app/(app)/profile/edit.tsx' \
+            'backend/services/services/api/src/profile/profile-creation.contract.spec.ts'
+          git diff --cached --check
+          git commit -m "fix(ci): align profile and paywall hardening contracts"
+          git push origin HEAD:fix/production-hardening-p0-p1
