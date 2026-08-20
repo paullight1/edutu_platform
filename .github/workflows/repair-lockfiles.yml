@@ -13,7 +13,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.head_ref == 'fix/production-hardening-p0-p1'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,11 +22,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Synchronize generated lockfiles
+      - name: Apply non-breaking dependency repairs
         run: |
           set -euo pipefail
-          (cd edutumobile && npm install --package-lock-only --ignore-scripts)
-          (cd backend/services/services/voice && npm install --package-lock-only --ignore-scripts)
+          (cd edutumobile && npm install --package-lock-only --ignore-scripts && npm audit fix --package-lock-only --ignore-scripts || true)
+          (cd backend/services/services/voice && npm install --package-lock-only --ignore-scripts && npm audit fix --package-lock-only --ignore-scripts || true)
           (cd admin && npm audit fix --package-lock-only --ignore-scripts || true)
           (cd edutu-web-app && npm audit fix --package-lock-only --ignore-scripts || true)
       - name: Commit lockfile repairs
@@ -37,10 +37,10 @@ jobs:
             admin/package-lock.json \
             edutu-web-app/package-lock.json
           if git diff --cached --quiet; then
-            echo "Lockfiles already synchronized."
+            echo "Lockfiles already contain all non-breaking repairs."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: synchronize dependency lockfiles"
+          git commit -m "chore: apply non-breaking dependency repairs"
           git push origin HEAD:${{ github.head_ref }}
