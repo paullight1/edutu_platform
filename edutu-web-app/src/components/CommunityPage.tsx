@@ -5,7 +5,7 @@ import {
   CalendarClock,
   HeartHandshake,
   LockKeyhole,
-  MessageCircleMore,
+  MessageCircle,
   Mic2,
   ShieldCheck,
   Sparkles,
@@ -72,7 +72,7 @@ const CommunityPage: React.FC = () => {
           <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[
               {
-                icon: MessageCircleMore,
+                icon: MessageCircle,
                 title: 'Focused conversations',
                 body: 'Discuss deadlines, application questions and preparation in the context of the opportunity you are pursuing.',
               },
