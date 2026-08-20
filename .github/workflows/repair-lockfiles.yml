@@ -1,0 +1,46 @@
+name: Repair hardening lockfiles
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair-lockfiles:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'fix/production-hardening-p0-p1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Synchronize generated lockfiles
+        run: |
+          set -euo pipefail
+          (cd edutumobile && npm install --package-lock-only --ignore-scripts)
+          (cd backend/services/services/voice && npm install --package-lock-only --ignore-scripts)
+          (cd admin && npm audit fix --package-lock-only --ignore-scripts || true)
+          (cd edutu-web-app && npm audit fix --package-lock-only --ignore-scripts || true)
+      - name: Commit lockfile repairs
+        run: |
+          set -euo pipefail
+          git add edutumobile/package-lock.json \
+            backend/services/services/voice/package-lock.json \
+            admin/package-lock.json \
+            edutu-web-app/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfiles already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: synchronize dependency lockfiles"
+          git push origin HEAD:${{ github.head_ref }}
