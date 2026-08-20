@@ -6,6 +6,7 @@ import { db } from "../db";
 import { opportunities, userProfileEmbeddings } from "../db/schema";
 import { AiService } from "../ai";
 import { TtlCache } from "../common/cache/ttl-cache";
+import { allowsExternalProfileEmbedding } from "./profile-data-sharing.util";
 
 export const EMBEDDING_DIMENSIONS = 768;
 
@@ -69,6 +70,13 @@ export class OpportunityEmbeddingService {
     hash: string;
     embedding: number[];
   }>(PROFILE_EMBEDDING_CACHE_TTL_MS, 500);
+  // Avoid issuing the same delete query on every recommendation request after
+  // a user opts out. This is only a local purge memo; consent itself is always
+  // read from the current profile before any profile text/memory is accessed.
+  private readonly profileOptOutPurgeCache = new TtlCache<boolean>(
+    PROFILE_EMBEDDING_CACHE_TTL_MS,
+    500,
+  );
 
   constructor(private readonly aiService: AiService) {}
 
@@ -204,6 +212,36 @@ export class OpportunityEmbeddingService {
     preferences: PreferencesLike,
   ): Promise<number[] | null> {
     try {
+      // Privacy is checked before reading AI memories, rendering profile text,
+      // consulting an existing vector, or calling the external provider. The
+      // default is no external profile sharing until the user explicitly opts
+      // in through Member Settings.
+      if (!allowsExternalProfileEmbedding(profile)) {
+        this.profileEmbeddingCache.delete(userId);
+
+        if (!this.profileOptOutPurgeCache.get(userId)) {
+          try {
+            await db
+              .delete(userProfileEmbeddings)
+              .where(eq(userProfileEmbeddings.userId, userId))
+              .execute();
+            this.profileOptOutPurgeCache.set(userId, true);
+          } catch (error) {
+            // Purge failure must never become permission to reuse or recreate a
+            // semantic vector. Keep returning null and retry the purge later.
+            this.logger.warn(
+              `Profile embedding purge failed for ${userId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
+
+        return null;
+      }
+
+      this.profileOptOutPurgeCache.delete(userId);
+
       // Chat-learned interests/dislikes enrich the embedding text so what the
       // coach learns moves recommendations everywhere. Hashing the combined
       // text keeps the stored-vector invalidation contract: new memory →
@@ -321,6 +359,7 @@ export class OpportunityEmbeddingService {
    */
   refreshProfileEmbedding(userId: string): void {
     this.profileEmbeddingCache.delete(userId);
+    this.profileOptOutPurgeCache.delete(userId);
     void (async () => {
       try {
         // Profiles are keyed by the raw auth subject; dual-key so this warms
