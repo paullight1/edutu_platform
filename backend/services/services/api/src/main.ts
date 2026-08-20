@@ -4,6 +4,7 @@ import helmet from "helmet";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import WebSocket from "ws";
 import { AppModule } from "./app.module";
+import { assertProductionClerkIssuerLock } from "./auth/clerk-production-config";
 import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
 import { requestIdMiddleware } from "./common/request-id.middleware";
 import { createScraperEgressBodyLimitMiddleware } from "./scraper/scraper-egress-body-limit.middleware";
@@ -73,6 +74,11 @@ export function validateEnvironment(): void {
       );
     }
 
+    // A valid secret alone can verify a signature, but production must also
+    // know exactly which Clerk instance is trusted. This blocks accidentally
+    // deploying with development-tenant identity configuration.
+    assertProductionClerkIssuerLock();
+
     const pepper = process.env.API_KEY_PEPPER?.trim() || "";
     if (pepper.length < 16) {
       throw new Error(
@@ -86,8 +92,6 @@ export function validateEnvironment(): void {
       );
     }
 
-    // The provider loader validates every required Bachs field and the
-    // environment-specific API origin when checkout is enabled.
     loadBachsConfig();
 
     const legacyPaystackEnabled =
@@ -108,9 +112,6 @@ export function validateEnvironment(): void {
 export async function bootstrap() {
   validateEnvironment();
 
-  // bodyParser: false + useBodyParser keeps the raw-body capture (needed for
-  // Paystack webhook signature checks) while still enforcing size limits.
-  // A plain express json() middleware here would run first and drop rawBody.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     bodyParser: false,
