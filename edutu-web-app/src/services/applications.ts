@@ -35,6 +35,18 @@ export interface ApplicationRecord {
   notes: string | null;
 }
 
+export interface ApplicationHistoryRecord {
+  id: string;
+  application_id: string;
+  event_type: 'created' | 'status_change' | 'reflection' | 'note' | 'interview';
+  previous_status: ApplicationStatus | null;
+  next_status: ApplicationStatus | null;
+  note: string | null;
+  metadata: Record<string, unknown>;
+  actor_user_id: string;
+  created_at: string;
+}
+
 type ProductApplicationStatus = DatabaseApplicationStatus;
 
 type ApiApplicationRecord = Partial<ApplicationRecord> & {
@@ -91,8 +103,6 @@ function toAppStatus(status: string): ApplicationStatus {
 }
 
 function toProductStatus(status: ApplicationStatus): ProductApplicationStatus {
-  // App and product statuses are now identical, so this is a pass-through
-  // that also keeps the type contract explicit.
   return status;
 }
 
@@ -204,6 +214,35 @@ export async function updateApplicationStatus(
     }
   );
   return mapApiApplication(response, '');
+}
+
+export async function getApplicationHistory(
+  id: string,
+  token?: string | null,
+): Promise<ApplicationHistoryRecord[]> {
+  if (!hasToken(token)) return [];
+  return productApiRequest<ApplicationHistoryRecord[]>(
+    `/me/applications/${encodeURIComponent(id)}/history`,
+    token,
+  );
+}
+
+export async function addApplicationReflection(
+  id: string,
+  reflection: string,
+  token?: string | null,
+): Promise<ApplicationHistoryRecord> {
+  if (!hasToken(token)) {
+    throw new Error('A signed-in session is required to save a reflection.');
+  }
+  return productApiRequest<ApplicationHistoryRecord>(
+    `/me/applications/${encodeURIComponent(id)}/reflections`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reflection }),
+    },
+  );
 }
 
 /**
