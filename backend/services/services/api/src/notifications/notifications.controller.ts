@@ -13,7 +13,7 @@ import {
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AdminGuard } from "../auth/admin.guard";
 import { Public } from "../auth/public.decorator";
-import { NotificationsService } from "./notifications.service";
+import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
   BroadcastNotificationSchema,
   NotificationPreferencesSchema,
@@ -22,11 +22,15 @@ import {
   type NotificationPreferencesDto,
   type RegisterPushTokenDto,
 } from "./dto/notification.dto";
-import { ZodValidationPipe } from "../common/zod-validation.pipe";
+import { NotificationQueueOperationsService } from "./notification-queue-operations.service";
+import { NotificationsService } from "./notifications.service";
 
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly queueOperations: NotificationQueueOperationsService,
+  ) {}
 
   @Get()
   list(
@@ -130,6 +134,12 @@ export class NotificationsController {
   @UseGuards(AdminGuard)
   queue(@Query("limit") limit?: number) {
     return this.notificationsService.listQueue(limit);
+  }
+
+  @Get("admin/queue/health")
+  @UseGuards(AdminGuard)
+  queueHealth() {
+    return this.queueOperations.getHealth();
   }
 
   @Post("admin/process-due")
