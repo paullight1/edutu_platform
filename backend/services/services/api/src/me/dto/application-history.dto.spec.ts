@@ -3,7 +3,9 @@ import { AddApplicationReflectionSchema } from "./application-history.dto";
 describe("AddApplicationReflectionSchema", () => {
   it("accepts a trimmed reflection", () => {
     expect(
-      AddApplicationReflectionSchema.parse({ reflection: "  Improve evidence  " }),
+      AddApplicationReflectionSchema.parse({
+        reflection: "  Improve evidence  ",
+      }),
     ).toEqual({ reflection: "Improve evidence" });
   });
 
