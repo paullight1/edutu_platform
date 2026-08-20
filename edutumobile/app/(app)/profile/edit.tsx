@@ -134,34 +134,26 @@ export default function EditProfileScreen() {
             const cgpaValue =
                 parsedCgpa != null && !Number.isNaN(parsedCgpa) ? parsedCgpa : null;
 
-            // Persist straight to Supabase, keyed by the raw Clerk id. RLS
-            // authorizes the write (current_app_user_id() = user_id) and it
-            // lands on the row the rest of the app reads — no dependence on the
-            // product API, which was rejecting the mobile token (401 → the old
-            // "silent not-saving" bug).
-            const { error: createError } = await supabase
+            // Persist only self-service profile fields. The database owns
+            // protected account state (credits, role, Pro/subscription flags).
+            // On first insert credits receives its schema default of 0; on
+            // conflict this upsert cannot reset an existing balance because the
+            // protected column is absent from the payload. UPDATE(user_id) is
+            // grant-safe and RLS still pins the row to the current Clerk user.
+            const { error } = await supabase
                 .from('profiles')
                 .upsert(
                     {
                         user_id: user.id,
-                        credits: 0,
+                        full_name: toNullable(profile.full_name),
+                        country: toNullable(profile.country),
+                        school: toNullable(profile.school),
+                        major: toNullable(profile.major),
+                        cgpa: cgpaValue,
+                        updated_at: new Date().toISOString(),
                     },
-                    { onConflict: 'user_id', ignoreDuplicates: true },
+                    { onConflict: 'user_id' },
                 );
-
-            if (createError) throw createError;
-
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    full_name: toNullable(profile.full_name),
-                    country: toNullable(profile.country),
-                    school: toNullable(profile.school),
-                    major: toNullable(profile.major),
-                    cgpa: cgpaValue,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('user_id', user.id);
 
             if (error) throw error;
             cacheProfileName(user.id, profile.full_name);

@@ -41,7 +41,7 @@ describe("profile creation credit contract", () => {
     );
   });
 
-  it("covers mobile and web profile bootstraps without resetting balances", () => {
+  it("keeps trusted bootstrap explicit while client profile writes stay credit-free", () => {
     const mobileWebhook = source(
       "../../../../edutumobile/supabase/functions/clerk-webhook/index.ts",
     );
@@ -50,11 +50,28 @@ describe("profile creation credit contract", () => {
     );
     const webAuth = source("../../../../edutu-web-app/src/lib/auth.ts");
 
-    for (const profilePath of [mobileWebhook, mobileEdit, webAuth]) {
-      expect(profilePath).toMatch(/credits:\s*0/);
-      expect(profilePath).toMatch(/ignoreDuplicates:\s*true/);
-      expect(profilePath).toMatch(/\.update\(/);
-    }
+    expect(mobileWebhook).toMatch(
+      /credits:\s*0[\s\S]*?ignoreDuplicates:\s*true/,
+    );
+
+    const mobileUpsert = mobileEdit.match(
+      /\.upsert\(\s*\{([\s\S]*?)\}\s*,\s*\{\s*onConflict:\s*['"]user_id['"]\s*\}\s*\)/,
+    );
+    expect(mobileUpsert).not.toBeNull();
+    expect(mobileUpsert?.[1]).not.toMatch(/\bcredits\s*:/);
+
+    const insertColumns = webAuth.match(
+      /const SELF_SERVICE_PROFILE_INSERT_COLUMNS = \[([\s\S]*?)\] as const;/,
+    );
+    const updateColumns = webAuth.match(
+      /const SELF_SERVICE_PROFILE_UPDATE_COLUMNS = \[([\s\S]*?)\] as const;/,
+    );
+    expect(insertColumns).not.toBeNull();
+    expect(updateColumns).not.toBeNull();
+    expect(insertColumns?.[1]).not.toMatch(/["']credits["']/);
+    expect(updateColumns?.[1]).not.toMatch(/["']credits["']/);
+    expect(webAuth).toMatch(/buildSelfServiceProfileInsert\(profile\)/);
+    expect(webAuth).toMatch(/buildSelfServiceProfileUpdate\(profile\)/);
   });
 
   it("makes the mobile auth trigger and seed rows explicit zero-credit paths", () => {
