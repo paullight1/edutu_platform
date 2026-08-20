@@ -25,21 +25,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          def replace_exact(path: str, old: str, new: str) -> None:
+          def replace_exact(path: str, old: str, new: str, marker: str) -> None:
               p = Path(path)
               text = p.read_text()
-              if old not in text:
-                  raise SystemExit(f"expected snippet not found in {path}")
-              p.write_text(text.replace(old, new, 1))
+              if old in text:
+                  p.write_text(text.replace(old, new, 1))
+                  return
+              if marker in text:
+                  return
+              raise SystemExit(f"expected original or patched marker not found in {path}")
 
           replace_exact(
               "edutumobile/app/(app)/paywall.tsx",
               "  const canUpgrade = planTier === 'none' || planTier === 'lite';",
-              "  // planTier is canonical. isPro is a backwards-compatible fallback for\\n"
-              "  // older/mocked status providers that have not supplied planTier yet.\\n"
-              "  const canUpgrade = planTier == null\\n"
-              "    ? !isPro\\n"
-              "    : planTier === 'none' || planTier === 'lite';",
+              """  // planTier is canonical. isPro is a backwards-compatible fallback for
+  // older/mocked status providers that have not supplied planTier yet.
+  const canUpgrade = planTier == null
+    ? !isPro
+    : planTier === 'none' || planTier === 'lite';""",
+              "const canUpgrade = planTier == null",
           )
 
           replace_exact(
@@ -98,6 +102,7 @@ jobs:
 
             if (error) throw error;
 """,
+              "Persist only self-service profile fields",
           )
 
           replace_exact(
@@ -144,28 +149,30 @@ jobs:
 
     // Web self-service writes are built from explicit allowlists. Keep credits
     // out of both insert and update column lists even as profile fields evolve.
-    for (const constantName of [
-      \"SELF_SERVICE_PROFILE_INSERT_COLUMNS\",
-      \"SELF_SERVICE_PROFILE_UPDATE_COLUMNS\",
-    ]) {
-      const columns = webAuth.match(
-        new RegExp(`const ${constantName} = \\[([\\\\s\\\\S]*?)\\\\] as const;`),
-      );
-      expect(columns).not.toBeNull();
-      expect(columns?.[1]).not.toMatch(/[\"']credits[\"']/);
-    }
+    const insertColumns = webAuth.match(
+      /const SELF_SERVICE_PROFILE_INSERT_COLUMNS = \\[([\\s\\S]*?)\\] as const;/,
+    );
+    const updateColumns = webAuth.match(
+      /const SELF_SERVICE_PROFILE_UPDATE_COLUMNS = \\[([\\s\\S]*?)\\] as const;/,
+    );
+    expect(insertColumns).not.toBeNull();
+    expect(updateColumns).not.toBeNull();
+    expect(insertColumns?.[1]).not.toMatch(/[\"']credits[\"']/);
+    expect(updateColumns?.[1]).not.toMatch(/[\"']credits[\"']/);
     expect(webAuth).toMatch(/buildSelfServiceProfileInsert\\(profile\\)/);
     expect(webAuth).toMatch(/buildSelfServiceProfileUpdate\\(profile\\)/);
   });
 """,
+              "keeps trusted bootstrap explicit while client profile writes stay credit-free",
           )
 
-          # Static safety assertions before committing.
           mobile_edit = Path("edutumobile/app/(app)/profile/edit.tsx").read_text()
           assert "user_id: user.id,\n                        credits: 0" not in mobile_edit
           assert "{ onConflict: 'user_id' }" in mobile_edit
           paywall = Path("edutumobile/app/(app)/paywall.tsx").read_text()
           assert "planTier == null" in paywall and "? !isPro" in paywall
+          contract = Path("backend/services/services/api/src/profile/profile-creation.contract.spec.ts").read_text()
+          assert "client profile writes stay credit-free" in contract
           PY
 
       - name: Commit corrective patch
@@ -178,5 +185,9 @@ jobs:
             'edutumobile/app/(app)/profile/edit.tsx' \
             'backend/services/services/api/src/profile/profile-creation.contract.spec.ts'
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Corrective patch already applied."
+            exit 0
+          fi
           git commit -m "fix(ci): align profile and paywall hardening contracts"
           git push origin HEAD:fix/production-hardening-p0-p1
