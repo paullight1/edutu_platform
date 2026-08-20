@@ -1,13 +1,11 @@
 {
   "services": {
     "frontend": {
-      "entrypoint": "edutu-web-app",
-      "routePrefix": "/",
+      "root": "edutu-web-app",
       "framework": "vite"
     },
     "admin": {
-      "entrypoint": "admin",
-      "routePrefix": "/admin",
+      "root": "admin",
       "framework": "vite"
     }
   },
@@ -107,6 +105,20 @@
     {
       "source": "/share/opportunity/:id",
       "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": {
+        "service": "admin",
+        "path": "/:path*"
+      }
+    },
+    {
+      "source": "/:path*",
+      "destination": {
+        "service": "frontend",
+        "path": "/:path*"
+      }
     }
   ]
 }
