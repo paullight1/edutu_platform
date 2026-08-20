@@ -12,6 +12,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  edge-function-security:
+    name: Edge Function Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno test backend/services/services/api/supabase/functions/n8n-webhook/auth.test.ts
+
   voice-gateway:
     name: Voice Gateway
     runs-on: ubuntu-latest
