@@ -53,12 +53,17 @@ export function decodeCatalogCursor(
 }
 
 function escapeLike(term: string): string {
-  return term.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
+  return term
+    .replaceAll("\\", "\\\\")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_");
 }
 
 @Injectable()
 export class OpportunityCatalogService {
-  async list(query: OpportunityCatalogQueryDto): Promise<OpportunityCatalogPage> {
+  async list(
+    query: OpportunityCatalogQueryDto,
+  ): Promise<OpportunityCatalogPage> {
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 60);
     const sort = query.sort ?? "newest";
     const cursor = decodeCatalogCursor(query.cursor, sort);
@@ -146,9 +151,7 @@ export class OpportunityCatalogService {
     }
 
     return {
-      items: pageRows.map((row) =>
-        withOpportunityUrlAliases(row as Record<string, any>),
-      ),
+      items: pageRows.map((row) => withOpportunityUrlAliases(row)),
       nextCursor,
       hasMore,
     };
