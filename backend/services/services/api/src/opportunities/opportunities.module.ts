@@ -14,7 +14,11 @@ import { SavedSearchesModule } from "../saved-searches/saved-searches.module";
 
 @Module({
   imports: [AiModule, SavedSearchesModule],
-  controllers: [OpportunitiesController, OpportunityCatalogController, OgController],
+  controllers: [
+    OpportunitiesController,
+    OpportunityCatalogController,
+    OgController,
+  ],
   providers: [
     OpportunitiesService,
     OpportunityCatalogService,
