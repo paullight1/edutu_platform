@@ -469,6 +469,33 @@ function App() {
     return () => window.clearTimeout(warmup);
   }, []);
 
+  // Prefetch the auth journey's lazy chunks at idle. Without this, a signed-out
+  // visitor waits for a chunk download when they open /auth, and again for the
+  // Dashboard chunk right after they authenticate — two sequential network
+  // stalls that read as "sign-up is slow". Warming them ahead of time makes both
+  // transitions paint instantly. Runs only when signed out; idle-scheduled so it
+  // never competes with the current screen's render.
+  useEffect(() => {
+    if (isSignedIn) return;
+    const prefetch = () => {
+      void import("./components/AuthScreen").catch(() => {});
+      void import("./components/Dashboard").catch(() => {});
+    };
+    const ric = (
+      window as unknown as { requestIdleCallback?: (cb: () => void) => number }
+    ).requestIdleCallback;
+    if (typeof ric === "function") {
+      const id = ric(prefetch);
+      return () => {
+        (
+          window as unknown as { cancelIdleCallback?: (id: number) => void }
+        ).cancelIdleCallback?.(id);
+      };
+    }
+    const timer = window.setTimeout(prefetch, 800);
+    return () => window.clearTimeout(timer);
+  }, [isSignedIn]);
+
   // Route native deep links / notification taps (Capacitor appUrlOpen) into
   // the SPA. No-op on web — initializeCapacitor returns early off-native.
   useEffect(() => {
