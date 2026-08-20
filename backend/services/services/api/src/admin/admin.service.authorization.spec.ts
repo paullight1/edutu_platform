@@ -1,7 +1,7 @@
-import { ForbiddenException } from '@nestjs/common';
-import { AdminService } from './admin.service';
+import { ForbiddenException } from "@nestjs/common";
+import { AdminService } from "./admin.service";
 
-describe('AdminService destructive authorization', () => {
+describe("AdminService destructive authorization", () => {
   const createInvitation = jest.fn();
   const clerkClient = {
     invitations: { createInvitation },
@@ -12,7 +12,7 @@ describe('AdminService destructive authorization', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.ADMIN_EMAILS = 'owner@edutu.org';
+    process.env.ADMIN_EMAILS = "owner@edutu.org";
     service = new AdminService(clerkClient, auditService);
   });
 
@@ -20,8 +20,8 @@ describe('AdminService destructive authorization', () => {
     delete process.env.ADMIN_EMAILS;
   });
 
-  it.each(['admin', 'moderator', 'support_agent'])(
-    'does not allow %s to invite or assign platform users',
+  it.each(["admin", "moderator", "support_agent"])(
+    "does not allow %s to invite or assign platform users",
     async (role) => {
       const actor = {
         id: `actor-${role}`,
@@ -31,8 +31,8 @@ describe('AdminService destructive authorization', () => {
 
       await expect(
         service.inviteUser(actor, {
-          email: 'new-user@example.test',
-          role: 'user',
+          email: "new-user@example.test",
+          role: "user",
           notify: false,
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -42,8 +42,8 @@ describe('AdminService destructive authorization', () => {
     },
   );
 
-  it.each(['admin', 'moderator', 'support_agent'])(
-    'does not allow %s to change another user role',
+  it.each(["admin", "moderator", "support_agent"])(
+    "does not allow %s to change another user role",
     async (role) => {
       const actor = {
         id: `actor-${role}`,
@@ -52,7 +52,7 @@ describe('AdminService destructive authorization', () => {
       };
 
       await expect(
-        service.updateUserRole(actor, 'target-user', { role: 'admin' }),
+        service.updateUserRole(actor, "target-user", { role: "admin" }),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       expect(auditService.log).not.toHaveBeenCalled();
