@@ -1,14 +1,10 @@
 /**
  * Thin public projection for opportunities served to anonymous/learner routes.
  *
- * The paid API (`/v1`) returns a rich normalized DTO including a `trust` block
- * (verification status, quality score, last-verified) and full source tracking.
- * The public learner feed intentionally drops those internal/paid-value fields
- * so the catalog cannot be harvested for free at parity with the paid product,
- * while keeping every field the learner UI renders.
- *
- * Operates by denylist (removes known-internal keys in both snake_case and
- * camelCase forms) so it never accidentally drops a field the UI depends on.
+ * The paid API (`/v1`) still owns the richer internal trust/source model. The
+ * learner experience receives only the evidence needed to decide whether an
+ * opportunity is safe to act on. Internal scores, provider ids, verification
+ * errors/attempts and scheduling details remain private.
  */
 const INTERNAL_FIELDS = [
   "original_json",
@@ -55,6 +51,57 @@ const INTERNAL_FIELDS = [
 
 export type PublicOpportunity = Record<string, unknown>;
 
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function sourceDomain(row: Record<string, unknown>): string | null {
+  const candidates = [
+    row.source_url,
+    row.sourceUrl,
+    row.canonical_url,
+    row.canonicalUrl,
+    row.application_url,
+    row.applicationUrl,
+    row.apply_url,
+    row.applyUrl,
+  ];
+  for (const value of candidates) {
+    const candidate = asNonEmptyString(value);
+    if (!candidate) continue;
+    try {
+      return new URL(candidate).hostname.replace(/^www\./, "").toLowerCase();
+    } catch {
+      // Ignore malformed source strings; absence is safer than invented trust.
+    }
+  }
+  return null;
+}
+
+function buildLearnerTrust(row: Record<string, unknown>) {
+  const metadata = row.metadata as Record<string, unknown> | null | undefined;
+  const verificationStatus =
+    asNonEmptyString(row.verification_status) ??
+    asNonEmptyString(row.verificationStatus) ??
+    "unverified";
+  const lastVerifiedAt =
+    asNonEmptyString(row.last_verified_at) ??
+    asNonEmptyString(row.lastVerifiedAt);
+  const deadlineConfidence = asNonEmptyString(metadata?.deadline_confidence);
+  const verificationMethod = asNonEmptyString(metadata?.verification_method);
+  const domain = sourceDomain(row);
+
+  return {
+    verificationStatus,
+    lastVerifiedAt,
+    deadlineConfidence,
+    verificationMethod,
+    sourceDomain: domain,
+  };
+}
+
 export function stripInternalOpportunityFields(
   row: Record<string, unknown>,
 ): PublicOpportunity {
@@ -63,15 +110,13 @@ export function stripInternalOpportunityFields(
     if ((INTERNAL_FIELDS as readonly string[]).includes(key)) continue;
     cleaned[key] = value;
   }
-  // Hoist the scraper-recorded original image URL out of the (stripped)
-  // metadata so web clients keep their image fallback.
+
   const metadata = row.metadata as Record<string, unknown> | null | undefined;
   const sourceImageUrl = metadata?.source_image_url;
   if (typeof sourceImageUrl === "string" && sourceImageUrl.length > 0) {
     cleaned.source_image_url = sourceImageUrl;
   }
-  // Hoist the generated share card too: clients use it for share sheets and
-  // as the image fallback when the scraper found no unique source image.
+
   const shareCard = metadata?.share_card as
     | Record<string, unknown>
     | null
@@ -84,6 +129,8 @@ export function stripInternalOpportunityFields(
   ) {
     cleaned.share_image_url = shareCardUrl;
   }
+
+  cleaned.trust = buildLearnerTrust(row);
   return cleaned;
 }
 
