@@ -31,7 +31,8 @@
       "<rootDir>/__tests__"
     ],
     "setupFilesAfterEnv": [
-      "<rootDir>/jest.setup.ts"
+      "<rootDir>/jest.setup.ts",
+      "<rootDir>/test-utils/networkGuard.ts"
     ],
     "modulePaths": [
       "<rootDir>/node_modules"
