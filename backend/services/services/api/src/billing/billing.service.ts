@@ -222,7 +222,9 @@ export class BillingService {
             ? [profileResult.data]
             : [];
         profile =
-          profiles.find((item) => item.user_id === userId) ?? profiles[0] ?? null;
+          profiles.find((item) => item.user_id === userId) ??
+          profiles[0] ??
+          null;
       }
 
       if (!entitlementResult.error) {
@@ -234,8 +236,8 @@ export class BillingService {
 
       if (!subscriptionResult.error) {
         activeSubscription = Array.isArray(subscriptionResult.data)
-          ? subscriptionResult.data[0] ?? null
-          : subscriptionResult.data ?? null;
+          ? (subscriptionResult.data[0] ?? null)
+          : (subscriptionResult.data ?? null);
       }
 
       if (!transactionResult.error) {

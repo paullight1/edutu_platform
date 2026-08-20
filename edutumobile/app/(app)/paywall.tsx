@@ -539,7 +539,11 @@ export default function PaywallScreen() {
   // Lite has premium access but can still upgrade to Pro or Scholar. Full Pro
   // and Scholar users should see their active state instead of another plan
   // purchase surface.
-  const canUpgrade = planTier === 'none' || planTier === 'lite';
+  // planTier is canonical. isPro is a backwards-compatible fallback for
+  // older/mocked status providers that have not supplied planTier yet.
+  const canUpgrade = planTier == null
+    ? !isPro
+    : planTier === 'none' || planTier === 'lite';
 
   if (proLoading) {
     return (
