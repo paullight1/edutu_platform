@@ -26,7 +26,7 @@ describe("ApplicationHistoryService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("scopes timeline queries to both application and caller user id", async () => {
+  it("scopes timeline queries to both application and caller database user id", async () => {
     const service = new ApplicationHistoryService();
     const ownership = createQuery({
       data: { id: "app-1", status: "submitted", user_id: "user_12345678" },
@@ -50,6 +50,9 @@ describe("ApplicationHistoryService", () => {
       "application_id",
       "11111111-1111-4111-8111-111111111111",
     );
-    expect(history.eq).toHaveBeenCalledWith("user_id", "user_12345678");
+    expect(history.eq).toHaveBeenCalledWith(
+      "user_id",
+      "5f6199f7-4ed4-463b-a49c-3d1d6cd7aa07",
+    );
   });
 });
