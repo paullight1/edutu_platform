@@ -39,10 +39,7 @@ describe("ApplicationHistoryService", () => {
       .mockReturnValueOnce(history);
     Object.defineProperty(service, "supabase", { value: { from } });
 
-    await service.list(
-      "user_12345678",
-      "11111111-1111-4111-8111-111111111111",
-    );
+    await service.list("user_12345678", "11111111-1111-4111-8111-111111111111");
 
     expect(from).toHaveBeenNthCalledWith(1, "opportunity_applications");
     expect(from).toHaveBeenNthCalledWith(2, "application_history");
