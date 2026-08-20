@@ -143,9 +143,7 @@ export class BillingCheckoutService {
     private readonly config: CheckoutServiceConfig,
   ) {}
 
-  async getPublicApiCreditCatalog(
-    userId: string,
-  ): Promise<
+  async getPublicApiCreditCatalog(userId: string): Promise<
     Array<{
       productKey: string;
       creditQuantity: number;
@@ -188,7 +186,8 @@ export class BillingCheckoutService {
     this.assertProduct(product, request.productKey);
 
     if (isApiCreditProductKey(product.productKey)) {
-      const isDeveloper = await this.repository.hasActiveApiConsumer(rawAuthSubject);
+      const isDeveloper =
+        await this.repository.hasActiveApiConsumer(rawAuthSubject);
       if (!isDeveloper) {
         throw new ForbiddenException(
           "API credits are available only to developer API accounts.",

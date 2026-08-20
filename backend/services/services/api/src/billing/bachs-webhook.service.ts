@@ -323,7 +323,10 @@ export class BachsWebhookService {
       isApiCredit &&
       snapshot.fulfillmentKind === "credits" &&
       snapshot.renewalMode === "one_time" &&
-      snapshotQuantity === API_CREDIT_PRODUCT_QUANTITIES[snapshotProductKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES] &&
+      snapshotQuantity ===
+        API_CREDIT_PRODUCT_QUANTITIES[
+          snapshotProductKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES
+        ] &&
       snapshotValidity === null;
     const validOneTimeSubscription =
       isOneTimeSubscription &&
