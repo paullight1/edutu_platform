@@ -10,7 +10,9 @@ function publishable(prefix: "test" | "live", host: string): string {
 describe("production Clerk issuer configuration", () => {
   it("resolves an explicit HTTPS issuer", () => {
     expect(
-      resolveConfiguredClerkIssuer({ CLERK_ISSUER_URL: "https://clerk.example.com/" }),
+      resolveConfiguredClerkIssuer({
+        CLERK_ISSUER_URL: "https://clerk.example.com/",
+      }),
     ).toBe("https://clerk.example.com");
   });
 
