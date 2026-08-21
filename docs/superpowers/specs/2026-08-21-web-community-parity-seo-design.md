@@ -96,7 +96,7 @@ No direct Supabase writes are introduced. Mutations continue through the backend
 | `/community` | Public community landing/discovery | index |
 | `/community/groups/:slug` | Public summary of one active public group | index |
 
-`/community/groups/:slug` must never render private messages or authenticated member data. It is a safe summary page with group name, description, category/context, member count when available, activity/state labels, and a join/open CTA.
+`/community/groups/:slug` must never render private messages or authenticated member data. It is a safe summary page with group name, description, category/context, member count when available, deadline/activity cues, and a join/open CTA.
 
 ### 5.2 Authenticated routes
 
@@ -142,7 +142,9 @@ The current authenticated `communities/groups` API is not suitable for crawlers.
 - `GET /public/communities/groups?limit=...`
 - `GET /public/communities/groups/:slug`
 
-Only groups with `visibility === "public"` may be returned. The projection contains only fields safe for anonymous display:
+The public list and detail endpoints return **only groups that are public, not archived, and not past `expiresAt`**. Private, unlisted, archived, expired, and missing groups are omitted from the list and return 404 from the detail endpoint.
+
+The projection contains only fields safe for anonymous display:
 
 ```ts
 interface PublicCommunityGroupSummary {
@@ -155,14 +157,11 @@ interface PublicCommunityGroupSummary {
   messageCount: number;
   opportunityId: string | null;
   expiresAt: string | null;
-  archivedAt: string | null;
   createdAt: string;
 }
 ```
 
 It must not expose owner IDs, membership rows, member identities, invitation data, join answers, messages, signed storage URLs, or moderation fields.
-
-Archived groups may be viewable as historical summaries only if product rules permit it, but they must be `noindex`. Private and unlisted groups return 404 from the public endpoint.
 
 ### 6.3 Dynamic group title/meta
 
@@ -176,7 +175,7 @@ Archived groups may be viewable as historical summaries only if product rules pe
 
 Because the app is a Vite SPA, dynamic group metadata must follow the existing Netlify edge-meta pattern used by opportunity pages. Add a focused community-group edge function rather than relying solely on client-side `document.title` changes.
 
-The public group page should emit a minimal `BreadcrumbList` plus a `CollectionPage`/`WebPage` JSON-LD representation. It must not model private chat messages as public `DiscussionForumPosting` content.
+The public group page emits a minimal `BreadcrumbList` plus a `CollectionPage`/`WebPage` JSON-LD representation. It must not model private chat messages as public `DiscussionForumPosting` content.
 
 ## 7. Authenticated information architecture
 
@@ -228,7 +227,7 @@ Web improvement over mobile:
 The Groups view separates relationship states:
 
 - **Active groups** — actual joined rooms;
-- **Invitations** — explicit accept/decline/enter-preview affordance as supported by backend behavior;
+- **Invitations** — accept through the existing join route; decline by using the existing self-removal membership route so the invitation becomes `removed`;
 - **Pending requests** — waiting state, not “joined”;
 - removed/banned semantics remain governed by backend and are not presented as retryable membership.
 
@@ -486,12 +485,12 @@ Cover:
 - group list/detail parsing;
 - preserved backend error message + status;
 - join outcomes (`active`, `pending`);
-- invitation acceptance;
+- invitation acceptance and decline;
 - message keyset pagination forwarding both cursor fields;
 - attachment serialization/origin checks;
 - block/report/delete requests;
 - DM list/detail/hide behavior;
-- public projection refusing private/unlisted groups.
+- public projection refusing private/unlisted/archived/expired groups.
 
 ### 14.2 Component/route tests
 
@@ -516,7 +515,7 @@ Cover:
 - public group slug extraction;
 - HTML metadata escaping;
 - title/description fallback;
-- private/unlisted/missing group response does not inject indexable metadata;
+- private/unlisted/archived/expired/missing group response does not inject indexable metadata;
 - canonical URL uses the normalized slug;
 - `/community` metadata remains static and accurate.
 
@@ -570,7 +569,7 @@ The work is complete when all of the following are true:
 - Existing web community calls remain the only call implementation and are reachable from groups.
 - `/community` remains public and has accurate, search-oriented metadata.
 - active public groups can have indexable `/community/groups/:slug` summary pages with dynamic SEO titles/descriptions.
-- private/unlisted/authenticated community data is not indexed or leaked by public metadata endpoints.
+- private/unlisted/archived/expired/authenticated community data is not indexed or leaked by public metadata endpoints.
 - hard-coded unsupported community metrics/claims are removed or connected to a trustworthy source.
 - keyboard, screen-reader, reduced-motion and responsive checks pass for the touched surfaces.
 - targeted tests, web typecheck/lint/build, and backend community tests pass, or any genuinely external blocker is explicitly evidenced.
