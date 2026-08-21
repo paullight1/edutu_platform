@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { communityGroups } from "../db/schema";
@@ -28,6 +28,8 @@ export interface PublicCommunityStore {
   findCandidateBySlug(slug: string): Promise<PublicCommunityCandidate | null>;
 }
 
+export const PUBLIC_COMMUNITY_STORE = Symbol("PUBLIC_COMMUNITY_STORE");
+export const PUBLIC_COMMUNITY_NOW = Symbol("PUBLIC_COMMUNITY_NOW");
 const PUBLIC_LIST_LIMIT = 50;
 
 function safeSelection() {
@@ -113,10 +115,16 @@ export function projectPublicCommunityGroup(
 
 @Injectable()
 export class PublicCommunityService {
+  private readonly store: PublicCommunityStore;
+  private readonly now: () => Date;
+
   constructor(
-    private readonly store: PublicCommunityStore = new DrizzlePublicCommunityStore(),
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+    @Optional() @Inject(PUBLIC_COMMUNITY_STORE) store?: PublicCommunityStore,
+    @Optional() @Inject(PUBLIC_COMMUNITY_NOW) now?: () => Date,
+  ) {
+    this.store = store ?? new DrizzlePublicCommunityStore();
+    this.now = now ?? (() => new Date());
+  }
 
   async list(limit = 20): Promise<PublicCommunityGroupSummary[]> {
     const resolvedLimit = Math.max(
