@@ -1,15 +1,16 @@
 import { Module } from "@nestjs/common";
-import { ScraperController } from "./scraper.controller";
-import { ScraperService } from "./scraper.service";
-import { ScraperAlertsService } from "./scraper-alerts.service";
-import { OpportunityDedupService } from "./opportunity-dedup.service";
-import { RobotsChecker } from "./robots-checker";
 import { AiModule } from "../ai";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
-import { ScraperEgressController } from "./scraper-egress.controller";
-import { ScraperEgressService } from "./scraper-egress.service";
-import { ScraperEgressLimiter } from "./scraper-egress.limiter";
+import { OpportunityDedupService } from "./opportunity-dedup.service";
+import { RobotsChecker } from "./robots-checker";
+import { ScraperAlertsService } from "./scraper-alerts.service";
+import { ScraperController } from "./scraper.controller";
 import { loadScraperEgressConfig } from "./scraper-egress.config";
+import { ScraperEgressController } from "./scraper-egress.controller";
+import { ScraperEgressLimiter } from "./scraper-egress.limiter";
+import { ScraperEgressService } from "./scraper-egress.service";
+import { ScraperService } from "./scraper.service";
+import { ScraperSourceAdminService } from "./scraper-source-admin.service";
 
 @Module({
   imports: [AiModule, OpportunitiesModule],
@@ -32,6 +33,10 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
       ) => new ScraperEgressService(config, { limiter }),
       inject: ["SCRAPER_EGRESS_CONFIG", ScraperEgressLimiter],
     },
+    {
+      provide: ScraperSourceAdminService,
+      useValue: ScraperSourceAdminService.fromEnvironment(),
+    },
     ScraperService,
     ScraperAlertsService,
     RobotsChecker,
@@ -39,6 +44,7 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
   ],
   exports: [
     ScraperService,
+    ScraperSourceAdminService,
     ScraperAlertsService,
     RobotsChecker,
     OpportunityDedupService,
