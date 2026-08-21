@@ -28,7 +28,10 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function compactText(value: string | null | undefined, maxChars: number): string {
+function compactText(
+  value: string | null | undefined,
+  maxChars: number,
+): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
 }
