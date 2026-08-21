@@ -27,9 +27,7 @@ describe("CreatorService marketplace listing persistence", () => {
       from: () => selectChain,
       where: () => selectChain,
       execute: () =>
-        Promise.resolve([
-          { creatorStatus: "approved", mentorStatus: "none" },
-        ]),
+        Promise.resolve([{ creatorStatus: "approved", mentorStatus: "none" }]),
     };
     mockedDb.select.mockReturnValue(selectChain);
 
