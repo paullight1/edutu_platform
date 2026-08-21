@@ -11,7 +11,6 @@ import {
   profiles,
   marketplaceListings,
   marketplaceEnrollments,
-  transactions,
   roadmaps,
 } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -20,6 +19,12 @@ import type { CreatorApplicationDto } from "./dto/creator.dto";
 import { toDatabaseUserId } from "../common/user-id";
 import { isApprovedMentor, deriveMentorStatus } from "../common/mentor-access";
 import { computeMentorStats } from "./mentor-stats";
+import {
+  marketplaceEarningsTotalQuery,
+  marketplaceLedgerEntryQuery,
+  marketplaceLedgerHistoryQuery,
+  rowsFromExecution,
+} from "./marketplace-credit-ledger";
 
 const PLATFORM_FEE_PERCENT = 15; // Platform takes 15%, creator keeps 85%
 
@@ -312,6 +317,8 @@ export class CreatorService {
   // ─── Creator Dashboard ────────────────────────────────────────────────────
 
   async getCreatorDashboard(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
+
     // Guard: approved creators OR approved mentors
     const [profile] = await db
       .select()
@@ -325,7 +332,7 @@ export class CreatorService {
     const myListings = await db
       .select()
       .from(marketplaceListings)
-      .where(eq(marketplaceListings.sellerId, userId))
+      .where(eq(marketplaceListings.sellerId, dbUserId))
       .orderBy(desc(marketplaceListings.createdAt))
       .execute();
 
@@ -338,36 +345,21 @@ export class CreatorService {
       (l) => l.status === "active",
     ).length;
 
-    // True lifetime earnings (the old code summed only the last 20 rows).
-    const [earningsTotalRow] = await db
-      .select({
-        total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.userId, userId),
-          eq(transactions.type, "creator_earning"),
-        ),
-      )
-      .execute();
-    const totalEarnings = Number(earningsTotalRow?.total ?? 0);
+    const earningsTotalResult = await db.execute(
+      marketplaceEarningsTotalQuery(dbUserId),
+    );
+    const totalEarnings = Number(
+      rowsFromExecution<{ total: number | string }>(earningsTotalResult)[0]
+        ?.total ?? 0,
+    );
 
-    const recentEarnings = await db
-      .select()
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.userId, userId),
-          eq(transactions.type, "creator_earning"),
-        ),
-      )
-      .orderBy(desc(transactions.createdAt))
-      .limit(20)
-      .execute();
+    const recentEarningsResult = await db.execute(
+      marketplaceLedgerHistoryQuery(dbUserId, 20, "creator_earning"),
+    );
+    const recentEarnings =
+      rowsFromExecution<Record<string, unknown>>(recentEarningsResult);
 
     // Roadmap aggregates — roadmaps are keyed by the derived uuid.
-    const dbUserId = toDatabaseUserId(userId);
     const myRoadmaps = await db
       .select()
       .from(roadmaps)
@@ -433,11 +425,12 @@ export class CreatorService {
     }
 
     const price = payload.price ?? 0;
+    const dbUserId = toDatabaseUserId(userId);
 
     const [listing] = await db
       .insert(marketplaceListings)
       .values({
-        sellerId: userId,
+        sellerId: dbUserId,
         title: payload.title,
         description: payload.description,
         category: payload.category,
@@ -462,6 +455,8 @@ export class CreatorService {
   // ─── Enroll / Purchase ────────────────────────────────────────────────────
 
   async enrollInListing(userId: string, listingId: string) {
+    const dbUserId = toDatabaseUserId(userId);
+
     return db.transaction(async (tx) => {
       // Lock the listing first. This serializes capacity checks and protects the
       // denormalized enrollment counter from concurrent purchases.
@@ -486,7 +481,7 @@ export class CreatorService {
         .from(marketplaceEnrollments)
         .where(
           and(
-            eq(marketplaceEnrollments.userId, userId),
+            eq(marketplaceEnrollments.userId, dbUserId),
             eq(marketplaceEnrollments.listingId, listingId),
           ),
         )
@@ -511,7 +506,7 @@ export class CreatorService {
       const [userProfile] = await tx
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, userId))
+        .where(this.userMatch(profiles.userId, dbUserId))
         .limit(1)
         .execute();
       if (!userProfile) throw new NotFoundException("User profile not found");
@@ -529,7 +524,7 @@ export class CreatorService {
         [sellerProfile] = await tx
           .select()
           .from(profiles)
-          .where(eq(profiles.userId, listing.sellerId))
+          .where(this.userMatch(profiles.userId, String(listing.sellerId)))
           .limit(1)
           .execute();
         creatorCut = Math.floor((price * (100 - PLATFORM_FEE_PERCENT)) / 100);
@@ -540,20 +535,22 @@ export class CreatorService {
             creditsBalance: (userProfile.creditsBalance ?? 0) - price,
             updatedAt: new Date(),
           })
-          .where(eq(profiles.userId, userId))
+          .where(this.userMatch(profiles.userId, dbUserId))
           .execute();
 
-        await tx
-          .insert(transactions)
-          .values({
-            userId,
+        await tx.execute(
+          marketplaceLedgerEntryQuery({
+            userId: dbUserId,
             amount: -price,
             type: "marketplace_purchase",
-            status: "completed",
-            referenceId: listingId,
+            listingId,
             description: `Purchased: ${listing.title}`,
-          })
-          .execute();
+            metadata: {
+              sellerId: String(listing.sellerId),
+              grossCredits: price,
+            },
+          }),
+        );
 
         if (sellerProfile) {
           await tx
@@ -562,27 +559,30 @@ export class CreatorService {
               creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
               updatedAt: new Date(),
             })
-            .where(eq(profiles.userId, listing.sellerId))
+            .where(this.userMatch(profiles.userId, String(listing.sellerId)))
             .execute();
 
-          await tx
-            .insert(transactions)
-            .values({
-              userId: listing.sellerId,
+          await tx.execute(
+            marketplaceLedgerEntryQuery({
+              userId: String(listing.sellerId),
               amount: creatorCut,
               type: "creator_earning",
-              status: "completed",
-              referenceId: listingId,
+              listingId,
               description: `Earning from: ${listing.title}`,
-            })
-            .execute();
+              metadata: {
+                buyerUserId: dbUserId,
+                grossCredits: price,
+                platformFeePercent: PLATFORM_FEE_PERCENT,
+              },
+            }),
+          );
         }
       }
 
       const [enrollment] = await tx
         .insert(marketplaceEnrollments)
         .values({
-          userId,
+          userId: dbUserId,
           listingId,
           status: "active",
           creditsSpent: price,
@@ -606,18 +606,17 @@ export class CreatorService {
   // ─── Wallet ────────────────────────────────────────────────────────────────
 
   async getWallet(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .execute();
-    const txHistory = await db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.userId, userId))
-      .orderBy(desc(transactions.createdAt))
-      .limit(30)
-      .execute();
+    const txHistoryResult = await db.execute(
+      marketplaceLedgerHistoryQuery(dbUserId, 30),
+    );
+    const txHistory =
+      rowsFromExecution<Record<string, unknown>>(txHistoryResult);
 
     return {
       balance: profile?.creditsBalance ?? 0,
