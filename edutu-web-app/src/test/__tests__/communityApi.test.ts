@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as communityApiModule from "../../features/community/api";
 import { CommunityApi, CommunityApiError } from "../../features/community/api";
 import { fetchPublicGroups } from "../../features/community/publicApi";
 
@@ -71,5 +72,66 @@ describe("Community browser API", () => {
     expect(url).toBe("https://api.edutu.test/public/communities/groups?limit=12");
     const headers = new Headers(options.headers);
     expect(headers.has("Authorization")).toBe(false);
+  });
+
+  it("reserves community attachments through the backend and uploads only to the signed HTTPS URL", async () => {
+    const reservation = {
+      uploadUrl: "https://storage.edutu.test/signed-upload",
+      resourceUrl:
+        "https://api.edutu.test/communities/groups/group-1/attachments/download-url?path=groups%2Fgroup-1%2Ffile.png&signature=signed",
+      storagePath: "groups/group-1/file.png",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(reservation), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new CommunityApi(async () => "token");
+    const attachmentApi = api as unknown as {
+      createAttachmentUpload: (
+        groupId: string,
+        input: { kind: "image"; name: string; mime: "image/png"; size: number },
+      ) => Promise<typeof reservation>;
+    };
+    const uploader = (
+      communityApiModule as unknown as {
+        uploadCommunityAttachment: (uploadUrl: string, file: File) => Promise<void>;
+      }
+    ).uploadCommunityAttachment;
+
+    const reserved = await attachmentApi.createAttachmentUpload("group-1", {
+      kind: "image",
+      name: "proof.png",
+      mime: "image/png",
+      size: 4,
+    });
+    const file = new File([new Uint8Array([1, 2, 3, 4])], "proof.png", {
+      type: "image/png",
+    });
+    await uploader(reserved.uploadUrl, file);
+
+    const [reserveUrl, reserveOptions] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(reserveUrl).toBe(
+      "https://api.edutu.test/communities/groups/group-1/attachments/upload-url",
+    );
+    expect(reserveOptions.method).toBe("POST");
+    expect(JSON.parse(String(reserveOptions.body))).toEqual({
+      kind: "image",
+      name: "proof.png",
+      mime: "image/png",
+      size: 4,
+    });
+
+    const [uploadUrl, uploadOptions] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(uploadUrl).toBe(reservation.uploadUrl);
+    expect(uploadOptions.method).toBe("PUT");
+    expect(new Headers(uploadOptions.headers).get("Content-Type")).toBe("image/png");
+    expect(new Headers(uploadOptions.headers).get("x-upsert")).toBe("false");
+    expect(uploadOptions.body).toBe(file);
   });
 });
