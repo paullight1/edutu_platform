@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommunityApi } from "./api";
+import {
+  addLocalBlockedAuthor,
+  persistLocalBlockedAuthors,
+  readLocalBlockedAuthors,
+} from "./blockState";
 import { subscribeCommunityMessageActions } from "./messageActions";
 import { subscribeToGroupMessages } from "./realtime";
 import type { CommunityMessage } from "./types";
-
-const LOCAL_BLOCKS_KEY = "edutu:web:community:blocked-authors:v1";
 
 function mergeMessages(
   current: CommunityMessage[],
@@ -25,26 +28,6 @@ function mergeMessages(
       Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
       a.id.localeCompare(b.id),
   );
-}
-
-function readLocalBlockedAuthors(): string[] {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_BLOCKS_KEY) ?? "[]") as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistLocalBlockedAuthors(ids: Set<string>) {
-  try {
-    window.localStorage.setItem(LOCAL_BLOCKS_KEY, JSON.stringify([...ids]));
-  } catch {
-    // Server-side blocks remain authoritative; local persistence is the
-    // second layer that also filters Supabase Realtime on this browser.
-  }
 }
 
 export function useGroupMessages({
@@ -121,9 +104,6 @@ export function useGroupMessages({
       })
       .catch((caught) => {
         if (!active) return;
-        // Fail closed for Realtime. REST history is already filtered server-side,
-        // but subscribing without the account block list could let a blocked
-        // member's next message reappear directly from Postgres replication.
         setError(
           caught instanceof Error
             ? caught.message
@@ -176,10 +156,10 @@ export function useGroupMessages({
         void api
           .blockUser(message.userId)
           .then(() => {
+            addLocalBlockedAuthor(message.userId);
             setBlockedIds((current) => {
               const next = new Set(current);
               next.add(message.userId);
-              persistLocalBlockedAuthors(next);
               return next;
             });
           })
