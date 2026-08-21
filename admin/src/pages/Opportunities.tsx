@@ -32,7 +32,6 @@ import {
   type BulkPreviewItem,
   type BulkProgress,
   type CreationMode,
-  type EnhanceOpportunityResponse,
   type Opportunity,
   type OpportunityFormValues,
   type OpportunityListResponse,
@@ -829,14 +828,7 @@ export default function Opportunities() {
     )
       return;
     try {
-      const response = await fetch(`${NEST_API_URL}/opportunities/${id}`, {
-        method: "DELETE",
-        headers: await getAdminHeaders(),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to delete opportunity");
-      }
+      await opportunityAdminApi.deleteOpportunity(id);
       void fetchOpportunities();
       showPageNotice("success", "Opportunity deleted.");
     } catch (error: unknown) {
@@ -849,18 +841,7 @@ export default function Opportunities() {
 
   async function handleStatusUpdate(id: string, status: OpportunityStatus) {
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/${id}/status`,
-        {
-          method: "PATCH",
-          headers: await getAdminHeaders(),
-          body: JSON.stringify({ status }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to update status");
-      }
+      await opportunityAdminApi.updateStatus(id, status);
       void fetchOpportunities();
       showPageNotice("success", "Opportunity status updated.");
     } catch (error: unknown) {
@@ -888,19 +869,7 @@ export default function Opportunities() {
       // The bulk endpoints cap at 200 ids per request; "Select all" can pick
       // more than that, so send in chunks and keep a running total.
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-status`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk, status }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk status update failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkStatus(chunk, status);
         updated +=
           typeof result.updated === "number" ? result.updated : chunk.length;
         done += chunk.length;
@@ -939,19 +908,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-category`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk, category }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk category move failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkCategory(chunk, category);
         updated +=
           typeof result.updated === "number" ? result.updated : chunk.length;
         done += chunk.length;
@@ -988,19 +945,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-delete`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk delete failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkDelete(chunk);
         deleted +=
           typeof result.deleted === "number" ? result.deleted : chunk.length;
         done += chunk.length;
@@ -1023,17 +968,7 @@ export default function Opportunities() {
   async function handleEnhanceOpportunity(id: string) {
     setEnhancingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "AI enhancement failed");
-      }
+      const result = await opportunityAdminApi.enhanceOpportunity(id);
       await fetchOpportunities();
       showPageNotice(
         "success",
@@ -1056,21 +991,7 @@ export default function Opportunities() {
   async function handleFindDeadline(id: string) {
     setVerifyingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/verification/${id}`,
-        {
-          method: "POST",
-          headers: {
-            ...(await getAdminHeaders()),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ dryRun: false }),
-        },
-      );
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Deadline check failed");
-      }
+      const result = await opportunityAdminApi.verifyOpportunity(id);
 
       await fetchOpportunities();
       showPageNotice("success", describeVerification(result.result));
@@ -1107,20 +1028,7 @@ export default function Opportunities() {
       // spinning for upwards of half an hour with no sign of life.
       for (const chunk of chunkArray(ids, 10)) {
         try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/verification/bulk`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
-              body: JSON.stringify({ ids: chunk, dryRun: false }),
-            },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(
-              result.error || result.message || "Deadline check failed",
-            );
-          }
+          const result = await opportunityAdminApi.verifyOpportunities(chunk);
           checked += Number(result.checked) || 0;
           found += Number(result.found) || 0;
           rolling += Number(result.rolling) || 0;
@@ -1182,17 +1090,7 @@ export default function Opportunities() {
       // enriched via the same single-row enhance endpoint the icon uses.
       for (const id of ids) {
         try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
-            },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || "AI enhancement failed");
-          }
+          await opportunityAdminApi.enhanceOpportunity(id);
           completed += 1;
         } catch {
           failed += 1;
@@ -1244,18 +1142,9 @@ export default function Opportunities() {
 
   async function getAiImprovedOpportunityForShare(opp: Opportunity) {
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/${opp.id}/enhance`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-        },
-      );
-      const result = (await response
-        .json()
-        .catch(() => ({}))) as EnhanceOpportunityResponse;
+      const result = await opportunityAdminApi.enhanceOpportunity(opp.id);
 
-      if (!response.ok || !result.success || !result.opportunity) {
+      if (!result.opportunity) {
         return { opportunity: opp, aiEnhanced: false, aiFallback: true };
       }
 
