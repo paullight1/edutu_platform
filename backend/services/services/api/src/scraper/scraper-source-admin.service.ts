@@ -156,7 +156,10 @@ function sanitizeConfig(
   // Keep source-specific non-selector settings forward-compatible, but reject
   // values that cannot safely round-trip through JSONB.
   for (const [key, value] of Object.entries(config)) {
-    if (key in sanitized || stringKeys.includes(key as (typeof stringKeys)[number])) {
+    if (
+      key in sanitized ||
+      stringKeys.includes(key as (typeof stringKeys)[number])
+    ) {
       continue;
     }
     if (key === "content_selectors") continue;
@@ -181,13 +184,16 @@ function normalizeCreateInput(input: ScraperSourceCreateInput) {
   const sourceUrl = isGroup
     ? `group://${slug(name) || "source-group"}`
     : safeSourceUrl(input.url ?? "");
+  const description = cleanText(
+    input.description,
+    SOURCE_DESCRIPTION_MAX_CHARS,
+  );
+  const config = sanitizeConfig(input.config);
 
   return {
     name,
     url: sourceUrl,
-    ...(cleanText(input.description, SOURCE_DESCRIPTION_MAX_CHARS) && {
-      description: cleanText(input.description, SOURCE_DESCRIPTION_MAX_CHARS),
-    }),
+    ...(description && { description }),
     category:
       cleanText(input.category, SOURCE_CATEGORY_MAX_CHARS) ?? "scholarship",
     tier: boundedInteger(input.tier ?? 2, 1, 3),
@@ -195,14 +201,16 @@ function normalizeCreateInput(input: ScraperSourceCreateInput) {
     enabled: input.enabled ?? true,
     parent_id: input.parent_id ?? null,
     is_group: isGroup,
-    ...(sanitizeConfig(input.config) !== undefined && {
-      config: sanitizeConfig(input.config),
-    }),
+    ...(config !== undefined && { config }),
     ...(input.rate_limit_requests !== undefined && {
       rate_limit_requests: boundedInteger(input.rate_limit_requests, 1, 10_000),
     }),
     ...(input.rate_limit_delay_ms !== undefined && {
-      rate_limit_delay_ms: boundedInteger(input.rate_limit_delay_ms, 0, 300_000),
+      rate_limit_delay_ms: boundedInteger(
+        input.rate_limit_delay_ms,
+        0,
+        300_000,
+      ),
     }),
     ...(input.max_concurrent !== undefined && {
       max_concurrent: boundedInteger(input.max_concurrent, 1, 100),
@@ -223,7 +231,8 @@ function normalizePatchInput(input: ScraperSourcePatchInput) {
   }
   if (input.url !== undefined) patch.url = safeSourceUrl(input.url);
   if (input.description !== undefined) {
-    patch.description = cleanText(input.description, SOURCE_DESCRIPTION_MAX_CHARS) ?? null;
+    patch.description =
+      cleanText(input.description, SOURCE_DESCRIPTION_MAX_CHARS) ?? null;
   }
   if (input.category !== undefined) {
     const category = cleanText(input.category, SOURCE_CATEGORY_MAX_CHARS);
