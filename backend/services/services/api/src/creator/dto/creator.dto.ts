@@ -96,10 +96,7 @@ export const MarketplaceListingSchema = z
       });
     }
 
-    if (
-      (price > 0 || effectiveType === "course") &&
-      !dto.previewUrl
-    ) {
+    if ((price > 0 || effectiveType === "course") && !dto.previewUrl) {
       ctx.addIssue({
         code: "custom",
         path: ["previewUrl"],
