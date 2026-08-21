@@ -3,7 +3,10 @@ import { getApiBaseUrl } from "../../lib/apiBaseUrl";
 import { getLocalDevAuthHeaders } from "../../lib/localDevAuthHeaders";
 import type {
   BlockedUser,
+  CommunityAttachmentUploadInput,
+  CommunityAttachmentUploadReservation,
   CommunityGroup,
+  CommunityGroupImageUploadInput,
   CommunityMemberList,
   CommunityMessage,
   CommunityProfileContentPage,
@@ -38,34 +41,90 @@ export class CommunityApiError extends Error {
 export function isCommunityApiError(error: unknown): error is CommunityApiError {
   return (
     error instanceof CommunityApiError ||
-    (typeof error === "object" && error !== null && (error as { name?: string }).name === "CommunityApiError")
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { name?: string }).name === "CommunityApiError")
   );
+}
+
+export async function uploadCommunityAttachment(
+  uploadUrl: string,
+  file: File,
+): Promise<void> {
+  let destination: URL;
+  try {
+    destination = new URL(uploadUrl);
+  } catch {
+    throw new CommunityApiError("The secure upload link is invalid.", 400);
+  }
+  if (destination.protocol !== "https:") {
+    throw new CommunityApiError("The secure upload link must use HTTPS.", 400);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(destination.toString(), {
+      method: "PUT",
+      body: file,
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "x-upsert": "false",
+      },
+    });
+  } catch {
+    throw new CommunityApiError(
+      "Uploading the attachment failed. Check your connection and try again.",
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    throw new CommunityApiError(
+      "Uploading the attachment failed. Please try again.",
+      response.status,
+    );
+  }
 }
 
 type QueryValue = string | number | boolean | undefined | null;
 
 function queryString(values: Record<string, QueryValue>): string {
-  const entries = Object.entries(values).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  const entries = Object.entries(values).filter(
+    ([, value]) => value !== undefined && value !== null && value !== "",
+  );
   if (entries.length === 0) return "";
   return `?${entries
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+    )
     .join("&")}`;
 }
 
 function pageQuery(options: MessagePageOptions = {}): string {
   return queryString({
-    before: options.before instanceof Date ? options.before.toISOString() : options.before,
+    before:
+      options.before instanceof Date
+        ? options.before.toISOString()
+        : options.before,
     beforeId: options.beforeId,
     limit: options.limit,
   });
 }
 
 function extractMessage(payload: unknown, status: number): string {
-  const row = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+  const row =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : null;
   const message = row?.message;
   if (typeof message === "string" && message.trim()) return message;
   if (Array.isArray(message)) {
-    const first = message.find((entry) => typeof entry === "string" && entry.trim());
+    const first = message.find(
+      (entry) => typeof entry === "string" && entry.trim(),
+    );
     if (typeof first === "string") return first;
   }
   if (message && typeof message === "object") {
@@ -83,27 +142,38 @@ export class CommunityApi {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = await Promise.race([
       this.getToken(),
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), REQUEST_TIMEOUT_MS)),
+      new Promise<null>((resolve) =>
+        window.setTimeout(() => resolve(null), REQUEST_TIMEOUT_MS),
+      ),
     ]).catch(() => null);
     if (!token) {
-      throw new CommunityApiError("You need to be signed in to use community.", 401);
+      throw new CommunityApiError(
+        "You need to be signed in to use community.",
+        401,
+      );
     }
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      REQUEST_TIMEOUT_MS,
+    );
     const hasBody = options.body !== undefined && options.body !== null;
     try {
-      const response = await fetch(`${getApiBaseUrl("Community API")}${path}`, {
-        ...options,
-        signal: options.signal ?? controller.signal,
-        headers: {
-          Accept: "application/json",
-          ...(hasBody ? { "Content-Type": "application/json" } : {}),
-          ...getLocalDevAuthHeaders(),
-          ...(options.headers || {}),
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `${getApiBaseUrl("Community API")}${path}`,
+        {
+          ...options,
+          signal: options.signal ?? controller.signal,
+          headers: {
+            Accept: "application/json",
+            ...(hasBody ? { "Content-Type": "application/json" } : {}),
+            ...getLocalDevAuthHeaders(),
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
       const text = await response.text();
       let payload: unknown = null;
       if (text) {
@@ -114,15 +184,24 @@ export class CommunityApi {
         }
       }
       if (!response.ok) {
-        throw new CommunityApiError(extractMessage(payload, response.status), response.status);
+        throw new CommunityApiError(
+          extractMessage(payload, response.status),
+          response.status,
+        );
       }
       return (payload ?? {}) as T;
     } catch (error) {
       if (isCommunityApiError(error)) throw error;
       if (error instanceof Error && error.name === "AbortError") {
-        throw new CommunityApiError("The request timed out. Please try again.", 408);
+        throw new CommunityApiError(
+          "The request timed out. Please try again.",
+          408,
+        );
       }
-      throw new CommunityApiError("We couldn't reach Edutu. Check your connection and try again.", 0);
+      throw new CommunityApiError(
+        "We couldn't reach Edutu. Check your connection and try again.",
+        0,
+      );
     } finally {
       window.clearTimeout(timeout);
     }
@@ -137,14 +216,22 @@ export class CommunityApi {
   }
 
   getMembers(groupId: string, limit = 100): Promise<CommunityMemberList> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/members${queryString({ limit })}`);
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/members${queryString({ limit })}`,
+    );
   }
 
   createGroup(input: CreateGroupInput): Promise<CommunityGroup> {
-    return this.request("/communities/groups", { method: "POST", body: JSON.stringify(input) });
+    return this.request("/communities/groups", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 
-  updateGroup(groupId: string, input: UpdateGroupInput): Promise<CommunityGroup> {
+  updateGroup(
+    groupId: string,
+    input: UpdateGroupInput,
+  ): Promise<CommunityGroup> {
     return this.request(`/communities/groups/${encodeURIComponent(groupId)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
@@ -152,14 +239,23 @@ export class CommunityApi {
   }
 
   archiveGroup(groupId: string): Promise<CommunityGroup> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/archive`, { method: "POST" });
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/archive`,
+      { method: "POST" },
+    );
   }
 
-  joinGroup(groupId: string, answers: JoinRequestAnswer[] = []): Promise<JoinResult> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/join`, {
-      method: "POST",
-      body: JSON.stringify({ answers }),
-    });
+  joinGroup(
+    groupId: string,
+    answers: JoinRequestAnswer[] = [],
+  ): Promise<JoinResult> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/join`,
+      {
+        method: "POST",
+        body: JSON.stringify({ answers }),
+      },
+    );
   }
 
   leaveGroup(groupId: string, userId: string): Promise<{ success: boolean }> {
@@ -170,10 +266,13 @@ export class CommunityApi {
   }
 
   invite(groupId: string, userId: string) {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/invite`, {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    });
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/invite`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      },
+    );
   }
 
   setMemberRole(groupId: string, userId: string, role: MemberRole) {
@@ -188,47 +287,109 @@ export class CommunityApi {
   }
 
   getForm(groupId: string): Promise<GroupForm> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/form`);
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/form`,
+    );
   }
 
   setForm(groupId: string, form: GroupForm): Promise<GroupForm> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/form`, {
-      method: "POST",
-      body: JSON.stringify(form),
-    });
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/form`,
+      {
+        method: "POST",
+        body: JSON.stringify(form),
+      },
+    );
   }
 
-  listJoinRequests(groupId: string, status: "pending" | "all" = "pending"): Promise<JoinRequest[]> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/requests${queryString({ status })}`);
+  listJoinRequests(
+    groupId: string,
+    status: "pending" | "all" = "pending",
+  ): Promise<JoinRequest[]> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/requests${queryString({ status })}`,
+    );
   }
 
-  decideJoinRequest(groupId: string, requestId: string, decision: JoinRequestDecision) {
+  decideJoinRequest(
+    groupId: string,
+    requestId: string,
+    decision: JoinRequestDecision,
+  ) {
     return this.request(
       `/communities/groups/${encodeURIComponent(groupId)}/requests/${encodeURIComponent(requestId)}`,
       { method: "POST", body: JSON.stringify({ decision }) },
     );
   }
 
-  fetchMessages(groupId: string, options: MessagePageOptions = {}): Promise<CommunityMessage[]> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/messages${pageQuery(options)}`);
+  fetchMessages(
+    groupId: string,
+    options: MessagePageOptions = {},
+  ): Promise<CommunityMessage[]> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/messages${pageQuery(options)}`,
+    );
   }
 
-  fetchResources(groupId: string, options: MessagePageOptions = {}): Promise<CommunityResourcesPage> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/resources${pageQuery(options)}`);
+  fetchResources(
+    groupId: string,
+    options: MessagePageOptions = {},
+  ): Promise<CommunityResourcesPage> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/resources${pageQuery(options)}`,
+    );
   }
 
-  sendMessage(groupId: string, input: SendMessageInput): Promise<CommunityMessage> {
-    return this.request(`/communities/groups/${encodeURIComponent(groupId)}/messages`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
+  sendMessage(
+    groupId: string,
+    input: SendMessageInput,
+  ): Promise<CommunityMessage> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
+  }
+
+  createAttachmentUpload(
+    groupId: string,
+    input: CommunityAttachmentUploadInput,
+  ): Promise<CommunityAttachmentUploadReservation> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/attachments/upload-url`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
+  }
+
+  createGroupCoverImageUpload(
+    groupId: string,
+    input: CommunityGroupImageUploadInput,
+  ): Promise<CommunityAttachmentUploadReservation> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/cover-image/upload-url`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
   }
 
   deleteMessage(messageId: string): Promise<{ success?: boolean }> {
-    return this.request(`/communities/messages/${encodeURIComponent(messageId)}`, { method: "DELETE" });
+    return this.request(`/communities/messages/${encodeURIComponent(messageId)}`, {
+      method: "DELETE",
+    });
   }
 
-  reportTarget(targetType: "message" | "group", targetId: string, reason: string) {
+  reportTarget(
+    targetType: "message" | "group",
+    targetId: string,
+    reason: string,
+  ) {
     return this.request("/communities/reports", {
       method: "POST",
       body: JSON.stringify({ targetType, targetId, reason }),
@@ -240,20 +401,30 @@ export class CommunityApi {
   }
 
   blockUser(userId: string) {
-    return this.request("/communities/blocks", { method: "POST", body: JSON.stringify({ userId }) });
+    return this.request("/communities/blocks", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    });
   }
 
   unblockUser(userId: string) {
-    return this.request(`/communities/blocks/${encodeURIComponent(userId)}`, { method: "DELETE" });
+    return this.request(`/communities/blocks/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
   }
 
-  fetchOwnContent(cursor?: CommunityResourceCursor | null, limit = 30): Promise<CommunityProfileContentPage> {
+  fetchOwnContent(
+    cursor?: CommunityResourceCursor | null,
+    limit = 30,
+  ): Promise<CommunityProfileContentPage> {
     return this.request(
       `/communities/profile/content${queryString({ before: cursor?.before, beforeId: cursor?.beforeId, limit })}`,
     );
   }
 
-  resolveAttachmentUrl(resourceUrl: string): Promise<{ url: string; expiresIn: number }> {
+  resolveAttachmentUrl(
+    resourceUrl: string,
+  ): Promise<{ url: string; expiresIn: number }> {
     const base = new URL(getApiBaseUrl("Community API"));
     const resource = new URL(resourceUrl);
     if (
@@ -262,7 +433,9 @@ export class CommunityApi {
       !resource.pathname.startsWith("/communities/groups/") ||
       !resource.pathname.endsWith("/attachments/download-url")
     ) {
-      return Promise.reject(new CommunityApiError("That attachment link is invalid.", 400));
+      return Promise.reject(
+        new CommunityApiError("That attachment link is invalid.", 400),
+      );
     }
     return this.request(`${resource.pathname}${resource.search}`);
   }
