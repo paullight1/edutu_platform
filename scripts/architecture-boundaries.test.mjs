@@ -51,6 +51,28 @@ test("accepts the currently grandfathered architecture roots", async () => {
   }
 });
 
+test("rejects the retired legacy Express backend runtime", async () => {
+  const root = await createFixture([
+    "backend/server.js",
+    "backend/scraper.js",
+    "backend/database.js",
+    "backend/package.json",
+    "backend/package-lock.json",
+    "backend/services/services/api/package.json",
+  ]);
+
+  try {
+    const result = runChecker(root);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /legacy backend runtime file: backend\/server\.js/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("ignores archived trees when enforcing runtime architecture", async () => {
   const root = await createFixture([
     "backend/services/services/api/package.json",
