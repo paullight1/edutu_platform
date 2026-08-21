@@ -7,14 +7,16 @@ import {
   COMMUNITY_IMAGE_MIME_TYPES,
   COMMUNITY_PDF_MAX_BYTES,
   serializeCommunityAttachment,
-  type CommunityAttachmentKind,
-  type CommunityAttachmentMime,
   type CommunityImageMime,
   type CommunityMessage,
 } from "./types";
 
 const ATTACHMENT_ERROR =
   "Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.";
+
+type ClassifiedCommunityAttachment =
+  | { kind: "image"; mime: CommunityImageMime }
+  | { kind: "file"; mime: "application/pdf" };
 
 function hasSafeFileName(name: string): boolean {
   return (
@@ -26,10 +28,9 @@ function hasSafeFileName(name: string): boolean {
   );
 }
 
-export function classifyCommunityAttachmentFile(file: File): {
-  kind: CommunityAttachmentKind;
-  mime: CommunityAttachmentMime;
-} {
+export function classifyCommunityAttachmentFile(
+  file: File,
+): ClassifiedCommunityAttachment {
   const name = file.name.trim();
   const mime = file.type.trim().toLowerCase();
   if (!hasSafeFileName(name) || file.size <= 0) {
