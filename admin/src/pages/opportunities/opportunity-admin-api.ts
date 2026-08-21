@@ -33,13 +33,14 @@ export interface EnhancePreviewResponse {
 }
 
 type JsonRecord = Record<string, unknown>;
+type ErrorPayload = { message?: unknown; error?: unknown };
 
 async function readJson(response: Response): Promise<JsonRecord> {
   const value = await response.json().catch(() => ({}));
   return value && typeof value === "object" ? (value as JsonRecord) : {};
 }
 
-function errorMessage(payload: JsonRecord, fallback: string) {
+function errorMessage(payload: ErrorPayload, fallback: string) {
   const message = payload.message ?? payload.error;
   return typeof message === "string" && message.trim() ? message : fallback;
 }
@@ -51,7 +52,7 @@ export function createOpportunityAdminApi({
 }: OpportunityAdminApiOptions) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
 
-  async function postJson<T extends JsonRecord>(
+  async function postJson<T>(
     path: string,
     body: unknown,
     options?: { signal?: AbortSignal; failureMessage?: string },
