@@ -50,11 +50,25 @@ describe("installOpportunityRankingRuntimePolicy", () => {
 
   it("fails soft to the deterministic shortlist when AI reranking is unavailable", async () => {
     const candidates = [
-      { id: "one", title: "One", description: "A", match: 80, matchReasons: [] },
-      { id: "two", title: "Two", description: "B", match: 70, matchReasons: [] },
+      {
+        id: "one",
+        title: "One",
+        description: "A",
+        match: 80,
+        matchReasons: [],
+      },
+      {
+        id: "two",
+        title: "Two",
+        description: "B",
+        match: 70,
+        matchReasons: [],
+      },
     ];
     const service = {
-      aiService: { generateJson: jest.fn().mockRejectedValue(new Error("down")) },
+      aiService: {
+        generateJson: jest.fn().mockRejectedValue(new Error("down")),
+      },
       logger: { warn: jest.fn() },
       rerankWithDeepSeek: jest.fn(),
     } as any;
