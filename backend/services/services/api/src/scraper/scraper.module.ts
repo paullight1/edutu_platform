@@ -1,8 +1,9 @@
-import { Module } from "@nestjs/common";
+import { Module, type OnModuleDestroy } from "@nestjs/common";
 import { AiModule } from "../ai";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
 import { RobotsChecker } from "./robots-checker";
+import { installSafeImageAxiosBridge } from "./safe-image-axios-bridge";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { ScraperController } from "./scraper.controller";
 import { loadScraperEgressConfig } from "./scraper-egress.config";
@@ -50,4 +51,10 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
     OpportunityDedupService,
   ],
 })
-export class ScraperModule {}
+export class ScraperModule implements OnModuleDestroy {
+  private readonly restoreSafeImageBridge = installSafeImageAxiosBridge();
+
+  onModuleDestroy(): void {
+    this.restoreSafeImageBridge();
+  }
+}
