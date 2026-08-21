@@ -76,6 +76,11 @@ export const PrivacySettingsSchema = z
   })
   .strict();
 
+/**
+ * Shape returned to clients for server-observed security/account metadata.
+ * Authentication controls themselves are owned by Clerk and must never be
+ * writable through the profile settings endpoint.
+ */
 export const SecuritySettingsSchema = z
   .object({
     twoFactorEnabled: z.boolean().optional(),
@@ -86,10 +91,9 @@ export const SecuritySettingsSchema = z
 export const UpdateMemberSettingsSchema = z
   .object({
     privacy: PrivacySettingsSchema.optional(),
-    security: SecuritySettingsSchema.optional(),
   })
   .strict()
-  .refine((value) => Boolean(value.privacy || value.security), {
+  .refine((value) => Boolean(value.privacy), {
     message: "At least one settings group is required",
   });
 
