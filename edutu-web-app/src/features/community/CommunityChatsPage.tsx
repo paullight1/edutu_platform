@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import Seo from "../../components/Seo";
 import { CommunityDmApi, type DmConversationSummary } from "./dmApi";
 import CommunityProductShell from "./components/CommunityProductShell";
