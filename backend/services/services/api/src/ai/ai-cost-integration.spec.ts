@@ -2,7 +2,7 @@ import { AiService } from "./ai.service";
 import type { AiEncryptionService } from "./ai-encryption.service";
 import type { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import type { OpenRouterAdapter } from "./adapters/openrouter.adapter";
-import type { AiGenerateResult } from "./ai.types";
+import type { AiGenerateResult, AiRouteConfig } from "./ai.types";
 
 jest.mock("../db", () => {
   const emptySelect: any = {
@@ -94,5 +94,28 @@ describe("AiService — cost attribution", () => {
     const event = usageRows().find((row) => "estimatedCostUsd" in row);
     expect(event).toBeDefined();
     expect(Number(event?.estimatedCostUsd)).toBeGreaterThan(0);
+  });
+
+  it("enforces compact output ceilings on structured high-volume features", async () => {
+    let routeSeen: AiRouteConfig | undefined;
+    const service = buildService({
+      generateText: async (route) => {
+        routeSeen = route;
+        return {
+          text: "{}",
+          provider: "openrouter",
+          model: "deepseek/deepseek-chat",
+          usage: { totalTokens: 20 },
+        } as AiGenerateResult;
+      },
+    });
+
+    await service.generateText({
+      feature: "opportunities.rerank",
+      prompt: "Rank these opportunities",
+      maxOutputTokens: 4_096,
+    });
+
+    expect(routeSeen?.maxOutputTokens).toBe(768);
   });
 });
