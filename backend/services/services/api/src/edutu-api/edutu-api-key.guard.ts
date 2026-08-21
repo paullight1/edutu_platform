@@ -23,6 +23,7 @@ import {
 import { EDUTU_API_SCOPE_KEY } from "./api-scope.decorator";
 import { EDUTU_API_PUBLIC_KEY } from "./edutu-api-public.decorator";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
+import { EdutuApiRateLimitService } from "./edutu-api-rate-limit.service";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
 import {
   billingClassForEndpoint,
@@ -35,6 +36,12 @@ export class EdutuApiKeyGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly usageService: EdutuApiUsageService,
+    private readonly rateLimitService: EdutuApiRateLimitService = {
+      // Compatibility path for direct construction in older unit tests only.
+      // Nest production wiring injects the database-authoritative service.
+      reserve: async (consumer: ApiConsumerContext) =>
+        this.usageService.reserveRateLimit(consumer),
+    } as EdutuApiRateLimitService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -76,7 +83,20 @@ export class EdutuApiKeyGuard implements CanActivate {
       );
     }
 
-    const rateLimit = this.usageService.reserveRateLimit(consumer);
+    let rateLimit;
+    try {
+      rateLimit = await this.rateLimitService.reserve(consumer);
+    } catch {
+      throw new HttpException(
+        stableApiError(
+          "rate_limit_unavailable",
+          requestId,
+          "API rate limit service is temporarily unavailable",
+        ),
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
     this.setRateLimitHeaders(response, rateLimit);
     if (!rateLimit.allowed) {
       response.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
