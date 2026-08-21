@@ -21,7 +21,9 @@ describe("MarketplaceCatalogQuerySchema", () => {
   });
 
   it("rejects unsupported listing types and oversized cursors", () => {
-    expect(() => MarketplaceCatalogQuerySchema.parse({ type: "crypto" })).toThrow();
+    expect(() =>
+      MarketplaceCatalogQuerySchema.parse({ type: "crypto" }),
+    ).toThrow();
     expect(() =>
       MarketplaceCatalogQuerySchema.parse({ cursor: "x".repeat(513) }),
     ).toThrow();
@@ -33,6 +35,8 @@ describe("MarketplaceReviewSchema", () => {
     expect(MarketplaceReviewSchema.parse({ decision: "approve" })).toEqual({
       decision: "approve",
     });
-    expect(() => MarketplaceReviewSchema.parse({ decision: "active" })).toThrow();
+    expect(() =>
+      MarketplaceReviewSchema.parse({ decision: "active" }),
+    ).toThrow();
   });
 });
