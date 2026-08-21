@@ -6,7 +6,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, refactor/architecture-simplification]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -28,6 +28,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
+      - run: node --test scripts/architecture-boundaries.test.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs
 
