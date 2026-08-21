@@ -97,9 +97,11 @@ export const UpdateMemberSettingsSchema = z
     message: "At least one settings group is required",
   });
 
+// `security?: never` keeps older internal code type-compatible while the
+// strict runtime schema makes the security branch unreachable from clients.
 export type UpdateMemberSettingsDto = z.infer<
   typeof UpdateMemberSettingsSchema
->;
+> & { security?: never };
 
 export const HomeCategoryTileSchema = z
   .object({
