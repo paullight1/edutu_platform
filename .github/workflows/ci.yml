@@ -29,6 +29,7 @@ jobs:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
       - run: node --test scripts/architecture-boundaries.test.mjs
+      - run: node scripts/check-architecture-boundaries.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs
 
