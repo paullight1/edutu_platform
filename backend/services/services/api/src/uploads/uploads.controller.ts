@@ -18,6 +18,7 @@ export class UploadsController {
     body: {
       fileName: string;
       mimeType: string;
+      fileSize?: number;
       kind?: string;
       opportunityId?: string;
     },
