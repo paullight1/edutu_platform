@@ -1,65 +1,63 @@
 # Data Model and Ownership
 
-Primary schema source:
+Primary application schema source:
 
-```bash
-edutu-platform/backend/services/services/api/src/db/schema.ts
+```text
+backend/services/services/api/src/db/schema.ts
 ```
 
-The platform backend uses Drizzle ORM with a Postgres connection from `DATABASE_URL`. Some services also use a server-side Supabase client with `SUPABASE_SERVICE_ROLE_KEY`.
+Canonical shared production migration stream:
 
-## Repository Ownership
+```text
+backend/services/services/api/supabase/migrations/
+```
 
-Edutu is intentionally multi-repo:
+The platform backend uses Drizzle ORM with Postgres from `DATABASE_URL`; selected server-side integrations also use Supabase with service credentials. Shared schema evolution is owned by the backend even when web/admin/mobile consume the tables directly through tested RLS.
 
-- `edutu-platform` owns platform backend schema definitions, platform web/admin/docs-site data needs, scraper tables, and shared platform Supabase assets.
-- `edutumobile` owns mobile app code and mobile-specific Supabase functions/migrations.
+## Core table ownership
 
-Migration ownership should be explicit because the workspace currently contains multiple Supabase migration folders.
-
-## Core Table Groups
-
-| Group | Tables | Owner |
+| Group | Tables | Domain owner |
 | --- | --- | --- |
-| Identity/Profile | `profiles` | Platform backend, shared with client RLS assumptions |
-| Notifications | `notifications`, `notification_preferences`, `notification_push_tokens`, `notification_queue` | Platform backend and mobile |
-| Goals | `goals`, `milestones` | Platform backend |
-| Opportunities | `opportunities`, `user_opportunity_preferences`, `user_opportunity_signals` | Platform backend and scraper |
-| Creator/Marketplace | `creator_applications`, `marketplace_listings`, `marketplace_enrollments`, `marketplace_packages`, `tickets`, `transactions` | Platform backend and admin |
-| Learning | `quizzes`, `quiz_questions`, `quiz_attempts`, `flashcard_decks`, `flashcards`, `flashcard_study_sessions`, `flashcard_reviews` | Platform backend |
-| AI Governance | `ai_provider_keys`, `ai_routes`, `ai_prompts`, `ai_usage_logs` | Platform backend/admin |
-| Blog | `blog_posts`, `blog_comments` | Platform backend/admin |
-| Roadmaps | `roadmaps`, `roadmap_enrollments`, `user_roadmap_intents`, `roadmap_feedback` | Platform backend |
-| Mobile Control | `mobile_app_campaigns`, `mobile_feature_flags`, `widget_feeds`, `mobile_campaign_events` | Platform backend and mobile |
+| Identity/Profile | `profiles` | platform backend; client self-service constrained by RLS |
+| Notifications | `notifications`, `notification_preferences`, `notification_push_tokens`, `notification_queue` | notifications backend module |
+| Goals | `goals`, `milestones` | goals backend module |
+| Opportunities | `opportunities`, `user_opportunity_preferences`, `user_opportunity_signals` | opportunities backend module + scraper ingestion |
+| Creator/Marketplace | `creator_applications`, `marketplace_listings`, `marketplace_enrollments`, `marketplace_packages`, `tickets`, `transactions` | creator/marketplace backend modules |
+| Learning | quizzes/flashcards/study tables | learning backend modules |
+| AI Governance | `ai_provider_keys`, `ai_routes`, `ai_prompts`, `ai_usage_logs` | AI backend/admin control plane |
+| Blog | `blog_posts`, `blog_comments` | blog backend/admin |
+| Roadmaps | roadmap/enrollment/intent/feedback tables | roadmaps backend module |
+| Mobile Control | campaigns/flags/widget feeds/events | mobile-control backend module |
 
-## Migration Locations Observed
+## Historical migration trees
 
-| Path | Notes |
-| --- | --- |
-| `edutu-platform/supabase/migrations` | Shared platform migrations; includes mobile control plane hardening. |
-| `edutu-platform/edutu-web-app/supabase/migrations` | Web-app-local migrations for billing, credits, Clerk RLS helpers, CV storage, and feature parity. |
-| `edutumobile/supabase/migrations` | Mobile-repo migrations for CV builder, creator status, payments, feature flags, billing, and RLS fixes. |
-| `edutu-platform/backend/services/services/api/drizzle.config.ts` | Drizzle config uses `src/db/schema.ts` and `DATABASE_URL`. |
+These directories remain in Git only as applied/historical records and are frozen by Repository Governance:
 
-## Recommended Migration Policy
+- `supabase/migrations/`
+- `edutu-web-app/supabase/migrations/`
+- `edutumobile/supabase/migrations/`
 
-1. Choose one canonical migration stream for shared production tables.
-2. Keep mobile-only migrations inside `edutumobile` only when they are truly mobile-owned.
-3. Treat duplicated or overlapping migration folders as pending reconciliation until reviewed.
-4. Every new table should list:
-   - owning repository
-   - owning service/module
-   - RLS policy source
-   - migration source
-   - backup/rollback notes
+They are not alternate schema authorities and must not receive new shared production migrations.
 
-## Direct Supabase Access Policy
+## Direct Supabase access policy
 
-Direct client Supabase access is acceptable only when:
+Direct client Supabase access is acceptable only when all of the following hold:
 
-- RLS is designed and tested for the operation.
-- The operation is not privileged business logic.
-- The owning repo documents the table and policy expectations.
-- Clerk token bridging is configured if the user is authenticated through Clerk.
+- RLS/column privileges are intentionally designed and tested;
+- the operation is user-owned, not privileged business logic;
+- the backend domain remains the schema/behavior owner;
+- Clerk/Supabase token bridging is configured where required;
+- the feature documents why direct access is preferable to the backend API.
 
-Privileged operations should go through the backend API.
+Privileged mutations, billing state, administrative mutations, service-role operations, and authoritative recommendation/business rules go through the backend API.
+
+## New table checklist
+
+Every new shared table/change must identify:
+
+- owning backend module/domain;
+- canonical migration filename;
+- RLS/privilege source;
+- consumers (web/admin/mobile/service);
+- rollout order;
+- rollback/forward-fix approach for destructive changes.

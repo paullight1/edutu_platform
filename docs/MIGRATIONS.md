@@ -1,18 +1,37 @@
-# Database Migrations — Discipline & Layout
+# Database Migrations — Discipline & Ownership
 
-The production-hardening review found three migration hazards: duplicate timestamp prefixes, a `schema.sql` snapshot that can diverge from applied migrations, and multiple migration trees. This document fixes the discipline going forward without renaming already-applied migrations.
-
-## The one authoritative tree
+Edutu has one authoritative migration destination for shared production tables:
 
 ```text
 backend/services/services/api/supabase/migrations/
 ```
 
-All new backend/database migrations go here. The root `supabase/migrations/` and any per-app migration trees are legacy/parallel records and must not receive new migrations. Existing files remain in place because moving or renaming an applied migration can make a migration tracker treat it as new.
+## Canonical ownership
+
+All new shared production migrations go to the canonical backend tree above. This includes schema, indexes, RLS/privileges, functions/triggers, data backfills required by shared runtime behavior, and changes consumed by web/admin/mobile together.
+
+The following directories are historical migration records and are **frozen**:
+
+```text
+supabase/migrations/
+edutu-web-app/supabase/migrations/
+edutumobile/supabase/migrations/
+```
+
+Existing files stay in place because renaming or relocating already-applied migrations can confuse migration trackers. They are not valid destinations for new migrations and must not be edited merely to make them match newer schema state.
+
+## CI enforcement
+
+Repository Governance applies two complementary checks:
+
+1. `scripts/check-migration-ownership.mjs` freezes each historical migration directory by its Git tree SHA. An addition, edit, rename, or deletion changes that SHA and fails CI.
+2. `scripts/check-migration-timestamps.mjs` validates unique timestamp discipline in the canonical migration tree, with only explicitly documented historical collisions grandfathered.
+
+This prevents a backdated filename or modification to an old migration from bypassing ownership policy.
 
 ## Apply order
 
-A schema migration required by a new backend release must be applied **before** that backend release. Code must not deploy first and assume a missing column/table will appear later.
+A schema migration required by a backend release must be applied **before** that backend release. Code must not deploy first and assume a missing column/table will appear later.
 
 Migrations should be idempotent wherever practical (`if not exists`, safe `drop ... if exists`, conflict-safe backfills) so controlled re-application does not corrupt state.
 
@@ -28,16 +47,17 @@ Never reuse an existing timestamp prefix.
 
 ## Schema snapshots are non-authoritative
 
-`schema.sql`, `admin_schema.sql`, and similar dumps are reading/reference snapshots. They are not the source of truth for production changes. If a snapshot disagrees with the migration history, the migration history wins.
+`schema.sql`, `admin_schema.sql`, and similar dumps are reference snapshots. They are not the source of truth for production changes. If a snapshot disagrees with applied canonical migration history, migration history wins.
 
-## CI guard
+## Workflow
 
-`scripts/check-migration-timestamps.mjs` validates the authoritative tree. Five timestamp collisions predate this rule and are already applied; they are explicitly grandfathered. Any new collision fails CI.
+For a new shared database change:
 
-Run locally with:
+1. identify the owning backend module/domain;
+2. create the migration in the canonical tree;
+3. add/adjust contract tests for affected privileges/schema behavior;
+4. run Repository Governance and backend tests;
+5. apply the migration before deploying code that requires it;
+6. update data-model/operations docs when ownership or rollout behavior changes.
 
-```bash
-node scripts/check-migration-timestamps.mjs
-```
-
-Do not add a new collision to the grandfather list to make CI pass. Pick a fresh timestamp instead.
+Do not add a new exception/frozen-tree SHA simply to make CI pass. A frozen-tree change requires an explicit migration-reconciliation project and review.
