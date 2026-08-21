@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { communityGroups } from "../db/schema";
@@ -140,7 +145,9 @@ export class PublicCommunityService {
 
   async getBySlug(slug: string): Promise<PublicCommunityGroupSummary> {
     const normalized = slug.trim();
-    if (!normalized) throw new NotFoundException("That community was not found.");
+    if (!normalized) {
+      throw new NotFoundException("That community was not found.");
+    }
     const row = await this.store.findCandidateBySlug(normalized);
     if (!row || !isPublicCommunityCandidate(row, this.now())) {
       // Deliberately identical for missing/private/closed groups: an anonymous
