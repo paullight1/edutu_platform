@@ -35,6 +35,7 @@ interface CreatorListingPayload {
   type?: "free" | "paid" | "credit" | "course";
   price?: number;
   imageUrl?: string;
+  previewUrl?: string;
   tags?: string[];
   eventDate?: string | Date;
   eventEndDate?: string | Date;
@@ -437,6 +438,7 @@ export class CreatorService {
         type: payload.type || (price > 0 ? "paid" : "free"),
         price,
         imageUrl: payload.imageUrl,
+        previewUrl: payload.previewUrl,
         tags: payload.tags || [],
         eventDate: payload.eventDate ? new Date(payload.eventDate) : null,
         eventEndDate: payload.eventEndDate
