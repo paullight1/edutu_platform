@@ -14,7 +14,6 @@ const mockedDb = db as unknown as { transaction: jest.Mock };
 
 function createTransaction(selectResults: any[][]) {
   let selectIndex = 0;
-  let insertIndex = 0;
   const tx: any = {
     select: jest.fn(() => {
       const rows = selectResults[selectIndex++] ?? [];
@@ -36,19 +35,15 @@ function createTransaction(selectResults: any[][]) {
       return chain;
     }),
     insert: jest.fn(() => {
-      insertIndex += 1;
       const chain: any = {
         values: () => chain,
         returning: () => chain,
         execute: () =>
-          Promise.resolve(
-            insertIndex === 3
-              ? [{ id: "enrollment-1", listingId: "listing-1" }]
-              : [],
-          ),
+          Promise.resolve([{ id: "enrollment-1", listingId: "listing-1" }]),
       };
       return chain;
     }),
+    execute: jest.fn().mockResolvedValue({ rows: [] }),
   };
   return tx;
 }
@@ -88,7 +83,11 @@ describe("CreatorService marketplace enrollment atomicity", () => {
     ).resolves.toEqual(expect.objectContaining({ id: "enrollment-1" }));
     expect(mockedDb.transaction).toHaveBeenCalledTimes(1);
     expect(tx.update).toHaveBeenCalledTimes(3);
-    expect(tx.insert).toHaveBeenCalledTimes(3);
+    // The only Drizzle insert is the marketplace enrollment itself. Buyer and
+    // seller accounting must go through the canonical credit_transactions
+    // ledger via transaction-scoped SQL so there is one financial history.
+    expect(tx.insert).toHaveBeenCalledTimes(1);
+    expect(tx.execute).toHaveBeenCalledTimes(2);
   });
 
   it("returns an existing enrollment on a safe retry without charging again", async () => {
@@ -120,6 +119,7 @@ describe("CreatorService marketplace enrollment atomicity", () => {
     ).resolves.toEqual(existing);
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.execute).not.toHaveBeenCalled();
   });
 
   it("enforces capacity before any credit or enrollment write", async () => {
@@ -148,5 +148,6 @@ describe("CreatorService marketplace enrollment atomicity", () => {
     ).rejects.toThrow("capacity");
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.execute).not.toHaveBeenCalled();
   });
 });
