@@ -17,9 +17,9 @@ const row: PublicCommunityGroupSummary = {
 
 describe("PublicCommunityController", () => {
   it("is explicitly anonymous", () => {
-    expect(
-      Reflect.getMetadata(IS_PUBLIC_KEY, PublicCommunityController),
-    ).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, PublicCommunityController)).toBe(
+      true,
+    );
   });
 
   it("forwards bounded list and slug lookups", async () => {
