@@ -142,6 +142,9 @@ export function buildMarketplaceAdminLookupQuery(listingId: string): SQL {
     select
       l.id,
       l.status,
+      l.type,
+      coalesce(l.price, 0)::integer as "price",
+      l.preview_url as "accessUrl",
       l.seller_id as "sellerId",
       (p.creator_status = 'approved' or p.mentor_status = 'approved') as "sellerApproved"
     from public.marketplace_listings l
