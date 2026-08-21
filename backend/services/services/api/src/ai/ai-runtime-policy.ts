@@ -42,12 +42,15 @@ export function installAiRuntimePolicy(service: object): () => void {
     };
   }
 
-  const originalResolveRoute = target.resolveRoute.bind(service);
+  // Preserve the exact method identity so teardown restores the service to the
+  // same function object it had before installation. Use apply() at call time
+  // rather than storing a bound clone, which previously broke exact teardown.
+  const originalResolveRoute = target.resolveRoute;
   const state: RuntimePolicyState = { originalResolveRoute, references: 1 };
   states.set(service, state);
 
   target.resolveRoute = async (...args: any[]) => {
-    const route = await originalResolveRoute(...args);
+    const route = await originalResolveRoute.apply(service, args);
     const options = (args[0] ?? {}) as AiRuntimeOptions;
     const feature =
       typeof options.feature === "string"
