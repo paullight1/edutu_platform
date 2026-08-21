@@ -8,10 +8,25 @@ import CommunityChatsPage from "./CommunityChatsPage";
 import CommunityDmPage from "./CommunityDmPage";
 import CommunityNewDmPage from "./CommunityNewDmPage";
 import CommunityProfilePage from "./CommunityProfilePage";
+import CommunityMemberDmDock from "./components/CommunityMemberDmDock";
 
 function CommunityGroupSettingsRedirect() {
   const { id = "" } = useParams<{ id: string }>();
-  return <Navigate to={`/app/community/groups/${id}?tab=about&admin=1`} replace />;
+  return (
+    <Navigate
+      to={`/app/community/groups/${id}?tab=about&admin=1`}
+      replace
+    />
+  );
+}
+
+function CommunityGroupRoute() {
+  return (
+    <>
+      <CommunityGroupPage />
+      <CommunityMemberDmDock />
+    </>
+  );
 }
 
 export default function CommunityAppRouter() {
@@ -21,9 +36,15 @@ export default function CommunityAppRouter() {
       <Route path="explore" element={<CommunityExplorePage />} />
       <Route path="groups" element={<CommunityGroupsPage />} />
       <Route path="groups/new" element={<CommunityCreateGroupPage />} />
-      <Route path="groups/:id" element={<CommunityGroupPage />} />
-      <Route path="groups/:id/settings" element={<CommunityGroupSettingsRedirect />} />
-      <Route path="groups/:id/requests" element={<CommunityJoinRequestsPage />} />
+      <Route path="groups/:id" element={<CommunityGroupRoute />} />
+      <Route
+        path="groups/:id/settings"
+        element={<CommunityGroupSettingsRedirect />}
+      />
+      <Route
+        path="groups/:id/requests"
+        element={<CommunityJoinRequestsPage />}
+      />
       <Route path="chats" element={<CommunityChatsPage />} />
       <Route path="dm/new" element={<CommunityNewDmPage />} />
       <Route path="dm/:id" element={<CommunityDmPage />} />
