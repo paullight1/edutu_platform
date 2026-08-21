@@ -1,6 +1,6 @@
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { Injectable, Logger } from "@nestjs/common";
-import type { BillingReconciliationService } from "./billing-reconciliation.service";
+import { BillingReconciliationService } from "./billing-reconciliation.service";
 
 @Injectable()
 export class BillingReconciliationScheduler {

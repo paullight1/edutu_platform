@@ -96,11 +96,12 @@ export type UserProfileUpdate = {
   [key: string]: unknown;
 };
 
-// Columns clients may write directly, mirroring the column-level grants on
-// public.profiles. Protected fields (credits, is_pro, role, creator_*, …) are
-// server/RPC-only — including any of them in a statement makes Postgres reject
-// the whole write with 42501, so they must be stripped before sending.
-const SELF_SERVICE_PROFILE_COLUMNS = [
+// Keep browser writes in lockstep with the column-level grants applied to
+// public.profiles. Insert and update permissions are intentionally different:
+// user_id is insert-only; updated_at is update-only; created_at and protected
+// account state (credits, role, Pro/subscription, creator review, etc.) remain
+// database/backend-owned.
+const SELF_SERVICE_PROFILE_INSERT_COLUMNS = [
   "user_id",
   "email",
   "full_name",
@@ -115,19 +116,54 @@ const SELF_SERVICE_PROFILE_COLUMNS = [
   "cgpa",
   "grad_year",
   "degree",
+  "cv_trial_used",
   "date_of_birth",
   "interested_countries",
   "interests",
-  "created_at",
-  "updated_at",
 ] as const;
 
-function pickSelfServiceProfileColumns(input: Partial<Profile>): Partial<Profile> {
+const SELF_SERVICE_PROFILE_UPDATE_COLUMNS = [
+  "email",
+  "full_name",
+  "age",
+  "avatar_url",
+  "bio",
+  "preferences",
+  "last_seen_at",
+  "updated_at",
+  "school",
+  "country",
+  "major",
+  "cgpa",
+  "grad_year",
+  "degree",
+  "cv_trial_used",
+  "date_of_birth",
+  "interested_countries",
+  "interests",
+] as const;
+
+function pickProfileColumns(
+  input: Partial<Profile>,
+  columns: readonly string[],
+): Partial<Profile> {
   const out: Record<string, unknown> = {};
-  for (const key of SELF_SERVICE_PROFILE_COLUMNS) {
+  for (const key of columns) {
     if (key in input) out[key] = input[key];
   }
   return out as Partial<Profile>;
+}
+
+export function buildSelfServiceProfileInsert(
+  profile: Profile,
+): Partial<Profile> {
+  return pickProfileColumns(profile, SELF_SERVICE_PROFILE_INSERT_COLUMNS);
+}
+
+export function buildSelfServiceProfileUpdate(
+  profile: Partial<Profile>,
+): Partial<Profile> {
+  return pickProfileColumns(profile, SELF_SERVICE_PROFILE_UPDATE_COLUMNS);
 }
 
 function splitFullName(fullName: string) {
@@ -287,17 +323,15 @@ export const authService = {
   },
 
   async upsertProfile(profile: Profile) {
+    const profileInsert = buildSelfServiceProfileInsert(profile);
     const profileUpdate = {
-      ...pickSelfServiceProfileColumns(profile),
+      ...buildSelfServiceProfileUpdate(profile),
       updated_at: profile.updated_at ?? new Date().toISOString(),
     };
 
     const { error: createError } = await supabase
       .from("profiles")
-      .upsert(
-        { user_id: profile.user_id, credits: 0 },
-        { onConflict: "user_id", ignoreDuplicates: true },
-      );
+      .upsert(profileInsert, { onConflict: "user_id", ignoreDuplicates: true });
     if (createError) throw createError;
 
     const { data, error } = await supabase
@@ -311,9 +345,7 @@ export const authService = {
   },
 
   async updateProfile(userId: string, updates: Partial<Profile>) {
-    const rest = pickSelfServiceProfileColumns(updates);
-    delete rest.user_id;
-    delete rest.created_at;
+    const rest = buildSelfServiceProfileUpdate(updates);
     delete rest.updated_at;
     const { data, error } = await supabase
       .from("profiles")

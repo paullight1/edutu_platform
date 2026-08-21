@@ -1,14 +1,13 @@
 # Edutu Platform Architecture
 
-Generated from the local platform workspace on 2026-05-23.
+Generated from the local platform workspace on 2026-05-23 and updated during the 2026-08 architecture simplification.
 
 ## Repository Model
 
-Edutu is an intentional multi-repo system.
+Edutu is an intentional multi-repo system in transition. This checkout contains the platform surfaces plus a working copy of the mobile application while package/repository ownership is being normalized.
 
 - `edutu-platform` owns the backend API, web app, admin, Scholarship Engine docs site, platform scraper, shared Supabase assets, and platform docs.
-- `edutumobile` owns the Expo mobile app, mobile core package, mobile-specific Supabase functions/migrations, and native widgets.
-- The parent folder is a local workspace container, not a monorepo boundary.
+- Mobile product code currently exists under `edutumobile/`; its long-term package/repository boundary is handled explicitly by the architecture-simplification plan rather than assumed from directory placement.
 
 ## System Context
 
@@ -25,11 +24,28 @@ Users and admins
 | Component | Path | Runtime | Responsibility |
 | --- | --- | --- | --- |
 | Backend API | `backend/services/services/api` | NestJS, Drizzle, Postgres | Business logic, auth verification, AI routing, scraper controls, data access, admin endpoints |
+| Voice Gateway | `backend/services/services/voice` | Node.js | Realtime voice transport and related gateway behavior |
 | Standalone Admin | `admin` | React, Vite, Supabase JS | Operational dashboard for users, opportunities, creators, roadmaps, scraper, mobile control |
-| Main Web App | `edutu-web-app` | React, Vite, Capacitor, PWA | User app, public pages, premium gates, creator flows, embedded admin routes |
+| Main Web App | `edutu-web-app` | React, Vite, Capacitor, PWA | User app, public pages, premium gates, creator flows, admin portal handoff |
 | Scholarship Engine Docs Site | `edutu-web` | Next.js | Public Scholarship Engine docs and onboarding site |
 | Python Scraper | `crawl4ai-scraper` | Python, Crawl4AI | Opportunity crawling, extraction, cleaning, optional Supabase persistence |
 | Shared Supabase Assets | `supabase` | SQL, Deno edge functions | Shared migrations and edge functions |
+
+## Backend Runtime Decision
+
+There is one canonical Node backend API: the NestJS service at `backend/services/services/api`.
+
+The former root-level Express scraper API was retired after verifying that:
+
+- GitHub CI builds/tests the NestJS service, not a root `backend` npm package;
+- the production Render manifest is owned by `backend/services/services/api/render.yaml`;
+- the admin scraper uses the authenticated Nest route family at `/api/scraper`;
+- current scraper orchestration, source management, run control, review, settings, and enrichment live in the Nest scraper module;
+- the Python `crawl4ai-scraper` remains a separate extraction service where applicable.
+
+Architecture governance now rejects reintroducing the retired root `backend/server.js`, `scraper.js`, `database.js`, or standalone root backend npm package.
+
+The `backend/services/services/...` physical nesting is still debt; it will be flattened only after logical ownership is stable and all CI/deployment paths can move atomically.
 
 ## Backend Boundary
 
@@ -91,16 +107,18 @@ Every direct Supabase access path should have a documented reason.
 
 ## Current Architecture Risks
 
-- Multiple Supabase migration folders can drift without explicit ownership.
+- Multiple historical Supabase migration folders still require explicit canonical ownership.
 - The direct-Supabase versus backend-API rule is not consistently documented per feature.
-- Standalone admin and embedded web admin overlap.
-- Some docs referenced `/scraper`, while the standalone admin route currently uses `/edutu-engine`.
-- Local workspace copies include `node_modules`, which adds scan noise and should not drive architecture conclusions.
+- Standalone admin and historical embedded-admin concepts overlap in documentation/code paths.
+- Large UI/service files still combine too many responsibilities.
+- Root and mobile package ownership is not yet normalized.
+- The repeated `backend/services/services` physical path remains confusing until the final path-migration phase.
 
-## Architecture Decisions To Capture
+## Architecture Decisions
 
-1. Edutu is an intentional multi-repo system.
-2. `backend/services/services/api` is the canonical platform backend path.
-3. Backend API is the default place for privileged business logic.
-4. Direct Supabase access requires explicit feature-level ownership and RLS design.
-5. A single admin surface strategy should be chosen or the split should be formally documented.
+1. `backend/services/services/api` is the only canonical platform backend API until the physical-layout phase.
+2. Backend API is the default place for privileged business logic.
+3. Direct Supabase access requires explicit feature-level ownership and RLS design.
+4. Shared migrations and packages will have one canonical owner before physical path moves.
+5. Giant files are decomposed by cohesive responsibility with behavior frozen by tests.
+6. Physical path flattening happens last, after logical boundaries are stable.

@@ -109,7 +109,7 @@ const UpgradePage: React.FC = () => {
     const yearly = effectivePrice(pricing, 'yearly', selectedTier, priceOptions);
     if (monthlyForYear <= 0 || yearly <= 0 || yearly >= monthlyForYear) return 0;
     return Math.round((1 - yearly / monthlyForYear) * 100);
-  }, [pricing, selectedTier]);
+  }, [checkoutEnabled, pricing, selectedTier]);
 
   const plans = useMemo<PlanCard[]>(() => {
     const promoLabel = !checkoutEnabled && pricing.promo?.active && pricing.promo.label

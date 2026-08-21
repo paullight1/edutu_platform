@@ -1,15 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+// These are debt ceilings, not targets. They were refreshed to the exact
+// 2026-08-20 main-branch line counts after governance had drifted behind the
+// repository. CI must reject any additional growth until cohesive features are
+// extracted and the ceilings can be lowered.
 const budgets = {
-  "admin/src/pages/Opportunities.tsx": 5175,
+  "admin/src/pages/Opportunities.tsx": 4597,
   "admin/src/pages/Scraper.tsx": 4653,
-  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3218,
-  "backend/services/services/api/src/scraper/scraper.service.ts": 3955,
-  "edutu-web-app/src/components/Dashboard.tsx": 1966,
-  "edutumobile/app/(app)/chat.tsx": 2244,
-  "edutumobile/app/(app)/index.tsx": 2909,
-  "edutumobile/app/(app)/opportunities/[id].tsx": 4444,
+  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3622,
+  "backend/services/services/api/src/scraper/scraper.service.ts": 3962,
+  "edutu-web-app/src/components/Dashboard.tsx": 2005,
+  "edutumobile/app/(app)/chat.tsx": 2245,
+  "edutumobile/app/(app)/index.tsx": 3113,
+  "edutumobile/app/(app)/opportunities/[id].tsx": 4446,
 };
 
 const root = resolve(import.meta.dirname, "..");

@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   useRef,
+  useMemo,
   type ChangeEvent,
   type FormEvent,
 } from "react";
@@ -16,6 +17,33 @@ import {
   isExpiredOpportunity,
   isPastDate,
 } from "./opportunities/opportunity-status";
+import {
+  BULK_MOVE_CATEGORIES,
+  buildOpportunityPayload,
+  chunkArray,
+  describeVerification,
+  getErrorMessage,
+  guessTitleFromUrl,
+  mapPreviewToFormValues,
+  normalizeOpportunityStatus,
+  normalizeText,
+  truncateText,
+  type BulkActionKind,
+  type BulkPreviewItem,
+  type BulkProgress,
+  type CreationMode,
+  type Opportunity,
+  type OpportunityFormValues,
+  type OpportunityListResponse,
+  type OpportunityPreviewItem,
+  type OpportunityShareCard,
+  type OpportunityShareResponse,
+  type OpportunityStatus,
+  type PageNotice,
+  type Stats,
+  type ViewMode,
+} from "./opportunities/opportunity-domain";
+import { createOpportunityAdminApi } from "./opportunities/opportunity-admin-api";
 import {
   Target,
   Plus,
@@ -47,279 +75,7 @@ import {
   Share2,
 } from "lucide-react";
 
-interface Opportunity {
-  id: string;
-  title: string;
-  summary: string;
-  description: string;
-  category: string;
-  organization: string;
-  location: string;
-  is_remote: boolean;
-  application_url: string;
-  source_url?: string;
-  close_date: string;
-  image_url: string;
-  is_featured: boolean;
-  status: "active" | "closed" | "draft" | "pending_review" | "rejected";
-  created_at: string;
-  views: number;
-  applications: number;
-  metadata?: {
-    extraction_quality_score?: number;
-    extraction_missing_fields?: string[];
-    description_length?: number;
-    needs_review?: boolean;
-    [key: string]: unknown;
-  };
-  eligibility?: {
-    school?: string;
-    major?: string;
-    min_cgpa?: number;
-    countries?: string[];
-  };
-}
-
-interface Stats {
-  total: number;
-  /** Effectively active: excludes 'active' rows whose deadline already passed. */
-  active: number;
-  /** status 'closed' OR a past close_date — matches isExpiredOpportunity(). */
-  expired: number;
-  missingDeadline: number;
-  featured: number;
-  expiringSoon: number;
-  needsReview: number;
-}
-
-interface PageNotice {
-  type: "success" | "warning" | "error";
-  message: string;
-}
-
-interface EnhanceOpportunityResponse {
-  success?: boolean;
-  opportunity?: Opportunity;
-  error?: string;
-}
-
-interface OpportunityShareCard {
-  url: string;
-  path: string;
-  format: "png" | "svg";
-  generatedAt?: string;
-  fingerprint?: string;
-  expiresAt?: string | null;
-}
-
-interface OpportunityShareResponse {
-  success?: boolean;
-  opportunityId?: string;
-  shareCard?: OpportunityShareCard | null;
-  shareUrl?: string;
-  shareText?: string;
-  error?: string;
-}
-
-type OpportunityStatus = Opportunity["status"];
-
-// Discovery tabs the mobile app shows; bulk "move to category" targets these.
-const BULK_MOVE_CATEGORIES = [
-  "Scholarships",
-  "Internships",
-  "Programs",
-  "Fellowships",
-  "Grants",
-  "Graduate Programs",
-  "Bootcamps",
-  "Events",
-] as const;
-
-type CreationMode = "manual" | "url" | "bulk";
-type ViewMode = "table" | "grid";
-
-// Which bulk action is running — one spinner, not five. A single boolean made
-// every toolbar button animate at once, so nothing communicated what was
-// actually happening.
-type BulkActionKind =
-  | "approve"
-  | "reject"
-  | "findDeadlines"
-  | "aiComplete"
-  | "category"
-  | "delete";
-
-interface BulkProgress {
-  done: number;
-  total: number;
-  note?: string;
-}
-
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-}
-
-interface OpportunityListResponse {
-  data: Opportunity[];
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasMore: boolean;
-}
-
-interface OpportunityEligibilityForm {
-  school: string;
-  major: string;
-  min_cgpa: string;
-  countries: string[];
-}
-
-interface OpportunityPreviewItem {
-  title: string;
-  summary?: string;
-  description?: string;
-  category?: string;
-  organization?: string;
-  location?: string;
-  amount?: number | string | null;
-  award_amount?: number | string | null;
-  deadline?: string | null;
-  close_date?: string | null;
-  application_url?: string;
-  applyUrl?: string;
-  apply_url?: string;
-  sourceUrl?: string;
-  source_url?: string;
-  imageUrl?: string;
-  image_url?: string;
-  source?: string;
-  status?: string;
-  is_remote?: boolean;
-  is_featured?: boolean;
-  confidence?: number;
-  errors?: string[];
-  eligibility?: {
-    school?: string;
-    major?: string;
-    min_cgpa?: number | string;
-    countries?: string[];
-    [key: string]: unknown;
-  };
-  funding_type?: string | null;
-  target_region?: string | null;
-  requirements?: string[];
-  benefits?: string[];
-  application_process?: string[];
-  metadata?: {
-    extraction_quality_score?: number;
-    extraction_missing_fields?: string[];
-    needs_review?: boolean;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-interface BulkPreviewItem extends OpportunityPreviewItem {
-  confidence: number;
-  status: "ready" | "needs_review";
-  errors: string[];
-}
-
-interface OpportunityFormValues {
-  title: string;
-  summary: string;
-  description: string;
-  category: string;
-  organization: string;
-  location: string;
-  is_remote: boolean;
-  application_url: string;
-  close_date: string;
-  image_url: string;
-  is_featured: boolean;
-  status: OpportunityStatus;
-  eligibility: OpportunityEligibilityForm;
-}
-
-const BACKEND_STATUSES = new Set<OpportunityStatus | "pending" | "expired">([
-  "active",
-  "closed",
-  "draft",
-  "pending_review",
-  "rejected",
-  "pending",
-  "expired",
-]);
-
 const PUBLIC_WEB_APP_FALLBACK_URL = "https://edutu.org";
-
-function getErrorMessage(error: unknown, fallback = "Unknown error") {
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === "string") return error || fallback;
-  return fallback;
-}
-
-function normalizeText(value: unknown, fallback = "") {
-  if (typeof value !== "string") return fallback;
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized || fallback;
-}
-
-function truncateText(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1).trim()}...`;
-}
-
-/**
- * Turns a verification outcome into something an admin can act on. A bare
- * "Verified" would be misleading: the check can succeed and still find no date,
- * which is the likeliest result on the missing-deadline cohort.
- */
-function describeVerification(
-  result?: {
-    status?: string;
-    newCloseDate?: string | null;
-    newDeadlineConfidence?: string;
-  } | null,
-) {
-  if (!result) return "Deadline check finished.";
-
-  if (result.newCloseDate) {
-    const date = new Date(result.newCloseDate);
-    const readable = Number.isNaN(date.getTime())
-      ? result.newCloseDate
-      : date.toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        });
-    return `Deadline found: ${readable}${
-      result.newDeadlineConfidence === "inferred" ? " (inferred)" : ""
-    }.`;
-  }
-
-  if (result.newDeadlineConfidence === "rolling") {
-    return "Source says applications are rolling — no fixed deadline.";
-  }
-
-  switch (result.status) {
-    case "expired":
-      return "Source confirms this has closed.";
-    case "broken_link":
-      return "Source link is broken — no deadline could be read.";
-    case "stale":
-      return "Source could not be reached; it will retry automatically.";
-    case "needs_review":
-      return "Needs review — the source was ambiguous.";
-    default:
-      return "Checked, but the source states no deadline.";
-  }
-}
 
 function getPublicAppBaseUrl() {
   const configured =
@@ -487,192 +243,6 @@ function openExternalUrl(rawUrl?: string | null) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-function guessTitleFromUrl(rawUrl: string) {
-  try {
-    const parsed = new URL(rawUrl);
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    const lastSegment =
-      segments[segments.length - 1] || parsed.hostname.replace(/^www\./, "");
-    const candidate = decodeURIComponent(lastSegment)
-      .replace(/\.[a-z0-9]+$/i, "")
-      .replace(/[-_]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (!candidate) {
-      return parsed.hostname.replace(/^www\./, "").replace(/\./g, " ");
-    }
-
-    return candidate
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  } catch {
-    return rawUrl.trim() || "Untitled Opportunity";
-  }
-}
-
-function formatEligibilityCriteria(
-  eligibility:
-    | OpportunityEligibilityForm
-    | OpportunityPreviewItem["eligibility"],
-) {
-  if (!eligibility) return null;
-
-  const parts: string[] = [];
-
-  if ("school" in eligibility && eligibility.school) {
-    parts.push(`School: ${eligibility.school}`);
-  }
-  if ("major" in eligibility && eligibility.major) {
-    parts.push(`Major: ${eligibility.major}`);
-  }
-
-  const minCgpa = "min_cgpa" in eligibility ? eligibility.min_cgpa : undefined;
-  if (minCgpa !== undefined && minCgpa !== null && String(minCgpa).trim()) {
-    parts.push(`Minimum CGPA: ${minCgpa}`);
-  }
-
-  const countries =
-    "countries" in eligibility ? eligibility.countries : undefined;
-  if (Array.isArray(countries) && countries.length > 0) {
-    parts.push(`Countries: ${countries.filter(Boolean).join(", ")}`);
-  }
-
-  return parts.length > 0 ? parts.join(" | ") : null;
-}
-
-function normalizeOpportunityStatus(
-  status?: string,
-  confidence?: number,
-): OpportunityStatus {
-  const normalized = status?.trim().toLowerCase();
-  if (
-    normalized &&
-    BACKEND_STATUSES.has(
-      normalized as OpportunityStatus | "pending" | "expired",
-    )
-  ) {
-    if (normalized === "pending") return "pending_review";
-    if (normalized === "expired") return "closed";
-    return normalized as OpportunityStatus;
-  }
-
-  return confidence !== undefined && confidence >= 60
-    ? "active"
-    : "pending_review";
-}
-
-function mapPreviewToFormValues(
-  opportunity: OpportunityPreviewItem,
-  fallback?: OpportunityFormValues,
-): OpportunityFormValues {
-  const sourceUrl =
-    opportunity.application_url ||
-    opportunity.applyUrl ||
-    opportunity.apply_url ||
-    opportunity.sourceUrl ||
-    opportunity.source_url ||
-    fallback?.application_url ||
-    "";
-
-  const location = opportunity.location ?? fallback?.location ?? "";
-  const eligibility = opportunity.eligibility;
-
-  return {
-    title: opportunity.title || fallback?.title || guessTitleFromUrl(sourceUrl),
-    summary: opportunity.summary || fallback?.summary || "",
-    description: opportunity.description || fallback?.description || "",
-    category: opportunity.category || fallback?.category || "Scholarships",
-    organization:
-      opportunity.organization ||
-      opportunity.source ||
-      fallback?.organization ||
-      "",
-    location,
-    is_remote: opportunity.is_remote ?? fallback?.is_remote ?? false,
-    application_url: sourceUrl,
-    close_date: (
-      opportunity.close_date ||
-      opportunity.deadline ||
-      fallback?.close_date ||
-      ""
-    ).split("T")[0],
-    image_url:
-      opportunity.image_url ||
-      opportunity.imageUrl ||
-      fallback?.image_url ||
-      "",
-    is_featured: opportunity.is_featured ?? fallback?.is_featured ?? false,
-    status: normalizeOpportunityStatus(
-      opportunity.status,
-      opportunity.confidence,
-    ),
-    eligibility: {
-      school: eligibility?.school || fallback?.eligibility?.school || "",
-      major: eligibility?.major || fallback?.eligibility?.major || "",
-      min_cgpa:
-        eligibility?.min_cgpa !== undefined && eligibility?.min_cgpa !== null
-          ? String(eligibility.min_cgpa)
-          : fallback?.eligibility?.min_cgpa || "",
-      countries:
-        eligibility?.countries || fallback?.eligibility?.countries || [],
-    },
-  };
-}
-
-function buildOpportunityPayload(
-  input: OpportunityFormValues | OpportunityPreviewItem,
-) {
-  const previewInput = input as OpportunityPreviewItem;
-  const eligibility = input.eligibility;
-  const sourceUrl =
-    input.application_url ||
-    previewInput.applyUrl ||
-    previewInput.apply_url ||
-    previewInput.sourceUrl ||
-    previewInput.source_url ||
-    "";
-  const location = input.location || (eligibility?.countries || []).join(", ");
-
-  return {
-    title: input.title,
-    summary: input.summary || undefined,
-    description: input.description || undefined,
-    category: input.category || undefined,
-    organization: input.organization || previewInput.source || undefined,
-    location: location || undefined,
-    type: "scholarship",
-    eligibilityCriteria: formatEligibilityCriteria(eligibility) || undefined,
-    fundingType: previewInput.funding_type || undefined,
-    targetRegion: previewInput.target_region || location || undefined,
-    deadline: input.close_date || previewInput.deadline || undefined,
-    sourceUrl: sourceUrl || undefined,
-    applyUrl: sourceUrl || undefined,
-    imageUrl:
-      input.image_url ||
-      previewInput.imageUrl ||
-      previewInput.image_url ||
-      undefined,
-    eligibility: input.eligibility || undefined,
-    isFeatured: input.is_featured || previewInput.is_featured || false,
-    isRemote: input.is_remote ?? true,
-    status: normalizeOpportunityStatus(input.status, previewInput.confidence),
-    requirements:
-      "requirements" in previewInput ? previewInput.requirements : undefined,
-    benefits: "benefits" in previewInput ? previewInput.benefits : undefined,
-    applicationProcess:
-      "application_process" in previewInput
-        ? previewInput.application_process
-        : undefined,
-    application_process:
-      "application_process" in previewInput
-        ? previewInput.application_process
-        : undefined,
-    tags: "tags" in previewInput ? previewInput.tags : undefined,
-  };
-}
-
 export default function Opportunities() {
   const [filteredOpps, setFilteredOpps] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -792,15 +362,10 @@ export default function Opportunities() {
         source: "all",
         phase: "preview",
       });
-      const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
-        method: "POST",
-        headers: await getAdminHeaders(),
-        signal: controller.signal,
-        body: JSON.stringify({
-          allSources: true,
-          maxPages: 3,
-        }),
-      });
+      const result = await opportunityAdminApi.runScraper(
+        { allSources: true, maxPages: 3 },
+        controller.signal,
+      );
 
       setLoadingStatus({
         message: "Processing results...",
@@ -808,10 +373,8 @@ export default function Opportunities() {
         source: "all",
         phase: "preview",
       });
-      const result = await response.json();
 
       if (
-        response.ok &&
         result.success &&
         result.opportunities &&
         result.opportunities.length > 0
@@ -896,7 +459,6 @@ export default function Opportunities() {
         throw new Error("No valid opportunities to save");
       }
 
-      const headers = await getAdminHeaders();
       const batches: Array<Array<Record<string, unknown>>> = [];
       for (let index = 0; index < items.length; index += 100) {
         batches.push(items.slice(index, index + 100));
@@ -914,20 +476,7 @@ export default function Opportunities() {
           phase: "save",
         });
 
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-import`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ items: batch }),
-          },
-        );
-
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || `Save failed for batch ${index + 1}`);
-        }
+        const result = await opportunityAdminApi.bulkImport(batch);
 
         inserted += Number(result.inserted || 0);
         skipped += Number(result.skipped || 0);
@@ -965,8 +514,6 @@ export default function Opportunities() {
       phase: "refine",
     });
 
-    const headers = await getAdminHeaders();
-
     const improved: OpportunityPreviewItem[] = [];
     const errors: string[] = [];
 
@@ -984,17 +531,8 @@ export default function Opportunities() {
       });
 
       try {
-        const response = await fetch(
-          `${NEST_API_URL}/api/scraper/enhance-preview`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify(opp),
-          },
-        );
-
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success) {
+        const result = await opportunityAdminApi.enhancePreview(opp);
+        if (!result?.success) {
           errors.push(
             result?.error ||
               `Failed to refine ${opp.title || "an opportunity"}`,
@@ -1107,6 +645,15 @@ export default function Opportunities() {
     });
   }, []);
 
+  const opportunityAdminApi = useMemo(
+    () =>
+      createOpportunityAdminApi({
+        baseUrl: NEST_API_URL,
+        getHeaders: getAdminHeaders,
+      }),
+    [getAdminHeaders, NEST_API_URL],
+  );
+
   // One param builder for both the page fetch and "Select all N matching",
   // so the selection loop can never drift from what the list shows.
   const buildListParams = useCallback(
@@ -1150,29 +697,15 @@ export default function Opportunities() {
     try {
       const params = buildListParams(currentPage, pageSize);
 
-      const headers = await getAdminHeaders();
-      const [listResponse, statsResponse] = await Promise.all([
-        fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
-          headers,
-        }),
-        fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
-          headers,
-        }),
-      ]);
-
-      if (!listResponse.ok) {
-        const error = await listResponse.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to load opportunities");
-      }
-
-      const result = (await listResponse.json()) as OpportunityListResponse;
+      const { list: result, stats: nextStats } =
+        await opportunityAdminApi.loadListAndStats(params);
       const opps = result.data || [];
       setFilteredOpps(opps);
       setTotalOpportunities(result.total || 0);
       setTotalPages(result.totalPages || 1);
 
-      if (statsResponse.ok) {
-        setStats(await statsResponse.json());
+      if (nextStats) {
+        setStats(nextStats);
       }
     } catch (error: unknown) {
       console.error("Failed to load opportunities:", error);
@@ -1185,7 +718,7 @@ export default function Opportunities() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [buildListParams, currentPage, getAdminHeaders, NEST_API_URL, pageSize]);
+  }, [buildListParams, currentPage, opportunityAdminApi, pageSize]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1295,14 +828,7 @@ export default function Opportunities() {
     )
       return;
     try {
-      const response = await fetch(`${NEST_API_URL}/opportunities/${id}`, {
-        method: "DELETE",
-        headers: await getAdminHeaders(),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to delete opportunity");
-      }
+      await opportunityAdminApi.deleteOpportunity(id);
       void fetchOpportunities();
       showPageNotice("success", "Opportunity deleted.");
     } catch (error: unknown) {
@@ -1315,18 +841,7 @@ export default function Opportunities() {
 
   async function handleStatusUpdate(id: string, status: OpportunityStatus) {
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/${id}/status`,
-        {
-          method: "PATCH",
-          headers: await getAdminHeaders(),
-          body: JSON.stringify({ status }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to update status");
-      }
+      await opportunityAdminApi.updateStatus(id, status);
       void fetchOpportunities();
       showPageNotice("success", "Opportunity status updated.");
     } catch (error: unknown) {
@@ -1354,19 +869,7 @@ export default function Opportunities() {
       // The bulk endpoints cap at 200 ids per request; "Select all" can pick
       // more than that, so send in chunks and keep a running total.
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-status`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk, status }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk status update failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkStatus(chunk, status);
         updated +=
           typeof result.updated === "number" ? result.updated : chunk.length;
         done += chunk.length;
@@ -1405,19 +908,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-category`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk, category }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk category move failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkCategory(chunk, category);
         updated +=
           typeof result.updated === "number" ? result.updated : chunk.length;
         done += chunk.length;
@@ -1454,19 +945,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-delete`,
-          {
-            method: "POST",
-            headers: await getAdminHeaders(),
-            body: JSON.stringify({ ids: chunk }),
-          },
-        );
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Bulk delete failed");
-        }
-        const result = await response.json().catch(() => ({}));
+        const result = await opportunityAdminApi.bulkDelete(chunk);
         deleted +=
           typeof result.deleted === "number" ? result.deleted : chunk.length;
         done += chunk.length;
@@ -1489,17 +968,7 @@ export default function Opportunities() {
   async function handleEnhanceOpportunity(id: string) {
     setEnhancingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "AI enhancement failed");
-      }
+      const result = await opportunityAdminApi.enhanceOpportunity(id);
       await fetchOpportunities();
       showPageNotice(
         "success",
@@ -1522,21 +991,7 @@ export default function Opportunities() {
   async function handleFindDeadline(id: string) {
     setVerifyingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/verification/${id}`,
-        {
-          method: "POST",
-          headers: {
-            ...(await getAdminHeaders()),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ dryRun: false }),
-        },
-      );
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Deadline check failed");
-      }
+      const result = await opportunityAdminApi.verifyOpportunity(id);
 
       await fetchOpportunities();
       showPageNotice("success", describeVerification(result.result));
@@ -1573,20 +1028,7 @@ export default function Opportunities() {
       // spinning for upwards of half an hour with no sign of life.
       for (const chunk of chunkArray(ids, 10)) {
         try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/verification/bulk`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
-              body: JSON.stringify({ ids: chunk, dryRun: false }),
-            },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(
-              result.error || result.message || "Deadline check failed",
-            );
-          }
+          const result = await opportunityAdminApi.verifyOpportunities(chunk);
           checked += Number(result.checked) || 0;
           found += Number(result.found) || 0;
           rolling += Number(result.rolling) || 0;
@@ -1648,17 +1090,7 @@ export default function Opportunities() {
       // enriched via the same single-row enhance endpoint the icon uses.
       for (const id of ids) {
         try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
-            },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || "AI enhancement failed");
-          }
+          await opportunityAdminApi.enhanceOpportunity(id);
           completed += 1;
         } catch {
           failed += 1;
@@ -1710,18 +1142,9 @@ export default function Opportunities() {
 
   async function getAiImprovedOpportunityForShare(opp: Opportunity) {
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/${opp.id}/enhance`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-        },
-      );
-      const result = (await response
-        .json()
-        .catch(() => ({}))) as EnhanceOpportunityResponse;
+      const result = await opportunityAdminApi.enhanceOpportunity(opp.id);
 
-      if (!response.ok || !result.success || !result.opportunity) {
+      if (!result.opportunity) {
         return { opportunity: opp, aiEnhanced: false, aiFallback: true };
       }
 

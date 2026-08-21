@@ -1,8 +1,8 @@
 name: CI
 
-# Node 20 is deliberate for the existing applications: it matches the API's
-# production runtime. The mediasoup voice gateway has a separate Node 22 job
-# because mediasoup 3.24 requires Node 22 or newer.
+# Backend stays on Node 20 to match the current production runtime.
+# Frontend/mobile/voice jobs use Node 22 because current Capacitor, Metro and
+# mediasoup dependencies require it.
 
 on:
   push:
@@ -11,7 +11,44 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  repository-governance:
+    name: Repository Governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test scripts/check-mobile-audit.test.mjs
+      - run: node --test scripts/architecture-boundaries.test.mjs
+      - run: node --test scripts/migration-ownership.test.mjs
+      - run: node scripts/check-architecture-boundaries.mjs
+      - run: node scripts/check-migration-ownership.mjs
+      - run: node scripts/check-migration-timestamps.mjs
+      - run: node scripts/check-large-file-budgets.mjs
+
+  edge-function-security:
+    name: Edge Function Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno test --allow-read backend/services/services/api/supabase/functions/n8n-webhook/auth.test.ts
+
   voice-gateway:
     name: Voice Gateway
     runs-on: ubuntu-latest
@@ -32,14 +69,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-      # Exercises the real mediasoup worker and RTC socket binding on the target
-      # Linux runtime; unit tests use an injectable media adapter.
       - run: npm run test:smoke
 
   backend-test:
-    name: Backend Tests
+    name: Backend Tests + Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend/services/services/api
@@ -55,6 +90,7 @@ jobs:
       - run: npm ci
       - run: npm run test
       - run: npm run test:e2e
+      - run: npm run build
 
   backend-lint:
     name: Backend Lint
@@ -70,6 +106,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/services/services/api/package-lock.json
       - run: npm ci
       - run: npm run lint
 
@@ -82,9 +120,11 @@ jobs:
         working-directory: edutumobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
       - run: npm ci
@@ -93,15 +133,17 @@ jobs:
   mobile-test:
     name: Mobile Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: edutumobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
       - run: npm ci
@@ -116,16 +158,18 @@ jobs:
         working-directory: edutumobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
       - run: npm ci
       - run: npm run lint
 
-  admin-typecheck:
-    name: Admin TypeCheck
+  admin-build:
+    name: Admin Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -137,14 +181,11 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
-      # Must be `tsc -b`, not `tsc --noEmit`. tsconfig.json is a solution file
-      # ("files": [] plus references), so --noEmit compiles zero files and the
-      # job passes on any type error. -b builds every referenced project.
-      - run: npx tsc -b
+      - run: npm run build
 
   admin-lint:
     name: Admin Lint
@@ -159,7 +200,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
@@ -178,16 +219,16 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
       - run: npm test
 
-  web-typecheck:
-    name: Web TypeCheck
+  web-build:
+    name: Web TypeCheck + Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: edutu-web-app
@@ -197,11 +238,12 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run build
 
   web-lint:
     name: Web Lint
@@ -216,7 +258,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
@@ -235,7 +277,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
@@ -244,20 +286,24 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: |
-          cd backend/services/services/api && npm ci && npm audit --audit-level=high || true
-      - run: |
-          cd edutumobile && npm ci && npm audit --audit-level=high || true
-      - run: |
-          cd admin && npm ci && npm audit --audit-level=high || true
+          node-version: '22'
+      - name: Backend high/critical audit
+        run: cd backend/services/services/api && npm ci && npm audit --audit-level=high
+      - name: Admin high/critical audit
+        run: cd admin && npm ci && npm audit --audit-level=high
+      - name: Web high/critical audit
+        run: cd edutu-web-app && npm ci && npm audit --audit-level=high
+      - name: Mobile install
+        run: cd edutumobile && npm ci
+      - name: Mobile high/critical policy audit
+        run: node scripts/check-mobile-audit.mjs
 
   security-audit-voice:
     name: Security Audit — Voice Gateway
@@ -276,4 +322,4 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/services/services/voice/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high || true
+      - run: npm audit --audit-level=high
