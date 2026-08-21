@@ -3,7 +3,7 @@ import CommunityExplorePage from "./CommunityExplorePage";
 import CommunityGroupsPage from "./CommunityGroupsPage";
 import CommunityCreateGroupPage from "./CommunityCreateGroupPage";
 import CommunityGroupPage from "./CommunityGroupPage";
-import CommunityGroupSettingsPage from "./CommunityGroupSettingsPage";
+import CommunityGroupSettingsPage from "./CommunityGroupSettingsRoute";
 import CommunityJoinRequestsPage from "./CommunityJoinRequestsPage";
 import CommunityChatsPage from "./CommunityChatsPage";
 import CommunityDmPage from "./CommunityDmPage";
