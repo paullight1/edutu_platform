@@ -234,7 +234,7 @@ const DETAIL_POLISH_STYLES = `
 
   .opportunity-detail-experience main > section article > section:not(.grid) {
     padding-top: 1.45rem;
-    border-top: 1px solid rgb(var(--color-border-subtle) / 1);
+    border-top: 1px solid rgb(var(--border-subtle));
   }
 
   .opportunity-detail-experience main > section article h2 {
@@ -302,7 +302,7 @@ export default function OpportunityDetail({
   const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const nextTarget = rootRef.current?.querySelector("main") ?? null;
+    const nextTarget = rootRef.current?.querySelector<HTMLElement>("main") ?? null;
     setMainTarget(nextTarget);
   }, [embedded, opportunity.id]);
 
