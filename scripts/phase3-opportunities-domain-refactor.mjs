@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const pagePath = resolve(root, "admin/src/pages/Opportunities.tsx");
 const budgetPath = resolve(root, "scripts/check-large-file-budgets.mjs");
-const workflowPath = resolve(root, ".github/workflows/ci.yml");
 const scriptPath = resolve(root, "scripts/phase3-opportunities-domain-refactor.mjs");
 
 function requireOnce(source, marker, label) {
@@ -74,14 +73,6 @@ budgets = budgets.replace(
   `"admin/src/pages/Opportunities.tsx": ${lineCount}`,
 );
 await writeFile(budgetPath, budgets, "utf8");
-
-let workflow = await readFile(workflowPath, "utf8");
-const beginMarker = "  # BEGIN PHASE3_OPPORTUNITY_DOMAIN_APPLY\n";
-const endMarker = "  # END PHASE3_OPPORTUNITY_DOMAIN_APPLY\n";
-const begin = requireOnce(workflow, beginMarker, "temporary workflow begin");
-const end = requireOnce(workflow, endMarker, "temporary workflow end");
-workflow = workflow.slice(0, begin) + workflow.slice(end + endMarker.length);
-await writeFile(workflowPath, workflow, "utf8");
 
 await unlink(scriptPath);
 
