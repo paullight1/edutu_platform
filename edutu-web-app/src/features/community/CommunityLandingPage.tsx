@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   BookOpen,
-  BriefcaseBusiness,
+  Briefcase,
   MessageCircle,
   Search,
   ShieldCheck,
@@ -189,7 +189,7 @@ export default function CommunityLandingPage() {
                 ))}
               </div>
             ) : (
-              <div className="mt-7 rounded-[24px] border border-dashed border-[#e5c7b5] bg-[#fff9f1] p-8 text-center dark:border-subtle dark:bg-surface-elevated"><BriefcaseBusiness className="mx-auto text-[#f45b16]" /><p className="mt-3 text-sm font-bold text-[#4a170d] dark:text-text-primary">Public groups will appear here as members create them.</p></div>
+              <div className="mt-7 rounded-[24px] border border-dashed border-[#e5c7b5] bg-[#fff9f1] p-8 text-center dark:border-subtle dark:bg-surface-elevated"><Briefcase className="mx-auto text-[#f45b16]" /><p className="mt-3 text-sm font-bold text-[#4a170d] dark:text-text-primary">Public groups will appear here as members create them.</p></div>
             )}
           </div>
         </section>
