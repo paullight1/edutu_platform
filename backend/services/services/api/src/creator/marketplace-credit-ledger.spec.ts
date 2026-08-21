@@ -30,9 +30,7 @@ describe("marketplace credit ledger", () => {
   it("reads creator earnings and wallet history from the same canonical ledger", () => {
     const earnings = dialect
       .sqlToQuery(
-        marketplaceEarningsTotalQuery(
-          "11111111-1111-4111-8111-111111111111",
-        ),
+        marketplaceEarningsTotalQuery("11111111-1111-4111-8111-111111111111"),
       )
       .sql.toLowerCase();
     const history = dialect
