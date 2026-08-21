@@ -489,6 +489,11 @@ export class CreatorService {
         .execute();
       if (existing) return existing;
 
+      const price = listing.price ?? 0;
+      if (price > 0 && String(listing.sellerId) === dbUserId) {
+        throw new BadRequestException("You cannot purchase your own listing.");
+      }
+
       // Capacity is checked from the enrollment table while the listing row is
       // locked, before any wallet or enrollment write occurs.
       if (listing.capacity != null) {
@@ -508,26 +513,31 @@ export class CreatorService {
         .from(profiles)
         .where(this.userMatch(profiles.userId, dbUserId))
         .limit(1)
+        .for("update")
         .execute();
       if (!userProfile) throw new NotFoundException("User profile not found");
 
-      const price = listing.price ?? 0;
       if (price > 0 && (userProfile.creditsBalance ?? 0) < price) {
         throw new BadRequestException(
           `Insufficient credits. Need ${price}, have ${userProfile.creditsBalance}.`,
         );
       }
 
-      let sellerProfile: typeof profiles.$inferSelect | undefined;
-      let creatorCut = 0;
       if (price > 0) {
-        [sellerProfile] = await tx
+        const [sellerProfile] = await tx
           .select()
           .from(profiles)
           .where(this.userMatch(profiles.userId, String(listing.sellerId)))
           .limit(1)
+          .for("update")
           .execute();
-        creatorCut = Math.floor((price * (100 - PLATFORM_FEE_PERCENT)) / 100);
+        if (!sellerProfile) {
+          throw new NotFoundException("Marketplace seller profile not found");
+        }
+
+        const creatorCut = Math.floor(
+          (price * (100 - PLATFORM_FEE_PERCENT)) / 100,
+        );
 
         await tx
           .update(profiles)
@@ -552,31 +562,29 @@ export class CreatorService {
           }),
         );
 
-        if (sellerProfile) {
-          await tx
-            .update(profiles)
-            .set({
-              creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
-              updatedAt: new Date(),
-            })
-            .where(this.userMatch(profiles.userId, String(listing.sellerId)))
-            .execute();
+        await tx
+          .update(profiles)
+          .set({
+            creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
+            updatedAt: new Date(),
+          })
+          .where(this.userMatch(profiles.userId, String(listing.sellerId)))
+          .execute();
 
-          await tx.execute(
-            marketplaceLedgerEntryQuery({
-              userId: String(listing.sellerId),
-              amount: creatorCut,
-              type: "creator_earning",
-              listingId,
-              description: `Earning from: ${listing.title}`,
-              metadata: {
-                buyerUserId: dbUserId,
-                grossCredits: price,
-                platformFeePercent: PLATFORM_FEE_PERCENT,
-              },
-            }),
-          );
-        }
+        await tx.execute(
+          marketplaceLedgerEntryQuery({
+            userId: String(listing.sellerId),
+            amount: creatorCut,
+            type: "creator_earning",
+            listingId,
+            description: `Earning from: ${listing.title}`,
+            metadata: {
+              buyerUserId: dbUserId,
+              grossCredits: price,
+              platformFeePercent: PLATFORM_FEE_PERCENT,
+            },
+          }),
+        );
       }
 
       const [enrollment] = await tx
