@@ -17,7 +17,9 @@ const row: PublicCommunityGroupSummary = {
 
 describe("PublicCommunityController", () => {
   it("is explicitly anonymous", () => {
-    expect(Reflect.getMetadata(IS_PUBLIC_KEY, PublicCommunityController)).toBe(true);
+    expect(
+      Reflect.getMetadata(IS_PUBLIC_KEY, PublicCommunityController),
+    ).toBe(true);
   });
 
   it("forwards bounded list and slug lookups", async () => {
@@ -41,8 +43,12 @@ describe("PublicCommunityController", () => {
     };
     const controller = new PublicCommunityController(service as never);
 
-    expect(() => controller.list("0")).toThrow("limit must be a positive number");
-    expect(() => controller.list("not-a-number")).toThrow("limit must be a positive number");
+    expect(() => controller.list("0")).toThrow(
+      "limit must be a positive number",
+    );
+    expect(() => controller.list("not-a-number")).toThrow(
+      "limit must be a positive number",
+    );
     expect(service.list).not.toHaveBeenCalled();
   });
 });
