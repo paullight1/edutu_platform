@@ -54,16 +54,15 @@ export default function WalletScreen() {
     const txSectionY = useRef(0);
 
     const loadEntitlements = useCallback(async () => {
-        if (!user?.id) {
-            setEntitlements([]);
-            setEntitlementsLoading(false);
-            return;
-        }
+        if (!user?.id) return;
 
-        setEntitlementsLoading(true);
-        setEntitlementsError(null);
         try {
+            // Resolve the external auth state first. This keeps the effect from
+            // synchronously cascading local state updates while still showing
+            // the initial loading state from the component's default state.
             const token = await getToken();
+            setEntitlementsLoading(true);
+            setEntitlementsError(null);
             if (!token) throw new Error('Your session has expired. Sign in again.');
             setEntitlements(await fetchMarketplaceEntitlements({ token }));
         } catch (error) {
@@ -78,8 +77,9 @@ export default function WalletScreen() {
     }, [getToken, user?.id]);
 
     useEffect(() => {
+        if (!user?.id) return;
         void loadEntitlements();
-    }, [loadEntitlements]);
+    }, [loadEntitlements, user?.id]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
