@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   FolderOpen,
   Heart,
+  ShoppingBag,
 } from "lucide-react";
 
 export type NavLeaf = { label: string; to: string; icon?: LucideIcon };
@@ -49,6 +50,7 @@ export const NAV: NavEntry[] = [
       { label: "Submissions", to: "/submissions", icon: Inbox },
       { label: "Events", to: "/events", icon: CalendarDays },
       { label: "Roadmaps", to: "/roadmaps", icon: BookOpen },
+      { label: "Marketplace", to: "/marketplace", icon: ShoppingBag },
       { label: "Blog", to: "/blog", icon: FileText },
       { label: "Impact Stories", to: "/impact-stories", icon: Heart },
     ],
