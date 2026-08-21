@@ -1,6 +1,8 @@
 import type {
+  Opportunity,
   OpportunityListResponse,
   OpportunityPreviewItem,
+  OpportunityStatus,
   Stats,
 } from "./opportunity-domain";
 
@@ -32,6 +34,46 @@ export interface EnhancePreviewResponse {
   message?: string;
 }
 
+export interface BulkMutationResponse {
+  success?: boolean;
+  updated?: number;
+  deleted?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface EnhanceOpportunityTransportResponse {
+  success?: boolean;
+  opportunity?: Opportunity;
+  completeness?: { score?: number; [key: string]: unknown };
+  error?: string;
+  message?: string;
+}
+
+export interface VerificationResult {
+  status?: string;
+  newCloseDate?: string | null;
+  newDeadlineConfidence?: string;
+  [key: string]: unknown;
+}
+
+export interface VerifyOpportunityResponse {
+  success?: boolean;
+  result?: VerificationResult;
+  error?: string;
+  message?: string;
+}
+
+export interface VerifyOpportunitiesResponse {
+  success?: boolean;
+  checked?: number;
+  found?: number;
+  rolling?: number;
+  failed?: number;
+  error?: string;
+  message?: string;
+}
+
 type JsonRecord = Record<string, unknown>;
 type ErrorPayload = { message?: unknown; error?: unknown };
 
@@ -52,22 +94,39 @@ export function createOpportunityAdminApi({
 }: OpportunityAdminApiOptions) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
 
+  async function requestJson<T>(
+    path: string,
+    options: {
+      method: "POST" | "PATCH" | "DELETE";
+      body?: unknown;
+      signal?: AbortSignal;
+      failureMessage: string;
+    },
+  ): Promise<T> {
+    const response = await fetchImpl(`${normalizedBaseUrl}${path}`, {
+      method: options.method,
+      headers: await getHeaders(),
+      signal: options.signal,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    });
+    const payload = await readJson(response);
+    if (!response.ok) {
+      throw new Error(errorMessage(payload, options.failureMessage));
+    }
+    return payload as T;
+  }
+
   async function postJson<T>(
     path: string,
     body: unknown,
     options?: { signal?: AbortSignal; failureMessage?: string },
   ): Promise<T> {
-    const response = await fetchImpl(`${normalizedBaseUrl}${path}`, {
+    return requestJson<T>(path, {
       method: "POST",
-      headers: await getHeaders(),
+      body,
       signal: options?.signal,
-      body: JSON.stringify(body),
+      failureMessage: options?.failureMessage || "Request failed",
     });
-    const payload = await readJson(response);
-    if (!response.ok) {
-      throw new Error(errorMessage(payload, options?.failureMessage || "Request failed"));
-    }
-    return payload as T;
   }
 
   return {
@@ -131,6 +190,91 @@ export function createOpportunityAdminApi({
           failureMessage: `Failed to refine ${opportunity.title || "an opportunity"}`,
         },
       );
+    },
+
+    async deleteOpportunity(id: string): Promise<void> {
+      await requestJson(`/opportunities/${id}`, {
+        method: "DELETE",
+        failureMessage: "Failed to delete opportunity",
+      });
+    },
+
+    async updateStatus(id: string, status: OpportunityStatus): Promise<void> {
+      await requestJson(`/opportunities/${id}/status`, {
+        method: "PATCH",
+        body: { status },
+        failureMessage: "Failed to update status",
+      });
+    },
+
+    async bulkStatus(
+      ids: string[],
+      status: OpportunityStatus,
+    ): Promise<BulkMutationResponse> {
+      return postJson<BulkMutationResponse>(
+        "/opportunities/admin/bulk-status",
+        { ids, status },
+        { failureMessage: "Bulk status update failed" },
+      );
+    },
+
+    async bulkCategory(
+      ids: string[],
+      category: string,
+    ): Promise<BulkMutationResponse> {
+      return postJson<BulkMutationResponse>(
+        "/opportunities/admin/bulk-category",
+        { ids, category },
+        { failureMessage: "Bulk category move failed" },
+      );
+    },
+
+    async bulkDelete(ids: string[]): Promise<BulkMutationResponse> {
+      return postJson<BulkMutationResponse>(
+        "/opportunities/admin/bulk-delete",
+        { ids },
+        { failureMessage: "Bulk delete failed" },
+      );
+    },
+
+    async enhanceOpportunity(
+      id: string,
+    ): Promise<EnhanceOpportunityTransportResponse> {
+      const payload = await postJson<EnhanceOpportunityTransportResponse>(
+        `/opportunities/admin/${id}/enhance`,
+        undefined,
+        { failureMessage: "AI enhancement failed" },
+      );
+      if (!payload.success) {
+        throw new Error(errorMessage(payload, "AI enhancement failed"));
+      }
+      return payload;
+    },
+
+    async verifyOpportunity(id: string): Promise<VerifyOpportunityResponse> {
+      const payload = await postJson<VerifyOpportunityResponse>(
+        `/opportunities/admin/verification/${id}`,
+        { dryRun: false },
+        { failureMessage: "Deadline check failed" },
+      );
+      if (!payload.success) {
+        throw new Error(errorMessage(payload, "Deadline check failed"));
+      }
+      return payload;
+    },
+
+    async verifyOpportunities(
+      ids: string[],
+    ): Promise<VerifyOpportunitiesResponse> {
+      const payload = await postJson<VerifyOpportunitiesResponse>(
+        "/opportunities/admin/verification/bulk",
+        { ids, dryRun: false },
+        { failureMessage: "Deadline check failed" },
+      );
+      if (!payload.success) {
+        throw new Error(errorMessage(payload, "Deadline check failed"));
+      }
+      return payload;
     },
   };
 }
