@@ -60,7 +60,7 @@ function publicMarketplaceProjection(): SQL {
     l.type,
     coalesce(l.price, 0)::integer as "price",
     l.image_url as "imageUrl",
-    l.preview_url as "previewUrl",
+    null::text as "previewUrl",
     l.event_date as "eventDate",
     l.event_end_date as "eventEndDate",
     l.event_location as "eventLocation",
@@ -205,7 +205,8 @@ export function buildMarketplaceEnrollmentListQuery(userId: string): SQL {
       l.title,
       l.category,
       l.type,
-      l.image_url as "imageUrl"
+      l.image_url as "imageUrl",
+      l.preview_url as "accessUrl"
     from public.marketplace_enrollments e
     join public.marketplace_listings l on l.id = e.listing_id
     where e.user_id = ${userId}::uuid
