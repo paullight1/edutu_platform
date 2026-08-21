@@ -18,7 +18,7 @@ function OpportunitiesIntro({ embedded }: { embedded: boolean }) {
         className="pointer-events-none absolute inset-0 opacity-80"
         style={{
           background:
-            "radial-gradient(circle at 86% 8%, rgb(var(--color-brand-500) / 0.16), transparent 31%), radial-gradient(circle at 12% 92%, rgb(var(--color-cyan-500, 6 182 212) / 0.08), transparent 32%)",
+            "radial-gradient(circle at 86% 8%, rgb(var(--color-brand-500) / 0.16), transparent 31%), radial-gradient(circle at 8% 94%, rgb(var(--color-brand-300) / 0.09), transparent 34%)",
         }}
       />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -104,6 +104,14 @@ const POLISH_STYLES = `
     scroll-margin-top: 7rem;
   }
 
+  .opportunities-experience section[aria-label] article {
+    width: min(72vw, 278px) !important;
+  }
+
+  .opportunities-experience section[aria-label]:first-of-type article {
+    width: min(84vw, 340px) !important;
+  }
+
   @media (min-width: 640px) {
     .opportunities-experience input[aria-label="Search opportunities"] {
       height: 3.75rem !important;
@@ -120,6 +128,14 @@ const POLISH_STYLES = `
 
     .opportunities-experience article h2 {
       font-size: 1.16rem !important;
+    }
+
+    .opportunities-experience section[aria-label] article {
+      width: 270px !important;
+    }
+
+    .opportunities-experience section[aria-label]:first-of-type article {
+      width: 360px !important;
     }
   }
 
@@ -157,7 +173,7 @@ export default function OpportunitiesPage({
   const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const nextTarget = rootRef.current?.querySelector("main") ?? null;
+    const nextTarget = rootRef.current?.querySelector<HTMLElement>("main") ?? null;
     setMainTarget(nextTarget);
   }, [embedded]);
 
