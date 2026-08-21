@@ -6,9 +6,14 @@ Baseline captured before behavior-preserving architecture refactoring.
 
 - Canonical NestJS API currently lives at `backend/services/services/api`.
 - Voice gateway currently lives at `backend/services/services/voice`.
-- A legacy Express scraper runtime still exists directly under `backend/`.
 - Shared package roots are split between `packages/ux-state` and `edutumobile/packages/core`.
 - Shared-table migrations exist in multiple historical Supabase migration directories.
+
+## Eliminated debt
+
+### Phase 1 — duplicate backend runtime
+
+The legacy Express scraper API directly under `backend/` was removed after confirming that current CI, the production Render manifest, and the admin scraper all use the canonical NestJS backend. Architecture governance now prevents the retired root runtime/package from being reintroduced.
 
 ## Large-file debt ceilings
 

@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import { resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,15 @@ const ALLOWED_PACKAGE_ROOTS = new Set([
   "edutumobile/packages",
 ]);
 
+const LEGACY_BACKEND_FILES = [
+  "backend/server.js",
+  "backend/scraper.js",
+  "backend/database.js",
+  "backend/package.json",
+  "backend/package-lock.json",
+  "backend/.env.example",
+];
+
 const IGNORED_DIRECTORIES = new Set([
   ".git",
   ".next",
@@ -28,6 +37,16 @@ const IGNORED_DIRECTORIES = new Set([
 
 function normalizePath(value) {
   return value.split(sep).join("/");
+}
+
+async function pathExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 async function collectDirectories(root) {
@@ -59,15 +78,24 @@ async function collectDirectories(root) {
 }
 
 export async function inspectArchitecture(root) {
-  const directories = await collectDirectories(root);
   const violations = [];
 
+  for (const file of LEGACY_BACKEND_FILES) {
+    if (await pathExists(resolve(root, file))) {
+      violations.push(`legacy backend runtime file: ${file}`);
+    }
+  }
+
+  const directories = await collectDirectories(root);
   for (const directory of directories) {
     if (directory.includes("services/services/services")) {
       violations.push(`unexpected repeated services nesting: ${directory}`);
     }
 
-    if (directory.endsWith("/supabase/migrations") || directory === "supabase/migrations") {
+    if (
+      directory.endsWith("/supabase/migrations") ||
+      directory === "supabase/migrations"
+    ) {
       if (!ALLOWED_MIGRATION_ROOTS.has(directory)) {
         violations.push(`unexpected Supabase migration root: ${directory}`);
       }

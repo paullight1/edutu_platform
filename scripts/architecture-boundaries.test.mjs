@@ -26,13 +26,8 @@ function runChecker(root) {
   });
 }
 
-test("accepts the currently grandfathered architecture roots", async () => {
+test("accepts the current runtime architecture roots", async () => {
   const root = await createFixture([
-    "backend/server.js",
-    "backend/scraper.js",
-    "backend/database.js",
-    "backend/package.json",
-    "backend/package-lock.json",
     "backend/services/services/api/package.json",
     "backend/services/services/voice/package.json",
     "backend/services/services/api/supabase/migrations/20260821000000_example.sql",
