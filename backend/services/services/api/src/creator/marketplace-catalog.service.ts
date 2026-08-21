@@ -149,9 +149,8 @@ export class MarketplaceCatalogService {
       const updateResult = await tx.execute(
         buildMarketplaceReviewUpdateQuery(listingId, nextStatus),
       );
-      const updated = rowsFromExecution<Record<string, unknown>>(
-        updateResult,
-      )[0];
+      const updated =
+        rowsFromExecution<Record<string, unknown>>(updateResult)[0];
       if (!updated) {
         throw new NotFoundException("Marketplace listing not found");
       }
