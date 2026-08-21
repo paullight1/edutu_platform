@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   BookOpen,
   Loader2,
+  Plus,
   Search,
   ShoppingBag,
   Sparkles,
@@ -152,6 +153,7 @@ function MarketplaceContent({ embedded }: { embedded: boolean }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshIndex, setRefreshIndex] = useState(0);
 
   useEffect(() => {
     const requestId = ++requestRef.current;
@@ -183,7 +185,7 @@ function MarketplaceContent({ embedded }: { embedded: boolean }) {
       .finally(() => {
         if (requestRef.current === requestId) setLoading(false);
       });
-  }, [category, deferredQuery, type]);
+  }, [category, deferredQuery, refreshIndex, type]);
 
   const loadMore = async () => {
     if (!cursor || loadingMore) return;
@@ -225,18 +227,28 @@ function MarketplaceContent({ embedded }: { embedded: boolean }) {
       ) : null}
 
       <section className="overflow-hidden rounded-[28px] border border-subtle bg-surface-layer p-6 shadow-soft sm:p-8 lg:p-10">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-brand">
-            <ShoppingBag size={14} aria-hidden="true" /> Marketplace
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-brand">
+              <ShoppingBag size={14} aria-hidden="true" /> Marketplace
+            </div>
+            <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
+              Practical help from reviewed Edutu creators
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
+              Explore mentorship, courses and application resources. Listings only
+              appear here after review, and seller approval is rechecked whenever
+              the catalogue is loaded.
+            </p>
           </div>
-          <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-            Practical help from reviewed Edutu creators
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
-            Explore mentorship, courses and application resources. Listings only
-            appear here after review, and seller approval is rechecked whenever
-            the catalogue is loaded.
-          </p>
+          {embedded ? (
+            <Link
+              to="/app/marketplace/new"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-4 text-sm font-bold text-brand no-underline transition hover:bg-brand/15"
+            >
+              <Plus size={16} aria-hidden="true" /> Publish a listing
+            </Link>
+          ) : null}
         </div>
 
         <div className="mt-7 grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px_170px]">
@@ -299,11 +311,7 @@ function MarketplaceContent({ embedded }: { embedded: boolean }) {
           <p>{error}</p>
           <button
             type="button"
-            onClick={() => {
-              setCategory((value) => `${value}`);
-              setQuery((value) => `${value} `);
-              queueMicrotask(() => setQuery((value) => value.trimEnd()));
-            }}
+            onClick={() => setRefreshIndex((value) => value + 1)}
             className="shrink-0 font-bold underline underline-offset-2"
           >
             Retry
