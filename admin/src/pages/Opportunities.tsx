@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   useRef,
+  useMemo,
   type ChangeEvent,
   type FormEvent,
 } from "react";
@@ -43,6 +44,7 @@ import {
   type Stats,
   type ViewMode,
 } from "./opportunities/opportunity-domain";
+import { createOpportunityAdminApi } from "./opportunities/opportunity-admin-api";
 import {
   Target,
   Plus,
@@ -361,15 +363,10 @@ export default function Opportunities() {
         source: "all",
         phase: "preview",
       });
-      const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
-        method: "POST",
-        headers: await getAdminHeaders(),
-        signal: controller.signal,
-        body: JSON.stringify({
-          allSources: true,
-          maxPages: 3,
-        }),
-      });
+      const result = await opportunityAdminApi.runScraper(
+        { allSources: true, maxPages: 3 },
+        controller.signal,
+      );
 
       setLoadingStatus({
         message: "Processing results...",
@@ -377,10 +374,8 @@ export default function Opportunities() {
         source: "all",
         phase: "preview",
       });
-      const result = await response.json();
 
       if (
-        response.ok &&
         result.success &&
         result.opportunities &&
         result.opportunities.length > 0
@@ -465,7 +460,6 @@ export default function Opportunities() {
         throw new Error("No valid opportunities to save");
       }
 
-      const headers = await getAdminHeaders();
       const batches: Array<Array<Record<string, unknown>>> = [];
       for (let index = 0; index < items.length; index += 100) {
         batches.push(items.slice(index, index + 100));
@@ -483,20 +477,7 @@ export default function Opportunities() {
           phase: "save",
         });
 
-        const response = await fetch(
-          `${NEST_API_URL}/opportunities/admin/bulk-import`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ items: batch }),
-          },
-        );
-
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || `Save failed for batch ${index + 1}`);
-        }
+        const result = await opportunityAdminApi.bulkImport(batch);
 
         inserted += Number(result.inserted || 0);
         skipped += Number(result.skipped || 0);
@@ -534,8 +515,6 @@ export default function Opportunities() {
       phase: "refine",
     });
 
-    const headers = await getAdminHeaders();
-
     const improved: OpportunityPreviewItem[] = [];
     const errors: string[] = [];
 
@@ -553,17 +532,8 @@ export default function Opportunities() {
       });
 
       try {
-        const response = await fetch(
-          `${NEST_API_URL}/api/scraper/enhance-preview`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify(opp),
-          },
-        );
-
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success) {
+        const result = await opportunityAdminApi.enhancePreview(opp);
+        if (!result?.success) {
           errors.push(
             result?.error ||
               `Failed to refine ${opp.title || "an opportunity"}`,
@@ -676,6 +646,15 @@ export default function Opportunities() {
     });
   }, []);
 
+  const opportunityAdminApi = useMemo(
+    () =>
+      createOpportunityAdminApi({
+        baseUrl: NEST_API_URL,
+        getHeaders: getAdminHeaders,
+      }),
+    [getAdminHeaders, NEST_API_URL],
+  );
+
   // One param builder for both the page fetch and "Select all N matching",
   // so the selection loop can never drift from what the list shows.
   const buildListParams = useCallback(
@@ -719,29 +698,15 @@ export default function Opportunities() {
     try {
       const params = buildListParams(currentPage, pageSize);
 
-      const headers = await getAdminHeaders();
-      const [listResponse, statsResponse] = await Promise.all([
-        fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
-          headers,
-        }),
-        fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
-          headers,
-        }),
-      ]);
-
-      if (!listResponse.ok) {
-        const error = await listResponse.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to load opportunities");
-      }
-
-      const result = (await listResponse.json()) as OpportunityListResponse;
+      const { list: result, stats: nextStats } =
+        await opportunityAdminApi.loadListAndStats(params);
       const opps = result.data || [];
       setFilteredOpps(opps);
       setTotalOpportunities(result.total || 0);
       setTotalPages(result.totalPages || 1);
 
-      if (statsResponse.ok) {
-        setStats(await statsResponse.json());
+      if (nextStats) {
+        setStats(nextStats);
       }
     } catch (error: unknown) {
       console.error("Failed to load opportunities:", error);
@@ -754,7 +719,7 @@ export default function Opportunities() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [buildListParams, currentPage, getAdminHeaders, NEST_API_URL, pageSize]);
+  }, [buildListParams, currentPage, opportunityAdminApi, pageSize]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {

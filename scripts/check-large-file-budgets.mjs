@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 // repository. CI must reject any additional growth until cohesive features are
 // extracted and the ceilings can be lowered.
 const budgets = {
-  "admin/src/pages/Opportunities.tsx": 4743,
+  "admin/src/pages/Opportunities.tsx": 4708,
   "admin/src/pages/Scraper.tsx": 4653,
   "backend/services/services/api/src/opportunities/opportunities.service.ts": 3622,
   "backend/services/services/api/src/scraper/scraper.service.ts": 3962,
