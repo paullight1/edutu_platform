@@ -105,6 +105,7 @@ export class MarketplaceCatalogService {
         l.category,
         l.type,
         coalesce(l.price, 0)::integer as "price",
+        l.preview_url as "accessUrl",
         l.capacity,
         coalesce(l.enrollment_count, 0)::integer as "enrollmentCount",
         l.status,
@@ -134,6 +135,9 @@ export class MarketplaceCatalogService {
       const listing = rowsFromExecution<{
         id: string;
         status: string;
+        type: string;
+        price: number;
+        accessUrl: string | null;
         sellerApproved: boolean;
       }>(lookupResult)[0];
       if (!listing) {
@@ -142,6 +146,18 @@ export class MarketplaceCatalogService {
       if (review.decision === "approve" && !listing.sellerApproved) {
         throw new BadRequestException(
           "Marketplace listing seller must be an approved creator or mentor",
+        );
+      }
+
+      const requiresLearnerAccess =
+        listing.price > 0 || listing.type === "course";
+      if (
+        review.decision === "approve" &&
+        requiresLearnerAccess &&
+        !listing.accessUrl
+      ) {
+        throw new BadRequestException(
+          "Paid and course listings require a learner access URL before publication",
         );
       }
 
