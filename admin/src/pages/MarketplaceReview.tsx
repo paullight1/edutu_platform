@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   RefreshCw,
   ShieldAlert,
   ShoppingBag,
@@ -17,14 +18,25 @@ import {
 const STATUS_OPTIONS = ["pending", "active", "rejected", "paused"] as const;
 
 function statusTone(status: string) {
-  if (status === "active") return { background: "rgba(52,199,89,0.12)", color: "#34c759" };
-  if (status === "rejected") return { background: "rgba(255,59,48,0.12)", color: "#ff453a" };
-  if (status === "pending") return { background: "rgba(255,159,10,0.12)", color: "#ff9f0a" };
-  return { background: "rgba(142,142,147,0.14)", color: "var(--text-secondary)" };
+  if (status === "active")
+    return { background: "rgba(52,199,89,0.12)", color: "#34c759" };
+  if (status === "rejected")
+    return { background: "rgba(255,59,48,0.12)", color: "#ff453a" };
+  if (status === "pending")
+    return { background: "rgba(255,159,10,0.12)", color: "#ff9f0a" };
+  return {
+    background: "rgba(142,142,147,0.14)",
+    color: "var(--text-secondary)",
+  };
+}
+
+function requiresLearnerAccess(listing: MarketplaceAdminListing) {
+  return listing.price > 0 || listing.type === "course";
 }
 
 const MarketplaceReview = () => {
-  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("pending");
+  const [status, setStatus] =
+    useState<(typeof STATUS_OPTIONS)[number]>("pending");
   const [listings, setListings] = useState<MarketplaceAdminListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +68,13 @@ const MarketplaceReview = () => {
     () => listings.filter((listing) => !listing.sellerApproved).length,
     [listings],
   );
+  const fulfillmentRiskCount = useMemo(
+    () =>
+      listings.filter(
+        (listing) => requiresLearnerAccess(listing) && !listing.accessUrl,
+      ).length,
+    [listings],
+  );
 
   const decide = async (
     listing: MarketplaceAdminListing,
@@ -65,6 +84,16 @@ const MarketplaceReview = () => {
     if (decision === "approve" && !listing.sellerApproved) {
       setError(
         "This seller is no longer approved. Restore creator/mentor approval before publishing the listing.",
+      );
+      return;
+    }
+    if (
+      decision === "approve" &&
+      requiresLearnerAccess(listing) &&
+      !listing.accessUrl
+    ) {
+      setError(
+        "This listing has no learner access URL. Add a real delivery path before publishing it.",
       );
       return;
     }
@@ -82,7 +111,9 @@ const MarketplaceReview = () => {
         decision,
         ...(note ? { note } : {}),
       });
-      setListings((current) => current.filter((item) => item.id !== listing.id));
+      setListings((current) =>
+        current.filter((item) => item.id !== listing.id),
+      );
       setNotes((current) => {
         const next = { ...current };
         delete next[listing.id];
@@ -124,8 +155,9 @@ const MarketplaceReview = () => {
             }}
           >
             Listings remain private until approved here. Publication re-checks
-            the seller&apos;s creator or mentor approval and every decision is written
-            to the admin audit log in the same transaction.
+            the seller&apos;s creator or mentor approval, verifies fulfillment for
+            chargeable listings, and writes every decision to the admin audit log
+            in the same transaction.
           </p>
         </div>
         <button
@@ -148,7 +180,9 @@ const MarketplaceReview = () => {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", flex: 1 }}>
+        <div
+          style={{ display: "flex", gap: "8px", flexWrap: "wrap", flex: 1 }}
+        >
           {STATUS_OPTIONS.map((option) => (
             <button
               key={option}
@@ -180,13 +214,34 @@ const MarketplaceReview = () => {
         >
           <ShieldAlert size={17} style={{ flexShrink: 0 }} />
           {sellerRiskCount} listing{sellerRiskCount === 1 ? "" : "s"} belong to
-          sellers who are no longer approved. The backend will reject publication.
+          sellers who are no longer approved. The backend will reject
+          publication.
+        </div>
+      ) : null}
+
+      {fulfillmentRiskCount > 0 ? (
+        <div
+          className="card"
+          style={{
+            padding: "14px 16px",
+            display: "flex",
+            gap: "10px",
+            alignItems: "flex-start",
+            color: "#ff9f0a",
+            fontSize: "13px",
+          }}
+        >
+          <ShieldAlert size={17} style={{ flexShrink: 0 }} />
+          {fulfillmentRiskCount} chargeable listing
+          {fulfillmentRiskCount === 1 ? "" : "s"} have no learner delivery
+          link. They cannot be published until fulfillment is supplied.
         </div>
       ) : null}
 
       {error ? (
         <div
           className="card"
+          role="alert"
           style={{ padding: "14px 16px", color: "#ff453a", fontSize: "14px" }}
         >
           {error}
@@ -194,15 +249,32 @@ const MarketplaceReview = () => {
       ) : null}
 
       {loading ? (
-        <div className="card" style={{ padding: "60px", textAlign: "center", color: "var(--text-tertiary)" }}>
+        <div
+          className="card"
+          style={{
+            padding: "60px",
+            textAlign: "center",
+            color: "var(--text-tertiary)",
+          }}
+        >
           Loading marketplace queue…
         </div>
       ) : listings.length === 0 ? (
         <div className="card" style={{ padding: "60px", textAlign: "center" }}>
-          <CheckCircle2 size={42} style={{ opacity: 0.35, marginBottom: "12px" }} />
+          <CheckCircle2
+            size={42}
+            style={{ opacity: 0.35, marginBottom: "12px" }}
+          />
           <p style={{ margin: 0, fontWeight: 600 }}>No {status} listings</p>
-          <p style={{ margin: "6px 0 0", color: "var(--text-tertiary)", fontSize: "13px" }}>
-            Nothing is hidden behind placeholder data; this view reflects the backend queue.
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "var(--text-tertiary)",
+              fontSize: "13px",
+            }}
+          >
+            Nothing is hidden behind placeholder data; this view reflects the
+            backend queue.
           </p>
         </div>
       ) : (
@@ -210,8 +282,15 @@ const MarketplaceReview = () => {
           {listings.map((listing) => {
             const tone = statusTone(listing.status);
             const busy = busyId === listing.id;
+            const needsAccess = requiresLearnerAccess(listing);
+            const missingAccess = needsAccess && !listing.accessUrl;
+
             return (
-              <article key={listing.id} className="card" style={{ padding: "18px" }}>
+              <article
+                key={listing.id}
+                className="card"
+                style={{ padding: "18px" }}
+              >
                 <div
                   style={{
                     display: "grid",
@@ -221,7 +300,14 @@ const MarketplaceReview = () => {
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
                       <span
                         style={{
                           ...tone,
@@ -234,11 +320,19 @@ const MarketplaceReview = () => {
                       >
                         {listing.status}
                       </span>
-                      <span style={{ color: "var(--text-tertiary)", fontSize: "12px", textTransform: "capitalize" }}>
+                      <span
+                        style={{
+                          color: "var(--text-tertiary)",
+                          fontSize: "12px",
+                          textTransform: "capitalize",
+                        }}
+                      >
                         {listing.category} · {listing.type}
                       </span>
                     </div>
-                    <h2 style={{ margin: "10px 0 0", fontSize: "18px" }}>{listing.title}</h2>
+                    <h2 style={{ margin: "10px 0 0", fontSize: "18px" }}>
+                      {listing.title}
+                    </h2>
                     {listing.description ? (
                       <p
                         style={{
@@ -261,33 +355,112 @@ const MarketplaceReview = () => {
                         color: "var(--text-tertiary)",
                       }}
                     >
-                      <span style={{ display: "inline-flex", gap: "5px", alignItems: "center" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          gap: "5px",
+                          alignItems: "center",
+                        }}
+                      >
                         {listing.sellerApproved ? (
                           <BadgeCheck size={14} color="#34c759" />
                         ) : (
                           <ShieldAlert size={14} color="#ff9f0a" />
                         )}
-                        {listing.sellerName} · {listing.sellerApproved ? "approved" : "not approved"}
+                        {listing.sellerName} ·{" "}
+                        {listing.sellerApproved ? "approved" : "not approved"}
                       </span>
-                      <span>{listing.price > 0 ? `${listing.price} credits` : "Free"}</span>
+                      <span>
+                        {listing.price > 0
+                          ? `${listing.price} credits`
+                          : "Free"}
+                      </span>
                       <span>{listing.enrollmentCount || 0} enrolled</span>
-                      {listing.capacity ? <span>Capacity {listing.capacity}</span> : null}
+                      {listing.capacity ? (
+                        <span>Capacity {listing.capacity}</span>
+                      ) : null}
                     </div>
+
+                    {listing.accessUrl ? (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          background: "rgba(52,199,89,0.08)",
+                          border: "1px solid rgba(52,199,89,0.22)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        <strong>Private learner access:</strong>{" "}
+                        <a
+                          href={listing.accessUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          Inspect delivery link{" "}
+                          <ExternalLink
+                            size={13}
+                            style={{ verticalAlign: "-2px" }}
+                          />
+                        </a>
+                      </div>
+                    ) : missingAccess ? (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          background: "rgba(255,159,10,0.08)",
+                          border: "1px solid rgba(255,159,10,0.25)",
+                          color: "#ff9f0a",
+                          fontSize: "13px",
+                        }}
+                      >
+                        Missing learner access URL — publishing is blocked.
+                      </div>
+                    ) : null}
                   </div>
-                  <div style={{ color: "var(--text-tertiary)", fontSize: "12px", whiteSpace: "nowrap" }}>
-                    <Clock3 size={13} style={{ verticalAlign: "-2px", marginRight: "4px" }} />
+                  <div
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontSize: "12px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Clock3
+                      size={13}
+                      style={{ verticalAlign: "-2px", marginRight: "4px" }}
+                    />
                     {new Date(listing.createdAt).toLocaleDateString()}
                   </div>
                 </div>
 
                 {listing.status === "pending" ? (
-                  <div style={{ marginTop: "16px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
-                    <label style={{ display: "grid", gap: "7px", fontSize: "13px", fontWeight: 600 }}>
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      borderTop: "1px solid var(--border)",
+                      paddingTop: "14px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "grid",
+                        gap: "7px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                      }}
+                    >
                       Reviewer note
                       <textarea
                         value={notes[listing.id] || ""}
                         onChange={(event) =>
-                          setNotes((current) => ({ ...current, [listing.id]: event.target.value }))
+                          setNotes((current) => ({
+                            ...current,
+                            [listing.id]: event.target.value,
+                          }))
                         }
                         rows={3}
                         maxLength={2000}
@@ -303,14 +476,22 @@ const MarketplaceReview = () => {
                         }}
                       />
                     </label>
-                    <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        marginTop: "12px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <button
                         type="button"
                         className="btn-primary"
-                        disabled={busy || !listing.sellerApproved}
+                        disabled={busy || !listing.sellerApproved || missingAccess}
                         onClick={() => void decide(listing, "approve")}
                       >
-                        <CheckCircle2 size={15} /> {busy ? "Saving…" : "Approve & publish"}
+                        <CheckCircle2 size={15} />{" "}
+                        {busy ? "Saving…" : "Approve & publish"}
                       </button>
                       <button
                         type="button"
