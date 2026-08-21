@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { BookOpen, BriefcaseBusiness, GraduationCap, RefreshCw, Search } from "lucide-react";
+import { BookOpen, Briefcase, GraduationCap, RefreshCw, Search } from "lucide-react";
 import Seo from "../../components/Seo";
 import { CommunityApi, isCommunityApiError } from "./api";
 import type { GroupWithMembership } from "./types";
@@ -12,7 +12,7 @@ type Focus = "all" | "scholarships" | "careers" | "study";
 const filters = [
   { id: "all" as const, label: "All", icon: Search },
   { id: "scholarships" as const, label: "Scholarships", icon: GraduationCap },
-  { id: "careers" as const, label: "Careers", icon: BriefcaseBusiness },
+  { id: "careers" as const, label: "Careers", icon: Briefcase },
   { id: "study" as const, label: "Study help", icon: BookOpen },
 ];
 
