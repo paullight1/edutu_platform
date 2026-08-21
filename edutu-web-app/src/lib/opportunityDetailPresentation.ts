@@ -52,10 +52,9 @@ export function prepareOpportunityDescription({
   const descriptionIsNavigation = looksLikeNavigationDump(description);
   const cleanDescription = normaliseLongForm(description);
 
-  const selected =
-    descriptionIsNavigation && cleanSummary
-      ? cleanSummary
-      : cleanDescription || cleanSummary;
+  const selected = descriptionIsNavigation
+    ? cleanSummary
+    : cleanDescription || cleanSummary;
 
   if (!selected) return [];
 
