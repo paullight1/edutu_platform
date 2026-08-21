@@ -37,8 +37,8 @@ export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     label: "navigation.applications",
     icon: "applications",
   },
-  { to: "/app/roadmaps", label: "navigation.roadmaps", icon: "roadmaps" },
-  { to: "/app/goals", label: "navigation.goals", icon: "goals" },
+  { to: "/app/roadmaps", label: "navigation.plan", icon: "roadmaps" },
+  { to: "/app/goals", label: "dashboard.stats.goalsActive", icon: "goals" },
   { to: "/app/profile", label: "navigation.profile", icon: "profile" },
   { to: "/app/settings", label: "navigation.settings", icon: "settings" },
 ];
