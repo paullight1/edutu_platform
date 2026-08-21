@@ -1,62 +1,21 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  CalendarDays,
-  CheckCircle2,
-  ExternalLink,
-  Gauge,
-  Heart,
-  MapPin,
-  Share2,
-  Target,
-  UsersRound,
-  Wallet,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { useAuth } from "@clerk/clerk-react";
-import { usePersonalization } from "../hooks/usePersonalization";
-import { useToast } from "./ui/ToastProvider";
+import {
+  ArrowLeft,
+  Banknote,
+  CalendarDays,
+  Clock3,
+  MapPin,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import type { Opportunity } from "../types/opportunity";
-import {
-  getProductApiToken,
-  isInvalidOrExpiredTokenError,
-} from "../lib/clerkToken";
-import { normalizeExternalUrl } from "../lib/externalUrl";
-import {
-  addBookmark,
-  removeBookmark,
-  isBookmarked,
-} from "../services/bookmarks";
-import { addApplication } from "../services/applications";
-import {
-  fetchOpportunities,
-  getOpportunityDaysLeft,
-  isOpportunityExpired,
-  parseOpportunityDeadline,
-} from "../services/opportunities";
-import {
-  shareOpportunity,
-  shareOutcomeMessage,
-} from "../services/opportunityShare";
-import { getDeadlineBadge } from "../services/deadlineUrgency";
-import PublicEditorialShell from "./PublicEditorialShell";
-import Seo from "./Seo";
+import { parseOpportunityDeadline } from "../services/opportunities";
+import { organizationLabel } from "../lib/organizationLabel";
+import { prepareOpportunityDescription } from "../lib/opportunityDetailPresentation";
 import ImageWithFallback from "./ImageWithFallback";
-import { getMatchLabel, WhyThisMatches } from "./opportunity/MatchInsights";
-import { recordOpportunitySignal } from "../services/opportunitySignals";
-import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
-import {
-  isPlaceholderOrganization,
-  organizationLabel,
-} from "../lib/organizationLabel";
-
-const PUBLIC_TAG_BLOCKLIST = new Set([
-  "scraped",
-  "scraper",
-  "imported",
-  "automation",
-  "source",
-]);
+import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -64,1181 +23,307 @@ interface OpportunityDetailProps {
   embedded?: boolean;
 }
 
-function getCurrencySymbol(currency?: string | null): string {
-  switch (currency?.toUpperCase()) {
-    case "NGN":
-      return "₦";
-    case "GBP":
-      return "£";
-    case "EUR":
-      return "€";
-    default:
-      return "$";
-  }
+interface FactItem {
+  label: string;
+  value: string;
+  icon: LucideIcon;
 }
 
-function formatDeadline(deadline?: string | null): string {
-  const parsed = parseOpportunityDeadline(deadline);
-  if (!parsed) return "No deadline listed";
-  return format(parsed, "d MMMM yyyy");
-}
-
-function formatCompactDeadline(deadline?: string | null): string {
-  const parsed = parseOpportunityDeadline(deadline);
-  if (!parsed) return "No deadline";
-  return format(parsed, "d MMM yyyy");
-}
-
-function formatUpdatedAt(value?: string | null): string {
-  if (!value) return "Updated recently";
+function formatDeadline(value?: string | null): string | null {
   const parsed = parseOpportunityDeadline(value);
-  if (!parsed) return "Updated recently";
-  return `Updated ${format(parsed, "d MMM yyyy")}`;
+  return parsed ? format(parsed, "d MMM yyyy") : null;
 }
 
-function normaliseSeoText(value?: string | null): string {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+function formatUpdatedAt(value?: string | null): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : format(parsed, "d MMM yyyy");
 }
 
-function normaliseVisibleText(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
+function formatFunding(opportunity: Opportunity): string | null {
+  if (
+    opportunity.stipend === undefined ||
+    opportunity.stipend === null ||
+    !Number.isFinite(Number(opportunity.stipend))
+  ) {
+    return null;
   }
 
-  return value
-    .replace(/\s*(?:\[\s*(?:\.{3}|…)\s*\]|\(\s*(?:\.{3}|…)\s*\))/gu, "")
-    .replace(/\s*(?:\.{3}|…)\s*$/u, "")
-    .replace(/[ \t]+/g, " ")
-    .trim();
+  const symbols: Record<string, string> = {
+    NGN: "₦",
+    GBP: "£",
+    EUR: "€",
+    USD: "$",
+  };
+  const currency = opportunity.currency?.toUpperCase() ?? "";
+  const symbol = symbols[currency] ?? (currency ? `${currency} ` : "");
+
+  return `${symbol}${Number(opportunity.stipend).toLocaleString()}`;
 }
 
-function normaliseLongFormText(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value
-    .replace(/\r\n?/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function normaliseVisibleList(values: string[]): string[] {
-  return values.map(normaliseVisibleText).filter(Boolean);
-}
-
-function truncateSeoText(value: string, maxLength = 155): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength - 1).trimEnd()}...`;
-}
-
-function getIsoDate(value?: string | null): string | undefined {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
-
-function deadlineToIso(deadline?: string | null): string | undefined {
-  const parsed = parseOpportunityDeadline(deadline);
-  return parsed ? parsed.toISOString() : undefined;
-}
-
-/**
- * Classifies an opportunity for structured data: jobs and internships should
- * emit schema.org JobPosting (Google's jobs rich result), while scholarships,
- * fellowships, grants and programs keep EducationalOccupationalProgram.
- */
-function getEmploymentKind(
-  opportunity: Opportunity,
-): "internship" | "job" | null {
-  const haystack = [
-    opportunity.category,
-    opportunity.title,
-    ...(Array.isArray(opportunity.tags) ? opportunity.tags : []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  if (/\bintern(ship)?s?\b|\btrainee\b/.test(haystack)) {
-    return "internship";
-  }
-  if (/\bjobs?\b|\bvacanc(y|ies)\b|\bemployment\b|\bhiring\b|\bcareers?\b/.test(haystack)) {
-    return "job";
-  }
-  return null;
-}
-
-function formatEligibilityKey(key: string): string {
-  return key
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function formatEligibilityValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => formatEligibilityValue(item))
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  if (value && typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => {
-        const formattedValue = formatEligibilityValue(nestedValue);
-        return formattedValue
-          ? `${formatEligibilityKey(key)}: ${formattedValue}`
-          : "";
-      })
-      .filter(Boolean)
-      .join("; ");
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  return normaliseVisibleText(String(value));
-}
-
-function buildEligibilityItems(
-  eligibility?: Record<string, unknown>,
-): string[] {
-  if (!eligibility) {
-    return [];
-  }
-
-  return Object.entries(eligibility)
-    .map(([key, value]) => {
-      const formattedValue = formatEligibilityValue(value);
-      return formattedValue
-        ? `${formatEligibilityKey(key)}: ${formattedValue}`
-        : "";
-    })
-    .filter(Boolean);
-}
-
-function RelatedOpportunityCard({
+function OpportunityHero({
   opportunity,
-  detailPath,
+  onBack,
 }: {
   opportunity: Opportunity;
-  detailPath: string;
+  onBack: () => void;
 }) {
-  const expired = isOpportunityExpired(opportunity);
-  const daysLeft = expired ? null : getOpportunityDaysLeft(opportunity.deadline);
-  const deadlineClass =
-    daysLeft !== null && daysLeft <= 7 ? "font-semibold text-warning" : "";
+  const paragraphs = useMemo(
+    () =>
+      prepareOpportunityDescription({
+        summary: opportunity.summary,
+        description: opportunity.description,
+      }),
+    [opportunity.description, opportunity.summary],
+  );
+  const organization = organizationLabel(
+    opportunity.organization,
+    opportunity.title,
+  );
+  const deadline = formatDeadline(opportunity.deadline);
+  const updatedAt = formatUpdatedAt(opportunity.lastUpdated);
+  const funding = formatFunding(opportunity);
+
+  const facts = useMemo<FactItem[]>(() => {
+    const next: FactItem[] = [];
+    if (deadline) {
+      next.push({ label: "Deadline", value: deadline, icon: CalendarDays });
+    }
+    if (opportunity.location) {
+      next.push({ label: "Location", value: opportunity.location, icon: MapPin });
+    }
+    if (funding) {
+      next.push({ label: "Funding", value: funding, icon: Banknote });
+    }
+    if (updatedAt) {
+      next.push({ label: "Updated", value: updatedAt, icon: Clock3 });
+    }
+    return next;
+  }, [deadline, funding, opportunity.location, updatedAt]);
 
   return (
-    <Link
-      to={detailPath}
-      className="group block w-[82vw] max-w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-elevated sm:w-[280px]"
-    >
-      <div className="relative aspect-[16/10] overflow-hidden bg-surface-elevated">
-        <ImageWithFallback
-          src={opportunity.image}
-          fallbackSrc={opportunity.imageFallback}
-          alt={`${opportunity.title} opportunity image`}
-          category={opportunity.category}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
-          fallbackClassName="h-full w-full"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/70 to-transparent"
-        />
-        {opportunity.category ? (
-          <span className="absolute left-3 top-3 inline-flex max-w-[calc(100%-1.5rem)] truncate rounded-full border border-white/20 bg-slate-950/65 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-            {opportunity.category}
-          </span>
-        ) : null}
-      </div>
-      <div className="p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
-          {opportunity.title}
-        </h3>
-        {organizationLabel(opportunity.organization, opportunity.title) ? (
-          <p className="mt-1 truncate text-xs text-text-muted">
-            {organizationLabel(opportunity.organization, opportunity.title)}
-          </p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-text-muted">
-          {opportunity.location ? (
-            <span className="inline-flex min-w-0 items-center gap-1 truncate">
-              <MapPin size={12} className="shrink-0" />
-              {opportunity.location}
-            </span>
-          ) : null}
-          <span className={`inline-flex items-center gap-1 ${deadlineClass}`}>
-            <CalendarDays size={12} />
-            {formatCompactDeadline(opportunity.deadline)}
-          </span>
+    <section className="opportunity-detail-hero relative mb-7 overflow-hidden rounded-[28px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-7 lg:p-8">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          background:
+            "radial-gradient(circle at 88% 4%, rgb(var(--color-brand-500) / 0.14), transparent 30%)",
+        }}
+      />
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-6 inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-elevated px-3.5 py-2 text-sm font-semibold text-text-secondary shadow-soft transition hover:border-brand/30 hover:text-brand"
+        >
+          <ArrowLeft size={15} aria-hidden="true" />
+          Back to opportunities
+        </button>
+
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(320px,.96fr)] lg:gap-8">
+          <div className="min-w-0 py-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {opportunity.category ? (
+                <span className="inline-flex items-center rounded-full border border-brand/15 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand">
+                  {opportunity.category}
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                <Sparkles size={13} aria-hidden="true" />
+                Opportunity
+              </span>
+            </div>
+
+            <h1 className="mt-4 break-words font-display text-[2.15rem] font-semibold leading-[1.04] tracking-[-0.04em] text-text-primary sm:text-5xl lg:text-[3.35rem]">
+              {opportunity.title}
+            </h1>
+
+            {organization ? (
+              <p className="mt-3 text-base font-medium leading-7 text-text-secondary sm:text-lg">
+                {organization}
+              </p>
+            ) : null}
+
+            {facts.length > 0 ? (
+              <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                {facts.map(({ label, value, icon: Icon }) => (
+                  <div
+                    key={label}
+                    className="min-w-0 rounded-2xl border border-subtle bg-surface-elevated/75 px-3.5 py-3"
+                  >
+                    <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+                      <Icon size={13} aria-hidden="true" />
+                      {label}
+                    </dt>
+                    <dd className="mt-1.5 break-words text-sm font-semibold leading-5 text-text-primary">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </div>
+
+          <div className="relative aspect-[16/9] overflow-hidden rounded-[22px] border border-subtle bg-surface-elevated sm:aspect-[16/8] lg:aspect-[4/3]">
+            <ImageWithFallback
+              src={opportunity.image}
+              fallbackSrc={opportunity.imageFallback}
+              alt={`${opportunity.title} opportunity image`}
+              category={opportunity.category}
+              className="h-full w-full object-cover"
+              fallbackClassName="h-full w-full"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/30 to-transparent"
+            />
+          </div>
+        </div>
+
+        <div className="mt-7 border-t border-subtle pt-6 sm:mt-8 sm:pt-7">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+              About this opportunity
+            </p>
+            {paragraphs.length > 0 ? (
+              <div className="mt-3 space-y-4 text-[0.98rem] leading-7 text-text-secondary sm:text-[1.05rem] sm:leading-8">
+                {paragraphs.map((paragraph, index) => (
+                  <p
+                    key={`${paragraph.slice(0, 44)}-${index}`}
+                    className="whitespace-pre-line"
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-base leading-7 text-text-muted">
+                Full details are available on the official application page.
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </Link>
+    </section>
   );
 }
 
-const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
+const DETAIL_POLISH_STYLES = `
+  .opportunity-detail-experience main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .opportunity-detail-experience .opportunity-detail-hero {
+    order: -100;
+  }
+
+  .opportunity-detail-experience main > section > div.mb-5:first-child {
+    display: none !important;
+  }
+
+  .opportunity-detail-experience main > section article > header {
+    display: none !important;
+  }
+
+  .opportunity-detail-experience main > section article > section.grid {
+    display: none !important;
+  }
+
+  .opportunity-detail-experience main > section article > section:not(.grid) {
+    padding-top: 1.45rem;
+    border-top: 1px solid rgb(var(--border-subtle));
+  }
+
+  .opportunity-detail-experience main > section article h2 {
+    font-size: 1.3rem !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  .opportunity-detail-experience main > section > div.grid > aside > section {
+    border-radius: 1.25rem !important;
+    padding: 1.1rem !important;
+  }
+
+  .opportunity-detail-experience main > section > div.grid > aside > section a,
+  .opportunity-detail-experience main > section > div.grid > aside > section button {
+    min-height: 3rem;
+    border-radius: 0.9rem !important;
+  }
+
+  @media (min-width: 1024px) {
+    .opportunity-detail-experience main > section > div.grid > aside {
+      position: sticky;
+      top: 6.5rem;
+      align-self: start;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .opportunity-detail-experience main > section > div.grid {
+      display: flex !important;
+      flex-direction: column;
+      gap: 1.25rem !important;
+    }
+
+    .opportunity-detail-experience main > section > div.grid > aside {
+      order: -1;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .opportunity-detail-experience main {
+      padding-left: 1rem !important;
+      padding-right: 1rem !important;
+      padding-top: 1rem !important;
+    }
+
+    .opportunity-detail-experience .opportunity-detail-hero {
+      margin-bottom: 1.15rem;
+      border-radius: 1.45rem;
+      padding: 1.1rem;
+    }
+
+    .opportunity-detail-experience main > section article > section:not(.grid) {
+      padding-top: 1.2rem;
+    }
+  }
+`;
+
+export default function OpportunityDetail({
   opportunity,
   onBack,
   embedded = false,
-}) => {
-  const [bookmarkLoading, setBookmarkLoading] = useState(false);
-  const [isBookmarkedState, setIsBookmarkedState] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const { success, error: showError } = useToast();
-  const { userId, getToken } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { trackInteraction, scoreOpportunity, explainOpportunity, isPersonalized } =
-    usePersonalization();
-
-  // Full "why this matches you" breakdown, computed against the current
-  // profile. Falls back to any score the backend already attached.
-  const matchInsight = useMemo(
-    () => (isPersonalized ? explainOpportunity(opportunity) : null),
-    [isPersonalized, explainOpportunity, opportunity],
-  );
-
-  const currencySymbol = getCurrencySymbol(opportunity.currency);
-  const applyUrl = normalizeExternalUrl(opportunity.applyUrl) ?? null;
-  // Browsing is public, but applying requires an account. For signed-out users
-  // we never put the raw external apply URL in the DOM (it would be reachable
-  // via right-click "open in new tab", bypassing the gate) — the button routes
-  // to sign-in instead. handleApply also guards on click as a second line.
-  const isSignedIn = Boolean(userId);
-  const applyHref = isSignedIn ? applyUrl : "/auth?mode=sign-in";
-  const applyCtaLabel = isSignedIn ? "Apply now" : "Sign in to apply";
-  const matchPercentage = Math.round(
-    Math.max(matchInsight?.score ?? 0, opportunity.match ?? 0),
-  );
-  const difficultyLabel = opportunity.difficulty ?? "Medium";
-  const applicantsCopy = opportunity.applicants
-    ? `${opportunity.applicants} applicants`
-    : "Not published";
-  // Only show real scraped content — never a synthesized filler paragraph.
-  const fullDescription = normaliseLongFormText(
-    opportunity.description || opportunity.summary,
-  );
-  const descriptionParagraphs = fullDescription
-    .split(/\n{2,}/)
-    .map(normaliseVisibleText)
-    .filter(Boolean);
-  const eligibilityItems = buildEligibilityItems(opportunity.eligibility);
-  const requirements = normaliseVisibleList(opportunity.requirements);
-  // Feasibility framing: when a deadline is urgent AND we actually know the
-  // requirements, reassure rather than only alarm. Never invent effort when
-  // requirements are unknown/empty.
-  const deadlineIsUrgent = getDeadlineBadge(opportunity.deadline).isUrgent;
-  const showFeasibility = deadlineIsUrgent && requirements.length > 0;
-  const benefits = normaliseVisibleList(opportunity.benefits);
-  const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
-  // Only surface fee info the data states explicitly: an explicit "free" flag, or
-  // a known fee amount. When the fee is unknown we render nothing — never guess.
-  const applicationFeeCopy = ((): { free: boolean; label: string } | null => {
-    const fee = opportunity.applicationFee;
-    if (!fee) return null;
-    if (fee.isFree === true) return { free: true, label: "Free to apply" };
-    if (typeof fee.amount === "number" && fee.amount > 0) {
-      return {
-        free: false,
-        label: `Application fee: ${`${fee.currency ?? ""} ${fee.amount}`.trim()}`,
-      };
-    }
-    return null;
-  })();
-  const expired = isOpportunityExpired(opportunity);
-  const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
-  const canonicalUrl = toAbsoluteUrl(canonicalPath);
-  const seoDescription = truncateSeoText(
-    normaliseSeoText(opportunity.summary || opportunity.description) ||
-      `${[opportunity.title, opportunity.organization]
-        .filter(Boolean)
-        .join(
-          " from ",
-        )}. See eligibility, benefits, deadline, and application link on Edutu.`,
-  );
-  const seoImage =
-    opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
-  const seoJsonLd = useMemo(() => {
-    const deadlineIso = deadlineToIso(opportunity.deadline);
-    const stipendValue =
-      typeof opportunity.stipend === "number" &&
-      Number.isFinite(opportunity.stipend)
-        ? opportunity.stipend
-        : null;
-
-    // Structured data must never assert an organisation we can't stand behind.
-    // Falling back to "Edutu" claimed we were the hiring org / provider for
-    // every opportunity we merely list. Placeholder filler ("the official
-    // organizer") is no better, so both collapse to "omit the property".
-    //
-    // Unlike the visible label this keeps an org the title repeats: Google
-    // wants the real body named, and duplication only matters on screen.
-    const schemaOrganization = isPlaceholderOrganization(
-      opportunity.organization,
-    )
-      ? ""
-      : (opportunity.organization ?? "").trim();
-    const schemaOrgProperty = (key: "hiringOrganization" | "provider") =>
-      schemaOrganization
-        ? { [key]: { "@type": "Organization", name: schemaOrganization } }
-        : {};
-
-    const employmentKind = getEmploymentKind(opportunity);
-
-    // Jobs and internships get schema.org JobPosting (eligible for Google's
-    // jobs rich results); everything else (scholarships, fellowships, grants,
-    // programs) keeps EducationalOccupationalProgram.
-    const primarySchema = employmentKind
-      ? {
-          "@context": "https://schema.org",
-          "@type": "JobPosting",
-          title: opportunity.title,
-          description: seoDescription,
-          url: canonicalUrl,
-          image: toAbsoluteUrl(seoImage),
-          ...schemaOrgProperty("hiringOrganization"),
-          ...(getIsoDate(opportunity.createdAt || opportunity.lastUpdated)
-            ? {
-                datePosted: getIsoDate(
-                  opportunity.createdAt || opportunity.lastUpdated,
-                ),
-              }
-            : {}),
-          ...(deadlineIso ? { validThrough: deadlineIso } : {}),
-          ...(employmentKind === "internship"
-            ? { employmentType: "INTERN" }
-            : {}),
-          ...(opportunity.isRemote
-            ? {
-                jobLocationType: "TELECOMMUTE",
-                applicantLocationRequirements: {
-                  "@type": "Country",
-                  name: opportunity.location || "Worldwide",
-                },
-              }
-            : opportunity.location
-              ? {
-                  jobLocation: {
-                    "@type": "Place",
-                    address: {
-                      "@type": "PostalAddress",
-                      addressLocality: opportunity.location,
-                    },
-                  },
-                }
-              : {}),
-          ...(stipendValue !== null
-            ? {
-                baseSalary: {
-                  "@type": "MonetaryAmount",
-                  currency: opportunity.currency?.toUpperCase() || "USD",
-                  value: {
-                    "@type": "QuantitativeValue",
-                    value: stipendValue,
-                  },
-                },
-              }
-            : {}),
-        }
-      : {
-        "@context": "https://schema.org",
-        "@type": "EducationalOccupationalProgram",
-        name: `${opportunity.title} | Edutu`,
-        description: seoDescription,
-        url: canonicalUrl,
-        image: toAbsoluteUrl(seoImage),
-        category: opportunity.category || "Opportunity",
-        ...schemaOrgProperty("provider"),
-        ...(deadlineIso
-          ? { applicationDeadline: deadlineIso, validThrough: deadlineIso }
-          : {}),
-        ...(stipendValue !== null
-          ? {
-              offers: {
-                "@type": "Offer",
-                price: String(stipendValue),
-                priceCurrency: opportunity.currency?.toUpperCase() || "USD",
-              },
-            }
-          : {}),
-        dateModified: getIsoDate(opportunity.lastUpdated),
-        publisher: {
-          "@type": "Organization",
-          name: "Edutu",
-          url: toAbsoluteUrl("/opportunities"),
-          logo: {
-            "@type": "ImageObject",
-            url: getDefaultSeoImage(),
-          },
-        },
-      };
-
-    return [
-      primarySchema,
-      {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: "Opportunities",
-            item: toAbsoluteUrl("/opportunities"),
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: opportunity.title,
-            item: canonicalUrl,
-          },
-        ],
-      },
-    ];
-  }, [canonicalUrl, opportunity, seoDescription, seoImage]);
-  const authState = {
-    from: {
-      pathname: location.pathname,
-      search: location.search,
-      hash: location.hash,
-    },
-  };
-
-  const [relatedSource, setRelatedSource] = useState<Opportunity[]>([]);
+}: OpportunityDetailProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (opportunity?.id) {
-      trackInteraction(opportunity, "view", { context: "detail" });
-    }
-    // Track once per opportunity page view.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opportunity?.id]);
+    const nextTarget = rootRef.current?.querySelector<HTMLElement>("main") ?? null;
+    setMainTarget(nextTarget);
+  }, [embedded, opportunity.id]);
 
-  // Dwell: time actually spent reading the detail is a stronger interest tell
-  // than opening it. Sent once on unmount/navigation, bucketed
-  // (1: 10–30s, 2: 30–90s, 3: 90s+) so the ranking weight scales with real
-  // reading time. Mirrors the mobile detail screen.
-  useEffect(() => {
-    const opportunityId = opportunity?.id;
-    if (!opportunityId) return;
-    const startedAt = Date.now();
-    return () => {
-      const seconds = Math.round((Date.now() - startedAt) / 1000);
-      if (seconds < 10) return;
-      const bucket = seconds >= 90 ? 3 : seconds >= 30 ? 2 : 1;
-      void recordOpportunitySignal(
-        {
-          opportunityId,
-          signalType: "dwell",
-          signalValue: bucket,
-          context: "detail_dwell",
-          details: { seconds },
-        },
-        getToken,
-      );
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opportunity?.id]);
-
-  useEffect(() => {
-    let isActive = true;
-    fetchOpportunities()
-      .then((opportunities) => {
-        if (isActive) {
-          setRelatedSource(opportunities);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  const relatedOpportunities = useMemo(() => {
-    if (relatedSource.length === 0) return [];
-
-    const currentCategory = opportunity.category?.trim().toLowerCase() ?? "";
-    const currentTags = new Set(
-      (opportunity.tags ?? []).map((tag) => tag.toLowerCase()),
-    );
-
-    return relatedSource
-      .filter((item) => item.id !== opportunity.id)
-      .filter((item) => !isOpportunityExpired(item))
-      .map((item) => {
-        let score = 0;
-        const itemCategory = item.category?.trim().toLowerCase() ?? "";
-        if (currentCategory && itemCategory === currentCategory) {
-          score += 2;
-        }
-        const itemTags = (item.tags ?? []).map((tag) => tag.toLowerCase());
-        for (const tag of itemTags) {
-          if (currentTags.has(tag)) {
-            score += 1;
-          }
-        }
-        return { item, score };
-      })
-      .filter((entry) => entry.score > 0)
-      .sort(
-        (a, b) =>
-          b.score - a.score ||
-          scoreOpportunity(b.item) - scoreOpportunity(a.item),
-      )
-      .slice(0, 4)
-      .map((entry) => entry.item);
-  }, [
-    relatedSource,
-    opportunity.id,
-    opportunity.category,
-    opportunity.tags,
-    scoreOpportunity,
-  ]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const checkBookmark = async () => {
-      if (!userId) return;
-
-      try {
-        const token = await getProductApiToken(getToken);
-        let bookmarked: boolean;
-        try {
-          bookmarked = await isBookmarked(userId, opportunity.id, token);
-        } catch (firstError) {
-          // Only the common "not bookmarked" -> false path used to trigger a
-          // forced token refresh + second request on every open. Retry with a
-          // fresh token ONLY when the call actually failed on an expired token.
-          if (!isInvalidOrExpiredTokenError(firstError)) throw firstError;
-          const freshToken = await getProductApiToken(getToken, {
-            forceRefresh: true,
-          });
-          bookmarked = await isBookmarked(userId, opportunity.id, freshToken);
-        }
-
-        if (isActive) {
-          setIsBookmarkedState(bookmarked);
-        }
-      } catch (bookmarkError) {
-        if (!isInvalidOrExpiredTokenError(bookmarkError)) {
-          console.warn("Could not load bookmark status:", bookmarkError);
-        }
-      }
-    };
-
-    void checkBookmark();
-
-    return () => {
-      isActive = false;
-    };
-  }, [getToken, opportunity.id, userId]);
-
-  const handleBack = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    onBack();
-  };
-
-  const handleBookmark = async () => {
-    if (!userId) {
-      navigate("/auth?mode=sign-in", { state: authState });
-      return;
-    }
-
-    setBookmarkLoading(true);
-
-    const runBookmarkRequest = async (forceRefresh = false) => {
-      const token = await getProductApiToken(getToken, { forceRefresh });
-
-      if (isBookmarkedState) {
-        return removeBookmark(userId, opportunity.id, token);
-      }
-
-      return addBookmark(
-        userId,
-        {
-          id: opportunity.id,
-          title: opportunity.title,
-          category: opportunity.category,
-          deadline: opportunity.deadline,
-          location: opportunity.location,
-          match_percentage: opportunity.match,
-        },
-        token,
-      );
-    };
-
-    try {
-      let result = await runBookmarkRequest();
-
-      if (!result) {
-        result = await runBookmarkRequest(true);
-      }
-
-      if (isBookmarkedState && result) {
-        setIsBookmarkedState(false);
-        trackInteraction(opportunity, "bookmark", {
-          value: -1,
-          context: "unsave",
-        });
-        success("Bookmark removed");
-      } else if (!isBookmarkedState && result) {
-        setIsBookmarkedState(true);
-        trackInteraction(opportunity, "bookmark");
-        success("Opportunity saved");
-      } else {
-        showError("Sign in again to save this opportunity");
-      }
-    } catch (bookmarkError) {
-      if (isInvalidOrExpiredTokenError(bookmarkError)) {
-        try {
-          const result = await runBookmarkRequest(true);
-
-          if (isBookmarkedState && result) {
-            setIsBookmarkedState(false);
-            trackInteraction(opportunity, "bookmark", {
-              value: -1,
-              context: "unsave",
-            });
-            success("Bookmark removed");
-            return;
-          }
-
-          if (!isBookmarkedState && result) {
-            setIsBookmarkedState(true);
-            trackInteraction(opportunity, "bookmark");
-            success("Opportunity saved");
-            return;
-          }
-        } catch {
-          // Fall through to the user-facing error below.
-        }
-      }
-
-      showError(
-        bookmarkError instanceof Error
-          ? bookmarkError.message
-          : "Could not update bookmark",
-      );
-    } finally {
-      setBookmarkLoading(false);
-    }
-  };
-
-  const handleShare = async () => {
-    setIsSharing(true);
-    trackInteraction(opportunity, "share");
-    try {
-      const outcome = await shareOpportunity(opportunity);
-      const toast = shareOutcomeMessage(outcome);
-      if (toast) {
-        (toast.type === "success" ? success : showError)(toast.message);
-      }
-      if (outcome !== "cancelled" && outcome !== "error") {
-        setShareCopied(true);
-        setTimeout(() => setShareCopied(false), 2000);
-      }
-    } finally {
-      setIsSharing(false);
-    }
-  };
-
-  const handleApply = (event?: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!userId) {
-      event?.preventDefault();
-      navigate("/auth?mode=sign-in", { state: authState });
-      return;
-    }
-
-    trackInteraction(opportunity, "apply");
-
-    void (async () => {
-      try {
-        const token = await getProductApiToken(getToken, { forceRefresh: true });
-        const tracked = await addApplication(
-          userId,
-          {
-            id: opportunity.id,
-            title: opportunity.title,
-            category: opportunity.category,
-          },
-          { status: "draft" },
-          token,
-        );
-
-        if (tracked) {
-          success("Application started — added to your tracker");
-        }
-      } catch (applyError) {
-        // Without this, a rejected addApplication (e.g. a non-UUID id the
-        // backend refuses) became an unhandled rejection and the user got no
-        // feedback while the apply link still opened. Surface it softly.
-        console.warn("Could not add application to tracker:", applyError);
-        showError(
-          "Opened the application — but we couldn't add it to your tracker.",
-        );
-      }
-    })();
-  };
-
-  const factItems = [
-    {
-      label: "Fit",
-      value: getMatchLabel(matchPercentage),
-      icon: Target,
-    },
-    {
-      label: "Difficulty",
-      value: difficultyLabel,
-      icon: Gauge,
-    },
-    {
-      label: "Deadline",
-      value: formatCompactDeadline(opportunity.deadline),
-      icon: CalendarDays,
-    },
-    ...(opportunity.location
-      ? [
-          {
-            label: "Location",
-            value: opportunity.location,
-            icon: MapPin,
-          },
-        ]
-      : []),
-    ...(opportunity.applicants
-      ? [
-          {
-            label: "Applicants",
-            value: applicantsCopy,
-            icon: UsersRound,
-          },
-        ]
-      : []),
-    ...(opportunity.stipend !== undefined && opportunity.stipend !== null
-      ? [
-          {
-            label: "Funding",
-            value: `${currencySymbol}${opportunity.stipend.toLocaleString()}`,
-            icon: Wallet,
-          },
-        ]
-      : []),
-  ];
-
-  const detailContent = (
-    <>
-      <Seo
-        title={`${opportunity.title} | Edutu opportunities`}
-        description={seoDescription}
-        path={canonicalPath}
-        image={seoImage}
-        type="article"
-        noindex={expired}
-        jsonLd={seoJsonLd}
+  return (
+    <div
+      ref={rootRef}
+      className="opportunity-detail-experience"
+      data-embedded={embedded ? "true" : "false"}
+    >
+      <style>{DETAIL_POLISH_STYLES}</style>
+      <OpportunityDetailLegacy
+        opportunity={opportunity}
+        onBack={onBack}
+        embedded={embedded}
       />
-      {expired ? (
-        <div className="mb-5 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          <p className="font-semibold">This opportunity has closed</p>
-          <p className="mt-1 text-danger/80">
-            {opportunity.deadline
-              ? `The deadline (${formatDeadline(opportunity.deadline)}) has passed.`
-              : "The application deadline has passed."}{" "}
-            The details below are kept for reference.
-          </p>
-        </div>
-      ) : null}
-      <section>
-        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-text-muted">
-          {!embedded ? (
-            <button
-              type="button"
-              onClick={handleBack}
-              className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-text-secondary transition-colors hover:border-strong hover:text-brand"
-            >
-              Back to opportunities
-            </button>
-          ) : null}
-          {!embedded ? (
-            <>
-              <span aria-hidden="true">•</span>
-              <span>Public details</span>
-              <span aria-hidden="true">•</span>
-            </>
-          ) : null}
-          <span>{formatUpdatedAt(opportunity.lastUpdated)}</span>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article className="min-w-0 space-y-7">
-            <header className="space-y-4 border-b border-subtle pb-6">
-              <div className="relative aspect-square overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
-                <ImageWithFallback
-                  src={opportunity.image || seoImage}
-                  fallbackSrc={opportunity.imageFallback}
-                  alt={
-                    opportunity.title
-                      ? `${opportunity.title} opportunity image`
-                      : "Opportunity image"
-                  }
-                  category={opportunity.category}
-                  className="h-full w-full object-cover"
-                  fallbackClassName="h-full w-full"
-                />
-              </div>
-              <p className="text-sm font-semibold text-brand">
-                Opportunity detail
-              </p>
-              <h1 className="max-w-3xl break-words font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-                {opportunity.title}
-              </h1>
-              {!embedded &&
-              organizationLabel(opportunity.organization, opportunity.title) ? (
-                <p className="max-w-3xl break-words text-base leading-relaxed text-text-secondary sm:text-lg sm:leading-8">
-                  {organizationLabel(opportunity.organization, opportunity.title)}
-                </p>
-              ) : null}
-              <div className="max-w-3xl space-y-5 break-words text-base leading-8 text-text-secondary [overflow-wrap:anywhere]">
-                {descriptionParagraphs.length > 0 ? (
-                  descriptionParagraphs.map((paragraph, index) => (
-                    <p
-                      key={`${paragraph.slice(0, 40)}-${index}`}
-                      className="whitespace-pre-line"
-                    >
-                      {paragraph}
-                    </p>
-                  ))
-                ) : (
-                  <p className="text-text-muted">
-                    Full details are available on the official application
-                    page.
-                  </p>
-                )}
-              </div>
-            </header>
-
-            <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-subtle pb-6 sm:grid-cols-3">
-              {factItems.map(({ label, value, icon: Icon }) => (
-                <div
-                  key={label}
-                  title={`${label}: ${value}`}
-                  aria-label={`${label}: ${value}`}
-                  className="flex min-w-0 items-center gap-2.5"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                    <Icon size={17} />
-                  </span>
-                  <span className="sr-only">{label}</span>
-                  <span className="min-w-0 truncate text-sm font-semibold leading-snug text-text-secondary">
-                    {value}
-                  </span>
-                </div>
-              ))}
-            </section>
-
-            {matchInsight &&
-            (matchInsight.reasons.length > 0 ||
-              matchInsight.risks.length > 0) ? (
-              <WhyThisMatches
-                score={matchInsight.score}
-                reasons={matchInsight.reasons}
-                risks={matchInsight.risks}
-              />
-            ) : null}
-
-            {applicationFeeCopy ? (
-              applicationFeeCopy.free ? (
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-sm font-semibold text-success">
-                  <CheckCircle2 size={16} />
-                  Free to apply
-                </div>
-              ) : (
-                <p className="text-sm font-medium text-text-secondary">
-                  {applicationFeeCopy.label}
-                </p>
-              )
-            ) : null}
-
-            {requirements.length > 0 ? (
-              <section className="space-y-3">
-                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                  Requirements
-                </h2>
-                {showFeasibility ? (
-                  <p className="text-sm text-text-secondary">
-                    {requirements.length}{" "}
-                    {requirements.length === 1 ? "requirement" : "requirements"}{" "}
-                    — still doable. Start with the first one.
-                  </p>
-                ) : null}
-                <ul className="space-y-3 text-base leading-7 text-text-secondary">
-                  {requirements.map((item, index) => (
-                    <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            {eligibilityItems.length > 0 ? (
-              <section className="space-y-3">
-                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                  Eligibility
-                </h2>
-                <ul className="space-y-3 text-base leading-7 text-text-secondary">
-                  {eligibilityItems.map((item, index) => (
-                    <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-text-muted" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            {benefits.length > 0 ? (
-              <section className="space-y-3">
-                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                  Benefits
-                </h2>
-                <ul className="space-y-3 text-base leading-7 text-text-secondary">
-                  {benefits.map((item, index) => (
-                    <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-success" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            {applicationSteps.length > 0 ? (
-              <section className="space-y-3">
-                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                  Application process
-                </h2>
-                <ol className="space-y-3 text-base leading-7 text-text-secondary">
-                  {applicationSteps.map((item, index) => (
-                    <li key={`${item}-${index}`} className="flex gap-4">
-                      <span className="mt-0.5 text-sm font-semibold text-brand">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ) : null}
-
-            {opportunity.tags?.filter(
-              (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),
-            ).length ? (
-              <section className="space-y-3 border-t border-subtle pt-6">
-                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                  Tags
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {opportunity.tags
-                    .filter(
-                      (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),
-                    )
-                    .map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center rounded-md border border-subtle px-3 py-1 text-sm text-text-secondary"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                </div>
-              </section>
-            ) : null}
-          </article>
-
-          <aside className="space-y-5">
-            <section
-              className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft`}
-            >
-              <p className="text-xs font-semibold text-text-muted">
-                Actions
-              </p>
-              <div className="flex flex-col gap-3">
-                {applyUrl ? (
-                  <a
-                    href={applyHref ?? "#"}
-                    target={isSignedIn ? "_blank" : undefined}
-                    rel={isSignedIn ? "noopener noreferrer" : undefined}
-                    onClick={handleApply}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-elevated transition-colors hover:bg-brand-700"
-                  >
-                    <ExternalLink size={16} />
-                    {applyCtaLabel}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-brand/60 px-4 py-3 text-sm font-semibold text-white"
-                  >
-                    <ExternalLink size={16} />
-                    Application link unavailable
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  disabled={isSharing}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-subtle px-4 py-3 text-sm font-semibold text-text-secondary transition-colors hover:border-strong hover:text-text-primary disabled:cursor-wait disabled:opacity-50"
-                >
-                  <Share2 size={16} />
-                  {shareCopied ? "Link copied" : "Share link"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBookmark}
-                  disabled={bookmarkLoading}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
-                    isBookmarkedState
-                      ? "bg-danger text-white hover:bg-danger/90"
-                      : "border border-subtle text-text-secondary hover:border-strong hover:text-text-primary"
-                  }`}
-                >
-                  <Heart
-                    size={16}
-                    fill={isBookmarkedState ? "currentColor" : "none"}
-                  />
-                  {!userId
-                    ? "Sign in to save"
-                    : isBookmarkedState
-                      ? "Saved"
-                      : "Save"}
-                </button>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </section>
-      {relatedOpportunities.length > 0 ? (
-        <section className="mt-10 border-t border-subtle pt-8" aria-labelledby="related-opportunities-title">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2
-                id="related-opportunities-title"
-                className="font-display text-xl font-semibold tracking-tight text-text-primary"
-              >
-                Related opportunities
-              </h2>
-              <p className="mt-1 text-sm text-text-muted">More like this</p>
-            </div>
-            <span className="hidden shrink-0 text-xs font-semibold text-text-muted sm:inline">
-              Swipe to explore
-            </span>
-          </div>
-          <div
-            className="-mx-4 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-            role="region"
-            tabIndex={0}
-            aria-label="Related opportunities"
-          >
-            {relatedOpportunities.map((related) => (
-              <RelatedOpportunityCard
-                key={related.id}
-                opportunity={related}
-                detailPath={`${embedded ? "/app" : ""}/opportunity/${related.id}`}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {embedded ? (
-        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-subtle bg-surface-layer/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl lg:hidden">
-          <div className="mx-auto flex max-w-3xl items-center gap-3">
-            {applyUrl ? (
-              <a
-                href={applyHref ?? "#"}
-                target={isSignedIn ? "_blank" : undefined}
-                rel={isSignedIn ? "noopener noreferrer" : undefined}
-                onClick={handleApply}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-elevated transition active:scale-[0.98]"
-              >
-                <ExternalLink size={17} />
-                <span className="truncate">{applyCtaLabel}</span>
-              </a>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-brand/60 px-4 text-sm font-semibold text-white"
-              >
-                <ExternalLink size={17} />
-                <span className="truncate">Application unavailable</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleShare}
-              disabled={isSharing}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-subtle bg-surface-layer text-text-secondary shadow-soft transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60"
-              aria-label="Share opportunity"
-            >
-              <Share2 size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={handleBookmark}
-              disabled={bookmarkLoading}
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 ${
-                isBookmarkedState
-                  ? "border-danger bg-danger text-white"
-                  : "border-subtle bg-surface-layer text-text-secondary shadow-soft"
-              }`}
-              aria-label={
-                !userId
-                  ? "Sign in to save opportunity"
-                  : isBookmarkedState
-                    ? "Remove saved opportunity"
-                    : "Save opportunity"
-              }
-            >
-              <Heart
-                size={20}
-                fill={isBookmarkedState ? "currentColor" : "none"}
-              />
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
+      {mainTarget
+        ? createPortal(
+            <OpportunityHero opportunity={opportunity} onBack={onBack} />,
+            mainTarget,
+          )
+        : null}
+    </div>
   );
-
-  return embedded ? (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
-      {detailContent}
-    </main>
-  ) : (
-    <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
-      {detailContent}
-    </PublicEditorialShell>
-  );
-};
-
-export default OpportunityDetail;
+}
