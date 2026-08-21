@@ -10,7 +10,9 @@ describe("ScraperController source control plane", () => {
     };
     const sourceAdmin = {
       getSources: jest.fn().mockResolvedValue([{ id: 7, name: "DAAD" }]),
-      addSource: jest.fn().mockResolvedValue({ success: true, data: { id: 7 } }),
+      addSource: jest
+        .fn()
+        .mockResolvedValue({ success: true, data: { id: 7 } }),
       updateSource: jest.fn().mockResolvedValue({ success: true }),
       deleteSource: jest.fn().mockResolvedValue({ success: true }),
     };
