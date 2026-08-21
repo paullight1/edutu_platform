@@ -129,9 +129,7 @@ describe("ScraperSourceAdminService", () => {
   it("fails closed when the source store is not configured", async () => {
     const service = new ScraperSourceAdminService(null);
 
-    await expect(
-      service.updateSource(7, { enabled: false }),
-    ).resolves.toEqual({
+    await expect(service.updateSource(7, { enabled: false })).resolves.toEqual({
       success: false,
       error: "No database configured",
     });
