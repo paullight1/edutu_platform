@@ -9,6 +9,7 @@ import { ThemeProvider } from './hooks/useTheme';
 import App from './App.tsx';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
+import WhatsNewNotification from './components/WhatsNewNotification';
 import { initSentry } from './lib/sentry';
 import { SkipLink } from './lib/accessibility';
 
@@ -75,6 +76,7 @@ root.render(
                         <NotificationsProvider>
                           <GoalsProvider>
                             <App />
+                            <WhatsNewNotification />
                           </GoalsProvider>
                         </NotificationsProvider>
                       </AnalyticsProvider>
