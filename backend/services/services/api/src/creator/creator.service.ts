@@ -477,7 +477,9 @@ export class CreatorService {
       }
 
       // Idempotent retry: if the enrollment is already committed, return it
-      // without charging the buyer or crediting the seller a second time.
+      // without charging the buyer or crediting the seller a second time. The
+      // protected fulfillment URL is attached to the authenticated response so
+      // a retry still restores learner access without creating a new purchase.
       const [existing] = await tx
         .select()
         .from(marketplaceEnrollments)
@@ -489,9 +491,21 @@ export class CreatorService {
         )
         .limit(1)
         .execute();
-      if (existing) return existing;
+      if (existing) {
+        return { ...existing, accessUrl: listing.previewUrl ?? null };
+      }
 
       const price = listing.price ?? 0;
+      const requiresLearnerAccess = price > 0 || listing.type === "course";
+      if (requiresLearnerAccess && !listing.previewUrl) {
+        // Legacy active rows can predate the fulfillment contract. Never charge
+        // a learner for one of those rows until a creator/admin supplies a real
+        // delivery link.
+        throw new BadRequestException(
+          "This listing is missing its learner access link and cannot accept enrollment yet.",
+        );
+      }
+
       if (price > 0 && String(listing.sellerId) === dbUserId) {
         throw new BadRequestException("You cannot purchase your own listing.");
       }
@@ -609,7 +623,7 @@ export class CreatorService {
         .where(eq(marketplaceListings.id, listingId))
         .execute();
 
-      return enrollment;
+      return { ...enrollment, accessUrl: listing.previewUrl ?? null };
     });
   }
 
