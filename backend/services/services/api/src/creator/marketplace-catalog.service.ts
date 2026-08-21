@@ -87,7 +87,12 @@ export class MarketplaceCatalogService {
   }
 
   async listAdmin(status?: string) {
-    const allowedStatuses = new Set(["pending", "active", "paused", "rejected"]);
+    const allowedStatuses = new Set([
+      "pending",
+      "active",
+      "paused",
+      "rejected",
+    ]);
     if (status && !allowedStatuses.has(status)) {
       throw new BadRequestException("Invalid marketplace listing status");
     }
@@ -140,7 +145,8 @@ export class MarketplaceCatalogService {
         );
       }
 
-      const nextStatus = review.decision === "approve" ? "active" : "rejected";
+      const nextStatus =
+        review.decision === "approve" ? "active" : "rejected";
       const updateResult = await tx.execute(
         buildMarketplaceReviewUpdateQuery(listingId, nextStatus),
       );
