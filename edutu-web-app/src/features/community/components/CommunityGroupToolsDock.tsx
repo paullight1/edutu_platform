@@ -56,8 +56,10 @@ export default function CommunityGroupToolsDock() {
     };
   }, [api, id]);
 
-  const activeMember = detail?.membership?.status === "active";
-  if (!detail || !activeMember) return null;
+  if (!detail) return null;
+  const activeMember = detail.membership?.status === "active";
+  const manager = canManageCommunityGroup(detail, userId);
+  if (!activeMember && !manager) return null;
 
   const loadMembers = async () => {
     setView("members");
@@ -80,7 +82,7 @@ export default function CommunityGroupToolsDock() {
   };
 
   const chooseFile = (selected: File | null) => {
-    if (!selected) return;
+    if (!selected || !activeMember) return;
     try {
       classifyCommunityAttachmentFile(selected);
       setFile(selected);
@@ -100,7 +102,7 @@ export default function CommunityGroupToolsDock() {
   };
 
   const share = async () => {
-    if (!file || sharing) return;
+    if (!file || sharing || !activeMember) return;
     setSharing(true);
     setError(null);
     setNotice(null);
@@ -130,7 +132,6 @@ export default function CommunityGroupToolsDock() {
       (row): row is { member: CommunityMemberSummary; href: string } =>
         Boolean(row.href),
     );
-  const manager = canManageCommunityGroup(detail, userId);
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.85rem+env(safe-area-inset-bottom))] z-[60] px-3 lg:bottom-6 lg:left-auto lg:right-6 lg:w-[360px] lg:px-0">
@@ -189,22 +190,26 @@ export default function CommunityGroupToolsDock() {
 
             {view === "menu" ? (
               <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#f4dcc9] px-3 text-left transition hover:border-[#f45b16]/35 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><FileUp size={18} /></span>
-                  <span><span className="block text-sm font-bold">Share resource</span><span className="mt-0.5 block text-xs text-[#796f6b] dark:text-text-secondary">Add an image or PDF to the room.</span></span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void loadMembers()}
-                  className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#f4dcc9] px-3 text-left transition hover:border-[#f45b16]/35 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><MessageCircle size={18} /></span>
-                  <span><span className="block text-sm font-bold">Message member</span><span className="mt-0.5 block text-xs text-[#796f6b] dark:text-text-secondary">Start a private request from the active roster.</span></span>
-                </button>
+                {activeMember ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#f4dcc9] px-3 text-left transition hover:border-[#f45b16]/35 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><FileUp size={18} /></span>
+                    <span><span className="block text-sm font-bold">Share resource</span><span className="mt-0.5 block text-xs text-[#796f6b] dark:text-text-secondary">Add an image or PDF to the room.</span></span>
+                  </button>
+                ) : null}
+                {activeMember ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadMembers()}
+                    className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#f4dcc9] px-3 text-left transition hover:border-[#f45b16]/35 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><MessageCircle size={18} /></span>
+                    <span><span className="block text-sm font-bold">Message member</span><span className="mt-0.5 block text-xs text-[#796f6b] dark:text-text-secondary">Start a private request from the active roster.</span></span>
+                  </button>
+                ) : null}
                 {manager ? (
                   <Link
                     to={`/app/community/groups/${id}/settings`}
