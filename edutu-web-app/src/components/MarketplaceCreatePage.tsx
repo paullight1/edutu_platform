@@ -90,6 +90,8 @@ export default function MarketplaceCreatePage() {
     const value = Math.trunc(Number(capacity));
     return Number.isFinite(value) && value > 0 ? value : undefined;
   }, [capacity]);
+  const requiresLearnerAccess =
+    type === "paid" || type === "credit" || type === "course";
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -100,6 +102,12 @@ export default function MarketplaceCreatePage() {
     }
     if ((type === "paid" || type === "credit") && parsedPrice <= 0) {
       setError("Paid listings need a credit price greater than zero.");
+      return;
+    }
+    if (requiresLearnerAccess && !previewUrl.trim()) {
+      setError(
+        "Add a learner access URL so enrolled learners have a real delivery path.",
+      );
       return;
     }
 
@@ -232,8 +240,8 @@ export default function MarketplaceCreatePage() {
             Listing submitted for review
           </h1>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
-            It is not public yet. Edutu will review the listing and re-check your
-            creator approval before it can become active in the marketplace.
+            It is not public yet. Edutu will review the listing, its learner
+            delivery path, and your creator approval before it can become active.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
@@ -383,13 +391,24 @@ export default function MarketplaceCreatePage() {
             </label>
 
             <label className="grid gap-2 text-sm font-semibold text-text-secondary">
-              Preview URL (optional)
+              Learner access URL {requiresLearnerAccess ? "(required)" : "(optional)"}
               <input
                 value={previewUrl}
                 onChange={(event) => setPreviewUrl(event.target.value)}
                 type="url"
+                required={requiresLearnerAccess}
+                aria-describedby="marketplace-access-help"
                 className="h-11 rounded-xl border border-subtle bg-surface-body px-3 text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                placeholder="https://…"
               />
+              <span
+                id="marketplace-access-help"
+                className="text-xs font-normal leading-5 text-text-muted"
+              >
+                This link stays private from the public catalogue and is revealed
+                only after enrollment. Use a booking link for mentorship or the
+                actual course/resource access link for digital delivery.
+              </span>
             </label>
 
             <label className="grid gap-2 text-sm font-semibold text-text-secondary">
@@ -437,6 +456,10 @@ export default function MarketplaceCreatePage() {
             <li>Only approved creators or mentors can submit listings.</li>
             <li>Every listing starts pending and requires administrator review.</li>
             <li>Creator approval is rechecked before a listing is published.</li>
+            <li>
+              Paid, credit and course listings need a real learner access link;
+              it stays private until enrollment.
+            </li>
             <li>Credit transfers happen only after a learner enrolls.</li>
           </ul>
         </aside>
