@@ -1,4 +1,10 @@
-import { BadRequestException, Controller, Get, Param, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+} from "@nestjs/common";
 import { Public } from "../auth/public.decorator";
 import { PublicCommunityService } from "./public-community.service";
 
