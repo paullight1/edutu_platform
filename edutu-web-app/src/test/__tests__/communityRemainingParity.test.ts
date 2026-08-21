@@ -98,9 +98,15 @@ describe("community attachment workflow", () => {
     const executable = new File([new Uint8Array([1])], "tool.exe", {
       type: "application/octet-stream",
     });
-    expect(() => classifyCommunityAttachmentFile(executable)).toThrow(
-      /JPEG, PNG, WebP.*PDF/i,
-    );
+    let error: unknown;
+    try {
+      classifyCommunityAttachmentFile(executable);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/JPEG, PNG, or WebP/i);
+    expect((error as Error).message).toMatch(/PDF/i);
   });
 });
 
