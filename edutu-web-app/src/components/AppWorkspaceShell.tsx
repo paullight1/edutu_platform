@@ -25,40 +25,29 @@ import { usePaywall } from "../hooks/usePaywall";
 import { cn } from "../lib/cn";
 import AppFooter from "./AppFooter";
 import OfflineBanner from "./OfflineBanner";
+import {
+  mobileMoreWorkspaceNavItems,
+  mobilePrimaryWorkspaceNavItems,
+  personalWorkspaceNavItems,
+  primaryWorkspaceNavItems,
+  type WorkspaceNavIconKey,
+} from "./workspaceNavigation";
 
 interface AppWorkspaceShellProps {
   children: ReactNode;
 }
 
-type WorkspaceNavItem = {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  exact?: boolean;
+const workspaceNavIcons: Record<WorkspaceNavIconKey, LucideIcon> = {
+  home: LayoutGrid,
+  opportunities: Briefcase,
+  deadlines: Calendar,
+  saved: Bookmark,
+  applications: Send,
+  roadmaps: Sparkles,
+  goals: Calendar,
+  profile: UserCheck,
+  settings: Settings,
 };
-
-const primaryNavItems: WorkspaceNavItem[] = [
-  { to: "/dashboard", label: "navigation.home", icon: LayoutGrid, exact: true },
-  { to: "/app/opportunities", label: "navigation.opportunities", icon: Briefcase },
-  { to: "/app/deadlines", label: "navigation.deadlines", icon: Calendar },
-];
-
-const secondaryNavItems: WorkspaceNavItem[] = [
-  { to: "/app/saved", label: "navigation.saved", icon: Bookmark },
-  { to: "/app/applications", label: "navigation.applications", icon: Send },
-  { to: "/app/profile", label: "navigation.profile", icon: UserCheck },
-  { to: "/app/settings", label: "navigation.settings", icon: Settings },
-];
-
-const mobileSecondaryNavItems = secondaryNavItems.filter(
-  (item) => item.to !== "/app/profile",
-);
-
-const mobileNavItems = [
-  { to: "/dashboard", label: "navigation.home", icon: LayoutGrid, exact: true },
-  { to: "/app/opportunities", label: "navigation.explore", icon: Briefcase },
-  { to: "/app/deadlines", label: "navigation.dates", icon: Calendar },
-];
 
 function getFirstName(name: string) {
   return name.trim().split(/\s+/)[0] || "";
@@ -85,6 +74,14 @@ function isRouteActive(pathname: string, to: string, exact?: boolean) {
     return pathname === "/saved" || pathname.startsWith("/app/saved");
   }
 
+  if (to === "/app/roadmaps") {
+    return pathname === "/roadmaps" || pathname.startsWith("/app/roadmaps");
+  }
+
+  if (to === "/app/goals") {
+    return pathname === "/goals" || pathname.startsWith("/app/goals");
+  }
+
   if (to === "/app/profile") {
     return pathname === "/profile" || pathname.startsWith("/app/profile");
   }
@@ -103,6 +100,8 @@ function getWorkspaceTitleKey(pathname: string): string | null {
   if (pathname.startsWith("/app/deadlines") || pathname === "/deadlines") return "navigation.deadlines";
   if (pathname.startsWith("/app/saved") || pathname === "/saved") return "navigation.saved";
   if (pathname.startsWith("/app/applications") || pathname === "/applications") return "navigation.applications";
+  if (pathname.startsWith("/app/roadmaps") || pathname === "/roadmaps") return "navigation.plan";
+  if (pathname.startsWith("/app/goals") || pathname === "/goals") return "dashboard.stats.goalsActive";
   if (pathname.startsWith("/app/notifications") || pathname === "/notifications") return "navigation.notifications";
   if (pathname.startsWith("/app/profile") || pathname === "/profile") return "navigation.profile";
   if (pathname.startsWith("/app/settings") || pathname === "/settings") return "navigation.settings";
@@ -308,8 +307,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
           </div>
 
           <nav className="space-y-1" aria-label="Primary workspace pages">
-            {primaryNavItems.map((item) => {
-              const Icon = item.icon;
+            {primaryWorkspaceNavItems.map((item) => {
+              const Icon = workspaceNavIcons[item.icon];
               const active = isRouteActive(pathname, item.to, item.exact);
               const itemLabel = t(item.label);
               return (
@@ -340,8 +339,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               </p>
             ) : null}
             <nav className="space-y-1" aria-label="Personal workspace pages">
-              {secondaryNavItems.map((item) => {
-                const Icon = item.icon;
+              {personalWorkspaceNavItems.map((item) => {
+                const Icon = workspaceNavIcons[item.icon];
                 const active = isRouteActive(pathname, item.to);
                 return (
                   <NavLink
@@ -573,8 +572,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 {t("navigation.explore")}
               </p>
               <div className="grid gap-2.5">
-                {primaryNavItems.map((item) => {
-                  const Icon = item.icon;
+                {primaryWorkspaceNavItems.map((item) => {
+                  const Icon = workspaceNavIcons[item.icon];
                   const active = isRouteActive(pathname, item.to, item.exact);
                   const itemLabel = t(item.label);
                   return (
@@ -609,8 +608,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 {t("workspace.section")}
               </p>
               <div className="grid gap-2.5">
-                {mobileSecondaryNavItems.map((item) => {
-                  const Icon = item.icon;
+                {mobileMoreWorkspaceNavItems.map((item) => {
+                  const Icon = workspaceNavIcons[item.icon];
                   const active = isRouteActive(pathname, item.to, item.exact);
                   return (
                     <NavLink
@@ -678,8 +677,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             aria-label="Mobile app navigation"
           >
           <div className="grid grid-cols-4">
-            {mobileNavItems.map((item) => {
-              const Icon = item.icon;
+            {mobilePrimaryWorkspaceNavItems.map((item) => {
+              const Icon = workspaceNavIcons[item.icon];
               const active = isRouteActive(pathname, item.to, item.exact);
               const itemLabel = t(item.label);
               return (
