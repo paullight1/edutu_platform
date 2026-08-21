@@ -8,6 +8,8 @@ export type MarketplaceListing = {
   type: "free" | "paid" | "credit" | "course" | string;
   price: number;
   imageUrl: string | null;
+  // Kept for response compatibility. Public catalogue endpoints intentionally
+  // return null; learner access is exposed only on MarketplaceEnrollment.
   previewUrl: string | null;
   eventDate: string | null;
   eventEndDate: string | null;
@@ -43,6 +45,7 @@ export type MarketplaceEnrollment = {
   category: string;
   type: string;
   imageUrl: string | null;
+  accessUrl: string | null;
 };
 
 export type WalletTransaction = {
@@ -69,6 +72,8 @@ export type MarketplaceListingInput = {
   type?: "free" | "paid" | "credit" | "course";
   price?: number;
   imageUrl?: string;
+  // Legacy API field name; treated by the backend as the protected learner
+  // fulfillment URL and never projected into the public catalogue.
   previewUrl?: string;
   tags?: string[];
   eventDate?: string;
