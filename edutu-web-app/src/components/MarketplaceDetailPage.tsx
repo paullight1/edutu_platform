@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Calendar,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   MapPin,
   ShieldCheck,
@@ -156,6 +157,7 @@ function MarketplaceDetailContent({ embedded }: { embedded: boolean }) {
       : listing.price > 0
         ? `Enroll for ${listing.price.toLocaleString()} credits`
         : "Enroll free";
+  const requiresLearnerAccess = listing.price > 0 || listing.type === "course";
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -265,27 +267,42 @@ function MarketplaceDetailContent({ embedded }: { embedded: boolean }) {
             {listing.remainingCapacity !== null ? (
               <p className="flex items-center justify-between gap-4">
                 <span>Spots remaining</span>
-                <strong className={listing.soldOut ? "text-danger" : "text-text-primary"}>
+                <strong
+                  className={
+                    listing.soldOut ? "text-danger" : "text-text-primary"
+                  }
+                >
                   {listing.remainingCapacity}
                 </strong>
               </p>
             ) : null}
             {eventDate ? (
               <p className="flex items-start gap-2">
-                <Calendar size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
+                <Calendar
+                  size={16}
+                  className="mt-0.5 shrink-0 text-brand"
+                  aria-hidden="true"
+                />
                 <span>{eventDate}</span>
               </p>
             ) : null}
             {listing.eventLocation ? (
               <p className="flex items-start gap-2">
-                <MapPin size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
+                <MapPin
+                  size={16}
+                  className="mt-0.5 shrink-0 text-brand"
+                  aria-hidden="true"
+                />
                 <span>{listing.eventLocation}</span>
               </p>
             ) : null}
           </div>
 
           {error ? (
-            <div className="mt-4 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+            <div
+              className="mt-4 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+              role="alert"
+            >
               {error}
             </div>
           ) : null}
@@ -304,6 +321,26 @@ function MarketplaceDetailContent({ embedded }: { embedded: boolean }) {
             {actionLabel}
           </button>
 
+          {enrollment?.accessUrl ? (
+            <a
+              href={enrollment.accessUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-4 text-sm font-bold text-brand no-underline transition hover:bg-brand/15"
+            >
+              <ExternalLink size={16} aria-hidden="true" /> Open learner access
+            </a>
+          ) : enrollment && requiresLearnerAccess ? (
+            <div
+              className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-text-secondary"
+              role="status"
+            >
+              Your enrollment is recorded, but this legacy listing does not have
+              an access link yet. Contact support or the creator for delivery;
+              retrying enrollment will not charge you again.
+            </div>
+          ) : null}
+
           <div className="mt-4 rounded-xl bg-surface-elevated p-3 text-xs leading-5 text-text-muted">
             <p className="inline-flex items-center gap-1.5 font-bold text-text-secondary">
               <ShieldCheck size={14} className="text-brand" aria-hidden="true" />
@@ -312,7 +349,8 @@ function MarketplaceDetailContent({ embedded }: { embedded: boolean }) {
             <p className="mt-1">
               Public listings require admin review and an actively approved
               creator. Paid enrollment and credit transfers are committed in one
-              server-side transaction.
+              server-side transaction, and learner access is revealed only after
+              enrollment.
             </p>
           </div>
         </aside>
