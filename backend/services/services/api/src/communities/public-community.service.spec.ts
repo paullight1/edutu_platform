@@ -34,7 +34,9 @@ class FakeStore implements PublicCommunityStore {
     return this.rows;
   }
 
-  async findCandidateBySlug(slug: string): Promise<PublicCommunityCandidate | null> {
+  async findCandidateBySlug(
+    slug: string,
+  ): Promise<PublicCommunityCandidate | null> {
     return this.rows.find((row) => row.slug === slug) ?? null;
   }
 }
@@ -44,9 +46,21 @@ describe("PublicCommunityService", () => {
     const store = new FakeStore();
     store.rows = [
       candidate(),
-      candidate({ id: "22222222-2222-4222-8222-222222222222", slug: "private-room", visibility: "private" }),
-      candidate({ id: "33333333-3333-4333-8333-333333333333", slug: "archived-room", archivedAt: new Date("2026-08-20T00:00:00Z") }),
-      candidate({ id: "44444444-4444-4444-8444-444444444444", slug: "expired-room", expiresAt: new Date("2026-08-20T00:00:00Z") }),
+      candidate({
+        id: "22222222-2222-4222-8222-222222222222",
+        slug: "private-room",
+        visibility: "private",
+      }),
+      candidate({
+        id: "33333333-3333-4333-8333-333333333333",
+        slug: "archived-room",
+        archivedAt: new Date("2026-08-20T00:00:00Z"),
+      }),
+      candidate({
+        id: "44444444-4444-4444-8444-444444444444",
+        slug: "expired-room",
+        expiresAt: new Date("2026-08-20T00:00:00Z"),
+      }),
     ];
     const service = new PublicCommunityService(store, () => now);
 
@@ -70,13 +84,21 @@ describe("PublicCommunityService", () => {
     const store = new FakeStore();
     store.rows = [
       candidate({ slug: "private", visibility: "private" }),
-      candidate({ slug: "archived", archivedAt: new Date("2026-08-20T00:00:00Z") }),
-      candidate({ slug: "expired", expiresAt: new Date("2026-08-20T00:00:00Z") }),
+      candidate({
+        slug: "archived",
+        archivedAt: new Date("2026-08-20T00:00:00Z"),
+      }),
+      candidate({
+        slug: "expired",
+        expiresAt: new Date("2026-08-20T00:00:00Z"),
+      }),
     ];
     const service = new PublicCommunityService(store, () => now);
 
     for (const slug of ["private", "archived", "expired", "missing"]) {
-      await expect(service.getBySlug(slug)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.getBySlug(slug)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     }
   });
 
