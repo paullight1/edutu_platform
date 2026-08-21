@@ -201,11 +201,20 @@ describe("community group settings model", () => {
     ).toThrow(/2 options/);
   });
 
-  it("allows only active owners/moderators to manage settings", () => {
+  it("mirrors backend owner/mod authorization, including creator membership drift", () => {
     expect(canManageCommunityGroup(detail("owner"), "user_owner")).toBe(true);
     expect(canManageCommunityGroup(detail("mod"), "user_actor")).toBe(true);
     expect(canManageCommunityGroup(detail("member"), "user_actor")).toBe(false);
     expect(canManageCommunityGroup(detail("mod", "removed"), "user_actor")).toBe(false);
-    expect(canManageCommunityGroup(detail("owner", "pending"), "user_owner")).toBe(false);
+
+    const missingOwnerMembership = detail("owner");
+    missingOwnerMembership.membership = null;
+    expect(canManageCommunityGroup(missingOwnerMembership, "user_owner")).toBe(true);
+
+    const pendingCreator = detail("owner", "pending");
+    expect(canManageCommunityGroup(pendingCreator, "user_owner")).toBe(true);
+
+    const removedCreator = detail("owner", "removed");
+    expect(canManageCommunityGroup(removedCreator, "user_owner")).toBe(false);
   });
 });
