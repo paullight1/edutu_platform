@@ -68,9 +68,7 @@ const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
 function authorityHasExplicitPort(rawUrl: string): boolean {
   const authorityStart = rawUrl.indexOf("://");
   if (authorityStart < 0) return false;
-  const relativeAuthorityEnd = rawUrl
-    .slice(authorityStart + 3)
-    .search(/[/?#]/);
+  const relativeAuthorityEnd = rawUrl.slice(authorityStart + 3).search(/[/?#]/);
   const authorityEnd =
     relativeAuthorityEnd < 0
       ? rawUrl.length
@@ -162,9 +160,7 @@ async function defaultResolveHost(
   }));
 }
 
-function isValidResolvedAddress(
-  address: SafeImageResolvedAddress,
-): boolean {
+function isValidResolvedAddress(address: SafeImageResolvedAddress): boolean {
   return (
     (address.family === 4 || address.family === 6) &&
     isIP(address.address) === address.family &&
@@ -199,7 +195,9 @@ async function defaultTransport(
       if (settled) return;
       settled = true;
       reject(
-        error instanceof Error ? error : new Error("Safe image transport failed"),
+        error instanceof Error
+          ? error
+          : new Error("Safe image transport failed"),
       );
     };
 
@@ -224,7 +222,9 @@ async function defaultTransport(
         }
         chunks.push(buffer);
       });
-      response.once("aborted", () => fail(new Error("Image response aborted")));
+      response.once("aborted", () =>
+        fail(new Error("Image response aborted")),
+      );
       response.once("error", fail);
       response.once("end", () => {
         if (settled) return;
