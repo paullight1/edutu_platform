@@ -1,5 +1,6 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import {
+  buildMarketplaceEnrollmentListQuery,
   buildPublicMarketplaceCatalogQuery,
   buildPublicMarketplaceDetailQuery,
   decodeMarketplaceCursor,
@@ -30,6 +31,26 @@ describe("marketplace public catalogue SQL", () => {
     expect(sql).toContain("clerk_id_to_uuid");
     expect(sql).not.toContain('as "sellerid"');
     expect(sql).not.toContain('as "email"');
+  });
+
+  it("never exposes the learner fulfillment URL in the public projection", () => {
+    const sql = render(buildPublicMarketplaceCatalogQuery({ limit: 20 }));
+
+    expect(sql).not.toContain('l.preview_url as "previewurl"');
+    expect(sql).toContain('null::text as "previewurl"');
+  });
+
+  it("returns the protected fulfillment URL only with the buyer enrollment list", () => {
+    const sql = dialect
+      .sqlToQuery(
+        buildMarketplaceEnrollmentListQuery(
+          "11111111-1111-4111-8111-111111111111",
+        ),
+      )
+      .sql.toLowerCase();
+
+    expect(sql).toContain('l.preview_url as "accessurl"');
+    expect(sql).toContain("where e.user_id");
   });
 
   it("uses a stable created-at/id cursor for keyset pagination", () => {
