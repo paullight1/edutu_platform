@@ -3,12 +3,10 @@ import { useAuth } from "@clerk/clerk-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Archive,
-  Check,
   ExternalLink,
   FileText,
   Flag,
   Loader2,
-  Lock,
   MessageCircle,
   Send,
   Settings,
