@@ -16,7 +16,6 @@ import {
   Sparkles,
   UserCheck,
   UsersRound,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
