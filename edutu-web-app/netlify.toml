@@ -49,6 +49,13 @@
   path = "/opportunities"
   function = "opportunities-og"
 
+# Public community summaries are safe anonymous projections. Inject their real
+# names/descriptions before crawlers see the SPA shell; private/unavailable
+# slugs receive noindex from the edge function.
+[[edge_functions]]
+  path = "/community/groups/*"
+  function = "community-group-og"
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]
