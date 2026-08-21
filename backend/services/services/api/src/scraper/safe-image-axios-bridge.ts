@@ -44,7 +44,7 @@ export function installSafeImageAxiosBridge(
     };
   }
 
-  const originalGet = axiosClient.get;
+  const originalGet = Reflect.get(axiosClient, "get") as AxiosStatic["get"];
   const state: BridgeState = { originalGet, references: 1 };
   states.set(axiosClient, state);
 
