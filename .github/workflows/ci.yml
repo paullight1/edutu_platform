@@ -323,3 +323,33 @@ jobs:
           cache-dependency-path: backend/services/services/voice/package-lock.json
       - run: npm ci
       - run: npm audit --audit-level=high
+
+  # BEGIN PHASE3_OPPORTUNITY_DOMAIN_APPLY
+  phase3-opportunity-domain-apply:
+    name: Phase 3 Opportunity Domain Cutover
+    if: github.event_name == 'push' && github.ref == 'refs/heads/refactor/architecture-simplification' && github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/architecture-simplification
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/phase3-opportunities-domain-refactor.mjs
+      - name: Commit refactor
+        run: |
+          if git diff --quiet; then
+            echo "No refactor changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add admin/src/pages/Opportunities.tsx scripts/check-large-file-budgets.mjs .github/workflows/ci.yml scripts/phase3-opportunities-domain-refactor.mjs
+          git commit -m "refactor(admin): extract opportunity domain logic"
+          git push origin HEAD:refactor/architecture-simplification
+  # END PHASE3_OPPORTUNITY_DOMAIN_APPLY
