@@ -113,9 +113,7 @@ describe("MarketplaceCatalogService", () => {
         "admin-user",
         { decision: "approve", note: "Reviewed proof and scope." },
       ),
-    ).resolves.toEqual(
-      expect.objectContaining({ status: "active" }),
-    );
+    ).resolves.toEqual(expect.objectContaining({ status: "active" }));
     expect(tx.execute).toHaveBeenCalledTimes(3);
   });
 });
