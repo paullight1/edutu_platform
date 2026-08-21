@@ -10,6 +10,7 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
 import { ScraperEgressController } from "./scraper-egress.controller";
 import { ScraperEgressLimiter } from "./scraper-egress.limiter";
 import { ScraperEgressService } from "./scraper-egress.service";
+import { installScraperRuntimePolicy } from "./scraper-runtime-policy";
 import { ScraperService } from "./scraper.service";
 import { ScraperSourceAdminService } from "./scraper-source-admin.service";
 
@@ -53,8 +54,14 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
 })
 export class ScraperModule implements OnModuleDestroy {
   private readonly restoreSafeImageBridge = installSafeImageAxiosBridge();
+  private readonly restoreRuntimePolicy: () => void;
+
+  constructor(scraperService: ScraperService) {
+    this.restoreRuntimePolicy = installScraperRuntimePolicy(scraperService);
+  }
 
   onModuleDestroy(): void {
+    this.restoreRuntimePolicy();
     this.restoreSafeImageBridge();
   }
 }
