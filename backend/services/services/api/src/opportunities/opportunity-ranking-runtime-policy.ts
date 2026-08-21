@@ -27,10 +27,14 @@ const states = new WeakMap<object, RuntimeState>();
  * reranker. Hard eligibility gates stay in OpportunityRankingService before
  * this method is reached. AI failure remains fail-soft to deterministic order.
  */
-export function installOpportunityRankingRuntimePolicy(service: object): () => void {
+export function installOpportunityRankingRuntimePolicy(
+  service: object,
+): () => void {
   const target = service as {
     aiService?: {
-      generateJson?: <T = unknown>(options: Record<string, unknown>) => Promise<T | null>;
+      generateJson?: <T = unknown>(
+        options: Record<string, unknown>,
+      ) => Promise<T | null>;
     };
     logger?: { warn?: (message: string) => void };
     rerankWithDeepSeek?: (...args: any[]) => Promise<RankedCandidate[]>;
