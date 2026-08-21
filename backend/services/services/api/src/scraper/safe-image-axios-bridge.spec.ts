@@ -13,7 +13,10 @@ describe("installSafeImageAxiosBridge", () => {
       finalUrl: "https://images.example/safe.png",
     });
 
-    const restore = installSafeImageAxiosBridge(axiosClient, safeFetcher as any);
+    const restore = installSafeImageAxiosBridge(
+      axiosClient,
+      safeFetcher as any,
+    );
     const response = await axiosClient.get("https://images.example/raw.png", {
       responseType: "arraybuffer",
       timeout: 10_000,
@@ -38,7 +41,10 @@ describe("installSafeImageAxiosBridge", () => {
     const axiosClient = { get: originalGet } as unknown as typeof axios;
     const safeFetcher = jest.fn();
 
-    const restore = installSafeImageAxiosBridge(axiosClient, safeFetcher as any);
+    const restore = installSafeImageAxiosBridge(
+      axiosClient,
+      safeFetcher as any,
+    );
     await expect(
       axiosClient.get("https://example.com/page", { responseType: "text" }),
     ).resolves.toEqual({ data: "page" });
@@ -57,16 +63,16 @@ describe("installSafeImageAxiosBridge", () => {
       axiosClient,
       safeFetcher as any,
     );
-    const wrappedGet = axiosClient.get;
+    const wrappedGet = Reflect.get(axiosClient, "get");
     const restoreSecond = installSafeImageAxiosBridge(
       axiosClient,
       safeFetcher as any,
     );
 
-    expect(axiosClient.get).toBe(wrappedGet);
+    expect(Reflect.get(axiosClient, "get")).toBe(wrappedGet);
     restoreSecond();
-    expect(axiosClient.get).toBe(wrappedGet);
+    expect(Reflect.get(axiosClient, "get")).toBe(wrappedGet);
     restoreFirst();
-    expect(axiosClient.get).toBe(originalGet);
+    expect(Reflect.get(axiosClient, "get")).toBe(originalGet);
   });
 });
