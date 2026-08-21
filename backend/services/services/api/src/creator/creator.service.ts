@@ -462,126 +462,147 @@ export class CreatorService {
   // ─── Enroll / Purchase ────────────────────────────────────────────────────
 
   async enrollInListing(userId: string, listingId: string) {
-    const [listing] = await db
-      .select()
-      .from(marketplaceListings)
-      .where(eq(marketplaceListings.id, listingId))
-      .execute();
-    if (!listing) throw new NotFoundException("Listing not found");
-    if (listing.status !== "active")
-      throw new BadRequestException("This listing is not currently available.");
-
-    const [userProfile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.userId, userId))
-      .execute();
-    if (!userProfile) throw new NotFoundException("User profile not found");
-
-    if (
-      (listing.price ?? 0) > 0 &&
-      (userProfile.creditsBalance ?? 0) < (listing.price ?? 0)
-    ) {
-      throw new BadRequestException(
-        `Insufficient credits. Need ${listing.price}, have ${userProfile.creditsBalance}.`,
-      );
-    }
-
-    // Check not already enrolled
-    const existing = await db
-      .select()
-      .from(marketplaceEnrollments)
-      .where(
-        and(
-          eq(marketplaceEnrollments.userId, userId),
-          eq(marketplaceEnrollments.listingId, listingId),
-        ),
-      )
-      .execute();
-    if (existing.length > 0) throw new BadRequestException("Already enrolled.");
-
-    // Deduct credits from buyer
-    if ((listing.price ?? 0) > 0) {
-      await db
-        .update(profiles)
-        .set({
-          creditsBalance:
-            (userProfile.creditsBalance ?? 0) - (listing.price ?? 0),
-          updatedAt: new Date(),
-        })
-        .where(eq(profiles.userId, userId))
+    return db.transaction(async (tx) => {
+      // Lock the listing first. This serializes capacity checks and protects the
+      // denormalized enrollment counter from concurrent purchases.
+      const [listing] = await tx
+        .select()
+        .from(marketplaceListings)
+        .where(eq(marketplaceListings.id, listingId))
+        .limit(1)
+        .for("update")
         .execute();
+      if (!listing) throw new NotFoundException("Listing not found");
+      if (listing.status !== "active") {
+        throw new BadRequestException(
+          "This listing is not currently available.",
+        );
+      }
 
-      // Log buyer's payment transaction
-      await db
-        .insert(transactions)
-        .values({
-          userId,
-          amount: -(listing.price ?? 0),
-          type: "marketplace_purchase",
-          status: "completed",
-          referenceId: listingId,
-          description: `Purchased: ${listing.title}`,
-        })
+      // Idempotent retry: if the enrollment is already committed, return it
+      // without charging the buyer or crediting the seller a second time.
+      const [existing] = await tx
+        .select()
+        .from(marketplaceEnrollments)
+        .where(
+          and(
+            eq(marketplaceEnrollments.userId, userId),
+            eq(marketplaceEnrollments.listingId, listingId),
+          ),
+        )
+        .limit(1)
         .execute();
+      if (existing) return existing;
 
-      // Credit creator their 85% cut
-      const creatorCut = Math.floor(
-        ((listing.price ?? 0) * (100 - PLATFORM_FEE_PERCENT)) / 100,
-      );
-      const [sellerProfile] = await db
+      // Capacity is checked from the enrollment table while the listing row is
+      // locked, before any wallet or enrollment write occurs.
+      if (listing.capacity != null) {
+        const [capacityRow] = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(marketplaceEnrollments)
+          .where(eq(marketplaceEnrollments.listingId, listingId))
+          .execute();
+        const currentEnrollments = Number(capacityRow?.count ?? 0);
+        if (currentEnrollments >= listing.capacity) {
+          throw new BadRequestException("Listing capacity has been reached.");
+        }
+      }
+
+      const [userProfile] = await tx
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, listing.sellerId))
+        .where(eq(profiles.userId, userId))
+        .limit(1)
         .execute();
-      if (sellerProfile) {
-        await db
+      if (!userProfile) throw new NotFoundException("User profile not found");
+
+      const price = listing.price ?? 0;
+      if (price > 0 && (userProfile.creditsBalance ?? 0) < price) {
+        throw new BadRequestException(
+          `Insufficient credits. Need ${price}, have ${userProfile.creditsBalance}.`,
+        );
+      }
+
+      let sellerProfile: typeof profiles.$inferSelect | undefined;
+      let creatorCut = 0;
+      if (price > 0) {
+        [sellerProfile] = await tx
+          .select()
+          .from(profiles)
+          .where(eq(profiles.userId, listing.sellerId))
+          .limit(1)
+          .execute();
+        creatorCut = Math.floor(
+          (price * (100 - PLATFORM_FEE_PERCENT)) / 100,
+        );
+
+        await tx
           .update(profiles)
           .set({
-            creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
+            creditsBalance: (userProfile.creditsBalance ?? 0) - price,
             updatedAt: new Date(),
           })
-          .where(eq(profiles.userId, listing.sellerId))
+          .where(eq(profiles.userId, userId))
           .execute();
 
-        // Log seller earning transaction
-        await db
+        await tx
           .insert(transactions)
           .values({
-            userId: listing.sellerId,
-            amount: creatorCut,
-            type: "creator_earning",
+            userId,
+            amount: -price,
+            type: "marketplace_purchase",
             status: "completed",
             referenceId: listingId,
-            description: `Earning from: ${listing.title}`,
+            description: `Purchased: ${listing.title}`,
           })
           .execute();
+
+        if (sellerProfile) {
+          await tx
+            .update(profiles)
+            .set({
+              creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
+              updatedAt: new Date(),
+            })
+            .where(eq(profiles.userId, listing.sellerId))
+            .execute();
+
+          await tx
+            .insert(transactions)
+            .values({
+              userId: listing.sellerId,
+              amount: creatorCut,
+              type: "creator_earning",
+              status: "completed",
+              referenceId: listingId,
+              description: `Earning from: ${listing.title}`,
+            })
+            .execute();
+        }
       }
-    }
 
-    // Create enrollment record
-    const [enrollment] = await db
-      .insert(marketplaceEnrollments)
-      .values({
-        userId,
-        listingId,
-        status: "active",
-        creditsSpent: listing.price,
-      })
-      .returning()
-      .execute();
+      const [enrollment] = await tx
+        .insert(marketplaceEnrollments)
+        .values({
+          userId,
+          listingId,
+          status: "active",
+          creditsSpent: price,
+        })
+        .returning()
+        .execute();
 
-    // Increment enrollment count
-    await db
-      .update(marketplaceListings)
-      .set({
-        enrollmentCount: (listing.enrollmentCount || 0) + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(marketplaceListings.id, listingId))
-      .execute();
+      await tx
+        .update(marketplaceListings)
+        .set({
+          enrollmentCount: (listing.enrollmentCount || 0) + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(marketplaceListings.id, listingId))
+        .execute();
 
-    return enrollment;
+      return enrollment;
+    });
   }
 
   // ─── Wallet ────────────────────────────────────────────────────────────────
