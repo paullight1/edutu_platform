@@ -9,6 +9,17 @@ vi.mock("@clerk/clerk-react", async () => {
   return { ...actual, useAuth: () => ({ isSignedIn: false }) };
 });
 
+// These tests exercise route metadata and public community copy, not the
+// already-covered global header/footer provider wiring. Keeping the shell out
+// makes the failure boundary precise: an SEO regression fails here instead of
+// Clerk/Theme context requirements from unrelated site chrome.
+vi.mock("../../components/PublicHeader", () => ({
+  default: () => <header data-testid="public-header">Edutu</header>,
+}));
+vi.mock("../../components/SiteFooter", () => ({
+  default: () => <footer data-testid="site-footer">Edutu</footer>,
+}));
+
 vi.mock("../../features/community/publicApi", () => ({
   fetchPublicGroups: vi.fn().mockResolvedValue([
     {
