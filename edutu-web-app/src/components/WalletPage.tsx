@@ -35,7 +35,7 @@ function transactionLabel(transaction: WalletTransaction) {
     case "reward":
       return "Reward";
     default:
-      return transaction.type.replaceAll("_", " ");
+      return transaction.type.replace(/_/g, " ");
   }
 }
 
