@@ -144,13 +144,35 @@ export interface MessagePageOptions {
 }
 
 export type CommunityAttachmentKind = "image" | "file";
+export type CommunityImageMime = "image/jpeg" | "image/png" | "image/webp";
+export type CommunityAttachmentMime = CommunityImageMime | "application/pdf";
 
 export interface CommunityAttachment {
   url: string;
   name: string;
-  mime: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+  mime: CommunityAttachmentMime;
   size: number;
   caption?: string;
+}
+
+export interface CommunityAttachmentUploadInput {
+  kind: CommunityAttachmentKind;
+  name: string;
+  mime: CommunityAttachmentMime;
+  size: number;
+}
+
+export interface CommunityAttachmentUploadReservation {
+  uploadUrl: string;
+  resourceUrl: string;
+  storagePath: string;
+}
+
+export interface CommunityGroupImageUploadInput {
+  kind: "image";
+  name: string;
+  mime: CommunityImageMime;
+  size: number;
 }
 
 export interface CommunityGroupResource {
@@ -194,7 +216,7 @@ export interface CommunityProfileContentPage {
 
 export interface SendMessageInput {
   body: string;
-  kind?: string;
+  kind?: "text" | CommunityAttachmentKind | "call";
   opportunityId?: string;
   callId?: string;
 }
@@ -222,6 +244,11 @@ export interface PublicCommunityGroupSummary {
 export const COMMUNITY_MESSAGE_MAX_LENGTH = 2000;
 export const COMMUNITY_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const COMMUNITY_PDF_MAX_BYTES = 10 * 1024 * 1024;
+export const COMMUNITY_IMAGE_MIME_TYPES: readonly CommunityImageMime[] = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
 
 export function parseCommunityAttachment(
   kind: string,
@@ -255,6 +282,8 @@ export function parseCommunityAttachment(
     url.length > 2048 ||
     !name ||
     name.length > 120 ||
+    name === "." ||
+    name === ".." ||
     /[\\/\u0000-\u001f\u007f]/.test(name) ||
     typeof size !== "number" ||
     !Number.isSafeInteger(size) ||
@@ -265,7 +294,7 @@ export function parseCommunityAttachment(
   }
   if (
     kind === "image" &&
-    (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(mime) ||
+    (!COMMUNITY_IMAGE_MIME_TYPES.includes(mime as CommunityImageMime) ||
       size > COMMUNITY_IMAGE_MAX_BYTES ||
       !/\.(?:jpe?g|png|webp)$/i.test(name))
   ) {
@@ -280,8 +309,21 @@ export function parseCommunityAttachment(
   return {
     url,
     name,
-    mime: mime as CommunityAttachment["mime"],
+    mime: mime as CommunityAttachmentMime,
     size,
     ...(caption ? { caption } : {}),
   };
+}
+
+export function serializeCommunityAttachment(
+  kind: CommunityAttachmentKind,
+  attachment: CommunityAttachment,
+): string {
+  const parsed = parseCommunityAttachment(kind, JSON.stringify(attachment));
+  if (!parsed) {
+    throw new Error(
+      "Choose a JPEG, PNG, or WebP image up to 5 MB, or a PDF up to 10 MB.",
+    );
+  }
+  return JSON.stringify(parsed);
 }
