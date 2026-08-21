@@ -28,7 +28,7 @@ export default function WhatsNewNotification() {
           initial={reduceMotion ? undefined : { opacity: 0, y: 18, scale: 0.98 }}
           animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-[80] mx-auto max-w-[430px] overflow-hidden rounded-[22px] border border-brand/15 bg-surface-elevated/95 p-4 shadow-[0_24px_70px_-24px_rgba(15,23,42,0.48)] backdrop-blur-xl sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[390px] sm:p-5"
+          className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5.25rem)] z-[80] mx-auto max-w-[430px] overflow-hidden rounded-[22px] border border-brand/15 bg-surface-elevated/95 p-4 shadow-[0_24px_70px_-24px_rgba(15,23,42,0.48)] backdrop-blur-xl sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:w-[390px] sm:p-5"
         >
           <div className="flex items-start gap-3.5">
             <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-soft">
