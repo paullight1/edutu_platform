@@ -24,12 +24,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: false
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
       - run: node --test scripts/architecture-boundaries.test.mjs
+      - run: node --test scripts/migration-ownership.test.mjs
       - run: node scripts/check-architecture-boundaries.mjs
+      - run: node scripts/check-migration-ownership.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs
 
