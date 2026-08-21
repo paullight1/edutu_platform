@@ -115,9 +115,9 @@ describe("CreatorService marketplace enrollment atomicity", () => {
 
     const service = new CreatorService({ broadcast: jest.fn() } as any);
 
-    await expect(service.enrollInListing("buyer-1", "listing-1")).resolves.toEqual(
-      existing,
-    );
+    await expect(
+      service.enrollInListing("buyer-1", "listing-1"),
+    ).resolves.toEqual(existing);
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
   });
@@ -143,9 +143,9 @@ describe("CreatorService marketplace enrollment atomicity", () => {
 
     const service = new CreatorService({ broadcast: jest.fn() } as any);
 
-    await expect(service.enrollInListing("buyer-1", "listing-1")).rejects.toThrow(
-      "capacity",
-    );
+    await expect(
+      service.enrollInListing("buyer-1", "listing-1"),
+    ).rejects.toThrow("capacity");
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
   });
