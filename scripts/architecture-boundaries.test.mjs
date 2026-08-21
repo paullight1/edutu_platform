@@ -51,6 +51,22 @@ test("accepts the currently grandfathered architecture roots", async () => {
   }
 });
 
+test("ignores archived trees when enforcing runtime architecture", async () => {
+  const root = await createFixture([
+    "backend/services/services/api/package.json",
+    "other-files/SCRAPER/supabase/migrations/20260101000000_archive.sql",
+    "other-files/legacy/packages/example/package.json",
+    "other-files/legacy/services/services/services/example/package.json",
+  ]);
+
+  try {
+    const result = runChecker(root);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("rejects a new shared migration root", async () => {
   const root = await createFixture([
     "backend/services/services/api/package.json",
