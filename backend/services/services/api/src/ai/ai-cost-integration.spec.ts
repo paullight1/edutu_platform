@@ -63,7 +63,8 @@ describe("AiService — cost attribution", () => {
   afterEach(() => {
     if (original.deepseek === undefined) delete process.env.DEEPSEEK_API_KEY;
     else process.env.DEEPSEEK_API_KEY = original.deepseek;
-    if (original.openrouter === undefined) delete process.env.OPENROUTER_API_KEY;
+    if (original.openrouter === undefined)
+      delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = original.openrouter;
     if (original.openrouterModel === undefined)
       delete process.env.OPENROUTER_MODEL;
