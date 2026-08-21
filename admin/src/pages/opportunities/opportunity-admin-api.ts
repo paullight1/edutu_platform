@@ -10,6 +10,28 @@ export interface OpportunityAdminApiOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface ScraperRunResponse {
+  success?: boolean;
+  opportunities?: OpportunityPreviewItem[];
+  errors?: string[];
+  error?: string;
+}
+
+export interface BulkImportResponse {
+  success?: boolean;
+  inserted?: number;
+  skipped?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface EnhancePreviewResponse {
+  success?: boolean;
+  opportunity?: OpportunityPreviewItem;
+  error?: string;
+  message?: string;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 async function readJson(response: Response): Promise<JsonRecord> {
@@ -29,11 +51,11 @@ export function createOpportunityAdminApi({
 }: OpportunityAdminApiOptions) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
 
-  async function postJson(
+  async function postJson<T extends JsonRecord>(
     path: string,
     body: unknown,
     options?: { signal?: AbortSignal; failureMessage?: string },
-  ) {
+  ): Promise<T> {
     const response = await fetchImpl(`${normalizedBaseUrl}${path}`, {
       method: "POST",
       headers: await getHeaders(),
@@ -44,11 +66,14 @@ export function createOpportunityAdminApi({
     if (!response.ok) {
       throw new Error(errorMessage(payload, options?.failureMessage || "Request failed"));
     }
-    return payload;
+    return payload as T;
   }
 
   return {
-    async loadListAndStats(params: URLSearchParams) {
+    async loadListAndStats(params: URLSearchParams): Promise<{
+      list: OpportunityListResponse;
+      stats: Stats | null;
+    }> {
       const headers = await getHeaders();
       const [listResponse, statsResponse] = await Promise.all([
         fetchImpl(
@@ -74,15 +99,17 @@ export function createOpportunityAdminApi({
     async runScraper(
       body: { allSources: boolean; maxPages: number },
       signal?: AbortSignal,
-    ) {
-      return postJson("/api/scraper/run", body, {
+    ): Promise<ScraperRunResponse> {
+      return postJson<ScraperRunResponse>("/api/scraper/run", body, {
         signal,
         failureMessage: "Scraper request failed",
       });
     },
 
-    async bulkImport(items: Array<Record<string, unknown>>) {
-      const payload = await postJson(
+    async bulkImport(
+      items: Array<Record<string, unknown>>,
+    ): Promise<BulkImportResponse> {
+      const payload = await postJson<BulkImportResponse>(
         "/opportunities/admin/bulk-import",
         { items },
         { failureMessage: "Save failed" },
@@ -93,10 +120,16 @@ export function createOpportunityAdminApi({
       return payload;
     },
 
-    async enhancePreview(opportunity: OpportunityPreviewItem) {
-      return postJson("/api/scraper/enhance-preview", opportunity, {
-        failureMessage: `Failed to refine ${opportunity.title || "an opportunity"}`,
-      });
+    async enhancePreview(
+      opportunity: OpportunityPreviewItem,
+    ): Promise<EnhancePreviewResponse> {
+      return postJson<EnhancePreviewResponse>(
+        "/api/scraper/enhance-preview",
+        opportunity,
+        {
+          failureMessage: `Failed to refine ${opportunity.title || "an opportunity"}`,
+        },
+      );
     },
   };
 }
