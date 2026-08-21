@@ -20,11 +20,14 @@ function minuteWindowStart(now: number): Date {
   return new Date(Math.floor(now / RATE_WINDOW_MS) * RATE_WINDOW_MS);
 }
 
-function resultRow(result: unknown):
+function resultRow(
+  result: unknown,
+):
   | { request_count?: number | string; window_start?: string | Date }
   | undefined {
   const withRows = result as { rows?: unknown[] };
-  const row = withRows?.rows?.[0] ?? (Array.isArray(result) ? result[0] : undefined);
+  const row =
+    withRows?.rows?.[0] ?? (Array.isArray(result) ? result[0] : undefined);
   return row as
     | { request_count?: number | string; window_start?: string | Date }
     | undefined;
@@ -39,9 +42,7 @@ export class EdutuApiRateLimitService {
    * bucket has reached its configured limit, the conflict UPDATE's WHERE clause
    * declines the increment and RETURNING yields no row, which we map to 429.
    */
-  async reserve(
-    consumer: ApiConsumerContext,
-  ): Promise<RateLimitReservation> {
+  async reserve(consumer: ApiConsumerContext): Promise<RateLimitReservation> {
     const configuredLimit =
       consumer.id === "env" || consumer.rateLimitPerMinute === null
         ? null
@@ -93,10 +94,7 @@ export class EdutuApiRateLimitService {
           limit,
           remaining: 0,
           resetAt,
-          retryAfterSeconds: Math.max(
-            1,
-            Math.ceil((resetAtMs - now) / 1000),
-          ),
+          retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
         };
       }
 
