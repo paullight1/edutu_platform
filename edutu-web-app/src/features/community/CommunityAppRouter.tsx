@@ -1,30 +1,21 @@
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import CommunityExplorePage from "./CommunityExplorePage";
 import CommunityGroupsPage from "./CommunityGroupsPage";
 import CommunityCreateGroupPage from "./CommunityCreateGroupPage";
 import CommunityGroupPage from "./CommunityGroupPage";
+import CommunityGroupSettingsPage from "./CommunityGroupSettingsPage";
 import CommunityJoinRequestsPage from "./CommunityJoinRequestsPage";
 import CommunityChatsPage from "./CommunityChatsPage";
 import CommunityDmPage from "./CommunityDmPage";
 import CommunityNewDmPage from "./CommunityNewDmPage";
 import CommunityProfilePage from "./CommunityProfilePage";
-import CommunityMemberDmDock from "./components/CommunityMemberDmDock";
-
-function CommunityGroupSettingsRedirect() {
-  const { id = "" } = useParams<{ id: string }>();
-  return (
-    <Navigate
-      to={`/app/community/groups/${id}?tab=about&admin=1`}
-      replace
-    />
-  );
-}
+import CommunityGroupToolsDock from "./components/CommunityGroupToolsDock";
 
 function CommunityGroupRoute() {
   return (
     <>
       <CommunityGroupPage />
-      <CommunityMemberDmDock />
+      <CommunityGroupToolsDock />
     </>
   );
 }
@@ -37,10 +28,7 @@ export default function CommunityAppRouter() {
       <Route path="groups" element={<CommunityGroupsPage />} />
       <Route path="groups/new" element={<CommunityCreateGroupPage />} />
       <Route path="groups/:id" element={<CommunityGroupRoute />} />
-      <Route
-        path="groups/:id/settings"
-        element={<CommunityGroupSettingsRedirect />}
-      />
+      <Route path="groups/:id/settings" element={<CommunityGroupSettingsPage />} />
       <Route
         path="groups/:id/requests"
         element={<CommunityJoinRequestsPage />}
