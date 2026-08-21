@@ -7,6 +7,7 @@ export type MarketplaceAdminListing = {
   category: string;
   type: string;
   price: number;
+  accessUrl?: string | null;
   capacity?: number | null;
   enrollmentCount: number;
   status: "pending" | "active" | "paused" | "rejected" | string;
