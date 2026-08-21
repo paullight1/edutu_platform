@@ -13,9 +13,10 @@ describe("detectBlogImageType", () => {
       contentType: "image/jpeg",
     });
 
-    expect(
-      detectBlogImageType(Buffer.from("RIFF0000WEBP", "ascii")),
-    ).toEqual({ extension: "webp", contentType: "image/webp" });
+    expect(detectBlogImageType(Buffer.from("RIFF0000WEBP", "ascii"))).toEqual({
+      extension: "webp",
+      contentType: "image/webp",
+    });
   });
 
   it("rejects SVG/HTML and arbitrary text even when a client could label it image/svg+xml", () => {
