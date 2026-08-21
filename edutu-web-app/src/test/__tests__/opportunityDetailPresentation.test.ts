@@ -15,6 +15,15 @@ describe("prepareOpportunityDescription", () => {
     ]);
   });
 
+  it("rejects navigation-only source copy when no trustworthy summary exists", () => {
+    const result = prepareOpportunityDescription({
+      description:
+        "Skip to content Category: Masters scholarships University of Melbourne Human Rights Scholarships 2027 in Australia October 31, 2026 Fully funded Melbourne Graduate Research Scholarships in Australia 2026-27 October 31, 2026 Fully funded",
+    });
+
+    expect(result).toEqual([]);
+  });
+
   it("keeps useful paragraph structure and removes source navigation labels", () => {
     const result = prepareOpportunityDescription({
       description:
