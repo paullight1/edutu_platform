@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -18,6 +20,7 @@ import {
   UpdateBlogPostDto,
   CreateCommentDto,
 } from "./blog.dto";
+import { detectBlogImageType } from "./blog-upload.util";
 
 const BLOG_IMAGES_BUCKET = process.env.BLOG_IMAGES_BUCKET || "blog-images";
 
@@ -29,6 +32,7 @@ interface BlogUploadFile {
 
 @Injectable()
 export class BlogService {
+  private readonly logger = new Logger(BlogService.name);
   private readonly supabase: SupabaseClient | null;
 
   constructor() {
@@ -52,18 +56,20 @@ export class BlogService {
       throw new BadRequestException("Image uploads are not configured");
     }
 
-    if (!file.mimetype?.startsWith("image/")) {
-      throw new BadRequestException("Only image uploads are supported");
+    const detectedType = detectBlogImageType(file.buffer);
+    if (!detectedType) {
+      throw new BadRequestException(
+        "Only valid PNG, JPEG and WebP image uploads are supported",
+      );
     }
 
     await this.ensureBucket();
 
-    const extension = this.extensionFromMime(file.mimetype, file.originalname);
-    const path = `${randomUUID()}.${extension}`;
+    const path = `${randomUUID()}.${detectedType.extension}`;
     const { error } = await this.supabase.storage
       .from(BLOG_IMAGES_BUCKET)
       .upload(path, file.buffer, {
-        contentType: file.mimetype,
+        contentType: detectedType.contentType,
         upsert: false,
         cacheControl: "31536000",
       });
@@ -131,8 +137,14 @@ export class BlogService {
         .offset(offset);
 
       return posts;
-    } catch {
-      return [];
+    } catch (error) {
+      this.logger.error(
+        "Blog list query failed",
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(
+        "Blog content is temporarily unavailable",
+      );
     }
   }
 
@@ -333,8 +345,14 @@ export class BlogService {
       return results
         .filter((r) => r.category !== null)
         .map((r) => ({ category: r.category!, count: r.count }));
-    } catch {
-      return [];
+    } catch (error) {
+      this.logger.error(
+        "Blog category query failed",
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(
+        "Blog categories are temporarily unavailable",
+      );
     }
   }
 
@@ -359,25 +377,6 @@ export class BlogService {
 
     if (createError) {
       throw createError;
-    }
-  }
-
-  private extensionFromMime(mimeType: string, originalName?: string): string {
-    const fallback = originalName?.split(".").pop()?.toLowerCase() || "png";
-
-    switch (mimeType) {
-      case "image/jpeg":
-        return "jpg";
-      case "image/png":
-        return "png";
-      case "image/webp":
-        return "webp";
-      case "image/gif":
-        return "gif";
-      case "image/svg+xml":
-        return "svg";
-      default:
-        return fallback;
     }
   }
 }

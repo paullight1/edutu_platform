@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   authService,
+  buildSelfServiceProfileInsert,
+  buildSelfServiceProfileUpdate,
   consumePostAuthRedirect,
   getProfileFromUser,
   rememberPostAuthRedirect,
@@ -88,6 +90,36 @@ describe("authService Clerk bridge", () => {
     await authService.signOut();
 
     expect(signOut).toHaveBeenCalled();
+  });
+});
+
+describe("profile self-service write contract", () => {
+  const profile = {
+    user_id: "user_123",
+    email: "test@example.com",
+    full_name: "Test User",
+    credits: 900,
+    is_pro: true,
+    subscription_id: "sub_protected",
+    created_at: "2026-08-01T00:00:00.000Z",
+    updated_at: "2026-08-20T00:00:00.000Z",
+    role: "super_admin",
+  };
+
+  it("builds an insert payload using only columns granted to authenticated users", () => {
+    expect(buildSelfServiceProfileInsert(profile)).toEqual({
+      user_id: "user_123",
+      email: "test@example.com",
+      full_name: "Test User",
+    });
+  });
+
+  it("builds an update payload without immutable identity or protected account state", () => {
+    expect(buildSelfServiceProfileUpdate(profile)).toEqual({
+      email: "test@example.com",
+      full_name: "Test User",
+      updated_at: "2026-08-20T00:00:00.000Z",
+    });
   });
 });
 

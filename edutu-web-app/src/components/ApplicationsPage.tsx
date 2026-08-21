@@ -30,13 +30,16 @@ import type { MatchResult } from '../services/personalizedRecommendations';
 import type { Opportunity } from '../types/opportunity';
 import {
   APPLICATION_PIPELINE,
+  addApplicationReflection,
   fetchAnswerBankCount,
+  getApplicationHistory,
   getApplications,
   removeApplication,
   updateApplicationStatus,
   type ApplicationRecord,
   type ApplicationStatus,
 } from '../services/applications';
+import { latestApplicationReflection } from '../services/applicationReflectionState';
 import WebPushPrompt from './WebPushPrompt';
 
 type ApplicationFilter = 'all' | ApplicationStatus;
@@ -102,19 +105,6 @@ const CLOSURE_COPY: Record<'rejected' | 'no_response', { title: string; body: st
     body: "Your work is saved for the next one. If anything stood out about this one, note it — future you will use it.",
   },
 };
-
-/** localStorage map of application id → optional post-rejection reflection. */
-const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
-
-function readReflections(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(REJECTION_REFLECTIONS_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
 
 /** Stage index within the active pipeline, or -1 for terminal states. */
 function pipelineIndex(status: ApplicationStatus): number {
@@ -207,10 +197,12 @@ export default function ApplicationsPage() {
   const toast = useToast();
   const { explainOpportunity } = usePersonalization();
 
-  // Post-rejection flow: which card shows the supportive panel, the saved
-  // reflections map, and the recomputed "next best shot" suggestion.
+  // Post-rejection flow: which card shows the supportive panel, durable
+  // reflections, and the recomputed "next best shot" suggestion.
   const [rejectionPanelId, setRejectionPanelId] = useState<string | null>(null);
-  const [reflections, setReflections] = useState<Record<string, string>>(readReflections);
+  const [reflections, setReflections] = useState<Record<string, string>>({});
+  const [persistedReflections, setPersistedReflections] = useState<Record<string, string>>({});
+  const [reflectionSavingId, setReflectionSavingId] = useState<string | null>(null);
   const [nextBestShot, setNextBestShot] = useState<{
     opportunity: Opportunity;
     match: MatchResult;
@@ -223,15 +215,7 @@ export default function ApplicationsPage() {
   const [celebrating, setCelebrating] = useState(false);
 
   const saveReflection = useCallback((applicationId: string, text: string) => {
-    setReflections((current) => {
-      const next = { ...current, [applicationId]: text };
-      try {
-        window.localStorage.setItem(REJECTION_REFLECTIONS_KEY, JSON.stringify(next));
-      } catch {
-        // Storage unavailable — the reflection still lives in state.
-      }
-      return next;
-    });
+    setReflections((current) => ({ ...current, [applicationId]: text }));
   }, []);
 
   // Find the top-scoring active opportunity the user hasn't already applied
@@ -274,7 +258,30 @@ export default function ApplicationsPage() {
     setLoadError(null);
     try {
       const token = await resolveToken();
-      setApplications(await getApplications(user.id, token));
+      const loaded = await getApplications(user.id, token);
+      setApplications(loaded);
+
+      // Reflections live in the server-owned application ledger. Hydrate the
+      // latest one for closure cards so switching browsers/devices never loses
+      // the learner's post-application notes. A single history read failing is
+      // non-fatal to the application list.
+      const closureApplications = loaded.filter(
+        (item) => item.status === 'rejected' || item.status === 'no_response',
+      );
+      const historyResults = await Promise.allSettled(
+        closureApplications.map(async (application) => ({
+          id: application.id,
+          history: await getApplicationHistory(application.id, token),
+        })),
+      );
+      const durable: Record<string, string> = {};
+      for (const result of historyResults) {
+        if (result.status !== 'fulfilled') continue;
+        const reflection = latestApplicationReflection(result.value.history);
+        if (reflection) durable[result.value.id] = reflection;
+      }
+      setReflections(durable);
+      setPersistedReflections(durable);
     } catch (caught) {
       setLoadError(caught);
       setError(caught instanceof Error ? caught.message : 'Unable to load applications.');
@@ -286,6 +293,39 @@ export default function ApplicationsPage() {
   useEffect(() => {
     void loadApplications();
   }, [loadApplications]);
+
+  const persistReflection = useCallback(
+    async (applicationId: string) => {
+      const draft = (reflections[applicationId] ?? '').trim();
+      const persisted = persistedReflections[applicationId] ?? '';
+      if (!draft) {
+        // The ledger is append-only by design. Do not silently erase a durable
+        // reflection just because a textarea was temporarily cleared.
+        if (persisted) {
+          setReflections((current) => ({ ...current, [applicationId]: persisted }));
+        }
+        return;
+      }
+      if (draft === persisted) return;
+
+      setReflectionSavingId(applicationId);
+      try {
+        const token = await resolveToken();
+        await addApplicationReflection(applicationId, draft, token);
+        setPersistedReflections((current) => ({ ...current, [applicationId]: draft }));
+        setReflections((current) => ({ ...current, [applicationId]: draft }));
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : 'Unable to save your reflection across devices.',
+        );
+      } finally {
+        setReflectionSavingId(null);
+      }
+    },
+    [persistedReflections, reflections, resolveToken],
+  );
 
   // Lazily count the answer bank only once a closure panel actually opens —
   // never on page load. Failures resolve to 0 and simply hide the line.
@@ -660,10 +700,21 @@ export default function ApplicationsPage() {
                       <textarea
                         value={reflections[application.id] ?? ''}
                         onChange={(event) => saveReflection(application.id, event.target.value)}
+                        onBlur={() => void persistReflection(application.id)}
                         rows={3}
                         placeholder="Optional: what would you try differently next time?"
                         className="mt-3 w-full resize-none rounded-xl border border-subtle bg-surface-layer p-3 text-sm text-text-secondary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
                       />
+                      {(reflections[application.id] ?? '').trim() ? (
+                        <p className="mt-1.5 text-xs text-text-muted" aria-live="polite">
+                          {reflectionSavingId === application.id
+                            ? 'Saving across devices…'
+                            : (reflections[application.id] ?? '').trim() ===
+                                (persistedReflections[application.id] ?? '')
+                              ? 'Saved across devices'
+                              : 'Changes save when you leave this field'}
+                        </p>
+                      ) : null}
 
                       <div className="mt-3 border-t border-subtle pt-3">
                         <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">

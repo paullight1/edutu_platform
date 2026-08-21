@@ -1,6 +1,7 @@
-import { Module } from "@nestjs/common";
+import { Module, type OnModuleDestroy } from "@nestjs/common";
 import { AiController } from "./ai.controller";
 import { AiEncryptionService } from "./ai-encryption.service";
+import { installAiRuntimePolicy } from "./ai-runtime-policy";
 import { AiService } from "./ai.service";
 import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
@@ -16,4 +17,14 @@ import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
   ],
   exports: [AiService],
 })
-export class AiModule {}
+export class AiModule implements OnModuleDestroy {
+  private readonly restoreRuntimePolicy: () => void;
+
+  constructor(aiService: AiService) {
+    this.restoreRuntimePolicy = installAiRuntimePolicy(aiService);
+  }
+
+  onModuleDestroy(): void {
+    this.restoreRuntimePolicy();
+  }
+}

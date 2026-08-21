@@ -178,9 +178,7 @@ export class MonetizationService {
    * Fails CLOSED on DB error: metering receives non-Pro and no grace, while
    * premium provider authorization receives an explicit 503.
    */
-  private async loadBilling(
-    userId: string,
-  ): Promise<{
+  private async loadBilling(userId: string): Promise<{
     isPro: boolean;
     planTier: "none" | SubscriptionTier;
     createdAt: Date | null;
@@ -242,10 +240,10 @@ export class MonetizationService {
           row?.is_scholar === true
             ? "scholar"
             : row?.is_pro === true
-            ? "pro"
-            : row?.is_lite === true
-              ? "lite"
-              : "none",
+              ? "pro"
+              : row?.is_lite === true
+                ? "lite"
+                : "none",
         createdAt:
           createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
         available: true,
@@ -369,8 +367,7 @@ export class MonetizationService {
         isChat ? 1 : 0,
         isChat ? 0 : cost,
       );
-      const overChat =
-        isChat && usage.chatMessages > fairUse.dailyChatMessages;
+      const overChat = isChat && usage.chatMessages > fairUse.dailyChatMessages;
       const overActions =
         !isChat && usage.actionCredits > fairUse.dailyActionCredits;
       if (overChat || overActions) {
@@ -402,10 +399,7 @@ export class MonetizationService {
         chatCounted: isChat,
         actionCredited: isChat ? 0 : cost,
         remaining: isChat
-          ? Math.max(
-              0,
-              fairUse.dailyChatMessages - usage.chatMessages,
-            )
+          ? Math.max(0, fairUse.dailyChatMessages - usage.chatMessages)
           : null,
         day: usage.day,
       };
@@ -1021,10 +1015,7 @@ export class MonetizationService {
         : planTier === "pro"
           ? pricing.proFairUse
           : pricing.liteFairUse;
-    const fairUseCredits = Math.max(
-      0,
-      Math.floor(fairUse.dailyActionCredits),
-    );
+    const fairUseCredits = Math.max(0, Math.floor(fairUse.dailyActionCredits));
     const perMinuteCost = Math.max(
       0,
       Math.round(pricing.aiCosts.voicePerMinute),

@@ -20,6 +20,8 @@ export interface PrivacySettings {
 }
 
 export interface SecuritySettings {
+  // Legacy read-only metadata. Authentication controls are owned by Clerk and
+  // must not be changed through /profile/settings.
   twoFactorEnabled: boolean;
   lastPasswordUpdate: string | null;
   lastDataDownload: string | null;
@@ -99,26 +101,20 @@ export async function savePrivacySettings(
   }
 }
 
+/**
+ * Kept as a compatibility export for older callers. Authentication security
+ * is provider-owned; persisting a boolean in the Edutu profile does not enable
+ * 2FA and must never be represented as success.
+ */
 export async function saveSecuritySettings(
-  settings: Partial<SecuritySettings>,
-  token?: string | null,
+  _settings: Partial<SecuritySettings>,
+  _token?: string | null,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await productApiRequest<UserSettings>(
-      "/profile/settings",
-      requireToken(token),
-      {
-        method: "PATCH",
-        body: JSON.stringify({ security: settings }),
-      },
-    );
-
-    return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logger.error("Failed to save security settings:", error);
-    return { success: false, error: message };
-  }
+  return {
+    success: false,
+    error:
+      "Sign-in security is managed by Clerk. Use the account security controls instead.",
+  };
 }
 
 // ================================
@@ -153,22 +149,14 @@ export async function changePassword(
 // ================================
 
 export async function toggleTwoFactor(
-  enable: boolean,
-  token?: string | null,
+  _enable: boolean,
+  _token?: string | null,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await saveSecuritySettings(
-      {
-        twoFactorEnabled: enable,
-      },
-      token,
-    );
-
-    return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return { success: false, error: message };
-  }
+  return {
+    success: false,
+    error:
+      "Two-factor authentication must be configured through Clerk account security.",
+  };
 }
 
 // ================================
