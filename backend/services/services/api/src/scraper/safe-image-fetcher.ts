@@ -177,7 +177,8 @@ function responseContentType(
 
 function requestHeaders(url: URL): http.OutgoingHttpHeaders {
   return {
-    accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1",
+    accept:
+      "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1",
     host: url.host,
     "user-agent": "EdutuImageFetcher/1.0",
   };
@@ -222,9 +223,7 @@ async function defaultTransport(
         }
         chunks.push(buffer);
       });
-      response.once("aborted", () =>
-        fail(new Error("Image response aborted")),
-      );
+      response.once("aborted", () => fail(new Error("Image response aborted")));
       response.once("error", fail);
       response.once("end", () => {
         if (settled) return;
