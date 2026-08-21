@@ -7,6 +7,7 @@ import type {
   CommunityAttachmentUploadReservation,
   CommunityGroup,
   CommunityGroupImageUploadInput,
+  CommunityGroupMember,
   CommunityMemberList,
   CommunityMessage,
   CommunityProfileContentPage,
@@ -265,7 +266,7 @@ export class CommunityApi {
     );
   }
 
-  invite(groupId: string, userId: string) {
+  invite(groupId: string, userId: string): Promise<CommunityGroupMember> {
     return this.request(
       `/communities/groups/${encodeURIComponent(groupId)}/invite`,
       {
@@ -275,7 +276,11 @@ export class CommunityApi {
     );
   }
 
-  setMemberRole(groupId: string, userId: string, role: MemberRole) {
+  setMemberRole(
+    groupId: string,
+    userId: string,
+    role: MemberRole,
+  ): Promise<CommunityGroupMember> {
     return this.request(
       `/communities/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}/role`,
       { method: "PATCH", body: JSON.stringify({ role }) },
@@ -315,7 +320,7 @@ export class CommunityApi {
     groupId: string,
     requestId: string,
     decision: JoinRequestDecision,
-  ) {
+  ): Promise<CommunityGroupMember> {
     return this.request(
       `/communities/groups/${encodeURIComponent(groupId)}/requests/${encodeURIComponent(requestId)}`,
       { method: "POST", body: JSON.stringify({ decision }) },
@@ -389,7 +394,7 @@ export class CommunityApi {
     targetType: "message" | "group",
     targetId: string,
     reason: string,
-  ) {
+  ): Promise<unknown> {
     return this.request("/communities/reports", {
       method: "POST",
       body: JSON.stringify({ targetType, targetId, reason }),
@@ -400,14 +405,14 @@ export class CommunityApi {
     return this.request("/communities/blocks");
   }
 
-  blockUser(userId: string) {
+  blockUser(userId: string): Promise<unknown> {
     return this.request("/communities/blocks", {
       method: "POST",
       body: JSON.stringify({ userId }),
     });
   }
 
-  unblockUser(userId: string) {
+  unblockUser(userId: string): Promise<unknown> {
     return this.request(`/communities/blocks/${encodeURIComponent(userId)}`, {
       method: "DELETE",
     });
