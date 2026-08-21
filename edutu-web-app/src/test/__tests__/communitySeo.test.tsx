@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import CommunityLandingPage from "../../features/community/CommunityLandingPage";
 import PublicCommunityGroupPage from "../../features/community/PublicCommunityGroupPage";
 
@@ -70,7 +70,9 @@ describe("community public SEO", () => {
   it("gives a public group its real name in the title and canonical URL", async () => {
     render(
       <MemoryRouter initialEntries={["/community/groups/chevening-2027-abc123"]}>
-        <PublicCommunityGroupPage />
+        <Routes>
+          <Route path="/community/groups/:slug" element={<PublicCommunityGroupPage />} />
+        </Routes>
       </MemoryRouter>,
     );
 
