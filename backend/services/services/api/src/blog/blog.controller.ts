@@ -15,14 +15,19 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { Throttle } from "@nestjs/throttler";
 import { memoryStorage } from "multer";
-import type {
-  CreateBlogPostDto,
-  UpdateBlogPostDto,
-  CreateCommentDto,
+import {
+  createBlogPostSchema,
+  updateBlogPostSchema,
+  createCommentSchema,
+  type CreateBlogPostDto,
+  type UpdateBlogPostDto,
+  type CreateCommentDto,
 } from "./blog.dto";
 import { BlogService } from "./blog.service";
 import { AdminGuard, Public } from "../auth";
+import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
 interface BlogUploadFile {
   buffer: Buffer;
@@ -32,6 +37,7 @@ interface BlogUploadFile {
 
 const createMemoryStorage =
   memoryStorage as unknown as () => import("multer").StorageEngine;
+const MAX_BLOG_IMAGE_BYTES = 5 * 1024 * 1024;
 
 @Controller("blog")
 export class BlogController {
@@ -83,13 +89,20 @@ export class BlogController {
 
   @Post()
   @UseGuards(AdminGuard)
-  async create(@Body() data: CreateBlogPostDto) {
+  async create(
+    @Body(new ZodValidationPipe(createBlogPostSchema)) data: CreateBlogPostDto,
+  ) {
     return this.blogService.create(data);
   }
 
   @Post("upload-image")
   @UseGuards(AdminGuard)
-  @UseInterceptors(FileInterceptor("file", { storage: createMemoryStorage() }))
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: createMemoryStorage(),
+      limits: { fileSize: MAX_BLOG_IMAGE_BYTES, files: 1 },
+    }),
+  )
   async uploadImage(@UploadedFile() file?: BlogUploadFile) {
     if (!file) {
       throw new BadRequestException("Image file is required");
@@ -100,7 +113,10 @@ export class BlogController {
 
   @Put(":id")
   @UseGuards(AdminGuard)
-  async update(@Param("id") id: string, @Body() data: UpdateBlogPostDto) {
+  async update(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(updateBlogPostSchema)) data: UpdateBlogPostDto,
+  ) {
     return this.blogService.update(id, data);
   }
 
@@ -119,7 +135,10 @@ export class BlogController {
 
   @Post("comments")
   @Public()
-  async addComment(@Body() data: CreateCommentDto) {
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async addComment(
+    @Body(new ZodValidationPipe(createCommentSchema)) data: CreateCommentDto,
+  ) {
     return this.blogService.addComment(data);
   }
 
@@ -135,6 +154,7 @@ export class BlogController {
   @Post(":id/like")
   @HttpCode(HttpStatus.OK)
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async likePost(@Param("id") id: string) {
     return this.blogService.likePost(id);
   }
