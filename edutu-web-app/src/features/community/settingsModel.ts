@@ -106,13 +106,35 @@ export function buildGroupSettingsSubmission(draft: GroupSettingsDraft): {
   };
 }
 
+function isDepartedMembership(status: string | null | undefined): boolean {
+  return status === "removed" || status === "banned";
+}
+
 export function canManageCommunityGroup(
   detail: GroupDetail,
   userId: string | null | undefined,
 ): boolean {
-  if (!userId || detail.membership?.userId !== userId) return false;
-  if (detail.membership.status !== "active") return false;
-  return (
-    detail.membership.role === "owner" || detail.membership.role === "mod"
-  );
+  if (!userId) return false;
+  const membership = detail.membership;
+
+  // Mirror backend resolveAdminRole: community_groups.owner_id is the canonical
+  // creator record, so a missing/drifted derived membership row must not lock a
+  // real creator out. An explicit removal/ban is a deliberate decision and does
+  // beat the canonical owner fallback.
+  if (
+    detail.group.ownerId === userId &&
+    !isDepartedMembership(membership?.status)
+  ) {
+    return true;
+  }
+
+  if (
+    !membership ||
+    membership.userId !== userId ||
+    membership.status !== "active"
+  ) {
+    return false;
+  }
+
+  return membership.role === "owner" || membership.role === "mod";
 }
