@@ -532,9 +532,7 @@ export class CreatorService {
           .where(eq(profiles.userId, listing.sellerId))
           .limit(1)
           .execute();
-        creatorCut = Math.floor(
-          (price * (100 - PLATFORM_FEE_PERCENT)) / 100,
-        );
+        creatorCut = Math.floor((price * (100 - PLATFORM_FEE_PERCENT)) / 100);
 
         await tx
           .update(profiles)
