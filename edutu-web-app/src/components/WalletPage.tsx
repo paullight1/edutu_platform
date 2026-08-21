@@ -4,6 +4,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Coins,
+  ExternalLink,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -111,7 +112,10 @@ export default function WalletPage() {
       </div>
 
       {error ? (
-        <div className="mt-6 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+        <div
+          className="mt-6 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </div>
       ) : null}
@@ -250,6 +254,16 @@ export default function WalletPage() {
                         <span className="capitalize">{enrollment.status}</span>
                         <span>{enrollment.creditsSpent.toLocaleString()} credits</span>
                       </div>
+                      {enrollment.accessUrl ? (
+                        <a
+                          href={enrollment.accessUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-brand no-underline hover:underline"
+                        >
+                          Open access <ExternalLink size={13} aria-hidden="true" />
+                        </a>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
