@@ -23,6 +23,7 @@ const IGNORED_DIRECTORIES = new Set([
   "coverage",
   "dist",
   "node_modules",
+  "other-files",
 ]);
 
 function normalizePath(value) {
