@@ -8,6 +8,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { formatCommunityTime } from "../format";
+import {
+  requestCommunityAuthorBlock,
+  requestCommunityMessageReport,
+} from "../messageActions";
 import { parseCommunityAttachment, type CommunityMessage } from "../types";
 
 export default function MessageBubble({
@@ -57,7 +61,15 @@ export default function MessageBubble({
     );
   }
 
-  const showSafetyActions = !mine && !deleted && (onReport || onBlock);
+  const showSafetyActions = !mine && !deleted;
+  const report = () => {
+    if (onReport) onReport(message);
+    else requestCommunityMessageReport(message);
+  };
+  const block = () => {
+    if (onBlock) onBlock(message);
+    else requestCommunityAuthorBlock(message);
+  };
 
   return (
     <article className={`group flex gap-2.5 py-2 ${mine ? "flex-row-reverse" : ""}`}>
@@ -135,20 +147,20 @@ export default function MessageBubble({
               mine ? "justify-end" : "justify-start"
             }`}
           >
-            {showSafetyActions && onReport ? (
+            {showSafetyActions ? (
               <button
                 type="button"
-                onClick={() => onReport(message)}
+                onClick={report}
                 aria-label="Report message"
                 className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-[#a18c83] hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
               >
                 <Flag size={12} /> Report
               </button>
             ) : null}
-            {showSafetyActions && onBlock ? (
+            {showSafetyActions ? (
               <button
                 type="button"
-                onClick={() => onBlock(message)}
+                onClick={block}
                 aria-label={`Block ${author}`}
                 className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-[#a18c83] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300"
               >
