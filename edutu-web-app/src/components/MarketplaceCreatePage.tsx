@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
 import {
@@ -12,13 +12,24 @@ import {
   createMarketplaceListing,
   type MarketplaceListingInput,
 } from "../services/marketplace";
+import { getMentorDashboard } from "../services/mentor";
+
+type CreatorAccessState = "checking" | "allowed" | "denied" | "error";
 
 export default function MarketplaceCreatePage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const [creatorAccess, setCreatorAccess] =
+    useState<CreatorAccessState>("checking");
+  const [creatorAccessError, setCreatorAccessError] = useState<string | null>(
+    null,
+  );
+  const [accessRetry, setAccessRetry] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("mentorship");
-  const [type, setType] = useState<"free" | "paid" | "credit" | "course">("free");
+  const [type, setType] = useState<"free" | "paid" | "credit" | "course">(
+    "free",
+  );
   const [price, setPrice] = useState("0");
   const [capacity, setCapacity] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -28,7 +39,52 @@ export default function MarketplaceCreatePage() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const parsedPrice = useMemo(() => Math.max(0, Math.trunc(Number(price) || 0)), [price]);
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    let active = true;
+    setCreatorAccess("checking");
+    setCreatorAccessError(null);
+
+    void (async () => {
+      if (!isSignedIn) {
+        if (active) {
+          setCreatorAccess("error");
+          setCreatorAccessError("Your session has expired. Sign in again.");
+        }
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Your session has expired. Sign in again.");
+        await getMentorDashboard(token);
+        if (active) setCreatorAccess("allowed");
+      } catch (caught) {
+        if (!active) return;
+        const status = (caught as Error & { status?: number }).status;
+        if (status === 403) {
+          setCreatorAccess("denied");
+          return;
+        }
+        setCreatorAccess("error");
+        setCreatorAccessError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to verify your creator access.",
+        );
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [accessRetry, getToken, isLoaded, isSignedIn]);
+
+  const parsedPrice = useMemo(
+    () => Math.max(0, Math.trunc(Number(price) || 0)),
+    [price],
+  );
   const parsedCapacity = useMemo(() => {
     if (!capacity.trim()) return undefined;
     const value = Math.trunc(Number(capacity));
@@ -37,7 +93,7 @@ export default function MarketplaceCreatePage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || creatorAccess !== "allowed") return;
     if (!title.trim()) {
       setError("Add a title before submitting.");
       return;
@@ -86,11 +142,92 @@ export default function MarketplaceCreatePage() {
     }
   };
 
+  if (creatorAccess === "checking") {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <div
+          className="flex min-h-56 items-center justify-center rounded-[28px] border border-subtle bg-surface-layer p-8 text-center shadow-soft"
+          aria-live="polite"
+        >
+          <div>
+            <Loader2
+              size={28}
+              className="mx-auto animate-spin text-brand"
+              aria-hidden="true"
+            />
+            <p className="mt-3 text-sm font-semibold text-text-secondary">
+              Checking creator access…
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (creatorAccess === "denied" || creatorAccess === "error") {
+    const denied = creatorAccess === "denied";
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <Link
+          to="/app/marketplace"
+          className="inline-flex items-center gap-2 text-sm font-bold text-text-muted no-underline transition hover:text-brand"
+        >
+          <ArrowLeft size={16} aria-hidden="true" /> Marketplace
+        </Link>
+        <div
+          className="mt-5 rounded-[28px] border border-subtle bg-surface-layer p-8 text-center shadow-soft"
+          role={denied ? undefined : "alert"}
+        >
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+            <ShieldCheck size={26} aria-hidden="true" />
+          </div>
+          <h1 className="mt-4 font-display text-2xl font-semibold text-text-primary">
+            {denied ? "Creator approval required" : "We could not verify access"}
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
+            {denied
+              ? "Marketplace publishing is available only to approved Edutu creators or mentors. Apply first, then return here after your approval is confirmed."
+              : creatorAccessError ||
+                "Creator access could not be checked right now. Retry before submitting a listing."}
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {denied ? (
+              <Link
+                to="/mentor"
+                className="inline-flex h-11 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white no-underline"
+              >
+                Apply to become a creator
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAccessRetry((value) => value + 1)}
+                className="inline-flex h-11 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white"
+              >
+                Retry access check
+              </button>
+            )}
+            <Link
+              to="/app/marketplace"
+              className="inline-flex h-11 items-center rounded-xl border border-subtle bg-surface-layer px-4 text-sm font-bold text-text-secondary no-underline"
+            >
+              Back to marketplace
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (submitted) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="rounded-[28px] border border-success/30 bg-success/10 p-8 text-center shadow-soft">
-          <CheckCircle2 size={42} className="mx-auto text-success" aria-hidden="true" />
+          <CheckCircle2
+            size={42}
+            className="mx-auto text-success"
+            aria-hidden="true"
+          />
           <h1 className="mt-4 font-display text-2xl font-semibold text-text-primary">
             Listing submitted for review
           </h1>
@@ -190,7 +327,13 @@ export default function MarketplaceCreatePage() {
                 <select
                   value={type}
                   onChange={(event) =>
-                    setType(event.target.value as "free" | "paid" | "credit" | "course")
+                    setType(
+                      event.target.value as
+                        | "free"
+                        | "paid"
+                        | "credit"
+                        | "course",
+                    )
                   }
                   className="h-11 rounded-xl border border-subtle bg-surface-body px-3 text-text-primary outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 >
@@ -261,7 +404,10 @@ export default function MarketplaceCreatePage() {
           </div>
 
           {error ? (
-            <div className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+            <div
+              className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+              role="alert"
+            >
               {error}
             </div>
           ) : null}
