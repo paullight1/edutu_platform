@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CommunityApiError,
+  fetchGroupResources,
   fetchGroups,
+  fetchMessages,
 } from "../../services/community";
 
 const makeGroup = () => ({
@@ -53,6 +55,36 @@ describe("community API transport", () => {
     expect(String(url)).toContain("/communities/groups?query=scholarship&limit=20");
     expect(new Headers(init?.headers).get("Authorization")).toBe(
       "Bearer clerk-token",
+    );
+  });
+
+  it("preserves before plus beforeId on bounded message and resource pages", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ resources: [], nextCursor: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const getToken = async () => "clerk-token";
+    const before = "2026-08-22T12:00:00.000Z";
+    const beforeId = "11111111-1111-4111-8111-111111111111";
+
+    await fetchMessages("group-1", { before, beforeId, limit: 50 }, getToken);
+    await fetchGroupResources("group-1", { before, beforeId, limit: 50 }, getToken);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      `/communities/groups/group-1/messages?before=${encodeURIComponent(before)}&beforeId=${beforeId}&limit=50`,
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `/communities/groups/group-1/resources?before=${encodeURIComponent(before)}&beforeId=${beforeId}&limit=50`,
     );
   });
 
