@@ -11,12 +11,16 @@ export type CommunityReportStatus = z.infer<typeof CommunityReportStatusSchema>;
 export const UpdateCommunityReportSchema = z.object({
   status: CommunityReportStatusSchema,
 });
-export type UpdateCommunityReportDto = z.infer<typeof UpdateCommunityReportSchema>;
+export type UpdateCommunityReportDto = z.infer<
+  typeof UpdateCommunityReportSchema
+>;
 
 export const EnforceCommunityReportSchema = z.object({
   action: z.enum(["remove_message", "archive_group"]),
 });
-export type EnforceCommunityReportDto = z.infer<typeof EnforceCommunityReportSchema>;
+export type EnforceCommunityReportDto = z.infer<
+  typeof EnforceCommunityReportSchema
+>;
 
 export interface AdminCommunityReport {
   id: string;
