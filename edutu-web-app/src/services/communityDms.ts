@@ -219,7 +219,7 @@ export function fetchDmRelationship(
   );
 }
 
-export function createDmRequest(
+export async function createDmRequest(
   recipientId: string,
   body: string,
   getAuthToken: ClerkTokenGetter,
@@ -313,7 +313,7 @@ export async function fetchDmMessages(
   return Array.isArray(result) ? result : [];
 }
 
-export function sendDmMessage(
+export async function sendDmMessage(
   conversationId: string,
   body: string,
   getAuthToken: ClerkTokenGetter,
