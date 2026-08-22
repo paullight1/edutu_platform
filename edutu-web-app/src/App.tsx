@@ -24,7 +24,7 @@ import InstallAppPrompt from "./components/InstallAppPrompt";
 import CookieConsent from "./components/CookieConsent";
 import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
-import { initializeCapacitor } from "./lib/capacitor";
+import { initializeCapacitor, isNativePlatform } from "./lib/capacitor";
 import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
 import { getDocsUrl, isExternalDocsUrl } from "./lib/apiProductUrls";
@@ -35,18 +35,12 @@ const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
-const PersonalizationScreen = lazy(
-  () => import("./components/PersonalizationScreen"),
-);
+const PersonalizationScreen = lazy(() => import("./components/PersonalizationScreen"));
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
 const SubmitOpportunityPage = lazy(() => import("./components/SubmitOpportunityPage"));
-const OpportunityDetailFetcher = lazy(
-  () => import("./components/OpportunityDetailFetcher"),
-);
-const OpportunitySharePage = lazy(
-  () => import("./components/OpportunitySharePage"),
-);
+const OpportunityDetailFetcher = lazy(() => import("./components/OpportunityDetailFetcher"));
+const OpportunitySharePage = lazy(() => import("./components/OpportunitySharePage"));
 const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
@@ -54,18 +48,13 @@ const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
 const ImpactPage = lazy(() => import("./components/ImpactPage"));
 const EdutuForYouPage = lazy(() => import("./components/EdutuForYouPage"));
 const WhatsNewPage = lazy(() => import("./components/WhatsNewPage"));
-const EdutuForYouStoryPage = lazy(
-  () => import("./components/EdutuForYouStoryPage"),
-);
+const EdutuForYouStoryPage = lazy(() => import("./components/EdutuForYouStoryPage"));
 const UpgradePage = lazy(() => import("./components/UpgradePage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
-const CommunityWorkspacePage = lazy(
-  () => import("./components/CommunityWorkspacePage"),
-);
+const CommunityWorkspacePage = lazy(() => import("./components/CommunityWorkspacePage"));
 const CommunityGroupPage = lazy(() => import("./components/CommunityGroupPage"));
-const CommunityMessagesPage = lazy(
-  () => import("./components/CommunityMessagesPage"),
-);
+const CommunityMessagesPage = lazy(() => import("./components/CommunityMessagesPage"));
+const CommunityCallPage = lazy(() => import("./components/CommunityCallPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
 const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
@@ -76,12 +65,8 @@ const MentorPage = lazy(() => import("./components/MentorPage"));
 const MentorDashboardPage = lazy(() => import("./components/MentorDashboardPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
-const DevelopersLandingPage = lazy(
-  () => import("./components/DevelopersLandingPage"),
-);
-const DeveloperDashboardPage = lazy(
-  () => import("./components/DeveloperDashboardPage"),
-);
+const DevelopersLandingPage = lazy(() => import("./components/DevelopersLandingPage"));
+const DeveloperDashboardPage = lazy(() => import("./components/DeveloperDashboardPage"));
 const DeveloperDocsPage = lazy(() => import("./components/DeveloperDocsPage"));
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
 const GoalsPage = lazy(() => import("./components/GoalsPage"));
@@ -91,8 +76,7 @@ const RoadmapsPage = lazy(() => import("./components/RoadmapsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
-const ADMIN_PORTAL_URL =
-  import.meta.env.VITE_ADMIN_URL || "https://admin.edutu.org";
+const ADMIN_PORTAL_URL = import.meta.env.VITE_ADMIN_URL || "https://admin.edutu.org";
 const DOCS_SITE_URL = getDocsUrl();
 const MARKETING_SITE_URL = import.meta.env.VITE_MARKETING_URL || "";
 
@@ -102,26 +86,10 @@ type AdminGateState =
   | { status: "denied"; message: string };
 
 export type Screen =
-  | "landing"
-  | "auth"
-  | "dashboard"
-  | "opportunities"
-  | "saved"
-  | "applied"
-  | "profile"
-  | "settings"
-  | "notifications"
-  | "privacy"
-  | "help"
-  | "personalization"
-  | "community-marketplace"
-  | "achievements"
-  | "creator-apply"
-  | "creator-dashboard"
-  | "creator-create"
-  | "deadlines"
-  | "about"
-  | "blog";
+  | "landing" | "auth" | "dashboard" | "opportunities" | "saved" | "applied"
+  | "profile" | "settings" | "notifications" | "privacy" | "help"
+  | "personalization" | "community-marketplace" | "achievements" | "creator-apply"
+  | "creator-dashboard" | "creator-create" | "deadlines" | "about" | "blog";
 
 function buildAdminPortalUrl(location: ReturnType<typeof useLocation>): string | null {
   try {
@@ -129,9 +97,7 @@ function buildAdminPortalUrl(location: ReturnType<typeof useLocation>): string |
     if (import.meta.env.PROD && base.protocol !== "https:") return null;
     const requestedAdminPath = location.pathname.replace(/^\/admin\/?/, "").replace(/^\/+/, "");
     const basePath = base.pathname.replace(/\/+$/, "");
-    base.pathname = requestedAdminPath
-      ? `${basePath}/${requestedAdminPath}`.replace(/\/{2,}/g, "/")
-      : basePath || "/";
+    base.pathname = requestedAdminPath ? `${basePath}/${requestedAdminPath}`.replace(/\/{2,}/g, "/") : basePath || "/";
     base.search = location.search;
     base.hash = location.hash;
     return base.toString();
@@ -163,7 +129,6 @@ function AdminPortalGate() {
   const location = useLocation();
   const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const [gate, setGate] = useState<AdminGateState>({ status: "checking", message: "Checking admin access" });
-
   useEffect(() => {
     let isActive = true;
     async function verifyAccess() {
@@ -188,7 +153,6 @@ function AdminPortalGate() {
     void verifyAccess();
     return () => { isActive = false; };
   }, [getToken, isLoaded, isSignedIn, location]);
-
   if (!isLoaded) return <PublicEditorialShell><div className="flex min-h-[calc(100dvh-180px)] items-center justify-center"><div className="flex items-center gap-3 border-b border-slate-200 pb-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"><div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500/25 border-t-brand-500" />Checking session</div></div></PublicEditorialShell>;
   if (!isSignedIn) return <Navigate to="/auth?mode=sign-in" replace state={{ from: { pathname: location.pathname, search: location.search, hash: location.hash } }} />;
   if (gate.status === "denied") return <AdminAccessDenied message={gate.message} />;
@@ -201,6 +165,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   if (!isLoaded) return <PublicEditorialShell><div className="flex min-h-[calc(100dvh-180px)] items-center justify-center"><div className="flex items-center gap-3 border-b border-slate-200 pb-4 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"><div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500/25 border-t-brand-500" />Checking membership</div></div></PublicEditorialShell>;
   if (!isSignedIn) return <Navigate to="/auth?mode=sign-in" replace state={{ from: { pathname: location.pathname, search: location.search, hash: location.hash } }} />;
   return children;
+}
+
+function CommunityCallRoute() {
+  if (!isNativePlatform) return <Navigate to="/app/community" replace />;
+  return <ProtectedRoute><CommunityCallPage /></ProtectedRoute>;
 }
 
 function DocsRedirect() {
@@ -249,14 +218,12 @@ function App() {
   const { isSignedIn } = useClerkAuth();
   const { signOut } = useAppAuth();
   useAbsoluteSessionTimeout(signOut);
-
   useEffect(() => {
     const warmup = window.setTimeout(() => {
       void import("./services/opportunities").then((module) => module.fetchOpportunities()).catch(() => {});
     }, 300);
     return () => window.clearTimeout(warmup);
   }, []);
-
   useEffect(() => {
     let disposed = false;
     void initializeCapacitor({
@@ -268,7 +235,6 @@ function App() {
     });
     return () => { disposed = true; };
   }, [navigate]);
-
   const handleAuthSuccess = useCallback((_userData: unknown) => {
     navigate(consumePostAuthRedirect("/dashboard"), { replace: true });
   }, [navigate]);
@@ -307,7 +273,7 @@ function App() {
           <Route path="/app/community/groups/:groupId" element={<AppWorkspaceRoute><CommunityGroupPage /></AppWorkspaceRoute>} />
           <Route path="/app/community/messages" element={<AppWorkspaceRoute><CommunityMessagesPage /></AppWorkspaceRoute>} />
           <Route path="/app/community/messages/:conversationId" element={<AppWorkspaceRoute><CommunityMessagesPage /></AppWorkspaceRoute>} />
-          <Route path="/communities/calls/:callId" element={<Navigate to="/app/community" replace />} />
+          <Route path="/communities/calls/:callId" element={<CommunityCallRoute />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
