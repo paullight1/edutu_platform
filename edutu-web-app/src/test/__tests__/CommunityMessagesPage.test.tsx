@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -110,12 +109,11 @@ describe("CommunityMessagesPage", () => {
   });
 
   it("sends a private message through the accepted conversation contract", async () => {
-    const user = userEvent.setup();
     renderConversation();
 
     const composer = await screen.findByRole("textbox", { name: "Message Tomi Ade" });
-    await user.type(composer, "Yes — sending it tonight.");
-    await user.click(screen.getByRole("button", { name: "Send private message" }));
+    fireEvent.change(composer, { target: { value: "Yes — sending it tonight." } });
+    fireEvent.click(screen.getByRole("button", { name: "Send private message" }));
 
     await waitFor(() => {
       expect(sendDmMessage).toHaveBeenCalledWith(
