@@ -1,8 +1,8 @@
 name: CI
 
-# Node 20 is deliberate for the existing applications: it matches the API's
-# production runtime. The mediasoup voice gateway has a separate Node 22 job
-# because mediasoup 3.24 requires Node 22 or newer.
+# The API, mobile, and admin applications remain on Node 20 to match their
+# current production runtime. The web app and mediasoup voice gateway run on
+# Node 22 because their locked dependency trees require Node 22 or newer.
 
 on:
   push:
@@ -32,8 +32,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-      # Exercises the real mediasoup worker and RTC socket binding on the target
-      # Linux runtime; unit tests use an injectable media adapter.
       - run: npm run test:smoke
 
   backend-test:
@@ -141,9 +139,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
-      # Must be `tsc -b`, not `tsc --noEmit`. tsconfig.json is a solution file
-      # ("files": [] plus references), so --noEmit compiles zero files and the
-      # job passes on any type error. -b builds every referenced project.
       - run: npx tsc -b
 
   admin-lint:
@@ -197,7 +192,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
@@ -216,7 +211,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
@@ -235,11 +230,30 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
       - run: npm run test
+
+  web-build:
+    name: Web Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run build
 
   security-audit:
     name: Security Audit
@@ -258,6 +272,30 @@ jobs:
           cd edutumobile && npm ci && npm audit --audit-level=high || true
       - run: |
           cd admin && npm ci && npm audit --audit-level=high || true
+
+  security-audit-web:
+    name: Security Audit — Web Runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      # This gate covers packages that ship with the production web app. Build,
+      # lint, test, and typecheck separately exercise the development toolchain.
+      - run: npm audit --omit=dev --audit-level=high
+      # Keep full toolchain advisories visible in CI without conflating them with
+      # runtime exposure. They remain actionable dependency-maintenance work.
+      - run: npm audit --audit-level=high || true
 
   security-audit-voice:
     name: Security Audit — Voice Gateway

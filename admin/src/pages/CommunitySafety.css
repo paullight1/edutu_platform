@@ -1,0 +1,232 @@
+.community-safety-page {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+  color: var(--text-primary, #f5f5f7);
+}
+
+.community-safety-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.community-safety-header h1 {
+  margin: 10px 0 8px;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.community-safety-header p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--text-secondary, #a1a1aa);
+  line-height: 1.65;
+}
+
+.community-safety-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #ff9f0a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.community-safety-refresh,
+.community-safety-filters button,
+.community-report-actions button,
+.community-safety-state button {
+  min-height: 42px;
+  border: 1px solid var(--border-color, #38383a);
+  border-radius: 12px;
+  background: var(--card-bg, #242426);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.community-safety-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 15px;
+  white-space: nowrap;
+}
+
+.community-safety-refresh:hover:not(:disabled),
+.community-safety-filters button:hover:not(:disabled),
+.community-report-actions button:hover:not(:disabled),
+.community-safety-state button:hover:not(:disabled) {
+  border-color: #5e5ce6;
+  transform: translateY(-1px);
+}
+
+.community-safety-refresh:disabled,
+.community-report-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.community-safety-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  margin-bottom: 18px;
+  border: 1px solid var(--border-color, #38383a);
+  border-radius: 18px;
+  background: var(--card-bg, #242426);
+}
+
+.community-safety-summary > div {
+  min-width: 0;
+  padding: 17px 18px;
+  border-right: 1px solid var(--border-color, #38383a);
+}
+
+.community-safety-summary > div:last-child { border-right: 0; }
+.community-safety-summary strong { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 20px; }
+.community-safety-summary span { display: block; margin-top: 5px; color: var(--text-secondary, #8e8e93); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+
+.community-safety-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 0 18px;
+  padding-bottom: 3px;
+}
+
+.community-safety-filters button { padding: 0 15px; white-space: nowrap; color: var(--text-secondary, #a1a1aa); }
+.community-safety-filters button.active { border-color: #0a84ff; background: rgba(10,132,255,.14); color: #64d2ff; }
+
+.community-safety-notice {
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border: 1px solid;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.community-safety-notice.success { border-color: rgba(48,209,88,.25); background: rgba(48,209,88,.09); color: #63e6be; }
+.community-safety-notice.error { border-color: rgba(255,69,58,.28); background: rgba(255,69,58,.09); color: #ff6961; }
+
+.community-safety-state {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 30px;
+  border: 1px dashed var(--border-color, #3a3a3c);
+  border-radius: 20px;
+  color: var(--text-secondary, #a1a1aa);
+  text-align: center;
+}
+.community-safety-state strong { color: var(--text-primary, #f5f5f7); font-size: 17px; }
+.community-safety-state.error svg { color: #ff453a; }
+.community-safety-state button { margin-top: 5px; padding: 0 16px; }
+
+.community-safety-list { display: grid; gap: 14px; }
+.community-report-card {
+  padding: 20px;
+  border: 1px solid var(--border-color, #38383a);
+  border-radius: 20px;
+  background: var(--card-bg, #242426);
+  box-shadow: 0 10px 34px rgba(0,0,0,.08);
+}
+.community-report-card-top { display: flex; gap: 14px; align-items: flex-start; }
+.community-report-target-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(255,159,10,.11);
+  color: #ff9f0a;
+}
+.community-report-heading { min-width: 0; flex: 1; }
+.community-report-heading h2 { margin: 7px 0 0; font-size: 18px; letter-spacing: -.015em; }
+.community-report-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--text-secondary, #8e8e93); font-size: 11px; font-weight: 650; }
+.community-report-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.community-report-status { padding: 4px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .06em; }
+.community-report-status.open { background: rgba(255,69,58,.12); color: #ff6961; }
+.community-report-status.reviewing { background: rgba(255,159,10,.12); color: #ffd60a; }
+.community-report-status.resolved { background: rgba(48,209,88,.12); color: #63e6be; }
+.community-report-status.dismissed { background: rgba(142,142,147,.16); color: #aeaeb2; }
+.community-report-reason { margin: 7px 0 0; color: var(--text-primary, #f5f5f7); line-height: 1.55; }
+
+.community-report-card blockquote {
+  margin: 16px 0 0;
+  padding: 13px 15px;
+  border-left: 3px solid #5e5ce6;
+  border-radius: 0 12px 12px 0;
+  background: rgba(94,92,230,.08);
+  color: var(--text-secondary, #d1d1d6);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.community-report-card blockquote.removed { border-left-color: #8e8e93; opacity: .7; font-style: italic; }
+
+.community-report-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+}
+.community-report-details > div { min-width: 0; padding: 10px 12px; border-radius: 12px; background: rgba(142,142,147,.07); }
+.community-report-details dt { margin-bottom: 4px; color: var(--text-secondary, #8e8e93); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
+.community-report-details dd { margin: 0; overflow-wrap: anywhere; font-size: 12px; }
+
+.community-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color, #38383a);
+}
+.community-report-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 0 13px; }
+.community-report-actions button.danger { border-color: rgba(255,69,58,.35); color: #ff6961; }
+.community-report-actions button.danger:hover:not(:disabled) { background: rgba(255,69,58,.1); border-color: #ff453a; }
+.community-report-busy { margin-left: 4px; color: #0a84ff; }
+.spin { animation: community-safety-spin .8s linear infinite; }
+@keyframes community-safety-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  .community-safety-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .community-safety-summary > div:nth-child(2) { border-right: 0; }
+  .community-safety-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--border-color, #38383a); }
+  .community-report-details { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 620px) {
+  .community-safety-page { padding: 20px 14px 36px; }
+  .community-safety-header { flex-direction: column; }
+  .community-safety-refresh { width: 100%; justify-content: center; }
+  .community-safety-summary { grid-template-columns: 1fr 1fr; }
+  .community-report-card { padding: 16px; }
+  .community-report-details { grid-template-columns: 1fr; }
+  .community-report-actions button { flex: 1 1 140px; justify-content: center; min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-safety-refresh,
+  .community-safety-filters button,
+  .community-report-actions button,
+  .community-safety-state button { transition: none; }
+  .community-safety-refresh:hover:not(:disabled),
+  .community-safety-filters button:hover:not(:disabled),
+  .community-report-actions button:hover:not(:disabled),
+  .community-safety-state button:hover:not(:disabled) { transform: none; }
+}

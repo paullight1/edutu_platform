@@ -15,6 +15,7 @@ import {
   Settings,
   Sparkles,
   UserCheck,
+  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +41,7 @@ type WorkspaceNavItem = {
 const primaryNavItems: WorkspaceNavItem[] = [
   { to: "/dashboard", label: "navigation.home", icon: LayoutGrid, exact: true },
   { to: "/app/opportunities", label: "navigation.opportunities", icon: Briefcase },
+  { to: "/app/community", label: "navigation.community", icon: Users },
   { to: "/app/deadlines", label: "navigation.deadlines", icon: Calendar },
 ];
 
@@ -57,7 +59,7 @@ const mobileSecondaryNavItems = secondaryNavItems.filter(
 const mobileNavItems = [
   { to: "/dashboard", label: "navigation.home", icon: LayoutGrid, exact: true },
   { to: "/app/opportunities", label: "navigation.explore", icon: Briefcase },
-  { to: "/app/deadlines", label: "navigation.dates", icon: Calendar },
+  { to: "/app/community", label: "navigation.community", icon: Users },
 ];
 
 function getFirstName(name: string) {
@@ -100,6 +102,7 @@ function getWorkspaceTitleKey(pathname: string): string | null {
   if (pathname === "/dashboard" || pathname === "/app/home") return null;
   if (pathname.startsWith("/app/opportunity/")) return "navigation.opportunityDetail";
   if (pathname.startsWith("/app/opportunities")) return "navigation.opportunities";
+  if (pathname.startsWith("/app/community")) return "navigation.community";
   if (pathname.startsWith("/app/deadlines") || pathname === "/deadlines") return "navigation.deadlines";
   if (pathname.startsWith("/app/saved") || pathname === "/saved") return "navigation.saved";
   if (pathname.startsWith("/app/applications") || pathname === "/applications") return "navigation.applications";
