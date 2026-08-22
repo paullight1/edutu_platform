@@ -51,9 +51,7 @@ function extractRows<T>(result: unknown): T[] {
 }
 
 @Injectable()
-export class DrizzleAdminCommunitySafetyStore
-  implements AdminCommunitySafetyStore
-{
+export class DrizzleAdminCommunitySafetyStore implements AdminCommunitySafetyStore {
   async listReports(
     status: CommunityReportStatus | "all",
     limit: number,
@@ -181,7 +179,10 @@ export class DrizzleAdminCommunitySafetyStore
       .update(communityGroups)
       .set({ archivedAt: new Date() })
       .where(
-        and(eq(communityGroups.id, id), sql`${communityGroups.archivedAt} is null`),
+        and(
+          eq(communityGroups.id, id),
+          sql`${communityGroups.archivedAt} is null`,
+        ),
       )
       .returning({ id: communityGroups.id });
     return rows.length > 0;
@@ -196,10 +197,7 @@ export class AdminCommunitySafetyService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(
-    status: CommunityReportStatus | "all" = "open",
-    limit = 50,
-  ) {
+  async list(status: CommunityReportStatus | "all" = "open", limit = 50) {
     const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
     return {
       reports: await this.store.listReports(status, safeLimit),
@@ -216,13 +214,18 @@ export class AdminCommunitySafetyService {
     const report = await this.requireReport(reportId);
     const updated = await this.store.setReportStatus(report.id, status);
     if (!updated) throw new NotFoundException("Community report not found.");
-    await this.audit.log("community.report.status", adminId, "community_report", {
-      resourceId: report.id,
-      from: report.status,
-      to: status,
-      targetType: report.targetType,
-      targetId: report.targetId,
-    });
+    await this.audit.log(
+      "community.report.status",
+      adminId,
+      "community_report",
+      {
+        resourceId: report.id,
+        from: report.status,
+        to: status,
+        targetType: report.targetType,
+        targetId: report.targetId,
+      },
+    );
     return updated;
   }
 
@@ -256,12 +259,17 @@ export class AdminCommunitySafetyService {
     }
 
     await this.store.setReportStatus(report.id, "resolved");
-    await this.audit.log(`community.report.${action}`, adminId, "community_report", {
-      resourceId: report.id,
-      targetType: report.targetType,
-      targetId: report.targetId,
-      action,
-    });
+    await this.audit.log(
+      `community.report.${action}`,
+      adminId,
+      "community_report",
+      {
+        resourceId: report.id,
+        targetType: report.targetType,
+        targetId: report.targetId,
+        action,
+      },
+    );
     return { success: true, reportId: report.id, status: "resolved", action };
   }
 
