@@ -61,11 +61,9 @@ describe("CommunityGroupPage", () => {
   it("sends a text message through the REST contract", async () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
-    fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
-    await waitFor(() => expect(composer).toHaveValue("Great — I will review it tonight."));
-    const sendButton = screen.getByRole("button", { name: "Send message" });
-    await waitFor(() => expect(sendButton).toBeEnabled());
-    fireEvent.click(sendButton);
+    fireEvent.input(composer, { target: { value: "Great — I will review it tonight." } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
