@@ -53,6 +53,7 @@ import {
   type CommunityGroupResource,
   type CommunityMemberSummary,
   type CommunityMessage,
+  type CommunityResourceCursor,
   type GroupDetail,
   type GroupQuestion,
   type JoinRequest,
@@ -63,6 +64,8 @@ import {
 type RoomTab = "chat" | "resources" | "members" | "admin";
 type Notice = { tone: "success" | "error"; text: string } | null;
 type ReportTarget = { type: "message" | "group"; id: string; label: string } | null;
+
+const GROUP_PAGE_SIZE = 50;
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -85,6 +88,24 @@ function initials(name: string): string {
       .slice(0, 2)
       .toUpperCase() || "E"
   );
+}
+
+function mergeMessages(
+  current: CommunityMessage[],
+  incoming: CommunityMessage[],
+): CommunityMessage[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  incoming.forEach((message) => byId.set(message.id, message));
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function mergeResources(
+  current: CommunityGroupResource[],
+  incoming: CommunityGroupResource[],
+): CommunityGroupResource[] {
+  const byId = new Map(current.map((resource) => [resource.id, resource]));
+  incoming.forEach((resource) => byId.set(resource.id, resource));
+  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 function parseMessageAttachment(message: CommunityMessage): CommunityAttachment | null {
@@ -545,6 +566,10 @@ export default function CommunityGroupPage() {
   const [resources, setResources] = useState<CommunityGroupResource[]>([]);
   const [members, setMembers] = useState<CommunityMemberSummary[]>([]);
   const [contentLoading, setContentLoading] = useState(false);
+  const [messagesHasMore, setMessagesHasMore] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [resourceCursor, setResourceCursor] = useState<CommunityResourceCursor | null>(null);
+  const [loadingOlderResources, setLoadingOlderResources] = useState(false);
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -582,29 +607,87 @@ export default function CommunityGroupPage() {
     return () => { cancelled = true; };
   }, [detail, getToken]);
 
-  const loadContent = useCallback(async () => {
-    if (!detail || detail.membership?.status !== "active") return;
-    setContentLoading(true);
-    try {
-      const [messageRows, resourcePage, memberPage] = await Promise.all([
-        fetchMessages(detail.group.id, { limit: 50 }, getToken),
-        fetchGroupResources(detail.group.id, { limit: 50 }, getToken),
-        fetchGroupMembers(detail.group.id, getToken, 100),
-      ]);
-      setMessages([...messageRows].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
-      setResources(resourcePage.resources);
-      setMembers(memberPage.members.filter((member) => member.membership.status === "active"));
-    } catch (cause) {
-      setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Group activity could not load." });
-    } finally {
-      setContentLoading(false);
-    }
-  }, [detail, getToken]);
-
-  useEffect(() => { void loadContent(); }, [loadContent]);
-
   const isActive = detail?.membership?.status === "active";
   const isAdmin = detail?.membership?.role === "owner" || detail?.membership?.role === "mod";
+
+  const loadContent = useCallback(async (showLoader = true) => {
+    if (!detail || detail.membership?.status !== "active") return;
+    if (showLoader) setContentLoading(true);
+    try {
+      const [messageRows, resourcePage, memberPage] = await Promise.all([
+        fetchMessages(detail.group.id, { limit: GROUP_PAGE_SIZE }, getToken),
+        fetchGroupResources(detail.group.id, { limit: GROUP_PAGE_SIZE }, getToken),
+        fetchGroupMembers(detail.group.id, getToken, 100),
+      ]);
+      if (showLoader) {
+        setMessages(mergeMessages([], messageRows));
+        setResources(mergeResources([], resourcePage.resources));
+        setMessagesHasMore(messageRows.length === GROUP_PAGE_SIZE);
+        setResourceCursor(resourcePage.nextCursor);
+      } else {
+        setMessages((current) => mergeMessages(current, messageRows));
+        setResources((current) => mergeResources(current, resourcePage.resources));
+      }
+      setMembers(memberPage.members.filter((member) => member.membership.status === "active"));
+    } catch (cause) {
+      if (showLoader) {
+        setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Group activity could not load." });
+      } else if (isCommunityApiError(cause) && (cause.status === 403 || cause.status === 404)) {
+        void loadDetail();
+      }
+    } finally {
+      if (showLoader) setContentLoading(false);
+    }
+  }, [detail, getToken, loadDetail]);
+
+  useEffect(() => { void loadContent(true); }, [loadContent]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = window.setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        void loadContent(false);
+      }
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, [isActive, loadContent]);
+
+  const loadEarlierMessages = async () => {
+    if (!detail || !messages.length || loadingOlderMessages) return;
+    const oldest = messages[0];
+    setLoadingOlderMessages(true);
+    try {
+      const rows = await fetchMessages(
+        detail.group.id,
+        { before: oldest.createdAt, beforeId: oldest.id, limit: GROUP_PAGE_SIZE },
+        getToken,
+      );
+      setMessages((current) => mergeMessages(current, rows));
+      setMessagesHasMore(rows.length === GROUP_PAGE_SIZE);
+    } catch (cause) {
+      setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Earlier messages could not load." });
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  };
+
+  const loadOlderResources = async () => {
+    if (!detail || !resourceCursor || loadingOlderResources) return;
+    setLoadingOlderResources(true);
+    try {
+      const page = await fetchGroupResources(
+        detail.group.id,
+        { ...resourceCursor, limit: GROUP_PAGE_SIZE },
+        getToken,
+      );
+      setResources((current) => mergeResources(current, page.resources));
+      setResourceCursor(page.nextCursor);
+    } catch (cause) {
+      setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "More resources could not load." });
+    } finally {
+      setLoadingOlderResources(false);
+    }
+  };
 
   const handleJoin = async (answers: JoinRequestAnswer[]) => {
     if (!detail) return;
@@ -629,7 +712,7 @@ export default function CommunityGroupPage() {
     setNotice(null);
     try {
       const message = await sendMessage(detail.group.id, { body }, getToken);
-      setMessages((current) => [...current.filter((row) => row.id !== message.id), message].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+      setMessages((current) => mergeMessages(current, [message]));
       setComposer("");
     } catch (cause) {
       setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Your message could not be sent." });
@@ -654,9 +737,9 @@ export default function CommunityGroupPage() {
       await uploadCommunityAttachment(reservation, file);
       const body = serializeCommunityAttachment(kind, { url: reservation.resourceUrl, name: file.name, mime: file.type as CommunityAttachment["mime"], size: file.size });
       const message = await sendMessage(detail.group.id, { kind, body }, getToken);
-      setMessages((current) => [...current.filter((row) => row.id !== message.id), message].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
-      const resourcePage = await fetchGroupResources(detail.group.id, { limit: 50 }, getToken);
-      setResources(resourcePage.resources);
+      setMessages((current) => mergeMessages(current, [message]));
+      const resourcePage = await fetchGroupResources(detail.group.id, { limit: GROUP_PAGE_SIZE }, getToken);
+      setResources((current) => mergeResources(current, resourcePage.resources));
       setNotice({ tone: "success", text: "Resource shared." });
     } catch (cause) {
       setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : cause instanceof Error ? cause.message : "The resource could not be shared." });
@@ -767,9 +850,11 @@ export default function CommunityGroupPage() {
             {!contentLoading && tab === "chat" ? (
               <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="overflow-hidden rounded-[28px] border border-subtle bg-surface-layer shadow-sm">
-                  <div className="border-b border-subtle px-4 py-4 sm:px-5"><h2 className="font-semibold">Group chat</h2><p className="mt-1 text-xs text-text-muted">Keep conversation useful, respectful, and relevant to the group.</p></div>
+                  <div className="border-b border-subtle px-4 py-4 sm:px-5"><h2 className="font-semibold">Group chat</h2><p className="mt-1 text-xs text-text-muted">Keep conversation useful, respectful, and relevant to the group. New activity refreshes while this tab is visible.</p></div>
                   <div className="max-h-[58dvh] min-h-[340px] overflow-y-auto px-4 py-5 sm:px-5" aria-live="polite">
-                    {messages.length ? <div className="space-y-5">{messages.map((message) => {
+                    {messages.length ? <div className="space-y-5">
+                      {messagesHasMore ? <div className="flex justify-center"><button type="button" disabled={loadingOlderMessages} onClick={() => void loadEarlierMessages()} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-subtle bg-surface-body px-4 text-xs font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:opacity-60">{loadingOlderMessages ? <Loader2 size={15} className="animate-spin" /> : null}Load earlier messages</button></div> : null}
+                      {messages.map((message) => {
                       const mine = message.userId === userId;
                       const attachment = parseMessageAttachment(message);
                       const deleted = Boolean(message.deletedAt);
@@ -778,12 +863,12 @@ export default function CommunityGroupPage() {
                   </div>
                   <form onSubmit={handleSend} className="border-t border-subtle bg-surface-layer p-3 sm:p-4"><div className="flex items-end gap-2"><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} /><button type="button" disabled={uploading || Boolean(group.archivedAt)} onClick={() => fileInputRef.current?.click()} aria-label="Attach image or PDF" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-subtle text-text-secondary transition hover:bg-surface-elevated disabled:opacity-50">{uploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}</button><label className="min-w-0 flex-1"><span className="sr-only">Message {group.name}</span><textarea aria-label={`Message ${group.name}`} value={composer} onChange={(event) => setComposer(event.target.value.slice(0, 4000))} rows={1} disabled={Boolean(group.archivedAt)} placeholder={group.archivedAt ? "This group is archived" : "Write a message"} className="max-h-36 min-h-11 w-full resize-none rounded-2xl border border-subtle bg-surface-body px-4 py-3 text-sm leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60" /></label><button type="submit" aria-label="Send message" disabled={sending || !composer.trim() || Boolean(group.archivedAt)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white transition hover:bg-brand-600 disabled:opacity-50">{sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button></div></form>
                 </div>
-                <aside className="space-y-4"><div className="rounded-[24px] border border-subtle bg-surface-layer p-5"><h2 className="text-sm font-semibold">Room guide</h2><div className="mt-3 space-y-3 text-sm leading-6 text-text-secondary"><p>Keep personal information private.</p><p>Share resources you trust and explain why they are useful.</p><p>Use report and block controls when something feels unsafe.</p></div></div><div className="rounded-[24px] border border-brand-500/15 bg-brand-500/5 p-5"><p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-700">Resources</p><p className="mt-2 text-2xl font-semibold">{resources.length}</p><button type="button" onClick={() => setTab("resources")} className="mt-3 text-sm font-semibold text-brand-700">Browse shared files →</button></div></aside>
+                <aside className="space-y-4"><div className="rounded-[24px] border border-subtle bg-surface-layer p-5"><h2 className="text-sm font-semibold">Room guide</h2><div className="mt-3 space-y-3 text-sm leading-6 text-text-secondary"><p>Keep personal information private.</p><p>Share resources you trust and explain why they are useful.</p><p>Use report and block controls when something feels unsafe.</p></div></div><div className="rounded-[24px] border border-brand-500/15 bg-brand-500/5 p-5"><p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-700">Resources loaded</p><p className="mt-2 text-2xl font-semibold">{resources.length}</p><button type="button" onClick={() => setTab("resources")} className="mt-3 text-sm font-semibold text-brand-700">Browse shared files →</button></div></aside>
               </section>
             ) : null}
 
             {!contentLoading && tab === "resources" ? (
-              <section className="mt-6"><div className="mb-4"><h2 className="text-xl font-semibold">Shared resources</h2><p className="mt-1 text-sm text-text-secondary">Images and PDFs shared by active group members.</p></div>{resources.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{resources.map((resource) => <article key={resource.id} className="rounded-[24px] border border-subtle bg-surface-layer p-5 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">{resource.kind === "image" ? <ImageIcon size={20} /> : <FileText size={20} />}</div><h3 className="mt-4 truncate text-sm font-semibold">{resource.attachment.name}</h3><p className="mt-1 text-xs text-text-muted">Shared by {resource.sender.displayName} · {formatDate(resource.createdAt)}</p><button type="button" onClick={() => void openAttachment(resource.attachment.url)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-subtle px-4 text-xs font-semibold"><Download size={14} /> Open resource</button></article>)}</div> : <div className="rounded-[28px] border border-dashed border-subtle bg-surface-layer p-10 text-center"><FileText size={26} className="mx-auto text-brand-500" /><h3 className="mt-4 font-semibold">No resources yet</h3><p className="mt-2 text-sm text-text-secondary">Share a useful image or PDF from the Chat tab.</p></div>}</section>
+              <section className="mt-6"><div className="mb-4"><h2 className="text-xl font-semibold">Shared resources</h2><p className="mt-1 text-sm text-text-secondary">Images and PDFs shared by active group members.</p></div>{resources.length ? <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{resources.map((resource) => <article key={resource.id} className="rounded-[24px] border border-subtle bg-surface-layer p-5 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">{resource.kind === "image" ? <ImageIcon size={20} /> : <FileText size={20} />}</div><h3 className="mt-4 truncate text-sm font-semibold">{resource.attachment.name}</h3><p className="mt-1 text-xs text-text-muted">Shared by {resource.sender.displayName} · {formatDate(resource.createdAt)}</p><button type="button" onClick={() => void openAttachment(resource.attachment.url)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-subtle px-4 text-xs font-semibold"><Download size={14} /> Open resource</button></article>)}</div>{resourceCursor ? <div className="mt-5 flex justify-center"><button type="button" disabled={loadingOlderResources} onClick={() => void loadOlderResources()} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-subtle bg-surface-layer px-5 text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:opacity-60">{loadingOlderResources ? <Loader2 size={16} className="animate-spin" /> : null}Load more resources</button></div> : null}</> : <div className="rounded-[28px] border border-dashed border-subtle bg-surface-layer p-10 text-center"><FileText size={26} className="mx-auto text-brand-500" /><h3 className="mt-4 font-semibold">No resources yet</h3><p className="mt-2 text-sm text-text-secondary">Share a useful image or PDF from the Chat tab.</p></div>}</section>
             ) : null}
 
             {!contentLoading && tab === "members" ? (
