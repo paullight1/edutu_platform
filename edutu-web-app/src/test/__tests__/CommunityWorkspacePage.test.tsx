@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getToken: vi.fn(async () => "clerk-token"),
   fetchGroups: vi.fn(),
   joinGroup: vi.fn(),
   fetchDmConversations: vi.fn(),
@@ -10,10 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../hooks/useAuth", () => ({
-  useClerk: () => ({
-    getToken: vi.fn(async () => "clerk-token"),
-    userId: "user_me",
-  }),
+  useClerk: () => ({ getToken: mocks.getToken, userId: "user_me" }),
   useAuth: () => ({
     user: { id: "user_me", name: "Amina Bello", email: "amina@example.com" },
   }),
@@ -66,6 +64,7 @@ const group = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getToken.mockResolvedValue("clerk-token");
   mocks.fetchGroups.mockResolvedValue([
     {
       group,
@@ -104,9 +103,7 @@ describe("CommunityWorkspacePage", () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Community" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Community" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Discover" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Your groups" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Messages" })).toBeInTheDocument();
@@ -133,11 +130,7 @@ describe("CommunityWorkspacePage", () => {
     fireEvent.click(accept);
 
     await waitFor(() => {
-      expect(mocks.joinGroup).toHaveBeenCalledWith(
-        group.id,
-        [],
-        expect.any(Function),
-      );
+      expect(mocks.joinGroup).toHaveBeenCalledWith(group.id, [], mocks.getToken);
     });
     expect(await screen.findByText("Invitation accepted.")).toBeInTheDocument();
   });
