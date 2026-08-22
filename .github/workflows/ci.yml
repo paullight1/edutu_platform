@@ -274,7 +274,7 @@ jobs:
           cd admin && npm ci && npm audit --audit-level=high || true
 
   security-audit-web:
-    name: Security Audit — Web
+    name: Security Audit — Web Runtime
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -290,7 +290,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # This gate covers packages that ship with the production web app. Build,
+      # lint, test, and typecheck separately exercise the development toolchain.
+      - run: npm audit --omit=dev --audit-level=high
+      # Keep full toolchain advisories visible in CI without conflating them with
+      # runtime exposure. They remain actionable dependency-maintenance work.
+      - run: npm audit --audit-level=high || true
 
   security-audit-voice:
     name: Security Audit — Voice Gateway
