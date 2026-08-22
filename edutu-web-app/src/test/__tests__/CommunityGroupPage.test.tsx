@@ -67,4 +67,46 @@ describe("CommunityGroupPage", () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
+
+  it("loads earlier messages with the backend before plus beforeId cursor", async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      id: `message-${index}`,
+      groupId: group.id,
+      userId: "user_other",
+      body: `Message ${index}`,
+      kind: "text",
+      opportunityId: null,
+      createdAt: new Date(Date.UTC(2026, 7, 22, 12, index)).toISOString(),
+      deletedAt: null,
+      deletedBy: null,
+      author: { displayName: "Tomi Ade", avatarUrl: null },
+    }));
+    const older = {
+      ...firstPage[0],
+      id: "message-older",
+      body: "An earlier message",
+      createdAt: "2026-08-22T11:59:00.000Z",
+    };
+    mocks.fetchMessages
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([older]);
+
+    renderGroup();
+    const loadEarlier = await screen.findByRole("button", { name: "Load earlier messages" });
+    fireEvent.click(loadEarlier);
+
+    await waitFor(() =>
+      expect(mocks.fetchMessages).toHaveBeenNthCalledWith(
+        2,
+        group.id,
+        {
+          before: firstPage[0].createdAt,
+          beforeId: firstPage[0].id,
+          limit: 50,
+        },
+        mocks.getToken,
+      ),
+    );
+    expect(await screen.findByText("An earlier message")).toBeInTheDocument();
+  });
 });
