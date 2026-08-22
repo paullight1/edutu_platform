@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -46,7 +46,8 @@ describe("CommunityMessagesPage", () => {
   it("renders an accepted private conversation with safety controls", async () => {
     renderConversation();
     expect(await screen.findByRole("heading", { name: "Tomi Ade" })).toBeInTheDocument();
-    expect(await screen.findByText("Did you finish the essay draft?")).toBeInTheDocument();
+    const selectedConversation = await screen.findByRole("region", { name: "Selected conversation" });
+    expect(within(selectedConversation).getByText("Did you finish the essay draft?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Block Tomi Ade" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /call/i })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.markDmConversationRead).toHaveBeenCalled());
