@@ -25,9 +25,7 @@ export const COMMUNITY_THROTTLES = {
 export const communityThrottleTracker: ThrottlerGetTrackerFunction = async (
   request: Record<string, unknown>,
 ) => {
-  const user = request.user as
-    | { authId?: unknown; id?: unknown }
-    | undefined;
+  const user = request.user as { authId?: unknown; id?: unknown } | undefined;
   const authId = typeof user?.authId === "string" ? user.authId.trim() : "";
   if (authId) return `community:user:${authId}`;
 
@@ -39,13 +37,13 @@ export const communityThrottleTracker: ThrottlerGetTrackerFunction = async (
 
   const socket = request.socket as { remoteAddress?: unknown } | undefined;
   const remoteAddress =
-    typeof socket?.remoteAddress === "string" ? socket.remoteAddress.trim() : "";
+    typeof socket?.remoteAddress === "string"
+      ? socket.remoteAddress.trim()
+      : "";
   return `community:ip:${remoteAddress || "unknown"}`;
 };
 
-export function communityThrottle(
-  policy: keyof typeof COMMUNITY_THROTTLES,
-) {
+export function communityThrottle(policy: keyof typeof COMMUNITY_THROTTLES) {
   const config = COMMUNITY_THROTTLES[policy];
   return {
     default: {
