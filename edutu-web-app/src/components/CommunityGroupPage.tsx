@@ -50,7 +50,6 @@ import {
   updateGroup,
   uploadCommunityAttachment,
   type CommunityAttachment,
-  type CommunityGroupMember,
   type CommunityGroupResource,
   type CommunityMemberSummary,
   type CommunityMessage,
