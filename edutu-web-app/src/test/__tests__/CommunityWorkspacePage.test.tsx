@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchGroups = vi.fn();
-const joinGroup = vi.fn();
-const fetchDmConversations = vi.fn();
-const fetchDmRequests = vi.fn();
+const mocks = vi.hoisted(() => ({
+  fetchGroups: vi.fn(),
+  joinGroup: vi.fn(),
+  fetchDmConversations: vi.fn(),
+  fetchDmRequests: vi.fn(),
+}));
 
 vi.mock("../../hooks/useAuth", () => ({
   useClerk: () => ({
@@ -23,8 +25,8 @@ vi.mock("../../services/community", async () => {
   );
   return {
     ...actual,
-    fetchGroups,
-    joinGroup,
+    fetchGroups: mocks.fetchGroups,
+    joinGroup: mocks.joinGroup,
     createGroup: vi.fn(),
   };
 });
@@ -35,8 +37,8 @@ vi.mock("../../services/communityDms", async () => {
   >("../../services/communityDms");
   return {
     ...actual,
-    fetchDmConversations,
-    fetchDmRequests,
+    fetchDmConversations: mocks.fetchDmConversations,
+    fetchDmRequests: mocks.fetchDmRequests,
   };
 });
 
@@ -64,7 +66,7 @@ const group = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchGroups.mockResolvedValue([
+  mocks.fetchGroups.mockResolvedValue([
     {
       group,
       membership: {
@@ -77,9 +79,9 @@ beforeEach(() => {
       },
     },
   ]);
-  fetchDmConversations.mockResolvedValue([]);
-  fetchDmRequests.mockResolvedValue([]);
-  joinGroup.mockResolvedValue({
+  mocks.fetchDmConversations.mockResolvedValue([]);
+  mocks.fetchDmRequests.mockResolvedValue([]);
+  mocks.joinGroup.mockResolvedValue({
     status: "active",
     groupId: group.id,
     membership: {
@@ -131,7 +133,7 @@ describe("CommunityWorkspacePage", () => {
     fireEvent.click(accept);
 
     await waitFor(() => {
-      expect(joinGroup).toHaveBeenCalledWith(
+      expect(mocks.joinGroup).toHaveBeenCalledWith(
         group.id,
         [],
         expect.any(Function),
