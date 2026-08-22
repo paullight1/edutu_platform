@@ -61,6 +61,7 @@ export const NAV: NavEntry[] = [
     children: [
       { label: "Users", to: "/users", icon: Users },
       { label: "Creators", to: "/creators", icon: ShieldCheck },
+      { label: "Community Safety", to: "/community-safety", icon: ShieldAlert },
     ],
   },
   {
