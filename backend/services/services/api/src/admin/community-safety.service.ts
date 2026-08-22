@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { AuditService } from "../common/audit";
 import { db } from "../db";
 import {
@@ -25,6 +25,7 @@ export interface AdminCommunitySafetyStore {
     limit: number,
   ): Promise<AdminCommunityReport[]>;
   findReport(id: string): Promise<StoredReport | null>;
+  findMessageGroupId(messageId: string): Promise<string | null>;
   setReportStatus(
     id: string,
     status: CommunityReportStatus,
@@ -57,10 +58,7 @@ export class DrizzleAdminCommunitySafetyStore
     status: CommunityReportStatus | "all",
     limit: number,
   ): Promise<AdminCommunityReport[]> {
-    const filter =
-      status === "all"
-        ? sql``
-        : sql`and r.status = ${status}`;
+    const filter = status === "all" ? sql`` : sql`and r.status = ${status}`;
     const result = await db.execute(sql`
       select
         r.id::text as id,
@@ -141,6 +139,15 @@ export class DrizzleAdminCommunitySafetyStore
       .where(eq(communityReports.id, id))
       .limit(1);
     return row ?? null;
+  }
+
+  async findMessageGroupId(messageId: string): Promise<string | null> {
+    const [row] = await db
+      .select({ groupId: communityGroupMessages.groupId })
+      .from(communityGroupMessages)
+      .where(eq(communityGroupMessages.id, messageId))
+      .limit(1);
+    return row?.groupId ?? null;
   }
 
   async setReportStatus(
@@ -266,13 +273,12 @@ export class AdminCommunitySafetyService {
 
   private async resolveGroupId(report: StoredReport): Promise<string> {
     if (report.targetType === "group") return report.targetId;
-    const rows = await this.store.listReports("all", 100);
-    const view = rows.find((row) => row.id === report.id);
-    if (!view?.group?.id) {
+    const groupId = await this.store.findMessageGroupId(report.targetId);
+    if (!groupId) {
       throw new BadRequestException(
         "The reported message is no longer attached to a group.",
       );
     }
-    return view.group.id;
+    return groupId;
   }
 }
