@@ -1,0 +1,129 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const fetchDmConversations = vi.fn();
+const fetchDmRequests = vi.fn();
+const fetchDmConversation = vi.fn();
+const fetchDmMessages = vi.fn();
+const markDmConversationRead = vi.fn();
+const sendDmMessage = vi.fn();
+const acceptDmRequest = vi.fn();
+const declineDmRequest = vi.fn();
+
+vi.mock("../../hooks/useAuth", () => ({
+  useClerk: () => ({
+    getToken: vi.fn(async () => "clerk-token"),
+    userId: "user_me",
+  }),
+}));
+
+vi.mock("../../services/communityDms", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../services/communityDms")
+  >("../../services/communityDms");
+  return {
+    ...actual,
+    fetchDmConversations,
+    fetchDmRequests,
+    fetchDmConversation,
+    fetchDmMessages,
+    markDmConversationRead,
+    sendDmMessage,
+    acceptDmRequest,
+    declineDmRequest,
+  };
+});
+
+import CommunityMessagesPage from "../../components/CommunityMessagesPage";
+
+const conversation = {
+  id: "conversation-1",
+  status: "accepted" as const,
+  requestedBy: "user_other",
+  createdAt: "2026-08-20T12:00:00.000Z",
+  acceptedAt: "2026-08-20T12:05:00.000Z",
+  lastMessageAt: "2026-08-22T12:00:00.000Z",
+  otherUser: { userId: "user_other", displayName: "Tomi Ade", avatarUrl: null },
+  blocked: false,
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  fetchDmConversations.mockResolvedValue([
+    {
+      ...conversation,
+      lastMessage: {
+        body: "Did you finish the essay draft?",
+        senderId: "user_other",
+        createdAt: "2026-08-22T12:00:00.000Z",
+      },
+      unreadCount: 1,
+    },
+  ]);
+  fetchDmRequests.mockResolvedValue([]);
+  fetchDmConversation.mockResolvedValue(conversation);
+  fetchDmMessages.mockResolvedValue([
+    {
+      id: "dm-1",
+      conversationId: conversation.id,
+      senderId: "user_other",
+      body: "Did you finish the essay draft?",
+      createdAt: "2026-08-22T12:00:00.000Z",
+      sender: conversation.otherUser,
+    },
+  ]);
+  markDmConversationRead.mockResolvedValue({ success: true });
+  sendDmMessage.mockResolvedValue({
+    id: "dm-2",
+    conversationId: conversation.id,
+    senderId: "user_me",
+    body: "Yes — sending it tonight.",
+    createdAt: "2026-08-22T12:02:00.000Z",
+    sender: { userId: "user_me", displayName: "Me", avatarUrl: null },
+  });
+});
+
+function renderConversation() {
+  return render(
+    <MemoryRouter initialEntries={["/app/community/messages/conversation-1"]}>
+      <Routes>
+        <Route
+          path="/app/community/messages/:conversationId"
+          element={<CommunityMessagesPage />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("CommunityMessagesPage", () => {
+  it("renders an accepted private conversation with safety controls", async () => {
+    renderConversation();
+
+    expect(await screen.findByRole("heading", { name: "Tomi Ade" })).toBeInTheDocument();
+    expect(screen.getByText("Did you finish the essay draft?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Block Tomi Ade" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /call/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(markDmConversationRead).toHaveBeenCalled());
+  });
+
+  it("sends a private message through the accepted conversation contract", async () => {
+    const user = userEvent.setup();
+    renderConversation();
+
+    const composer = await screen.findByRole("textbox", { name: "Message Tomi Ade" });
+    await user.type(composer, "Yes — sending it tonight.");
+    await user.click(screen.getByRole("button", { name: "Send private message" }));
+
+    await waitFor(() => {
+      expect(sendDmMessage).toHaveBeenCalledWith(
+        conversation.id,
+        "Yes — sending it tonight.",
+        expect.any(Function),
+      );
+    });
+    expect(await screen.findByText("Yes — sending it tonight.")).toBeInTheDocument();
+  });
+});
