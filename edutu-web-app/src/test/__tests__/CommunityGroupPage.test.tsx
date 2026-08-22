@@ -62,7 +62,7 @@ describe("CommunityGroupPage", () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
     fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
-    expect(composer).toHaveValue("Great — I will review it tonight.");
+    await waitFor(() => expect(composer).toHaveValue("Great — I will review it tonight."));
     const sendButton = screen.getByRole("button", { name: "Send message" });
     await waitFor(() => expect(sendButton).toBeEnabled());
     fireEvent.click(sendButton);
