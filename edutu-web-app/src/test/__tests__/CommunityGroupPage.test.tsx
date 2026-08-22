@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getToken: vi.fn(async () => "clerk-token"),
   fetchGroup: vi.fn(),
   fetchMessages: vi.fn(),
   fetchGroupResources: vi.fn(),
@@ -11,13 +12,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../hooks/useAuth", () => ({
-  useClerk: () => ({ getToken: vi.fn(async () => "clerk-token"), userId: "user_me" }),
+  useClerk: () => ({ getToken: mocks.getToken, userId: "user_me" }),
   useAuth: () => ({ user: { id: "user_me", name: "Amina Bello", email: "amina@example.com" } }),
 }));
 
 vi.mock("../../services/community", async () => {
   const actual = await vi.importActual<typeof import("../../services/community")>("../../services/community");
-  return { ...actual, ...mocks };
+  return { ...actual, fetchGroup: mocks.fetchGroup, fetchMessages: mocks.fetchMessages, fetchGroupResources: mocks.fetchGroupResources, fetchGroupMembers: mocks.fetchGroupMembers, sendMessage: mocks.sendMessage };
 });
 
 import CommunityGroupPage from "../../components/CommunityGroupPage";
@@ -33,6 +34,7 @@ const group = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getToken.mockResolvedValue("clerk-token");
   mocks.fetchGroup.mockResolvedValue({ group, membership: { id: "membership-1", groupId: group.id, userId: "user_me", role: "member", status: "active", joinedAt: "2026-08-22T12:00:00.000Z" } });
   mocks.fetchMessages.mockResolvedValue([{ id: "message-1", groupId: group.id, userId: "user_other", body: "I added a checklist for the essay review.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:00:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Tomi Ade", avatarUrl: null } }]);
   mocks.fetchGroupResources.mockResolvedValue({ resources: [], nextCursor: null });
@@ -51,7 +53,7 @@ describe("CommunityGroupPage", () => {
     expect(screen.getByRole("tab", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Resources" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
-    expect(screen.getByText("I added a checklist for the essay review.")).toBeInTheDocument();
+    expect(await screen.findByText("I added a checklist for the essay review.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /call/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/start call/i)).not.toBeInTheDocument();
   });
@@ -61,7 +63,7 @@ describe("CommunityGroupPage", () => {
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
     fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, expect.any(Function)));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
 });
