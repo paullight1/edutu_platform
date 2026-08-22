@@ -8,8 +8,10 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
+import { communityThrottle } from "../communities/community-throttle";
 import type { DmCursor } from "./community-dms.store";
 import { CommunityDmsService } from "./community-dms.service";
 import {
@@ -51,6 +53,7 @@ export class CommunityDmsController {
   }
 
   @Post("requests")
+  @Throttle(communityThrottle("dmRequest"))
   createRequest(
     @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(CreateDmRequestSchema))
@@ -60,6 +63,7 @@ export class CommunityDmsController {
   }
 
   @Post("requests/:id/accept")
+  @Throttle(communityThrottle("mutateMembership"))
   acceptRequest(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -68,6 +72,7 @@ export class CommunityDmsController {
   }
 
   @Delete("requests/:id")
+  @Throttle(communityThrottle("mutateMembership"))
   declineRequest(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -114,6 +119,7 @@ export class CommunityDmsController {
   }
 
   @Post("conversations/:id/messages")
+  @Throttle(communityThrottle("sendDmMessage"))
   sendMessage(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -128,6 +134,7 @@ export class CommunityDmsController {
   }
 
   @Delete("conversations/:id")
+  @Throttle(communityThrottle("mutateMembership"))
   hideConversation(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -144,6 +151,7 @@ export class CommunityDmsController {
   }
 
   @Post("blocks")
+  @Throttle(communityThrottle("block"))
   blockUser(
     @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(BlockDmUserSchema)) dto: BlockDmUserDto,
@@ -152,6 +160,7 @@ export class CommunityDmsController {
   }
 
   @Delete("blocks/:userId")
+  @Throttle(communityThrottle("block"))
   unblockUser(
     @CurrentUser("authId") userId: string,
     @Param("userId") blockedUserId: string,
