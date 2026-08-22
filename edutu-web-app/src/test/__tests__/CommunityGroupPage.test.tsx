@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -144,14 +143,15 @@ describe("CommunityGroupPage", () => {
   });
 
   it("sends a text message through the REST contract", async () => {
-    const user = userEvent.setup();
     renderGroup();
 
     const composer = await screen.findByRole("textbox", {
       name: "Message Scholarship Builders",
     });
-    await user.type(composer, "Great — I will review it tonight.");
-    await user.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.change(composer, {
+      target: { value: "Great — I will review it tonight." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => {
       expect(sendMessage).toHaveBeenCalledWith(
