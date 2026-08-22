@@ -3,18 +3,19 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getToken: vi.fn(async () => "clerk-token"),
   fetchDmConversations: vi.fn(), fetchDmRequests: vi.fn(), fetchDmConversation: vi.fn(),
   fetchDmMessages: vi.fn(), markDmConversationRead: vi.fn(), sendDmMessage: vi.fn(),
   acceptDmRequest: vi.fn(), declineDmRequest: vi.fn(),
 }));
 
 vi.mock("../../hooks/useAuth", () => ({
-  useClerk: () => ({ getToken: vi.fn(async () => "clerk-token"), userId: "user_me" }),
+  useClerk: () => ({ getToken: mocks.getToken, userId: "user_me" }),
 }));
 
 vi.mock("../../services/communityDms", async () => {
   const actual = await vi.importActual<typeof import("../../services/communityDms")>("../../services/communityDms");
-  return { ...actual, ...mocks };
+  return { ...actual, fetchDmConversations: mocks.fetchDmConversations, fetchDmRequests: mocks.fetchDmRequests, fetchDmConversation: mocks.fetchDmConversation, fetchDmMessages: mocks.fetchDmMessages, markDmConversationRead: mocks.markDmConversationRead, sendDmMessage: mocks.sendDmMessage, acceptDmRequest: mocks.acceptDmRequest, declineDmRequest: mocks.declineDmRequest };
 });
 
 import CommunityMessagesPage from "../../components/CommunityMessagesPage";
@@ -28,6 +29,7 @@ const conversation = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getToken.mockResolvedValue("clerk-token");
   mocks.fetchDmConversations.mockResolvedValue([{ ...conversation, lastMessage: { body: "Did you finish the essay draft?", senderId: "user_other", createdAt: "2026-08-22T12:00:00.000Z" }, unreadCount: 1 }]);
   mocks.fetchDmRequests.mockResolvedValue([]);
   mocks.fetchDmConversation.mockResolvedValue(conversation);
@@ -44,7 +46,7 @@ describe("CommunityMessagesPage", () => {
   it("renders an accepted private conversation with safety controls", async () => {
     renderConversation();
     expect(await screen.findByRole("heading", { name: "Tomi Ade" })).toBeInTheDocument();
-    expect(screen.getByText("Did you finish the essay draft?")).toBeInTheDocument();
+    expect(await screen.findByText("Did you finish the essay draft?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Block Tomi Ade" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /call/i })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.markDmConversationRead).toHaveBeenCalled());
@@ -55,7 +57,7 @@ describe("CommunityMessagesPage", () => {
     const composer = await screen.findByRole("textbox", { name: "Message Tomi Ade" });
     fireEvent.change(composer, { target: { value: "Yes — sending it tonight." } });
     fireEvent.click(screen.getByRole("button", { name: "Send private message" }));
-    await waitFor(() => expect(mocks.sendDmMessage).toHaveBeenCalledWith(conversation.id, "Yes — sending it tonight.", expect.any(Function)));
+    await waitFor(() => expect(mocks.sendDmMessage).toHaveBeenCalledWith(conversation.id, "Yes — sending it tonight.", mocks.getToken));
     expect(await screen.findByText("Yes — sending it tonight.")).toBeInTheDocument();
   });
 });
