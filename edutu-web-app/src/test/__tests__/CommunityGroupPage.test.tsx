@@ -62,7 +62,8 @@ describe("CommunityGroupPage", () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
     fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    const sendButton = await screen.findByRole("button", { name: "Send message" });
+    fireEvent.click(sendButton);
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
