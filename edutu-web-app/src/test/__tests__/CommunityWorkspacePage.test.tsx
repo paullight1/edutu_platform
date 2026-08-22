@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -120,7 +119,6 @@ describe("CommunityWorkspacePage", () => {
   });
 
   it("accepts an invitation through the existing join contract", async () => {
-    const user = userEvent.setup();
     render(
       <MemoryRouter>
         <CommunityWorkspacePage />
@@ -130,7 +128,7 @@ describe("CommunityWorkspacePage", () => {
     const accept = await screen.findByRole("button", {
       name: "Accept invite to Scholarship Builders",
     });
-    await user.click(accept);
+    fireEvent.click(accept);
 
     await waitFor(() => {
       expect(joinGroup).toHaveBeenCalledWith(
