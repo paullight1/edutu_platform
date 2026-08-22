@@ -62,9 +62,10 @@ describe("CommunityGroupPage", () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
     fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
-    const form = composer.closest("form");
-    expect(form).not.toBeNull();
-    fireEvent.submit(form as HTMLFormElement);
+    expect(composer).toHaveValue("Great — I will review it tonight.");
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    await waitFor(() => expect(sendButton).toBeEnabled());
+    fireEvent.click(sendButton);
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
