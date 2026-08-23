@@ -422,8 +422,13 @@ export function useEngineDiagnostics(): EngineDiagnosticsState {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    globalThis.queueMicrotask(() => {
+      if (active) void refresh();
+    });
+
     return () => {
+      active = false;
       requestVersion.current += 1;
     };
   }, [refresh]);

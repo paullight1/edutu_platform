@@ -110,8 +110,13 @@ export function useEngineOverview(): EngineOverviewState {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    globalThis.queueMicrotask(() => {
+      if (active) void refresh();
+    });
+
     return () => {
+      active = false;
       requestVersion.current += 1;
     };
   }, [refresh]);
