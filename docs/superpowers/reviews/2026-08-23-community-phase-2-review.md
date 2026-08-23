@@ -26,6 +26,7 @@
 - Reconciliation merges into the current list instead of replacing a message that arrived while the API request was in flight.
 - Error text remains inline and actionable; the send button preserves its accessible label and disabled/busy behavior.
 - Route changes clear conversation-specific state before the next conversation is rendered, preventing one person's content from appearing beneath another person's header.
+- The focused mobile lifecycle block was normalized after implementation so the source remains readable and reviewable without changing behavior.
 
 ## Pass 4 — Reliability and performance
 
@@ -43,4 +44,4 @@
 - [x] Focused web/mobile adapter tests cover mapping, invalid IDs, duplicate-channel cleanup, and idempotent unsubscribe.
 - [x] Static synchronization contracts cover one-minute reconciliation and Supabase-template authentication.
 - [x] Migration contract tests protect the backend-only write boundary.
-- [ ] Final exact-head CI and Architecture Governance — recorded from the verification run triggered by this review commit.
+- [ ] Final exact-head CI and Architecture Governance — this documentation-only commit is the verification trigger after all review fixes and cleanup commits.
