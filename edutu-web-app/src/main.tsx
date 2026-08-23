@@ -11,6 +11,7 @@ import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import WhatsNewNotification from './components/WhatsNewNotification';
 import { CommunityProtectedImageHydrator } from './components/CommunityProtectedImage';
+import CommunityReportDialogAccessibility from './components/CommunityReportDialogAccessibility';
 import { initSentry } from './lib/sentry';
 import { SkipLink } from './lib/accessibility';
 
@@ -72,6 +73,7 @@ root.render(
               <ThemeProvider>
                 <AuthProvider>
                   <CommunityProtectedImageHydrator />
+                  <CommunityReportDialogAccessibility />
                   <PaywallProvider>
                     <PersonalizationProvider>
                       <AnalyticsProvider>
