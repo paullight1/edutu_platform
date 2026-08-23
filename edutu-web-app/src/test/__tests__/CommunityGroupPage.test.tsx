@@ -33,6 +33,7 @@ vi.mock("../../services/community", async () => {
 });
 
 import CommunityGroupPage from "../../components/CommunityGroupPage";
+import CommunityReportDialogAccessibility from "../../components/CommunityReportDialogAccessibility";
 
 const group = {
   id: "group-1", slug: "scholarship-builders", name: "Scholarship Builders",
@@ -68,7 +69,12 @@ beforeEach(() => {
 });
 
 function renderGroup() {
-  return render(<MemoryRouter initialEntries={["/app/community/groups/group-1"]}><Routes><Route path="/app/community/groups/:groupId" element={<CommunityGroupPage />} /></Routes></MemoryRouter>);
+  return render(
+    <MemoryRouter initialEntries={["/app/community/groups/group-1"]}>
+      <CommunityReportDialogAccessibility />
+      <Routes><Route path="/app/community/groups/:groupId" element={<CommunityGroupPage />} /></Routes>
+    </MemoryRouter>,
+  );
 }
 
 describe("CommunityGroupPage", () => {
