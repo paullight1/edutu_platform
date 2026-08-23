@@ -75,9 +75,16 @@ export interface CommunityMemberSummary {
   };
 }
 
+export interface CommunityMemberCursor {
+  role: MemberRole;
+  joinedAt: string;
+  id: string;
+}
+
 export interface CommunityMemberList {
   members: CommunityMemberSummary[];
   hasMore: boolean;
+  nextCursor: CommunityMemberCursor | null;
 }
 
 export interface MessageAuthor {
@@ -421,15 +428,35 @@ export async function fetchGroupMembers(
   groupId: string,
   getAuthToken: ClerkTokenGetter,
   limit = 100,
+  cursor?: CommunityMemberCursor,
 ): Promise<CommunityMemberList> {
   const result = await requestCommunityApi<CommunityMemberList>(
-    `/communities/groups/${encodeURIComponent(groupId)}/members${toQuery({ limit })}`,
+    `/communities/groups/${encodeURIComponent(groupId)}/members${toQuery({
+      limit,
+      afterRole: cursor?.role,
+      afterJoinedAt: cursor?.joinedAt,
+      afterId: cursor?.id,
+    })}`,
     { method: "GET" },
     getAuthToken,
   );
+  const rawCursor = result?.nextCursor;
+  const nextCursor =
+    rawCursor &&
+    (rawCursor.role === "owner" ||
+      rawCursor.role === "mod" ||
+      rawCursor.role === "member") &&
+    typeof rawCursor.joinedAt === "string" &&
+    typeof rawCursor.id === "string" &&
+    rawCursor.joinedAt.trim() &&
+    rawCursor.id.trim()
+      ? rawCursor
+      : null;
+
   return {
     members: Array.isArray(result?.members) ? result.members : [],
     hasMore: result?.hasMore === true,
+    nextCursor,
   };
 }
 
