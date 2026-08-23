@@ -31,7 +31,14 @@ const CLIENT_SOURCE_ROOTS = [
   "edutumobile/packages",
 ];
 
-const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+const SOURCE_EXTENSIONS = new Set([
+  ".cjs",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".ts",
+  ".tsx",
+]);
 const IGNORED_DIRECTORIES = new Set([
   ".git",
   ".next",
@@ -91,7 +98,9 @@ async function walk(root, current = root) {
 function isClientSourceFile(path) {
   return (
     SOURCE_EXTENSIONS.has(extname(path)) &&
-    CLIENT_SOURCE_ROOTS.some((root) => path === root || path.startsWith(`${root}/`))
+    CLIENT_SOURCE_ROOTS.some(
+      (root) => path === root || path.startsWith(`${root}/`),
+    )
   );
 }
 
@@ -102,11 +111,15 @@ async function inspectClientBoundary(root, files) {
     const content = await readFile(resolve(root, file), "utf8");
 
     if (/\b(?:VITE_|EXPO_PUBLIC_)?SUPABASE_SERVICE_ROLE_KEY\b/.test(content)) {
-      violations.push(`client source references a Supabase service-role secret: ${file}`);
+      violations.push(
+        `client source references a Supabase service-role secret: ${file}`,
+      );
     }
 
     if (content.includes("backend/services/services/api/src/")) {
-      violations.push(`client source imports API internals instead of a contract: ${file}`);
+      violations.push(
+        `client source imports API internals instead of a contract: ${file}`,
+      );
     }
   }
 
@@ -142,15 +155,6 @@ export async function inspectArchitecture(root) {
       if (!ALLOWED_PACKAGE_ROOTS.has(directory)) {
         violations.push(`unexpected package root: ${directory}`);
       }
-    }
-  }
-
-  for (const file of files) {
-    if (
-      file.startsWith("backend/") &&
-      !file.includes("/") === false
-    ) {
-      // Intentionally empty: top-level backend files are handled below.
     }
   }
 
