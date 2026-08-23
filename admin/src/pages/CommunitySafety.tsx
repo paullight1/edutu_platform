@@ -82,14 +82,15 @@ export default function CommunitySafety() {
 
   const load = useCallback(
     async (quiet = false) => {
-      quiet ? setRefreshing(true) : setLoading(true);
+      if (quiet) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       try {
         const data = await backendFetchJson<ReportsResponse>(
           `/admin/community/reports?status=${encodeURIComponent(status)}&limit=50`,
         );
-        setReports(data.reports);
-        setGeneratedAt(data.generatedAt);
+        setReports(Array.isArray(data?.reports) ? data.reports : []);
+        setGeneratedAt(typeof data?.generatedAt === "string" ? data.generatedAt : null);
       } catch (cause) {
         setError(
           cause instanceof Error
@@ -97,7 +98,8 @@ export default function CommunitySafety() {
             : "Community reports could not be loaded.",
         );
       } finally {
-        quiet ? setRefreshing(false) : setLoading(false);
+        if (quiet) setRefreshing(false);
+        else setLoading(false);
       }
     },
     [status],
@@ -307,7 +309,7 @@ export default function CommunitySafety() {
 
                 <div className="community-report-actions">
                   {report.status !== "reviewing" && report.status !== "resolved" ? (
-                    <button type="button" disabled={busy} onClick={() => void updateStatus(report, "reviewing")}>Reviewing</button>
+                    <button type="button" disabled={busy} onClick={() => void updateStatus(report, "reviewing")}>Mark reviewing</button>
                   ) : null}
                   {report.status !== "resolved" ? (
                     <button type="button" disabled={busy} onClick={() => void updateStatus(report, "resolved")}><CheckCircle2 size={15} /> Resolve</button>
