@@ -67,27 +67,31 @@ describe("CommunityMessagesPage", () => {
   });
 
   it("refreshes the inbox while visible so requests and unread activity do not go stale", async () => {
-    let intervalCallback: (() => void) | null = null;
-    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler: TimerHandler) => {
-      if (typeof handler === "function") intervalCallback = handler as () => void;
-      return 1;
-    });
+    vi.useFakeTimers();
+    const visibilitySpy = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
 
     try {
       renderInbox();
-      await waitFor(() => expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(1));
-      expect(intervalCallback).not.toBeNull();
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(1);
 
       await act(async () => {
-        intervalCallback?.();
+        vi.advanceTimersByTime(15_000);
+        await Promise.resolve();
         await Promise.resolve();
       });
 
-      await waitFor(() => expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(2));
+      expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(2);
       expect(mocks.fetchDmRequests).toHaveBeenCalledWith("incoming", { limit: 30 }, mocks.getToken);
       expect(mocks.fetchDmRequests).toHaveBeenCalledWith("outgoing", { limit: 30 }, mocks.getToken);
     } finally {
-      intervalSpy.mockRestore();
+      visibilitySpy.mockRestore();
+      vi.useRealTimers();
     }
   });
 });
