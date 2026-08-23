@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -86,11 +86,21 @@ describe("CommunityGroupPage", () => {
   it("sends a text message through the REST contract", async () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" }) as HTMLTextAreaElement;
-    composer.value = "Great — I will review it tonight.";
-    expect(composer).toHaveValue("Great — I will review it tonight.");
-    const form = composer.closest("form");
-    expect(form).not.toBeNull();
-    fireEvent.submit(form!);
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+    expect(nativeValueSetter).toBeTypeOf("function");
+
+    await act(async () => {
+      nativeValueSetter!.call(composer, "Great — I will review it tonight.");
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
