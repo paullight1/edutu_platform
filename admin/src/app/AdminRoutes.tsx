@@ -20,6 +20,9 @@ const Blog = lazy(() => import("../pages/Blog"));
 const ImpactStories = lazy(() => import("../pages/ImpactStories"));
 const Settings = lazy(() => import("../pages/Settings"));
 const Scraper = lazy(() => import("../pages/Scraper"));
+const EngineStatusPage = lazy(
+  () => import("../features/engine/pages/EngineStatusPage"),
+);
 const MobileControl = lazy(() => import("../pages/MobileControl"));
 const Monetization = lazy(() => import("../pages/Monetization"));
 const Notifications = lazy(() => import("../pages/Notifications"));
@@ -84,7 +87,10 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
 
           <Route path={childPath("engine-sources")} element={<Scraper />} />
           <Route path={childPath("engine-runs")} element={<Scraper />} />
-          <Route path={childPath("engine-status")} element={<Scraper />} />
+          <Route
+            path={childPath("engine-status")}
+            element={<EngineStatusPage />}
+          />
 
           <Route path={childPath("app-home")} element={<MobileControl />} />
           <Route
@@ -120,9 +126,7 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
 
           <Route
             path={childRedirectPath("/dashboard")}
-            element={
-              <Navigate to={redirectFor("/dashboard").to} replace />
-            }
+            element={<Navigate to={redirectFor("/dashboard").to} replace />}
           />
           <Route
             path={childRedirectPath("/edutu-engine")}
