@@ -32,8 +32,7 @@ export function getScraperRuntimeIdentity(
   return {
     service: "edutu-api",
     environment: readEnv(env, "NODE_ENV") || "development",
-    version:
-      readEnv(env, "APP_VERSION", "npm_package_version") || "unknown",
+    version: readEnv(env, "APP_VERSION", "npm_package_version") || "unknown",
     commit: commit ? commit.slice(0, 12) : null,
     startedAt: PROCESS_STARTED_AT,
   };
