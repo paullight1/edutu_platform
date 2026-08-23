@@ -58,7 +58,12 @@ const EdutuForYouStoryPage = lazy(
   () => import("./components/EdutuForYouStoryPage"),
 );
 const UpgradePage = lazy(() => import("./components/UpgradePage"));
-const CommunityPage = lazy(() => import("./components/CommunityPage"));
+const CommunityPage = lazy(
+  () => import("./features/community/CommunityPublicRouter"),
+);
+const CommunityAppRouter = lazy(
+  () => import("./features/community/CommunityAppRouter"),
+);
 const CommunityCallPage = lazy(
   () => import("./features/community-calls/CommunityCallPage"),
 );
@@ -598,7 +603,15 @@ function App() {
         path="/our-belief"
         element={<Navigate to="/what-we-believe" replace />}
       />
-      <Route path="/community" element={<CommunityPage />} />
+      <Route path="/community/*" element={<CommunityPage />} />
+      <Route
+        path="/app/community/*"
+        element={
+          <AppWorkspaceRoute>
+            <CommunityAppRouter />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route
         path="/communities/calls/:callId"
         element={

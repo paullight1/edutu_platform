@@ -49,6 +49,13 @@
   path = "/opportunities"
   function = "opportunities-og"
 
+# Anonymous-safe public Community group metadata. The function fetches only
+# the explicit /public/communities projection; private/member content never
+# enters crawler HTML.
+[[edge_functions]]
+  path = "/community/groups/*"
+  function = "community-group-og"
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]
