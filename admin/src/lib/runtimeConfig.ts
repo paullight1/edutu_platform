@@ -110,3 +110,7 @@ export function getAdminRuntimeConfig(): AdminRuntimeConfig {
 
   return resolveAdminRuntimeConfig(env, mode);
 }
+
+export function getBackendBaseUrl(): string {
+  return getAdminRuntimeConfig().apiOrigin;
+}
