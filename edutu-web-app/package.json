@@ -8,7 +8,7 @@
     "prebuild": "npm run seo:test && npm run seo:sitemap && npm run seo:pages",
     "build": "vite build",
     "postbuild": "node scripts/inject-route-meta.mjs",
-    "seo:test": "node --test scripts/generate-sitemap.test.mjs",
+    "seo:test": "node --test scripts/generate-sitemap.test.mjs scripts/inject-route-meta.test.mjs",
     "seo:sitemap": "node scripts/generate-sitemap.mjs",
     "seo:pages": "node scripts/gen-page-seo-ts.mjs",
     "seo:og": "node scripts/generate-og-images.mjs",
