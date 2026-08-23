@@ -17,7 +17,11 @@ describe("community DM realtime migration", () => {
     expect(sql).toContain("supabase_realtime");
     expect(sql).toContain("community_dm_messages");
     expect(sql).toContain("alter publication");
-    expect(sql).not.toMatch(/grant\s+(?:insert|update|delete)[^;]*authenticated/);
-    expect(sql).not.toMatch(/create\s+policy[^;]*for\s+(?:insert|update|delete)/);
+    expect(sql).not.toMatch(
+      /grant\s+(?:insert|update|delete)[^;]*authenticated/,
+    );
+    expect(sql).not.toMatch(
+      /create\s+policy[^;]*for\s+(?:insert|update|delete)/,
+    );
   });
 });
