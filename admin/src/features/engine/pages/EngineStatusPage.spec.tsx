@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminApiError } from "../../../lib/apiError";
+import type { EngineDiagnosticsState } from "../hooks/useEngineDiagnostics";
 import EngineStatusPage from "./EngineStatusPage";
 
 const mocks = vi.hoisted(() => ({
@@ -13,7 +14,7 @@ vi.mock("../hooks/useEngineDiagnostics", () => ({
   useEngineDiagnostics: mocks.useEngineDiagnostics,
 }));
 
-function diagnosticState() {
+function diagnosticState(): EngineDiagnosticsState {
   const readinessError = new AdminApiError({
     message: "The admin API request failed (503). Reference ready-503.",
     category: "http",
@@ -26,33 +27,33 @@ function diagnosticState() {
   return {
     runtimeConfig: {
       apiOrigin: "https://edutu-api.onrender.com",
-      source: "VITE_BACKEND_URL" as const,
+      source: "VITE_BACKEND_URL",
       explicit: true,
-      mode: "production" as const,
+      mode: "production",
     },
     runtimeConfigError: null,
     liveness: {
-      status: "success" as const,
+      status: "success",
       data: {
-        status: "ok" as const,
+        status: "ok",
         timestamp: "2026-08-23T20:00:00.000Z",
         uptimeSeconds: 300,
         version: "2026.8.23",
-        checks: { process: { status: "up" as const } },
+        checks: { process: { status: "up" } },
       },
       error: null,
     },
     readiness: {
-      status: "error" as const,
+      status: "error",
       data: null,
       error: readinessError,
     },
     engineStatus: {
-      status: "success" as const,
+      status: "success",
       data: {
         success: true,
         runtime: {
-          service: "edutu-api" as const,
+          service: "edutu-api",
           environment: "production",
           version: "2026.8.23",
           commit: "abc123def456",
@@ -89,32 +90,32 @@ function diagnosticState() {
       {
         code: "api-live",
         label: "API liveness",
-        severity: "success" as const,
+        severity: "success",
         message: "The API process is accepting health checks.",
       },
       {
         code: "api-not-ready",
         label: "API readiness",
-        severity: "error" as const,
+        severity: "error",
         message: "The API is live but its readiness dependencies are unavailable.",
         requestId: "ready-503",
       },
       {
         code: "database-connected",
         label: "Engine database",
-        severity: "success" as const,
+        severity: "success",
         message: "The Engine database is configured and reachable.",
       },
       {
         code: "ai-provider-configured",
         label: "AI extraction provider",
-        severity: "success" as const,
+        severity: "success",
         message: "deepseek / deepseek-chat is configured.",
       },
       {
         code: "scheduler-armed",
         label: "Engine scheduler",
-        severity: "success" as const,
+        severity: "success",
         message: "The scheduler is armed.",
       },
     ],
@@ -183,9 +184,15 @@ describe("EngineStatusPage", () => {
 
   it("shows actionable remediation when the database is not configured", () => {
     const state = diagnosticState();
-    state.engineStatus.data = {
-      ...state.engineStatus.data,
-      database: { configured: false, reachable: false },
+    const currentStatus = state.engineStatus.data;
+    if (!currentStatus) throw new Error("Expected Engine status fixture");
+
+    state.engineStatus = {
+      ...state.engineStatus,
+      data: {
+        ...currentStatus,
+        database: { configured: false, reachable: false },
+      },
     };
     state.checks = [
       {
@@ -202,7 +209,7 @@ describe("EngineStatusPage", () => {
 
     expect(screen.getByText("Database configuration missing")).toBeVisible();
     expect(
-      screen.getByText(/SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY/i),
+      screen.getByText(/required Supabase server credentials/i),
     ).toBeVisible();
   });
 
