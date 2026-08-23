@@ -98,7 +98,7 @@ describe("SEO page renderer", () => {
     });
 
     expect(html).toContain('<meta name="viewport"');
-    expect(html).toContain("max-width:100%");
+    expect(html).toContain("max-width: 100%");
     expect(html).toContain("Fallback content");
     expect(html).toContain("https://www.edutu.org/blog?page=2");
   });
@@ -195,7 +195,9 @@ describe("sitemap and robots rendering", () => {
       },
     ]);
 
-    expect(xml).toStartWith('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(
+      true,
+    );
     expect(xml).toContain(
       "https://www.edutu.org/blog?topic=ai&amp;level=beginner",
     );
