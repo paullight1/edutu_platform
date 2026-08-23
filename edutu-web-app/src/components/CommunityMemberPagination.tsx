@@ -68,9 +68,9 @@ export default function CommunityMemberPagination({
     () => cursorFromLastMember(initialMembers, hasMore),
     [hasMore, initialMembers],
   );
-  const firstCursorKey = firstCursor
-    ? `${firstCursor.role}|${firstCursor.joinedAt}|${firstCursor.id}`
-    : "";
+  const firstRole = firstCursor?.role ?? null;
+  const firstJoinedAt = firstCursor?.joinedAt ?? null;
+  const firstId = firstCursor?.id ?? null;
   const [additionalMembers, setAdditionalMembers] = useState<CommunityMemberSummary[]>([]);
   const [cursor, setCursor] = useState<CommunityMemberCursor | null>(firstCursor);
   const [moreAvailable, setMoreAvailable] = useState(Boolean(hasMore && firstCursor));
@@ -78,11 +78,15 @@ export default function CommunityMemberPagination({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const nextCursor =
+      firstRole && firstJoinedAt && firstId
+        ? { role: firstRole, joinedAt: firstJoinedAt, id: firstId }
+        : null;
     setAdditionalMembers([]);
-    setCursor(firstCursor);
-    setMoreAvailable(Boolean(hasMore && firstCursor));
+    setCursor(nextCursor);
+    setMoreAvailable(Boolean(hasMore && nextCursor));
     setError(null);
-  }, [firstCursorKey, groupId, hasMore]);
+  }, [firstId, firstJoinedAt, firstRole, groupId, hasMore]);
 
   const loadMore = async () => {
     if (!cursor || !moreAvailable || loading) return;
