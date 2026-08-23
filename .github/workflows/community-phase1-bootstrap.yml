@@ -1,0 +1,200 @@
+name: Community Phase 1 Bootstrap
+
+on:
+  push:
+    branches:
+      - feat/web-community-parity-seo
+    paths:
+      - .github/workflows/community-phase1-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/web-community-parity-seo
+          fetch-depth: 0
+
+      - name: Transplant Phase 1 and reconcile current main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin \
+            archive/web-community-parity-seo-pre-rebase-20260823:refs/remotes/origin/community-phase1-archive
+
+          git checkout refs/remotes/origin/community-phase1-archive -- \
+            edutu-web-app/src/features/community \
+            edutu-web-app/netlify/edge-functions/community-group-og.ts \
+            backend/services/services/api/src/communities/public-community.controller.ts \
+            backend/services/services/api/src/communities/public-community.service.ts
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one match in {path}, found {count}: {old[:80]!r}")
+              target.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "edutu-web-app/src/App.tsx",
+              'const CommunityPage = lazy(() => import("./components/CommunityPage"));',
+              '''const CommunityPage = lazy(
+            () => import("./features/community/CommunityPublicRouter"),
+          );
+          const CommunityAppRouter = lazy(
+            () => import("./features/community/CommunityAppRouter"),
+          );''',
+          )
+
+          replace_once(
+              "edutu-web-app/src/App.tsx",
+              '      <Route path="/community" element={<CommunityPage />} />',
+              '''      <Route path="/community/*" element={<CommunityPage />} />
+                <Route
+                  path="/app/community/*"
+                  element={
+                    <AppWorkspaceRoute>
+                      <CommunityAppRouter />
+                    </AppWorkspaceRoute>
+                  }
+                />''',
+          )
+
+          replace_once(
+              "backend/services/services/api/src/communities/communities.module.ts",
+              'import { ModerationService } from "./moderation.service";',
+              '''import { ModerationService } from "./moderation.service";
+          import { PublicCommunityController } from "./public-community.controller";
+          import { PublicCommunityService } from "./public-community.service";''',
+          )
+
+          replace_once(
+              "backend/services/services/api/src/communities/communities.module.ts",
+              '  controllers: [CommunitiesController],',
+              '  controllers: [CommunitiesController, PublicCommunityController],',
+          )
+
+          replace_once(
+              "backend/services/services/api/src/communities/communities.module.ts",
+              '    ModerationService,\n',
+              '    ModerationService,\n    PublicCommunityService,\n',
+          )
+
+          replace_once(
+              "edutu-web-app/src/components/workspaceNavigation.ts",
+              '''  {
+            to: "/app/opportunities",
+            label: "navigation.opportunities",
+            icon: "opportunities",
+          },
+            { to: "/app/deadlines", label: "navigation.deadlines", icon: "deadlines" },''',
+              '''  {
+            to: "/app/opportunities",
+            label: "navigation.opportunities",
+            icon: "opportunities",
+          },
+            { to: "/app/community", label: "Community", icon: "profile" },
+            { to: "/app/deadlines", label: "navigation.deadlines", icon: "deadlines" },''',
+          )
+
+          replace_once(
+              "edutu-web-app/src/components/workspaceNavigation.ts",
+              '''  {
+            to: "/app/opportunities",
+            label: "navigation.explore",
+            icon: "opportunities",
+          },
+            { to: "/app/deadlines", label: "navigation.dates", icon: "deadlines" },''',
+              '''  {
+            to: "/app/opportunities",
+            label: "navigation.explore",
+            icon: "opportunities",
+          },
+            { to: "/app/community", label: "Community", icon: "profile" },
+            { to: "/app/deadlines", label: "navigation.dates", icon: "deadlines" },''',
+          )
+
+          netlify = Path("edutu-web-app/netlify.toml")
+          netlify_text = netlify.read_text()
+          community_edge = '''
+          # Anonymous-safe public Community group metadata. The function fetches only
+          # the explicit /public/communities projection; private/member content never
+          # enters crawler HTML.
+          [[edge_functions]]
+            path = "/community/groups/*"
+            function = "community-group-og"
+          '''
+          if 'function = "community-group-og"' not in netlify_text:
+              marker = '[[headers]]\n  for = "/.well-known/apple-app-site-association"'
+              if marker not in netlify_text:
+                  raise SystemExit("Netlify insertion marker was not found")
+              netlify.write_text(netlify_text.replace(marker, community_edge.strip() + "\n\n" + marker, 1))
+
+          realtime = Path("edutu-web-app/src/features/community/realtime.ts")
+          realtime_text = realtime.read_text()
+          old_realtime = '''  const channel = supabase
+            .channel(topic)
+            .on(
+              "postgres_changes",
+              {
+                event: "INSERT",
+                schema: "public",
+                table: "community_group_messages",
+                filter: `group_id=eq.${groupId}`,
+              },
+              (payload) => {
+                const message = mapRealtimeMessage(payload.new as RealtimeMessageRow);
+                if (message) onInsert(message);
+              },
+            );'''
+          new_realtime = '''  const handleChange = (payload: { new?: unknown }) => {
+            const message = mapRealtimeMessage(payload.new as RealtimeMessageRow);
+            if (message) onInsert(message);
+          };
+
+            const channel = supabase
+              .channel(topic)
+              .on(
+                "postgres_changes",
+                {
+                  event: "INSERT",
+                  schema: "public",
+                  table: "community_group_messages",
+                  filter: `group_id=eq.${groupId}`,
+                },
+                handleChange,
+              )
+              .on(
+                "postgres_changes",
+                {
+                  event: "UPDATE",
+                  schema: "public",
+                  table: "community_group_messages",
+                  filter: `group_id=eq.${groupId}`,
+                },
+                handleChange,
+              );'''
+          if old_realtime not in realtime_text:
+              raise SystemExit("Realtime insertion block was not found")
+          realtime.write_text(realtime_text.replace(old_realtime, new_realtime, 1))
+
+          # This workflow is a one-use transplant mechanism and must not ship.
+          Path(".github/workflows/community-phase1-bootstrap.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(community): ship phase 1 web parity on current main"
+          git push origin HEAD:feat/web-community-parity-seo
