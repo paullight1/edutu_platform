@@ -50,6 +50,8 @@ const IGNORED_DIRECTORIES = new Set([
   "node_modules",
   "other-files",
 ]);
+const API_INTERNAL_IMPORT_PATTERN =
+  /(?:\bfrom\s+|\bimport\s*(?:\(|)|\brequire\s*\()\s*["'][^"']*backend\/services\/services\/api\/src\//;
 
 function normalizePath(value) {
   return value.split(sep).join("/");
@@ -116,7 +118,7 @@ async function inspectClientBoundary(root, files) {
       );
     }
 
-    if (content.includes("backend/services/services/api/src/")) {
+    if (API_INTERNAL_IMPORT_PATTERN.test(content)) {
       violations.push(
         `client source imports API internals instead of a contract: ${file}`,
       );
