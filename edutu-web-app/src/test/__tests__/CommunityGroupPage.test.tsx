@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -85,16 +85,9 @@ describe("CommunityGroupPage", () => {
 
   it("sends a text message through the REST contract", async () => {
     renderGroup();
-    const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" }) as HTMLTextAreaElement;
-    const nativeValueSetter = Object.getOwnPropertyDescriptor(
-      HTMLTextAreaElement.prototype,
-      "value",
-    )?.set;
-    expect(nativeValueSetter).toBeTypeOf("function");
-
-    await act(async () => {
-      nativeValueSetter!.call(composer, "Great — I will review it tonight.");
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
+    const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
+    fireEvent.input(composer, {
+      target: { value: "Great — I will review it tonight." },
     });
 
     await waitFor(() =>
