@@ -28,12 +28,16 @@ import {
   type DmConversationDetail,
   type DmMessage,
 } from '@edutu/core/src/services/communityDms';
+import {
+  subscribeToDmMessages,
+  type DmRealtimeMessage,
+} from '@edutu/core/src/services/communityDmsRealtime';
 import { useTheme } from '../../../../components/context/ThemeContext';
 import { AnimatedPressable } from '../../../../components/ui/AnimatedPressable';
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader';
 
 const PAGE_SIZE = 40;
-const REFRESH_INTERVAL_MS = 10_000;
+const RECONCILIATION_INTERVAL_MS = 60_000;
 
 function mergeDmMessages(current: DmMessage[], incoming: DmMessage[]): DmMessage[] {
   const byId = new Map(current.map((message) => [message.id, message]));
@@ -42,6 +46,23 @@ function mergeDmMessages(current: DmMessage[], incoming: DmMessage[]): DmMessage
     const timeDifference = Date.parse(b.createdAt) - Date.parse(a.createdAt);
     return timeDifference || b.id.localeCompare(a.id);
   });
+}
+
+function hydrateRealtimeDmMessage(
+  event: DmRealtimeMessage,
+  userId: string | null | undefined,
+  conversation: DmConversationDetail | null,
+): DmMessage {
+  const sender = event.senderId === userId
+    ? { userId: event.senderId, displayName: 'You', avatarUrl: null }
+    : conversation?.otherUser.userId === event.senderId
+      ? conversation.otherUser
+      : {
+          userId: event.senderId,
+          displayName: 'Edutu member',
+          avatarUrl: null,
+        };
+  return { ...event, sender };
 }
 
 export default function DirectMessageScreen() {
@@ -71,10 +92,15 @@ export default function DirectMessageScreen() {
   const lastMarkedMessageId = useRef<string | null>(null);
   const sendingLock = useRef(false);
   const managingLock = useRef(false);
+  const conversationRef = useRef<DmConversationDetail | null>(null);
 
   useEffect(() => {
     activeConversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
 
   const load = useCallback(async () => {
     if (!conversationId) {
@@ -122,7 +148,7 @@ export default function DirectMessageScreen() {
     if (messagesResult.status === 'fulfilled') {
       const page = messagesResult.value;
       loadedConversationId.current = conversationId;
-      setMessages((current) => routeChanged ? page : mergeDmMessages(current, page));
+      setMessages((current) => mergeDmMessages(current, page));
       setHasOlder(page.length === PAGE_SIZE);
 
       const newestIncoming = page.find((message) => message.senderId !== userId);
@@ -152,31 +178,73 @@ export default function DirectMessageScreen() {
   }, [conversationId, getToken, t, userId]);
 
   useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      screenActiveRef.current = true;
-      let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-      if (!conversationId) {
-        void load();
-        return () => {
-          active = false;
-          screenActiveRef.current = false;
-          loadRequestVersion.current += 1;
-        };
-      }
-      const refresh = async () => {
-        await load();
-        if (active) refreshTimer = setTimeout(() => void refresh(), REFRESH_INTERVAL_MS);
-      };
-      void refresh();
+  useCallback(() => {
+    let active = true;
+    screenActiveRef.current = true;
+    let reconciliationTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (!conversationId) {
+      void load();
       return () => {
         active = false;
         screenActiveRef.current = false;
-        if (refreshTimer) clearTimeout(refreshTimer);
         loadRequestVersion.current += 1;
       };
-    }, [conversationId, load]),
-  );
+    }
+
+    const unsubscribe = subscribeToDmMessages(
+      conversationId,
+      (event) => {
+        if (
+          !active ||
+          !screenActiveRef.current ||
+          event.conversationId !== activeConversationIdRef.current
+        ) return;
+
+        const hydrated = hydrateRealtimeDmMessage(
+          event,
+          userId,
+          conversationRef.current,
+        );
+        setMessages((current) => mergeDmMessages(current, [hydrated]));
+        setConversation((current) =>
+          current ? { ...current, lastMessageAt: event.createdAt } : current,
+        );
+
+        if (
+          event.senderId !== userId &&
+          event.id !== lastMarkedMessageId.current
+        ) {
+          lastMarkedMessageId.current = event.id;
+          void markDmConversationRead(conversationId, getToken).catch(() => {
+            if (lastMarkedMessageId.current === event.id) {
+              lastMarkedMessageId.current = null;
+            }
+          });
+        }
+      },
+    );
+
+    const reconcile = async () => {
+      await load();
+      if (active) {
+        reconciliationTimer = setTimeout(
+          () => void reconcile(),
+          RECONCILIATION_INTERVAL_MS,
+        );
+      }
+    };
+    void reconcile();
+
+    return () => {
+      active = false;
+      screenActiveRef.current = false;
+      if (reconciliationTimer) clearTimeout(reconciliationTimer);
+      unsubscribe();
+      loadRequestVersion.current += 1;
+    };
+  }, [conversationId, getToken, load, userId]),
+);
 
   const loadOlder = useCallback(async () => {
     if (!hasOlder || loadingOlderLock.current || messages.length === 0) return;
