@@ -11,20 +11,40 @@
   },
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "https://edutu-platform.onrender.com/seo/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://edutu-platform.onrender.com/seo/robots.txt"
+    },
+    {
+      "source": "/blog",
+      "destination": "https://edutu-platform.onrender.com/seo/blog"
+    },
+    {
       "source": "/blog/:slug",
-      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+      "destination": "https://edutu-platform.onrender.com/seo/blog/:slug"
+    },
+    {
+      "source": "/opportunities",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunities"
+    },
+    {
+      "source": "/opportunities/:category",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunities/:category"
+    },
+    {
+      "source": "/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunity/:id"
+    },
+    {
+      "source": "/share/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/seo/share/opportunity/:id"
     },
     {
       "source": "/events/:slugOrId",
       "destination": "https://edutu-platform.onrender.com/og/event/:slugOrId"
-    },
-    {
-      "source": "/opportunities",
-      "destination": "/opportunities/index.html"
-    },
-    {
-      "source": "/blog",
-      "destination": "/blog/index.html"
     },
     {
       "source": "/community",
@@ -97,14 +117,6 @@
     {
       "source": "/terms",
       "destination": "/terms/index.html"
-    },
-    {
-      "source": "/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
-    },
-    {
-      "source": "/share/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
     },
     {
       "source": "/admin/:path*",

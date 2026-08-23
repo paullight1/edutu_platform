@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Search, ChevronRight, TrendingUp, Lightbulb } from "lucide-react";
 import PublicHeader from "./PublicHeader";
@@ -12,6 +12,7 @@ import {
   readingTime,
   type BlogPost,
 } from "../services/blog";
+import { buildPageHref, parsePageParam } from "../lib/seoPagination";
 
 const PAGE_SIZE = 6;
 
@@ -42,11 +43,11 @@ const TopicChip: React.FC<{ label: string }> = ({ label }) => (
 
 const BlogPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [page, setPage] = useState(1);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,18 +99,27 @@ const BlogPage: React.FC = () => {
   );
 
   const totalPages = Math.max(1, Math.ceil(gridPosts.length / PAGE_SIZE));
-  // Search or data changes can shrink the list under the current page.
+  const requestedPage = parsePageParam(searchParams.get("page"));
+  const page = parsePageParam(searchParams.get("page"), totalPages);
+
   useEffect(() => {
-    setPage((current) => Math.min(current, totalPages));
-  }, [totalPages]);
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
+    if (loading || requestedPage === page) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (page <= 1) nextParams.delete("page");
+    else nextParams.set("page", String(page));
+    setSearchParams(nextParams, { replace: true });
+  }, [loading, page, requestedPage, searchParams, setSearchParams]);
 
   const pagedPosts = gridPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const goToPage = (next: number) => {
-    setPage(next);
+    const nextPage = parsePageParam(String(next), totalPages);
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextPage <= 1) nextParams.delete("page");
+    else nextParams.set("page", String(nextPage));
+    setSearchParams(nextParams);
+
     if (gridRef.current) {
       const top =
         gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
@@ -117,14 +127,30 @@ const BlogPage: React.FC = () => {
     }
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (page === 1) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("page");
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const getPageHref = (next: number) =>
+    buildPageHref("/blog", searchParams, next);
+
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
       <PublicHeader fixed />
 
       <Seo
-        title="Scholarship & Career Guides for African Students | Edutu"
+        title={
+          page > 1
+            ? `Scholarship & Career Guides — Page ${page} | Edutu`
+            : "Scholarship & Career Guides for African Students | Edutu"
+        }
         description="Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu."
-        path="/blog"
+        path={page > 1 ? `/blog?page=${page}` : "/blog"}
         type="website"
       />
 
@@ -163,7 +189,7 @@ const BlogPage: React.FC = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => handleSearchChange(event.target.value)}
                 placeholder="Search articles..."
                 className="w-full rounded-xl border border-subtle bg-surface-elevated py-3 pl-12 pr-4 text-text-primary outline-none transition-colors placeholder:text-text-muted focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/20"
               />
@@ -309,6 +335,7 @@ const BlogPage: React.FC = () => {
               page={page}
               totalPages={totalPages}
               onPageChange={goToPage}
+              getPageHref={getPageHref}
               className="mt-14"
             />
           )}
