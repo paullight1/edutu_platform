@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +42,10 @@ function renderConversation() {
   return render(<MemoryRouter initialEntries={["/app/community/messages/conversation-1"]}><Routes><Route path="/app/community/messages/:conversationId" element={<CommunityMessagesPage />} /></Routes></MemoryRouter>);
 }
 
+function renderInbox() {
+  return render(<MemoryRouter initialEntries={["/app/community/messages"]}><Routes><Route path="/app/community/messages" element={<CommunityMessagesPage />} /></Routes></MemoryRouter>);
+}
+
 describe("CommunityMessagesPage", () => {
   it("renders an accepted private conversation with safety controls", async () => {
     renderConversation();
@@ -60,5 +64,30 @@ describe("CommunityMessagesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send private message" }));
     await waitFor(() => expect(mocks.sendDmMessage).toHaveBeenCalledWith(conversation.id, "Yes — sending it tonight.", mocks.getToken));
     expect(await screen.findByText("Yes — sending it tonight.")).toBeInTheDocument();
+  });
+
+  it("refreshes the inbox while visible so requests and unread activity do not go stale", async () => {
+    let intervalCallback: (() => void) | null = null;
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler: TimerHandler) => {
+      if (typeof handler === "function") intervalCallback = handler as () => void;
+      return 1;
+    });
+
+    try {
+      renderInbox();
+      await waitFor(() => expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(1));
+      expect(intervalCallback).not.toBeNull();
+
+      await act(async () => {
+        intervalCallback?.();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => expect(mocks.fetchDmConversations).toHaveBeenCalledTimes(2));
+      expect(mocks.fetchDmRequests).toHaveBeenCalledWith("incoming", { limit: 30 }, mocks.getToken);
+      expect(mocks.fetchDmRequests).toHaveBeenCalledWith("outgoing", { limit: 30 }, mocks.getToken);
+    } finally {
+      intervalSpy.mockRestore();
+    }
   });
 });
