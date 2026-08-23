@@ -1,11 +1,6 @@
-import { supabase } from './supabase';
-import { getLocalAdminEmail, isLocalAdminBypassEnabled } from './localAdmin';
-
-const DEFAULT_BACKEND_URL = 'https://edutu-platform.onrender.com';
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '');
-}
+import { supabase } from "./supabase";
+import { getLocalAdminEmail, isLocalAdminBypassEnabled } from "./localAdmin";
+import { getAdminRuntimeConfig } from "./runtimeConfig";
 
 function headersToRecord(init?: HeadersInit): Record<string, string> {
   const headers = new Headers(init);
@@ -19,11 +14,7 @@ function headersToRecord(init?: HeadersInit): Record<string, string> {
 }
 
 export function getBackendBaseUrl(): string {
-  return trimTrailingSlash(
-    import.meta.env.VITE_BACKEND_URL ||
-      import.meta.env.VITE_API_URL ||
-      DEFAULT_BACKEND_URL,
-  );
+  return getAdminRuntimeConfig().apiOrigin;
 }
 
 export async function getAdminAuthHeaders(
@@ -31,7 +22,7 @@ export async function getAdminAuthHeaders(
 ): Promise<Record<string, string>> {
   if (isLocalAdminBypassEnabled()) {
     return {
-      'X-Edutu-Admin-Email': getLocalAdminEmail(),
+      "X-Edutu-Admin-Email": getLocalAdminEmail(),
       ...headersToRecord(extraHeaders),
     };
   }
@@ -41,12 +32,12 @@ export async function getAdminAuthHeaders(
   } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
-    throw new Error('Admin session is required');
+    throw new Error("Admin session is required");
   }
 
   return {
     Authorization: `Bearer ${session.access_token}`,
-    'X-Edutu-Admin-Email': session.user?.email || '',
+    "X-Edutu-Admin-Email": session.user?.email || "",
     ...headersToRecord(extraHeaders),
   };
 }
@@ -65,7 +56,7 @@ export async function backendFetchJson<T>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || 'Backend request failed');
+    throw new Error(data?.message || data?.error || "Backend request failed");
   }
 
   return data as T;

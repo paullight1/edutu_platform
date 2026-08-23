@@ -20,26 +20,93 @@ export class AdminRuntimeConfigError extends Error {
   }
 }
 
-// Deliberately incomplete RED-phase scaffold. The tests define the required
-// production behavior; the next commit implements it.
+function readString(
+  env: Record<string, string | boolean | undefined>,
+  key: string,
+): string {
+  const value = env[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeExplicitOrigin(value: string, mode: AdminRuntimeMode): string {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new AdminRuntimeConfigError(
+      "The admin API origin must be a valid absolute URL",
+    );
+  }
+
+  if (mode === "production" && url.protocol !== "https:") {
+    throw new AdminRuntimeConfigError(
+      "The production admin API origin must use HTTPS",
+    );
+  }
+
+  if (url.username || url.password) {
+    throw new AdminRuntimeConfigError(
+      "The admin API origin must not contain embedded credentials",
+    );
+  }
+
+  return value.replace(/\/+$/u, "");
+}
+
 export function resolveAdminRuntimeConfig(
-  _env: Record<string, string | boolean | undefined>,
+  env: Record<string, string | boolean | undefined>,
   mode: AdminRuntimeMode,
 ): AdminRuntimeConfig {
+  const canonical = readString(env, "VITE_BACKEND_URL");
+  const legacy = readString(env, "VITE_API_URL");
+  const selected = canonical || legacy;
+
+  if (!selected) {
+    if (mode === "production") {
+      throw new AdminRuntimeConfigError(
+        "VITE_BACKEND_URL is required for production admin builds",
+      );
+    }
+
+    return {
+      apiOrigin: "",
+      source: "development-proxy",
+      explicit: false,
+      mode,
+    };
+  }
+
+  const apiOrigin = normalizeExplicitOrigin(selected, mode);
+
+  if (canonical) {
+    return {
+      apiOrigin,
+      source: "VITE_BACKEND_URL",
+      explicit: true,
+      mode,
+    };
+  }
+
   return {
-    apiOrigin: "",
-    source: "development-proxy",
-    explicit: false,
+    apiOrigin,
+    source: "VITE_API_URL",
+    explicit: true,
+    legacyAlias: true,
     mode,
   };
 }
 
 export function getAdminRuntimeConfig(): AdminRuntimeConfig {
-  const mode: AdminRuntimeMode = import.meta.env.PROD
+  const meta = import.meta as ImportMeta & {
+    env?: Record<string, string | boolean | undefined>;
+  };
+  const env = meta.env ?? {};
+  const mode: AdminRuntimeMode = env.PROD
     ? "production"
-    : import.meta.env.MODE === "test"
+    : env.MODE === "test"
       ? "test"
       : "development";
 
-  return resolveAdminRuntimeConfig(import.meta.env, mode);
+  return resolveAdminRuntimeConfig(env, mode);
 }
