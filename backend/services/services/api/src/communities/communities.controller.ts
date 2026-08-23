@@ -34,10 +34,7 @@ import {
 } from "./dto/community.dto";
 import { FormsService, type JoinRequestFilter } from "./forms.service";
 import { CommunityContentService } from "./content.service";
-import {
-  GroupsService,
-  type CommunityMemberCursor,
-} from "./groups.service";
+import { GroupsService, type CommunityMemberCursor } from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ModerationService } from "./moderation.service";
 
