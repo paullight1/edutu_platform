@@ -1,10 +1,4 @@
-import {
-  ChevronDown,
-  LogOut,
-  Moon,
-  Sun,
-  X,
-} from "lucide-react";
+import { ChevronDown, LogOut, Moon, Sun, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -20,7 +14,7 @@ import {
   type AdminNavGroupId,
 } from "../app/route-manifest";
 import BackendHealthChip from "../components/BackendHealthChip";
-import { useShell } from "./ShellContext";
+import { useShell } from "./shell-context";
 import type { ShellUser } from "./types";
 
 interface MobileNavigationProps {
@@ -70,15 +64,6 @@ export default function MobileNavigation({
   useEffect(() => {
     if (!isMobileNavigationOpen) return;
 
-    if (routeGroupId) {
-      setExpandedGroups((current) => {
-        if (current.has(routeGroupId)) return current;
-        const next = new Set(current);
-        next.add(routeGroupId);
-        return next;
-      });
-    }
-
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
@@ -115,7 +100,7 @@ export default function MobileNavigation({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [closeAndRestore, isMobileNavigationOpen, routeGroupId]);
+  }, [closeAndRestore, isMobileNavigationOpen]);
 
   if (!isMobileNavigationOpen) return null;
 

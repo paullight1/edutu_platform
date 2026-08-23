@@ -1,8 +1,8 @@
 import { Menu, Moon, Sun } from "lucide-react";
+import type { RefObject } from "react";
 import { useLocation } from "react-router-dom";
 import { routeForPath } from "../app/route-manifest";
-import { useShell } from "./ShellContext";
-import type { RefObject } from "react";
+import { useShell } from "./shell-context";
 
 interface AdminTopbarProps {
   navigationTriggerRef: RefObject<HTMLButtonElement | null>;

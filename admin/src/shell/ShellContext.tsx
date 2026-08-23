@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -12,21 +10,7 @@ import {
   groupForPath,
   type AdminNavGroupId,
 } from "../app/route-manifest";
-
-interface ShellContextValue {
-  isDark: boolean;
-  toggleTheme(): void;
-  routeGroupId: AdminNavGroupId | null;
-  selectedGroupId: AdminNavGroupId | null;
-  isSectionOpen: boolean;
-  toggleSection(groupId: AdminNavGroupId): void;
-  collapseSection(): void;
-  isMobileNavigationOpen: boolean;
-  openMobileNavigation(): void;
-  closeMobileNavigation(): void;
-}
-
-const ShellContext = createContext<ShellContextValue | null>(null);
+import { ShellContext, type ShellContextValue } from "./shell-context";
 
 function readThemePreference(): boolean {
   if (typeof window === "undefined") return true;
@@ -34,8 +18,8 @@ function readThemePreference(): boolean {
   return saved ? saved === "dark" : true;
 }
 
-function readSectionPreference(routeGroupId: AdminNavGroupId | null): boolean {
-  if (!routeGroupId || typeof window === "undefined") return false;
+function readSectionPreference(): boolean {
+  if (typeof window === "undefined") return true;
   return window.localStorage.getItem("sidebar") !== "collapsed";
 }
 
@@ -43,12 +27,24 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const routeGroupId = groupForPath(location.pathname);
   const [isDark, setIsDark] = useState(readThemePreference);
-  const [selectedGroupId, setSelectedGroupId] =
-    useState<AdminNavGroupId | null>(routeGroupId);
-  const [isSectionOpen, setIsSectionOpen] = useState(() =>
-    readSectionPreference(routeGroupId),
+  const [sectionPreferenceOpen, setSectionPreferenceOpen] = useState(
+    readSectionPreference,
   );
-  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
+  const [manualGroupSelection, setManualGroupSelection] = useState<{
+    path: string;
+    groupId: AdminNavGroupId;
+  } | null>(null);
+  const [mobileNavigationPath, setMobileNavigationPath] = useState<
+    string | null
+  >(null);
+
+  const selectedGroupId =
+    manualGroupSelection?.path === location.pathname
+      ? manualGroupSelection.groupId
+      : routeGroupId;
+  const isSectionOpen = sectionPreferenceOpen && selectedGroupId !== null;
+  const isMobileNavigationOpen =
+    mobileNavigationPath === location.pathname;
 
   useEffect(() => {
     if (isDark) {
@@ -61,13 +57,6 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem("theme", "light");
   }, [isDark]);
 
-  useEffect(() => {
-    setIsMobileNavigationOpen(false);
-    if (routeGroupId && isSectionOpen) {
-      setSelectedGroupId(routeGroupId);
-    }
-  }, [location.pathname, routeGroupId, isSectionOpen]);
-
   const toggleTheme = useCallback(() => {
     setIsDark((current) => !current);
   }, []);
@@ -75,29 +64,29 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const toggleSection = useCallback(
     (groupId: AdminNavGroupId) => {
       if (isSectionOpen && selectedGroupId === groupId) {
-        setIsSectionOpen(false);
+        setSectionPreferenceOpen(false);
         window.localStorage.setItem("sidebar", "collapsed");
         return;
       }
 
-      setSelectedGroupId(groupId);
-      setIsSectionOpen(true);
+      setManualGroupSelection({ path: location.pathname, groupId });
+      setSectionPreferenceOpen(true);
       window.localStorage.setItem("sidebar", "expanded");
     },
-    [isSectionOpen, selectedGroupId],
+    [isSectionOpen, location.pathname, selectedGroupId],
   );
 
   const collapseSection = useCallback(() => {
-    setIsSectionOpen(false);
+    setSectionPreferenceOpen(false);
     window.localStorage.setItem("sidebar", "collapsed");
   }, []);
 
   const openMobileNavigation = useCallback(() => {
-    setIsMobileNavigationOpen(true);
-  }, []);
+    setMobileNavigationPath(location.pathname);
+  }, [location.pathname]);
 
   const closeMobileNavigation = useCallback(() => {
-    setIsMobileNavigationOpen(false);
+    setMobileNavigationPath(null);
   }, []);
 
   const value = useMemo<ShellContextValue>(
@@ -128,12 +117,4 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
-}
-
-export function useShell(): ShellContextValue {
-  const context = useContext(ShellContext);
-  if (!context) {
-    throw new Error("useShell must be used inside ShellProvider");
-  }
-  return context;
 }

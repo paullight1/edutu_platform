@@ -6,7 +6,8 @@ import AdminTopbar from "./AdminTopbar";
 import MobileNavigation from "./MobileNavigation";
 import PrimaryRail from "./PrimaryRail";
 import SectionNavigation from "./SectionNavigation";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
+import { useShell } from "./shell-context";
 import type { ShellUser } from "./types";
 import "./shell.css";
 

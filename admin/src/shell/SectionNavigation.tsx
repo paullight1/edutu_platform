@@ -4,7 +4,7 @@ import {
   ADMIN_NAV_GROUPS,
   ADMIN_ROUTES,
 } from "../app/route-manifest";
-import { useShell } from "./ShellContext";
+import { useShell } from "./shell-context";
 
 export default function SectionNavigation() {
   const { selectedGroupId, isSectionOpen, collapseSection } = useShell();

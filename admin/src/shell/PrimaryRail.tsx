@@ -5,7 +5,7 @@ import {
   getAdminRoute,
 } from "../app/route-manifest";
 import BackendHealthChip from "../components/BackendHealthChip";
-import { useShell } from "./ShellContext";
+import { useShell } from "./shell-context";
 import type { ShellUser } from "./types";
 
 interface PrimaryRailProps {
