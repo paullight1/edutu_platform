@@ -7,23 +7,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
 const snapshotPath = path.join(publicDir, "data", "opportunities.json");
+const DEFAULT_SITE_URL = "https://www.edutu.org";
+const DEFAULT_API_URL = "https://edutu-platform.onrender.com";
+const MAX_OPPORTUNITIES = 2100;
+const OPPORTUNITY_PAGE_SIZE = 60;
+const FETCH_TIMEOUT_MS = 8000;
+const FETCH_ATTEMPTS = 2;
 
-loadDotEnv(path.join(projectRoot, ".env"));
-
-const siteUrl = normaliseSiteUrl(
-  process.env.VITE_PUBLIC_SITE_URL ||
-    process.env.VITE_WEB_APP_URL ||
-    process.env.SITE_URL ||
-    "https://www.edutu.org",
-);
-const apiBaseUrl = normaliseSiteUrl(
-  process.env.VITE_BACKEND_URL || process.env.VITE_API_URL || "",
-);
-
-function normaliseSiteUrl(value) {
-  return String(value || "")
+export function normaliseSiteUrl(value) {
+  const normalized = String(value || "")
     .trim()
     .replace(/\/+$/, "");
+
+  if (!normalized) return "";
+  return normalized.replace(
+    /^https?:\/\/edutu\.org(?=\/|$)/i,
+    "https://www.edutu.org",
+  );
 }
 
 function loadDotEnv(filePath) {
@@ -32,25 +32,19 @@ function loadDotEnv(filePath) {
 
     for (const line of contents.split(/\r?\n/)) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
+      if (!trimmed || trimmed.startsWith("#")) continue;
 
       const separatorIndex = trimmed.indexOf("=");
-      if (separatorIndex === -1) {
-        continue;
-      }
+      if (separatorIndex === -1) continue;
 
       const key = trimmed.slice(0, separatorIndex).trim();
       const rawValue = trimmed.slice(separatorIndex + 1).trim();
       const value = rawValue.replace(/^['"]|['"]$/g, "");
 
-      if (key && process.env[key] === undefined) {
-        process.env[key] = value;
-      }
+      if (key && process.env[key] === undefined) process.env[key] = value;
     }
   } catch {
-    // Production hosts usually provide real environment variables.
+    // Production hosts normally provide real environment variables.
   }
 }
 
@@ -64,32 +58,22 @@ function escapeXml(value) {
 }
 
 function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
 
-  if (!payload || typeof payload !== "object") {
-    return [];
-  }
-
-  return (
+  const rows =
     payload.data ||
     payload.opportunities ||
     payload.items ||
     payload.results ||
-    []
-  );
+    [];
+  return Array.isArray(rows) ? rows : [];
 }
 
 function normaliseOpportunity(row) {
-  if (!row || typeof row !== "object") {
-    return null;
-  }
-
+  if (!row || typeof row !== "object") return null;
   const id = row.id || row.opportunity_id || row.external_id;
-  if (!id) {
-    return null;
-  }
+  if (!id) return null;
 
   return {
     id: String(id),
@@ -105,14 +89,9 @@ function normaliseOpportunity(row) {
 }
 
 function normaliseEvent(row) {
-  if (!row || typeof row !== "object") {
-    return null;
-  }
-
+  if (!row || typeof row !== "object") return null;
   const slug = row.slug || row.id;
-  if (!slug) {
-    return null;
-  }
+  if (!slug) return null;
 
   return {
     slug: String(slug),
@@ -129,9 +108,7 @@ function normaliseEvent(row) {
 }
 
 function normaliseBlogPost(row) {
-  if (!row || typeof row !== "object" || !row.slug) {
-    return null;
-  }
+  if (!row || typeof row !== "object" || !row.slug) return null;
 
   return {
     slug: String(row.slug),
@@ -146,6 +123,56 @@ function normaliseBlogPost(row) {
   };
 }
 
+function mergeByKey(key, ...groups) {
+  const merged = new Map();
+  for (const group of groups) {
+    for (const item of group) {
+      if (!item?.[key]) continue;
+      merged.set(item[key], { ...merged.get(item[key]), ...item });
+    }
+  }
+  return Array.from(merged.values()).sort((left, right) =>
+    String(left[key]).localeCompare(String(right[key])),
+  );
+}
+
+function toLastmod(value, fallback) {
+  const date = value ? new Date(value) : null;
+  return !date || Number.isNaN(date.getTime())
+    ? fallback
+    : date.toISOString().slice(0, 10);
+}
+
+async function fetchJson(url) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`.trim());
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt < FETCH_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Unable to fetch ${url}`);
+}
+
 async function readSnapshotOpportunities() {
   try {
     const contents = await readFile(snapshotPath, "utf8");
@@ -157,133 +184,210 @@ async function readSnapshotOpportunities() {
   }
 }
 
-// Hard ceiling on how many opportunities we pull from the backend. Well under
-// the 50,000-URL sitemap limit — if the catalogue ever approaches that, split
-// into a sitemap index (<sitemapindex> of per-chunk sitemaps) instead.
-const MAX_OPPORTUNITIES = 5000;
-const PAGE_SIZE = 100;
-
-async function fetchBackendOpportunities() {
+async function fetchBackendOpportunities(apiBaseUrl) {
   if (!apiBaseUrl || typeof fetch !== "function") {
-    return [];
+    return { rows: [], complete: false };
   }
 
   const all = [];
-
   try {
-    // Paginate until the backend is exhausted (short page) or we hit the cap.
-    for (let offset = 0; offset < MAX_OPPORTUNITIES; offset += PAGE_SIZE) {
+    for (
+      let offset = 0;
+      offset < MAX_OPPORTUNITIES;
+      offset += OPPORTUNITY_PAGE_SIZE
+    ) {
       const url = new URL("/opportunities", apiBaseUrl);
-      url.searchParams.set("limit", String(PAGE_SIZE));
+      url.searchParams.set("limit", String(OPPORTUNITY_PAGE_SIZE));
       url.searchParams.set("offset", String(offset));
-      url.searchParams.set("status", "active");
-
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        break;
-      }
-
-      const rows = extractRows(await response.json());
+      const rows = extractRows(await fetchJson(url));
       all.push(...rows.map(normaliseOpportunity).filter(Boolean));
 
-      if (rows.length < PAGE_SIZE) {
-        break;
+      if (rows.length < OPPORTUNITY_PAGE_SIZE) {
+        return { rows: all, complete: true };
       }
     }
-  } catch {
-    // Fall through with whatever pages succeeded (possibly none).
-  }
 
-  return all.slice(0, MAX_OPPORTUNITIES);
+    return { rows: all.slice(0, MAX_OPPORTUNITIES), complete: false };
+  } catch (error) {
+    console.warn(
+      `Sitemap opportunity inventory fetch failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return { rows: all, complete: false };
+  }
 }
 
-async function fetchBackendEvents() {
+async function fetchBackendEvents(apiBaseUrl) {
   if (!apiBaseUrl || typeof fetch !== "function") {
-    return [];
+    return { rows: [], complete: false };
   }
 
   try {
     const url = new URL("/events", apiBaseUrl);
     url.searchParams.set("limit", "100");
     url.searchParams.set("status", "published");
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    return extractRows(await response.json())
-      .map(normaliseEvent)
-      .filter(Boolean);
-  } catch {
-    return [];
+    return {
+      rows: extractRows(await fetchJson(url))
+        .map(normaliseEvent)
+        .filter(Boolean),
+      complete: true,
+    };
+  } catch (error) {
+    console.warn(
+      `Sitemap event inventory fetch failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return { rows: [], complete: false };
   }
 }
 
-async function fetchBackendBlogPosts() {
+async function fetchBackendBlogPosts(apiBaseUrl) {
   if (!apiBaseUrl || typeof fetch !== "function") {
-    return [];
+    return { rows: [], complete: false };
   }
 
   try {
     const url = new URL("/blog", apiBaseUrl);
     url.searchParams.set("status", "published");
     url.searchParams.set("limit", "100");
-
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    return extractRows(await response.json())
-      .map(normaliseBlogPost)
-      .filter(Boolean);
-  } catch {
-    return [];
+    return {
+      rows: extractRows(await fetchJson(url))
+        .map(normaliseBlogPost)
+        .filter(Boolean),
+      complete: true,
+    };
+  } catch (error) {
+    console.warn(
+      `Sitemap blog inventory fetch failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return { rows: [], complete: false };
   }
 }
 
-function mergeOpportunities(...groups) {
-  const merged = new Map();
+export function assertInventory(
+  inventory,
+  {
+    strict = false,
+    minOpportunities = 0,
+    minBlogPosts = 0,
+  } = {},
+) {
+  if (!strict) return;
 
-  for (const group of groups) {
-    for (const opportunity of group) {
-      merged.set(opportunity.id, {
-        ...merged.get(opportunity.id),
-        ...opportunity,
-      });
-    }
+  const opportunityCount = Array.isArray(inventory?.opportunities)
+    ? inventory.opportunities.length
+    : 0;
+  const blogCount = Array.isArray(inventory?.blogPosts)
+    ? inventory.blogPosts.length
+    : 0;
+  const complete = inventory?.complete || {};
+  const incompleteSources = [
+    complete.opportunities === false ? "opportunities" : null,
+    complete.blogPosts === false ? "blog" : null,
+  ].filter(Boolean);
+
+  if (
+    opportunityCount < Math.max(0, Number(minOpportunities) || 0) ||
+    blogCount < Math.max(0, Number(minBlogPosts) || 0) ||
+    incompleteSources.length > 0
+  ) {
+    throw new Error(
+      `SEO sitemap inventory is incomplete: ${opportunityCount} opportunities, ${blogCount} blog posts${
+        incompleteSources.length > 0
+          ? `; incomplete sources: ${incompleteSources.join(", ")}`
+          : ""
+      }`,
+    );
   }
-
-  return Array.from(merged.values()).sort((left, right) =>
-    left.id.localeCompare(right.id),
-  );
 }
 
-function toAbsoluteUrl(pathname) {
-  return new URL(pathname, `${siteUrl}/`).toString();
+function absoluteUrl(siteUrl, pathname) {
+  return new URL(pathname, `${normaliseSiteUrl(siteUrl)}/`).toString();
 }
 
-function toLastmod(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) {
-    return new Date().toISOString().slice(0, 10);
-  }
+export function buildSitemapEntries({
+  siteUrl,
+  opportunities = [],
+  events = [],
+  blogPosts = [],
+  today = new Date().toISOString().slice(0, 10),
+}) {
+  const base = normaliseSiteUrl(siteUrl) || DEFAULT_SITE_URL;
+  const entries = [
+    {
+      loc: absoluteUrl(base, "/"),
+      lastmod: today,
+      changefreq: "daily",
+      priority: "0.8",
+    },
+    {
+      loc: absoluteUrl(base, "/opportunities"),
+      lastmod: today,
+      changefreq: "daily",
+      priority: "1.0",
+    },
+    {
+      loc: absoluteUrl(base, "/events"),
+      lastmod: today,
+      changefreq: "daily",
+      priority: "0.9",
+    },
+    {
+      loc: absoluteUrl(base, "/blog"),
+      lastmod: toLastmod(blogPosts[0]?.updatedAt, today),
+      changefreq: "weekly",
+      priority: "0.8",
+    },
+    {
+      loc: absoluteUrl(base, "/edutuforyou"),
+      lastmod: today,
+      changefreq: "monthly",
+      priority: "0.7",
+    },
+    {
+      loc: absoluteUrl(base, "/whats-new"),
+      lastmod: today,
+      changefreq: "monthly",
+      priority: "0.7",
+    },
+    ...["scholarships", "internships", "fellowships", "programs"].map(
+      (category) => ({
+        loc: absoluteUrl(base, `/opportunities/${category}`),
+        lastmod: today,
+        changefreq: "daily",
+        priority: "0.9",
+      }),
+    ),
+    ...opportunities.map((opportunity) => ({
+      loc: absoluteUrl(
+        base,
+        `/opportunity/${encodeURIComponent(opportunity.id)}`,
+      ),
+      lastmod: toLastmod(opportunity.updatedAt, today),
+      changefreq: "daily",
+      priority: "0.8",
+    })),
+    ...events.map((event) => ({
+      loc: absoluteUrl(base, `/events/${encodeURIComponent(event.slug)}`),
+      lastmod: toLastmod(event.updatedAt, today),
+      changefreq: "weekly",
+      priority: "0.7",
+    })),
+    ...blogPosts.map((post) => ({
+      loc: absoluteUrl(base, `/blog/${encodeURIComponent(post.slug)}`),
+      lastmod: toLastmod(post.updatedAt, today),
+      changefreq: "monthly",
+      priority: "0.7",
+    })),
+  ];
 
-  return date.toISOString().slice(0, 10);
+  const unique = new Map();
+  for (const entry of entries) unique.set(entry.loc, entry);
+  return Array.from(unique.values());
 }
 
 function renderUrl({ loc, lastmod, changefreq, priority }) {
@@ -292,106 +396,23 @@ function renderUrl({ loc, lastmod, changefreq, priority }) {
     `    <loc>${escapeXml(loc)}</loc>`,
     `    <lastmod>${escapeXml(lastmod)}</lastmod>`,
     `    <changefreq>${escapeXml(changefreq)}</changefreq>`,
-    `    <priority>${priority}</priority>`,
+    `    <priority>${escapeXml(priority)}</priority>`,
     "  </url>",
   ].join("\n");
 }
 
-async function main() {
-  const [
-    snapshotOpportunities,
-    backendOpportunities,
-    backendEvents,
-    backendBlogPosts,
-  ] = await Promise.all([
-    readSnapshotOpportunities(),
-    fetchBackendOpportunities(),
-    fetchBackendEvents(),
-    fetchBackendBlogPosts(),
-  ]);
-  const opportunities = mergeOpportunities(
-    snapshotOpportunities,
-    backendOpportunities,
-  );
-  const today = new Date().toISOString().slice(0, 10);
-  const urls = [
-    {
-      loc: toAbsoluteUrl("/"),
-      lastmod: today,
-      changefreq: "daily",
-      priority: "0.8",
-    },
-    {
-      loc: toAbsoluteUrl("/opportunities"),
-      lastmod: today,
-      changefreq: "daily",
-      priority: "1.0",
-    },
-    {
-      loc: toAbsoluteUrl("/events"),
-      lastmod: today,
-      changefreq: "daily",
-      priority: "0.9",
-    },
-    {
-      loc: toAbsoluteUrl("/blog"),
-      lastmod: toLastmod(backendBlogPosts[0]?.updatedAt),
-      changefreq: "weekly",
-      priority: "0.8",
-    },
-    // Impact program landing page. NOTE: the other marketing routes
-    // (/about, /impact, /community, …) are still missing from this list —
-    // worth backfilling, but out of scope for this change.
-    {
-      loc: toAbsoluteUrl("/edutuforyou"),
-      lastmod: today,
-      changefreq: "monthly",
-      priority: "0.7",
-    },
-    {
-      loc: toAbsoluteUrl("/whats-new"),
-      lastmod: today,
-      changefreq: "monthly",
-      priority: "0.7",
-    },
-    // Category collection landing pages (crawler meta injected by the
-    // opportunities-og edge function).
-    ...["scholarships", "internships", "fellowships", "programs"].map(
-      (category) => ({
-        loc: toAbsoluteUrl(`/opportunities?category=${category}`),
-        lastmod: today,
-        changefreq: "daily",
-        priority: "0.9",
-      }),
-    ),
-    ...opportunities.map((opportunity) => ({
-      loc: toAbsoluteUrl(`/opportunity/${encodeURIComponent(opportunity.id)}`),
-      lastmod: toLastmod(opportunity.updatedAt),
-      changefreq: "daily",
-      priority: "0.8",
-    })),
-    ...backendEvents.map((event) => ({
-      loc: toAbsoluteUrl(`/events/${encodeURIComponent(event.slug)}`),
-      lastmod: toLastmod(event.updatedAt),
-      changefreq: "weekly",
-      priority: "0.7",
-    })),
-    ...backendBlogPosts.map((post) => ({
-      loc: toAbsoluteUrl(`/blog/${encodeURIComponent(post.slug)}`),
-      lastmod: toLastmod(post.updatedAt),
-      changefreq: "monthly",
-      priority: "0.7",
-    })),
-  ];
-
-  const sitemap = [
+export function renderSitemapXml(entries) {
+  return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...urls.map(renderUrl),
+    ...entries.map(renderUrl),
     "</urlset>",
     "",
   ].join("\n");
-  const robots = [
+}
+
+function renderRobots(siteUrl) {
+  return [
     "User-agent: *",
     "Allow: /",
     "# Authenticated app shell and auth flows — no crawlable content.",
@@ -400,17 +421,101 @@ async function main() {
     "Disallow: /auth",
     "Disallow: /auth/callback",
     "",
-    `Sitemap: ${toAbsoluteUrl("/sitemap.xml")}`,
+    `Sitemap: ${absoluteUrl(siteUrl, "/sitemap.xml")}`,
     "",
   ].join("\n");
-
-  await mkdir(publicDir, { recursive: true });
-  await Promise.all([
-    writeFile(path.join(publicDir, "sitemap.xml"), sitemap),
-    writeFile(path.join(publicDir, "robots.txt"), robots),
-  ]);
-
-  console.log(`Generated sitemap with ${urls.length} URLs at ${siteUrl}.`);
 }
 
-await main();
+function strictModeFromEnvironment() {
+  if (process.env.SEO_SITEMAP_STRICT !== undefined) {
+    return process.env.SEO_SITEMAP_STRICT === "true";
+  }
+  return process.env.VERCEL === "1";
+}
+
+function nonNegativeEnvironmentNumber(name, fallback) {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+async function main() {
+  loadDotEnv(path.join(projectRoot, ".env"));
+  const siteUrl = normaliseSiteUrl(
+    process.env.VITE_PUBLIC_SITE_URL ||
+      process.env.VITE_WEB_APP_URL ||
+      process.env.SITE_URL ||
+      DEFAULT_SITE_URL,
+  );
+  const apiBaseUrl = normaliseSiteUrl(
+    process.env.VITE_BACKEND_URL ||
+      process.env.VITE_API_URL ||
+      DEFAULT_API_URL,
+  );
+  const strict = strictModeFromEnvironment();
+
+  const [snapshot, opportunityResult, eventResult, blogResult] =
+    await Promise.all([
+      readSnapshotOpportunities(),
+      fetchBackendOpportunities(apiBaseUrl),
+      fetchBackendEvents(apiBaseUrl),
+      fetchBackendBlogPosts(apiBaseUrl),
+    ]);
+
+  const opportunities = mergeByKey(
+    "id",
+    snapshot,
+    opportunityResult.rows,
+  );
+  const events = mergeByKey("slug", eventResult.rows);
+  const blogPosts = mergeByKey("slug", blogResult.rows);
+
+  assertInventory(
+    {
+      opportunities,
+      blogPosts,
+      complete: {
+        opportunities: opportunityResult.complete,
+        blogPosts: blogResult.complete,
+      },
+    },
+    {
+      strict,
+      minOpportunities: nonNegativeEnvironmentNumber(
+        "SEO_MIN_OPPORTUNITY_URLS",
+        strict ? 1 : 0,
+      ),
+      minBlogPosts: nonNegativeEnvironmentNumber(
+        "SEO_MIN_BLOG_URLS",
+        strict ? 1 : 0,
+      ),
+    },
+  );
+
+  const entries = buildSitemapEntries({
+    siteUrl,
+    opportunities,
+    events,
+    blogPosts,
+  });
+  await mkdir(publicDir, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(publicDir, "sitemap.xml"), renderSitemapXml(entries)),
+    writeFile(path.join(publicDir, "robots.txt"), renderRobots(siteUrl)),
+  ]);
+
+  console.log(
+    `Generated sitemap with ${entries.length} URLs at ${siteUrl} (${opportunities.length} opportunities, ${blogPosts.length} blog posts; strict=${strict}).`,
+  );
+}
+
+const isMain =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
