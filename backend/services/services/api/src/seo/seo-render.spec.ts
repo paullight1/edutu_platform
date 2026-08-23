@@ -20,7 +20,8 @@ const SHELL = `<!doctype html>
 
 const PAGE: SeoPageDocument = {
   title: "Scholarships for African students | Edutu",
-  description: "Verified scholarship opportunities, deadlines and application guidance.",
+  description:
+    "Verified scholarship opportunities, deadlines and application guidance.",
   canonicalUrl: "https://www.edutu.org/opportunities/scholarships",
   imageUrl: "https://www.edutu.org/og/opportunities.jpg",
   imageAlt: "Scholarships on Edutu",
@@ -62,7 +63,9 @@ describe("SEO document rendering", () => {
   it("renders a responsive standalone document when no SPA shell is available", () => {
     const html = renderSeoDocument(PAGE);
 
-    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1" />');
+    expect(html).toContain(
+      '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    );
     expect(html).toContain("@media (max-width: 640px)");
     expect(html).toContain('<main id="seo-content">');
     expect(html).toContain('type="application/ld+json"');

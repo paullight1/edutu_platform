@@ -18,7 +18,8 @@ export function firstValue(record: SeoRecord, keys: string[]): unknown {
 
 function flattenText(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (Array.isArray(value)) return value.map(flattenText).filter(Boolean).join(" ");
+  if (Array.isArray(value))
+    return value.map(flattenText).filter(Boolean).join(" ");
   if (typeof value === "object") {
     return Object.values(value as SeoRecord)
       .map(flattenText)
@@ -137,7 +138,12 @@ export function renderParagraphs(value: string): string {
   const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [text];
   const paragraphs: string[] = [];
   for (let index = 0; index < sentences.length; index += 4) {
-    paragraphs.push(sentences.slice(index, index + 4).join(" ").trim());
+    paragraphs.push(
+      sentences
+        .slice(index, index + 4)
+        .join(" ")
+        .trim(),
+    );
   }
   return paragraphs
     .filter(Boolean)

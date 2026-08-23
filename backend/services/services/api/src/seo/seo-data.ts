@@ -69,7 +69,8 @@ export const SEO_CATEGORIES: SeoCategory[] = [
     aliases: ["fellowship", "fellowships", "residency", "residencies"],
     faqs: [
       {
-        question: "What is the difference between a fellowship and a scholarship?",
+        question:
+          "What is the difference between a fellowship and a scholarship?",
         answer:
           "Scholarships usually fund formal study, while fellowships often support research, leadership or professional development.",
       },
@@ -188,7 +189,14 @@ export const SEO_CATEGORIES: SeoCategory[] = [
       "Find verified competitions, innovation challenges, contests and hackathons with prizes, eligibility, deadlines and official entry links.",
     introduction:
       "Discover competitions and challenges for ideas, research, entrepreneurship, technology, writing, design and social impact.",
-    aliases: ["competition", "competitions", "challenge", "challenges", "contest", "hackathon"],
+    aliases: [
+      "competition",
+      "competitions",
+      "challenge",
+      "challenges",
+      "contest",
+      "hackathon",
+    ],
     keywords: /\b(competition|contest|challenge|hackathon|prize|award)\b/i,
     faqs: [
       {

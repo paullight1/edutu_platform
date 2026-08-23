@@ -142,7 +142,10 @@ export class SeoController {
     return renderSeoDocument(page);
   }
 
-  private notFoundPage(resource: string, canonicalUrl: string): SeoPageDocument {
+  private notFoundPage(
+    resource: string,
+    canonicalUrl: string,
+  ): SeoPageDocument {
     return {
       title: `${resource} not found | Edutu`,
       description:
@@ -321,7 +324,10 @@ export class SeoController {
           `/events/${encodeURIComponent(String(event.slug || event.id))}`,
         ),
         lastmod:
-          event.updatedAt ?? event.updated_at ?? event.startsAt ?? event.starts_at,
+          event.updatedAt ??
+          event.updated_at ??
+          event.startsAt ??
+          event.starts_at,
         changefreq: "weekly",
         priority: "0.7",
       })),
@@ -383,7 +389,9 @@ export class SeoController {
             "@type": "ListItem",
             position: (page - 1) * BLOG_PAGE_SIZE + index + 1,
             name: firstText(post, ["title"]),
-            url: this.absolute(`/blog/${encodeURIComponent(String(post.slug))}`),
+            url: this.absolute(
+              `/blog/${encodeURIComponent(String(post.slug))}`,
+            ),
           })),
         },
       },
@@ -508,12 +516,19 @@ export class SeoController {
         res,
         this.notFoundPage(
           "Opportunity category",
-          this.absolute(`/opportunities?category=${encodeURIComponent(categoryRaw)}`),
+          this.absolute(
+            `/opportunities?category=${encodeURIComponent(categoryRaw)}`,
+          ),
         ),
         { status: 404, useShell: false },
       );
     }
-    return this.renderOpportunityArchive(category, parsePage(pageRaw), res, true);
+    return this.renderOpportunityArchive(
+      category,
+      parsePage(pageRaw),
+      res,
+      true,
+    );
   }
 
   @Get("opportunities/:category")
@@ -533,7 +548,12 @@ export class SeoController {
         { status: 404, useShell: false },
       );
     }
-    return this.renderOpportunityArchive(category, parsePage(pageRaw), res, false);
+    return this.renderOpportunityArchive(
+      category,
+      parsePage(pageRaw),
+      res,
+      false,
+    );
   }
 
   @Get("opportunity/:id")
@@ -562,7 +582,9 @@ export class SeoController {
     );
     let event: SeoRecord | null;
     try {
-      event = (await this.events.findOne(slugOrId)) as unknown as SeoRecord | null;
+      event = (await this.events.findOne(
+        slugOrId,
+      )) as unknown as SeoRecord | null;
     } catch (error) {
       throw new ServiceUnavailableException(
         `Event source unavailable: ${error instanceof Error ? error.message : String(error)}`,
@@ -595,7 +617,9 @@ export class SeoController {
       `<h1>${escapeHtml(title)}</h1>`,
       `<p class="seo-lead">${escapeHtml(description)}</p>`,
       '<section class="seo-panel"><h2>Event details</h2><p>',
-      startsAt ? `<strong>Date:</strong> ${escapeHtml(formatDate(startsAt))}<br>` : "",
+      startsAt
+        ? `<strong>Date:</strong> ${escapeHtml(formatDate(startsAt))}<br>`
+        : "",
       location ? `<strong>Location:</strong> ${escapeHtml(location)}<br>` : "",
       isOnline ? "<strong>Format:</strong> Online" : "",
       "</p>",
@@ -617,9 +641,7 @@ export class SeoController {
         eventAttendanceMode: isOnline
           ? "https://schema.org/OnlineEventAttendanceMode"
           : "https://schema.org/OfflineEventAttendanceMode",
-        ...(location
-          ? { location: { "@type": "Place", name: location } }
-          : {}),
+        ...(location ? { location: { "@type": "Place", name: location } } : {}),
         organizer: this.publisherJsonLd(),
       },
       this.breadcrumbJsonLd([
@@ -743,20 +765,19 @@ export class SeoController {
     const canonicalUrl = this.absolute(canonicalPath);
     let opportunity: SeoRecord | null;
     try {
-      opportunity = (await this.opportunities.findOne(id)) as unknown as
-        | SeoRecord
-        | null;
+      opportunity = (await this.opportunities.findOne(
+        id,
+      )) as unknown as SeoRecord | null;
     } catch (error) {
       throw new ServiceUnavailableException(
         `Opportunity source unavailable: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     if (!opportunity || !opportunity.id) {
-      return this.respond(
-        res,
-        this.notFoundPage("Opportunity", canonicalUrl),
-        { status: 404, useShell: false },
-      );
+      return this.respond(res, this.notFoundPage("Opportunity", canonicalUrl), {
+        status: 404,
+        useShell: false,
+      });
     }
 
     const title = firstText(opportunity, ["title"]) || "Opportunity on Edutu";

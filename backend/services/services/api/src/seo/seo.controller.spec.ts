@@ -41,10 +41,14 @@ function makeController(overrides: Record<string, any> = {}) {
             id,
             description:
               "A verified scholarship supporting postgraduate study and leadership development.",
-            eligibility_criteria: "Applicants must be citizens of an African country.",
+            eligibility_criteria:
+              "Applicants must be citizens of an African country.",
             benefits: ["Tuition support", "Leadership mentoring"],
             requirements: ["Academic transcript", "Personal statement"],
-            application_process: ["Review eligibility", "Submit the official application"],
+            application_process: [
+              "Review eligibility",
+              "Submit the official application",
+            ],
             application_url: "https://example.org/apply",
             source_url: "https://example.org/scholarship",
           },
@@ -66,7 +70,8 @@ function makeController(overrides: Record<string, any> = {}) {
             {
               slug: "how-to-win-scholarships",
               title: "How to win scholarships",
-              excerpt: "A practical guide to stronger scholarship applications.",
+              excerpt:
+                "A practical guide to stronger scholarship applications.",
               status: "published",
               authorName: "Edutu Editorial Team",
               updatedAt: new Date("2026-08-19T00:00:00.000Z"),
@@ -81,7 +86,8 @@ function makeController(overrides: Record<string, any> = {}) {
             slug,
             title: "How to win scholarships",
             excerpt: "A practical guide to stronger scholarship applications.",
-            content: "Start early. Read the eligibility rules. Build evidence for every claim.",
+            content:
+              "Start early. Read the eligibility rules. Build evidence for every claim.",
             status: "published",
             authorName: "Edutu Editorial Team",
             publishedAt: new Date("2026-08-18T00:00:00.000Z"),
@@ -99,12 +105,7 @@ function makeController(overrides: Record<string, any> = {}) {
     ...overrides.shell,
   };
 
-  return new SeoController(
-    opportunities as any,
-    blog as any,
-    events as any,
-    shell as any,
-  );
+  return new SeoController(opportunities, blog, events, shell);
 }
 
 describe("SeoController", () => {

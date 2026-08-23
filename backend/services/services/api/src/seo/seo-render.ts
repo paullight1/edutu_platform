@@ -35,7 +35,10 @@ export function cleanText(value: unknown): string {
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/(?:advertisement|cookie preferences|accept all cookies|share this post|apply now)\s*/gi, " ")
+    .replace(
+      /(?:advertisement|cookie preferences|accept all cookies|share this post|apply now)\s*/gi,
+      " ",
+    )
     .replace(/[#*_`>|]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -175,8 +178,14 @@ export function injectSeoIntoShell(
   html = upsertCanonical(html, page.canonicalUrl);
   html = replaceJsonLd(html, page.jsonLd);
 
-  html = html.replace(/<style[^>]*data-edutu-seo-styles[^>]*>[\s\S]*?<\/style>/gi, "");
-  html = html.replace(/<\/head>/i, `  ${seoStyles()}\n  <meta name="${SEO_MARKER}" content="1" />\n</head>`);
+  html = html.replace(
+    /<style[^>]*data-edutu-seo-styles[^>]*>[\s\S]*?<\/style>/gi,
+    "",
+  );
+  html = html.replace(
+    /<\/head>/i,
+    `  ${seoStyles()}\n  <meta name="${SEO_MARKER}" content="1" />\n</head>`,
+  );
 
   const rootPattern = /<div\s+id=["']root["'][^>]*>[\s\S]*?<\/div>/i;
   if (!rootPattern.test(html)) return null;
