@@ -8,12 +8,10 @@
  * per-route `dist/<path>/index.html` with that route's real title, description
  * and hero OG image baked into the HTML.
  *
- * Vercel serves a matching static file before it evaluates the SPA catch-all
- * rewrite, so `/blog` resolves to `dist/blog/index.html` for crawlers AND for
- * real users — and because every variant still boots the same JS bundle, the
- * SPA takes over exactly as before. No backend hop, no cold start, no
- * crawler user-agent sniffing (which this deployment's router silently drops —
- * see the `has`-condition gotcha in the root vercel.json).
+ * Most marketing routes are served from the generated static files. Blog and
+ * opportunity archives are intentionally routed to the canonical API SEO
+ * renderer so their initial HTML also contains live item links and body copy.
+ * Both approaches boot the same SPA bundle and must be unconditional.
  *
  * Runs automatically via `postbuild`.
  */
@@ -33,6 +31,11 @@ import {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(scriptDir, "..", "dist");
 const shellPath = path.join(distDir, "index.html");
+const SEO_API_ORIGIN = "https://edutu-platform.onrender.com";
+const API_RENDERED_ROUTES = new Map([
+  ["/blog", `${SEO_API_ORIGIN}/seo/blog`],
+  ["/opportunities", `${SEO_API_ORIGIN}/seo/opportunities`],
+]);
 
 /** Escape a value for a double-quoted HTML attribute. */
 function attr(value) {
@@ -94,7 +97,9 @@ function buildHtml(shell, entry) {
     html,
     "name",
     "robots",
-    entry.noindex ? "noindex, nofollow" : "index, follow, max-image-preview:large",
+    entry.noindex
+      ? "noindex, nofollow"
+      : "index, follow, max-image-preview:large",
   );
 
   html = upsertMeta(html, "property", "og:type", "website");
@@ -117,18 +122,44 @@ function buildHtml(shell, entry) {
 
   html = upsertCanonical(html, url);
 
-  // Health-check marker: `curl -s https://www.edutu.org/blog | grep prerendered`
+  // Health-check marker: `curl -s https://www.edutu.org/about | grep prerendered`
   return html.replace(
     "</head>",
     `  <meta name="edutu-prerendered" content="${attr(entry.slug)}" />\n</head>`,
   );
 }
 
+function routeCoversEntry(rule, entryPath) {
+  if (
+    rule?.source !== entryPath ||
+    Object.hasOwn(rule, "has") ||
+    Object.hasOwn(rule, "missing") ||
+    typeof rule.destination !== "string"
+  ) {
+    return false;
+  }
+
+  return (
+    rule.destination.endsWith("/index.html") ||
+    rule.destination === API_RENDERED_ROUTES.get(entryPath)
+  );
+}
+
+export function findMissingRoutingCoverage(config, entries = PAGE_SEO) {
+  const rewrites = Array.isArray(config?.rewrites) ? config.rewrites : [];
+  return entries
+    .filter(
+      (entry) =>
+        entry.path !== "/" &&
+        !rewrites.some((rule) => routeCoversEntry(rule, entry.path)),
+    )
+    .map((entry) => entry.path);
+}
+
 /**
- * A prerendered `dist/blog/index.html` is useless if `vercel.json` doesn't
- * route `/blog` to it. That failure is invisible — the SPA catch-all still
- * serves a working page, just with the wrong OG tags — so fail the build
- * loudly instead of shipping silently-broken unfurls.
+ * Generated metadata is dead weight if Vercel never routes a public path to
+ * either its static HTML or the approved API SEO renderer. Fail loudly rather
+ * than allowing the generic SPA shell to mask a routing regression.
  */
 async function assertRoutingCoverage() {
   // The production app is mounted as the `frontend` Vercel service from the
@@ -154,22 +185,11 @@ async function assertRoutingCoverage() {
     throw new Error("Could not find a Vercel routing configuration.");
   }
 
-  const routed = new Set(
-    (config.rewrites ?? [])
-      .filter(
-        (rule) => typeof rule.destination === "string" && rule.destination.endsWith("/index.html"),
-      )
-      .map((rule) => rule.source),
-  );
-
-  const missing = PAGE_SEO.filter(
-    (entry) => entry.path !== "/" && !routed.has(entry.path),
-  ).map((entry) => entry.path);
-
+  const missing = findMissingRoutingCoverage(config);
   if (missing.length) {
     throw new Error(
-      `${path.basename(configPath)} has no prerender rewrite for: ${missing.join(", ")}\n` +
-        `Add { "source": "<path>", "destination": "<path>/index.html" } above the SPA catch-all.`,
+      `${path.basename(configPath)} has no public render route for: ${missing.join(", ")}\n` +
+        "Add an unconditional static prerender rewrite or the approved SEO API destination above the SPA catch-all.",
     );
   }
 }
@@ -197,4 +217,8 @@ async function main() {
   console.log(`\n[seo] prerendered ${PAGE_SEO.length} route(s) into dist/`);
 }
 
-await main();
+const isMain =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) await main();
