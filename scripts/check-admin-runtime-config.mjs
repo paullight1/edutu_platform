@@ -15,7 +15,7 @@ function stripAllowedDevelopmentProxy(path, contents) {
   if (path !== "admin/vite.config.ts") return contents;
 
   return contents.replace(
-    /const\s+DEV_PROXY_TARGET\s*=[\s\S]*?;\s*/u,
+    /const\s+DEV_PROXY_TARGET\s*=[\s\S]*?(?=\n\s*return\b|\n\s*export\b|$)/u,
     "",
   );
 }
