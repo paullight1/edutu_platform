@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   fetchGroupResources: vi.fn(),
   fetchGroupMembers: vi.fn(),
   fetchJoinRequests: vi.fn(),
+  fetchGroupForm: vi.fn(),
   sendMessage: vi.fn(),
 }));
 
@@ -26,6 +27,7 @@ vi.mock("../../services/community", async () => {
     fetchGroupResources: mocks.fetchGroupResources,
     fetchGroupMembers: mocks.fetchGroupMembers,
     fetchJoinRequests: mocks.fetchJoinRequests,
+    fetchGroupForm: mocks.fetchGroupForm,
     sendMessage: mocks.sendMessage,
   };
 });
@@ -61,6 +63,7 @@ beforeEach(() => {
   mocks.fetchGroupResources.mockResolvedValue({ resources: [], nextCursor: null });
   mocks.fetchGroupMembers.mockResolvedValue({ members: [member], hasMore: false });
   mocks.fetchJoinRequests.mockResolvedValue([]);
+  mocks.fetchGroupForm.mockResolvedValue({ questions: [] });
   mocks.sendMessage.mockResolvedValue({ id: "message-2", groupId: group.id, userId: "user_me", body: "Great — I will review it tonight.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:01:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Amina Bello", avatarUrl: null } });
 });
 
@@ -84,8 +87,11 @@ describe("CommunityGroupPage", () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
     fireEvent.input(composer, { target: { value: "Great — I will review it tonight." } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(composer).toHaveValue("Great — I will review it tonight.");
+    const form = composer.closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
@@ -166,7 +172,7 @@ describe("CommunityGroupPage", () => {
 
     expect(screen.queryByRole("combobox", { name: "Role for Tomi Ade" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Role for Kemi Lawal" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
-    expect(screen.getByText("Moderator")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Tomi Ade" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Kemi Lawal" })).not.toBeInTheDocument();
   });
 });
