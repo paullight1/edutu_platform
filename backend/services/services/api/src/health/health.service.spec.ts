@@ -25,7 +25,8 @@ describe("HealthService", () => {
   });
 
   it("reports process liveness without probing the database", () => {
-    const probe: DatabaseHealthProbe = { ping: jest.fn() };
+    const ping = jest.fn();
+    const probe: DatabaseHealthProbe = { ping };
     const service = new HealthService(probe);
 
     const result = service.getLiveness();
@@ -36,18 +37,17 @@ describe("HealthService", () => {
     });
     expect(result.timestamp).toEqual(expect.any(String));
     expect(result.uptimeSeconds).toEqual(expect.any(Number));
-    expect(probe.ping).not.toHaveBeenCalled();
+    expect(ping).not.toHaveBeenCalled();
   });
 
   it("reports ready only after the canonical database probe succeeds", async () => {
-    const probe: DatabaseHealthProbe = {
-      ping: jest.fn().mockResolvedValue(undefined),
-    };
+    const ping = jest.fn().mockResolvedValue(undefined);
+    const probe: DatabaseHealthProbe = { ping };
     const service = new HealthService(probe);
 
     const result = await service.getReadiness();
 
-    expect(probe.ping).toHaveBeenCalledTimes(1);
+    expect(ping).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
       status: "ready",
       checks: {
@@ -122,20 +122,25 @@ describe("HealthController", () => {
   };
 
   it("keeps /health as a backward-compatible readiness alias", async () => {
+    const getReadiness = jest.fn(async () => ({
+      ...notReady,
+      status: "ready" as const,
+    }));
     const healthService = {
-      getReadiness: jest.fn().mockResolvedValue({ ...notReady, status: "ready" }),
+      getReadiness,
       getLiveness: jest.fn(),
     } as unknown as HealthService;
     const controller = new HealthController(healthService);
 
     await controller.check();
 
-    expect(healthService.getReadiness).toHaveBeenCalledTimes(1);
+    expect(getReadiness).toHaveBeenCalledTimes(1);
   });
 
   it("returns HTTP 503 semantics when readiness dependencies are down", async () => {
+    const getReadiness = jest.fn(async () => notReady);
     const healthService = {
-      getReadiness: jest.fn().mockResolvedValue(notReady),
+      getReadiness,
       getLiveness: jest.fn(),
     } as unknown as HealthService;
     const controller = new HealthController(healthService);
