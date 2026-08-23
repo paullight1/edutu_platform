@@ -4,39 +4,40 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
+      "source": "/sitemap.xml",
+      "destination": "https://edutu-platform.onrender.com/seo/sitemap.xml"
     },
     {
-      "source": "/share/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/og/share/opportunity/:id"
+      "source": "/robots.txt",
+      "destination": "https://edutu-platform.onrender.com/seo/robots.txt"
     },
     {
-      "source": "/opportunities",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|WhatsApp|Slack|Embedly|Pinterest|Flipboard|Tumblr|Mastodon|vkShare|W3C_Validator|SkypeUriPreview|Google-InspectionTool|Applebot|bot|Bot|crawler|Crawler|spider|Spider).*"
-        }
-      ],
-      "destination": "https://edutu-platform.onrender.com/og/opportunities"
-    },
-    {
-      "source": "/opportunities",
-      "destination": "/opportunities/index.html"
+      "source": "/blog",
+      "destination": "https://edutu-platform.onrender.com/seo/blog"
     },
     {
       "source": "/blog/:slug",
-      "destination": "https://edutu-platform.onrender.com/og/blog/:slug"
+      "destination": "https://edutu-platform.onrender.com/seo/blog/:slug"
+    },
+    {
+      "source": "/opportunities",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunities"
+    },
+    {
+      "source": "/opportunities/:category",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunities/:category"
+    },
+    {
+      "source": "/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/seo/opportunity/:id"
+    },
+    {
+      "source": "/share/opportunity/:id",
+      "destination": "https://edutu-platform.onrender.com/seo/share/opportunity/:id"
     },
     {
       "source": "/events/:slugOrId",
       "destination": "https://edutu-platform.onrender.com/og/event/:slugOrId"
-    },
-    {
-      "source": "/blog",
-      "destination": "/blog/index.html"
     },
     {
       "source": "/community",
