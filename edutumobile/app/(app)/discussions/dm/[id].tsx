@@ -178,73 +178,73 @@ export default function DirectMessageScreen() {
   }, [conversationId, getToken, t, userId]);
 
   useFocusEffect(
-  useCallback(() => {
-    let active = true;
-    screenActiveRef.current = true;
-    let reconciliationTimer: ReturnType<typeof setTimeout> | undefined;
+    useCallback(() => {
+      let active = true;
+      screenActiveRef.current = true;
+      let reconciliationTimer: ReturnType<typeof setTimeout> | undefined;
 
-    if (!conversationId) {
-      void load();
+      if (!conversationId) {
+        void load();
+        return () => {
+          active = false;
+          screenActiveRef.current = false;
+          loadRequestVersion.current += 1;
+        };
+      }
+
+      const unsubscribe = subscribeToDmMessages(
+        conversationId,
+        (event) => {
+          if (
+            !active ||
+            !screenActiveRef.current ||
+            event.conversationId !== activeConversationIdRef.current
+          ) return;
+
+          const hydrated = hydrateRealtimeDmMessage(
+            event,
+            userId,
+            conversationRef.current,
+          );
+          setMessages((current) => mergeDmMessages(current, [hydrated]));
+          setConversation((current) =>
+            current ? { ...current, lastMessageAt: event.createdAt } : current,
+          );
+
+          if (
+            event.senderId !== userId &&
+            event.id !== lastMarkedMessageId.current
+          ) {
+            lastMarkedMessageId.current = event.id;
+            void markDmConversationRead(conversationId, getToken).catch(() => {
+              if (lastMarkedMessageId.current === event.id) {
+                lastMarkedMessageId.current = null;
+              }
+            });
+          }
+        },
+      );
+
+      const reconcile = async () => {
+        await load();
+        if (active) {
+          reconciliationTimer = setTimeout(
+            () => void reconcile(),
+            RECONCILIATION_INTERVAL_MS,
+          );
+        }
+      };
+      void reconcile();
+
       return () => {
         active = false;
         screenActiveRef.current = false;
+        if (reconciliationTimer) clearTimeout(reconciliationTimer);
+        unsubscribe();
         loadRequestVersion.current += 1;
       };
-    }
-
-    const unsubscribe = subscribeToDmMessages(
-      conversationId,
-      (event) => {
-        if (
-          !active ||
-          !screenActiveRef.current ||
-          event.conversationId !== activeConversationIdRef.current
-        ) return;
-
-        const hydrated = hydrateRealtimeDmMessage(
-          event,
-          userId,
-          conversationRef.current,
-        );
-        setMessages((current) => mergeDmMessages(current, [hydrated]));
-        setConversation((current) =>
-          current ? { ...current, lastMessageAt: event.createdAt } : current,
-        );
-
-        if (
-          event.senderId !== userId &&
-          event.id !== lastMarkedMessageId.current
-        ) {
-          lastMarkedMessageId.current = event.id;
-          void markDmConversationRead(conversationId, getToken).catch(() => {
-            if (lastMarkedMessageId.current === event.id) {
-              lastMarkedMessageId.current = null;
-            }
-          });
-        }
-      },
-    );
-
-    const reconcile = async () => {
-      await load();
-      if (active) {
-        reconciliationTimer = setTimeout(
-          () => void reconcile(),
-          RECONCILIATION_INTERVAL_MS,
-        );
-      }
-    };
-    void reconcile();
-
-    return () => {
-      active = false;
-      screenActiveRef.current = false;
-      if (reconciliationTimer) clearTimeout(reconciliationTimer);
-      unsubscribe();
-      loadRequestVersion.current += 1;
-    };
-  }, [conversationId, getToken, load, userId]),
-);
+    }, [conversationId, getToken, load, userId]),
+  );
 
   const loadOlder = useCallback(async () => {
     if (!hasOlder || loadingOlderLock.current || messages.length === 0) return;
