@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  OnModuleDestroy,
+} from "@nestjs/common";
 import { Request } from "express";
 import { AppException } from "../errors";
 
@@ -8,15 +13,17 @@ interface ThrottleEntry {
 }
 
 @Injectable()
-export class AuthThrottleGuard implements CanActivate {
+export class AuthThrottleGuard implements CanActivate, OnModuleDestroy {
   private readonly store = new Map<string, ThrottleEntry>();
   private readonly MAX_REQUESTS = 5;
   private readonly WINDOW_MS = 60_000; // 1 minute
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    // Clean up stale entries every 60 seconds
+    // The timer maintains in-memory hygiene but must never keep the API or test
+    // process alive by itself.
     this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
+    this.cleanupInterval.unref();
   }
 
   canActivate(context: ExecutionContext): boolean {
@@ -56,18 +63,19 @@ export class AuthThrottleGuard implements CanActivate {
     return true;
   }
 
+  onModuleDestroy(): void {
+    if (!this.cleanupInterval) return;
+
+    clearInterval(this.cleanupInterval);
+    this.cleanupInterval = null;
+  }
+
   private cleanup(): void {
     const now = Date.now();
     for (const [key, entry] of this.store.entries()) {
       if (now > entry.resetAt) {
         this.store.delete(key);
       }
-    }
-  }
-
-  onModuleDestroy(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
     }
   }
 }
