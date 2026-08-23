@@ -46,12 +46,22 @@ describe("CommunitySafety", () => {
   it("renders the admin-only report context and enforcement controls", async () => {
     render(<CommunitySafety />);
 
-    expect(await screen.findByRole("heading", { name: "Community safety queue" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Scholarship Builders" })).toBeInTheDocument();
-    expect(screen.getByText("This message is harassing another member.")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Community safety queue" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Scholarship Builders" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This message is harassing another member."),
+    ).toBeInTheDocument();
     expect(screen.getByText("A reported message body")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /remove message/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /archive group/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /remove message/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /archive group/i }),
+    ).toBeInTheDocument();
   });
 
   it("moves a report into reviewing through the audited backend endpoint", async () => {
@@ -64,7 +74,9 @@ describe("CommunitySafety", () => {
       .mockResolvedValueOnce({ ...openReport, status: "reviewing" });
 
     render(<CommunitySafety />);
-    fireEvent.click(await screen.findByRole("button", { name: "Reviewing" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mark reviewing" }),
+    );
 
     await waitFor(() =>
       expect(mocks.backendFetchJson).toHaveBeenCalledWith(
@@ -75,6 +87,8 @@ describe("CommunitySafety", () => {
         }),
       ),
     );
-    expect(await screen.findByText("Report marked reviewing.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Report marked reviewing."),
+    ).toBeInTheDocument();
   });
 });
