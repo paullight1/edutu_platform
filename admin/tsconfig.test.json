@@ -4,8 +4,8 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "esnext",
-    /* Tests run in Node, so they get Node globals the app deliberately lacks. */
-    "types": ["node", "vitest/globals"],
+    /* Tests run in Node, while imported app modules still rely on Vite globals. */
+    "types": ["node", "vitest/globals", "vite/client"],
     "skipLibCheck": true,
 
     /* Bundler mode — mirrors tsconfig.app.json */

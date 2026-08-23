@@ -3,6 +3,7 @@ import { OpportunitiesModule } from "../opportunities/opportunities.module";
 import { EdutuApiDocsController } from "./edutu-api-docs.controller";
 import { EdutuApiController } from "./edutu-api.controller";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
+import { EdutuApiRateLimitService } from "./edutu-api-rate-limit.service";
 import { EdutuApiService } from "./edutu-api.service";
 import { EdutuApiUsageInterceptor } from "./edutu-api-usage.interceptor";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
@@ -13,6 +14,7 @@ import { EdutuApiUsageService } from "./edutu-api-usage.service";
   providers: [
     EdutuApiService,
     EdutuApiKeyGuard,
+    EdutuApiRateLimitService,
     EdutuApiUsageInterceptor,
     EdutuApiUsageService,
   ],

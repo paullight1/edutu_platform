@@ -1,4 +1,5 @@
 import {
+  extractStaticOpportunityRows,
   filterStaticOpportunityRows,
   normaliseStaticOpportunityRow,
   pickOpportunityUrl,
@@ -51,22 +52,66 @@ describe("opportunity static snapshot helpers", () => {
     );
   });
 
+  it("recognizes the committed snapshot opportunities envelope", () => {
+    const verified = {
+      id: "verified",
+      status: "active",
+      verification_status: "verified",
+    };
+
+    expect(
+      extractStaticOpportunityRows({
+        opportunities: [verified],
+        metadata: { generatedAt: "2026-08-21T00:00:00.000Z" },
+      }),
+    ).toEqual([verified]);
+  });
+
+  it("keeps compatibility with raw arrays and the legacy data envelope", () => {
+    const row = { id: "one" };
+    expect(extractStaticOpportunityRows([row])).toEqual([row]);
+    expect(extractStaticOpportunityRows({ data: [row] })).toEqual([row]);
+    expect(extractStaticOpportunityRows({ opportunities: "bad" })).toEqual([]);
+  });
+
   it("filters active/all rows by category and applies pagination", () => {
     const rows = [
-      { id: "1", status: "active", category: "Scholarship" },
+      {
+        id: "1",
+        status: "active",
+        verification_status: "verified",
+        category: "Scholarship",
+      },
       { id: "2", status: "closed", category: "Scholarship" },
-      { id: "3", status: "active", category: "Internship" },
-      { id: "4", status: "active", category: "Scholarship" },
+      {
+        id: "3",
+        status: "active",
+        verification_status: "verified",
+        category: "Internship",
+      },
+      {
+        id: "4",
+        status: "active",
+        verification_status: "verified",
+        category: "Scholarship",
+      },
     ];
 
     expect(
       filterStaticOpportunityRows(rows, 1, 1, "active", "scholarship"),
-    ).toEqual([{ id: "4", status: "active", category: "Scholarship" }]);
+    ).toEqual([
+      {
+        id: "4",
+        status: "active",
+        verification_status: "verified",
+        category: "Scholarship",
+      },
+    ]);
     expect(filterStaticOpportunityRows(rows, 10, 0, "all")).toHaveLength(4);
     expect(filterStaticOpportunityRows(rows, 10, 0, "closed")).toEqual([]);
   });
 
-  it("allows only legacy snapshot rows without verification and never user submissions", () => {
+  it("requires explicit verification for active snapshot rows", () => {
     expect(
       filterStaticOpportunityRows(
         [
@@ -74,6 +119,7 @@ describe("opportunity static snapshot helpers", () => {
           {
             id: "submitted",
             status: "active",
+            verification_status: "verified",
             metadata: { submission_id: "submission-1" },
           },
           {
@@ -81,11 +127,28 @@ describe("opportunity static snapshot helpers", () => {
             status: "active",
             verification_status: "unverified",
           },
+          {
+            id: "verified",
+            status: "active",
+            verification_status: "verified",
+          },
         ],
         10,
         0,
         "active",
       ),
-    ).toEqual([{ id: "legacy", status: "active" }]);
+    ).toEqual([
+      {
+        id: "submitted",
+        status: "active",
+        verification_status: "verified",
+        metadata: { submission_id: "submission-1" },
+      },
+      {
+        id: "verified",
+        status: "active",
+        verification_status: "verified",
+      },
+    ]);
   });
 });

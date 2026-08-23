@@ -11,7 +11,6 @@ import {
   profiles,
   marketplaceListings,
   marketplaceEnrollments,
-  transactions,
   roadmaps,
 } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -20,6 +19,12 @@ import type { CreatorApplicationDto } from "./dto/creator.dto";
 import { toDatabaseUserId } from "../common/user-id";
 import { isApprovedMentor, deriveMentorStatus } from "../common/mentor-access";
 import { computeMentorStats } from "./mentor-stats";
+import {
+  marketplaceEarningsTotalQuery,
+  marketplaceLedgerEntryQuery,
+  marketplaceLedgerHistoryQuery,
+  rowsFromExecution,
+} from "./marketplace-credit-ledger";
 
 const PLATFORM_FEE_PERCENT = 15; // Platform takes 15%, creator keeps 85%
 
@@ -30,6 +35,7 @@ interface CreatorListingPayload {
   type?: "free" | "paid" | "credit" | "course";
   price?: number;
   imageUrl?: string;
+  previewUrl?: string;
   tags?: string[];
   eventDate?: string | Date;
   eventEndDate?: string | Date;
@@ -312,6 +318,8 @@ export class CreatorService {
   // ─── Creator Dashboard ────────────────────────────────────────────────────
 
   async getCreatorDashboard(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
+
     // Guard: approved creators OR approved mentors
     const [profile] = await db
       .select()
@@ -325,7 +333,7 @@ export class CreatorService {
     const myListings = await db
       .select()
       .from(marketplaceListings)
-      .where(eq(marketplaceListings.sellerId, userId))
+      .where(eq(marketplaceListings.sellerId, dbUserId))
       .orderBy(desc(marketplaceListings.createdAt))
       .execute();
 
@@ -338,36 +346,21 @@ export class CreatorService {
       (l) => l.status === "active",
     ).length;
 
-    // True lifetime earnings (the old code summed only the last 20 rows).
-    const [earningsTotalRow] = await db
-      .select({
-        total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.userId, userId),
-          eq(transactions.type, "creator_earning"),
-        ),
-      )
-      .execute();
-    const totalEarnings = Number(earningsTotalRow?.total ?? 0);
+    const earningsTotalResult = await db.execute(
+      marketplaceEarningsTotalQuery(dbUserId),
+    );
+    const totalEarnings = Number(
+      rowsFromExecution<{ total: number | string }>(earningsTotalResult)[0]
+        ?.total ?? 0,
+    );
 
-    const recentEarnings = await db
-      .select()
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.userId, userId),
-          eq(transactions.type, "creator_earning"),
-        ),
-      )
-      .orderBy(desc(transactions.createdAt))
-      .limit(20)
-      .execute();
+    const recentEarningsResult = await db.execute(
+      marketplaceLedgerHistoryQuery(dbUserId, 20, "creator_earning"),
+    );
+    const recentEarnings =
+      rowsFromExecution<Record<string, unknown>>(recentEarningsResult);
 
     // Roadmap aggregates — roadmaps are keyed by the derived uuid.
-    const dbUserId = toDatabaseUserId(userId);
     const myRoadmaps = await db
       .select()
       .from(roadmaps)
@@ -433,17 +426,19 @@ export class CreatorService {
     }
 
     const price = payload.price ?? 0;
+    const dbUserId = toDatabaseUserId(userId);
 
     const [listing] = await db
       .insert(marketplaceListings)
       .values({
-        sellerId: userId,
+        sellerId: dbUserId,
         title: payload.title,
         description: payload.description,
         category: payload.category,
         type: payload.type || (price > 0 ? "paid" : "free"),
         price,
         imageUrl: payload.imageUrl,
+        previewUrl: payload.previewUrl,
         tags: payload.tags || [],
         eventDate: payload.eventDate ? new Date(payload.eventDate) : null,
         eventEndDate: payload.eventEndDate
@@ -462,143 +457,190 @@ export class CreatorService {
   // ─── Enroll / Purchase ────────────────────────────────────────────────────
 
   async enrollInListing(userId: string, listingId: string) {
-    const [listing] = await db
-      .select()
-      .from(marketplaceListings)
-      .where(eq(marketplaceListings.id, listingId))
-      .execute();
-    if (!listing) throw new NotFoundException("Listing not found");
-    if (listing.status !== "active")
-      throw new BadRequestException("This listing is not currently available.");
+    const dbUserId = toDatabaseUserId(userId);
 
-    const [userProfile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.userId, userId))
-      .execute();
-    if (!userProfile) throw new NotFoundException("User profile not found");
-
-    if (
-      (listing.price ?? 0) > 0 &&
-      (userProfile.creditsBalance ?? 0) < (listing.price ?? 0)
-    ) {
-      throw new BadRequestException(
-        `Insufficient credits. Need ${listing.price}, have ${userProfile.creditsBalance}.`,
-      );
-    }
-
-    // Check not already enrolled
-    const existing = await db
-      .select()
-      .from(marketplaceEnrollments)
-      .where(
-        and(
-          eq(marketplaceEnrollments.userId, userId),
-          eq(marketplaceEnrollments.listingId, listingId),
-        ),
-      )
-      .execute();
-    if (existing.length > 0) throw new BadRequestException("Already enrolled.");
-
-    // Deduct credits from buyer
-    if ((listing.price ?? 0) > 0) {
-      await db
-        .update(profiles)
-        .set({
-          creditsBalance:
-            (userProfile.creditsBalance ?? 0) - (listing.price ?? 0),
-          updatedAt: new Date(),
-        })
-        .where(eq(profiles.userId, userId))
+    return db.transaction(async (tx) => {
+      // Lock the listing first. This serializes capacity checks and protects the
+      // denormalized enrollment counter from concurrent purchases.
+      const [listing] = await tx
+        .select()
+        .from(marketplaceListings)
+        .where(eq(marketplaceListings.id, listingId))
+        .limit(1)
+        .for("update")
         .execute();
+      if (!listing) throw new NotFoundException("Listing not found");
+      if (listing.status !== "active") {
+        throw new BadRequestException(
+          "This listing is not currently available.",
+        );
+      }
 
-      // Log buyer's payment transaction
-      await db
-        .insert(transactions)
-        .values({
-          userId,
-          amount: -(listing.price ?? 0),
-          type: "marketplace_purchase",
-          status: "completed",
-          referenceId: listingId,
-          description: `Purchased: ${listing.title}`,
-        })
+      // Idempotent retry: if the enrollment is already committed, return it
+      // without charging the buyer or crediting the seller a second time. The
+      // protected fulfillment URL is attached to the authenticated response so
+      // a retry still restores learner access without creating a new purchase.
+      const [existing] = await tx
+        .select()
+        .from(marketplaceEnrollments)
+        .where(
+          and(
+            eq(marketplaceEnrollments.userId, dbUserId),
+            eq(marketplaceEnrollments.listingId, listingId),
+          ),
+        )
+        .limit(1)
         .execute();
+      if (existing) {
+        return { ...existing, accessUrl: listing.previewUrl ?? null };
+      }
 
-      // Credit creator their 85% cut
-      const creatorCut = Math.floor(
-        ((listing.price ?? 0) * (100 - PLATFORM_FEE_PERCENT)) / 100,
-      );
-      const [sellerProfile] = await db
+      const price = listing.price ?? 0;
+      const requiresLearnerAccess = price > 0 || listing.type === "course";
+      if (requiresLearnerAccess && !listing.previewUrl) {
+        // Legacy active rows can predate the fulfillment contract. Never charge
+        // a learner for one of those rows until a creator/admin supplies a real
+        // delivery link.
+        throw new BadRequestException(
+          "This listing is missing its learner access link and cannot accept enrollment yet.",
+        );
+      }
+
+      if (price > 0 && String(listing.sellerId) === dbUserId) {
+        throw new BadRequestException("You cannot purchase your own listing.");
+      }
+
+      // Capacity is checked from the enrollment table while the listing row is
+      // locked, before any wallet or enrollment write occurs.
+      if (listing.capacity != null) {
+        const [capacityRow] = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(marketplaceEnrollments)
+          .where(eq(marketplaceEnrollments.listingId, listingId))
+          .execute();
+        const currentEnrollments = Number(capacityRow?.count ?? 0);
+        if (currentEnrollments >= listing.capacity) {
+          throw new BadRequestException("Listing capacity has been reached.");
+        }
+      }
+
+      const [userProfile] = await tx
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, listing.sellerId))
+        .where(this.userMatch(profiles.userId, dbUserId))
+        .limit(1)
+        .for("update")
         .execute();
-      if (sellerProfile) {
-        await db
+      if (!userProfile) throw new NotFoundException("User profile not found");
+
+      if (price > 0 && (userProfile.creditsBalance ?? 0) < price) {
+        throw new BadRequestException(
+          `Insufficient credits. Need ${price}, have ${userProfile.creditsBalance}.`,
+        );
+      }
+
+      if (price > 0) {
+        const [sellerProfile] = await tx
+          .select()
+          .from(profiles)
+          .where(this.userMatch(profiles.userId, String(listing.sellerId)))
+          .limit(1)
+          .for("update")
+          .execute();
+        if (!sellerProfile) {
+          throw new NotFoundException("Marketplace seller profile not found");
+        }
+
+        const creatorCut = Math.floor(
+          (price * (100 - PLATFORM_FEE_PERCENT)) / 100,
+        );
+
+        await tx
+          .update(profiles)
+          .set({
+            creditsBalance: (userProfile.creditsBalance ?? 0) - price,
+            updatedAt: new Date(),
+          })
+          .where(this.userMatch(profiles.userId, dbUserId))
+          .execute();
+
+        await tx.execute(
+          marketplaceLedgerEntryQuery({
+            userId: dbUserId,
+            amount: -price,
+            type: "marketplace_purchase",
+            listingId,
+            description: `Purchased: ${listing.title}`,
+            metadata: {
+              sellerId: String(listing.sellerId),
+              grossCredits: price,
+            },
+          }),
+        );
+
+        await tx
           .update(profiles)
           .set({
             creditsBalance: (sellerProfile.creditsBalance ?? 0) + creatorCut,
             updatedAt: new Date(),
           })
-          .where(eq(profiles.userId, listing.sellerId))
+          .where(this.userMatch(profiles.userId, String(listing.sellerId)))
           .execute();
 
-        // Log seller earning transaction
-        await db
-          .insert(transactions)
-          .values({
-            userId: listing.sellerId,
+        await tx.execute(
+          marketplaceLedgerEntryQuery({
+            userId: String(listing.sellerId),
             amount: creatorCut,
             type: "creator_earning",
-            status: "completed",
-            referenceId: listingId,
+            listingId,
             description: `Earning from: ${listing.title}`,
-          })
-          .execute();
+            metadata: {
+              buyerUserId: dbUserId,
+              grossCredits: price,
+              platformFeePercent: PLATFORM_FEE_PERCENT,
+            },
+          }),
+        );
       }
-    }
 
-    // Create enrollment record
-    const [enrollment] = await db
-      .insert(marketplaceEnrollments)
-      .values({
-        userId,
-        listingId,
-        status: "active",
-        creditsSpent: listing.price,
-      })
-      .returning()
-      .execute();
+      const [enrollment] = await tx
+        .insert(marketplaceEnrollments)
+        .values({
+          userId: dbUserId,
+          listingId,
+          status: "active",
+          creditsSpent: price,
+        })
+        .returning()
+        .execute();
 
-    // Increment enrollment count
-    await db
-      .update(marketplaceListings)
-      .set({
-        enrollmentCount: (listing.enrollmentCount || 0) + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(marketplaceListings.id, listingId))
-      .execute();
+      await tx
+        .update(marketplaceListings)
+        .set({
+          enrollmentCount: (listing.enrollmentCount || 0) + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(marketplaceListings.id, listingId))
+        .execute();
 
-    return enrollment;
+      return { ...enrollment, accessUrl: listing.previewUrl ?? null };
+    });
   }
 
   // ─── Wallet ────────────────────────────────────────────────────────────────
 
   async getWallet(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .execute();
-    const txHistory = await db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.userId, userId))
-      .orderBy(desc(transactions.createdAt))
-      .limit(30)
-      .execute();
+    const txHistoryResult = await db.execute(
+      marketplaceLedgerHistoryQuery(dbUserId, 30),
+    );
+    const txHistory =
+      rowsFromExecution<Record<string, unknown>>(txHistoryResult);
 
     return {
       balance: profile?.creditsBalance ?? 0,

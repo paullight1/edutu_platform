@@ -3,12 +3,18 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import { CreatorService } from "./creator.service";
 
-jest.mock("../db", () => ({ db: { select: jest.fn(), insert: jest.fn() } }));
+jest.mock("../db", () => ({
+  db: { select: jest.fn(), insert: jest.fn(), execute: jest.fn() },
+}));
 jest.mock("../notifications/notifications.service", () => ({
   NotificationsService: class {},
 }));
 
-const mockedDb = db as unknown as { select: jest.Mock; insert: jest.Mock };
+const mockedDb = db as unknown as {
+  select: jest.Mock;
+  insert: jest.Mock;
+  execute: jest.Mock;
+};
 
 describe("CreatorService.getCreatorDashboard", () => {
   let service: CreatorService;
@@ -20,9 +26,8 @@ describe("CreatorService.getCreatorDashboard", () => {
     whereClauses = [];
   });
 
-  // Each db.select() call returns a chain that resolves on `.execute()`
-  // (matching the actual query shape in creator.service.ts, which always
-  // terminates its chains with `.execute()`, not a bare thenable).
+  // Drizzle entity reads remain on select chains; financial ledger reads use
+  // db.execute against canonical credit_transactions SQL.
   const wireSelects = (rows: any[][]) => {
     let call = 0;
     mockedDb.select.mockImplementation(() => {
@@ -41,6 +46,15 @@ describe("CreatorService.getCreatorDashboard", () => {
     });
   };
 
+  const wireLedgerReads = (
+    total: number,
+    recent: Array<Record<string, unknown>>,
+  ) => {
+    mockedDb.execute
+      .mockResolvedValueOnce({ rows: [{ total }] })
+      .mockResolvedValueOnce({ rows: recent });
+  };
+
   it("throws Forbidden when neither creator nor mentor is approved", async () => {
     wireSelects([[{ creatorStatus: "none", mentorStatus: "none" }]]);
     await expect(service.getCreatorDashboard("u1")).rejects.toThrow(
@@ -49,19 +63,13 @@ describe("CreatorService.getCreatorDashboard", () => {
   });
 
   it("returns stats for an approved mentor", async () => {
-    // Query order in getCreatorDashboard: profile -> listings -> earnings
-    // SUM -> recent earnings (limit 20) -> roadmaps.
     wireSelects([
-      [{ creatorStatus: "none", mentorStatus: "approved", creditsBalance: 50 }], // profile
+      [{ creatorStatus: "none", mentorStatus: "approved", creditsBalance: 50 }],
       [
-        // listings
         { status: "active", enrollmentCount: 10 },
         { status: "pending", enrollmentCount: 0 },
       ],
-      [{ total: 900 }], // earnings SUM
-      [{ amount: 500 }], // recent earnings (limit 20)
       [
-        // roadmaps
         {
           status: "published",
           enrollmentCount: 30,
@@ -76,32 +84,31 @@ describe("CreatorService.getCreatorDashboard", () => {
         },
       ],
     ]);
+    wireLedgerReads(900, [{ amount: 500 }]);
+
     const result = await service.getCreatorDashboard("u1");
 
-    expect(result.stats.publishedContent).toBe(2); // 1 published roadmap + 1 active listing
-    expect(result.stats.learnersReached).toBe(40); // 30 roadmap + 10 listing
-    expect(result.stats.creditsEarned).toBe(900); // true SUM, not last-20 sum
+    expect(result.stats.publishedContent).toBe(2);
+    expect(result.stats.learnersReached).toBe(40);
+    expect(result.stats.creditsEarned).toBe(900);
     expect(result.stats.walletBalance).toBe(50);
     expect(result.stats.avgRating).toBe(4.5);
     expect(result.stats.ratingCount).toBe(2);
     expect(result.stats.mentorStatus).toBe("approved");
-
-    // Bug fix: totalEarnings is the real lifetime SUM, not a reduce over the
-    // last-20-rows page.
     expect(result.totalEarnings).toBe(900);
     expect(result.recentEarnings).toEqual([{ amount: 500 }]);
     expect(result.totalEnrollments).toBe(10);
     expect(result.totalListings).toBe(2);
+    expect(mockedDb.execute).toHaveBeenCalledTimes(2);
   });
 
   it("passes the gate for an approved creator (non-mentor)", async () => {
     wireSelects([
-      [{ creatorStatus: "approved", mentorStatus: "none", creditsBalance: 0 }], // profile
-      [], // listings
-      [{ total: 0 }], // earnings SUM
-      [], // recent earnings
-      [], // roadmaps
+      [{ creatorStatus: "approved", mentorStatus: "none", creditsBalance: 0 }],
+      [],
+      [],
     ]);
+    wireLedgerReads(0, []);
 
     const result = await service.getCreatorDashboard("u1");
 
@@ -114,10 +121,9 @@ describe("CreatorService.getCreatorDashboard", () => {
     wireSelects([
       [{ creatorStatus: "none", mentorStatus: "approved", creditsBalance: 0 }],
       [],
-      [{ total: 0 }],
-      [],
       [],
     ]);
+    wireLedgerReads(0, []);
 
     await service.getCreatorDashboard("e5d3a70e-7d51-4759-9c64-60480b88fa2c");
 

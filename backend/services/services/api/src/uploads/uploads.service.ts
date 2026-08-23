@@ -13,6 +13,7 @@ import { extractText, SUPPORTED_UPLOAD_MIME_TYPES } from "./extract-text";
 
 const BUCKET = "cv-files";
 const MAX_EXTRACTED_CHARS = 40_000;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 // Short-lived: the app fetches the URL right before downloading, so 5 minutes
 // is plenty and keeps leaked links useless.
 const DOWNLOAD_URL_TTL_SECONDS = 300;
@@ -72,6 +73,7 @@ export class UploadsService {
       mimeType: string;
       kind?: string;
       opportunityId?: string;
+      fileSize?: number;
     },
   ): Promise<{ uploadId: string; uploadUrl: string; storagePath: string }> {
     if (!SUPPORTED_UPLOAD_MIME_TYPES.includes(input.mimeType as never)) {
@@ -79,9 +81,20 @@ export class UploadsService {
         `Unsupported document type: ${input.mimeType}`,
       );
     }
+    if (
+      input.fileSize !== undefined &&
+      (!Number.isFinite(input.fileSize) ||
+        input.fileSize < 0 ||
+        input.fileSize > MAX_UPLOAD_BYTES)
+    ) {
+      throw new BadRequestException("Document uploads are limited to 10 MB.");
+    }
     const safeName = input.fileName
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(0, 120);
+    if (!safeName) {
+      throw new BadRequestException("A valid file name is required.");
+    }
     const storagePath = `${userId}/${randomUUID()}-${safeName}`;
 
     const { data: signed, error: signedError } = await this.supabase.storage
@@ -144,7 +157,15 @@ export class UploadsService {
       if (downloadError || !blob) {
         throw new Error(downloadError?.message ?? "File not found in storage");
       }
+      if (blob.size > MAX_UPLOAD_BYTES) {
+        throw new Error("Upload exceeds the 10 MB parsing limit");
+      }
       const buffer = Buffer.from(await blob.arrayBuffer());
+      if (buffer.length > MAX_UPLOAD_BYTES) {
+        // Defense in depth for storage adapters/mocks that do not report an
+        // accurate Blob.size. Never hand an oversized buffer to PDF/DOCX parsers.
+        throw new Error("Upload exceeds the 10 MB parsing limit");
+      }
       const text = (await extractText(buffer, record.mime_type)).slice(
         0,
         MAX_EXTRACTED_CHARS,

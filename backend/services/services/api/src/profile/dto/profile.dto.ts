@@ -76,6 +76,11 @@ export const PrivacySettingsSchema = z
   })
   .strict();
 
+/**
+ * Shape returned to clients for server-observed security/account metadata.
+ * Authentication controls themselves are owned by Clerk and must never be
+ * writable through the profile settings endpoint.
+ */
 export const SecuritySettingsSchema = z
   .object({
     twoFactorEnabled: z.boolean().optional(),
@@ -86,16 +91,17 @@ export const SecuritySettingsSchema = z
 export const UpdateMemberSettingsSchema = z
   .object({
     privacy: PrivacySettingsSchema.optional(),
-    security: SecuritySettingsSchema.optional(),
   })
   .strict()
-  .refine((value) => Boolean(value.privacy || value.security), {
+  .refine((value) => Boolean(value.privacy), {
     message: "At least one settings group is required",
   });
 
+// `security?: never` keeps older internal code type-compatible while the
+// strict runtime schema makes the security branch unreachable from clients.
 export type UpdateMemberSettingsDto = z.infer<
   typeof UpdateMemberSettingsSchema
->;
+> & { security?: never };
 
 export const HomeCategoryTileSchema = z
   .object({

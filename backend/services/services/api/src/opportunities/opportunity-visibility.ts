@@ -31,42 +31,26 @@ export function publicOpportunityConditions(
   )!;
 }
 
-function isUserSubmissionRow(row: Record<string, unknown>): boolean {
-  const metadata = row.metadata;
-  return Boolean(
-    (metadata && typeof metadata === "object"
-      ? (metadata as Record<string, unknown>).submission_id
-      : undefined) ||
-    row.submission_id ||
-    row.submissionId ||
-    row.source === "user_submission",
-  );
-}
-
 /**
- * Snapshot fallback compatibility is intentionally narrower than database
- * compatibility: rows with no verification field are legacy snapshot rows,
- * but a user-submission provenance marker always requires explicit verified.
+ * Runtime catalogs and degraded static snapshots share one trust contract:
+ * an opportunity is public only when it is active and explicitly verified.
+ * The source argument remains for call-site compatibility, but no source may
+ * weaken the verification requirement.
  */
 export function isPublicOpportunityRow(
   row: Record<string, unknown>,
   source: "database" | "snapshot" = "database",
 ): boolean {
+  void source;
   const status = String(row.status ?? "")
     .trim()
     .toLowerCase();
-  if (status !== "active") return false;
+  if (status !== PUBLIC_OPPORTUNITY_STATUS) return false;
 
   const verification = row.verification_status ?? row.verificationStatus;
-  if (
+  return (
     String(verification ?? "")
       .trim()
-      .toLowerCase() === "verified"
-  ) {
-    return true;
-  }
-
-  return (
-    source === "snapshot" && verification == null && !isUserSubmissionRow(row)
+      .toLowerCase() === PUBLIC_OPPORTUNITY_VERIFICATION_STATUS
   );
 }

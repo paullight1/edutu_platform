@@ -20,6 +20,7 @@ const Users = lazy(() => import("./pages/Users"));
 const Creators = lazy(() => import("./pages/Creators"));
 const Submissions = lazy(() => import("./pages/Submissions"));
 const Roadmaps = lazy(() => import("./pages/Roadmaps"));
+const MarketplaceReview = lazy(() => import("./pages/MarketplaceReview"));
 const Blog = lazy(() => import("./pages/Blog"));
 const ImpactStories = lazy(() => import("./pages/ImpactStories"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -384,6 +385,7 @@ const AppRoutes: FC = () => {
           <Route path="users" element={<Users />} />
           <Route path="creators" element={<Creators />} />
           <Route path="roadmaps" element={<Roadmaps />} />
+          <Route path="marketplace" element={<MarketplaceReview />} />
           <Route path="blog" element={<Blog />} />
           <Route path="impact-stories" element={<ImpactStories />} />
           <Route path="settings" element={<Settings />} />

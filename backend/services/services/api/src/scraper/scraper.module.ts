@@ -1,15 +1,18 @@
-import { Module } from "@nestjs/common";
-import { ScraperController } from "./scraper.controller";
-import { ScraperService } from "./scraper.service";
-import { ScraperAlertsService } from "./scraper-alerts.service";
-import { OpportunityDedupService } from "./opportunity-dedup.service";
-import { RobotsChecker } from "./robots-checker";
+import { Module, type OnModuleDestroy } from "@nestjs/common";
 import { AiModule } from "../ai";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
-import { ScraperEgressController } from "./scraper-egress.controller";
-import { ScraperEgressService } from "./scraper-egress.service";
-import { ScraperEgressLimiter } from "./scraper-egress.limiter";
+import { OpportunityDedupService } from "./opportunity-dedup.service";
+import { RobotsChecker } from "./robots-checker";
+import { installSafeImageAxiosBridge } from "./safe-image-axios-bridge";
+import { ScraperAlertsService } from "./scraper-alerts.service";
+import { ScraperController } from "./scraper.controller";
 import { loadScraperEgressConfig } from "./scraper-egress.config";
+import { ScraperEgressController } from "./scraper-egress.controller";
+import { ScraperEgressLimiter } from "./scraper-egress.limiter";
+import { ScraperEgressService } from "./scraper-egress.service";
+import { installScraperRuntimePolicy } from "./scraper-runtime-policy";
+import { ScraperService } from "./scraper.service";
+import { ScraperSourceAdminService } from "./scraper-source-admin.service";
 
 @Module({
   imports: [AiModule, OpportunitiesModule],
@@ -32,6 +35,10 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
       ) => new ScraperEgressService(config, { limiter }),
       inject: ["SCRAPER_EGRESS_CONFIG", ScraperEgressLimiter],
     },
+    {
+      provide: ScraperSourceAdminService,
+      useValue: ScraperSourceAdminService.fromEnvironment(),
+    },
     ScraperService,
     ScraperAlertsService,
     RobotsChecker,
@@ -39,9 +46,22 @@ import { loadScraperEgressConfig } from "./scraper-egress.config";
   ],
   exports: [
     ScraperService,
+    ScraperSourceAdminService,
     ScraperAlertsService,
     RobotsChecker,
     OpportunityDedupService,
   ],
 })
-export class ScraperModule {}
+export class ScraperModule implements OnModuleDestroy {
+  private readonly restoreSafeImageBridge = installSafeImageAxiosBridge();
+  private readonly restoreRuntimePolicy: () => void;
+
+  constructor(scraperService: ScraperService) {
+    this.restoreRuntimePolicy = installScraperRuntimePolicy(scraperService);
+  }
+
+  onModuleDestroy(): void {
+    this.restoreRuntimePolicy();
+    this.restoreSafeImageBridge();
+  }
+}

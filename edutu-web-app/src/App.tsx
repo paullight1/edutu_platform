@@ -70,6 +70,14 @@ const CareersPage = lazy(() => import("./components/CareersPage"));
 const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
 const MentorDashboardPage = lazy(() => import("./components/MentorDashboardPage"));
+const MarketplacePage = lazy(() => import("./components/MarketplacePage"));
+const MarketplaceDetailPage = lazy(
+  () => import("./components/MarketplaceDetailPage"),
+);
+const MarketplaceCreatePage = lazy(
+  () => import("./components/MarketplaceCreatePage"),
+);
+const WalletPage = lazy(() => import("./components/WalletPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
 const DevelopersLandingPage = lazy(
@@ -545,6 +553,32 @@ function App() {
       <Route path="/events" element={<EventsPage />} />
       <Route path="/events/:slugOrId" element={<EventDetailPage />} />
       <Route path="/mentor" element={<MentorPage />} />
+      <Route path="/marketplace" element={<MarketplacePage />} />
+      <Route path="/marketplace/:id" element={<MarketplaceDetailPage />} />
+      <Route
+        path="/app/marketplace"
+        element={
+          <AppWorkspaceRoute>
+            <MarketplacePage embedded />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/marketplace/new"
+        element={
+          <AppWorkspaceRoute>
+            <MarketplaceCreatePage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/marketplace/:id"
+        element={
+          <AppWorkspaceRoute>
+            <MarketplaceDetailPage embedded />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/impact" element={<ImpactPage />} />
       <Route path="/edutuforyou" element={<EdutuForYouPage />} />
@@ -779,9 +813,16 @@ function App() {
           </AppWorkspaceRoute>
         }
       />
-      <Route path="/wallet" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/wallet" element={<Navigate to="/app/wallet" replace />} />
       <Route path="/premium" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/wallet" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/app/wallet"
+        element={
+          <AppWorkspaceRoute>
+            <WalletPage />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route
         path="/opportunity/:id"
         element={

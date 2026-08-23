@@ -20,6 +20,7 @@ describe("UploadsModule", () => {
 function makeClient(opts: {
   uploadRow: Record<string, unknown> | null;
   blobText?: string;
+  blobSize?: number;
   onUpdate: (patch: Record<string, unknown>) => void;
 }) {
   return {
@@ -48,6 +49,9 @@ function makeClient(opts: {
             data:
               opts.blobText !== undefined
                 ? {
+                    size:
+                      opts.blobSize ??
+                      new TextEncoder().encode(opts.blobText).byteLength,
                     arrayBuffer: async () =>
                       new TextEncoder().encode(opts.blobText).buffer,
                   }
@@ -141,6 +145,29 @@ describe("UploadsService.ingest", () => {
     expect(patches[0]).toMatchObject({
       parse_status: "done",
       extracted_text: "my real CV text",
+    });
+  });
+
+  it("rejects oversized stored objects before reading them into API memory", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const client = makeClient({
+      uploadRow: { storage_path: "u/huge.pdf", mime_type: "application/pdf" },
+      blobText: "small test body",
+      blobSize: 10 * 1024 * 1024 + 1,
+      onUpdate: (patch) => patches.push(patch),
+    });
+    const service = new UploadsService(client);
+
+    const result = await service.ingest("user_1", "up_huge");
+
+    expect(result).toEqual({
+      uploadId: "up_huge",
+      parseStatus: "failed",
+      chars: 0,
+    });
+    expect(patches[0]).toMatchObject({
+      parse_status: "failed",
+      parse_error: expect.stringContaining("10 MB"),
     });
   });
 

@@ -7,6 +7,7 @@ import { EdutuApiBilling } from "./edutu-api-billing-policy";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 import { EdutuApiExceptionFilter } from "./edutu-api-exception.filter";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
+import { EdutuApiRateLimitService } from "./edutu-api-rate-limit.service";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
 
 let paidHandler: jest.Mock;
@@ -24,13 +25,14 @@ class PaidPipelineController {
 }
 
 describe("Edutu API metering request pipeline", () => {
-  let app: INestApplication;
+  let app: INestApplication | undefined;
   let usageService: {
     reserveMonthlyQuota: jest.Mock;
     reserveRateLimit: jest.Mock;
     reserveRequestCredit: jest.Mock;
     readCreditBalanceForConsumer: jest.Mock;
   };
+  let rateLimitService: { reserve: jest.Mock };
 
   const consumer: ApiConsumerContext = {
     id: "consumer-pipeline",
@@ -51,15 +53,20 @@ describe("Edutu API metering request pipeline", () => {
         resetAt: null,
         used: null,
       }),
-      reserveRateLimit: jest.fn().mockReturnValue({
+      reserveRateLimit: jest.fn(() => {
+        throw new Error("legacy process-local limiter must not be used");
+      }),
+      reserveRequestCredit: jest.fn(),
+      readCreditBalanceForConsumer: jest.fn().mockResolvedValue(0),
+    };
+    rateLimitService = {
+      reserve: jest.fn().mockResolvedValue({
         allowed: true,
         limit: 60,
         remaining: 59,
         resetAt: new Date(Date.now() + 60_000).toISOString(),
         retryAfterSeconds: 0,
       }),
-      reserveRequestCredit: jest.fn(),
-      readCreditBalanceForConsumer: jest.fn().mockResolvedValue(0),
     };
 
     jest
@@ -74,6 +81,10 @@ describe("Edutu API metering request pipeline", () => {
           provide: EdutuApiUsageService,
           useValue: usageService,
         },
+        {
+          provide: EdutuApiRateLimitService,
+          useValue: rateLimitService,
+        },
       ],
     }).compile();
 
@@ -83,7 +94,8 @@ describe("Edutu API metering request pipeline", () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) await app.close();
+    app = undefined;
     jest.restoreAllMocks();
   });
 
@@ -93,7 +105,7 @@ describe("Edutu API metering request pipeline", () => {
       exhausted: true,
     });
 
-    const response = await request(app.getHttpServer())
+    const response = await request(app!.getHttpServer())
       .get("/v1/opportunities")
       .set("x-edutu-api-key", "edutu_live_pipeline")
       .set("x-request-id", "pipeline-zero-1");
@@ -103,6 +115,8 @@ describe("Edutu API metering request pipeline", () => {
       error: { status: 402, code: "credits_exhausted" },
       requestId: "pipeline-zero-1",
     });
+    expect(rateLimitService.reserve).toHaveBeenCalledTimes(1);
+    expect(usageService.reserveRateLimit).not.toHaveBeenCalled();
     expect(paidHandler).not.toHaveBeenCalled();
   });
 
@@ -111,7 +125,7 @@ describe("Edutu API metering request pipeline", () => {
       new Error("database unavailable"),
     );
 
-    const response = await request(app.getHttpServer())
+    const response = await request(app!.getHttpServer())
       .get("/v1/opportunities")
       .set("x-edutu-api-key", "edutu_live_pipeline")
       .set("x-request-id", "pipeline-failure-1");
@@ -121,6 +135,8 @@ describe("Edutu API metering request pipeline", () => {
       error: { status: 503, code: "billing_unavailable" },
       requestId: "pipeline-failure-1",
     });
+    expect(rateLimitService.reserve).toHaveBeenCalledTimes(1);
+    expect(usageService.reserveRateLimit).not.toHaveBeenCalled();
     expect(paidHandler).not.toHaveBeenCalled();
   });
 });

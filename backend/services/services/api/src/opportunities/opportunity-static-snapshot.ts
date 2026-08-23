@@ -151,6 +151,29 @@ export function withOpportunityUrlAliases(
   };
 }
 
+export function extractStaticOpportunityRows(
+  parsed: unknown,
+): StaticOpportunityRow[] {
+  if (Array.isArray(parsed)) {
+    return parsed as StaticOpportunityRow[];
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return [];
+  }
+
+  const envelope = parsed as {
+    opportunities?: unknown;
+    data?: unknown;
+  };
+  if (Array.isArray(envelope.opportunities)) {
+    return envelope.opportunities as StaticOpportunityRow[];
+  }
+  if (Array.isArray(envelope.data)) {
+    return envelope.data as StaticOpportunityRow[];
+  }
+  return [];
+}
+
 export function filterStaticOpportunityRows(
   rows: StaticOpportunityRow[],
   limit: number,
@@ -208,12 +231,7 @@ export async function loadStaticOpportunitySnapshot(): Promise<
 
   try {
     const raw = await readFile(snapshotPath, "utf8");
-    const parsed = JSON.parse(raw);
-    const rows = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray((parsed as { data?: unknown }).data)
-        ? ((parsed as { data: unknown[] }).data as Record<string, unknown>[])
-        : [];
+    const rows = extractStaticOpportunityRows(JSON.parse(raw));
 
     cachedStaticOpportunityRows = rows.map((row) =>
       normaliseStaticOpportunityRow(row as Record<string, any>),
