@@ -34,7 +34,10 @@ import {
 } from "./dto/community.dto";
 import { FormsService, type JoinRequestFilter } from "./forms.service";
 import { CommunityContentService } from "./content.service";
-import { GroupsService } from "./groups.service";
+import {
+  GroupsService,
+  type CommunityMemberCursor,
+} from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ModerationService } from "./moderation.service";
 
@@ -109,8 +112,16 @@ export class CommunitiesController {
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
     @Query("limit") limit?: string,
+    @Query("afterRole") afterRole?: string,
+    @Query("afterJoinedAt") afterJoinedAt?: string,
+    @Query("afterId") afterId?: string,
   ) {
-    return this.groups.listMembers(userId, id, this.parseLimit(limit));
+    return this.groups.listMembers(
+      userId,
+      id,
+      this.parseLimit(limit),
+      this.parseMemberCursor(afterRole, afterJoinedAt, afterId),
+    );
   }
 
   @Post("groups")
@@ -367,6 +378,33 @@ export class CommunitiesController {
       throw new BadRequestException("Ask for a positive number of results.");
     }
     return Math.floor(parsed);
+  }
+
+  private parseMemberCursor(
+    roleValue: string | undefined,
+    joinedAtValue: string | undefined,
+    idValue: string | undefined,
+  ): CommunityMemberCursor | undefined {
+    const role = roleValue?.trim();
+    const joinedAt = joinedAtValue?.trim();
+    const id = idValue?.trim();
+    const supplied = [role, joinedAt, id].filter(Boolean).length;
+    if (supplied === 0) return undefined;
+    if (supplied !== 3) {
+      throw new BadRequestException("That member-page cursor isn't complete.");
+    }
+    if (role !== "owner" && role !== "mod" && role !== "member") {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    const parsedDate = new Date(joinedAt!);
+    if (Number.isNaN(parsedDate.getTime())) {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    return {
+      role,
+      joinedAt: parsedDate.toISOString(),
+      id: id!,
+    };
   }
 
   private parseBefore(value: string | undefined): Date | undefined {
