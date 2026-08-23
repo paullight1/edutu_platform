@@ -1,4 +1,4 @@
-import { AdminApiError } from "../../../lib/apiClient";
+import { AdminApiError } from "../../../lib/apiError";
 
 export type EngineResourcePhase =
   | "idle"

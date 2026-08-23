@@ -1,45 +1,15 @@
+import { AdminApiError, type AdminApiFailureCategory } from "./apiError";
 import { getLocalAdminEmail, isLocalAdminBypassEnabled } from "./localAdmin";
 import { getAdminRuntimeConfig } from "./runtimeConfig";
 import { supabase } from "./supabase";
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+export { AdminApiError } from "./apiError";
+export type { AdminApiFailureCategory } from "./apiError";
 
-export type AdminApiFailureCategory =
-  | "configuration"
-  | "authentication"
-  | "authorization"
-  | "timeout"
-  | "network"
-  | "http"
-  | "invalid-response";
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export interface AdminApiRequestInit extends RequestInit {
   timeoutMs?: number;
-}
-
-export class AdminApiError extends Error {
-  readonly category: AdminApiFailureCategory;
-  readonly status?: number;
-  readonly requestId: string;
-  readonly targetOrigin: string;
-  readonly elapsedMs: number;
-
-  constructor(input: {
-    message: string;
-    category: AdminApiFailureCategory;
-    status?: number;
-    requestId: string;
-    targetOrigin: string;
-    elapsedMs: number;
-  }) {
-    super(input.message);
-    this.name = "AdminApiError";
-    this.category = input.category;
-    this.status = input.status;
-    this.requestId = input.requestId;
-    this.targetOrigin = input.targetOrigin;
-    this.elapsedMs = input.elapsedMs;
-  }
 }
 
 function headersToRecord(init?: HeadersInit): Record<string, string> {
