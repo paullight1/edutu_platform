@@ -1,31 +1,35 @@
-import { ScraperService } from "./scraper.service";
+import { ScraperController } from "./scraper.controller";
 
-describe("ScraperService runtime identity", () => {
+describe("ScraperController runtime identity", () => {
   const originalEnv = { ...process.env };
 
-  const createService = () =>
-    new ScraperService(
+  const createController = () =>
+    new ScraperController(
       {
-        getCronJob: jest.fn(() => {
-          throw new Error("not scheduled");
+        getEngineStatus: jest.fn().mockResolvedValue({
+          success: true,
+          database: { configured: false, reachable: false },
+          ai: {
+            deepseekConfigured: false,
+            geminiConfigured: false,
+            source: "missing",
+            feature: "scraper.extract",
+            provider: "deepseek",
+            model: "deepseek-chat",
+            enabled: true,
+          },
+          scraper: {
+            schedulerEnabled: false,
+            autoRunEnabled: false,
+            cronSchedule: "0 0 * * *",
+          },
         }),
       } as never,
-      {
-        listConfig: jest.fn().mockResolvedValue({
-          routes: [],
-          providerKeys: [],
-        }),
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
       {} as never,
     );
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    delete process.env.SUPABASE_URL;
-    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.RENDER_GIT_COMMIT;
     delete process.env.VERCEL_GIT_COMMIT_SHA;
     delete process.env.GITHUB_SHA;
@@ -44,10 +48,9 @@ describe("ScraperService runtime identity", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "must-not-leak";
     process.env.DEEPSEEK_API_KEY = "also-must-not-leak";
 
-    const result = await createService().getEngineStatus();
-    const runtime = (result as unknown as { runtime?: unknown }).runtime;
+    const result = await createController().getEngineStatus();
 
-    expect(runtime).toEqual({
+    expect(result.runtime).toEqual({
       service: "edutu-api",
       environment: "production",
       version: "2026.8.23",
@@ -63,31 +66,21 @@ describe("ScraperService runtime identity", () => {
     process.env.VERCEL_GIT_COMMIT_SHA = "vercel1234567890";
     process.env.GITHUB_SHA = "github-should-not-win";
 
-    const service = createService();
-    const first = await service.getEngineStatus();
-    const second = await service.getEngineStatus();
-    const firstRuntime = (
-      first as unknown as {
-        runtime?: { version?: string; commit?: string | null; startedAt?: string };
-      }
-    ).runtime;
-    const secondRuntime = (
-      second as unknown as { runtime?: { startedAt?: string } }
-    ).runtime;
+    const controller = createController();
+    const first = await controller.getEngineStatus();
+    const second = await controller.getEngineStatus();
 
-    expect(firstRuntime).toMatchObject({
+    expect(first.runtime).toMatchObject({
+      environment: "staging",
       version: "0.0.1",
       commit: "vercel123456",
     });
-    expect(firstRuntime?.startedAt).toBe(secondRuntime?.startedAt);
+    expect(first.runtime.startedAt).toBe(second.runtime.startedAt);
   });
 
   it("reports a null commit when no deployment SHA is available", async () => {
-    const result = await createService().getEngineStatus();
-    const runtime = (
-      result as unknown as { runtime?: { commit?: string | null } }
-    ).runtime;
+    const result = await createController().getEngineStatus();
 
-    expect(runtime?.commit).toBeNull();
+    expect(result.runtime.commit).toBeNull();
   });
 });
