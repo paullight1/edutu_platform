@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { BlogService } from "../blog/blog.service";
 import { OpportunitiesService } from "../opportunities/opportunities.service";
-import type {
-  PublicBlogPost,
-  PublicOpportunity,
-} from "./seo-page.render";
+import type { PublicBlogPost, PublicOpportunity } from "./seo-page.render";
 
 export const SEO_CATEGORIES = [
   "scholarships",
@@ -23,8 +20,7 @@ export interface SeoPageResult<T> {
   totalPages: number;
 }
 
-export interface SeoOpportunityPageResult
-  extends SeoPageResult<PublicOpportunity> {
+export interface SeoOpportunityPageResult extends SeoPageResult<PublicOpportunity> {
   category: SeoCategory | null;
 }
 
@@ -61,10 +57,7 @@ function firstString(
   return null;
 }
 
-function firstValue(
-  row: Record<string, unknown>,
-  ...keys: string[]
-): unknown {
+function firstValue(row: Record<string, unknown>, ...keys: string[]): unknown {
   for (const key of keys) {
     const value = row[key];
     if (value !== undefined && value !== null && value !== "") return value;

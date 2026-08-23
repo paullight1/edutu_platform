@@ -149,9 +149,7 @@ describe("archive and detail content", () => {
 
     expect(html).toContain("<main");
     expect(html).toContain("<article");
-    expect(html).toContain(
-      'href="/blog/win-a-fully-funded-scholarship"',
-    );
+    expect(html).toContain('href="/blog/win-a-fully-funded-scholarship"');
     expect(html).toContain('<time datetime="2026-08-01T10:00:00.000Z"');
     expect(html).toContain('href="/blog?page=2"');
   });
@@ -195,9 +193,7 @@ describe("sitemap and robots rendering", () => {
       },
     ]);
 
-    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(
-      true,
-    );
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
     expect(xml).toContain(
       "https://www.edutu.org/blog?topic=ai&amp;level=beginner",
     );
@@ -209,8 +205,6 @@ describe("sitemap and robots rendering", () => {
 
     expect(robots).toContain("Disallow: /app/");
     expect(robots).toContain("Disallow: /admin/");
-    expect(robots).toContain(
-      "Sitemap: https://www.edutu.org/sitemap.xml",
-    );
+    expect(robots).toContain("Sitemap: https://www.edutu.org/sitemap.xml");
   });
 });

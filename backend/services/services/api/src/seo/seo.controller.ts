@@ -181,7 +181,8 @@ export class SeoController {
     const noindex = options.noindex ?? false;
     const cacheControl = options.cacheControl ?? HTML_CACHE;
     this.setHtmlHeaders(res, statusCode, cacheControl, noindex);
-    const shell = options.useShell === false ? null : await this.shell.get(this.base);
+    const shell =
+      options.useShell === false ? null : await this.shell.get(this.base);
     return renderSeoPage({
       shell,
       meta,
@@ -385,10 +386,8 @@ export class SeoController {
   ): Promise<string> {
     const url = `${this.base}/blog/${encodeURIComponent(post.slug)}`;
     const description =
-      truncate(
-        toPlainText(post.excerpt) || toPlainText(post.content),
-        160,
-      ) || `${post.title} — an Edutu opportunity guide.`;
+      truncate(toPlainText(post.excerpt) || toPlainText(post.content), 160) ||
+      `${post.title} — an Edutu opportunity guide.`;
     const image = safeAbsoluteImage(
       post.coverImage,
       `${this.base}/og/blog.jpg`,
@@ -434,7 +433,10 @@ export class SeoController {
             },
             breadcrumbList(this.base, [
               { name: "Blog", path: "/blog" },
-              { name: post.title, path: `/blog/${encodeURIComponent(post.slug)}` },
+              {
+                name: post.title,
+                path: `/blog/${encodeURIComponent(post.slug)}`,
+              },
             ]),
           ],
         },
@@ -452,10 +454,7 @@ export class SeoController {
   ): Promise<string> {
     const requestedPage = parsePage(pageInput);
     try {
-      const result = await this.catalog.getOpportunityPage(
-        requestedPage,
-        24,
-      );
+      const result = await this.catalog.getOpportunityPage(requestedPage, 24);
       const canonical = pageUrl(this.base, "/opportunities", result.page);
       const meta: OgPageMeta = {
         title:
@@ -670,9 +669,7 @@ export class SeoController {
         ),
         breadcrumbList(this.base, [
           { name: "Opportunities", path: "/opportunities" },
-          ...(path === "/opportunities"
-            ? []
-            : [{ name, path }]),
+          ...(path === "/opportunities" ? [] : [{ name, path }]),
         ]),
       ],
     };

@@ -121,24 +121,18 @@ describe("SeoController public archives", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/html");
-    expect(html).toContain(
-      'href="/blog/win-a-fully-funded-scholarship"',
-    );
+    expect(html).toContain('href="/blog/win-a-fully-funded-scholarship"');
     expect(html).toContain('href="/blog?page=3"');
     expect(html).toContain(
       'rel="canonical" href="https://www.edutu.org/blog?page=2"',
     );
-    expect(html).toContain('/assets/index.js');
+    expect(html).toContain("/assets/index.js");
   });
 
   it("serves a category-specific standalone opportunity hub", async () => {
     const { controller, catalog } = makeController();
     const res = makeRes();
-    const html = await controller.opportunityCategory(
-      "scholarships",
-      "1",
-      res,
-    );
+    const html = await controller.opportunityCategory("scholarships", "1", res);
 
     expect(res.statusCode).toBe(200);
     expect(catalog.getOpportunityPage).toHaveBeenCalledWith(
@@ -150,7 +144,7 @@ describe("SeoController public archives", () => {
     expect(html).toContain(
       'rel="canonical" href="https://www.edutu.org/opportunities/scholarships"',
     );
-    expect(html).not.toContain('/assets/index.js');
+    expect(html).not.toContain("/assets/index.js");
   });
 });
 
@@ -166,7 +160,7 @@ describe("SeoController public detail pages", () => {
     expect(html).toContain("Living allowance");
     expect(html).toContain("How to apply");
     expect(html).toContain('type="application/ld+json"');
-    expect(html).toContain('/assets/index.js');
+    expect(html).toContain("/assets/index.js");
   });
 
   it("returns a real 404 and noindex header for an unknown opportunity", async () => {
@@ -221,16 +215,12 @@ describe("SeoController discovery files", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("application/xml");
-    expect(res.headers["x-edutu-seo-inventory"]).toBe(
-      "blog=1;opportunities=1",
-    );
+    expect(res.headers["x-edutu-seo-inventory"]).toBe("blog=1;opportunities=1");
     expect(xml).toContain(
       "https://www.edutu.org/blog/win-a-fully-funded-scholarship",
     );
     expect(xml).toContain("https://www.edutu.org/opportunity/opp-1");
-    expect(xml).toContain(
-      "https://www.edutu.org/opportunities/scholarships",
-    );
+    expect(xml).toContain("https://www.edutu.org/opportunities/scholarships");
   });
 
   it("serves robots.txt with the canonical sitemap", () => {
@@ -240,8 +230,6 @@ describe("SeoController discovery files", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/plain");
-    expect(robots).toContain(
-      "Sitemap: https://www.edutu.org/sitemap.xml",
-    );
+    expect(robots).toContain("Sitemap: https://www.edutu.org/sitemap.xml");
   });
 });

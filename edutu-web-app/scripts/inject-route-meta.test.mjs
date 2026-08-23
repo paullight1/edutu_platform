@@ -37,9 +37,7 @@ test("rejects wrong, conditional, or absent render destinations", () => {
   config.rewrites.find((rule) => rule.source === "/opportunities").has = [
     { type: "header", key: "user-agent", value: "Googlebot" },
   ];
-  config.rewrites = config.rewrites.filter(
-    (rule) => rule.source !== "/about",
-  );
+  config.rewrites = config.rewrites.filter((rule) => rule.source !== "/about");
 
   assert.deepEqual(findMissingRoutingCoverage(config, entries), [
     "/blog",

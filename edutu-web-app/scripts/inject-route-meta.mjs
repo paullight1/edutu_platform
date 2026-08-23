@@ -62,10 +62,7 @@ function escapeText(value) {
  */
 function upsertMeta(html, attribute, key, value) {
   const tag = `<meta ${attribute}="${key}" content="${attr(value)}" />`;
-  const pattern = new RegExp(
-    `<meta\\s+${attribute}="${key}"[\\s\\S]*?/>`,
-    "i",
-  );
+  const pattern = new RegExp(`<meta\\s+${attribute}="${key}"[\\s\\S]*?/>`, "i");
 
   if (pattern.test(html)) {
     return html.replace(pattern, tag);

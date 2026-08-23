@@ -97,9 +97,9 @@ function makeService(options?: {
 }) {
   const blog = {
     findAll:
-      options?.blogFindAll ?? jest.fn().mockResolvedValue(BLOG_ROWS.slice(0, 3)),
-    peekBySlug:
-      options?.blogPeek ?? jest.fn().mockResolvedValue(BLOG_ROWS[0]),
+      options?.blogFindAll ??
+      jest.fn().mockResolvedValue(BLOG_ROWS.slice(0, 3)),
+    peekBySlug: options?.blogPeek ?? jest.fn().mockResolvedValue(BLOG_ROWS[0]),
   } as any;
   const opportunities = {
     findAll:
@@ -199,10 +199,9 @@ describe("SeoCatalogService sitemap inventory", () => {
       "guide-one",
       "guide-two",
     ]);
-    expect(inventory.opportunities.map((opportunity) => opportunity.id)).toEqual([
-      "opp-1",
-      "opp-2",
-    ]);
+    expect(
+      inventory.opportunities.map((opportunity) => opportunity.id),
+    ).toEqual(["opp-1", "opp-2"]);
     expect(inventory.generatedAt).toBeInstanceOf(Date);
   });
 

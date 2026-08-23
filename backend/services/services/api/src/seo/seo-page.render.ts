@@ -194,7 +194,10 @@ function renderPanel(title: string, body: string): string {
   return `<section class="seo-panel"><h2>${textContent(title)}</h2>${body}</section>`;
 }
 
-function replaceRobots(html: string, robots: NonNullable<SeoPageInput["robots"]>): string {
+function replaceRobots(
+  html: string,
+  robots: NonNullable<SeoPageInput["robots"]>,
+): string {
   const tag = `<meta name="robots" content="${attr(robots)}" />`;
   const pattern = /<meta\s+name="robots"[\s\S]*?\/?>/i;
   return pattern.test(html)
@@ -290,7 +293,10 @@ function pageHref(
   return `${basePath}${query ? `?${query}` : ""}`;
 }
 
-function paginationItems(page: number, totalPages: number): Array<number | "ellipsis"> {
+function paginationItems(
+  page: number,
+  totalPages: number,
+): Array<number | "ellipsis"> {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
@@ -343,8 +349,7 @@ export function renderBlogArchiveBody({
   totalPages,
   basePath,
   heading = "Scholarship, career and opportunity guides",
-  introduction =
-    "Practical research and application guidance for African students and early-career professionals.",
+  introduction = "Practical research and application guidance for African students and early-career professionals.",
 }: BlogArchiveInput): string {
   const cards = posts
     .map((post) => {
@@ -418,17 +423,18 @@ export function renderOpportunityArchiveBody({
   totalPages,
   basePath,
   heading = "Find scholarships, internships, fellowships and programs",
-  introduction =
-    "Browse active opportunities with deadlines, eligibility information, and direct source links.",
+  introduction = "Browse active opportunities with deadlines, eligibility information, and direct source links.",
   category,
 }: OpportunityArchiveInput): string {
   const cards = opportunities
     .map((opportunity) => {
       const summary = truncate(
-        toPlainText(opportunity.summary) || toPlainText(opportunity.description),
+        toPlainText(opportunity.summary) ||
+          toPlainText(opportunity.description),
         220,
       );
-      const deadline = displayDate(opportunity.deadline) || clean(opportunity.deadline);
+      const deadline =
+        displayDate(opportunity.deadline) || clean(opportunity.deadline);
       return `<article class="seo-card">
         <p class="seo-eyebrow">${textContent(clean(opportunity.category) || category || "Opportunity")}</p>
         <h2><a href="${attr(opportunityPath(opportunity))}">${textContent(opportunity.title)}</a></h2>
@@ -454,13 +460,12 @@ export function renderOpportunityArchiveBody({
   </main>`;
 }
 
-export function renderOpportunityBody(
-  opportunity: PublicOpportunity,
-): string {
+export function renderOpportunityBody(opportunity: PublicOpportunity): string {
   const summary = toPlainText(opportunity.summary);
   const description = toPlainText(opportunity.description);
   const image = safeHttpUrl(opportunity.imageUrl);
-  const deadline = displayDate(opportunity.deadline) || clean(opportunity.deadline);
+  const deadline =
+    displayDate(opportunity.deadline) || clean(opportunity.deadline);
   const reviewed = displayDate(opportunity.updatedAt || opportunity.createdAt);
   const benefits = toStringList(opportunity.benefits);
   const eligibility = [
