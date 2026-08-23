@@ -1,4 +1,5 @@
 const GROUP_ID_SEGMENT = "([^/]+)";
+const RESERVED_DISCUSSION_SEGMENTS = new Set(["dm", "explore", "chats"]);
 
 function normalizePath(pathname: string): string {
   const path = (pathname || "").trim().split(/[?#]/, 1)[0] || "/";
@@ -14,7 +15,13 @@ function safeSegment(value: string): string | null {
       return "";
     }
   })();
-  if (!decoded || decoded === "." || decoded === ".." || decoded.includes("/")) {
+  if (
+    !decoded ||
+    decoded === "." ||
+    decoded === ".." ||
+    decoded.includes("/") ||
+    RESERVED_DISCUSSION_SEGMENTS.has(decoded.toLowerCase())
+  ) {
     return null;
   }
   return encodeURIComponent(decoded);
