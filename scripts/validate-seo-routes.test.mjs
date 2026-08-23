@@ -50,6 +50,22 @@ test("missing, divergent, conditional, or late SEO routes fail validation", () =
   assert.match(errors, /root SEO rewrite \/sitemap\.xml must precede the catch-all/);
 });
 
+test("regex SPA catch-alls must also remain after SEO routes", () => {
+  const root = validConfig();
+  const app = validConfig();
+  app.rewrites[app.rewrites.length - 1] = {
+    source:
+      "/((?!assets/|og/|icons/|manifest.webmanifest|registerSW.js|sw.js).*)",
+    destination: "/index.html",
+  };
+  app.rewrites.unshift(app.rewrites.pop());
+
+  assert.match(
+    validateSeoRoutes(root, app).join("\n"),
+    /app SEO rewrite \/sitemap\.xml must precede the catch-all/,
+  );
+});
+
 test("duplicate SEO sources fail validation", () => {
   const root = validConfig();
   const app = validConfig();
