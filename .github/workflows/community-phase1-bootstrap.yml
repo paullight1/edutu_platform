@@ -1,9 +1,9 @@
 name: Community Phase 1 Bootstrap
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/web-community-parity-seo
+      - main
     paths:
       - .github/workflows/community-phase1-bootstrap.yml
 
@@ -189,7 +189,6 @@ jobs:
               raise SystemExit("Realtime insertion block was not found")
           realtime.write_text(realtime_text.replace(old_realtime, new_realtime, 1))
 
-          # This workflow is a one-use transplant mechanism and must not ship.
           Path(".github/workflows/community-phase1-bootstrap.yml").unlink()
           PY
 
