@@ -64,6 +64,9 @@ const CommunityPage = lazy(
 const CommunityAppRouter = lazy(
   () => import("./features/community/CommunityAppRouter"),
 );
+const CommunityDeepLinkRedirect = lazy(
+  () => import("./features/community/CommunityDeepLinkRedirect"),
+);
 const CommunityCallPage = lazy(
   () => import("./features/community-calls/CommunityCallPage"),
 );
@@ -603,7 +606,15 @@ function App() {
         path="/our-belief"
         element={<Navigate to="/what-we-believe" replace />}
       />
-      <Route path="/community/*" element={<CommunityPage />} />
+      <Route
+      path="/discussions/*"
+      element={
+        <ProtectedRoute>
+          <CommunityDeepLinkRedirect />
+        </ProtectedRoute>
+      }
+    />
+    <Route path="/community/*" element={<CommunityPage />} />
       <Route
         path="/app/community/*"
         element={

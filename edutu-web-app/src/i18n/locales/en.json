@@ -356,7 +356,8 @@
         "creator": "Creator",
         "logOut": "Log out",
         "signingOut": "Signing out...",
-        "upgradeToPro": "Upgrade to Pro"
+        "upgradeToPro": "Upgrade to Pro",
+        "community": "Community"
     },
     "saved": {
         "title": "Saved Opportunities",
