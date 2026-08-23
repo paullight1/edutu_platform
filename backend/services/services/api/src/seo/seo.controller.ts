@@ -374,6 +374,12 @@ export class SeoController {
     const visible = posts.slice(0, BLOG_PAGE_SIZE);
     const canonicalPath = page > 1 ? `/blog?page=${page}` : "/blog";
     const canonicalUrl = this.absolute(canonicalPath);
+    if (page > 1 && visible.length === 0) {
+      return this.respond(res, this.notFoundPage("Blog page", canonicalUrl), {
+        status: 404,
+        useShell: false,
+      });
+    }
     const description =
       "Practical scholarship, career and application guides from Edutu, with opportunity explainers and evidence-based advice.";
     const jsonLd: SeoJsonLd = [
@@ -675,6 +681,13 @@ export class SeoController {
       ? `/opportunities/${category.slug}${page > 1 ? `?page=${page}` : ""}`
       : `/opportunities${page > 1 ? `?page=${page}` : ""}`;
     const canonicalUrl = this.absolute(canonicalPath);
+    if (page > 1 && loaded.items.length === 0) {
+      return this.respond(
+        res,
+        this.notFoundPage("Opportunity page", canonicalUrl),
+        { status: 404, useShell: false },
+      );
+    }
     const title = category
       ? category.title
       : page > 1
