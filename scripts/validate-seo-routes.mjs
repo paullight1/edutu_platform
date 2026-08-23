@@ -33,10 +33,20 @@ function rewrites(config) {
 function catchAllIndex(items) {
   return items.findIndex((rewrite) => {
     const source = rewrite?.source;
+    const destination = rewrite?.destination;
+    const isFrontendFallback =
+      destination === "/index.html" ||
+      (destination &&
+        typeof destination === "object" &&
+        destination.service === "frontend");
+
     return (
       source === "/:path*" ||
       source === "/(.*)" ||
-      (typeof source === "string" && source.includes(":path*"))
+      (typeof source === "string" && source.includes(":path*")) ||
+      (isFrontendFallback &&
+        typeof source === "string" &&
+        source.includes(".*"))
     );
   });
 }
