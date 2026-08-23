@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
@@ -73,6 +73,7 @@ export default function CommunityDmPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const conversationRef = useRef<DmConversationDetail | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -103,6 +104,7 @@ export default function CommunityDmPage() {
   );
 
   useEffect(() => {
+    conversationRef.current = null;
     setConversation(null);
     setMessages([]);
     setHasMore(true);
@@ -112,8 +114,16 @@ export default function CommunityDmPage() {
   }, [id, load]);
 
   useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  useEffect(() => {
     const unsubscribe = subscribeToDmMessages(id, (event) => {
-      const hydrated = hydrateRealtimeMessage(event, userId, conversation);
+      const hydrated = hydrateRealtimeMessage(
+        event,
+        userId,
+        conversationRef.current,
+      );
       setMessages((current) => mergeMessages(current, [hydrated]));
       setConversation((current) =>
         current ? { ...current, lastMessageAt: event.createdAt } : current,
@@ -131,15 +141,7 @@ export default function CommunityDmPage() {
       window.clearInterval(reconciliation);
       unsubscribe();
     };
-  }, [
-    api,
-    conversation?.otherUser.avatarUrl,
-    conversation?.otherUser.displayName,
-    conversation?.otherUser.userId,
-    id,
-    load,
-    userId,
-  ]);
+  }, [api, id, load, userId]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || messages.length === 0) return;
