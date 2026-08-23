@@ -95,6 +95,6 @@ describe("CommunityProtectedImage", () => {
       resourceUrl,
       mocks.getToken,
     );
-    expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
+    expect((image as HTMLImageElement).referrerPolicy).toBe("no-referrer");
   });
 });
