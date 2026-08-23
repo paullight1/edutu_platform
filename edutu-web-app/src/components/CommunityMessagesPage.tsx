@@ -103,9 +103,11 @@ export default function CommunityMessagesPage() {
   const [notice, setNotice] = useState<Notice>(null);
   const [targetState, setTargetState] = useState<"loading" | "available" | "pending" | "blocked" | null>(null);
 
-  const loadInbox = useCallback(async () => {
-    setListLoading(true);
-    setListError(null);
+  const loadInbox = useCallback(async (showLoader = true) => {
+    if (showLoader) {
+      setListLoading(true);
+      setListError(null);
+    }
     try {
       const [conversationRows, incomingRows, outgoingRows] = await Promise.all([
         fetchDmConversations({ limit: 50 }, getToken),
@@ -116,18 +118,29 @@ export default function CommunityMessagesPage() {
       setIncoming(incomingRows);
       setOutgoing(outgoingRows);
     } catch (cause) {
-      setListError(
-        isCommunityDmApiError(cause)
-          ? cause.message
-          : "Your Community inbox is unavailable right now.",
-      );
+      if (showLoader) {
+        setListError(
+          isCommunityDmApiError(cause)
+            ? cause.message
+            : "Your Community inbox is unavailable right now.",
+        );
+      }
     } finally {
-      setListLoading(false);
+      if (showLoader) setListLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    void loadInbox();
+    void loadInbox(true);
+  }, [loadInbox]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        void loadInbox(false);
+      }
+    }, 15_000);
+    return () => window.clearInterval(interval);
   }, [loadInbox]);
 
   const loadConversation = useCallback(
