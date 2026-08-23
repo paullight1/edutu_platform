@@ -66,7 +66,10 @@ const members: CommunityGroupMember[] = [
 
 const roleRank: Record<string, number> = { owner: 0, mod: 1, member: 2 };
 
-function compareMembers(left: CommunityGroupMember, right: CommunityGroupMember) {
+function compareMembers(
+  left: CommunityGroupMember,
+  right: CommunityGroupMember,
+) {
   return (
     (roleRank[left.role] ?? 3) - (roleRank[right.role] ?? 3) ||
     left.joinedAt.getTime() - right.joinedAt.getTime() ||
@@ -86,13 +89,14 @@ describe("GroupsService member pagination", () => {
       ) => {
         const sorted = [...members].sort(compareMembers);
         const page = after
-          ? sorted.filter((row) =>
-              compareMembers(row, {
-                ...row,
-                id: after.id,
-                role: after.role,
-                joinedAt: after.joinedAt,
-              }) > 0,
+          ? sorted.filter(
+              (row) =>
+                compareMembers(row, {
+                  ...row,
+                  id: after.id,
+                  role: after.role,
+                  joinedAt: after.joinedAt,
+                }) > 0,
             )
           : sorted;
         return page.slice(0, limit);
@@ -115,22 +119,17 @@ describe("GroupsService member pagination", () => {
       "user_mod",
     ]);
     expect(first.hasMore).toBe(true);
-    expect((first as { nextCursor?: unknown }).nextCursor).toEqual({
+    expect(first.nextCursor).toEqual({
       role: "mod",
       joinedAt: "2026-08-02T00:00:00.000Z",
       id: "00000000-0000-4000-8000-000000000102",
     });
 
-    const second = await (service.listMembers as unknown as (
-      userId: string,
-      groupId: string,
-      limit: number,
-      cursor: unknown,
-    ) => Promise<{ members: Array<{ membership: CommunityGroupMember }>; hasMore: boolean }>)(
+    const second = await service.listMembers(
       VIEWER_ID,
       GROUP_ID,
       2,
-      (first as { nextCursor?: unknown }).nextCursor,
+      first.nextCursor!,
     );
 
     expect(second.members.map((row) => row.membership.userId)).toEqual([
@@ -138,5 +137,6 @@ describe("GroupsService member pagination", () => {
       "user_member_2",
     ]);
     expect(second.hasMore).toBe(false);
+    expect(second.nextCursor).toBeNull();
   });
 });
