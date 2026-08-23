@@ -30,7 +30,8 @@ function mapRealtimeMessage(row: RealtimeMessageRow): CommunityMessage | null {
     userId: row.user_id,
     body: row.body,
     kind: typeof row.kind === "string" ? row.kind : "text",
-    opportunityId: typeof row.opportunity_id === "string" ? row.opportunity_id : null,
+    opportunityId:
+      typeof row.opportunity_id === "string" ? row.opportunity_id : null,
     callId: typeof row.call_id === "string" ? row.call_id : null,
     createdAt: row.created_at,
     deletedAt: typeof row.deleted_at === "string" ? row.deleted_at : null,
@@ -40,7 +41,7 @@ function mapRealtimeMessage(row: RealtimeMessageRow): CommunityMessage | null {
 
 export function subscribeToGroupMessages(
   groupId: string,
-  onInsert: (message: CommunityMessage) => void,
+  onChange: (message: CommunityMessage) => void,
 ): () => void {
   if (!groupId || !isSupabaseConfigured) return () => undefined;
 
@@ -51,21 +52,21 @@ export function subscribeToGroupMessages(
     }
   }
 
+  const handleChange = (payload: { new?: unknown }) => {
+    const message = mapRealtimeMessage(payload.new as RealtimeMessageRow);
+    if (message) onChange(message);
+  };
+
+  const filter = {
+    schema: "public",
+    table: "community_group_messages",
+    filter: `group_id=eq.${groupId}`,
+  } as const;
+
   const channel = supabase
     .channel(topic)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "community_group_messages",
-        filter: `group_id=eq.${groupId}`,
-      },
-      (payload) => {
-        const message = mapRealtimeMessage(payload.new as RealtimeMessageRow);
-        if (message) onInsert(message);
-      },
-    );
+    .on("postgres_changes", { event: "INSERT", ...filter }, handleChange)
+    .on("postgres_changes", { event: "UPDATE", ...filter }, handleChange);
 
   try {
     channel.subscribe();
