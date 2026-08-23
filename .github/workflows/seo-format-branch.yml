@@ -1,0 +1,58 @@
+name: SEO Branch Formatter
+
+on:
+  push:
+    branches:
+      - codex/seo-p0-p4-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    name: Format SEO Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/seo-p0-p4-hardening
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - name: Install pinned backend tooling
+        working-directory: backend/services/services/api
+        run: npm ci
+      - name: Format only SEO-owned files
+        working-directory: backend/services/services/api
+        run: |
+          ./node_modules/.bin/prettier --write \
+            'src/seo/*.ts' \
+            '../../../../edutu-web-app/scripts/inject-route-meta.mjs' \
+            '../../../../edutu-web-app/scripts/inject-route-meta.test.mjs' \
+            '../../../../edutu-web-app/src/test/__tests__/pageSeo.test.ts'
+      - name: Guard formatter scope
+        shell: bash
+        run: |
+          unexpected=$(git diff --name-only | grep -Ev '^(backend/services/services/api/src/seo/.*\.ts|edutu-web-app/scripts/inject-route-meta(\.test)?\.mjs|edutu-web-app/src/test/__tests__/pageSeo\.test\.ts)$' || true)
+          if [[ -n "$unexpected" ]]; then
+            echo "Formatter changed files outside the approved SEO scope:"
+            echo "$unexpected"
+            exit 1
+          fi
+      - name: Commit formatted files and remove this one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            backend/services/services/api/src/seo \
+            edutu-web-app/scripts/inject-route-meta.mjs \
+            edutu-web-app/scripts/inject-route-meta.test.mjs \
+            edutu-web-app/src/test/__tests__/pageSeo.test.ts
+          git rm .github/workflows/seo-format-branch.yml
+          git commit -m "style(seo): apply repository formatting"
+          git push origin HEAD:codex/seo-p0-p4-hardening
