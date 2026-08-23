@@ -10,6 +10,7 @@ import App from './App.tsx';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import WhatsNewNotification from './components/WhatsNewNotification';
+import { CommunityProtectedImageHydrator } from './components/CommunityProtectedImage';
 import { initSentry } from './lib/sentry';
 import { SkipLink } from './lib/accessibility';
 
@@ -70,6 +71,7 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
+                  <CommunityProtectedImageHydrator />
                   <PaywallProvider>
                     <PersonalizationProvider>
                       <AnalyticsProvider>
