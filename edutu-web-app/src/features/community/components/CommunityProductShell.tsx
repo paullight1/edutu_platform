@@ -51,9 +51,16 @@ export default function CommunityProductShell({
           </div>
         </div>
 
-        <nav aria-label="Community sections" className="mx-auto mt-5 flex max-w-6xl gap-1 overflow-x-auto pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label="Community sections"
+          className="mx-auto mt-5 flex max-w-6xl gap-1 overflow-x-auto pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {tabs.map(({ to, label, icon: Icon }) => {
-            const active = pathname === to || pathname.startsWith(`${to}/`) || (label === "Groups" && pathname.startsWith("/app/community/groups/"));
+            const active =
+              pathname === to ||
+              pathname.startsWith(`${to}/`) ||
+              (label === "Groups" &&
+                pathname.startsWith("/app/community/groups/"));
             return (
               <NavLink
                 key={to}
@@ -68,40 +75,18 @@ export default function CommunityProductShell({
               >
                 <Icon size={17} />
                 {label}
-                {active ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#f45b16] dark:bg-brand" /> : null}
+                {active ? (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#f45b16] dark:bg-brand" />
+                ) : null}
               </NavLink>
             );
           })}
         </nav>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-28 sm:px-6 sm:py-7 lg:px-8 lg:pb-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-8 sm:px-6 sm:py-7 lg:px-8">
         {children}
       </div>
-
-      <nav
-        aria-label="Community mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-3 border-t border-[#f4dcc9] bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),.4rem)] pt-1.5 backdrop-blur-xl dark:border-subtle dark:bg-surface-layer/95 lg:hidden"
-      >
-        {tabs.map(({ to, label, icon: Icon }) => {
-          const active = pathname === to || pathname.startsWith(`${to}/`) || (label === "Groups" && pathname.startsWith("/app/community/groups/"));
-          return (
-            <NavLink
-              key={`mobile-${to}`}
-              to={to}
-              className={cn(
-                "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-bold",
-                active ? "text-[#f45b16] dark:text-brand" : "text-[#796f6b] dark:text-text-secondary",
-              )}
-            >
-              <span className={cn("flex h-7 min-w-10 items-center justify-center rounded-full", active && "bg-[#f45b16]/10 dark:bg-brand/10")}>
-                <Icon size={19} strokeWidth={active ? 2.5 : 2} />
-              </span>
-              {label}
-            </NavLink>
-          );
-        })}
-      </nav>
     </section>
   );
 }
