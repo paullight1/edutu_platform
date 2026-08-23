@@ -25,6 +25,7 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useClerk } from "../hooks/useAuth";
 import CommunityGroupSettingsTools from "./CommunityGroupSettingsTools";
+import CommunityMemberPagination from "./CommunityMemberPagination";
 import {
   COMMUNITY_IMAGE_MAX_BYTES,
   COMMUNITY_PDF_MAX_BYTES,
@@ -907,8 +908,8 @@ export default function CommunityGroupPage() {
             {!contentLoading && tab === "members" ? (
               <section className="mt-6">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-xl font-semibold">Members</h2><p className="mt-1 text-sm text-text-secondary">People with active access to this room.</p></div>{detail.membership?.role !== "owner" ? <button type="button" disabled={leaveBusy} onClick={() => void handleLeave()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/20 px-4 text-sm font-semibold text-danger disabled:opacity-60"><LogOut size={16} /> {leaveBusy ? "Leaving…" : "Leave group"}</button> : null}</div>
-                {membersHasMore ? <div role="status" className="mb-4 rounded-2xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-text-secondary">Showing the first {members.length} active members. The group has {group.memberCount} members in total.</div> : null}
                 <div className="grid gap-3 lg:grid-cols-2">{members.map((member) => <article key={member.membership.id} className="flex items-center gap-3 rounded-[24px] border border-subtle bg-surface-layer p-4 shadow-sm"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-elevated text-sm font-semibold">{initials(member.profile.displayName)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{member.profile.displayName}</p><p className="mt-1 text-xs capitalize text-text-muted">{member.membership.role}</p></div>{member.membership.userId !== userId ? <div className="flex gap-1"><Link to={`/app/community/messages?user=${encodeURIComponent(member.membership.userId)}`} className="inline-flex min-h-10 items-center rounded-xl border border-subtle px-3 text-xs font-semibold">Message</Link><button type="button" onClick={() => void handleBlock(member)} aria-label={`Block ${member.profile.displayName}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-text-muted hover:text-danger"><Ban size={15} /></button></div> : <span className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700">You</span>}</article>)}</div>
+                <CommunityMemberPagination groupId={group.id} initialMembers={members} hasMore={membersHasMore} totalCount={group.memberCount} currentUserId={userId} onBlock={handleBlock} />
               </section>
             ) : null}
 
