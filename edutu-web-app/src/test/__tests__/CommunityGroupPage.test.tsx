@@ -62,7 +62,7 @@ beforeEach(() => {
   mocks.fetchGroup.mockResolvedValue({ group, membership: { id: "membership-1", groupId: group.id, userId: "user_me", role: "member", status: "active", joinedAt: "2026-08-22T12:00:00.000Z" } });
   mocks.fetchMessages.mockResolvedValue([{ id: "message-1", groupId: group.id, userId: "user_other", body: "I added a checklist for the essay review.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:00:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Tomi Ade", avatarUrl: null } }]);
   mocks.fetchGroupResources.mockResolvedValue({ resources: [], nextCursor: null });
-  mocks.fetchGroupMembers.mockResolvedValue({ members: [member], hasMore: false });
+  mocks.fetchGroupMembers.mockResolvedValue({ members: [member], hasMore: false, nextCursor: null });
   mocks.fetchJoinRequests.mockResolvedValue([]);
   mocks.fetchGroupForm.mockResolvedValue({ questions: [] });
   mocks.sendMessage.mockResolvedValue({ id: "message-2", groupId: group.id, userId: "user_me", body: "Great — I will review it tonight.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:01:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Amina Bello", avatarUrl: null } });
@@ -182,6 +182,46 @@ describe("CommunityGroupPage", () => {
     expect(await screen.findByText("An earlier message")).toBeInTheDocument();
   });
 
+  it("loads the next member page with the backend keyset cursor", async () => {
+    const cursor = {
+      role: "member",
+      joinedAt: member.membership.joinedAt,
+      id: member.membership.id,
+    };
+    const nextMember = {
+      membership: {
+        id: "membership-3",
+        groupId: group.id,
+        userId: "user_next",
+        role: "member",
+        status: "active",
+        joinedAt: "2026-08-21T12:00:00.000Z",
+      },
+      profile: { displayName: "Ngozi Okafor", avatarUrl: null },
+    };
+    mocks.fetchGroupMembers
+      .mockResolvedValueOnce({ members: [member], hasMore: true, nextCursor: cursor })
+      .mockResolvedValueOnce({ members: [nextMember], hasMore: false, nextCursor: null });
+
+    renderGroup();
+    expect(await screen.findByText("I added a checklist for the essay review.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Members" }));
+
+    const loadMore = await screen.findByRole("button", { name: "Load more members" });
+    fireEvent.click(loadMore);
+
+    await waitFor(() =>
+      expect(mocks.fetchGroupMembers).toHaveBeenNthCalledWith(
+        2,
+        group.id,
+        mocks.getToken,
+        100,
+        cursor,
+      ),
+    );
+    expect(await screen.findByText("Ngozi Okafor")).toBeInTheDocument();
+  });
+
   it("does not expose owner-only role controls to a moderator", async () => {
     const peerModerator = {
       membership: {
@@ -208,6 +248,7 @@ describe("CommunityGroupPage", () => {
     mocks.fetchGroupMembers.mockResolvedValue({
       members: [member, peerModerator],
       hasMore: false,
+      nextCursor: null,
     });
 
     renderGroup();
