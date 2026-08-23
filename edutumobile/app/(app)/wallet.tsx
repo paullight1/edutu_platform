@@ -53,18 +53,20 @@ export default function WalletScreen() {
     const scrollRef = useRef<ScrollView>(null);
     const txSectionY = useRef(0);
 
+    const fetchEntitlements = useCallback(async (): Promise<MarketplaceEntitlement[]> => {
+        if (!user?.id) return [];
+
+        const token = await getToken();
+        if (!token) throw new Error('Your session has expired. Sign in again.');
+        return fetchMarketplaceEntitlements({ token });
+    }, [getToken, user?.id]);
+
     const loadEntitlements = useCallback(async () => {
-        if (!user?.id) return;
+        setEntitlementsLoading(true);
+        setEntitlementsError(null);
 
         try {
-            // Resolve the external auth state first. This keeps the effect from
-            // synchronously cascading local state updates while still showing
-            // the initial loading state from the component's default state.
-            const token = await getToken();
-            setEntitlementsLoading(true);
-            setEntitlementsError(null);
-            if (!token) throw new Error('Your session has expired. Sign in again.');
-            setEntitlements(await fetchMarketplaceEntitlements({ token }));
+            setEntitlements(await fetchEntitlements());
         } catch (error) {
             setEntitlementsError(
                 error instanceof Error
@@ -74,12 +76,34 @@ export default function WalletScreen() {
         } finally {
             setEntitlementsLoading(false);
         }
-    }, [getToken, user?.id]);
+    }, [fetchEntitlements]);
 
     useEffect(() => {
         if (!user?.id) return;
-        void loadEntitlements();
-    }, [loadEntitlements, user?.id]);
+
+        let cancelled = false;
+        void fetchEntitlements()
+            .then((nextEntitlements) => {
+                if (cancelled) return;
+                setEntitlements(nextEntitlements);
+                setEntitlementsError(null);
+            })
+            .catch((error: unknown) => {
+                if (cancelled) return;
+                setEntitlementsError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Unable to load marketplace access.',
+                );
+            })
+            .finally(() => {
+                if (!cancelled) setEntitlementsLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [fetchEntitlements, user?.id]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
