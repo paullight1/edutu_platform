@@ -38,6 +38,19 @@ export const ADMIN_COMMUNITY_SAFETY_STORE = Symbol(
   "ADMIN_COMMUNITY_SAFETY_STORE",
 );
 
+/**
+ * Admin takedowns use the same tombstone security rule as MessagesService:
+ * deleting metadata without blanking the body would leave the original text
+ * readable to native clients subscribed to the message table over Realtime.
+ */
+export function adminMessageTombstone(actorId: string) {
+  return {
+    body: "",
+    deletedAt: new Date(),
+    deletedBy: `admin:${actorId}`,
+  };
+}
+
 function toIso(value: unknown): string | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -163,7 +176,7 @@ export class DrizzleAdminCommunitySafetyStore implements AdminCommunitySafetySto
   async removeMessage(id: string, actorId: string): Promise<boolean> {
     const rows = await db
       .update(communityGroupMessages)
-      .set({ deletedAt: new Date(), deletedBy: `admin:${actorId}` })
+      .set(adminMessageTombstone(actorId))
       .where(
         and(
           eq(communityGroupMessages.id, id),
