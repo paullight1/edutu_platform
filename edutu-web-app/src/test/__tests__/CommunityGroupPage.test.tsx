@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -115,6 +115,23 @@ describe("CommunityGroupPage", () => {
       ),
     );
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
+  });
+
+  it("keeps report dialogs keyboard-contained and restores the safety trigger", async () => {
+    renderGroup();
+    expect(await screen.findByText("I added a checklist for the essay review.")).toBeInTheDocument();
+
+    const trigger = screen.getByRole("button", { name: "Report group" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = await screen.findByRole("dialog", { name: "Report group" });
+    const reason = within(dialog).getByRole("textbox", { name: "Reason" });
+    await waitFor(() => expect(reason).toHaveFocus());
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Report group" })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
   });
 
   it("loads earlier messages with the backend before plus beforeId cursor", async () => {
