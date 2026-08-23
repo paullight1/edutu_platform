@@ -83,19 +83,25 @@ describe("CommunityGroupPage", () => {
     expect(screen.queryByText(/start call/i)).not.toBeInTheDocument();
   });
 
-  it("sends a text message through the REST contract", async () => {
+  it("sends a text message through the native form REST contract", async () => {
     renderGroup();
-    const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
-    fireEvent.input(composer, {
-      target: { value: "Great — I will review it tonight." },
-    });
+    const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" }) as HTMLTextAreaElement;
+    composer.value = "Great — I will review it tonight.";
+    const form = composer.closest("form");
+    expect(form).not.toBeNull();
+    expect(new FormData(form!).get("message")).toBe(
+      "Great — I will review it tonight.",
+    );
+
+    fireEvent.submit(form!);
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled(),
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        group.id,
+        { body: "Great — I will review it tonight." },
+        mocks.getToken,
+      ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
     expect(await screen.findByText("Great — I will review it tonight.")).toBeInTheDocument();
   });
 
