@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Lock,
+  LogOut,
   MessageCircle,
   Paperclip,
   Send,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useClerk } from "../hooks/useAuth";
+import CommunityGroupSettingsTools from "./CommunityGroupSettingsTools";
 import {
   COMMUNITY_IMAGE_MAX_BYTES,
   COMMUNITY_PDF_MAX_BYTES,
@@ -41,6 +43,7 @@ import {
   inviteToGroup,
   isCommunityApiError,
   joinGroup,
+  leaveGroup,
   removeMember,
   reportTarget,
   resolveCommunityAttachmentUrl,
@@ -523,6 +526,8 @@ function AdminPanel({
         ) : null}
       </div>
 
+      <CommunityGroupSettingsTools detail={detail} onDetailChange={onDetailChange} />
+
       <section className="rounded-[28px] border border-subtle bg-surface-layer p-5 sm:p-6 xl:col-span-2">
         <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Join requests</h2><span className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700">{requests.length}</span></div>
         {loadingRequests ? <p className="mt-4 text-sm text-text-muted">Loading requests…</p> : requests.length ? (
@@ -551,7 +556,7 @@ function AdminPanel({
                 ) : (
                   <span className="inline-flex h-10 items-center rounded-xl bg-surface-elevated px-3 text-xs font-semibold text-text-secondary">{member.membership.role === "mod" ? "Moderator" : "Member"}</span>
                 )}
-                {member.membership.role !== "owner" && (currentAdminIsOwner || member.membership.role === "member") ? <button type="button" disabled={busyId === member.membership.id} onClick={() => void remove(member)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-danger/20 px-3 text-xs font-semibold text-danger"><UserMinus size={14} /> Remove</button> : null}
+                {member.membership.role !== "owner" && (currentAdminIsOwner || member.membership.role === "member") ? <button type="button" disabled={busyId === member.membership.id} onClick={() => void remove(member)} aria-label={`Remove ${member.profile.displayName}`} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-danger/20 px-3 text-xs font-semibold text-danger"><UserMinus size={14} /> Remove</button> : null}
               </div>
             </div>
           ))}
@@ -564,6 +569,7 @@ function AdminPanel({
 export default function CommunityGroupPage() {
   const { groupId = "" } = useParams();
   const { getToken, userId } = useClerk();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -572,6 +578,7 @@ export default function CommunityGroupPage() {
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [resources, setResources] = useState<CommunityGroupResource[]>([]);
   const [members, setMembers] = useState<CommunityMemberSummary[]>([]);
+  const [membersHasMore, setMembersHasMore] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
   const [messagesHasMore, setMessagesHasMore] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
@@ -581,6 +588,7 @@ export default function CommunityGroupPage() {
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
   const [questions, setQuestions] = useState<GroupQuestion[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -636,6 +644,7 @@ export default function CommunityGroupPage() {
         setResources((current) => mergeResources(current, resourcePage.resources));
       }
       setMembers(memberPage.members.filter((member) => member.membership.status === "active"));
+      setMembersHasMore(memberPage.hasMore);
     } catch (cause) {
       if (showLoader) {
         setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Group activity could not load." });
@@ -711,20 +720,37 @@ export default function CommunityGroupPage() {
     }
   };
 
-  const handleSend = async (event: React.FormEvent) => {
+  const handleSend = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!detail || !composer.trim() || sending) return;
-    const body = composer.trim();
+    if (!detail || sending) return;
+    const formValue = new FormData(event.currentTarget).get("message");
+    const body = (typeof formValue === "string" ? formValue : composer).trim();
+    if (!body) return;
     setSending(true);
     setNotice(null);
     try {
       const message = await sendMessage(detail.group.id, { body }, getToken);
       setMessages((current) => mergeMessages(current, [message]));
+      event.currentTarget.reset();
       setComposer("");
     } catch (cause) {
       setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "Your message could not be sent." });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!detail || !userId || detail.membership?.status !== "active" || detail.membership.role === "owner" || leaveBusy) return;
+    if (!window.confirm(`Leave ${detail.group.name}? You can rejoin later only if the group’s joining rules allow it.`)) return;
+    setLeaveBusy(true);
+    setNotice(null);
+    try {
+      await leaveGroup(detail.group.id, userId, getToken);
+      navigate("/app/community", { replace: true });
+    } catch (cause) {
+      setNotice({ tone: "error", text: isCommunityApiError(cause) ? cause.message : "You could not leave this group." });
+      setLeaveBusy(false);
     }
   };
 
@@ -868,7 +894,7 @@ export default function CommunityGroupPage() {
                       return <article key={message.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""}`}><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface-elevated text-xs font-semibold">{initials(message.author?.displayName || (mine ? "You" : "Member"))}</span><div className={`min-w-0 max-w-[82%] ${mine ? "text-right" : ""}`}><div className={`flex flex-wrap items-center gap-2 ${mine ? "justify-end" : ""}`}><span className="text-xs font-semibold">{mine ? "You" : message.author?.displayName || "Member"}</span><span className="text-2xs text-text-muted">{formatDate(message.createdAt)}</span></div><div className={`mt-1 rounded-[20px] px-4 py-3 text-left text-sm leading-6 ${mine ? "bg-brand-500 text-white" : "bg-surface-elevated text-text-primary"}`}>{deleted ? <span className="italic opacity-70">Message removed</span> : attachment ? <div><div className="flex items-center gap-2 font-semibold">{message.kind === "image" ? <ImageIcon size={16} /> : <FileText size={16} />}<span className="truncate">{attachment.name}</span></div>{attachment.caption ? <p className="mt-2 opacity-90">{attachment.caption}</p> : null}<button type="button" onClick={() => void openAttachment(attachment.url)} className={`mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold ${mine ? "bg-white/15 text-white" : "bg-surface-layer text-brand-700"}`}><Download size={14} /> Open resource</button></div> : message.body}</div>{!deleted ? <div className={`mt-1 flex gap-2 ${mine ? "justify-end" : ""}`}>{mine ? <button type="button" onClick={() => void removeMessage(message)} className="inline-flex items-center gap-1 text-2xs font-semibold text-text-muted hover:text-danger"><Trash2 size={12} /> Delete</button> : <button type="button" onClick={() => setReportTargetState({ type: "message", id: message.id, label: "message" })} className="inline-flex items-center gap-1 text-2xs font-semibold text-text-muted hover:text-danger"><Flag size={12} /> Report</button>}</div> : null}</div></article>;
                     })}</div> : <div className="flex min-h-[300px] flex-col items-center justify-center text-center"><MessageCircle size={28} className="text-brand-500" /><h3 className="mt-4 font-semibold">Start a useful conversation</h3><p className="mt-2 max-w-sm text-sm leading-6 text-text-secondary">Share progress, ask a focused question, or add a resource that helps the group move forward.</p></div>}
                   </div>
-                  <form onSubmit={handleSend} className="border-t border-subtle bg-surface-layer p-3 sm:p-4"><div className="flex items-end gap-2"><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} /><button type="button" disabled={uploading || Boolean(group.archivedAt)} onClick={() => fileInputRef.current?.click()} aria-label="Attach image or PDF" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-subtle text-text-secondary transition hover:bg-surface-elevated disabled:opacity-50">{uploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}</button><label className="min-w-0 flex-1"><span className="sr-only">Message {group.name}</span><textarea aria-label={`Message ${group.name}`} value={composer} onInput={(event) => setComposer(event.currentTarget.value.slice(0, 4000))} rows={1} disabled={Boolean(group.archivedAt)} placeholder={group.archivedAt ? "This group is archived" : "Write a message"} className="max-h-36 min-h-11 w-full resize-none rounded-2xl border border-subtle bg-surface-body px-4 py-3 text-sm leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60" /></label><button type="submit" aria-label="Send message" disabled={sending || !composer.trim() || Boolean(group.archivedAt)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white transition hover:bg-brand-600 disabled:opacity-50">{sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button></div></form>
+                  <form onSubmit={handleSend} className="border-t border-subtle bg-surface-layer p-3 sm:p-4"><div className="flex items-end gap-2"><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} /><button type="button" disabled={uploading || Boolean(group.archivedAt)} onClick={() => fileInputRef.current?.click()} aria-label="Attach image or PDF" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-subtle text-text-secondary transition hover:bg-surface-elevated disabled:opacity-50">{uploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}</button><label className="min-w-0 flex-1"><span className="sr-only">Message {group.name}</span><textarea name="message" aria-label={`Message ${group.name}`} value={composer} onInput={(event) => setComposer(event.currentTarget.value.slice(0, 4000))} rows={1} disabled={Boolean(group.archivedAt)} placeholder={group.archivedAt ? "This group is archived" : "Write a message"} className="max-h-36 min-h-11 w-full resize-none rounded-2xl border border-subtle bg-surface-body px-4 py-3 text-sm leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60" /></label><button type="submit" aria-label="Send message" disabled={sending || !composer.trim() || Boolean(group.archivedAt)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white transition hover:bg-brand-600 disabled:opacity-50">{sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button></div></form>
                 </div>
                 <aside className="space-y-4"><div className="rounded-[24px] border border-subtle bg-surface-layer p-5"><h2 className="text-sm font-semibold">Room guide</h2><div className="mt-3 space-y-3 text-sm leading-6 text-text-secondary"><p>Keep personal information private.</p><p>Share resources you trust and explain why they are useful.</p><p>Use report and block controls when something feels unsafe.</p></div></div><div className="rounded-[24px] border border-brand-500/15 bg-brand-500/5 p-5"><p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-700">Resources loaded</p><p className="mt-2 text-2xl font-semibold">{resources.length}</p><button type="button" onClick={() => setTab("resources")} className="mt-3 text-sm font-semibold text-brand-700">Browse shared files →</button></div></aside>
               </section>
@@ -879,7 +905,11 @@ export default function CommunityGroupPage() {
             ) : null}
 
             {!contentLoading && tab === "members" ? (
-              <section className="mt-6"><div className="mb-4"><h2 className="text-xl font-semibold">Members</h2><p className="mt-1 text-sm text-text-secondary">People with active access to this room.</p></div><div className="grid gap-3 lg:grid-cols-2">{members.map((member) => <article key={member.membership.id} className="flex items-center gap-3 rounded-[24px] border border-subtle bg-surface-layer p-4 shadow-sm"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-elevated text-sm font-semibold">{initials(member.profile.displayName)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{member.profile.displayName}</p><p className="mt-1 text-xs capitalize text-text-muted">{member.membership.role}</p></div>{member.membership.userId !== userId ? <div className="flex gap-1"><Link to={`/app/community/messages?user=${encodeURIComponent(member.membership.userId)}`} className="inline-flex min-h-10 items-center rounded-xl border border-subtle px-3 text-xs font-semibold">Message</Link><button type="button" onClick={() => void handleBlock(member)} aria-label={`Block ${member.profile.displayName}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-text-muted hover:text-danger"><Ban size={15} /></button></div> : <span className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700">You</span>}</article>)}</div></section>
+              <section className="mt-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-xl font-semibold">Members</h2><p className="mt-1 text-sm text-text-secondary">People with active access to this room.</p></div>{detail.membership?.role !== "owner" ? <button type="button" disabled={leaveBusy} onClick={() => void handleLeave()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/20 px-4 text-sm font-semibold text-danger disabled:opacity-60"><LogOut size={16} /> {leaveBusy ? "Leaving…" : "Leave group"}</button> : null}</div>
+                {membersHasMore ? <div role="status" className="mb-4 rounded-2xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-text-secondary">Showing the first {members.length} active members. The group has {group.memberCount} members in total.</div> : null}
+                <div className="grid gap-3 lg:grid-cols-2">{members.map((member) => <article key={member.membership.id} className="flex items-center gap-3 rounded-[24px] border border-subtle bg-surface-layer p-4 shadow-sm"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-elevated text-sm font-semibold">{initials(member.profile.displayName)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{member.profile.displayName}</p><p className="mt-1 text-xs capitalize text-text-muted">{member.membership.role}</p></div>{member.membership.userId !== userId ? <div className="flex gap-1"><Link to={`/app/community/messages?user=${encodeURIComponent(member.membership.userId)}`} className="inline-flex min-h-10 items-center rounded-xl border border-subtle px-3 text-xs font-semibold">Message</Link><button type="button" onClick={() => void handleBlock(member)} aria-label={`Block ${member.profile.displayName}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-text-muted hover:text-danger"><Ban size={15} /></button></div> : <span className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700">You</span>}</article>)}</div>
+              </section>
             ) : null}
 
             {!contentLoading && tab === "admin" && isAdmin ? <section className="mt-6"><AdminPanel detail={detail} members={members} onDetailChange={setDetail} onMembersChange={setMembers} onNotice={setNotice} /></section> : null}
