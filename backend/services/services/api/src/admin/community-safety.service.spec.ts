@@ -3,6 +3,7 @@ import type { AuditService } from "../common/audit";
 import type { CommunityReportStatus } from "./community-safety.dto";
 import {
   AdminCommunitySafetyService,
+  adminMessageTombstone,
   type AdminCommunitySafetyStore,
 } from "./community-safety.service";
 
@@ -46,6 +47,14 @@ function makeAudit() {
 }
 
 describe("AdminCommunitySafetyService", () => {
+  it("blanks reported message bodies when an admin creates a tombstone", () => {
+    expect(adminMessageTombstone("admin_1")).toEqual({
+      body: "",
+      deletedAt: expect.any(Date),
+      deletedBy: "admin:admin_1",
+    });
+  });
+
   it("bounds report queues and defaults to open reports", async () => {
     const { store, mocks } = makeStore();
     const { audit } = makeAudit();
