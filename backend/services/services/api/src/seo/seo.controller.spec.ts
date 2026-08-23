@@ -149,6 +149,23 @@ describe("SeoController", () => {
     expect(html).toContain('<script type="module" src="/assets/index.js">');
   });
 
+  it("returns 404 and noindex for an empty opportunity archive page", async () => {
+    const controller = makeController({
+      opportunities: { findAll: jest.fn(async () => []) },
+    });
+    const response = makeResponse();
+
+    const html = await controller.opportunitiesArchive(
+      undefined,
+      "2",
+      response,
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(html).toContain('name="robots" content="noindex, follow"');
+    expect(html).toContain("Opportunity page not found");
+  });
+
   it("renders original opportunity value before JavaScript runs", async () => {
     const controller = makeController();
     const response = makeResponse();
@@ -182,5 +199,16 @@ describe("SeoController", () => {
     expect(archive).toContain('href="/blog/how-to-win-scholarships"');
     expect(response.statusCode).toBe(404);
     expect(missing).toContain('name="robots" content="noindex, follow"');
+  });
+
+  it("returns 404 and noindex for an empty blog archive page", async () => {
+    const controller = makeController();
+    const response = makeResponse();
+
+    const html = await controller.blogArchive("2", response);
+
+    expect(response.statusCode).toBe(404);
+    expect(html).toContain('name="robots" content="noindex, follow"');
+    expect(html).toContain("Blog page not found");
   });
 });
