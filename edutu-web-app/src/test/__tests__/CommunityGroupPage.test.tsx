@@ -85,16 +85,26 @@ describe("CommunityGroupPage", () => {
 
   it("sends a text message through the native form REST contract", async () => {
     renderGroup();
-    const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" }) as HTMLTextAreaElement;
-    composer.value = "Great — I will review it tonight.";
+
+    // Wait for the initial content effect to finish. Querying the composer before
+    // this point captures the brief pre-load render that is intentionally
+    // replaced by the loading state a moment later.
+    expect(await screen.findByText("I added a checklist for the essay review.")).toBeInTheDocument();
+
+    const composer = screen.getByRole("textbox", { name: "Message Scholarship Builders" }) as HTMLTextAreaElement;
+    fireEvent.input(composer, {
+      target: { value: "Great — I will review it tonight." },
+    });
+    expect(composer).toHaveValue("Great — I will review it tonight.");
+
     const form = composer.closest("form");
     expect(form).not.toBeNull();
     expect(new FormData(form!).get("message")).toBe(
       "Great — I will review it tonight.",
     );
 
-    const sendButton = screen.getByRole("button", { name: "Send message" }) as HTMLButtonElement;
-    sendButton.disabled = false;
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    await waitFor(() => expect(sendButton).toBeEnabled());
     fireEvent.click(sendButton);
 
     await waitFor(() =>
