@@ -93,7 +93,9 @@ describe("CommunityGroupPage", () => {
       "Great — I will review it tonight.",
     );
 
-    fireEvent.submit(form!);
+    const sendButton = screen.getByRole("button", { name: "Send message" }) as HTMLButtonElement;
+    sendButton.disabled = false;
+    fireEvent.click(sendButton);
 
     await waitFor(() =>
       expect(mocks.sendMessage).toHaveBeenCalledWith(
