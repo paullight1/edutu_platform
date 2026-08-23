@@ -1,14 +1,7 @@
-import {
-  Controller,
-  Get,
-  ServiceUnavailableException,
-} from "@nestjs/common";
+import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 import { Public } from "../auth";
 import { HealthService } from "./health.service";
-import type {
-  LivenessStatus,
-  ReadinessStatus,
-} from "./health.service";
+import type { LivenessStatus, ReadinessStatus } from "./health.service";
 
 @Controller("health")
 @Public()
