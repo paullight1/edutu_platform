@@ -13,6 +13,14 @@ const mocks = vi.hoisted(() => ({
   getBackendBaseUrl: vi.fn(),
 }));
 
+vi.mock("../../../lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn(),
+    },
+  },
+}));
+
 vi.mock("../../../lib/apiClient", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../lib/apiClient")>();
   return {
