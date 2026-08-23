@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   fetchMessages: vi.fn(),
   fetchGroupResources: vi.fn(),
   fetchGroupMembers: vi.fn(),
+  fetchJoinRequests: vi.fn(),
   sendMessage: vi.fn(),
 }));
 
@@ -18,7 +19,15 @@ vi.mock("../../hooks/useAuth", () => ({
 
 vi.mock("../../services/community", async () => {
   const actual = await vi.importActual<typeof import("../../services/community")>("../../services/community");
-  return { ...actual, fetchGroup: mocks.fetchGroup, fetchMessages: mocks.fetchMessages, fetchGroupResources: mocks.fetchGroupResources, fetchGroupMembers: mocks.fetchGroupMembers, sendMessage: mocks.sendMessage };
+  return {
+    ...actual,
+    fetchGroup: mocks.fetchGroup,
+    fetchMessages: mocks.fetchMessages,
+    fetchGroupResources: mocks.fetchGroupResources,
+    fetchGroupMembers: mocks.fetchGroupMembers,
+    fetchJoinRequests: mocks.fetchJoinRequests,
+    sendMessage: mocks.sendMessage,
+  };
 });
 
 import CommunityGroupPage from "../../components/CommunityGroupPage";
@@ -32,13 +41,26 @@ const group = {
   lastMessageAt: "2026-08-22T12:00:00.000Z", createdAt: "2026-08-01T12:00:00.000Z",
 };
 
+const member = {
+  membership: {
+    id: "membership-2",
+    groupId: group.id,
+    userId: "user_other",
+    role: "member",
+    status: "active",
+    joinedAt: "2026-08-20T12:00:00.000Z",
+  },
+  profile: { displayName: "Tomi Ade", avatarUrl: null },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getToken.mockResolvedValue("clerk-token");
   mocks.fetchGroup.mockResolvedValue({ group, membership: { id: "membership-1", groupId: group.id, userId: "user_me", role: "member", status: "active", joinedAt: "2026-08-22T12:00:00.000Z" } });
   mocks.fetchMessages.mockResolvedValue([{ id: "message-1", groupId: group.id, userId: "user_other", body: "I added a checklist for the essay review.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:00:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Tomi Ade", avatarUrl: null } }]);
   mocks.fetchGroupResources.mockResolvedValue({ resources: [], nextCursor: null });
-  mocks.fetchGroupMembers.mockResolvedValue({ members: [{ membership: { id: "membership-2", groupId: group.id, userId: "user_other", role: "member", status: "active", joinedAt: "2026-08-20T12:00:00.000Z" }, profile: { displayName: "Tomi Ade", avatarUrl: null } }], hasMore: false });
+  mocks.fetchGroupMembers.mockResolvedValue({ members: [member], hasMore: false });
+  mocks.fetchJoinRequests.mockResolvedValue([]);
   mocks.sendMessage.mockResolvedValue({ id: "message-2", groupId: group.id, userId: "user_me", body: "Great — I will review it tonight.", kind: "text", opportunityId: null, createdAt: "2026-08-22T12:01:00.000Z", deletedAt: null, deletedBy: null, author: { displayName: "Amina Bello", avatarUrl: null } });
 });
 
@@ -61,7 +83,7 @@ describe("CommunityGroupPage", () => {
   it("sends a text message through the REST contract", async () => {
     renderGroup();
     const composer = await screen.findByRole("textbox", { name: "Message Scholarship Builders" });
-    fireEvent.change(composer, { target: { value: "Great — I will review it tonight." } });
+    fireEvent.input(composer, { target: { value: "Great — I will review it tonight." } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledWith(group.id, { body: "Great — I will review it tonight." }, mocks.getToken));
@@ -108,5 +130,43 @@ describe("CommunityGroupPage", () => {
       ),
     );
     expect(await screen.findByText("An earlier message")).toBeInTheDocument();
+  });
+
+  it("does not expose owner-only role controls to a moderator", async () => {
+    const peerModerator = {
+      membership: {
+        id: "membership-3",
+        groupId: group.id,
+        userId: "user_peer_mod",
+        role: "mod",
+        status: "active",
+        joinedAt: "2026-08-21T12:00:00.000Z",
+      },
+      profile: { displayName: "Kemi Lawal", avatarUrl: null },
+    };
+    mocks.fetchGroup.mockResolvedValue({
+      group,
+      membership: {
+        id: "membership-1",
+        groupId: group.id,
+        userId: "user_me",
+        role: "mod",
+        status: "active",
+        joinedAt: "2026-08-22T12:00:00.000Z",
+      },
+    });
+    mocks.fetchGroupMembers.mockResolvedValue({
+      members: [member, peerModerator],
+      hasMore: false,
+    });
+
+    renderGroup();
+    fireEvent.click(await screen.findByRole("tab", { name: "Admin" }));
+    expect(await screen.findByRole("heading", { name: "Member controls" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("combobox", { name: "Role for Tomi Ade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Role for Kemi Lawal" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
+    expect(screen.getByText("Moderator")).toBeInTheDocument();
   });
 });
