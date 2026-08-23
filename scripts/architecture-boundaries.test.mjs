@@ -90,7 +90,7 @@ test("keeps privileged credentials and API internals out of client code", async 
       "edutu-web-app/src/unsafe.ts",
       [
         "const secret = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;",
-        "const internal = 'backend/services/services/api/src/admin';",
+        "void import('backend/services/services/api/src/admin');",
       ].join("\n"),
     );
 
@@ -98,6 +98,18 @@ test("keeps privileged credentials and API internals out of client code", async 
       "client source imports API internals instead of a contract: edutu-web-app/src/unsafe.ts",
       "client source references a Supabase service-role secret: edutu-web-app/src/unsafe.ts",
     ]);
+  });
+});
+
+test("allows documentation comments to name the backend authority", async () => {
+  await withRepository(async (root) => {
+    await write(
+      root,
+      "edutumobile/packages/core/src/documented.ts",
+      "// Mirrors backend/services/services/api/src/communities/authz.ts\nexport {};\n",
+    );
+
+    assert.deepEqual(await inspectArchitecture(root), []);
   });
 });
 
