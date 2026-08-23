@@ -30,9 +30,11 @@ jobs:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
       - run: node --test scripts/validate-vercel-config.test.mjs
+      - run: node --test scripts/validate-seo-routes.test.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs
       - run: node scripts/validate-vercel-config.mjs
+      - run: node scripts/validate-seo-routes.mjs
       - name: Block changes to legacy migration trees
         shell: bash
         run: |
