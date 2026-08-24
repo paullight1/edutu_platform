@@ -57,6 +57,13 @@ class SupabaseClient:
             safe_title = str(item.get('title') or 'untitled').strip().lower().replace(' ', '-')
             source_url = str(item.get('source') or 'unknown-source').strip().lower().rstrip('/')
             canonical_url = f"{source_url}/{safe_title}"
+
+        description = str(item.get('description') or '')
+        content_cleaning = item.get('content_cleaning')
+        if not isinstance(content_cleaning, dict):
+            content_cleaning = {}
+        quality_score = int(item.get('quality_score') or item.get('match', 50) or 0)
+
         metadata = {
             'requirements': item.get('requirements', []),
             'benefits': item.get('benefits', []),
@@ -67,23 +74,30 @@ class SupabaseClient:
             'source_name': item.get('source', 'Unknown'),
             'source_url': item.get('source_url'),
             'scraped_at': now,
+            'description_length': len(description),
+            'content_format_version': content_cleaning.get('version'),
+            'content_noise_removed': int(content_cleaning.get('removed_noise') or 0),
+            'content_duplicates_removed': int(content_cleaning.get('removed_duplicates') or 0),
+            'content_paragraph_count': int(content_cleaning.get('paragraph_count') or 0),
+            'needs_review': bool(content_cleaning.get('needs_review', quality_score < 65)),
         }
 
         payload = {
             'id': item.get('id') or str(uuid.uuid4()),
             'title': item.get('title', 'Untitled'),
+            'summary': item.get('summary', ''),
             'organization': item.get('organization', 'Unknown'),
             'category': item.get('category', 'General'),
             'canonical_category': item.get('canonicalCategory') or item.get('canonical_category') or 'other',
             'close_date': item.get('deadline'),
             'location': item.get('location', 'Worldwide'),
-            'description': item.get('description', ''),
+            'description': description,
             'application_url': application_url,
             'canonical_url': canonical_url,
             'content_fingerprint': self._content_fingerprint(item),
-            'quality_score': item.get('quality_score') or item.get('match', 50),
-            'validation_status': 'valid' if (item.get('quality_score') or item.get('match', 50)) >= 60 else 'needs_review',
-            'image_url': item.get('image'),
+            'quality_score': quality_score,
+            'validation_status': 'valid' if quality_score >= 65 else 'needs_review',
+            'image_url': item.get('image') or item.get('image_url'),
             'tags': item.get('aiTags', []),
             'source': 'scraper',
             'source_url': item.get('source_url') or item.get('source', 'Unknown'),
@@ -94,6 +108,8 @@ class SupabaseClient:
 
         if item.get('stipend') is not None:
             payload['stipend'] = item['stipend']
+        elif item.get('amount') is not None:
+            payload['stipend'] = item['amount']
         if item.get('currency'):
             payload['currency'] = item['currency']
 

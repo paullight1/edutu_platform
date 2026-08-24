@@ -6,6 +6,8 @@ import { OpportunitiesController } from "./opportunities.controller";
 import { OpportunitiesService } from "./opportunities.service";
 import { OpportunityCatalogController } from "./opportunity-catalog.controller";
 import { OpportunityCatalogService } from "./opportunity-catalog.service";
+import { OpportunityContentRefinementService } from "./opportunity-content-refinement.service";
+import { installOpportunityContentRefinementPolicy } from "./opportunity-content-refinement-policy";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { installOpportunityRankingRuntimePolicy } from "./opportunity-ranking-runtime-policy";
@@ -28,6 +30,7 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
     OpportunityShareCardService,
     OpportunityShareEnrichService,
     OpportunityEmbeddingService,
+    OpportunityContentRefinementService,
   ],
   exports: [
     OpportunitiesService,
@@ -36,17 +39,27 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
     OpportunityVerificationService,
     OpportunityShareCardService,
     OpportunityEmbeddingService,
+    OpportunityContentRefinementService,
   ],
 })
 export class OpportunitiesModule implements OnModuleDestroy {
-  private readonly restoreRankingPolicy: () => void;
+  private readonly restorePolicies: Array<() => void>;
 
-  constructor(rankingService: OpportunityRankingService) {
-    this.restoreRankingPolicy =
-      installOpportunityRankingRuntimePolicy(rankingService);
+  constructor(
+    rankingService: OpportunityRankingService,
+    opportunitiesService: OpportunitiesService,
+    contentRefinementService: OpportunityContentRefinementService,
+  ) {
+    this.restorePolicies = [
+      installOpportunityRankingRuntimePolicy(rankingService),
+      installOpportunityContentRefinementPolicy(
+        opportunitiesService,
+        contentRefinementService,
+      ),
+    ];
   }
 
   onModuleDestroy(): void {
-    this.restoreRankingPolicy();
+    for (const restore of [...this.restorePolicies].reverse()) restore();
   }
 }

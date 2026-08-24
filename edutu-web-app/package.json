@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "npm run seo:sitemap && npm run seo:pages",
+    "prebuild": "npm run seo:sitemap && npm run seo:verify && npm run seo:pages",
     "build": "vite build",
     "postbuild": "node scripts/inject-route-meta.mjs",
     "seo:sitemap": "node scripts/generate-sitemap.mjs",
+    "seo:verify": "node scripts/verify-generated-seo.mjs",
     "seo:pages": "node scripts/gen-page-seo-ts.mjs",
     "seo:og": "node scripts/generate-og-images.mjs",
     "preview": "vite preview",
