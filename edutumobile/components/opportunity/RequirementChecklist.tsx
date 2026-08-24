@@ -39,6 +39,9 @@ export function RequirementChecklist({
   );
   const progress =
     displayItems.length > 0 ? checkedCount / displayItems.length : 0;
+  const progressCopy = progressLabel
+    ? progressLabel(checkedCount, displayItems.length)
+    : `${checkedCount} of ${displayItems.length} checked`;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,11 +79,16 @@ export function RequirementChecklist({
       {displayItems.length > 0 ? (
         <View style={styles.progressWrap}>
           <Text style={[styles.progressText, { color: textSecondary }]}>
-            {progressLabel
-              ? progressLabel(checkedCount, displayItems.length)
-              : `${checkedCount} of ${displayItems.length} checked`}
+            {progressCopy}
           </Text>
           <View
+            accessibilityRole="progressbar"
+            accessibilityValue={{
+              min: 0,
+              max: displayItems.length,
+              now: checkedCount,
+              text: progressCopy,
+            }}
             style={[
               styles.progressTrack,
               {
