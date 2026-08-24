@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type {
-  ReviewOpportunity,
+  ReviewedOpportunity,
   SaveSelectedOutcome,
 } from "../hooks/useEngineRuns";
 import type { EngineResourceState } from "../model/errors";
@@ -44,7 +44,7 @@ export default function RunDetailsDialog({
   onSaveSelected,
 }: {
   job: ScrapeJob;
-  opportunities: EngineResourceState<ReviewOpportunity[]>;
+  opportunities: EngineResourceState<ReviewedOpportunity[]>;
   saving: boolean;
   onClose(): void;
   onToggleSelected(index: number): void;
@@ -239,7 +239,7 @@ export default function RunDetailsDialog({
                     {item.error ? (
                       <div className="engine-inline-error" role="alert">
                         <AlertTriangle size={14} aria-hidden="true" />
-                        <span>{item.error.message}</span>
+                        <span>{item.error}</span>
                       </div>
                     ) : null}
                   </div>
