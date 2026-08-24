@@ -263,6 +263,52 @@ export function needsProgressiveDisclosure(
   return cleaned.length > maxChars || paragraphs.length > maxParagraphs;
 }
 
+function normaliseForComparison(value?: string | null): string {
+  return cleanOpportunityNarrative(value)
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Keep the compact summary only when it adds decision context. A summary that
+ * repeats the opening description adds reading time without adding hierarchy.
+ */
+export function shouldShowOpportunitySummary(
+  summary?: string | null,
+  description?: string | null,
+): boolean {
+  const cleanSummary = normaliseForComparison(summary);
+  if (!cleanSummary) return false;
+
+  const cleanDescription = normaliseForComparison(description);
+  if (!cleanDescription) return true;
+  if (
+    cleanSummary === cleanDescription ||
+    cleanDescription.startsWith(cleanSummary) ||
+    cleanSummary.startsWith(cleanDescription)
+  ) {
+    return false;
+  }
+
+  const summaryTokens = new Set(
+    cleanSummary.split(" ").filter((token) => token.length > 2),
+  );
+  const descriptionTokens = new Set(
+    cleanDescription.split(" ").filter((token) => token.length > 2),
+  );
+  if (summaryTokens.size === 0) return false;
+
+  let sharedTokens = 0;
+  for (const token of summaryTokens) {
+    if (descriptionTokens.has(token)) sharedTokens += 1;
+  }
+
+  return sharedTokens / summaryTokens.size < 0.78;
+}
+
 export function previewText(value: string, maxChars = 140): string {
   const flat = cleanOpportunityNarrative(value).replace(/\s+/g, " ").trim();
   if (flat.length <= maxChars) return flat;
