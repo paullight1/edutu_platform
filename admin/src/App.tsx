@@ -4,10 +4,8 @@ import { AlertTriangle } from "lucide-react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AdminRoutes from "./app/AdminRoutes";
 import { adminRoutePath } from "./app/route-manifest";
-import {
-  AdminAuthProvider,
-  useAdminAuth,
-} from "./auth/AdminAuthProvider";
+import { AdminAuthProvider } from "./auth/AdminAuthProvider";
+import { useAdminAuth } from "./auth/admin-auth-context";
 
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
