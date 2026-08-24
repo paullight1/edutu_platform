@@ -10,6 +10,7 @@ import {
 } from "../model/errors";
 import type {
   CreateScrapeSourceInput,
+  DeleteJobResult,
   EngineStats,
   OpportunitySite,
   ScrapeResult,
@@ -70,6 +71,7 @@ export interface EngineSourcesState {
   ): Promise<SourceMutationResult>;
   deleteSource(source: ScrapeSource): Promise<SourceMutationResult>;
   deleteSite(host: string): Promise<{ success: boolean; deleted: number }>;
+  deleteBatch(jobId: string): Promise<DeleteJobResult>;
   startRun(
     source: ScrapeSource,
     options: SourceRunOptions,
@@ -370,6 +372,22 @@ export function useEngineSources(): EngineSourcesState {
     [refresh, withPending],
   );
 
+  const deleteBatch = useCallback(
+    (jobId: string) =>
+      withPending(`batch:${jobId}`, async () => {
+        const result = await engineApi.deleteJob(jobId);
+        if (!result.success) {
+          throw normalizeEngineError(
+            new Error(result.error || "Batch deletion failed"),
+            "The scrape batch could not be deleted.",
+          );
+        }
+        await refresh();
+        return result;
+      }),
+    [refresh, withPending],
+  );
+
   const startRun = useCallback(
     async (
       source: ScrapeSource,
@@ -409,6 +427,7 @@ export function useEngineSources(): EngineSourcesState {
     setSourceEnabled,
     deleteSource,
     deleteSite,
+    deleteBatch,
     startRun,
   };
 }
