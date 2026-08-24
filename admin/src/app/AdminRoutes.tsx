@@ -19,9 +19,11 @@ const MarketplaceReview = lazy(() => import("../pages/MarketplaceReview"));
 const Blog = lazy(() => import("../pages/Blog"));
 const ImpactStories = lazy(() => import("../pages/ImpactStories"));
 const Settings = lazy(() => import("../pages/Settings"));
-const Scraper = lazy(() => import("../pages/Scraper"));
 const EngineSourcesPage = lazy(
   () => import("../features/engine/pages/EngineSourcesPage"),
+);
+const EngineRunsPage = lazy(
+  () => import("../features/engine/pages/EngineRunsPage"),
 );
 const EngineStatusPage = lazy(
   () => import("../features/engine/pages/EngineStatusPage"),
@@ -92,7 +94,10 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
             path={childPath("engine-sources")}
             element={<EngineSourcesPage />}
           />
-          <Route path={childPath("engine-runs")} element={<Scraper />} />
+          <Route
+            path={childPath("engine-runs")}
+            element={<EngineRunsPage />}
+          />
           <Route
             path={childPath("engine-status")}
             element={<EngineStatusPage />}
@@ -121,7 +126,7 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           />
           <Route
             path={childPath("monetization-usage")}
-            element={<Monetization />}
+            element={<Monetization /> />}
           />
 
           <Route
