@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "../components/Layout";
+import BackgroundRunIndicator from "../features/engine/components/BackgroundRunIndicator";
+import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
 import {
   ADMIN_REDIRECTS,
   adminRoutePath,
@@ -52,6 +54,15 @@ function childRedirectPath(from: string): string {
   return redirectFor(from).from.replace(/^\//u, "");
 }
 
+function EngineAwareLayout() {
+  return (
+    <EngineRunProvider>
+      <BackgroundRunIndicator />
+      <Layout />
+    </EngineRunProvider>
+  );
+}
+
 export default function AdminRoutes({ fallback }: AdminRoutesProps) {
   return (
     <Suspense fallback={fallback}>
@@ -68,7 +79,10 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           path={adminRoutePath("reset-password")}
           element={<ResetPassword />}
         />
-        <Route path={adminRoutePath("dashboard")} element={<Layout />}>
+        <Route
+          path={adminRoutePath("dashboard")}
+          element={<EngineAwareLayout />}
+        >
           <Route index element={<Dashboard />} />
           <Route
             path={childPath("opportunities")}
@@ -126,7 +140,7 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           />
           <Route
             path={childPath("monetization-usage")}
-            element={<Monetization /> />}
+            element={<Monetization />}
           />
 
           <Route
