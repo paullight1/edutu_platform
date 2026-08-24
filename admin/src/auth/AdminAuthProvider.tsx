@@ -4,9 +4,7 @@ import type {
   User,
 } from "@supabase/supabase-js";
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -14,6 +12,11 @@ import {
   type ReactNode,
 } from "react";
 import { adminRoutePath } from "../app/route-manifest";
+import {
+  AdminAuthContext,
+  type AdminAuthContextValue,
+  type AdminAuthState,
+} from "./admin-auth-context";
 import { isAdminRole, isConfiguredAdminEmail } from "../lib/adminAccess";
 import { signOutAdmin } from "../lib/auth";
 import {
@@ -26,29 +29,13 @@ import { supabase } from "../lib/supabase";
 const RESET_PASSWORD_PATH = adminRoutePath("reset-password");
 const AUTH_TIMEOUT_MS = 10_000;
 
-export interface AdminAuthState {
-  session: Session | null;
-  user: User | null;
-  isAdmin: boolean;
-  loading: boolean;
-  error: string | null;
+interface InitialAuthMode {
+  state: AdminAuthState;
+  skipRemoteAuth: boolean;
 }
-
-export interface AdminAuthContextValue extends AdminAuthState {
-  signOut(): Promise<void>;
-}
-
-const INITIAL_AUTH_STATE: AdminAuthState = {
-  session: null,
-  user: null,
-  isAdmin: false,
-  loading: true,
-  error: null,
-};
-
-const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 
 function isPasswordRecoveryLocation(): boolean {
+  if (typeof window === "undefined") return false;
   return (
     window.location.pathname === RESET_PASSWORD_PATH ||
     window.location.hash.includes("type=recovery")
@@ -57,11 +44,15 @@ function isPasswordRecoveryLocation(): boolean {
 
 function createLocalAdminSession(): Session {
   const email = getLocalAdminEmail();
-  const user = {
+  const user: User = {
     id: getLocalAdminUserId(),
     email,
+    aud: "authenticated",
+    app_metadata: { provider: "local", providers: ["local"] },
     user_metadata: { full_name: "Local administrator" },
-  } as User;
+    identities: [],
+    created_at: new Date(0).toISOString(),
+  };
 
   return {
     access_token: "local-dev-token",
@@ -70,6 +61,47 @@ function createLocalAdminSession(): Session {
     expires_at: Math.floor(Date.now() / 1000) + 86_400,
     refresh_token: "local-dev-refresh-token",
     user,
+  };
+}
+
+function signedOutState(error: string | null = null): AdminAuthState {
+  return {
+    session: null,
+    user: null,
+    isAdmin: false,
+    loading: false,
+    error,
+  };
+}
+
+function createInitialAuthMode(): InitialAuthMode {
+  if (isLocalAdminBypassEnabled()) {
+    const session = createLocalAdminSession();
+    return {
+      state: {
+        session,
+        user: session.user,
+        isAdmin: true,
+        loading: false,
+        error: null,
+      },
+      skipRemoteAuth: true,
+    };
+  }
+
+  if (isPasswordRecoveryLocation()) {
+    return { state: signedOutState(), skipRemoteAuth: true };
+  }
+
+  return {
+    state: {
+      session: null,
+      user: null,
+      isAdmin: false,
+      loading: true,
+      error: null,
+    },
+    skipRemoteAuth: false,
   };
 }
 
@@ -90,18 +122,9 @@ async function checkAdminRole(user: User): Promise<boolean> {
   }
 }
 
-function signedOutState(error: string | null = null): AdminAuthState {
-  return {
-    session: null,
-    user: null,
-    isAdmin: false,
-    loading: false,
-    error,
-  };
-}
-
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [auth, setAuth] = useState<AdminAuthState>(INITIAL_AUTH_STATE);
+  const [initialMode] = useState(createInitialAuthMode);
+  const [auth, setAuth] = useState<AdminAuthState>(initialMode.state);
   const requestVersion = useRef(0);
 
   const applySession = useCallback(
@@ -111,10 +134,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     ): Promise<void> => {
       const version = ++requestVersion.current;
 
-      if (
-        event === "PASSWORD_RECOVERY" ||
-        isPasswordRecoveryLocation()
-      ) {
+      if (event === "PASSWORD_RECOVERY" || isPasswordRecoveryLocation()) {
         setAuth({
           session,
           user: session?.user ?? null,
@@ -153,31 +173,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (initialMode.skipRemoteAuth) {
+      return () => {
+        requestVersion.current += 1;
+      };
+    }
+
     let disposed = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    if (isLocalAdminBypassEnabled()) {
-      const session = createLocalAdminSession();
-      setAuth({
-        session,
-        user: session.user,
-        isAdmin: true,
-        loading: false,
-        error: null,
-      });
-      return () => {
-        requestVersion.current += 1;
-      };
-    }
-
-    if (isPasswordRecoveryLocation()) {
-      setAuth(signedOutState());
-      return () => {
-        requestVersion.current += 1;
-      };
-    }
-
-    timeoutId = setTimeout(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       if (disposed) return;
       setAuth((current) =>
         current.loading
@@ -221,7 +224,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       if (timeoutId !== null) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [applySession]);
+  }, [applySession, initialMode.skipRemoteAuth]);
 
   const signOut = useCallback(async () => {
     await signOutAdmin();
@@ -237,12 +240,4 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AdminAuthContext.Provider>
   );
-}
-
-export function useAdminAuth(): AdminAuthContextValue {
-  const context = useContext(AdminAuthContext);
-  if (!context) {
-    throw new Error("useAdminAuth must be used inside AdminAuthProvider");
-  }
-  return context;
 }
