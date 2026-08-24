@@ -21,7 +21,7 @@ export default function RunLauncher({
   onStart,
   onNotice,
 }: RunLauncherProps) {
-  const [maxPages, setMaxPages] = useState(3);
+  const [maxPagesInput, setMaxPagesInput] = useState("3");
   const [incremental, setIncremental] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +30,14 @@ export default function RunLauncher({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const maxPages = Number(maxPagesInput);
+    if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 50) {
+      const message = "Maximum pages must be a whole number from 1 to 50.";
+      setError(message);
+      onNotice(message, "error");
+      return;
+    }
 
     try {
       const result = await onStart(source, { maxPages, incremental });
@@ -133,16 +141,10 @@ export default function RunLauncher({
                 type="number"
                 min={1}
                 max={50}
-                value={maxPages}
+                step={1}
+                value={maxPagesInput}
                 aria-label="Maximum pages per source"
-                onChange={(event) =>
-                  setMaxPages(
-                    Math.max(
-                      1,
-                      Math.min(50, Number(event.target.value) || 1),
-                    ),
-                  )
-                }
+                onChange={(event) => setMaxPagesInput(event.target.value)}
               />
             </label>
             <label className="engine-checkbox-field">
@@ -179,7 +181,11 @@ export default function RunLauncher({
               disabled={pending || (isGroup && enabledChildren.length === 0)}
             >
               <Play size={16} aria-hidden="true" />
-              {pending ? "Starting…" : isGroup ? "Start group run" : "Start run"}
+              {pending
+                ? "Starting…"
+                : isGroup
+                  ? "Start group run"
+                  : "Start run"}
             </button>
           </footer>
         </form>
