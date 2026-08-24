@@ -8,12 +8,10 @@
  * per-route `dist/<path>/index.html` with that route's real title, description
  * and hero OG image baked into the HTML.
  *
- * Vercel serves a matching static file before it evaluates the SPA catch-all
- * rewrite, so `/blog` resolves to `dist/blog/index.html` for crawlers AND for
- * real users — and because every variant still boots the same JS bundle, the
- * SPA takes over exactly as before. No backend hop, no cold start, no
- * crawler user-agent sniffing (which this deployment's router silently drops —
- * see the `has`-condition gotcha in the root vercel.json).
+ * Most public marketing routes are served from these static files. Content
+ * archives that need crawlable item links may instead be owned by the backend
+ * SEO renderer. The routing assertion below accepts either explicit owner but
+ * still fails when a public SEO route would fall through to the generic SPA.
  *
  * Runs automatically via `postbuild`.
  */
@@ -117,24 +115,33 @@ function buildHtml(shell, entry) {
 
   html = upsertCanonical(html, url);
 
-  // Health-check marker: `curl -s https://www.edutu.org/blog | grep prerendered`
+  // Health-check marker: `curl -s https://www.edutu.org/about | grep prerendered`
   return html.replace(
     "</head>",
     `  <meta name="edutu-prerendered" content="${attr(entry.slug)}" />\n</head>`,
   );
 }
 
+function hasExplicitSeoOwner(rule) {
+  if (typeof rule.destination !== "string") return false;
+
+  if (rule.destination.endsWith("/index.html")) return true;
+
+  try {
+    const destination = new URL(rule.destination);
+    return destination.pathname === "/seo/blog" || destination.pathname === "/seo/opportunities";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * A prerendered `dist/blog/index.html` is useless if `vercel.json` doesn't
- * route `/blog` to it. That failure is invisible — the SPA catch-all still
- * serves a working page, just with the wrong OG tags — so fail the build
- * loudly instead of shipping silently-broken unfurls.
+ * Generated route HTML is useful only when production routing has an explicit
+ * owner for that public path. Static marketing pages use their generated
+ * `index.html`; content archives use the backend SEO renderer so initial HTML
+ * can include real item links and pagination.
  */
 async function assertRoutingCoverage() {
-  // The production app is mounted as the `frontend` Vercel service from the
-  // repository root. Its root vercel.json controls public routing; the
-  // service-local file is useful for standalone previews but cannot protect
-  // the production deployment from silently falling through to index.html.
   const configPaths = [
     path.resolve(scriptDir, "..", "..", "vercel.json"),
     path.resolve(scriptDir, "..", "vercel.json"),
@@ -156,9 +163,7 @@ async function assertRoutingCoverage() {
 
   const routed = new Set(
     (config.rewrites ?? [])
-      .filter(
-        (rule) => typeof rule.destination === "string" && rule.destination.endsWith("/index.html"),
-      )
+      .filter(hasExplicitSeoOwner)
       .map((rule) => rule.source),
   );
 
@@ -168,8 +173,8 @@ async function assertRoutingCoverage() {
 
   if (missing.length) {
     throw new Error(
-      `${path.basename(configPath)} has no prerender rewrite for: ${missing.join(", ")}\n` +
-        `Add { "source": "<path>", "destination": "<path>/index.html" } above the SPA catch-all.`,
+      `${path.basename(configPath)} has no explicit SEO owner for: ${missing.join(", ")}\n` +
+        "Add a static prerender rewrite or a tested backend SEO rewrite above the SPA catch-all.",
     );
   }
 }
@@ -183,7 +188,6 @@ async function main() {
     const html = buildHtml(shell, entry);
 
     if (entry.path === "/") {
-      // The root shell itself becomes the homepage variant — no directory.
       await writeFile(shellPath, html);
     } else {
       const dir = path.join(distDir, entry.path.replace(/^\//, ""));

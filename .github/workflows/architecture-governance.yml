@@ -1,0 +1,29 @@
+name: Architecture Governance
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: architecture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boundaries:
+    name: Architecture Boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test boundary rules
+        run: node --test scripts/architecture-boundaries.test.mjs
+      - name: Inspect repository architecture
+        run: node scripts/check-architecture-boundaries.mjs

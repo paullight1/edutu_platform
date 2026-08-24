@@ -1,106 +1,104 @@
 # Edutu Platform Architecture
 
-Generated from the local platform workspace on 2026-05-23.
+Current platform architecture after the 5/5 production-readiness consolidation. See `ARCHITECTURE-BASELINE.md` for grandfathered debt and migration constraints, and `PACKAGE-OWNERSHIP.md` for shared-code rules.
 
-## Repository Model
-
-Edutu is an intentional multi-repo system.
-
-- `edutu-platform` owns the backend API, web app, admin, Scholarship Engine docs site, platform scraper, shared Supabase assets, and platform docs.
-- `edutumobile` owns the Expo mobile app, mobile core package, mobile-specific Supabase functions/migrations, and native widgets.
-- The parent folder is a local workspace container, not a monorepo boundary.
-
-## System Context
+## System context
 
 ```text
-Users and admins
-  -> web, admin, mobile, docs clients
-  -> NestJS API and selected Supabase edge functions
-  -> Supabase Postgres
-  -> external services: Clerk, Gemini, OpenRouter, Paystack, RevenueCat, Apify, n8n
+Learners, creators, admins, and partners
+                  ↓
+       web / mobile / admin clients
+                  ↓
+       NestJS API + approved edge functions
+                  ↓
+         Supabase Postgres and storage
+                  ↓
+Clerk, Gemini/OpenRouter, Paystack, RevenueCat,
+Apify, n8n, push providers, and voice infrastructure
 ```
 
-## Runtime Components
+## Runtime ownership
 
-| Component | Path | Runtime | Responsibility |
-| --- | --- | --- | --- |
-| Backend API | `backend/services/services/api` | NestJS, Drizzle, Postgres | Business logic, auth verification, AI routing, scraper controls, data access, admin endpoints |
-| Standalone Admin | `admin` | React, Vite, Supabase JS | Operational dashboard for users, opportunities, creators, roadmaps, scraper, mobile control |
-| Main Web App | `edutu-web-app` | React, Vite, Capacitor, PWA | User app, public pages, premium gates, creator flows, embedded admin routes |
-| Scholarship Engine Docs Site | `edutu-web` | Next.js | Public Scholarship Engine docs and onboarding site |
-| Python Scraper | `crawl4ai-scraper` | Python, Crawl4AI | Opportunity crawling, extraction, cleaning, optional Supabase persistence |
-| Shared Supabase Assets | `supabase` | SQL, Deno edge functions | Shared migrations and edge functions |
+| Runtime | Path | Responsibility |
+| --- | --- | --- |
+| Platform API | `backend/services/services/api` | Authentication, business rules, privileged data access, billing, entitlements, AI routing, scraper controls, notifications, admin APIs |
+| Voice gateway | `backend/services/services/voice` | Real-time voice/session transport isolated from the main API |
+| Web/PWA | `edutu-web-app` | Public discovery, learner workspace, marketplace, account and premium flows |
+| Mobile | `edutumobile` | Expo learner application using the same authenticated API contracts |
+| Admin | `admin` | Operational review, moderation, opportunity, creator, scraper, and platform controls |
+| Shared packages | `packages` | Cross-app contracts and framework-independent reusable state |
+| Database migrations | `backend/services/services/api/supabase/migrations` | Canonical forward-only shared database history |
 
-## Backend Boundary
+## Trust and data boundaries
 
-The backend API is the main trust boundary. It should own:
+The API is the default owner of any operation involving service credentials, money, credits, entitlements, moderation, scraper execution, admin authority, or cross-user data. Web, mobile, and admin clients receive only public credentials and may use direct Supabase access only where reviewed RLS policies make the operation user-owned and safe.
 
-- privileged Supabase service-role operations
-- AI provider keys and model routing
-- billing/webhook logic
-- scraper run controls
-- admin-only mutation paths
-- user-owned business logic that must not be enforced only in the client
+No client may reference a Supabase service-role key or import implementation files from the API source tree. Architecture Governance enforces both rules.
 
-## Client Boundary
+## API request flow
 
-Clients may call:
+1. A client obtains an authenticated Clerk or approved Supabase-compatible token.
+2. The client sends the token and an optional request ID to the API.
+3. request-ID, body-size, security-header, CORS, validation, and throttling middleware run before feature logic.
+4. `ClerkAuthGuard` skips only routes explicitly marked `@Public()` and resolves the authenticated platform user for protected routes.
+5. Controllers validate transport input and delegate to application/domain services.
+6. Services apply authorization and business policy, then call repositories or provider adapters.
+7. Structured errors and logs retain the request ID for operational correlation.
 
-- the backend API for business logic and privileged workflows
-- Supabase table APIs where RLS and token bridging are explicitly designed
-- Supabase edge functions for selected serverless features such as chat proxy or webhooks
+## Operational health contract
 
-Every direct Supabase access path should have a documented reason.
+The API exposes three public health routes:
 
-## Core Processes
+| Route | Purpose | Dependency behavior |
+| --- | --- | --- |
+| `GET /health/live` | Process liveness | Never probes the database; suitable for restart decisions |
+| `GET /health/ready` | Traffic readiness | Executes a bounded `SELECT 1` through the canonical PostgreSQL pool; returns HTTP 503 when storage is unavailable |
+| `GET /health` | Compatibility alias | Uses the same readiness semantics as `/health/ready` |
 
-### Authenticated API Request
+The database probe defaults to two seconds and is capped at ten seconds through `DATABASE_HEALTH_TIMEOUT_MS`. Public responses contain only sanitized failure categories, never raw connection errors or credentials. AI provider configuration is reported as operational context but does not masquerade as a successful database check.
 
-1. Client obtains a Clerk token or Supabase-compatible token.
-2. Client sends `Authorization: Bearer <token>` to a protected backend endpoint.
-3. `ClerkAuthGuard` skips routes marked with `@Public()`.
-4. The guard verifies Clerk tokens with `CLERK_SECRET_KEY`.
-5. If Clerk verification fails, it tries `supabase.auth.getUser(token)`.
-6. The guard attaches `request.user` with database user ID, auth ID, email, role, and auth provider.
-7. Feature services execute with Drizzle or server-side Supabase clients.
+## Core domain flows
 
-### Opportunity Ingestion
+### Opportunity ingestion and publication
 
-1. Admin or scheduler triggers scraper execution.
-2. Scraper service loads enabled sources and scraper settings from Supabase.
-3. List/detail pages are fetched with rate limits and browser-like headers.
-4. Cheerio extracts page content.
-5. AI routes enrich structured opportunity fields when needed.
-6. Normalized opportunities are saved for review and publication.
+1. An admin, schedule, or approved source triggers ingestion.
+2. Source controls enforce rate, safety, provenance, and duplicate policies.
+3. Extraction normalizes content; AI enrichment is applied only through governed routes.
+4. Data-quality and review policy determine whether an opportunity can be published.
+5. Published records feed discovery, ranking, application history, and notifications.
 
-### AI Routing
+### Marketplace and entitlements
 
-1. Feature service calls `AiService.generateText()` or `generateJson()`.
-2. `AiService` resolves feature config from `ai_routes` or defaults.
-3. Provider adapter executes through Gemini or OpenRouter.
-4. Structured JSON responses are normalized and parsed.
-5. Usage and errors are logged to `ai_usage_logs`.
+1. Creators submit listings through reviewed APIs.
+2. Admin moderation controls publication state.
+3. Enrollment or payment writes an auditable ledger transaction.
+4. Durable entitlements are returned consistently to web and mobile.
+5. Billing reconciliation repairs provider/local-state divergence without inflating balances.
 
-### Mobile Control Plane
+### AI routing
 
-1. Mobile app calls `/mobile-control/config`.
-2. Backend returns active campaigns, feature flags, widget feeds, and server time.
-3. `MobileCampaignHost` renders eligible campaigns.
-4. Campaign events are recorded through `/mobile-control/events`.
-5. Admin manages campaigns, flags, and widget feeds through admin routes.
+1. A feature requests text or structured output through the server-side AI service.
+2. Feature policy selects an allowed provider/model and cost ceiling.
+3. Provider adapters execute with server-only credentials.
+4. Structured responses are validated before use.
+5. Usage, failure, and policy metadata are recorded for audit and cost control.
 
-## Current Architecture Risks
+## Architecture invariants
 
-- Multiple Supabase migration folders can drift without explicit ownership.
-- The direct-Supabase versus backend-API rule is not consistently documented per feature.
-- Standalone admin and embedded web admin overlap.
-- Some docs referenced `/scraper`, while the standalone admin route currently uses `/edutu-engine`.
-- Local workspace copies include `node_modules`, which adds scan noise and should not drive architecture conclusions.
+- Privileged mutation logic lives in the API, not a UI component.
+- Controllers remain transport-focused; domain rules belong in services or pure domain modules.
+- Provider-specific code is isolated behind adapters where practical.
+- Shared packages have stable public exports and do not import app pages or deployment wiring.
+- New migrations use the canonical API migration directory; historical roots are frozen.
+- New backend runtimes require explicit ownership and deployment evidence.
+- Large modules are reduced behind tests; moving a large file without reducing coupling is not an architecture improvement.
 
-## Architecture Decisions To Capture
+## Deliberate next steps
 
-1. Edutu is an intentional multi-repo system.
-2. `backend/services/services/api` is the canonical platform backend path.
-3. Backend API is the default place for privileged business logic.
-4. Direct Supabase access requires explicit feature-level ownership and RLS design.
-5. A single admin surface strategy should be chosen or the split should be formally documented.
+The following are separate migrations, not hidden requirements of ordinary feature PRs:
+
+1. Retire the grandfathered root Express backend after external hosting and rollback verification.
+2. Flatten `backend/services/services/*` after every deployment root is updated and production-smoked.
+3. Move reusable mobile-core modules into root packages after Metro/Jest/TypeScript/native-build verification.
+4. Introduce a versioned public API and generated OpenAPI contract through a compatibility migration rather than changing every client route in place.
+5. Standardize a global error envelope after existing client error handling is inventoried and contract-tested.
