@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { useAdminAuth } from "../auth/AdminAuthProvider";
 import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
-import { signOutAdmin } from "../lib/auth";
-import { supabase } from "../lib/supabase";
 import AdminTopbar from "./AdminTopbar";
 import MobileNavigation from "./MobileNavigation";
 import PrimaryRail from "./PrimaryRail";
@@ -35,35 +34,16 @@ function toShellUser(user: {
 
 function AdminShellFrame() {
   const { isSectionOpen, isMobileNavigationOpen } = useShell();
-  const [user, setUser] = useState<ShellUser | null>(null);
+  const { user, signOut } = useAdminAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const navigationTriggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    void supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
-      if (active && currentUser) setUser(toShellUser(currentUser));
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      setUser(session?.user ? toShellUser(session.user) : null);
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const shellUser = useMemo(() => (user ? toShellUser(user) : null), [user]);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
     setIsSigningOut(true);
     try {
-      await signOutAdmin();
+      await signOut();
     } finally {
       setIsSigningOut(false);
     }
@@ -77,7 +57,7 @@ function AdminShellFrame() {
       data-mobile-open={isMobileNavigationOpen ? "true" : "false"}
     >
       <PrimaryRail
-        user={user}
+        user={shellUser}
         isSigningOut={isSigningOut}
         onSignOut={() => void handleSignOut()}
       />
@@ -92,7 +72,7 @@ function AdminShellFrame() {
 
       <MobileNavigation
         navigationTriggerRef={navigationTriggerRef}
-        user={user}
+        user={shellUser}
         isSigningOut={isSigningOut}
         onSignOut={() => void handleSignOut()}
       />
