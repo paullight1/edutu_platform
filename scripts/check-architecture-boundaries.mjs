@@ -7,6 +7,15 @@ const CANONICAL_API_FILES = [
   "backend/services/services/api/src/main.ts",
 ];
 
+const ADMIN_ENGINE_COMPATIBILITY_FILE = "admin/src/pages/Scraper.tsx";
+const ADMIN_ENGINE_REQUIRED_EXPORTS = [
+  "../features/engine/pages/EngineSourcesPage",
+  "../features/engine/pages/EngineRunsPage",
+  "../features/engine/pages/EngineStatusPage",
+];
+const ADMIN_ENGINE_FORBIDDEN_IMPLEMENTATION =
+  /\b(?:useState|useEffect|useRef|useCallback)\s*\(|\bfetch\s*\(|\bconfirm\s*\(|\bgetAdminAuthHeaders\b|\bbackendFetchJson\b|\bopenRunStream\b/u;
+
 const ALLOWED_MIGRATION_ROOTS = new Set([
   "backend/services/services/api/supabase/migrations",
   "supabase/migrations",
@@ -128,6 +137,35 @@ async function inspectClientBoundary(root, files) {
   return violations;
 }
 
+async function inspectAdminEngineCompatibility(root, files) {
+  if (!files.includes(ADMIN_ENGINE_COMPATIBILITY_FILE)) {
+    return [
+      `missing Engine compatibility shim: ${ADMIN_ENGINE_COMPATIBILITY_FILE}`,
+    ];
+  }
+
+  const content = await readFile(
+    resolve(root, ADMIN_ENGINE_COMPATIBILITY_FILE),
+    "utf8",
+  );
+  const lineCount = content.trimEnd().split(/\r?\n/u).length;
+  const exportsDedicatedPages = ADMIN_ENGINE_REQUIRED_EXPORTS.every((path) =>
+    content.includes(path),
+  );
+
+  if (
+    lineCount > 8 ||
+    ADMIN_ENGINE_FORBIDDEN_IMPLEMENTATION.test(content) ||
+    !exportsDedicatedPages
+  ) {
+    return [
+      `legacy Engine route must remain a compatibility shim: ${ADMIN_ENGINE_COMPATIBILITY_FILE}`,
+    ];
+  }
+
+  return [];
+}
+
 export async function inspectArchitecture(root) {
   const violations = [];
 
@@ -170,6 +208,7 @@ export async function inspectArchitecture(root) {
   }
 
   violations.push(...(await inspectClientBoundary(root, files)));
+  violations.push(...(await inspectAdminEngineCompatibility(root, files)));
   return [...new Set(violations)].sort();
 }
 
