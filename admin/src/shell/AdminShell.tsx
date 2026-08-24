@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
 import { signOutAdmin } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import AdminTopbar from "./AdminTopbar";
@@ -102,7 +103,9 @@ function AdminShellFrame() {
 export default function AdminShell() {
   return (
     <ShellProvider>
-      <AdminShellFrame />
+      <EngineRunProvider probeOnMount={import.meta.env.MODE !== "test"}>
+        <AdminShellFrame />
+      </EngineRunProvider>
     </ShellProvider>
   );
 }
