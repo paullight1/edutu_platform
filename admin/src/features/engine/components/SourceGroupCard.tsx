@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, FolderTree } from "lucide-react";
 import { useState } from "react";
-import { canRunSource } from "../hooks/useEngineSources";
+import { isSourceRunnable } from "../model/sourceRules";
 import type { ScrapeSource } from "../model/types";
 import SourceRow from "./SourceRow";
 
@@ -27,7 +27,10 @@ export default function SourceGroupCard({
   const enabledChildren = children.filter((source) => source.enabled).length;
 
   return (
-    <section className="engine-source-group" aria-labelledby={`source-group-${group.id}`}>
+    <section
+      className="engine-source-group"
+      aria-labelledby={`source-group-${group.id}`}
+    >
       <header className="engine-source-group-header">
         <button
           type="button"
@@ -52,7 +55,7 @@ export default function SourceGroupCard({
       <SourceRow
         source={group}
         pending={pendingOperations.has(`source:${group.id}`)}
-        runnable={canRunSource(group, allSources)}
+        runnable={isSourceRunnable(group, allSources)}
         onToggle={onToggle}
         onDelete={onDelete}
         onReviewRun={onReviewRun}
@@ -69,7 +72,7 @@ export default function SourceGroupCard({
                 key={source.id}
                 source={source}
                 pending={pendingOperations.has(`source:${source.id}`)}
-                runnable={canRunSource(source, allSources)}
+                runnable={isSourceRunnable(source, allSources)}
                 onToggle={onToggle}
                 onDelete={onDelete}
                 onReviewRun={onReviewRun}

@@ -25,7 +25,10 @@ export default function EngineSourcesPage() {
   const [runTarget, setRunTarget] = useState<ScrapeSource | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const sources = engine.sources.data ?? [];
+  const sources = useMemo(
+    () => engine.sources.data ?? [],
+    [engine.sources.data],
+  );
   const runChildren = useMemo(
     () =>
       runTarget?.is_group
@@ -234,6 +237,7 @@ export default function EngineSourcesPage() {
       />
 
       <RunLauncher
+        key={runTarget?.id ?? "closed"}
         source={runTarget}
         children={runChildren}
         pending={

@@ -1,5 +1,6 @@
 import { Play, ShieldCheck, X } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import type { SourceRunOptions } from "../hooks/useEngineSources";
 import type { ScrapeResult, ScrapeSource } from "../model/types";
 
@@ -24,13 +25,6 @@ export default function RunLauncher({
   const [incremental, setIncremental] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!source) return;
-    setMaxPages(3);
-    setIncremental(true);
-    setError(null);
-  }, [source]);
-
   if (!source) return null;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -47,7 +41,9 @@ export default function RunLauncher({
       onClose();
     } catch (caught) {
       const message =
-        caught instanceof Error ? caught.message : "The source run could not start.";
+        caught instanceof Error
+          ? caught.message
+          : "The source run could not start.";
       setError(message);
       onNotice(message, "error");
     }
@@ -92,13 +88,17 @@ export default function RunLauncher({
 
         <form className="engine-dialog-form" onSubmit={submit}>
           {isGroup ? (
-            <section className="engine-run-source-review" aria-label="Sources in this run">
+            <section
+              className="engine-run-source-review"
+              aria-label="Sources in this run"
+            >
               <div className="engine-run-source-review-header">
                 <ShieldCheck size={18} aria-hidden="true" />
                 <div>
                   <h3>Enabled sources in this group</h3>
                   <p>
-                    {enabledChildren.length} of {children.length} sources will run.
+                    {enabledChildren.length} of {children.length} sources will
+                    run.
                   </p>
                 </div>
               </div>
@@ -112,7 +112,10 @@ export default function RunLauncher({
               </ul>
             </section>
           ) : (
-            <section className="engine-run-source-review" aria-label="Source in this run">
+            <section
+              className="engine-run-source-review"
+              aria-label="Source in this run"
+            >
               <div className="engine-run-source-review-header">
                 <ShieldCheck size={18} aria-hidden="true" />
                 <div>
@@ -133,7 +136,12 @@ export default function RunLauncher({
                 value={maxPages}
                 aria-label="Maximum pages per source"
                 onChange={(event) =>
-                  setMaxPages(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
+                  setMaxPages(
+                    Math.max(
+                      1,
+                      Math.min(50, Number(event.target.value) || 1),
+                    ),
+                  )
                 }
               />
             </label>
@@ -165,7 +173,11 @@ export default function RunLauncher({
             >
               Cancel
             </button>
-            <button type="submit" className="engine-primary-button" disabled={pending}>
+            <button
+              type="submit"
+              className="engine-primary-button"
+              disabled={pending || (isGroup && enabledChildren.length === 0)}
+            >
               <Play size={16} aria-hidden="true" />
               {pending ? "Starting…" : isGroup ? "Start group run" : "Start run"}
             </button>

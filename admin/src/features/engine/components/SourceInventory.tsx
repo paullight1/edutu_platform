@@ -1,6 +1,6 @@
 import { Filter, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { canRunSource } from "../hooks/useEngineSources";
+import { isSourceRunnable } from "../model/sourceRules";
 import type { ScrapeSource } from "../model/types";
 import SourceGroupCard from "./SourceGroupCard";
 import SourceRow from "./SourceRow";
@@ -63,7 +63,9 @@ export default function SourceInventory({
 
         return {
           group,
-          children: groupMatches ? children.filter((source) => matchesFilter(source, filter)) : visibleChildren,
+          children: groupMatches
+            ? children.filter((source) => matchesFilter(source, filter))
+            : visibleChildren,
           visible: groupMatches || visibleChildren.length > 0,
         };
       })
@@ -82,10 +84,16 @@ export default function SourceInventory({
 
   const visibleCount =
     inventory.ungrouped.length +
-    inventory.groups.reduce((total, entry) => total + 1 + entry.children.length, 0);
+    inventory.groups.reduce(
+      (total, entry) => total + 1 + entry.children.length,
+      0,
+    );
 
   return (
-    <section className="engine-card engine-source-inventory" aria-label="Source inventory">
+    <section
+      className="engine-card engine-source-inventory"
+      aria-label="Source inventory"
+    >
       <header className="engine-source-inventory-header">
         <div>
           <p className="engine-card-eyebrow">Source control</p>
@@ -110,7 +118,9 @@ export default function SourceInventory({
             <select
               value={filter}
               aria-label="Filter sources"
-              onChange={(event) => setFilter(event.target.value as SourceFilter)}
+              onChange={(event) =>
+                setFilter(event.target.value as SourceFilter)
+              }
             >
               <option value="all">All sources</option>
               <option value="enabled">Enabled</option>
@@ -144,7 +154,7 @@ export default function SourceInventory({
               key={source.id}
               source={source}
               pending={pendingOperations.has(`source:${source.id}`)}
-              runnable={canRunSource(source, sources)}
+              runnable={isSourceRunnable(source, sources)}
               onToggle={onToggle}
               onDelete={onDelete}
               onReviewRun={onReviewRun}
