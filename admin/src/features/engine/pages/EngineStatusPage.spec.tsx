@@ -2,16 +2,25 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminApiError } from "../../../lib/apiError";
+import type { EngineAutomationState } from "../hooks/useEngineAutomation";
 import type { EngineDiagnosticsState } from "../hooks/useEngineDiagnostics";
 import EngineStatusPage from "./EngineStatusPage";
 
 const mocks = vi.hoisted(() => ({
   useEngineDiagnostics: vi.fn(),
+  useEngineAutomation: vi.fn(),
   refresh: vi.fn(),
+  automationRefresh: vi.fn(),
+  saveSettings: vi.fn(),
+  purgeExpired: vi.fn(),
 }));
 
 vi.mock("../hooks/useEngineDiagnostics", () => ({
   useEngineDiagnostics: mocks.useEngineDiagnostics,
+}));
+
+vi.mock("../hooks/useEngineAutomation", () => ({
+  useEngineAutomation: mocks.useEngineAutomation,
 }));
 
 function diagnosticState(): EngineDiagnosticsState {
@@ -123,10 +132,35 @@ function diagnosticState(): EngineDiagnosticsState {
   };
 }
 
+function automationState(): EngineAutomationState {
+  return {
+    settings: {
+      status: "success",
+      data: {
+        auto_run_enabled: true,
+        cron_schedule: "0 0 * * *",
+        data_retention_days: 30,
+        recheck_after_days: 3,
+      },
+      error: null,
+    },
+    mutationError: null,
+    pendingOperations: new Set<string>(),
+    refresh: mocks.automationRefresh,
+    saveSettings: mocks.saveSettings,
+    purgeExpired: mocks.purgeExpired,
+  };
+}
+
 describe("EngineStatusPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.refresh.mockResolvedValue(undefined);
+    mocks.automationRefresh.mockResolvedValue(undefined);
+    mocks.saveSettings.mockResolvedValue(undefined);
+    mocks.purgeExpired.mockResolvedValue({ deletedCount: 0 });
     mocks.useEngineDiagnostics.mockReturnValue(diagnosticState());
+    mocks.useEngineAutomation.mockReturnValue(automationState());
   });
 
   it("renders the effective admin target and API deployment identity", () => {
@@ -180,6 +214,7 @@ describe("EngineStatusPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Refresh status" }));
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.automationRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("shows actionable remediation when the database is not configured", () => {
