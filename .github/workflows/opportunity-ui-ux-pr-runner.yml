@@ -1,0 +1,144 @@
+name: Opportunity Detail UX Implementation Runner
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/opportunity-ui-ux-implementation.yml"
+      - ".github/workflows/opportunity-ui-ux-pr-runner.yml"
+      - "edutumobile/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opportunity-detail-ux-pr-runner-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+
+      - name: Reconcile with latest main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
+
+      - name: Install locked mobile dependencies
+        working-directory: edutumobile
+        run: npm ci
+
+      - name: Execute the reviewed implementation patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import textwrap
+
+          workflow = Path(
+              ".github/workflows/opportunity-ui-ux-implementation.yml"
+          ).read_text()
+          step_marker = (
+              "      - name: Implement the approved hierarchy and interaction design"
+          )
+          start = workflow.index("        run: |", workflow.index(step_marker))
+          start = workflow.index("\n", start) + 1
+          end = workflow.index("\n      - name: Format affected files", start)
+          script = textwrap.dedent(workflow[start:end])
+          subprocess.run(script, shell=True, check=True, executable="/bin/bash")
+          PY
+
+      - name: Format affected files
+        working-directory: edutumobile
+        run: |
+          npx prettier --write \
+            lib/opportunityDisplay.ts \
+            lib/__tests__/opportunityDisplay.test.ts \
+            lib/__tests__/opportunityDetailHierarchy.test.ts \
+            components/opportunity/CollapsibleSection.tsx \
+            components/opportunity/RequirementChecklist.tsx \
+            components/opportunity/__tests__/CollapsibleSection.test.tsx \
+            components/opportunity/__tests__/RequirementChecklist.test.tsx \
+            'app/(app)/opportunities/[id].tsx'
+
+      - name: Run focused opportunity UX tests
+        working-directory: edutumobile
+        run: |
+          npm run test -- --runInBand \
+            lib/__tests__/opportunityDisplay.test.ts \
+            lib/__tests__/opportunityDetailHierarchy.test.ts \
+            components/opportunity/__tests__/CollapsibleSection.test.tsx \
+            components/opportunity/__tests__/RequirementChecklist.test.tsx
+
+      - name: Run mobile TypeScript and lint gates
+        working-directory: edutumobile
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Remove temporary implementation workflows
+        run: |
+          rm .github/workflows/opportunity-ui-ux-implementation.yml
+          rm .github/workflows/opportunity-ui-ux-pr-runner.yml
+
+      - name: Guard and commit the implementation
+        run: |
+          git add \
+            .github/workflows/opportunity-ui-ux-implementation.yml \
+            .github/workflows/opportunity-ui-ux-pr-runner.yml \
+            edutumobile/lib/opportunityDisplay.ts \
+            edutumobile/lib/__tests__/opportunityDisplay.test.ts \
+            edutumobile/lib/__tests__/opportunityDetailHierarchy.test.ts \
+            edutumobile/components/opportunity/CollapsibleSection.tsx \
+            edutumobile/components/opportunity/RequirementChecklist.tsx \
+            edutumobile/components/opportunity/__tests__/CollapsibleSection.test.tsx \
+            edutumobile/components/opportunity/__tests__/RequirementChecklist.test.tsx \
+            'edutumobile/app/(app)/opportunities/[id].tsx'
+
+          python - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/opportunity-ui-ux-implementation.yml",
+              ".github/workflows/opportunity-ui-ux-pr-runner.yml",
+              "edutumobile/lib/opportunityDisplay.ts",
+              "edutumobile/lib/__tests__/opportunityDisplay.test.ts",
+              "edutumobile/lib/__tests__/opportunityDetailHierarchy.test.ts",
+              "edutumobile/components/opportunity/CollapsibleSection.tsx",
+              "edutumobile/components/opportunity/RequirementChecklist.tsx",
+              "edutumobile/components/opportunity/__tests__/CollapsibleSection.test.tsx",
+              "edutumobile/components/opportunity/__tests__/RequirementChecklist.test.tsx",
+              "edutumobile/app/(app)/opportunities/[id].tsx",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--cached", "--name-only"], text=True
+              ).splitlines()
+          )
+          unexpected = changed - allowed
+          if unexpected:
+              raise SystemExit(
+                  f"Unexpected files in implementation commit: {sorted(unexpected)}"
+              )
+          if not changed:
+              raise SystemExit("Implementation produced no staged changes")
+          PY
+
+          git commit -m "feat(mobile): clarify opportunity detail hierarchy"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
