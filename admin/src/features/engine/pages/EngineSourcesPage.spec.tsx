@@ -12,12 +12,19 @@ const mocks = vi.hoisted(() => ({
   setSourceEnabled: vi.fn(),
   deleteSource: vi.fn(),
   deleteSite: vi.fn(),
+  deleteBatch: vi.fn(),
   startRun: vi.fn(),
 }));
 
-vi.mock("../hooks/useEngineSources", () => ({
-  useEngineSources: mocks.useEngineSources,
-}));
+vi.mock("../hooks/useEngineSources", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../hooks/useEngineSources")
+  >();
+  return {
+    ...actual,
+    useEngineSources: mocks.useEngineSources,
+  };
+});
 
 function source(overrides: Partial<ScrapeSource> = {}): ScrapeSource {
   return {
@@ -54,6 +61,7 @@ function state(sources: ScrapeSource[] = []) {
     setSourceEnabled: mocks.setSourceEnabled,
     deleteSource: mocks.deleteSource,
     deleteSite: mocks.deleteSite,
+    deleteBatch: mocks.deleteBatch,
     startRun: mocks.startRun,
     pendingOperations: new Set<string>(),
   };
@@ -121,7 +129,9 @@ describe("EngineSourcesPage", () => {
 
     const dialog = screen.getByRole("alertdialog");
     expect(within(dialog).getByText("Delete source?")).toBeVisible();
-    await user.click(within(dialog).getByRole("button", { name: "Delete source" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete source" }),
+    );
 
     expect(mocks.deleteSource).toHaveBeenCalledWith(current);
   });
@@ -167,7 +177,9 @@ describe("EngineSourcesPage", () => {
     });
     await user.clear(maxPages);
     await user.type(maxPages, "4");
-    await user.click(within(dialog).getByRole("button", { name: "Start group run" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Start group run" }),
+    );
 
     expect(mocks.startRun).toHaveBeenCalledWith(group, {
       maxPages: 4,
