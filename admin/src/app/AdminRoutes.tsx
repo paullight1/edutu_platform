@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "../components/Layout";
 import BackgroundRunIndicator from "../features/engine/components/BackgroundRunIndicator";
 import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
+import AdminNotFound from "./AdminNotFound";
 import {
   ADMIN_REDIRECTS,
   adminRoutePath,
@@ -165,6 +166,7 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
               <Navigate to={redirectFor("/mobile-control").to} replace />
             }
           />
+          <Route path="*" element={<AdminNotFound />} />
         </Route>
       </Routes>
     </Suspense>
