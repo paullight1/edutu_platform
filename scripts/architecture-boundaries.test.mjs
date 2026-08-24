@@ -23,6 +23,16 @@ async function createBaseline(root) {
     "select 1;\n",
   );
   await write(root, "admin/src/example.ts", "export const api = '/v1';\n");
+  await write(
+    root,
+    "admin/src/pages/Scraper.tsx",
+    [
+      'export { default } from "../features/engine/pages/EngineSourcesPage";',
+      'export { default as EngineRunsPage } from "../features/engine/pages/EngineRunsPage";',
+      'export { default as EngineStatusPage } from "../features/engine/pages/EngineStatusPage";',
+      "",
+    ].join("\n"),
+  );
 }
 
 async function withRepository(run) {
@@ -120,5 +130,30 @@ test("prevents another root-level backend runtime from being introduced", async 
     assert.deepEqual(await inspectArchitecture(root), [
       "unexpected duplicate backend runtime file: backend/another-server.js",
     ]);
+  });
+});
+
+test("rejects a monolithic legacy Engine route after dedicated pages exist", async () => {
+  await withRepository(async (root) => {
+    await write(
+      root,
+      "admin/src/pages/Scraper.tsx",
+      [
+        'import { useEffect, useState } from "react";',
+        "export default function Scraper() {",
+        "  const [loading] = useState(true);",
+        "  useEffect(() => undefined, []);",
+        '  void fetch("/api/scraper/sources");',
+        "  return loading ? null : null;",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    assert.ok(
+      (await inspectArchitecture(root)).includes(
+        "legacy Engine route must remain a compatibility shim: admin/src/pages/Scraper.tsx",
+      ),
+    );
   });
 });
