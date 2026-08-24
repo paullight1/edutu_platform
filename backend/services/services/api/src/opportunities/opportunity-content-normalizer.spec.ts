@@ -56,9 +56,7 @@ describe("opportunity content normalizer", () => {
           "Expert-led business training",
           "Networking with other founders",
         ],
-        applicationProcess: [
-          "Complete the official online application form.",
-        ],
+        applicationProcess: ["Complete the official online application form."],
       },
       { sourceBacked: true },
     );

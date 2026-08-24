@@ -52,17 +52,15 @@ function listFrom(record: OpportunityRecord, keys: string[]): string[] {
   return [];
 }
 
-export function isSourceBackedOpportunity(
-  record: OpportunityRecord,
-): boolean {
+export function isSourceBackedOpportunity(record: OpportunityRecord): boolean {
   const metadata = metadataOf(record);
   const enrichment = metadata.ai_enrichment;
   const nestedSourceBacked = Boolean(
     enrichment &&
-      typeof enrichment === "object" &&
-      !Array.isArray(enrichment) &&
-      ((enrichment as Record<string, unknown>).source_text_used === true ||
-        (enrichment as Record<string, unknown>).sourceTextUsed === true),
+    typeof enrichment === "object" &&
+    !Array.isArray(enrichment) &&
+    ((enrichment as Record<string, unknown>).source_text_used === true ||
+      (enrichment as Record<string, unknown>).sourceTextUsed === true),
   );
 
   return (
@@ -306,9 +304,7 @@ export function buildOpportunityContentUpdate(
 
 /** Cheap predicate used by the catalogue backfill before it spends an AI call. */
 export function shouldRefineOpportunity(record: OpportunityRecord): boolean {
-  const description = String(
-    firstValue(record, ["description"]) ?? "",
-  );
+  const description = String(firstValue(record, ["description"]) ?? "");
   const summary = String(firstValue(record, ["summary"]) ?? "");
   if (PRESENTATION_NOISE_RE.test(`${summary}\n${description}`)) return true;
 

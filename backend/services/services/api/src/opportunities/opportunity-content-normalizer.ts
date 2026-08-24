@@ -49,12 +49,27 @@ const NAMED_ENTITIES: Record<string, string> = {
   ldquo: "“",
 };
 
-const BLOCK_TAG_RE = /<\/?(?:article|aside|blockquote|br|div|footer|h[1-6]|header|li|main|nav|ol|p|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>/gi;
+const BLOCK_TAG_RE =
+  /<\/?(?:article|aside|blockquote|br|div|footer|h[1-6]|header|li|main|nav|ol|p|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>/gi;
 const OTHER_TAG_RE = /<[^>]+>/g;
-const CONTROL_CHAR_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 const BULLET_PREFIX_RE = /^\s*(?:[-–—•●▪◦*✓✔☑→›»]+|\d+[.)]|[a-z][.)])\s*/i;
 const RAW_URL_RE = /(?:https?:\/\/|www\.)\S+/gi;
 const EMAIL_ONLY_RE = /^\s*[\w.+-]+@[\w.-]+\.[a-z]{2,}\s*$/i;
+
+function stripControlCharacters(value: string): string {
+  let result = "";
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    const isControl =
+      (code >= 0x00 && code <= 0x08) ||
+      code === 0x0b ||
+      code === 0x0c ||
+      (code >= 0x0e && code <= 0x1f) ||
+      (code >= 0x7f && code <= 0x9f);
+    if (!isControl) result += character;
+  }
+  return result;
+}
 
 const NOISE_LINE_PATTERNS: RegExp[] = [
   /^(?:advertisement|advertorial|sponsored(?:\s+content)?|promoted(?:\s+content)?)\.?$/i,
@@ -78,7 +93,8 @@ const INLINE_NOISE_PATTERNS: RegExp[] = [
   /\b(?:join|follow)\s+(?:our|us\s+on)\s+(?:whatsapp|telegram|facebook|instagram|linkedin|twitter|x)(?:\s+(?:channel|group|community))?[^.!?\n]*[.!?]?/gi,
 ];
 
-const SECTION_HEADING_RE = /^(?:about(?:\s+the\s+(?:opportunity|programme|program))?|overview|description|eligibility|eligibility\s+criteria|requirements?|who\s+can\s+apply|benefits?|what\s+you(?:'|’)ll\s+gain|application\s+(?:process|procedure|steps?)|how\s+to\s+apply|deadline|important\s+dates?|key\s+information|program(?:me)?\s+details)\s*:?$/i;
+const SECTION_HEADING_RE =
+  /^(?:about(?:\s+the\s+(?:opportunity|programme|program))?|overview|description|eligibility|eligibility\s+criteria|requirements?|who\s+can\s+apply|benefits?|what\s+you(?:'|’)ll\s+gain|application\s+(?:process|procedure|steps?)|how\s+to\s+apply|deadline|important\s+dates?|key\s+information|program(?:me)?\s+details)\s*:?$/i;
 
 function decodeHtmlEntities(value: string): string {
   return value
@@ -90,14 +106,19 @@ function decodeHtmlEntities(value: string): string {
       const code = Number.parseInt(decimal, 10);
       return Number.isFinite(code) ? String.fromCodePoint(code) : "";
     })
-    .replace(/&([a-z]+);/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match);
+    .replace(
+      /&([a-z]+);/gi,
+      (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match,
+    );
 }
 
 function flattenUnknown(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) return value.flatMap(flattenUnknown);
   if (typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).flatMap(flattenUnknown);
+    return Object.values(value as Record<string, unknown>).flatMap(
+      flattenUnknown,
+    );
   }
   return [String(value)];
 }
@@ -132,7 +153,8 @@ function cleanInlineNoise(value: string): { text: string; removed: number } {
 
 function isNoiseLine(value: string): boolean {
   const text = value.trim();
-  if (!text || EMAIL_ONLY_RE.test(text) || SECTION_HEADING_RE.test(text)) return true;
+  if (!text || EMAIL_ONLY_RE.test(text) || SECTION_HEADING_RE.test(text))
+    return true;
   return NOISE_LINE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
@@ -164,8 +186,10 @@ function groupSentences(sentences: string[]): string[] {
   };
 
   for (const sentence of sentences) {
-    const nextLength = currentLength + (current.length > 0 ? 1 : 0) + sentence.length;
-    if (current.length >= 2 || (current.length > 0 && nextLength > 320)) flush();
+    const nextLength =
+      currentLength + (current.length > 0 ? 1 : 0) + sentence.length;
+    if (current.length >= 2 || (current.length > 0 && nextLength > 320))
+      flush();
     current.push(sentence);
     currentLength += sentence.length + (current.length > 1 ? 1 : 0);
   }
@@ -180,7 +204,10 @@ function sentenceCount(value: string): number {
 function truncateWords(value: string, maxWords: number): string {
   const words = value.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) return value.trim();
-  const sliced = words.slice(0, maxWords).join(" ").replace(/[,:;\-–—]+$/, "");
+  const sliced = words
+    .slice(0, maxWords)
+    .join(" ")
+    .replace(/[,:;\-–—]+$/, "");
   return `${sliced}.`;
 }
 
@@ -192,23 +219,20 @@ function cleanNarrativeInternal(value: unknown): {
   const raw = flattenUnknown(value).join("\n");
   if (!raw.trim()) return { text: "", removedNoise: 0, removedDuplicates: 0 };
 
-  const decoded = decodeHtmlEntities(raw)
-    .replace(CONTROL_CHAR_RE, "")
+  const decoded = stripControlCharacters(decodeHtmlEntities(raw))
     .replace(BLOCK_TAG_RE, "\n")
     .replace(OTHER_TAG_RE, " ")
     .replace(/\r\n?/g, "\n");
 
-  const sourceUnits = decoded
-    .split(/\n+/)
-    .flatMap((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return [];
-      // Aggregator pages often flatten a navigation run with pipes.
-      if (/\s[|·]\s/.test(trimmed) && trimmed.length < 180) {
-        return trimmed.split(/\s*[|·]\s*/);
-      }
-      return [trimmed];
-    });
+  const sourceUnits = decoded.split(/\n+/).flatMap((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return [];
+    // Aggregator pages often flatten a navigation run with pipes.
+    if (/\s[|·]\s/.test(trimmed) && trimmed.length < 180) {
+      return trimmed.split(/\s*[|·]\s*/);
+    }
+    return [trimmed];
+  });
 
   const seen = new Set<string>();
   const cleanUnits: string[] = [];
@@ -241,7 +265,9 @@ function cleanNarrativeInternal(value: unknown): {
 
   const paragraphs: string[] = [];
   for (const unit of cleanUnits) {
-    const sentences = splitSentences(unit).filter((sentence) => !isNoiseLine(sentence));
+    const sentences = splitSentences(unit).filter(
+      (sentence) => !isNoiseLine(sentence),
+    );
     if (sentences.length === 0) continue;
     if (unit.length > 360 || sentences.length > 2) {
       paragraphs.push(...groupSentences(sentences));
@@ -283,8 +309,7 @@ export function cleanOpportunityNarrative(value: unknown): string {
 /** Clean a requirements/benefits/application list while preserving facts. */
 export function cleanOpportunityList(value: unknown, maxItems = 20): string[] {
   const candidates = flattenUnknown(value).flatMap((entry) =>
-    decodeHtmlEntities(entry)
-      .replace(CONTROL_CHAR_RE, "")
+    stripControlCharacters(decodeHtmlEntities(entry))
       .replace(BLOCK_TAG_RE, "\n")
       .replace(OTHER_TAG_RE, " ")
       .split(/\n+|(?<=\.)\s*(?=(?:[-•*]|\d+[.)])\s*)|\s*;\s*/u),
@@ -310,9 +335,13 @@ export function cleanOpportunityList(value: unknown, maxItems = 20): string[] {
 }
 
 function buildSummary(summary: unknown, description: string): string {
-  const cleanedSummary = cleanOpportunityNarrative(summary).replace(/\n+/g, " ");
+  const cleanedSummary = cleanOpportunityNarrative(summary).replace(
+    /\n+/g,
+    " ",
+  );
   const summaryWords = cleanedSummary.split(/\s+/).filter(Boolean);
-  if (summaryWords.length >= 20 && summaryWords.length <= 55) return cleanedSummary;
+  if (summaryWords.length >= 20 && summaryWords.length <= 55)
+    return cleanedSummary;
   if (summaryWords.length > 55) return truncateWords(cleanedSummary, 55);
 
   const sentences = splitSentences(description.replace(/\n+/g, " "));
@@ -339,7 +368,9 @@ function scoreContent(
 ): number {
   const summaryWords = summary.split(/\s+/).filter(Boolean).length;
   const sentences = sentenceCount(description);
-  const paragraphs = description ? description.split(/\n\n+/).filter(Boolean).length : 0;
+  const paragraphs = description
+    ? description.split(/\n\n+/).filter(Boolean).length
+    : 0;
   let score = 0;
 
   if (summaryWords >= 20 && summaryWords <= 55) score += 20;
@@ -382,10 +413,14 @@ export function refineOpportunityContent(
   const summary = buildSummary(input.summary, description);
 
   const acceptLists = sourceBacked || allowUnverifiedLists;
-  const requirements = acceptLists ? cleanOpportunityList(input.requirements) : [];
+  const requirements = acceptLists
+    ? cleanOpportunityList(input.requirements)
+    : [];
   const benefits = acceptLists ? cleanOpportunityList(input.benefits) : [];
   const applicationProcess = acceptLists
-    ? cleanOpportunityList(input.applicationProcess ?? input.application_process)
+    ? cleanOpportunityList(
+        input.applicationProcess ?? input.application_process,
+      )
     : [];
 
   const qualityScore = scoreContent(

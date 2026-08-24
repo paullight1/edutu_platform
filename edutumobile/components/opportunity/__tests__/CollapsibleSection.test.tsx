@@ -1,9 +1,9 @@
 import React from "react";
 import { Text } from "react-native";
 import { fireEvent, render } from "@testing-library/react-native";
-import { CollapsibleSection } from "./CollapsibleSection";
+import { CollapsibleSection } from "../CollapsibleSection";
 
-jest.mock("../context/ThemeContext", () => ({
+jest.mock("../../context/ThemeContext", () => ({
   useTheme: () => ({
     colors: { border: "#e2e8f0", foreground: "#0f172a", accent: "#2563eb" },
     isDark: false,
@@ -11,7 +11,7 @@ jest.mock("../context/ThemeContext", () => ({
   }),
 }));
 
-jest.mock("../ui/AnimatedPressable", () => {
+jest.mock("../../ui/AnimatedPressable", () => {
   const React = require("react");
   const { Pressable } = require("react-native");
   return {

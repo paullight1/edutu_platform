@@ -68,9 +68,7 @@ describe("opportunity content refinement", () => {
 
     expect(result.update.deadline).toBe("2026-07-20");
     expect(result.update.applyUrl).toBe("https://official.example/apply");
-    expect(result.update.sourceUrl).toBe(
-      "https://official.example/programme",
-    );
+    expect(result.update.sourceUrl).toBe("https://official.example/programme");
     expect(result.update.fundingType).toBe("Free training");
     expect(result.update.eligibility).toEqual({ countries: ["Nigeria"] });
     expect(result.update.description).not.toMatch(/Advertisement|Apply now/i);

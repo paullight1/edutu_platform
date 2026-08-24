@@ -4,11 +4,11 @@ describe("opportunity content refinement policy", () => {
   it("routes existing enhance and backfill methods through the refiner and restores them", async () => {
     const originalCalls: string[] = [];
     const service = {
-      async enhanceOpportunity(id: string) {
+      enhanceOpportunity: async (id: string) => {
         originalCalls.push(`original:${id}`);
         return { success: true, id };
       },
-      async backfillEnrichment(options: { limit?: number } = {}) {
+      backfillEnrichment: async (options: { limit?: number } = {}) => {
         return { processed: options.limit ?? 0 };
       },
     };
@@ -47,10 +47,7 @@ describe("opportunity content refinement policy", () => {
       enhanced: 1,
       failed: 0,
     });
-    expect(originalCalls).toEqual([
-      "original:opp-1",
-      "original:from-backfill",
-    ]);
+    expect(originalCalls).toEqual(["original:opp-1", "original:from-backfill"]);
 
     restore();
     expect(service.enhanceOpportunity).toBe(originalEnhance);

@@ -28,10 +28,7 @@ interface BackfillOptions {
   limit?: number;
 }
 
-function recordValue(
-  record: OpportunityRecord,
-  ...keys: string[]
-): unknown {
+function recordValue(record: OpportunityRecord, ...keys: string[]): unknown {
   for (const key of keys) {
     const value = record?.[key];
     if (value !== undefined && value !== null && value !== "") return value;
@@ -88,14 +85,12 @@ export function buildRefinedOpportunityMetadata(
     requirements: refinement.content.requirements,
     benefits: refinement.content.benefits,
     application_process: refinement.content.applicationProcess,
-    eligibility:
-      selected.eligibility ?? originalMetadata.eligibility ?? null,
+    eligibility: selected.eligibility ?? originalMetadata.eligibility ?? null,
     eligibility_criteria:
       selected.eligibilityCriteria ??
       originalMetadata.eligibility_criteria ??
       null,
-    funding_type:
-      selected.fundingType ?? originalMetadata.funding_type ?? null,
+    funding_type: selected.fundingType ?? originalMetadata.funding_type ?? null,
     target_region:
       selected.targetRegion ?? originalMetadata.target_region ?? null,
     extraction_quality_score: refinement.content.qualityScore,
@@ -123,7 +118,9 @@ export function buildRefinedOpportunityMetadata(
 
 @Injectable()
 export class OpportunityContentRefinementService {
-  private readonly logger = new Logger(OpportunityContentRefinementService.name);
+  private readonly logger = new Logger(
+    OpportunityContentRefinementService.name,
+  );
 
   constructor(
     private readonly opportunitiesService: OpportunitiesService,
@@ -132,14 +129,14 @@ export class OpportunityContentRefinementService {
   ) {}
 
   async refineOpportunity(id: string, options: RefineOptions = {}) {
-    const original = (await this.opportunitiesService.findOne(id)) as
-      | OpportunityRecord
-      | null;
+    const original = (await this.opportunitiesService.findOne(
+      id,
+    )) as OpportunityRecord | null;
     if (!original) return null;
 
     const shouldUseAi = Boolean(
       options.aiEnhance &&
-        (options.forceAi === true || shouldRefineOpportunity(original)),
+      (options.forceAi === true || shouldRefineOpportunity(original)),
     );
     let aiAttempted = false;
     let aiError: string | null = null;
@@ -155,9 +152,9 @@ export class OpportunityContentRefinementService {
           );
         }
         candidate =
-          ((await this.opportunitiesService.findOne(id)) as
-            | OpportunityRecord
-            | null) || original;
+          ((await this.opportunitiesService.findOne(
+            id,
+          )) as OpportunityRecord | null) || original;
       } catch (error) {
         aiError = error instanceof Error ? error.message : String(error);
         this.logger.warn(
@@ -264,9 +261,9 @@ export class OpportunityContentRefinementService {
       .execute();
 
     await this.opportunitiesService.invalidateCatalogCache();
-    const updated = (await this.opportunitiesService.findOne(id)) as
-      | OpportunityRecord
-      | null;
+    const updated = (await this.opportunitiesService.findOne(
+      id,
+    )) as OpportunityRecord | null;
     const opportunity = updated || { ...candidate, ...definedPayload };
 
     void this.embeddingService.embedOpportunity(id);

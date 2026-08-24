@@ -9,9 +9,7 @@ type MutableOpportunityService = OpportunitiesService & {
   backfillEnrichment: BackfillMethod;
 };
 
-const POLICY_MARK = Symbol.for(
-  "edutu.opportunity-content-refinement-policy",
-);
+const POLICY_MARK = Symbol.for("edutu.opportunity-content-refinement-policy");
 
 type PolicyState = {
   restore: () => void;
@@ -30,7 +28,8 @@ export function installOpportunityContentRefinementPolicy(
     [POLICY_MARK]?: PolicyState;
   };
 
-  if (mutable[POLICY_MARK]) return mutable[POLICY_MARK]!.restore;
+  const currentPolicy = mutable[POLICY_MARK];
+  if (currentPolicy) return currentPolicy.restore;
 
   const originalEnhance = mutable.enhanceOpportunity;
   const originalBackfill = mutable.backfillEnrichment;
