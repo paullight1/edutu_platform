@@ -15,10 +15,7 @@ import {
   type EngineResourceState,
 } from "../model/errors";
 import type { ScrapeJob } from "../model/types";
-import {
-  toBulkImportItem,
-  useEngineOpportunityReview,
-} from "./useEngineOpportunityReview";
+import { useEngineOpportunityReview } from "./useEngineOpportunityReview";
 import type {
   ReviewedOpportunity,
   SaveSelectedOutcome,
@@ -57,7 +54,16 @@ export function useEngineRuns(
   );
   const jobsRequestVersion = useRef(0);
   const lastCompletionToken = useRef<number | null>(completionToken);
-  const review = useEngineOpportunityReview();
+  const {
+    opportunities,
+    pendingOperations: reviewPendingOperations,
+    load: loadReview,
+    reset: resetReview,
+    toggleSelected,
+    selectAll,
+    improveSelected,
+    saveSelected,
+  } = useEngineOpportunityReview();
 
   const refreshJobs = useCallback(async () => {
     const version = ++jobsRequestVersion.current;
@@ -119,15 +125,15 @@ export function useEngineRuns(
   const inspectJob = useCallback(
     async (job: ScrapeJob) => {
       setSelectedJob(job);
-      await review.load(job.id);
+      await loadReview(job.id);
     },
-    [review.load],
+    [loadReview],
   );
 
   const closeInspection = useCallback(() => {
     setSelectedJob(null);
-    review.reset();
-  }, [review.reset]);
+    resetReview();
+  }, [resetReview]);
 
   const deleteJob = useCallback(
     (job: ScrapeJob) =>
@@ -146,22 +152,22 @@ export function useEngineRuns(
   );
 
   const combinedPendingOperations = useMemo(
-    () => new Set([...pendingOperations, ...review.pendingOperations]),
-    [pendingOperations, review.pendingOperations],
+    () => new Set([...pendingOperations, ...reviewPendingOperations]),
+    [pendingOperations, reviewPendingOperations],
   );
 
   return {
     jobs,
     selectedJob,
-    opportunities: review.opportunities,
+    opportunities,
     pendingOperations: combinedPendingOperations,
     refreshJobs,
     inspectJob,
     closeInspection,
     deleteJob,
-    toggleSelected: review.toggleSelected,
-    selectAll: review.selectAll,
-    improveSelected: review.improveSelected,
-    saveSelected: review.saveSelected,
+    toggleSelected,
+    selectAll,
+    improveSelected,
+    saveSelected,
   };
 }
