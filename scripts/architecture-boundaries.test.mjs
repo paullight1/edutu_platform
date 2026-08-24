@@ -23,16 +23,6 @@ async function createBaseline(root) {
     "select 1;\n",
   );
   await write(root, "admin/src/example.ts", "export const api = '/v1';\n");
-  await write(
-    root,
-    "admin/src/pages/Scraper.tsx",
-    [
-      'export { default } from "../features/engine/pages/EngineSourcesPage";',
-      'export { default as EngineRunsPage } from "../features/engine/pages/EngineRunsPage";',
-      'export { default as EngineStatusPage } from "../features/engine/pages/EngineStatusPage";',
-      "",
-    ].join("\n"),
-  );
 }
 
 async function withRepository(run) {
@@ -133,7 +123,7 @@ test("prevents another root-level backend runtime from being introduced", async 
   });
 });
 
-test("rejects a monolithic legacy Engine route after dedicated pages exist", async () => {
+test("rejects a monolithic legacy Engine route if it is reintroduced", async () => {
   await withRepository(async (root) => {
     await write(
       root,
@@ -152,7 +142,7 @@ test("rejects a monolithic legacy Engine route after dedicated pages exist", asy
 
     assert.ok(
       (await inspectArchitecture(root)).includes(
-        "legacy Engine route must remain a compatibility shim: admin/src/pages/Scraper.tsx",
+        "legacy Engine route must not contain implementation: admin/src/pages/Scraper.tsx",
       ),
     );
   });
