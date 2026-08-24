@@ -49,7 +49,7 @@
 - `edutumobile/lib/opportunityDisplay.ts`
 - `edutumobile/lib/__tests__/opportunityDisplay.test.ts`
 - `edutumobile/components/opportunity/CollapsibleSection.tsx`
-- `edutumobile/components/opportunity/CollapsibleSection.test.tsx`
+- `edutumobile/components/opportunity/__tests__/CollapsibleSection.test.tsx`
 - `edutumobile/components/opportunity/RequirementChecklist.tsx`
 
 **Work**
@@ -66,3 +66,11 @@
 - Run repository lint/build gates for affected workspaces.
 - Open a pull request from `agent/opportunity-content-ux`.
 - After deployment, run the admin content backfill in bounded batches and review the `needsReview` cohort before publication changes.
+
+### Current verification status
+
+- Pull request opened as draft: `paullight1/edutu_platform#64`.
+- Backend lint passed after applying the repository's locked ESLint/Prettier toolchain to the affected files.
+- The progressive-disclosure test now follows the repository's `__tests__` convention, keeping Jest-only globals outside the application TypeScript build.
+- A fresh full CI run is required before the pull request can leave draft status.
+- Scraper tests, all mobile gates, backend tests/build, and reconciliation with the latest `main` remain evidence-gated completion requirements.
