@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 
-vi.mock("../auth/AdminAuthProvider", () => ({
+vi.mock("../auth/admin-auth-context", () => ({
   useAdminAuth: mocks.useAdminAuth,
 }));
 
