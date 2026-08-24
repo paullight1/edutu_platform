@@ -49,7 +49,6 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import subprocess
-          import textwrap
 
           workflow = Path(
               ".github/workflows/opportunity-ui-ux-implementation.yml"
@@ -60,7 +59,11 @@ jobs:
           start = workflow.index("        run: |", workflow.index(step_marker))
           start = workflow.index("\n", start) + 1
           end = workflow.index("\n      - name: Format affected files", start)
-          script = textwrap.dedent(workflow[start:end])
+          lines = workflow[start:end].splitlines()
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in lines
+          )
           subprocess.run(script, shell=True, check=True, executable="/bin/bash")
           PY
 
