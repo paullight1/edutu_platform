@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import { AnimatedPressable } from '../ui/AnimatedPressable';
+import { cleanOpportunityListForDisplay } from '../../lib/opportunityDisplay';
 
 const STORAGE_PREFIX = 'edutu:oppRequirements:';
 
@@ -26,6 +27,10 @@ export function RequirementChecklist({
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
   const [checked, setChecked] = useState<string[]>([]);
   const storageKey = `${STORAGE_PREFIX}${opportunityId}`;
+  const displayItems = useMemo(
+    () => cleanOpportunityListForDisplay(items),
+    [items],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +38,9 @@ export function RequirementChecklist({
       .then((raw) => {
         if (cancelled || !raw) return;
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setChecked(parsed.filter((v) => typeof v === 'string'));
+        if (Array.isArray(parsed)) {
+          setChecked(parsed.filter((value) => typeof value === 'string'));
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -47,7 +54,9 @@ export function RequirementChecklist({
         const next = prev.includes(item)
           ? prev.filter((value) => value !== item)
           : [...prev, item];
-        AsyncStorage.setItem(storageKey, JSON.stringify(next)).catch(() => undefined);
+        AsyncStorage.setItem(storageKey, JSON.stringify(next)).catch(
+          () => undefined,
+        );
         return next;
       });
     },
@@ -56,7 +65,7 @@ export function RequirementChecklist({
 
   return (
     <View style={styles.list}>
-      {items.map((item, index) => {
+      {displayItems.map((item, index) => {
         const isChecked = checked.includes(item);
         return (
           <AnimatedPressable
@@ -72,28 +81,32 @@ export function RequirementChecklist({
             {/* Row layout must sit inside AnimatedPressable's own flex:1
                 Pressable wrapper, not on the outer style. */}
             <View style={styles.item}>
-            <View
-              style={[
-                styles.box,
-                {
-                  borderColor: isChecked ? colors.accent : colors.border,
-                  backgroundColor: isChecked ? colors.accent : 'transparent',
-                },
-              ]}
-            >
-              {isChecked ? <Check size={13} color="#FFFFFF" strokeWidth={3} /> : null}
-            </View>
-            <Text
-              style={[
-                styles.text,
-                {
-                  color: isChecked ? textSecondary : colors.foreground,
-                  textDecorationLine: isChecked ? 'line-through' : 'none',
-                },
-              ]}
-            >
-              {item}
-            </Text>
+              <View
+                style={[
+                  styles.box,
+                  {
+                    borderColor: isChecked ? colors.accent : colors.border,
+                    backgroundColor: isChecked
+                      ? colors.accent
+                      : 'transparent',
+                  },
+                ]}
+              >
+                {isChecked ? (
+                  <Check size={13} color="#FFFFFF" strokeWidth={3} />
+                ) : null}
+              </View>
+              <Text
+                style={[
+                  styles.text,
+                  {
+                    color: isChecked ? textSecondary : colors.foreground,
+                    textDecorationLine: isChecked ? 'line-through' : 'none',
+                  },
+                ]}
+              >
+                {item}
+              </Text>
             </View>
           </AnimatedPressable>
         );
