@@ -17,7 +17,9 @@ describe("opportunity display cleanup", () => {
       Join our WhatsApp channel for updates.
     `);
 
-    expect(cleaned).not.toMatch(/Advertisement|Apply now|https?:\/\/|WhatsApp/i);
+    expect(cleaned).not.toMatch(
+      /Advertisement|Apply now|https?:\/\/|WhatsApp/i,
+    );
     expect(cleaned).toContain("27 to 29 July 2026");
     expect(cleaned).toContain("\n\n");
   });

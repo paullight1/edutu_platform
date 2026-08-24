@@ -124,9 +124,7 @@ export function RequirementChecklist({
                   styles.box,
                   {
                     borderColor: isChecked ? colors.accent : colors.border,
-                    backgroundColor: isChecked
-                      ? colors.accent
-                      : "transparent",
+                    backgroundColor: isChecked ? colors.accent : "transparent",
                   },
                 ]}
               >

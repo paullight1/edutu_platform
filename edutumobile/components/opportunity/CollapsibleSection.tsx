@@ -72,7 +72,10 @@ export function CollapsibleSection({
   const [fullContentVisible, setFullContentVisible] = useState(false);
   const textSecondary = isDark ? "#94A3B8" : "#64748B";
   const wantsProgressiveDisclosure = progressiveDisclosure ?? defaultExpanded;
-  const narrativeText = useMemo(() => extractNarrativeText(children), [children]);
+  const narrativeText = useMemo(
+    () => extractNarrativeText(children),
+    [children],
+  );
   const useProgressiveDisclosure =
     wantsProgressiveDisclosure && needsProgressiveDisclosure(narrativeText);
   const displayChildren = useMemo(

@@ -39,7 +39,10 @@ describe("RequirementChecklist", () => {
     const screen = render(
       <RequirementChecklist
         opportunityId="opp-1"
-        items={["Own or manage an SME.", "Submit the official application form."]}
+        items={[
+          "Own or manage an SME.",
+          "Submit the official application form.",
+        ]}
         progressLabel={(checked, total) => `${checked} of ${total} checked`}
       />,
     );
