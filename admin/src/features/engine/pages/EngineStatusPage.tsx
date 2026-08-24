@@ -1,23 +1,45 @@
-import { Bug, RefreshCw } from "lucide-react";
+import { AlertCircle, Bug, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import AiProviderStatusCard from "../components/AiProviderStatusCard";
 import ApiHealthCard from "../components/ApiHealthCard";
 import ApiRuntimeCard from "../components/ApiRuntimeCard";
+import AutomationSettings from "../components/AutomationSettings";
 import DatabaseStatusCard from "../components/DatabaseStatusCard";
 import DiagnosticCheck from "../components/DiagnosticCheck";
 import EnginePolicyCard from "../components/EnginePolicyCard";
 import EngineUnavailableState from "../components/EngineUnavailableState";
+import RetentionSettings from "../components/RetentionSettings";
 import RuntimeConfigurationCard from "../components/RuntimeConfigurationCard";
 import SchedulerStatusCard from "../components/SchedulerStatusCard";
+import { useEngineAutomation } from "../hooks/useEngineAutomation";
 import { useEngineDiagnostics } from "../hooks/useEngineDiagnostics";
 import "../engine.css";
+import "../engine-automation.css";
+
+interface Notice {
+  message: string;
+  tone: "success" | "warning" | "error";
+}
 
 export default function EngineStatusPage() {
   const diagnostics = useEngineDiagnostics();
+  const automation = useEngineAutomation();
+  const [notice, setNotice] = useState<Notice | null>(null);
   const status = diagnostics.engineStatus.data;
   const isRefreshing =
     diagnostics.liveness.status === "loading" ||
     diagnostics.readiness.status === "loading" ||
-    diagnostics.engineStatus.status === "loading";
+    diagnostics.engineStatus.status === "loading" ||
+    automation.settings.status === "loading";
+
+  const refreshAll = () => {
+    void Promise.all([diagnostics.refresh(), automation.refresh()]);
+  };
+
+  const showNotice = (
+    message: string,
+    tone: "success" | "warning" | "error",
+  ) => setNotice({ message, tone });
 
   return (
     <div className="engine-page engine-status-page">
@@ -31,7 +53,8 @@ export default function EngineStatusPage() {
             <h1>Engine status</h1>
             <p>
               Verify the exact admin-to-API boundary, deployment identity,
-              dependencies, scheduler, AI provider, and collection policy.
+              dependencies, scheduler, AI provider, collection policy,
+              automation, and retention.
             </p>
           </div>
         </div>
@@ -40,7 +63,7 @@ export default function EngineStatusPage() {
           className="engine-refresh-button"
           aria-label="Refresh status"
           disabled={isRefreshing}
-          onClick={() => void diagnostics.refresh()}
+          onClick={refreshAll}
         >
           <RefreshCw
             size={17}
@@ -50,6 +73,20 @@ export default function EngineStatusPage() {
           <span>{isRefreshing ? "Checking…" : "Refresh status"}</span>
         </button>
       </header>
+
+      {notice ? (
+        <section
+          className={`engine-notice engine-notice--${notice.tone}`}
+          role={notice.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          <Bug size={17} aria-hidden="true" />
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </section>
+      ) : null}
 
       <RuntimeConfigurationCard
         config={diagnostics.runtimeConfig}
@@ -114,6 +151,69 @@ export default function EngineStatusPage() {
           ))}
         </ul>
       </section>
+
+      {automation.settings.status === "loading" &&
+      automation.settings.data === null ? (
+        <section className="engine-state" aria-busy="true">
+          <span className="engine-state-loader" aria-hidden="true" />
+          <div className="engine-state-copy">
+            <h2>Reading confirmed Engine settings</h2>
+            <p>
+              Waiting for scheduler and retention values from the authenticated
+              settings endpoint.
+            </p>
+          </div>
+        </section>
+      ) : automation.settings.status === "error" &&
+        automation.settings.data === null ? (
+        <EngineUnavailableState
+          title="Automation settings unavailable"
+          description="Diagnostics are available, but the authenticated settings endpoint did not return a confirmed policy."
+          error={automation.settings.error}
+          onRetry={() => void automation.refresh()}
+          retryLabel="Retry settings"
+        />
+      ) : automation.settings.data ? (
+        <>
+          {automation.settings.status === "error" ? (
+            <section
+              className="engine-notice engine-notice--warning"
+              role="status"
+            >
+              <AlertCircle size={17} aria-hidden="true" />
+              <span>
+                The latest settings refresh failed. The controls below show the
+                last confirmed values.
+              </span>
+            </section>
+          ) : null}
+          <section
+            className="engine-settings-grid"
+            aria-label="Engine automation and retention settings"
+          >
+            <AutomationSettings
+              key={`automation-${automation.settings.data.auto_run_enabled}-${automation.settings.data.cron_schedule}-${automation.settings.data.recheck_after_days}`}
+              settings={automation.settings.data}
+              pending={automation.pendingOperations.has("save-settings")}
+              error={null}
+              onSave={automation.saveSettings}
+              onNotice={showNotice}
+            />
+            <RetentionSettings
+              key={`retention-${automation.settings.data.data_retention_days ?? "none"}`}
+              settings={automation.settings.data}
+              pending={
+                automation.pendingOperations.has("save-settings") ||
+                automation.pendingOperations.has("purge-opportunities")
+              }
+              error={null}
+              onSave={automation.saveSettings}
+              onPurge={automation.purgeExpired}
+              onNotice={showNotice}
+            />
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
