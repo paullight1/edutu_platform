@@ -1,0 +1,202 @@
+name: Production Read-only Smoke
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-read-only-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    name: Production Health + Opportunity Smoke
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'refactor/admin-shell-engine-production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API_BASE: https://edutu-api.onrender.com
+      WEB_BASE: https://edutu.org
+      EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe production without mutations
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const apiBase = process.env.API_BASE.replace(/\/$/, '');
+          const webBase = process.env.WEB_BASE.replace(/\/$/, '');
+          const expectedMainSha = process.env.EXPECTED_MAIN_SHA || null;
+          const report = {
+            checkedAt: new Date().toISOString(),
+            apiBase,
+            webBase,
+            expectedMainSha,
+            health: {},
+            opportunities: [],
+            web: {},
+            releaseIdentity: {},
+          };
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function fetchWithRetry(url, options = {}, attempts = 8) {
+            let lastError;
+            for (let attempt = 1; attempt <= attempts; attempt += 1) {
+              try {
+                const response = await fetch(url, {
+                  redirect: 'follow',
+                  ...options,
+                  signal: AbortSignal.timeout(30_000),
+                  headers: {
+                    'User-Agent': 'Edutu-Production-Smoke/1.0',
+                    Accept: 'application/json,text/html;q=0.9,*/*;q=0.8',
+                    ...(options.headers || {}),
+                  },
+                });
+                if (response.status >= 500 && attempt < attempts) {
+                  lastError = new Error(`${url} returned ${response.status}`);
+                  await sleep(Math.min(15_000, attempt * 2_000));
+                  continue;
+                }
+                return response;
+              } catch (error) {
+                lastError = error;
+                if (attempt === attempts) break;
+                await sleep(Math.min(15_000, attempt * 2_000));
+              }
+            }
+            throw lastError || new Error(`Unable to fetch ${url}`);
+          }
+
+          async function jsonRequest(path) {
+            const url = `${apiBase}${path}`;
+            const response = await fetchWithRetry(url);
+            const text = await response.text();
+            let body;
+            try {
+              body = JSON.parse(text);
+            } catch {
+              throw new Error(`${url} returned non-JSON content (${response.status})`);
+            }
+            return { url: response.url, status: response.status, body };
+          }
+
+          async function textRequest(url) {
+            const response = await fetchWithRetry(url);
+            const body = await response.text();
+            return {
+              url: response.url,
+              status: response.status,
+              contentType: response.headers.get('content-type'),
+              bytes: Buffer.byteLength(body),
+              title: body.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || null,
+            };
+          }
+
+          function assert(condition, message) {
+            if (!condition) throw new Error(message);
+          }
+
+          async function main() {
+            const live = await jsonRequest('/health/live');
+            report.health.live = live;
+            assert(live.status === 200, `Liveness returned ${live.status}`);
+            assert(live.body?.status === 'ok', 'Liveness status is not ok');
+            assert(live.body?.checks?.process?.status === 'up', 'Process health is not up');
+
+            const ready = await jsonRequest('/health/ready');
+            report.health.ready = ready;
+            assert(ready.status === 200, `Readiness returned ${ready.status}`);
+            assert(ready.body?.status === 'ready', 'Readiness status is not ready');
+            assert(ready.body?.checks?.database?.status === 'up', 'Database readiness is not up');
+
+            const version = live.body?.version || ready.body?.version || null;
+            const normalizedExpected = expectedMainSha?.toLowerCase() || null;
+            const normalizedVersion = typeof version === 'string' ? version.toLowerCase() : null;
+            const exactMainObserved = Boolean(
+              normalizedExpected &&
+              normalizedVersion &&
+              (normalizedExpected.startsWith(normalizedVersion) || normalizedVersion.startsWith(normalizedExpected)),
+            );
+            report.releaseIdentity = {
+              observedVersion: version,
+              expectedMainSha,
+              exactMainObserved,
+              note: exactMainObserved
+                ? 'Health identity matches the PR base commit.'
+                : 'Health is operational, but its public version field does not prove the exact Git commit.',
+            };
+
+            const feed = await jsonRequest('/opportunities?limit=3&offset=0');
+            assert(feed.status === 200, `Opportunity feed returned ${feed.status}`);
+            assert(Array.isArray(feed.body), 'Opportunity feed is not an array');
+            assert(feed.body.length >= 1, 'Opportunity feed returned no representative records');
+
+            for (const row of feed.body.slice(0, 3)) {
+              const id = String(row?.id || '').trim();
+              const title = String(row?.title || '').trim();
+              assert(id, 'Representative opportunity is missing id');
+              assert(title.length >= 3, `Opportunity ${id} has an invalid title`);
+
+              const detail = await jsonRequest(`/opportunities/${encodeURIComponent(id)}`);
+              assert(detail.status === 200, `Opportunity ${id} detail returned ${detail.status}`);
+              assert(detail.body && String(detail.body.id) === id, `Opportunity ${id} detail identity mismatch`);
+              assert(String(detail.body.title || '').trim().length >= 3, `Opportunity ${id} detail title is invalid`);
+
+              const webDetail = await textRequest(`${webBase}/opportunity/${encodeURIComponent(id)}`);
+              assert(webDetail.status === 200, `Web detail for ${id} returned ${webDetail.status}`);
+              assert(webDetail.bytes > 500, `Web detail for ${id} returned an unexpectedly small document`);
+
+              report.opportunities.push({
+                id,
+                title,
+                category: row?.category || null,
+                status: row?.status || null,
+                deadline: row?.deadline || null,
+                detailStatus: detail.status,
+                webDetail,
+              });
+            }
+
+            report.web.home = await textRequest(`${webBase}/`);
+            report.web.catalog = await textRequest(`${webBase}/opportunities`);
+            report.web.sitemap = await textRequest(`${webBase}/sitemap.xml`);
+            assert(report.web.home.status === 200, `Web home returned ${report.web.home.status}`);
+            assert(report.web.catalog.status === 200, `Web catalog returned ${report.web.catalog.status}`);
+            assert(report.web.home.bytes > 500, 'Web home document is unexpectedly small');
+            assert(report.web.catalog.bytes > 500, 'Web catalog document is unexpectedly small');
+
+            fs.writeFileSync('production-smoke.json', JSON.stringify(report, null, 2));
+            console.log(JSON.stringify(report, null, 2));
+          }
+
+          main().catch((error) => {
+            report.failure = {
+              message: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : null,
+            };
+            fs.writeFileSync('production-smoke.json', JSON.stringify(report, null, 2));
+            console.error(JSON.stringify(report, null, 2));
+            process.exitCode = 1;
+          });
+          NODE
+      - name: Upload production smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-pr60
+          path: production-smoke.json
+          if-no-files-found: error
+          retention-days: 14
