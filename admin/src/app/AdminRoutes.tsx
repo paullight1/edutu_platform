@@ -20,6 +20,9 @@ const Blog = lazy(() => import("../pages/Blog"));
 const ImpactStories = lazy(() => import("../pages/ImpactStories"));
 const Settings = lazy(() => import("../pages/Settings"));
 const Scraper = lazy(() => import("../pages/Scraper"));
+const EngineSourcesPage = lazy(
+  () => import("../features/engine/pages/EngineSourcesPage"),
+);
 const EngineStatusPage = lazy(
   () => import("../features/engine/pages/EngineStatusPage"),
 );
@@ -85,7 +88,10 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           />
           <Route path={childPath("settings")} element={<Settings />} />
 
-          <Route path={childPath("engine-sources")} element={<Scraper />} />
+          <Route
+            path={childPath("engine-sources")}
+            element={<EngineSourcesPage />}
+          />
           <Route path={childPath("engine-runs")} element={<Scraper />} />
           <Route
             path={childPath("engine-status")}
