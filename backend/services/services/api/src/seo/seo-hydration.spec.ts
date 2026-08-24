@@ -1,4 +1,4 @@
-import { SeoController } from "./seo.controller";
+import { SeoHydrationController } from "./seo-hydration.controller";
 
 const SHELL = `<!doctype html><html lang="en"><head><title>Edutu</title><meta name="description" content="Generic"><link rel="canonical" href="https://www.edutu.org/"></head><body><div id="root"></div><script type="module" src="/assets/index.js"></script></body></html>`;
 
@@ -32,21 +32,14 @@ function makeController() {
   }));
   const opportunities = {
     getPublicAppBaseUrl: jest.fn(() => "https://www.edutu.org"),
-    findAll: jest.fn(async () => opportunityRows),
-    findOne: jest.fn(async () => opportunityRows[0]),
-    listSitemapOpportunities: jest.fn(async () => []),
-  } as any;
-  const blog = {
-    findAll: jest.fn(async () => []),
-    peekBySlug: jest.fn(async () => null),
-  } as any;
-  const events = {
-    findAll: jest.fn(async () => []),
-    findOne: jest.fn(async () => null),
+    findAll: jest.fn(
+      async (limit: number, offset: number) =>
+        opportunityRows.slice(offset, offset + limit),
+    ),
   } as any;
   const shell = { get: jest.fn(async () => SHELL) } as any;
 
-  return new SeoController(opportunities, blog, events, shell);
+  return new SeoHydrationController(opportunities, shell);
 }
 
 describe("SEO hydration consistency", () => {
@@ -65,6 +58,7 @@ describe("SEO hydration consistency", () => {
     expect(html).toContain(
       '<link rel="canonical" href="https://www.edutu.org/opportunities/scholarships" />',
     );
+    expect(response.headers["x-seo-source"]).toBe("backend/seo-shell");
   });
 
   it("uses a distinct title and canonical URL for later category pages", async () => {
@@ -77,11 +71,28 @@ describe("SEO hydration consistency", () => {
       response,
     );
 
+    expect(response.statusCode).toBe(200);
     expect(html).toContain(
       "Scholarships for African and global students — Page 2 | Edutu",
     );
     expect(html).toContain(
       '<link rel="canonical" href="https://www.edutu.org/opportunities/scholarships?page=2" />',
     );
+  });
+
+  it("returns a genuine noindex 404 for an unknown category", async () => {
+    const controller = makeController();
+    const response = makeResponse();
+
+    const html = await controller.opportunityCategory(
+      "made-up-category",
+      "1",
+      response,
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(response.headers["x-robots-tag"]).toContain("noindex");
+    expect(html).toContain("Opportunity category not found");
+    expect(html).not.toContain('/assets/index.js');
   });
 });
