@@ -16,15 +16,9 @@ const mocks = vi.hoisted(() => ({
   startRun: vi.fn(),
 }));
 
-vi.mock("../hooks/useEngineSources", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../hooks/useEngineSources")
-  >();
-  return {
-    ...actual,
-    useEngineSources: mocks.useEngineSources,
-  };
-});
+vi.mock("../hooks/useEngineSources", () => ({
+  useEngineSources: mocks.useEngineSources,
+}));
 
 function source(overrides: Partial<ScrapeSource> = {}): ScrapeSource {
   return {
