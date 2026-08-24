@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
-import { useAdminAuth } from "../auth/AdminAuthProvider";
+import { useAdminAuth } from "../auth/admin-auth-context";
 import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
 import AdminTopbar from "./AdminTopbar";
 import MobileNavigation from "./MobileNavigation";
