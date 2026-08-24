@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      API_BASE: https://edutu-api.onrender.com
+      API_CANDIDATES: https://api.edutu.org https://edutu-platform.onrender.com https://edutu-api.onrender.com https://edutu.org/api https://edutu.org
       WEB_BASE: https://edutu.org
       EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
@@ -35,14 +35,18 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
 
-          const apiBase = process.env.API_BASE.replace(/\/$/, '');
           const webBase = process.env.WEB_BASE.replace(/\/$/, '');
           const expectedMainSha = process.env.EXPECTED_MAIN_SHA || null;
+          const configuredCandidates = (process.env.API_CANDIDATES || '')
+            .split(/\s+/)
+            .map((value) => value.trim().replace(/\/$/, ''))
+            .filter(Boolean);
           const report = {
             checkedAt: new Date().toISOString(),
-            apiBase,
+            apiBase: null,
             webBase,
             expectedMainSha,
+            discovery: { configuredCandidates, bundleOrigins: [], probes: [] },
             health: {},
             opportunities: [],
             web: {},
@@ -51,7 +55,7 @@ jobs:
 
           const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-          async function fetchWithRetry(url, options = {}, attempts = 8) {
+          async function fetchWithRetry(url, options = {}, attempts = 5) {
             let lastError;
             for (let attempt = 1; attempt <= attempts; attempt += 1) {
               try {
@@ -60,37 +64,121 @@ jobs:
                   ...options,
                   signal: AbortSignal.timeout(30_000),
                   headers: {
-                    'User-Agent': 'Edutu-Production-Smoke/1.0',
+                    'User-Agent': 'Edutu-Production-Smoke/1.1',
                     Accept: 'application/json,text/html;q=0.9,*/*;q=0.8',
                     ...(options.headers || {}),
                   },
                 });
                 if (response.status >= 500 && attempt < attempts) {
                   lastError = new Error(`${url} returned ${response.status}`);
-                  await sleep(Math.min(15_000, attempt * 2_000));
+                  await sleep(Math.min(12_000, attempt * 2_000));
                   continue;
                 }
                 return response;
               } catch (error) {
                 lastError = error;
                 if (attempt === attempts) break;
-                await sleep(Math.min(15_000, attempt * 2_000));
+                await sleep(Math.min(12_000, attempt * 2_000));
               }
             }
             throw lastError || new Error(`Unable to fetch ${url}`);
           }
 
-          async function jsonRequest(path) {
-            const url = `${apiBase}${path}`;
-            const response = await fetchWithRetry(url);
+          async function readResponse(response) {
             const text = await response.text();
-            let body;
+            let body = null;
             try {
               body = JSON.parse(text);
             } catch {
-              throw new Error(`${url} returned non-JSON content (${response.status})`);
+              // The preview below is sufficient for discovery diagnostics.
             }
-            return { url: response.url, status: response.status, body };
+            return {
+              url: response.url,
+              status: response.status,
+              contentType: response.headers.get('content-type'),
+              body,
+              preview: body ? null : text.slice(0, 180).replace(/\s+/g, ' ').trim(),
+            };
+          }
+
+          async function discoverBundleOrigins() {
+            const response = await fetchWithRetry(`${webBase}/`, {}, 3);
+            const html = await response.text();
+            report.web.homeDiscovery = {
+              url: response.url,
+              status: response.status,
+              contentType: response.headers.get('content-type'),
+              bytes: Buffer.byteLength(html),
+              title: html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || null,
+            };
+
+            const scriptSources = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)]
+              .map((match) => new URL(match[1], `${webBase}/`).toString())
+              .slice(0, 20);
+            const origins = new Set();
+
+            await Promise.all(scriptSources.map(async (scriptUrl) => {
+              try {
+                const scriptResponse = await fetchWithRetry(scriptUrl, {}, 2);
+                if (!scriptResponse.ok) return;
+                const script = (await scriptResponse.text()).replace(/\\\//g, '/');
+                const urls = script.match(/https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?/g) || [];
+                for (const raw of urls) {
+                  try {
+                    const parsed = new URL(raw);
+                    if (!/edutu|onrender\.com/i.test(parsed.hostname)) continue;
+                    origins.add(parsed.origin);
+                    if (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/')) {
+                      origins.add(`${parsed.origin}/api`);
+                    }
+                  } catch {
+                    // Ignore malformed string fragments from minified bundles.
+                  }
+                }
+              } catch {
+                // One unavailable bundle must not abort discovery.
+              }
+            }));
+
+            report.discovery.bundleOrigins = [...origins].sort();
+            return [...origins];
+          }
+
+          async function discoverApiBase() {
+            const bundleOrigins = await discoverBundleOrigins();
+            const candidates = [...new Set([...configuredCandidates, ...bundleOrigins])];
+
+            for (const candidate of candidates) {
+              const url = `${candidate}/health/live`;
+              try {
+                const probe = await readResponse(await fetchWithRetry(url, {}, 3));
+                report.discovery.probes.push({ candidate, ...probe });
+                if (
+                  probe.status === 200 &&
+                  probe.body?.status === 'ok' &&
+                  probe.body?.checks?.process?.status === 'up'
+                ) {
+                  return candidate;
+                }
+              } catch (error) {
+                report.discovery.probes.push({
+                  candidate,
+                  url,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+            }
+
+            throw new Error('No candidate exposed a valid Edutu /health/live response');
+          }
+
+          async function jsonRequest(apiBase, path) {
+            const url = `${apiBase}${path}`;
+            const result = await readResponse(await fetchWithRetry(url));
+            if (!result.body) {
+              throw new Error(`${url} returned non-JSON content (${result.status})`);
+            }
+            return { url: result.url, status: result.status, body: result.body };
           }
 
           async function textRequest(url) {
@@ -110,13 +198,16 @@ jobs:
           }
 
           async function main() {
-            const live = await jsonRequest('/health/live');
+            const apiBase = await discoverApiBase();
+            report.apiBase = apiBase;
+
+            const live = await jsonRequest(apiBase, '/health/live');
             report.health.live = live;
             assert(live.status === 200, `Liveness returned ${live.status}`);
             assert(live.body?.status === 'ok', 'Liveness status is not ok');
             assert(live.body?.checks?.process?.status === 'up', 'Process health is not up');
 
-            const ready = await jsonRequest('/health/ready');
+            const ready = await jsonRequest(apiBase, '/health/ready');
             report.health.ready = ready;
             assert(ready.status === 200, `Readiness returned ${ready.status}`);
             assert(ready.body?.status === 'ready', 'Readiness status is not ready');
@@ -139,7 +230,7 @@ jobs:
                 : 'Health is operational, but its public version field does not prove the exact Git commit.',
             };
 
-            const feed = await jsonRequest('/opportunities?limit=3&offset=0');
+            const feed = await jsonRequest(apiBase, '/opportunities?limit=3&offset=0');
             assert(feed.status === 200, `Opportunity feed returned ${feed.status}`);
             assert(Array.isArray(feed.body), 'Opportunity feed is not an array');
             assert(feed.body.length >= 1, 'Opportunity feed returned no representative records');
@@ -150,7 +241,7 @@ jobs:
               assert(id, 'Representative opportunity is missing id');
               assert(title.length >= 3, `Opportunity ${id} has an invalid title`);
 
-              const detail = await jsonRequest(`/opportunities/${encodeURIComponent(id)}`);
+              const detail = await jsonRequest(apiBase, `/opportunities/${encodeURIComponent(id)}`);
               assert(detail.status === 200, `Opportunity ${id} detail returned ${detail.status}`);
               assert(detail.body && String(detail.body.id) === id, `Opportunity ${id} detail identity mismatch`);
               assert(String(detail.body.title || '').trim().length >= 3, `Opportunity ${id} detail title is invalid`);
