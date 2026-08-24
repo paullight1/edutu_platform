@@ -3,7 +3,7 @@ import { subscribeToDmMessages } from "../packages/core/src/services/communityDm
 jest.mock("../lib/supabase", () => {
   const handlers = new Map<
     string,
-    (payload: { new?: unknown }) => void
+    (mockPayload: { new?: unknown }) => void
   >();
   const channel: any = {
     topic: "edutu:mobile:community-dm:11111111-1111-4111-8111-111111111111",
@@ -11,7 +11,7 @@ jest.mock("../lib/supabase", () => {
       (
         _kind: string,
         config: { event: string },
-        handler: (payload: { new?: unknown }) => void,
+        handler: (mockPayload: { new?: unknown }) => void,
       ) => {
         handlers.set(config.event, handler);
         return channel;
