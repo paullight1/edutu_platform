@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   snapshot:
@@ -36,3 +38,12 @@ jobs:
           path: /tmp/edutu-source.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+      - name: Publish temporary run id
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/${GH_REPO}/issues/56/comments" \
+            --method POST \
+            --field body="agent-source-snapshot-run:${GITHUB_RUN_ID}"
