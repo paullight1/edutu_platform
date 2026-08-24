@@ -5,23 +5,12 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import AdminShell from "./AdminShell";
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
-  onAuthStateChange: vi.fn(),
-  unsubscribe: vi.fn(),
-  signOutAdmin: vi.fn(),
+  useAdminAuth: vi.fn(),
+  signOut: vi.fn(),
 }));
 
-vi.mock("../lib/supabase", () => ({
-  supabase: {
-    auth: {
-      getUser: mocks.getUser,
-      onAuthStateChange: mocks.onAuthStateChange,
-    },
-  },
-}));
-
-vi.mock("../lib/auth", () => ({
-  signOutAdmin: mocks.signOutAdmin,
+vi.mock("../auth/AdminAuthProvider", () => ({
+  useAdminAuth: mocks.useAdminAuth,
 }));
 
 vi.mock("../components/BackendHealthChip", () => ({
@@ -47,19 +36,19 @@ describe("AdminShell", () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
-    mocks.getUser.mockResolvedValue({
-      data: {
-        user: {
-          id: "user-1",
-          email: "paul@edutu.org",
-          user_metadata: { full_name: "Paul Light" },
-        },
+    mocks.signOut.mockResolvedValue(undefined);
+    mocks.useAdminAuth.mockReturnValue({
+      session: { access_token: "token" },
+      user: {
+        id: "user-1",
+        email: "paul@edutu.org",
+        user_metadata: { full_name: "Paul Light" },
       },
+      isAdmin: true,
+      loading: false,
+      error: null,
+      signOut: mocks.signOut,
     });
-    mocks.onAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: mocks.unsubscribe } },
-    });
-    mocks.signOutAdmin.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -180,6 +169,6 @@ describe("AdminShell", () => {
     ).toBeVisible();
 
     await user.click(within(primary).getByRole("button", { name: "Sign Out" }));
-    expect(mocks.signOutAdmin).toHaveBeenCalledTimes(1);
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
 });
