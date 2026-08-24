@@ -1,14 +1,15 @@
 import { FolderPlus, Plus, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import type {
+  BulkSourceDefaults,
+  BulkSourceOutcome,
+} from "../hooks/useEngineSources";
 import type {
   CreateScrapeSourceInput,
   ScrapeSource,
   SourceMutationResult,
 } from "../model/types";
-import type {
-  BulkSourceDefaults,
-  BulkSourceOutcome,
-} from "../hooks/useEngineSources";
 
 interface AddSourceDialogProps {
   isOpen: boolean;
@@ -150,14 +151,20 @@ export default function AddSourceDialog({
       onClose();
     } catch (caught) {
       const message =
-        caught instanceof Error ? caught.message : "The source could not be added.";
+        caught instanceof Error
+          ? caught.message
+          : "The source could not be added.";
       setError(message);
       onNotice(message, "error");
     }
   };
 
   return (
-    <div className="engine-dialog-backdrop" role="presentation" onMouseDown={close}>
+    <div
+      className="engine-dialog-backdrop"
+      role="presentation"
+      onMouseDown={close}
+    >
       <section
         className="engine-dialog"
         role="dialog"
@@ -214,7 +221,9 @@ export default function AddSourceDialog({
               value={name}
               required={mode === "group" || Boolean(url.trim())}
               placeholder={
-                mode === "group" ? "African scholarship sources" : "Opportunity Desk"
+                mode === "group"
+                  ? "African scholarship sources"
+                  : "Opportunity Desk"
               }
               onChange={(event) => setName(event.target.value)}
             />
@@ -235,7 +244,10 @@ export default function AddSourceDialog({
           <div className="engine-field-grid">
             <label className="engine-field">
               <span>Category</span>
-              <select value={category} onChange={(event) => setCategory(event.target.value)}>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+              >
                 <option value="scholarship">Scholarship</option>
                 <option value="fellowship">Fellowship</option>
                 <option value="internship">Internship</option>
@@ -246,7 +258,10 @@ export default function AddSourceDialog({
             </label>
             <label className="engine-field">
               <span>Tier</span>
-              <select value={tier} onChange={(event) => setTier(Number(event.target.value))}>
+              <select
+                value={tier}
+                onChange={(event) => setTier(Number(event.target.value))}
+              >
                 <option value={1}>Tier 1</option>
                 <option value={2}>Tier 2</option>
                 <option value={3}>Tier 3</option>
@@ -257,7 +272,10 @@ export default function AddSourceDialog({
           {mode === "single" && groups.length > 0 ? (
             <label className="engine-field">
               <span>Source group</span>
-              <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
+              <select
+                value={parentId}
+                onChange={(event) => setParentId(event.target.value)}
+              >
                 <option value="">No group</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>
@@ -270,12 +288,16 @@ export default function AddSourceDialog({
 
           <label className="engine-field">
             <span>
-              {mode === "group" ? "Initial child sources" : "Additional sources"}
+              {mode === "group"
+                ? "Initial child sources"
+                : "Additional sources"}
             </span>
             <textarea
               value={bulkText}
               rows={6}
-              placeholder={"Name | https://example.org/listings\nhttps://another.example.org/opportunities"}
+              placeholder={
+                "Name | https://example.org/listings\nhttps://another.example.org/opportunities"
+              }
               onChange={(event) => setBulkText(event.target.value)}
             />
             <small>One source per line. Use “Name | URL” or a bare URL.</small>
@@ -288,11 +310,23 @@ export default function AddSourceDialog({
           ) : null}
 
           <footer className="engine-dialog-actions">
-            <button type="button" className="engine-secondary-button" onClick={close}>
+            <button
+              type="button"
+              className="engine-secondary-button"
+              onClick={close}
+            >
               Cancel
             </button>
-            <button type="submit" className="engine-primary-button" disabled={pending}>
-              {pending ? "Saving…" : mode === "group" ? "Create group" : "Add sources"}
+            <button
+              type="submit"
+              className="engine-primary-button"
+              disabled={pending}
+            >
+              {pending
+                ? "Saving…"
+                : mode === "group"
+                  ? "Create group"
+                  : "Add sources"}
             </button>
           </footer>
         </form>
