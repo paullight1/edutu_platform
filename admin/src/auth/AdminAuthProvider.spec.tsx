@@ -1,9 +1,14 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type {
+  AuthChangeEvent,
+  Session,
+  User,
+} from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AdminAuthProvider, useAdminAuth } from "./AdminAuthProvider";
+import { AdminAuthProvider } from "./AdminAuthProvider";
+import { useAdminAuth } from "./admin-auth-context";
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -44,11 +49,15 @@ vi.mock("../lib/localAdmin", () => ({
 }));
 
 function createSession(email = "paul@edutu.org"): Session {
-  const user = {
+  const user: User = {
     id: "user-1",
     email,
+    aud: "authenticated",
+    app_metadata: { provider: "email", providers: ["email"] },
     user_metadata: { full_name: "Paul Light" },
-  } as User;
+    identities: [],
+    created_at: new Date(0).toISOString(),
+  };
 
   return {
     access_token: "token",
@@ -79,7 +88,9 @@ function renderProvider(children: ReactNode = <Consumer />) {
 }
 
 describe("AdminAuthProvider", () => {
-  let authCallback: ((event: string, session: Session | null) => void) | null;
+  let authCallback:
+    | ((event: AuthChangeEvent, session: Session | null) => void)
+    | null;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -94,7 +105,9 @@ describe("AdminAuthProvider", () => {
       error: null,
     });
     mocks.onAuthStateChange.mockImplementation(
-      (callback: (event: string, session: Session | null) => void) => {
+      (
+        callback: (event: AuthChangeEvent, session: Session | null) => void,
+      ) => {
         authCallback = callback;
         return {
           data: { subscription: { unsubscribe: mocks.unsubscribe } },
