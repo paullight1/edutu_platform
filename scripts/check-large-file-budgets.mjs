@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 // extracted and the ceilings can be lowered.
 const budgets = {
   "admin/src/pages/Opportunities.tsx": 5175,
-  "admin/src/pages/Scraper.tsx": 4653,
+  "admin/src/pages/Scraper.tsx": 8,
   "backend/services/services/api/src/opportunities/opportunities.service.ts": 3622,
   "backend/services/services/api/src/scraper/scraper.service.ts": 3962,
   "edutu-web-app/src/components/Dashboard.tsx": 2005,
