@@ -1,9 +1,4 @@
-import {
-  Bug,
-  Plus,
-  RefreshCw,
-  RadioTower,
-} from "lucide-react";
+import { Bug, Plus, RadioTower, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
 import AddSourceDialog from "../components/AddSourceDialog";
@@ -16,6 +11,7 @@ import SourceInventory from "../components/SourceInventory";
 import { useEngineSources } from "../hooks/useEngineSources";
 import type { ScrapeSource } from "../model/types";
 import "../engine.css";
+import "../engine-sources.css";
 
 interface Notice {
   message: string;
@@ -45,7 +41,9 @@ export default function EngineSourcesPage() {
     engine.sites.status === "error" && engine.sites.error
       ? { label: "Site attribution", error: engine.sites.error }
       : null,
-    engine.sources.status === "error" && engine.sources.error && engine.sources.data
+    engine.sources.status === "error" &&
+    engine.sources.error &&
+    engine.sources.data
       ? { label: "Source refresh", error: engine.sources.error }
       : null,
   ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
@@ -60,10 +58,15 @@ export default function EngineSourcesPage() {
   const toggleSource = async (source: ScrapeSource, enabled: boolean) => {
     try {
       await engine.setSourceEnabled(source, enabled);
-      showNotice(`${enabled ? "Enabled" : "Disabled"} ${source.name}.`, "success");
+      showNotice(
+        `${enabled ? "Enabled" : "Disabled"} ${source.name}.`,
+        "success",
+      );
     } catch (caught) {
       showNotice(
-        caught instanceof Error ? caught.message : "The source could not be updated.",
+        caught instanceof Error
+          ? caught.message
+          : "The source could not be updated.",
         "error",
       );
     }
@@ -77,14 +80,17 @@ export default function EngineSourcesPage() {
       setDeleteTarget(null);
     } catch (caught) {
       showNotice(
-        caught instanceof Error ? caught.message : "The source could not be deleted.",
+        caught instanceof Error
+          ? caught.message
+          : "The source could not be deleted.",
         "error",
       );
     }
   };
 
   const loadingSources =
-    (engine.sources.status === "idle" || engine.sources.status === "loading") &&
+    (engine.sources.status === "idle" ||
+      engine.sources.status === "loading") &&
     engine.sources.data === null;
   const sourcesUnavailable =
     engine.sources.status === "error" && engine.sources.data === null;
@@ -114,7 +120,9 @@ export default function EngineSourcesPage() {
           >
             <RefreshCw
               size={16}
-              className={engine.sources.status === "loading" ? "is-spinning" : ""}
+              className={
+                engine.sources.status === "loading" ? "is-spinning" : ""
+              }
               aria-hidden="true"
             />
             Refresh
@@ -139,7 +147,11 @@ export default function EngineSourcesPage() {
         >
           <Bug size={17} aria-hidden="true" />
           <span>{notice.message}</span>
-          <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)}>
+          <button
+            type="button"
+            aria-label="Dismiss notice"
+            onClick={() => setNotice(null)}
+          >
             Dismiss
           </button>
         </section>
@@ -224,7 +236,11 @@ export default function EngineSourcesPage() {
       <RunLauncher
         source={runTarget}
         children={runChildren}
-        pending={runTarget ? engine.pendingOperations.has(`run:${runTarget.id}`) : false}
+        pending={
+          runTarget
+            ? engine.pendingOperations.has(`run:${runTarget.id}`)
+            : false
+        }
         onClose={() => setRunTarget(null)}
         onStart={engine.startRun}
         onNotice={showNotice}
