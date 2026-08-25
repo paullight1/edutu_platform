@@ -67,7 +67,7 @@ export default function CommunityNewDmPage() {
       <CommunityProductShell
         title={`Message ${name}`}
         description="Private messages start with one request. The other person chooses whether to continue."
-        action={<Link to="/app/community/chats" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer" aria-label="Back to chats"><ArrowLeft size={18} /></Link>}
+        action={<Link to="/app/community/chats" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer" aria-label="Back to chats"><ArrowLeft size={18} className="rtl:rotate-180" /></Link>}
       >
         <div className="mx-auto max-w-2xl">
           {relationship === undefined ? (
