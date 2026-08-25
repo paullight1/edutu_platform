@@ -80,7 +80,7 @@ export default function MessageBubble({
         {author.slice(0, 1).toUpperCase()}
       </div>
       <div
-        className={`min-w-0 max-w-[min(82%,680px)] ${mine ? "items-end text-right" : ""}`}
+        className={`min-w-0 max-w-[min(82%,680px)] ${mine ? "items-end text-end" : ""}`}
       >
         <div className={`mb-1 flex items-baseline gap-2 ${mine ? "justify-end" : ""}`}>
           <span className="truncate text-xs font-bold text-[#6b4538] dark:text-text-secondary">
@@ -91,10 +91,10 @@ export default function MessageBubble({
           </time>
         </div>
         <div
-          className={`relative overflow-hidden rounded-[18px] px-3.5 py-2.5 text-left text-[15px] leading-6 shadow-sm sm:text-base ${
+          className={`relative overflow-hidden rounded-[18px] px-3.5 py-2.5 text-start text-[15px] leading-6 shadow-sm sm:text-base ${
             mine
-              ? "rounded-tr-md bg-[#f45b16] text-white"
-              : "rounded-tl-md border border-[#f4dcc9] bg-white text-[#4a170d] dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
+              ? "rounded-se-md bg-[#f45b16] text-white"
+              : "rounded-ss-md border border-[#f4dcc9] bg-white text-[#4a170d] dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
           }`}
         >
           {deleted ? (
@@ -107,7 +107,7 @@ export default function MessageBubble({
             <button
               type="button"
               onClick={() => onOpenAttachment?.(message)}
-              className="flex min-h-12 w-full items-center gap-3 text-left"
+              className="flex min-h-12 w-full items-center gap-3 text-start"
             >
               <span
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
