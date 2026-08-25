@@ -87,12 +87,12 @@ export default function CommunityExplorePage() {
         <div className="mb-5 space-y-3">
           <label className="relative block">
             <span className="sr-only">Search communities</span>
-            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#a68d83]" size={20} />
+            <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-[#a68d83]" size={20} />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search communities"
-              className="h-13 min-h-[52px] w-full rounded-2xl border border-[#f4dcc9] bg-white pl-12 pr-4 text-base text-[#4a170d] shadow-sm outline-none transition placeholder:text-[#a68d83] focus:border-[#f45b16]/60 focus:ring-2 focus:ring-[#f45b16]/15 dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
+              className="h-13 min-h-[52px] w-full rounded-2xl border border-[#f4dcc9] bg-white ps-12 pe-4 text-base text-[#4a170d] shadow-sm outline-none transition placeholder:text-[#a68d83] focus:border-[#f45b16]/60 focus:ring-2 focus:ring-[#f45b16]/15 dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
             />
           </label>
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
