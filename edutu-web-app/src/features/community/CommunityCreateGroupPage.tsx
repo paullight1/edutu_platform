@@ -171,12 +171,12 @@ export default function CommunityCreateGroupPage() {
               ) : (
                 <div>
                   <label className="relative block">
-                    <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a68d83]" />
+                    <Search size={17} className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-[#a68d83]" />
                     <input
                       value={opportunityQuery}
                       onChange={(event) => setOpportunityQuery(event.target.value)}
                       placeholder="Search Edutu opportunities"
-                      className={`${inputClass(false)} pl-10`}
+                      className={`${inputClass(false)} ps-10`}
                     />
                   </label>
                   {loadingOpportunities ? <p className="mt-2 text-xs text-[#796f6b]">Loading opportunities…</p> : null}
@@ -187,7 +187,7 @@ export default function CommunityCreateGroupPage() {
                           key={opportunity.id}
                           type="button"
                           onClick={() => setSelectedOpportunity(opportunity)}
-                          className="flex min-h-14 w-full items-center gap-3 border-b border-[#f4dcc9] px-3 py-2 text-left last:border-b-0 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
+                          className="flex min-h-14 w-full items-center gap-3 border-b border-[#f4dcc9] px-3 py-2 text-start last:border-b-0 hover:bg-[#fff9f1] dark:border-subtle dark:hover:bg-surface-elevated"
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><Link2 size={16} /></span>
                           <span className="min-w-0">
@@ -292,7 +292,7 @@ function ChoiceSection({
               type="button"
               onClick={() => onChange(choice.value)}
               aria-pressed={selected}
-              className={`min-h-[88px] rounded-2xl border p-3 text-left transition ${
+              className={`min-h-[88px] rounded-2xl border p-3 text-start transition ${
                 selected
                   ? "border-[#f45b16] bg-[#fff9f1] ring-2 ring-[#f45b16]/10 dark:bg-brand/5"
                   : "border-[#f4dcc9] hover:border-[#f45b16]/35 dark:border-subtle"
@@ -304,7 +304,7 @@ function ChoiceSection({
                 </span>
                 {choice.title}
               </span>
-              <span className="mt-1.5 block pl-7 text-xs leading-5 text-[#796f6b] dark:text-text-secondary">{choice.body}</span>
+              <span className="mt-1.5 block ps-7 text-xs leading-5 text-[#796f6b] dark:text-text-secondary">{choice.body}</span>
             </button>
           );
         })}
