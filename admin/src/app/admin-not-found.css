@@ -1,0 +1,96 @@
+.admin-not-found {
+  display: flex;
+  width: min(100%, 620px);
+  min-height: 420px;
+  margin: 36px auto;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 40px 28px;
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-subtle);
+  text-align: center;
+}
+
+.admin-not-found-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--apple-blue) 12%, transparent);
+  color: var(--apple-blue);
+}
+
+.admin-not-found-eyebrow {
+  margin: 4px 0 -4px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.admin-not-found h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(25px, 4vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.admin-not-found > p:not(.admin-not-found-eyebrow) {
+  max-width: 480px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.admin-not-found code {
+  padding: 2px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-not-found-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--apple-blue) 30%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--apple-blue) 12%, transparent);
+  color: var(--apple-blue);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.admin-not-found-action:hover {
+  background: color-mix(in srgb, var(--apple-blue) 18%, transparent);
+  text-decoration: none;
+}
+
+.admin-not-found-action:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--apple-blue) 45%, transparent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .admin-not-found {
+    min-height: 340px;
+    margin: 12px auto;
+    padding: 30px 18px;
+    border-radius: 16px;
+  }
+}

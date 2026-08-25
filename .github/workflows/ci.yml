@@ -29,9 +29,11 @@ jobs:
         with:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
+      - run: node --test scripts/check-admin-runtime-config.test.mjs
       - run: node --test scripts/validate-vercel-config.test.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs
+      - run: node scripts/check-admin-runtime-config.mjs
       - run: node scripts/validate-vercel-config.mjs
       - name: Block changes to legacy migration trees
         shell: bash
@@ -195,6 +197,8 @@ jobs:
     name: Admin Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      VITE_BACKEND_URL: https://api.invalid.example
     defaults:
       run:
         working-directory: admin

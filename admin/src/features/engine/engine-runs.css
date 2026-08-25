@@ -1,0 +1,625 @@
+.engine-background-run {
+  position: fixed;
+  z-index: 9000;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  width: min(420px, calc(100vw - 36px));
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--apple-blue) 28%, var(--border-light));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  box-shadow: var(--shadow-large);
+  backdrop-filter: blur(18px);
+}
+
+.engine-background-run-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--apple-blue) 11%, transparent);
+  color: var(--apple-blue);
+}
+
+.engine-background-run > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.engine-background-run strong,
+.engine-background-run small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-background-run strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.engine-background-run small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.engine-background-run button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--apple-blue) 25%, var(--border-light));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--apple-blue) 8%, var(--bg-primary));
+  color: var(--apple-blue);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.engine-live-run {
+  padding: 0;
+  overflow: hidden;
+}
+
+.engine-live-run-header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px;
+}
+
+.engine-live-run-header > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.engine-live-run-header h2,
+.engine-live-run-header p {
+  margin: 0;
+}
+
+.engine-live-run-header h2 {
+  color: var(--text-primary);
+  font-size: 17px;
+}
+
+.engine-live-run-header > div:nth-child(2) > p:last-child {
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.engine-live-run-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--apple-blue) 11%, transparent);
+  color: var(--apple-blue);
+}
+
+.engine-live-run-icon--completed {
+  background: color-mix(in srgb, var(--success) 11%, transparent);
+  color: var(--success);
+}
+
+.engine-live-run-icon--failed {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+  color: var(--danger);
+}
+
+.engine-live-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.engine-live-run-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px 17px;
+  border-top: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border-light));
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+  color: var(--danger);
+}
+
+.engine-live-run-error span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.engine-live-run-error strong,
+.engine-live-run-error small {
+  font-size: 11px;
+}
+
+.engine-live-run-progress {
+  padding: 0 17px 17px;
+  border-top: 1px solid var(--border-light);
+}
+
+.engine-live-run-progress-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 11px 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.engine-live-run-progress ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.engine-live-run-progress li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--bg-primary);
+}
+
+.engine-live-run-progress li span {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-live-run-progress li strong {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.engine-live-run-progress li[data-status="completed"] strong {
+  color: var(--success);
+}
+
+.engine-live-run-progress li[data-status="failed"] strong {
+  color: var(--danger);
+}
+
+.engine-run-history {
+  padding: 0;
+  overflow: hidden;
+}
+
+.engine-run-history > .engine-card-header {
+  padding: 18px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.engine-run-history-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+}
+
+.engine-run-group > h3 {
+  margin: 0 0 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.engine-run-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.engine-run-history-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.engine-run-history-status {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+
+.engine-run-history-status--completed,
+.engine-run-history-status--success {
+  background: color-mix(in srgb, var(--success) 11%, transparent);
+  color: var(--success);
+}
+
+.engine-run-history-status--failed,
+.engine-run-history-status--error {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+  color: var(--danger);
+}
+
+.engine-run-history-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.engine-run-history-copy > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.engine-run-history-copy strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-run-history-copy p {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 5px 0 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.engine-run-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.engine-job-dialog {
+  width: min(100%, 1040px);
+}
+
+.engine-job-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.engine-job-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.engine-job-metrics > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.engine-job-metrics span {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.engine-job-metrics strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 16px;
+  text-overflow: ellipsis;
+}
+
+.engine-job-diagnostics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.engine-job-diagnostics-group {
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 11px;
+  background: var(--bg-primary);
+}
+
+.engine-job-diagnostics-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.engine-job-diagnostics-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.engine-job-diagnostics-group--error h3 {
+  color: var(--danger);
+}
+
+.engine-job-diagnostics-group--warning h3 {
+  color: var(--warning);
+}
+
+.engine-job-opportunities {
+  border: 1px solid var(--border-light);
+  border-radius: 13px;
+  overflow: hidden;
+}
+
+.engine-job-opportunities > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+.engine-job-opportunities h3,
+.engine-job-opportunities p {
+  margin: 0;
+}
+
+.engine-job-opportunities h3 {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.engine-job-opportunities > header p {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.engine-job-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.engine-opportunity-review-list {
+  display: flex;
+  max-height: 58vh;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.engine-opportunity-review {
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.engine-opportunity-review[data-selected="false"] {
+  opacity: 0.62;
+}
+
+.engine-opportunity-review-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.engine-opportunity-review-header > label {
+  position: relative;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border-medium);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: transparent;
+  cursor: pointer;
+}
+
+.engine-opportunity-review-header > label:has(input:checked) {
+  border-color: var(--apple-blue);
+  background: var(--apple-blue);
+  color: white;
+}
+
+.engine-opportunity-review-header input {
+  position: absolute;
+  opacity: 0;
+}
+
+.engine-opportunity-review-header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.engine-opportunity-review-header h4,
+.engine-opportunity-review-header p {
+  margin: 0;
+}
+
+.engine-opportunity-review-header h4 {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.engine-opportunity-review-header p {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.engine-opportunity-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.engine-opportunity-compare--single {
+  grid-template-columns: 1fr;
+}
+
+.engine-opportunity-compare section {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--bg-secondary);
+}
+
+.engine-opportunity-compare span {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.engine-opportunity-compare p {
+  display: -webkit-box;
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.engine-job-loading,
+.engine-job-empty {
+  margin: 0;
+  padding: 24px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.engine-job-empty h4,
+.engine-job-empty p {
+  margin: 0;
+}
+
+.engine-job-empty p {
+  margin-top: 5px;
+  font-size: 11px;
+}
+
+.engine-job-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+@media (max-width: 820px) {
+  .engine-live-run-header,
+  .engine-job-opportunities > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .engine-live-run-actions,
+  .engine-job-review-actions {
+    justify-content: stretch;
+  }
+
+  .engine-live-run-actions > button,
+  .engine-job-review-actions > button {
+    flex: 1;
+  }
+
+  .engine-job-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .engine-live-run-progress ul,
+  .engine-job-diagnostics,
+  .engine-opportunity-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .engine-run-history-row,
+  .engine-job-dialog-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .engine-run-history-actions {
+    width: 100%;
+  }
+
+  .engine-run-history-actions > button,
+  .engine-job-dialog-footer > button {
+    flex: 1;
+  }
+
+  .engine-job-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engine-background-run {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+}

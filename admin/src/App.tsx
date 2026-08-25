@@ -1,256 +1,19 @@
 import type { FC } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Suspense, lazy, useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "./lib/supabase";
-import { signOutAdmin } from "./lib/auth";
-import { isAdminRole, isConfiguredAdminEmail } from "./lib/adminAccess";
-import {
-  getLocalAdminEmail,
-  getLocalAdminUserId,
-  isLocalAdminBypassEnabled,
-} from "./lib/localAdmin";
-import Layout from "./components/Layout";
+import { lazy, Suspense } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import AdminRoutes from "./app/AdminRoutes";
+import { adminRoutePath } from "./app/route-manifest";
+import { AdminAuthProvider } from "./auth/AdminAuthProvider";
+import { useAdminAuth } from "./auth/admin-auth-context";
 
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Opportunities = lazy(() => import("./pages/Opportunities"));
-const Events = lazy(() => import("./pages/Events"));
-const Users = lazy(() => import("./pages/Users"));
-const Creators = lazy(() => import("./pages/Creators"));
-const Submissions = lazy(() => import("./pages/Submissions"));
-const Roadmaps = lazy(() => import("./pages/Roadmaps"));
-const MarketplaceReview = lazy(() => import("./pages/MarketplaceReview"));
-const Blog = lazy(() => import("./pages/Blog"));
-const ImpactStories = lazy(() => import("./pages/ImpactStories"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Scraper = lazy(() => import("./pages/Scraper"));
-const MobileControl = lazy(() => import("./pages/MobileControl"));
-const Monetization = lazy(() => import("./pages/Monetization"));
-const Notifications = lazy(() => import("./pages/Notifications"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const Profile = lazy(() => import("./pages/Profile"));
 
-interface AuthState {
-  session: Session | null;
-  user: User | null;
-  isAdmin: boolean;
-  loading: boolean;
-  error: string | null;
-}
-
-const useAuth = () => {
-  const [auth, setAuth] = useState<AuthState>({
-    session: null,
-    user: null,
-    isAdmin: false,
-    loading: true,
-    error: null,
-  });
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function initAuth() {
-      try {
-        console.log("[Auth] Initializing auth...");
-
-        if (isLocalAdminBypassEnabled()) {
-          const email = getLocalAdminEmail();
-          const userId = getLocalAdminUserId();
-          const localSession = {
-            access_token: "local-dev-token",
-            user: {
-              id: userId,
-              email,
-            },
-          } as Session;
-
-          if (mounted) {
-            setAuth({
-              session: localSession,
-              user: localSession.user as User,
-              isAdmin: true,
-              loading: false,
-              error: null,
-            });
-          }
-          return;
-        }
-
-        if (
-          window.location.pathname === "/reset-password" ||
-          window.location.hash.includes("type=recovery")
-        ) {
-          if (mounted) {
-            setAuth({
-              session: null,
-              user: null,
-              isAdmin: false,
-              loading: false,
-              error: null,
-            });
-          }
-          return;
-        }
-
-        // Use a faster check
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.warn("[Auth] getSession error:", sessionError);
-        }
-
-        if (!session?.user) {
-          console.log("[Auth] No active session found");
-          if (mounted) {
-            setAuth({
-              session: null,
-              user: null,
-              isAdmin: false,
-              loading: false,
-              error: null,
-            });
-          }
-          return;
-        }
-
-        console.log("[Auth] Session active for:", session.user.email);
-        const isAdmin = await checkAdminRole(session.user);
-
-        if (mounted) {
-          setAuth({
-            session,
-            user: session.user,
-            isAdmin,
-            loading: false,
-            error: null,
-          });
-        }
-      } catch (error: unknown) {
-        console.error("[Auth] Initialization error:", error);
-        if (mounted) {
-          setAuth((prev) => ({
-            ...prev,
-            loading: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Auth initialization failed",
-          }));
-        }
-      }
-    }
-
-    // Safety timeout
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        setAuth((prev) => {
-          if (!prev.loading) return prev;
-          console.warn("[Auth] Auth state check timed out globally");
-          return { ...prev, loading: false, error: "Auth Timeout" };
-        });
-      }
-    }, 10000);
-
-    initAuth().finally(() => clearTimeout(timeoutId));
-
-    if (isLocalAdminBypassEnabled()) {
-      return () => {
-        mounted = false;
-        clearTimeout(timeoutId);
-      };
-    }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Auth] State changed:", event);
-      if (
-        window.location.pathname === "/reset-password" ||
-        event === "PASSWORD_RECOVERY"
-      ) {
-        setAuth({
-          session: session ?? null,
-          user: session?.user ?? null,
-          isAdmin: false,
-          loading: false,
-          error: null,
-        });
-        return;
-      }
-      if (mounted) {
-        if (!session?.user) {
-          setAuth({
-            session: null,
-            user: null,
-            isAdmin: false,
-            loading: false,
-            error: null,
-          });
-        } else {
-          setAuth((prev) => ({
-            ...prev,
-            session,
-            user: session.user,
-            loading: true,
-            error: null,
-          }));
-
-          setTimeout(async () => {
-            const isAdmin = await checkAdminRole(session.user);
-            if (mounted) {
-              setAuth({
-                session,
-                user: session.user,
-                isAdmin,
-                loading: false,
-                error: null,
-              });
-            }
-          }, 0);
-        }
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  return auth;
-};
-
-async function checkAdminRole(user: User): Promise<boolean> {
-  try {
-    if (isConfiguredAdminEmail(user.email)) {
-      return true;
-    }
-
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[Auth] Error fetching profile:", error);
-      return false;
-    }
-
-    return isAdminRole(profile?.role);
-  } catch (error: unknown) {
-    console.error("[Auth] checkAdminRole error:", error);
-    return false;
-  }
-}
+const LOGIN_PATH = adminRoutePath("login");
+const SIGNUP_PATH = adminRoutePath("signup");
+const RESET_PASSWORD_PATH = adminRoutePath("reset-password");
 
 const LoadingScreen: FC = () => (
   <div
@@ -275,12 +38,17 @@ const LoadingScreen: FC = () => (
         animation: "spin 1s linear infinite",
       }}
     />
-    <p style={{ color: "#8e8e93", fontSize: "14px" }}>Loading Edutu Admin...</p>
+    <p style={{ color: "#8e8e93", fontSize: "14px" }}>
+      Loading Edutu Admin...
+    </p>
     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
 
-const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
+const UnauthorizedScreen: FC<{
+  error?: string;
+  onSignOut(): Promise<void>;
+}> = ({ error, onSignOut }) => (
   <div
     style={{
       height: "100vh",
@@ -322,7 +90,8 @@ const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
       {error || "You do not have admin privileges to access this area."}
     </p>
     <button
-      onClick={() => void signOutAdmin()}
+      type="button"
+      onClick={() => void onSignOut()}
       style={{
         padding: "12px 24px",
         background: "#007aff",
@@ -339,19 +108,24 @@ const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
 
 const AppRoutes: FC = () => {
   const location = useLocation();
-  const { session, isAdmin, loading, error } = useAuth();
+  const { session, isAdmin, loading, error, signOut } = useAdminAuth();
   const isPasswordRecovery =
-    location.pathname === "/reset-password" ||
+    location.pathname === RESET_PASSWORD_PATH ||
     location.hash.includes("type=recovery");
   const isAuthRoute =
-    location.pathname === "/login" || location.pathname === "/signup";
+    location.pathname === LOGIN_PATH || location.pathname === SIGNUP_PATH;
 
   if (isPasswordRecovery) {
     return (
-      <Routes>
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="*" element={<Navigate to="/reset-password" replace />} />
-      </Routes>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          <Route path={RESET_PASSWORD_PATH} element={<ResetPassword />} />
+          <Route
+            path="*"
+            element={<Navigate to={RESET_PASSWORD_PATH} replace />}
+          />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -359,74 +133,30 @@ const AppRoutes: FC = () => {
 
   if (!session || (!isAdmin && isAuthRoute)) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          <Route path={LOGIN_PATH} element={<Login />} />
+          <Route path={SIGNUP_PATH} element={<Signup />} />
+          <Route path={RESET_PASSWORD_PATH} element={<ResetPassword />} />
+          <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
-  if (!isAdmin) return <UnauthorizedScreen error={error || undefined} />;
+  if (!isAdmin) {
+    return (
+      <UnauthorizedScreen error={error || undefined} onSignOut={signOut} />
+    );
+  }
 
-  return (
-    <Suspense fallback={<LoadingScreen />}>
-      <Routes>
-        <Route path="/login" element={<Navigate to="/" replace />} />
-        <Route path="/signup" element={<Navigate to="/" replace />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="dashboard" element={<Navigate to="/" replace />} />
-          <Route path="opportunities" element={<Opportunities />} />
-          <Route path="submissions" element={<Submissions />} />
-          <Route path="events" element={<Events />} />
-          <Route path="users" element={<Users />} />
-          <Route path="creators" element={<Creators />} />
-          <Route path="roadmaps" element={<Roadmaps />} />
-          <Route path="marketplace" element={<MarketplaceReview />} />
-          <Route path="blog" element={<Blog />} />
-          <Route path="impact-stories" element={<ImpactStories />} />
-          <Route path="settings" element={<Settings />} />
-
-          {/* Engine (was /edutu-engine) — one component, section by path */}
-          <Route path="engine" element={<Scraper />} />
-          <Route path="engine/runs" element={<Scraper />} />
-          <Route path="engine/status" element={<Scraper />} />
-          <Route
-            path="edutu-engine"
-            element={<Navigate to="/engine" replace />}
-          />
-
-          {/* App & Engagement (was /mobile-control) */}
-          <Route path="app/home" element={<MobileControl />} />
-          <Route path="app/campaigns" element={<MobileControl />} />
-          <Route path="app/flags" element={<MobileControl />} />
-          <Route path="app/widgets" element={<MobileControl />} />
-          <Route path="app/control" element={<MobileControl />} />
-          <Route
-            path="mobile-control"
-            element={<Navigate to="/app/home" replace />}
-          />
-
-          {/* Monetization — one component, section by path */}
-          <Route path="monetization" element={<Monetization />} />
-          <Route path="monetization/pricing" element={<Monetization />} />
-          <Route
-            path="monetization/transactions"
-            element={<Monetization />}
-          />
-          <Route path="monetization/usage" element={<Monetization />} />
-
-          <Route path="notifications" element={<Notifications />} />
-          <Route path="profile" element={<Profile />} />
-        </Route>
-      </Routes>
-    </Suspense>
-  );
+  return <AdminRoutes fallback={<LoadingScreen />} />;
 };
 
-const App: FC = () => <AppRoutes />;
+const App: FC = () => (
+  <AdminAuthProvider>
+    <AppRoutes />
+  </AdminAuthProvider>
+);
 
 export default App;

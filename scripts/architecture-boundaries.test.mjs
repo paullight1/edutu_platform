@@ -122,3 +122,28 @@ test("prevents another root-level backend runtime from being introduced", async 
     ]);
   });
 });
+
+test("rejects a monolithic legacy Engine route if it is reintroduced", async () => {
+  await withRepository(async (root) => {
+    await write(
+      root,
+      "admin/src/pages/Scraper.tsx",
+      [
+        'import { useEffect, useState } from "react";',
+        "export default function Scraper() {",
+        "  const [loading] = useState(true);",
+        "  useEffect(() => undefined, []);",
+        '  void fetch("/api/scraper/sources");',
+        "  return loading ? null : null;",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    assert.ok(
+      (await inspectArchitecture(root)).includes(
+        "legacy Engine route must not contain implementation: admin/src/pages/Scraper.tsx",
+      ),
+    );
+  });
+});
