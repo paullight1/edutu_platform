@@ -42,6 +42,8 @@ describe("Community RTL direction utilities", () => {
     expect(settings).toContain('ChevronLeft size={16} className="rtl:rotate-180"');
     expect(settings).toContain("rounded-2xl border p-3 text-start");
     expect(settings).not.toContain("rounded-2xl border p-3 text-left");
+    expect(settings).toContain("ms-auto inline-flex min-h-11");
+    expect(settings).not.toContain("ml-auto inline-flex min-h-11");
   });
 
   it("mirrors directional Community navigation arrows", () => {
