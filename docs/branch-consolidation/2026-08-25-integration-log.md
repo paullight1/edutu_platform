@@ -24,6 +24,7 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 | 0 | consolidation plan/design | `fea6259d6d6ade688009bea0e29b16665d328b93` baseline | documentation commit | none | architecture + baseline suites above | `a2106b4a` | accepted |
 | 1 | `origin/agent/opportunity-content-ux` (PR #66) | `cda393fab41582d1394760c5c8401a6aeda4ae68` | no-fast-forward merge with integration cleanup | none | mobile lint; mobile typecheck; affected tests 4 suites/19 tests; full mobile 111 suites/800 tests | `7b22edacb84b576629441ace14cfc882e155f705` | accepted |
 | 2 | `origin/codex/seo-hydration-consistency` (PR #67) | `b22c7dfb076444fed1ed30e962b65e01d32ac893` | no-fast-forward merge with integration fixes | none | architecture; routing/hydration 6 tests; backend SEO 3 suites/15 tests; web focused 3 files/11 tests; backend lint/build/full 182 suites/2,012 tests; web lint/typecheck/build/full 64 files/347 tests | `57bf30b94c6bd709b3566ec20b2f37953338f2f9` | accepted |
+| 3 | `origin/refactor/admin-shell-engine-production` (PR #60) | `22cf90513a921b16ef5bacacd8a4de06c6557c66` | no-fast-forward merge with integration cleanup | none | architecture/runtime policy 10 tests plus both live checks; admin lint/build/full 27 files/109 tests; backend scraper 22 suites/215 tests; backend lint/build | `bf03943809bc9f2af72a305bb1846335b98c2ccc` | accepted with external smoke gap |
 
 ### Event 1 notes
 
@@ -37,3 +38,9 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 - Corrected one malformed JSX whitespace expression in `BlogPage.tsx` (`{" ""}` to `{" "}`), which had blocked web parsing, lint, typecheck, and build.
 - Applied the repository Prettier configuration only to the two new backend hydration files, resolving eight formatting-only lint failures.
 - Restored tracked offline sitemap/robots outputs and removed the untracked `public/sitemaps` directory generated during the verified build; those generated artifacts were not part of the source branch.
+
+### Event 3 notes
+
+- Excluded `.github/workflows/production-smoke-pr60.yml`, whose job condition only allowed the original `refactor/admin-shell-engine-production` head branch, and excluded the accidental empty root file `__invalid__`.
+- Kept the reusable repository CI additions for admin runtime configuration checks and the valid `VITE_BACKEND_URL` build fixture.
+- The repository's reusable production API smoke script requires `EDUTU_API_KEY`; no key was exposed or inferred. PR #60's anonymous Production Health + Opportunity Smoke remains an external deployment-state verification gap, while all local source, build, architecture, and focused backend checks pass.
