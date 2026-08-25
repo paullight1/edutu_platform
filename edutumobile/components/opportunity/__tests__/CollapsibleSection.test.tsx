@@ -5,7 +5,12 @@ import { CollapsibleSection } from "../CollapsibleSection";
 
 jest.mock("../../context/ThemeContext", () => ({
   useTheme: () => ({
-    colors: { border: "#e2e8f0", foreground: "#0f172a", accent: "#2563eb" },
+    colors: {
+      background: "#ffffff",
+      border: "#e2e8f0",
+      foreground: "#0f172a",
+      accent: "#2563eb",
+    },
     isDark: false,
     reducedMotion: true,
   }),
@@ -38,14 +43,14 @@ jest.mock("react-native-reanimated", () => {
 });
 
 describe("CollapsibleSection progressive disclosure", () => {
-  it("shows a compact body first and reveals the full copy on demand", () => {
+  it("shows a compact body with a continuation fade, then reveals the full copy", () => {
     const screen = render(
       <CollapsibleSection
         title="About this opportunity"
         defaultExpanded
         progressiveDisclosure
         collapsedBodyHeight={220}
-        viewMoreLabel="View more"
+        viewMoreLabel="View full details"
         showLessLabel="Show less"
       >
         <Text>{"Detailed opportunity copy ".repeat(40)}</Text>
@@ -56,11 +61,13 @@ describe("CollapsibleSection progressive disclosure", () => {
       maxHeight: 220,
       overflow: "hidden",
     });
-    expect(screen.getByText("View more")).toBeTruthy();
+    expect(screen.getByTestId("collapsible-content-fade")).toBeTruthy();
+    expect(screen.getByText("View full details")).toBeTruthy();
 
     fireEvent.press(screen.getByTestId("collapsible-view-more"));
 
     expect(screen.getByText("Show less")).toBeTruthy();
+    expect(screen.queryByTestId("collapsible-content-fade")).toBeNull();
     expect(screen.getByTestId("collapsible-content-clip")).not.toHaveStyle({
       maxHeight: 220,
     });
