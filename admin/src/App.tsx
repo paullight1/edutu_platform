@@ -18,6 +18,7 @@ const Opportunities = lazy(() => import("./pages/Opportunities"));
 const Events = lazy(() => import("./pages/Events"));
 const Users = lazy(() => import("./pages/Users"));
 const Creators = lazy(() => import("./pages/Creators"));
+const CommunitySafety = lazy(() => import("./pages/CommunitySafety"));
 const Submissions = lazy(() => import("./pages/Submissions"));
 const Roadmaps = lazy(() => import("./pages/Roadmaps"));
 const MarketplaceReview = lazy(() => import("./pages/MarketplaceReview"));
@@ -384,6 +385,7 @@ const AppRoutes: FC = () => {
           <Route path="events" element={<Events />} />
           <Route path="users" element={<Users />} />
           <Route path="creators" element={<Creators />} />
+          <Route path="community-safety" element={<CommunitySafety />} />
           <Route path="roadmaps" element={<Roadmaps />} />
           <Route path="marketplace" element={<MarketplaceReview />} />
           <Route path="blog" element={<Blog />} />
