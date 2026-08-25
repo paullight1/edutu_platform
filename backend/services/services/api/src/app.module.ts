@@ -27,6 +27,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
 import { HealthModule } from "./health/health.module";
 import { EventsModule } from "./events/events.module";
 import { PageOgModule } from "./og/page-og.module";
+import { SeoModule } from "./seo/seo.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -84,6 +85,7 @@ import { SupportModule } from "./support/support.module";
     HealthModule,
     EventsModule,
     PageOgModule,
+    SeoModule,
     EdutuApiModule,
     DeveloperModule,
     CalendarModule,

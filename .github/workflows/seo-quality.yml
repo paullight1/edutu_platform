@@ -1,0 +1,88 @@
+name: SEO Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "vercel.json"
+      - "scripts/verify-seo-routing.test.mjs"
+      - "backend/services/services/api/src/seo/**"
+      - "backend/services/services/api/src/app.module.ts"
+      - "edutu-web-app/scripts/generate-sitemap.mjs"
+      - "edutu-web-app/scripts/generate-sitemap.test.mjs"
+      - "edutu-web-app/scripts/verify-generated-seo.mjs"
+      - "edutu-web-app/package.json"
+      - ".github/workflows/seo-quality.yml"
+      - "docs/seo/**"
+  push:
+    branches: [main]
+    paths:
+      - "vercel.json"
+      - "scripts/verify-seo-routing.test.mjs"
+      - "backend/services/services/api/src/seo/**"
+      - "backend/services/services/api/src/app.module.ts"
+      - "edutu-web-app/scripts/generate-sitemap.mjs"
+      - "edutu-web-app/scripts/generate-sitemap.test.mjs"
+      - "edutu-web-app/scripts/verify-generated-seo.mjs"
+      - "edutu-web-app/package.json"
+      - ".github/workflows/seo-quality.yml"
+      - "docs/seo/**"
+  workflow_dispatch:
+
+concurrency:
+  group: seo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  routing-contract:
+    name: SEO Routing Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test scripts/verify-seo-routing.test.mjs
+
+  backend-contract:
+    name: SEO Backend Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/services/services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - run: npm ci
+      - name: Run SEO-focused tests
+        run: npm test -- --runInBand --testPathPatterns="src/seo"
+      - run: npm run build
+
+  static-sitemap-contract:
+    name: Static Sitemap Fallback Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: node --test scripts/generate-sitemap.test.mjs
+      - name: Generate offline fallback sitemap
+        env:
+          SEO_STRICT_REMOTE: "0"
+        run: npm run seo:sitemap
+      - name: Verify generated sitemap inventory
+        run: npm run seo:verify
