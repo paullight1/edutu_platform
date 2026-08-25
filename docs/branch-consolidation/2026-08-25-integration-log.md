@@ -22,3 +22,10 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 | Order | Source | Source SHA/commits | Method | Conflicts | Tests | Resulting SHA | Outcome |
 |---:|---|---|---|---|---|---|---|
 | 0 | consolidation plan/design | `fea6259d6d6ade688009bea0e29b16665d328b93` baseline | documentation commit | none | architecture + baseline suites above | `a2106b4a` | accepted |
+| 1 | `origin/agent/opportunity-content-ux` (PR #66) | `cda393fab41582d1394760c5c8401a6aeda4ae68` | no-fast-forward merge with integration cleanup | none | mobile lint; mobile typecheck; affected tests 4 suites/19 tests; full mobile 111 suites/800 tests | `7b22edacb84b576629441ace14cfc882e155f705` | accepted |
+
+### Event 1 notes
+
+- Excluded `.github/workflows/pr66-ci-finalize.yml` and `.github/workflows/pr66-ci-repair.yml`. Both were temporary, branch-name-specific, self-mutating PR repair workflows and assumed an obsolete Flutter-at-repository-root layout.
+- Replaced the stale source-text hierarchy test with a rendered-order regression test. The application-support internals were intentionally extracted into `OpportunityApplicationSupportActions`, so searching the parent route source for `<FitPanel>`, `<AiActionBar>`, and `<DocumentUpload>` no longer represented user-visible behavior.
+- The React missing-key warning emitted by `mobileOpportunityDetail.test.tsx` reproduces on the untouched baseline and is therefore not introduced by this integration event.
