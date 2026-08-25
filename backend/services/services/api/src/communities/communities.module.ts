@@ -7,6 +7,8 @@ import { FormsService } from "./forms.service";
 import { GroupsService } from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ModerationService } from "./moderation.service";
+import { PublicCommunityController } from "./public-community.controller";
+import { PublicCommunityService } from "./public-community.service";
 
 /**
  * `NotificationsModule` IS NOT OPTIONAL. `ModerationService` takes its notifier
@@ -19,13 +21,14 @@ import { ModerationService } from "./moderation.service";
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [CommunitiesController],
+  controllers: [CommunitiesController, PublicCommunityController],
   providers: [
     GroupsService,
     CommunityContentService,
     MessagesService,
     FormsService,
     ModerationService,
+    PublicCommunityService,
     // Registered as a provider and deliberately NOT exported: the nightly
     // expiry sweep has exactly one caller, the scheduler, and exporting it
     // would invite a second one. @Cron only fires for providers Nest has

@@ -16,6 +16,7 @@ const Opportunities = lazy(() => import("../pages/Opportunities"));
 const Events = lazy(() => import("../pages/Events"));
 const Users = lazy(() => import("../pages/Users"));
 const Creators = lazy(() => import("../pages/Creators"));
+const CommunitySafety = lazy(() => import("../pages/CommunitySafety"));
 const Submissions = lazy(() => import("../pages/Submissions"));
 const Roadmaps = lazy(() => import("../pages/Roadmaps"));
 const MarketplaceReview = lazy(() => import("../pages/MarketplaceReview"));
@@ -93,6 +94,10 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           <Route path={childPath("events")} element={<Events />} />
           <Route path={childPath("users")} element={<Users />} />
           <Route path={childPath("creators")} element={<Creators />} />
+          <Route
+            path={childPath("community-safety")}
+            element={<CommunitySafety />}
+          />
           <Route path={childPath("roadmaps")} element={<Roadmaps />} />
           <Route
             path={childPath("marketplace")}

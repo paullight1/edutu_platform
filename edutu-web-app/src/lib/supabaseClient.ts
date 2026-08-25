@@ -10,16 +10,27 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 let _getToken: (() => Promise<string | null | undefined>) | null = null;
 let _client: SupabaseClient | null = null;
 
+async function getClerkAccessToken(): Promise<string | null> {
+    if (!_getToken) return null;
+    try {
+        return (await _getToken()) ?? null;
+    } catch {
+        return null;
+    }
+}
+
 function createClientWithClerkAuth(): SupabaseClient {
     return createClient(supabaseUrl as string, supabaseAnonKey as string, {
+        // Third-party auth must be supplied at the client level as well as on
+        // HTTP fetches. Realtime uses its own WebSocket transport, so a custom
+        // fetch header alone silently connects as anon and RLS emits no rows.
+        accessToken: getClerkAccessToken,
         global: {
             fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
                 const headers = new Headers(init?.headers);
-                if (_getToken) {
-                    const token = await _getToken();
-                    if (token) {
-                        headers.set('Authorization', `Bearer ${token}`);
-                    }
+                const token = await getClerkAccessToken();
+                if (token) {
+                    headers.set('Authorization', `Bearer ${token}`);
                 }
                 return fetch(input, { ...init, headers });
             },
@@ -58,9 +69,7 @@ export const supabase = new Proxy({} as SupabaseClient, {
     },
 });
 
-/**
- * Set the Clerk token getter. Call this from AuthProvider.
- */
+/** Set the Clerk token getter used by PostgREST and Realtime transports. */
 export function setClerkTokenGetter(getToken: () => Promise<string | null | undefined>) {
     _getToken = getToken;
 }

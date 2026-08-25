@@ -23,15 +23,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Bridge Clerk JWT → Supabase RLS
+  // Bridge Clerk JWT → Supabase RLS for PostgREST and Realtime.
   useEffect(() => {
     if (!isLoaded) return;
     setClerkTokenGetter(async () => {
-      try {
-        return await getToken();
-      } catch {
-        return null;
-      }
+      const supabaseToken = await getToken({ template: 'supabase' }).catch(
+        () => null,
+      );
+      return supabaseToken || await getToken().catch(() => null);
     });
   }, [isLoaded, getToken]);
 

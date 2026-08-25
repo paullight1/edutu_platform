@@ -51,6 +51,7 @@ export type AdminRouteId =
   | "events"
   | "users"
   | "creators"
+  | "community-safety"
   | "roadmaps"
   | "marketplace"
   | "blog"
@@ -204,6 +205,16 @@ export const ADMIN_ROUTES: readonly AdminRouteDefinition[] = [
     title: "Creators",
     groupId: "people",
     icon: ShieldCheck,
+    navigation: "group",
+    authenticated: true,
+  },
+  {
+    id: "community-safety",
+    path: "/community-safety",
+    label: "Community Safety",
+    title: "Community Safety",
+    groupId: "people",
+    icon: ShieldAlert,
     navigation: "group",
     authenticated: true,
   },

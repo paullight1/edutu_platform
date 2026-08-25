@@ -15,6 +15,7 @@ import {
   Settings,
   Sparkles,
   UserCheck,
+  UsersRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +41,7 @@ interface AppWorkspaceShellProps {
 const workspaceNavIcons: Record<WorkspaceNavIconKey, LucideIcon> = {
   home: LayoutGrid,
   opportunities: Briefcase,
+  community: UsersRound,
   deadlines: Calendar,
   saved: Bookmark,
   applications: Send,
@@ -97,6 +99,7 @@ function getWorkspaceTitleKey(pathname: string): string | null {
   if (pathname === "/dashboard" || pathname === "/app/home") return null;
   if (pathname.startsWith("/app/opportunity/")) return "navigation.opportunityDetail";
   if (pathname.startsWith("/app/opportunities")) return "navigation.opportunities";
+  if (pathname.startsWith("/app/community")) return "navigation.community";
   if (pathname.startsWith("/app/deadlines") || pathname === "/deadlines") return "navigation.deadlines";
   if (pathname.startsWith("/app/saved") || pathname === "/saved") return "navigation.saved";
   if (pathname.startsWith("/app/applications") || pathname === "/applications") return "navigation.applications";

@@ -188,10 +188,25 @@ export type CommunityMemberSummary = {
   };
 };
 
+/** Public, URL-safe keyset position for the ordered active-member roster. */
+export type CommunityMemberCursor = {
+  role: MemberRole;
+  joinedAt: string;
+  id: string;
+};
+
+type CommunityMemberStoreCursor = {
+  role: MemberRole;
+  joinedAt: Date;
+  id: string;
+};
+
 export type CommunityMemberList = {
   members: CommunityMemberSummary[];
   /** True when the bounded response omitted additional active members. */
   hasMore: boolean;
+  /** Position after the final returned row; null when this is the last page. */
+  nextCursor: CommunityMemberCursor | null;
 };
 
 export const MEMBER_LIST_LIMIT = 100;
@@ -273,13 +288,14 @@ export interface GroupsStore {
    */
   listMembershipsForUser(userId: string): Promise<CommunityGroupMember[]>;
   /**
-   * Active members only, ordered by responsibility then join date. `limit + 1`
-   * is requested by the service so it can report truncation without a second
-   * count query; the group row already carries the authoritative member count.
+   * Active members only, ordered by responsibility then join date then id.
+   * `limit + 1` is requested by the service so it can report truncation without
+   * a second count query; `after` resumes the exact same lexicographic order.
    */
   listActiveGroupMembers(
     groupId: string,
     limit: number,
+    after?: CommunityMemberStoreCursor,
   ): Promise<CommunityGroupMember[]>;
   findMembership(
     groupId: string,
@@ -514,7 +530,24 @@ export class DrizzleGroupsStore implements GroupsStore {
   async listActiveGroupMembers(
     groupId: string,
     limit: number,
+    after?: CommunityMemberStoreCursor,
   ): Promise<CommunityGroupMember[]> {
+    const roleRank = sql<number>`case ${communityGroupMembers.role} when 'owner' then 0 when 'mod' then 1 else 2 end`;
+    const afterRank = after
+      ? after.role === "owner"
+        ? 0
+        : after.role === "mod"
+          ? 1
+          : 2
+      : null;
+    const cursorCondition = after
+      ? sql`(
+          ${roleRank} > ${afterRank}
+          or (${roleRank} = ${afterRank} and ${communityGroupMembers.joinedAt} > ${after.joinedAt})
+          or (${roleRank} = ${afterRank} and ${communityGroupMembers.joinedAt} = ${after.joinedAt} and ${communityGroupMembers.id} > ${after.id})
+        )`
+      : undefined;
+
     return db
       .select()
       .from(communityGroupMembers)
@@ -522,10 +555,11 @@ export class DrizzleGroupsStore implements GroupsStore {
         and(
           eq(communityGroupMembers.groupId, groupId),
           eq(communityGroupMembers.status, "active"),
+          cursorCondition,
         ),
       )
       .orderBy(
-        sql`case ${communityGroupMembers.role} when 'owner' then 0 when 'mod' then 1 else 2 end`,
+        roleRank,
         communityGroupMembers.joinedAt,
         communityGroupMembers.id,
       )
@@ -949,6 +983,7 @@ export class GroupsService {
     userId: string,
     groupId: string,
     limit = MEMBER_LIST_LIMIT,
+    cursor?: CommunityMemberCursor,
   ): Promise<CommunityMemberList> {
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, userId);
@@ -965,15 +1000,19 @@ export class GroupsService {
       1,
       Math.min(Math.floor(limit || MEMBER_LIST_LIMIT), MEMBER_LIST_LIMIT),
     );
+    const parsedCursor = cursor ? this.parseMemberCursor(cursor) : undefined;
     const rows = await this.store.listActiveGroupMembers(
       groupId,
       resolvedLimit + 1,
+      parsedCursor,
     );
     const visible = rows.slice(0, resolvedLimit);
     const profiles = visible.length
       ? await this.authors.findAuthors(visible.map((row) => row.userId))
       : [];
     const profileByUser = new Map(profiles.map((row) => [row.userId, row]));
+    const hasMore = rows.length > resolvedLimit;
+    const lastVisible = hasMore ? visible[visible.length - 1] : undefined;
 
     return {
       members: visible.map((row) => {
@@ -988,7 +1027,14 @@ export class GroupsService {
           },
         };
       }),
-      hasMore: rows.length > resolvedLimit,
+      hasMore,
+      nextCursor: lastVisible
+        ? {
+            role: this.asMemberRole(lastVisible.role),
+            joinedAt: new Date(lastVisible.joinedAt).toISOString(),
+            id: lastVisible.id,
+          }
+        : null,
     };
   }
 
@@ -1552,6 +1598,25 @@ export class GroupsService {
       return existing.role;
     }
     return "member";
+  }
+
+  private parseMemberCursor(
+    cursor: CommunityMemberCursor,
+  ): CommunityMemberStoreCursor {
+    const role = this.asMemberRole(cursor.role);
+    const joinedAt = new Date(cursor.joinedAt);
+    if (Number.isNaN(joinedAt.getTime())) {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    if (!UUID_PATTERN.test(cursor.id)) {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    return { role, joinedAt, id: cursor.id };
+  }
+
+  private asMemberRole(role: string): MemberRole {
+    if (role === "owner" || role === "mod" || role === "member") return role;
+    throw new BadRequestException("That member-page cursor isn't valid.");
   }
 
   private membershipChangedError(): BadRequestException {

@@ -15,6 +15,7 @@ const EXPECTED_ROUTE_PATHS = [
   "/app/home",
   "/app/widgets",
   "/blog",
+  "/community-safety",
   "/creators",
   "/engine",
   "/engine/runs",
@@ -81,6 +82,11 @@ describe("admin route manifest", () => {
       "monetization-pricing",
     );
     expect(groupForPath("/monetization/usage")).toBe("money");
+  });
+
+  it("places the community safety queue in the people navigation group", () => {
+    expect(routeForPath("/community-safety")?.id).toBe("community-safety");
+    expect(groupForPath("/community-safety")).toBe("people");
   });
 
   it("keeps root exact and returns null for unknown locations", () => {
