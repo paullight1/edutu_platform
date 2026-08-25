@@ -6,7 +6,7 @@ import './index.css';
 import './i18n';
 
 import { ThemeProvider } from './hooks/useTheme';
-import App from './App.tsx';
+import CommunityAppGate from './components/CommunityAppGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import WhatsNewNotification from './components/WhatsNewNotification';
@@ -79,7 +79,7 @@ root.render(
                       <AnalyticsProvider>
                         <NotificationsProvider>
                           <GoalsProvider>
-                            <App />
+                            <CommunityAppGate />
                             <WhatsNewNotification />
                           </GoalsProvider>
                         </NotificationsProvider>
