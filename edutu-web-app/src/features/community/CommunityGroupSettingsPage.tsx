@@ -330,7 +330,7 @@ export default function CommunityGroupSettingsPage() {
             to={`/app/community/groups/${id}`}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#f4dcc9] bg-white px-3 text-sm font-bold text-[#6b4538] dark:border-subtle dark:bg-surface-layer dark:text-text-secondary"
           >
-            <ChevronLeft size={16} /> Back
+            <ChevronLeft size={16} className="rtl:rotate-180" /> Back
           </Link>
         }
       >
@@ -517,7 +517,7 @@ export default function CommunityGroupSettingsPage() {
 
           <div className="sticky bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-20 flex items-center justify-between gap-3 rounded-[20px] border border-[#f4dcc9] bg-white/95 p-3 shadow-lg backdrop-blur dark:border-subtle dark:bg-surface-layer/95 lg:bottom-4">
             <p className="hidden text-xs leading-5 text-[#796f6b] dark:text-text-secondary sm:block">Changes to access and screening take effect after you save.</p>
-            <button type="button" disabled={saving} onClick={() => void save()} className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f45b16] px-5 text-sm font-bold text-white disabled:opacity-60">
+            <button type="button" disabled={saving} onClick={() => void save()} className="ms-auto inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f45b16] px-5 text-sm font-bold text-white disabled:opacity-60">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               {saving ? "Saving…" : "Save settings"}
             </button>
@@ -565,7 +565,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function ChoiceRow({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string; body: string }> }) {
-  return <fieldset><legend className="mb-2 text-xs font-bold">{label}</legend><div className="grid gap-2 sm:grid-cols-2">{options.map((option) => <button key={option.value} type="button" onClick={() => onChange(option.value)} aria-pressed={value === option.value} className={`rounded-2xl border p-3 text-left ${value === option.value ? "border-[#f45b16] bg-[#fff4e9] dark:bg-brand/10" : "border-[#f4dcc9] bg-white dark:border-subtle dark:bg-surface-body"}`}><span className="flex items-center gap-2 text-sm font-bold">{value === option.value ? <Check size={15} className="text-[#f45b16]" /> : null}{option.label}</span><span className="mt-1 block text-xs leading-5 text-[#796f6b] dark:text-text-secondary">{option.body}</span></button>)}</div></fieldset>;
+  return <fieldset><legend className="mb-2 text-xs font-bold">{label}</legend><div className="grid gap-2 sm:grid-cols-2">{options.map((option) => <button key={option.value} type="button" onClick={() => onChange(option.value)} aria-pressed={value === option.value} className={`rounded-2xl border p-3 text-start ${value === option.value ? "border-[#f45b16] bg-[#fff4e9] dark:bg-brand/10" : "border-[#f4dcc9] bg-white dark:border-subtle dark:bg-surface-body"}`}><span className="flex items-center gap-2 text-sm font-bold">{value === option.value ? <Check size={15} className="text-[#f45b16]" /> : null}{option.label}</span><span className="mt-1 block text-xs leading-5 text-[#796f6b] dark:text-text-secondary">{option.body}</span></button>)}</div></fieldset>;
 }
 
 function QuestionEditor({ question, index, onChange, onRemove }: { question: GroupSettingsQuestionDraft; index: number; onChange: (question: GroupSettingsQuestionDraft) => void; onRemove: () => void }) {
