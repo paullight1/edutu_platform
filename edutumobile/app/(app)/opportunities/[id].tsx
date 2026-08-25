@@ -80,7 +80,7 @@ import type { DismissReason } from "@edutu/core/src/services/opportunitySignals"
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
 import { OpportunityHero } from "../../../components/opportunity/OpportunityHero";
 import { DecisionStrip } from "../../../components/opportunity/DecisionStrip";
-import { FitPanel } from "../../../components/opportunity/FitPanel";
+import { OpportunityApplicationSupportActions } from "../../../components/opportunity/OpportunityApplicationSupportActions";
 import { FactRows, type Fact } from "../../../components/opportunity/FactRows";
 import { CollapsibleSection } from "../../../components/opportunity/CollapsibleSection";
 import { RequirementChecklist } from "../../../components/opportunity/RequirementChecklist";
@@ -125,10 +125,8 @@ import { SuccessDialog } from "../../../components/ui/SuccessDialog";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { AiOrbBadge } from "../../../components/ui/AiOrbBadge";
-import { AiActionBar } from "../../../components/ai/AiActionBar";
 import { accentGradient } from "../../../lib/themeGradient";
 import type { AiAction, AiActionResult } from "../../../components/ai/AiActionBar";
-import { DocumentUpload } from "../../../components/ai/DocumentUpload";
 import { useAiAction } from "../../../hooks/useAiAction";
 // The chat screen consumes this on mount to open a specific thread; it is the
 // only hand-off channel it exposes (named for its first caller, voice mode).
@@ -2085,85 +2083,34 @@ export default function OpportunityDetailScreen() {
               })}
             >
               <View style={styles.applicationSupportBody}>
-          {/* ── FIT ────────────────────────────────────────────────────────
-              One of the two surfaces DESIGN.md lets go Committed: this is
-              Edutu's judgement, not scraped copy, and it should not look like
-              the reference sections underneath it. */}
-          <View>
-            <FitPanel
-              eyebrow={t("detail.fit.eyebrow")}
-              heading={fitLabel}
-              blurb={fitBlurb}
-              headline={t("detail.fit.evidenceHeadline")}
-              reasons={matchReasons}
-              risks={matchRisks}
-              reasonsTitle={t("detail.whyMatches")}
-              risksTitle={t("detail.thingsToCheck")}
-              // `ranked` was never passed, so it arrived undefined and the panel
-              // took its !ranked branch on EVERY opportunity — the fit verdict
-              // was unreachable in the shipped app. A non-null tier is exactly
-              // the "we have a verdict" signal (getMatchTier returns null for a
-              // missing/zero score), so it drives the variant.
-              ranked={matchTier !== null}
-              onCompleteProfile={() => router.push("/profile/edit")}
-            />
-          </View>
-
-          {/* The AI actions sit on neutral ground directly under the panel:
-              AiActionBar paints its own accent-on-surface pills, which are
-              illegible on top of the Committed field. */}
-          <View style={{ marginTop: 12, gap: 10 }}>
-            {/* Win-coach actions answer in place. Signed-in only. */}
-            {isSignedIn && (
-                <AiActionBar
-                  actions={[
-                    {
-                      label: t("chat:winCoach.actions.fitCheck"),
-                      intent: "fit_check",
-                      message: `Am I a good fit for "${title}"? Give me an honest assessment.`,
-                    },
-                    {
-                      label: t("chat:winCoach.actions.nextMove"),
-                      intent: "next_move",
-                      message: `What's my single most important next move to win "${title}"?`,
-                    },
-                  ]}
-                  onRun={handleWinCoachRun}
-                  onOpenInChat={openWinCoachThread}
-                  onUpgrade={goToPaywall}
-                />
-              )}
-              {/* The one way out to full chat: prefills the composer, never
-                  sends. Rendered for EVERY visitor — guests included — like
-                  every other gated action here; askEdutuMore raises the auth
-                  wall itself instead of navigating. */}
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={t("detail.askMore")}
-                onPress={askEdutuMore}
-                activeOpacity={0.8}
-                style={[
-                  styles.askMoreChip,
-                  { borderColor: `${colors.accent}30`, backgroundColor: cardBg },
-                ]}
-              >
-                <AiOrbBadge size={18} />
-                <Text style={[styles.askMoreChipText, { color: colors.accent }]}>
-                  {t("detail.askMore")}
-                </Text>
-              </TouchableOpacity>
-          </View>
-
-          {isSignedIn && (
-            <View style={{ marginTop: 12 }}>
-              <DocumentUpload
-                kind="cv"
-                opportunityId={id}
-                label={t("chat:winCoach.documentUpload.cvLabel")}
-                onUploaded={setWinCoachUploadId}
-              />
-            </View>
-          )}
+          <OpportunityApplicationSupportActions
+            opportunityId={id}
+            opportunityTitle={title}
+            isSignedIn={Boolean(isSignedIn)}
+            accentColor={colors.accent}
+            cardBackground={cardBg}
+            fit={{
+              eyebrow: t("detail.fit.eyebrow"),
+              heading: fitLabel,
+              blurb: fitBlurb,
+              headline: t("detail.fit.evidenceHeadline"),
+              reasons: matchReasons,
+              risks: matchRisks,
+              reasonsTitle: t("detail.whyMatches"),
+              risksTitle: t("detail.thingsToCheck"),
+              ranked: matchTier !== null,
+            }}
+            fitActionLabel={t("chat:winCoach.actions.fitCheck")}
+            nextMoveActionLabel={t("chat:winCoach.actions.nextMove")}
+            askMoreLabel={t("detail.askMore")}
+            cvLabel={t("chat:winCoach.documentUpload.cvLabel")}
+            onCompleteProfile={() => router.push("/profile/edit")}
+            onRun={handleWinCoachRun}
+            onOpenInChat={openWinCoachThread}
+            onUpgrade={goToPaywall}
+            onAskMore={askEdutuMore}
+            onUploaded={setWinCoachUploadId}
+          />
 
           {/* ── PLAN ───────────────────────────────────────────────────────
               Everything that turns interest into an application. */}
@@ -3862,17 +3809,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   listText: { fontSize: 13, lineHeight: 19, flex: 1 },
-  askMoreChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  askMoreChipText: { fontSize: 13, fontWeight: "700" },
   applicationSupportBody: { gap: 4 },
   actionButtonsRow: { flexDirection: "row", gap: 12, marginBottom: 40 },
   applyButtonWrapper: {
