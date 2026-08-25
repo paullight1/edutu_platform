@@ -204,7 +204,7 @@ export default function CommunityDmPage() {
             className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer"
             aria-label="Back to chats"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={18} className="rtl:rotate-180" />
           </Link>
         }
       >
@@ -254,7 +254,7 @@ export default function CommunityDmPage() {
                       key={message.id}
                       className={`flex py-2 ${mine ? "justify-end" : "justify-start"}`}
                     >
-                      <div className={`max-w-[82%] ${mine ? "text-right" : ""}`}>
+                      <div className={`max-w-[82%] ${mine ? "text-end" : ""}`}>
                         <div
                           className={`mb-1 flex items-baseline gap-2 text-[11px] ${mine ? "justify-end" : ""}`}
                         >
@@ -266,7 +266,7 @@ export default function CommunityDmPage() {
                           </time>
                         </div>
                         <p
-                          className={`whitespace-pre-wrap break-words rounded-[18px] px-3.5 py-2.5 text-left text-[15px] leading-6 shadow-sm sm:text-base ${mine ? "rounded-tr-md bg-[#f45b16] text-white" : "rounded-tl-md border border-[#f4dcc9] bg-white text-[#4a170d] dark:border-subtle dark:bg-surface-layer dark:text-text-primary"}`}
+                          className={`whitespace-pre-wrap break-words rounded-[18px] px-3.5 py-2.5 text-start text-[15px] leading-6 shadow-sm sm:text-base ${mine ? "rounded-se-md bg-[#f45b16] text-white" : "rounded-ss-md border border-[#f4dcc9] bg-white text-[#4a170d] dark:border-subtle dark:bg-surface-layer dark:text-text-primary"}`}
                         >
                           {message.body}
                         </p>
@@ -306,7 +306,7 @@ export default function CommunityDmPage() {
                   )}
                 </button>
               </div>
-              <p className="mt-1 text-right text-[11px] text-[#a18c83]">
+              <p className="mt-1 text-end text-[11px] text-[#a18c83]">
                 {draft.length}/{DM_MESSAGE_MAX_LENGTH}
               </p>
             </div>
