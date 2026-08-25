@@ -1,0 +1,421 @@
+name: Deploy Exact Main to Render Once
+
+on:
+  push:
+    branches:
+      - ops/render-deploy-main-2026-08-25
+    paths:
+      - .github/workflows/render-deploy-main-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-and-verify:
+    name: Deploy main + production evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_COMMIT: fea6259d6d6ade688009bea0e29b16665d328b93
+      RENDER_SERVICE_ID: srv-d13k7715pdvs73ferhr0
+      FALLBACK_API_BASES: https://edutu-api.onrender.com https://edutu-platform.onrender.com
+      WEB_BASE: https://edutu.org
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_COMMIT }}
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Trigger exact-commit deploy and verify production
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const targetCommit = process.env.TARGET_COMMIT;
+          const serviceId = process.env.RENDER_SERVICE_ID;
+          const apiKey = process.env.RENDER_API_KEY || '';
+          const deployHook = process.env.RENDER_DEPLOY_HOOK_URL || '';
+          const webBase = (process.env.WEB_BASE || '').replace(/\/$/, '');
+          const fallbackApiBases = (process.env.FALLBACK_API_BASES || '')
+            .split(/\s+/)
+            .map((value) => value.trim().replace(/\/$/, ''))
+            .filter(Boolean);
+
+          const report = {
+            startedAt: new Date().toISOString(),
+            targetCommit,
+            serviceId,
+            credentialPath: apiKey ? 'render-api-key' : deployHook ? 'deploy-hook' : 'none',
+            trigger: null,
+            deploy: null,
+            apiBase: null,
+            health: {},
+            releaseIdentity: {},
+            opportunities: [],
+            web: {},
+          };
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          function writeReport() {
+            report.finishedAt = new Date().toISOString();
+            fs.writeFileSync('render-release-evidence.json', JSON.stringify(report, null, 2));
+          }
+
+          function safePreview(value) {
+            return String(value || '').replace(/\s+/g, ' ').slice(0, 500);
+          }
+
+          async function request(url, options = {}, attempts = 3) {
+            let lastError;
+            for (let attempt = 1; attempt <= attempts; attempt += 1) {
+              try {
+                const response = await fetch(url, {
+                  redirect: 'follow',
+                  ...options,
+                  signal: AbortSignal.timeout(30_000),
+                  headers: {
+                    Accept: 'application/json,text/html;q=0.9,*/*;q=0.8',
+                    'User-Agent': 'Edutu-Release-Verification/1.0',
+                    ...(options.headers || {}),
+                  },
+                });
+                if (response.status >= 500 && attempt < attempts) {
+                  lastError = new Error(`${url} returned ${response.status}`);
+                  await sleep(attempt * 2_000);
+                  continue;
+                }
+                return response;
+              } catch (error) {
+                lastError = error;
+                if (attempt === attempts) break;
+                await sleep(attempt * 2_000);
+              }
+            }
+            throw lastError || new Error(`Unable to request ${url}`);
+          }
+
+          async function readBody(response) {
+            const text = await response.text();
+            let body = null;
+            try {
+              body = JSON.parse(text);
+            } catch {
+              // Retain a bounded preview for diagnostics without logging credentials.
+            }
+            return { body, text };
+          }
+
+          function recursiveOnRenderUrl(value, seen = new Set()) {
+            if (typeof value === 'string') {
+              try {
+                const url = new URL(value);
+                if (url.protocol === 'https:' && url.hostname.endsWith('.onrender.com')) {
+                  return url.origin;
+                }
+              } catch {
+                return null;
+              }
+              return null;
+            }
+            if (!value || typeof value !== 'object' || seen.has(value)) return null;
+            seen.add(value);
+            for (const child of Object.values(value)) {
+              const found = recursiveOnRenderUrl(child, seen);
+              if (found) return found;
+            }
+            return null;
+          }
+
+          function extractDeployId(body) {
+            return body?.id || body?.deploy?.id || body?.deployId || null;
+          }
+
+          function extractDeployStatus(body) {
+            return body?.status || body?.deploy?.status || null;
+          }
+
+          function extractCommitId(body) {
+            return (
+              body?.commit?.id ||
+              body?.commit?.sha ||
+              body?.commitId ||
+              body?.deploy?.commit?.id ||
+              body?.deploy?.commitId ||
+              null
+            );
+          }
+
+          async function triggerDeploy() {
+            if (!apiKey && !deployHook) {
+              throw new Error(
+                'Neither RENDER_API_KEY nor RENDER_DEPLOY_HOOK_URL is configured as a repository Actions secret.',
+              );
+            }
+
+            if (apiKey) {
+              const serviceResponse = await request(
+                `https://api.render.com/v1/services/${encodeURIComponent(serviceId)}`,
+                { headers: { Authorization: `Bearer ${apiKey}` } },
+              );
+              const servicePayload = await readBody(serviceResponse);
+              if (!serviceResponse.ok) {
+                throw new Error(
+                  `Render service lookup returned ${serviceResponse.status}: ${safePreview(servicePayload.text)}`,
+                );
+              }
+              const serviceUrl = recursiveOnRenderUrl(servicePayload.body);
+              if (serviceUrl) report.discoveredServiceUrl = serviceUrl;
+
+              const response = await request(
+                `https://api.render.com/v1/services/${encodeURIComponent(serviceId)}/deploys`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    clearCache: 'do_not_clear',
+                    commitId: targetCommit,
+                  }),
+                },
+              );
+              const payload = await readBody(response);
+              if (![201, 202].includes(response.status)) {
+                throw new Error(
+                  `Render deploy trigger returned ${response.status}: ${safePreview(payload.text)}`,
+                );
+              }
+              report.trigger = {
+                path: 'render-api-key',
+                httpStatus: response.status,
+                deployId: extractDeployId(payload.body),
+                requestedCommit: targetCommit,
+              };
+              return extractDeployId(payload.body);
+            }
+
+            const hookUrl = new URL(deployHook);
+            hookUrl.searchParams.set('ref', targetCommit);
+            const response = await request(hookUrl.toString(), { method: 'POST' });
+            const payload = await readBody(response);
+            if (![200, 202].includes(response.status)) {
+              throw new Error(
+                `Render deploy hook returned ${response.status}: ${safePreview(payload.text)}`,
+              );
+            }
+            report.trigger = {
+              path: 'deploy-hook',
+              httpStatus: response.status,
+              deployId: extractDeployId(payload.body),
+              requestedCommit: targetCommit,
+            };
+            return extractDeployId(payload.body);
+          }
+
+          async function pollDeploy(deployId) {
+            if (!apiKey || !deployId) return;
+
+            for (let attempt = 1; attempt <= 100; attempt += 1) {
+              const response = await request(
+                `https://api.render.com/v1/services/${encodeURIComponent(serviceId)}/deploys/${encodeURIComponent(deployId)}`,
+                { headers: { Authorization: `Bearer ${apiKey}` } },
+              );
+              const payload = await readBody(response);
+              if (!response.ok || !payload.body) {
+                throw new Error(
+                  `Render deploy status returned ${response.status}: ${safePreview(payload.text)}`,
+                );
+              }
+
+              const status = extractDeployStatus(payload.body);
+              const commitId = extractCommitId(payload.body);
+              report.deploy = {
+                id: deployId,
+                status,
+                commitId,
+                checkedAt: new Date().toISOString(),
+              };
+              writeReport();
+              console.log(`Render deploy ${deployId}: ${status || 'unknown'} (check ${attempt})`);
+
+              if (status === 'live' || status === 'succeeded') {
+                if (commitId && !targetCommit.startsWith(commitId) && !commitId.startsWith(targetCommit)) {
+                  throw new Error(
+                    `Render reported commit ${commitId}, expected ${targetCommit}.`,
+                  );
+                }
+                return;
+              }
+              if (/failed|canceled|cancelled|deactivated/i.test(String(status || ''))) {
+                throw new Error(`Render deploy ${deployId} ended with status ${status}.`);
+              }
+              await sleep(10_000);
+            }
+
+            throw new Error(`Render deploy ${deployId} did not become live within the verification window.`);
+          }
+
+          async function jsonResponse(url) {
+            const response = await request(url, {}, 2);
+            const payload = await readBody(response);
+            return {
+              url: response.url,
+              status: response.status,
+              body: payload.body,
+              preview: payload.body ? null : safePreview(payload.text),
+            };
+          }
+
+          async function discoverHealthyApiBase() {
+            const candidates = [
+              report.discoveredServiceUrl,
+              ...fallbackApiBases,
+            ].filter(Boolean);
+            const uniqueCandidates = [...new Set(candidates)];
+
+            for (let attempt = 1; attempt <= 120; attempt += 1) {
+              for (const candidate of uniqueCandidates) {
+                try {
+                  const live = await jsonResponse(`${candidate}/health/live`);
+                  if (
+                    live.status === 200 &&
+                    live.body?.status === 'ok' &&
+                    live.body?.checks?.process?.status === 'up'
+                  ) {
+                    report.health.live = live;
+                    return candidate;
+                  }
+                } catch {
+                  // Try the next known production origin until the deploy is ready.
+                }
+              }
+              console.log(`Waiting for an Edutu production health boundary (check ${attempt})`);
+              await sleep(10_000);
+            }
+            throw new Error('No known Render origin exposed a valid /health/live response after deployment.');
+          }
+
+          async function textResponse(url) {
+            const response = await request(url, {}, 2);
+            const body = await response.text();
+            return {
+              url: response.url,
+              status: response.status,
+              contentType: response.headers.get('content-type'),
+              bytes: Buffer.byteLength(body),
+              title: body.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || null,
+            };
+          }
+
+          function assert(condition, message) {
+            if (!condition) throw new Error(message);
+          }
+
+          async function verifyProduction() {
+            const apiBase = await discoverHealthyApiBase();
+            report.apiBase = apiBase;
+
+            const ready = await jsonResponse(`${apiBase}/health/ready`);
+            report.health.ready = ready;
+            assert(ready.status === 200, `Readiness returned ${ready.status}`);
+            assert(ready.body?.status === 'ready', 'Readiness status is not ready');
+            assert(ready.body?.checks?.database?.status === 'up', 'Readiness database check is not up');
+
+            const observedVersion =
+              report.health.live.body?.version || ready.body?.version || null;
+            const versionMatchesTarget = Boolean(
+              observedVersion &&
+              (targetCommit.startsWith(String(observedVersion)) ||
+                String(observedVersion).startsWith(targetCommit)),
+            );
+            report.releaseIdentity = {
+              requestedCommit: targetCommit,
+              deployCommit: report.deploy?.commitId || null,
+              observedHealthVersion: observedVersion,
+              versionMatchesTarget,
+            };
+
+            const feed = await jsonResponse(`${apiBase}/opportunities?limit=3&offset=0`);
+            assert(feed.status === 200, `Opportunity feed returned ${feed.status}`);
+            assert(Array.isArray(feed.body), 'Opportunity feed did not return an array');
+            assert(feed.body.length > 0, 'Opportunity feed returned no representative records');
+
+            for (const row of feed.body.slice(0, 3)) {
+              const id = String(row?.id || '').trim();
+              const title = String(row?.title || '').trim();
+              assert(id, 'A representative opportunity is missing its id');
+              assert(title.length >= 3, `Opportunity ${id} has an invalid title`);
+
+              const detail = await jsonResponse(
+                `${apiBase}/opportunities/${encodeURIComponent(id)}`,
+              );
+              assert(detail.status === 200, `Opportunity ${id} detail returned ${detail.status}`);
+              assert(String(detail.body?.id || '') === id, `Opportunity ${id} detail identity mismatch`);
+              assert(
+                String(detail.body?.title || '').trim().length >= 3,
+                `Opportunity ${id} detail has an invalid title`,
+              );
+
+              const webDetail = await textResponse(
+                `${webBase}/opportunity/${encodeURIComponent(id)}`,
+              );
+              assert(webDetail.status === 200, `Web detail ${id} returned ${webDetail.status}`);
+              assert(webDetail.bytes > 500, `Web detail ${id} returned an unexpectedly small document`);
+
+              report.opportunities.push({
+                id,
+                title,
+                category: row?.category || null,
+                deadline: row?.deadline || row?.close_date || null,
+                detailStatus: detail.status,
+                webDetail,
+              });
+            }
+
+            report.web.home = await textResponse(`${webBase}/`);
+            report.web.catalog = await textResponse(`${webBase}/opportunities`);
+            report.web.sitemap = await textResponse(`${webBase}/sitemap.xml`);
+            assert(report.web.home.status === 200, `Web home returned ${report.web.home.status}`);
+            assert(report.web.catalog.status === 200, `Web catalog returned ${report.web.catalog.status}`);
+            assert(report.web.home.bytes > 500, 'Web home document is unexpectedly small');
+            assert(report.web.catalog.bytes > 500, 'Web catalog document is unexpectedly small');
+          }
+
+          async function main() {
+            const deployId = await triggerDeploy();
+            writeReport();
+            await pollDeploy(deployId);
+            await verifyProduction();
+            writeReport();
+            console.log(JSON.stringify(report, null, 2));
+          }
+
+          main().catch((error) => {
+            report.failure = {
+              message: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : null,
+            };
+            writeReport();
+            console.error(JSON.stringify(report, null, 2));
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-main-release-evidence
+          path: render-release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
