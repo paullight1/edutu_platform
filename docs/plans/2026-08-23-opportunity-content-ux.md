@@ -67,10 +67,32 @@
 - Open a pull request from `agent/opportunity-content-ux`.
 - After deployment, run the admin content backfill in bounded batches and review the `needsReview` cohort before publication changes.
 
+## Task 6 — Refine the opportunity-detail decision journey
+
+**Files**
+- `edutumobile/app/(app)/opportunities/[id].tsx`
+- `edutumobile/components/opportunity/OpportunityApplicationSupportActions.tsx`
+- `edutumobile/components/opportunity/CollapsibleSection.tsx`
+- `edutumobile/components/opportunity/RequirementChecklist.tsx`
+- `edutumobile/lib/opportunityDisplay.ts`
+- corresponding mobile tests
+
+**Work**
+- Put source-backed facts, requirements, benefits, and application steps before optional AI assistance.
+- Suppress summaries that substantially repeat the full description.
+- Cap and deduplicate tags so they do not interrupt the decision flow.
+- Use progressive disclosure for long About content and the application-support toolset.
+- Consolidate fit guidance, next-move coaching, Ask Edutu, CV review, and roadmap generation under one Help me apply section.
+- Preserve guest gating, authenticated AI actions, save/share/apply behavior, and evidence boundaries.
+- Extract the application-support action block so the route remains within the repository's approved file-size budget.
+
 ### Current verification status
 
-- Pull request opened as draft: `paullight1/edutu_platform#64`.
-- Backend lint passed after applying the repository's locked ESLint/Prettier toolchain to the affected files.
-- The progressive-disclosure test now follows the repository's `__tests__` convention, keeping Jest-only globals outside the application TypeScript build.
-- A fresh full CI run is required before the pull request can leave draft status.
-- Scraper tests, all mobile gates, backend tests/build, and reconciliation with the latest `main` remain evidence-gated completion requirements.
+- The content-quality foundation was completed separately in PR #64.
+- The mobile decision-journey follow-up is tracked in PR #66.
+- Focused opportunity-detail regression tests pass: 10/10.
+- ESLint passes for the changed mobile screen, extracted component, and regression test.
+- Mobile TypeScript checking passes.
+- Repository large-file governance passes after the component extraction; the budget was not increased.
+- The temporary branch-scoped repair workflow and script removed themselves after committing the verified implementation.
+- A fresh full repository CI run is required on this normal repository-authored head before PR #66 is considered complete.
