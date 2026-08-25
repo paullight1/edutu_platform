@@ -18,12 +18,12 @@ const otherMemberMessage: CommunityMessage = {
   author: { displayName: "Amina", avatarUrl: null },
 };
 
-function renderOtherMemberMessage() {
+function renderMessage(mine = false) {
   const onReport = vi.fn();
   const onBlock = vi.fn();
   const props = {
     message: otherMemberMessage,
-    mine: false,
+    mine,
     canDelete: false,
     onReport,
     onBlock,
@@ -35,6 +35,10 @@ function renderOtherMemberMessage() {
     </MemoryRouter>,
   );
   return { onReport, onBlock };
+}
+
+function renderOtherMemberMessage() {
+  return renderMessage(false);
 }
 
 describe("community message safety actions", () => {
@@ -53,5 +57,20 @@ describe("community message safety actions", () => {
     screen.getByRole("button", { name: /block Amina/i }).click();
 
     expect(onBlock).toHaveBeenCalledWith(otherMemberMessage);
+  });
+
+  it("uses logical alignment and corners so incoming and outgoing bubbles mirror in RTL", () => {
+    const incoming = render(<MemoryRouter><MessageBubble message={otherMemberMessage} mine={false} canDelete={false} /></MemoryRouter>);
+    const incomingBubble = screen.getByText(otherMemberMessage.body).parentElement;
+
+    expect(incomingBubble).toHaveClass("text-start", "rounded-ss-md");
+    expect(incomingBubble).not.toHaveClass("text-left", "rounded-tl-md");
+
+    incoming.unmount();
+    renderMessage(true);
+    const outgoingBubble = screen.getByText(otherMemberMessage.body).parentElement;
+
+    expect(outgoingBubble).toHaveClass("text-start", "rounded-se-md");
+    expect(outgoingBubble).not.toHaveClass("text-left", "rounded-tr-md");
   });
 });
