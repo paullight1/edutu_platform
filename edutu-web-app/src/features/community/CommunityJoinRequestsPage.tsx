@@ -63,7 +63,7 @@ export default function CommunityJoinRequestsPage() {
         description={`Review people waiting to join ${groupName}.`}
         action={
           <Link to={`/app/community/groups/${id}?tab=about`} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer" aria-label="Back to group">
-            <ArrowLeft size={18} />
+            <ArrowLeft size={18} className="rtl:rotate-180" />
           </Link>
         }
       >
