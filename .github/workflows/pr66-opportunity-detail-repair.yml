@@ -38,6 +38,8 @@ jobs:
           python scripts/pr66-opportunity-detail-repair.py
           sed -i "s/pressNearestTouchTarget(getByText('Help me apply'));/fireEvent.press(getByText('Help me apply'));/" edutumobile/__tests__/mobileOpportunityDetail.test.tsx
           grep -F "fireEvent.press(getByText('Help me apply'));" edutumobile/__tests__/mobileOpportunityDetail.test.tsx
+          sed -i "s/isSignedIn={isSignedIn}/isSignedIn={Boolean(isSignedIn)}/" "edutumobile/app/(app)/opportunities/[id].tsx"
+          grep -F "isSignedIn={Boolean(isSignedIn)}" "edutumobile/app/(app)/opportunities/[id].tsx"
 
       - name: Install mobile dependencies
         working-directory: edutumobile
