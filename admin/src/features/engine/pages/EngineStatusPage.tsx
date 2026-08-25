@@ -5,6 +5,7 @@ import ApiHealthCard from "../components/ApiHealthCard";
 import ApiRuntimeCard from "../components/ApiRuntimeCard";
 import AutomationSettings from "../components/AutomationSettings";
 import DatabaseStatusCard from "../components/DatabaseStatusCard";
+import DataQualityScorecard from "../components/DataQualityScorecard";
 import DiagnosticCheck from "../components/DiagnosticCheck";
 import EnginePolicyCard from "../components/EnginePolicyCard";
 import EngineUnavailableState from "../components/EngineUnavailableState";
@@ -92,6 +93,8 @@ export default function EngineStatusPage() {
         config={diagnostics.runtimeConfig}
         error={diagnostics.runtimeConfigError}
       />
+
+      <DataQualityScorecard />
 
       <section className="engine-health-grid" aria-label="API health summary">
         <ApiHealthCard kind="liveness" resource={diagnostics.liveness} />

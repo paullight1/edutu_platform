@@ -80,6 +80,11 @@ describe("engineApi JSON contracts", () => {
       "/api/scraper/stats",
     );
 
+    await engineApi.getQualityScorecard();
+    expect(mocks.adminApiJson).toHaveBeenLastCalledWith(
+      "/opportunities/admin/quality",
+    );
+
     await engineApi.listSites();
     expect(mocks.adminApiJson).toHaveBeenLastCalledWith(
       "/api/scraper/sites",

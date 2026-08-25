@@ -54,6 +54,22 @@ export interface EngineStats {
   bySource: Record<string, number>;
 }
 
+export interface OpportunityQualityScorecard {
+  total: number;
+  active: number;
+  active_missing_deadline: number;
+  active_imageless: number;
+  duplicates: number;
+  active_stale_14d: number;
+  active_unknown_confidence: number;
+  pending_review: number;
+  active_listing_urls: number;
+  html_titles: number;
+  active_thin_description: number;
+  active_verified_7d: number;
+  newest_verification_at: string | null;
+}
+
 export interface EngineRuntimeIdentity {
   service: "edutu-api";
   environment: string;

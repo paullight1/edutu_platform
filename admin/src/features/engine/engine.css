@@ -590,3 +590,64 @@
     transition-duration: 1ms !important;
   }
 }
+.engine-quality-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.engine-quality-card .engine-card-header p:last-child {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+}
+
+.engine-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 0.75rem;
+}
+
+.engine-quality-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.5rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-light);
+  border-radius: 0.85rem;
+  background: var(--bg-secondary);
+}
+
+.engine-quality-metric > span,
+.engine-quality-metric > small {
+  color: var(--text-secondary);
+}
+
+.engine-quality-metric > strong,
+.engine-quality-metric > small {
+  grid-column: 1 / -1;
+}
+
+.engine-quality-metric > strong {
+  font-size: 1.45rem;
+}
+
+.engine-quality-metric--good > svg,
+.engine-quality-metric--good > strong {
+  color: var(--success, #16a34a);
+}
+
+.engine-quality-metric--warning > svg,
+.engine-quality-metric--warning > strong {
+  color: var(--warning, #d97706);
+}
+
+.engine-quality-metric--danger > svg,
+.engine-quality-metric--danger > strong,
+.engine-quality-error {
+  color: var(--danger, #dc2626);
+}
+
+.engine-quality-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

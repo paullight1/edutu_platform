@@ -19,6 +19,7 @@ import type {
   EnhancePreviewResult,
   OpenRunStreamOptions,
   OpportunitySite,
+  OpportunityQualityScorecard,
   PurgeResult,
   RunStatus,
   ScrapeJob,
@@ -336,6 +337,12 @@ export const engineApi = {
 
   getStats(): Promise<EngineStats> {
     return adminApiJson<EngineStats>("/api/scraper/stats");
+  },
+
+  getQualityScorecard(): Promise<OpportunityQualityScorecard> {
+    return adminApiJson<OpportunityQualityScorecard>(
+      "/opportunities/admin/quality",
+    );
   },
 
   listSites(): Promise<OpportunitySite[]> {
