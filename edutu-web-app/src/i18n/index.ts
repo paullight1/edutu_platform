@@ -34,6 +34,7 @@ export const supportedLanguages: SupportedLanguageOption[] = (
 }));
 
 const STORAGE_KEY = 'edutu-language';
+const DIRECTION_STYLE_ID = 'edutu-directional-navigation-styles';
 
 const isSupportedLanguage = (
     value: string | null | undefined,
@@ -52,8 +53,24 @@ const detectLanguage = (): SupportedLanguage => {
     return 'en';
 };
 
+const ensureDirectionalNavigationStyles = () => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById(DIRECTION_STYLE_ID)) return;
+
+    const style = document.createElement('style');
+    style.id = DIRECTION_STYLE_ID;
+    style.textContent = `
+html[dir='rtl'] .lucide-arrow-left,
+html[dir='rtl'] .lucide-arrow-right {
+    transform: rotate(180deg);
+}
+`;
+    document.head.appendChild(style);
+};
+
 const applyDocumentLanguage = (lang: SupportedLanguage) => {
     if (typeof document === 'undefined') return;
+    ensureDirectionalNavigationStyles();
     document.documentElement.lang = lang;
     document.documentElement.dir = LANGUAGE_CONFIG[lang].dir;
 };
