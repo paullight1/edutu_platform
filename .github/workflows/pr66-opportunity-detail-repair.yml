@@ -6,6 +6,7 @@ on:
       - agent/opportunity-content-ux
     paths:
       - ".github/workflows/pr66-opportunity-detail-repair.yml"
+      - "scripts/pr66-opportunity-detail-repair.py"
 
 permissions:
   contents: write
@@ -35,6 +36,8 @@ jobs:
         run: |
           python -m py_compile scripts/pr66-opportunity-detail-repair.py
           python scripts/pr66-opportunity-detail-repair.py
+          sed -i "s/pressNearestTouchTarget(getByText('Help me apply'));/fireEvent.press(getByText('Help me apply'));/" edutumobile/__tests__/mobileOpportunityDetail.test.tsx
+          grep -F "fireEvent.press(getByText('Help me apply'));" edutumobile/__tests__/mobileOpportunityDetail.test.tsx
 
       - name: Install mobile dependencies
         working-directory: edutumobile
