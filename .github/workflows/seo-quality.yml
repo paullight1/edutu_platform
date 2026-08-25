@@ -6,11 +6,19 @@ on:
     paths:
       - "vercel.json"
       - "scripts/verify-seo-routing.test.mjs"
+      - "scripts/verify-seo-hydration.test.mjs"
       - "backend/services/services/api/src/seo/**"
       - "backend/services/services/api/src/app.module.ts"
       - "edutu-web-app/scripts/generate-sitemap.mjs"
       - "edutu-web-app/scripts/generate-sitemap.test.mjs"
       - "edutu-web-app/scripts/verify-generated-seo.mjs"
+      - "edutu-web-app/src/main.tsx"
+      - "edutu-web-app/src/components/BlogPage.tsx"
+      - "edutu-web-app/src/components/PublicOpportunitiesArchivePage.tsx"
+      - "edutu-web-app/src/components/PublicRouteGate.tsx"
+      - "edutu-web-app/src/components/ui/Pagination*"
+      - "edutu-web-app/src/lib/seoPagination*"
+      - "edutu-web-app/src/services/blog*"
       - "edutu-web-app/package.json"
       - ".github/workflows/seo-quality.yml"
       - "docs/seo/**"
@@ -19,11 +27,19 @@ on:
     paths:
       - "vercel.json"
       - "scripts/verify-seo-routing.test.mjs"
+      - "scripts/verify-seo-hydration.test.mjs"
       - "backend/services/services/api/src/seo/**"
       - "backend/services/services/api/src/app.module.ts"
       - "edutu-web-app/scripts/generate-sitemap.mjs"
       - "edutu-web-app/scripts/generate-sitemap.test.mjs"
       - "edutu-web-app/scripts/verify-generated-seo.mjs"
+      - "edutu-web-app/src/main.tsx"
+      - "edutu-web-app/src/components/BlogPage.tsx"
+      - "edutu-web-app/src/components/PublicOpportunitiesArchivePage.tsx"
+      - "edutu-web-app/src/components/PublicRouteGate.tsx"
+      - "edutu-web-app/src/components/ui/Pagination*"
+      - "edutu-web-app/src/lib/seoPagination*"
+      - "edutu-web-app/src/services/blog*"
       - "edutu-web-app/package.json"
       - ".github/workflows/seo-quality.yml"
       - "docs/seo/**"
@@ -35,7 +51,7 @@ concurrency:
 
 jobs:
   routing-contract:
-    name: SEO Routing Contract
+    name: SEO Routing + Hydration Contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -43,7 +59,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test scripts/verify-seo-routing.test.mjs
+      - run: node --test scripts/verify-seo-routing.test.mjs scripts/verify-seo-hydration.test.mjs
 
   backend-contract:
     name: SEO Backend Contract
@@ -63,6 +79,25 @@ jobs:
       - name: Run SEO-focused tests
         run: npm test -- --runInBand --testPathPatterns="src/seo"
       - run: npm run build
+
+  frontend-hydration-contract:
+    name: SEO Frontend Hydration Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - name: Run hydration-focused tests
+        run: npm test -- src/components/ui/Pagination.test.tsx src/lib/seoPagination.test.ts src/services/blog.test.ts
+      - run: npm run typecheck
 
   static-sitemap-contract:
     name: Static Sitemap Fallback Contract

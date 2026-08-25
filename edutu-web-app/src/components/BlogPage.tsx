@@ -1,21 +1,33 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Search, ChevronRight, TrendingUp, Lightbulb } from "lucide-react";
-import PublicHeader from "./PublicHeader";
-import SiteFooter from "./SiteFooter";
+import {
+  ArrowRight,
+  ChevronRight,
+  Lightbulb,
+  Search,
+  TrendingUp,
+} from "lucide-react";
+import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import Pagination from "./ui/Pagination";
 import {
-  fetchPublishedPosts,
+  fetchAllPublishedPosts,
   formatPostDate,
   readingTime,
   type BlogPost,
 } from "../services/blog";
+import { buildPageHref, parsePageParam } from "../lib/seoPagination";
+import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 12;
 
-/** Turn a slug-style tag into a readable chip label ("ai-coach" → "AI Coach"). */
 function prettyTag(value: string): string {
   return value
     .split(/[-_\s]+/)
@@ -40,35 +52,102 @@ const TopicChip: React.FC<{ label: string }> = ({ label }) => (
   </span>
 );
 
+function BlogCard({ post, index }: { post: BlogPost; index: number }) {
+  const topic = topicLabel(post);
+  const published = formatPostDate(post.publishedAt || post.createdAt);
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: Math.min(index * 0.035, 0.2) }}
+      className="h-full"
+    >
+      <Link
+        to={`/blog/${post.slug}`}
+        className="group flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer no-underline shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      >
+        <div className="aspect-[16/9] overflow-hidden bg-surface-elevated">
+          <img
+            src={
+              post.coverImage ??
+              "https://www.edutu.org/backgrounds/dark-hero.jpg"
+            }
+            alt={post.title}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+          />
+        </div>
+        <div className="flex flex-1 flex-col p-5 sm:p-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2.5">
+            {published ? (
+              <time
+                dateTime={post.publishedAt || post.createdAt}
+                className="text-xs font-medium text-text-muted"
+              >
+                {published}
+              </time>
+            ) : null}
+            {topic ? <TopicChip label={topic} /> : null}
+          </div>
+          <h2 className="line-clamp-2 font-display text-xl font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
+            {post.title}
+          </h2>
+          {post.excerpt ? (
+            <p className="mt-3 line-clamp-3 text-sm leading-6 text-text-secondary">
+              {post.excerpt}
+            </p>
+          ) : null}
+          <div className="mt-auto flex items-center gap-3 border-t border-subtle pt-4 text-xs font-medium text-text-muted">
+            <span>{readingTime(post.content)}</span>
+            <span className="ml-auto inline-flex items-center gap-1 text-brand">
+              Read guide
+              <ChevronRight
+                size={16}
+                aria-hidden="true"
+                className="transition-transform group-hover:translate-x-1"
+              />
+            </span>
+          </div>
+        </div>
+      </Link>
+    </motion.article>
+  );
+}
+
 const BlogPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [page, setPage] = useState(1);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(false);
-    fetchPublishedPosts({ limit: 60, signal: controller.signal })
-      .then((rows) => setPosts(rows))
-      .catch((err) => {
+
+    fetchAllPublishedPosts({ signal: controller.signal })
+      .then(setPosts)
+      .catch((loadError) => {
         if (controller.signal.aborted) return;
-        console.error("Failed to load blog posts:", err);
+        console.error("Failed to load blog posts:", loadError);
         setError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
+
     return () => controller.abort();
   }, []);
 
   const filteredPosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return posts;
+
     return posts.filter((post) => {
       const excerpt = post.excerpt ?? "";
       return (
@@ -80,301 +159,297 @@ const BlogPage: React.FC = () => {
     });
   }, [posts, searchQuery]);
 
-  const featuredPost = useMemo(
-    () => posts.find((p) => p.featured) ?? null,
-    [posts],
-  );
-
-  const publishedLabel = (post: BlogPost): string =>
-    formatPostDate(post.publishedAt || post.createdAt);
-
-  const showFeatured = Boolean(featuredPost) && searchQuery === "";
-  const gridPosts = useMemo(
+  const requestedPage = parsePageParam(searchParams.get("page"));
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
+  const page = parsePageParam(String(requestedPage), totalPages);
+  const canonicalPath = page > 1 ? `/blog?page=${page}` : "/blog";
+  const pageItems = useMemo(
     () =>
-      filteredPosts.filter(
-        (post) => !showFeatured || post.id !== featuredPost?.id,
-      ),
-    [filteredPosts, showFeatured, featuredPost],
+      filteredPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredPosts, page],
+  );
+  const featuredPost =
+    page === 1 && !searchQuery.trim()
+      ? (pageItems.find((post) => post.featured) ?? null)
+      : null;
+  const gridPosts = featuredPost
+    ? pageItems.filter((post) => post.id !== featuredPost.id)
+    : pageItems;
+
+  const getPageHref = useCallback(
+    (targetPage: number) =>
+      buildPageHref("/blog", searchParams, targetPage),
+    [searchParams],
   );
 
-  const totalPages = Math.max(1, Math.ceil(gridPosts.length / PAGE_SIZE));
-  // Search or data changes can shrink the list under the current page.
   useEffect(() => {
-    setPage((current) => Math.min(current, totalPages));
-  }, [totalPages]);
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
+    if (loading || requestedPage === page) return;
+    navigate(getPageHref(page), { replace: true });
+  }, [getPageHref, loading, navigate, page, requestedPage]);
 
-  const pagedPosts = gridPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const goToPage = useCallback(
+    (targetPage: number) => {
+      navigate(getPageHref(targetPage));
+      const top = gridRef.current
+        ? gridRef.current.getBoundingClientRect().top + window.scrollY - 100
+        : 0;
+      window.scrollTo({
+        top,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    },
+    [getPageHref, navigate, reduceMotion],
+  );
 
-  const goToPage = (next: number) => {
-    setPage(next);
-    if (gridRef.current) {
-      const top =
-        gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
-      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
-    }
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (!searchParams.has("page")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("page");
+    setSearchParams(next, { replace: true });
   };
 
+  const seoDescription =
+    "Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu.";
+  const seoTitle = `Scholarship & Career Guides for African Students${
+    page > 1 ? ` — Page ${page}` : ""
+  } | Edutu`;
+  const seoJsonLd = useMemo(
+    () => [
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: seoTitle,
+        description: seoDescription,
+        url: toAbsoluteUrl(canonicalPath),
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: pageItems.length,
+          itemListElement: pageItems.map((post, index) => ({
+            "@type": "ListItem",
+            position: (page - 1) * PAGE_SIZE + index + 1,
+            name: post.title,
+            url: toAbsoluteUrl(`/blog/${post.slug}`),
+          })),
+        },
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: toAbsoluteUrl("/"),
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: page > 1 ? `Blog — Page ${page}` : "Blog",
+            item: toAbsoluteUrl(canonicalPath),
+          },
+        ],
+      },
+    ],
+    [canonicalPath, page, pageItems, seoTitle],
+  );
+
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
-      <PublicHeader fixed />
-
+    <div className="bg-surface-body">
       <Seo
-        title="Scholarship & Career Guides for African Students | Edutu"
-        description="Practical scholarship, fellowship, internship and career guides for African students, plus application advice and opportunity research from Edutu."
-        path="/blog"
+        title={seoTitle}
+        description={seoDescription}
+        path={canonicalPath}
+        image={getDefaultSeoImage()}
         type="website"
+        jsonLd={seoJsonLd}
       />
-
-      <main className="pb-[96px]">
-        {/* Header */}
-        <section className="px-4 pt-[120px] sm:px-6">
-          <motion.div
-            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mx-auto max-w-[1200px] text-center"
-          >
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-              From the Blog
-            </span>
-            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-text-primary md:text-4xl">
-              Scholarship, Career &amp;{" "}
-              <span className="text-brand">Opportunity Guides</span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-text-secondary md:text-lg">
-              Practical guides and research to help African students find
-              scholarships, build stronger applications, and unlock global
-              opportunities.
+      <PublicEditorialShell mainClassName="max-w-[1200px] pb-24 pt-10 sm:pt-14">
+        <section className="text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+            Edutu editorial
+          </p>
+          <h1 className="mx-auto mt-3 max-w-4xl font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl lg:text-5xl">
+            Scholarship, career and{" "}
+            <span className="text-brand">opportunity guides</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-text-secondary sm:text-lg">
+            Practical research to help African students find opportunities,
+            prepare stronger applications and make informed career decisions.
+          </p>
+          {page > 1 ? (
+            <p className="mt-3 text-sm font-semibold text-text-muted">
+              Page {page} of {totalPages}
             </p>
-          </motion.div>
+          ) : null}
         </section>
 
-        <div className="mx-auto max-w-[1200px] px-4 pt-12 sm:px-6">
-          {/* Search */}
-          <div className="mb-12 flex justify-center">
-            <div className="relative w-full max-w-xl">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search articles..."
-                className="w-full rounded-xl border border-subtle bg-surface-elevated py-3 pl-12 pr-4 text-text-primary outline-none transition-colors placeholder:text-text-muted focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/20"
-              />
-            </div>
+        <div className="mx-auto mt-10 max-w-xl">
+          <label htmlFor="blog-search" className="sr-only">
+            Search Edutu guides
+          </label>
+          <div className="relative">
+            <Search
+              size={18}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
+            />
+            <input
+              id="blog-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              placeholder="Search guides by topic..."
+              className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-12 pr-4 text-text-primary shadow-soft outline-none transition placeholder:text-text-muted focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/20"
+            />
           </div>
+        </div>
 
-          {/* Loading state */}
-          {loading && (
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
+        <div ref={gridRef} className="scroll-mt-24 pt-12">
+          {loading ? (
+            <div className="grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, index) => (
                 <div
-                  key={i}
-                  className="h-80 animate-pulse rounded-2xl border border-subtle bg-surface-layer"
+                  key={index}
+                  className="h-96 animate-pulse rounded-2xl border border-subtle bg-surface-layer"
                 />
               ))}
             </div>
-          )}
+          ) : null}
 
-          {/* Featured post — image left, content right */}
-          {!loading && showFeatured && featuredPost && (
-            <motion.div
-              initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+          {!loading && featuredPost ? (
+            <motion.article
+              initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="mb-16"
+              transition={{ duration: 0.5 }}
+              className="mb-14 overflow-hidden rounded-3xl border border-subtle bg-surface-layer shadow-elevated"
             >
               <Link
                 to={`/blog/${featuredPost.slug}`}
-                className="group grid items-center gap-6 no-underline lg:grid-cols-12 lg:gap-10"
+                className="group grid no-underline lg:grid-cols-12"
               >
-                <div className="overflow-hidden rounded-2xl shadow-soft lg:col-span-5">
+                <div className="min-h-64 overflow-hidden bg-surface-elevated lg:col-span-5 lg:min-h-[390px]">
                   <img
                     src={
                       featuredPost.coverImage ??
                       "https://www.edutu.org/backgrounds/dark-hero.jpg"
                     }
                     alt={featuredPost.title}
-                    loading="lazy"
-                    className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] lg:h-[380px]"
+                    loading="eager"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                   />
                 </div>
-                <div className="lg:col-span-7">
-                  <div className="mb-4 flex items-center gap-3">
-                    <time
-                      dateTime={
-                        featuredPost.publishedAt || featuredPost.createdAt
-                      }
-                      className="text-sm font-medium text-text-muted"
-                    >
-                      {publishedLabel(featuredPost)}
-                    </time>
-                    {topicLabel(featuredPost) && (
+                <div className="flex flex-col justify-center p-7 sm:p-10 lg:col-span-7">
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-brand">
+                      Featured guide
+                    </span>
+                    {topicLabel(featuredPost) ? (
                       <TopicChip label={topicLabel(featuredPost)!} />
-                    )}
+                    ) : null}
                   </div>
-                  <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand md:text-4xl">
+                  <h2 className="font-display text-3xl font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand sm:text-4xl">
                     {featuredPost.title}
                   </h2>
-                  {featuredPost.excerpt && (
-                    <p className="mt-4 line-clamp-4 text-base leading-relaxed text-text-secondary md:text-lg">
+                  {featuredPost.excerpt ? (
+                    <p className="mt-4 text-base leading-7 text-text-secondary sm:text-lg">
                       {featuredPost.excerpt}
                     </p>
-                  )}
-                  <div className="mt-6 flex items-center gap-2 text-sm font-medium text-brand">
-                    Read article
-                    <ChevronRight
-                      size={16}
+                  ) : null}
+                  <span className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+                    Read featured guide
+                    <ArrowRight
+                      size={17}
+                      aria-hidden="true"
                       className="transition-transform group-hover:translate-x-1"
                     />
-                  </div>
+                  </span>
                 </div>
               </Link>
-            </motion.div>
-          )}
+            </motion.article>
+          ) : null}
 
-          {/* Blog grid */}
-          {!loading && pagedPosts.length > 0 && (
-            <div
-              ref={gridRef}
-              className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
-            >
-              {pagedPosts.map((post, index) => (
-                <motion.article
-                  key={post.id}
-                  initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-                  animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                >
-                  <Link
-                    to={`/blog/${post.slug}`}
-                    className="group flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer no-underline shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
-                  >
-                    <div className="overflow-hidden">
-                      <img
-                        src={
-                          post.coverImage ??
-                          "https://www.edutu.org/backgrounds/dark-hero.jpg"
-                        }
-                        alt={post.title}
-                        loading="lazy"
-                        className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                      />
-                    </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <div className="mb-3 flex items-center gap-3">
-                        <time
-                          dateTime={post.publishedAt || post.createdAt}
-                          className="text-xs font-medium text-text-muted"
-                        >
-                          {publishedLabel(post)}
-                        </time>
-                        {topicLabel(post) && (
-                          <TopicChip label={topicLabel(post)!} />
-                        )}
-                      </div>
-                      <h3 className="mb-2 line-clamp-2 font-display text-lg font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
-                        {post.title}
-                      </h3>
-                      {post.excerpt && (
-                        <p className="mb-5 line-clamp-2 text-sm leading-[1.6] text-text-secondary">
-                          {post.excerpt}
-                        </p>
-                      )}
-                      <div className="mt-auto flex items-center gap-3 border-t border-subtle pt-4">
-                        <span className="text-xs font-medium text-text-muted">
-                          {readingTime(post.content)}
-                        </span>
-                        <ChevronRight
-                          size={18}
-                          className="ml-auto text-brand transition-transform group-hover:translate-x-1"
-                        />
-                      </div>
-                    </div>
-                  </Link>
-                </motion.article>
+          {!loading && gridPosts.length > 0 ? (
+            <div className="grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+              {gridPosts.map((post, index) => (
+                <BlogCard key={post.id} post={post} index={index} />
               ))}
             </div>
-          )}
+          ) : null}
 
-          {/* Pagination */}
-          {!loading && (
+          {!loading && pageItems.length === 0 ? (
+            <section className="rounded-3xl border border-subtle bg-surface-layer px-6 py-16 text-center shadow-soft">
+              <Lightbulb
+                size={46}
+                aria-hidden="true"
+                className="mx-auto mb-4 text-text-muted"
+              />
+              <h2 className="font-display text-2xl font-semibold text-text-primary">
+                {error
+                  ? "Guides are temporarily unavailable"
+                  : searchQuery
+                    ? "No guides match this search"
+                    : "No guides are published on this page"}
+              </h2>
+              <p className="mx-auto mt-2 max-w-lg text-text-secondary">
+                {error
+                  ? "Please retry in a moment or browse current opportunities."
+                  : searchQuery
+                    ? "Try a broader topic, scholarship name or career keyword."
+                    : "Return to the first page to see the latest Edutu guidance."}
+              </p>
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => handleSearchChange("")}
+                  className="mt-6 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  Clear search
+                </button>
+              ) : null}
+            </section>
+          ) : null}
+
+          {!loading && !searchQuery.trim() ? (
             <Pagination
               page={page}
               totalPages={totalPages}
               onPageChange={goToPage}
-              className="mt-14"
+              getPageHref={getPageHref}
+              className="mt-12"
             />
-          )}
-
-          {/* Empty / error state */}
-          {!loading && gridPosts.length === 0 && !showFeatured && (
-            <div className="py-16 text-center">
-              <Lightbulb size={48} className="mx-auto mb-4 text-text-muted" />
-              <h3 className="mb-2 font-display text-xl font-semibold tracking-tight text-text-primary">
-                {error
-                  ? "Unable to load articles"
-                  : searchQuery
-                    ? "No articles found"
-                    : "No articles yet"}
-              </h3>
-              <p className="text-text-muted">
-                {error
-                  ? "Please try again in a moment."
-                  : searchQuery
-                    ? "Try a different search term or category."
-                    : "Check back soon for new insights and resources."}
-              </p>
-            </div>
-          )}
-
-          {/* Newsletter CTA */}
-          <motion.div
-            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="relative mt-20 overflow-hidden rounded-3xl bg-brand p-10 text-center shadow-elevated"
-          >
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(circle at 50% 0%, rgb(var(--color-brand-300) / 0.35), transparent 60%)",
-              }}
-            />
-            <div className="relative z-10">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
-                <TrendingUp size={28} className="text-white" />
-              </div>
-              <h2 className="mb-2 font-display text-2xl font-semibold tracking-tight text-white">
-                Stay Ahead of the Curve
-              </h2>
-              <p className="mx-auto mb-6 max-w-lg text-white/80">
-                Get weekly insights on scholarships, fellowships, and career
-                opportunities delivered to your inbox.
-              </p>
-              <div className="mx-auto flex max-w-md flex-col gap-3 sm:flex-row">
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  className="flex-1 rounded-xl border border-white/30 bg-white/15 px-4 py-3 text-sm text-white outline-none placeholder:text-white/70 focus-visible:ring-2 focus-visible:ring-white/40"
-                />
-                <button className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-brand transition-all hover:-translate-y-0.5 hover:bg-white/90">
-                  Subscribe
-                </button>
-              </div>
-            </div>
-          </motion.div>
+          ) : null}
         </div>
-      </main>
 
-      <SiteFooter />
+        <section className="relative mt-20 overflow-hidden rounded-3xl bg-brand px-6 py-12 text-center text-white shadow-elevated sm:px-10">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 0%, rgb(var(--color-brand-300) / 0.38), transparent 62%)",
+            }}
+          />
+          <div className="relative mx-auto max-w-2xl">
+            <TrendingUp size={30} aria-hidden="true" className="mx-auto" />
+            <h2 className="mt-4 font-display text-2xl font-semibold sm:text-3xl">
+              Put the guidance into action
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-white/85">
+              Browse current scholarships, internships, fellowships, grants and
+              programmes, then confirm every application on the official source.
+            </p>
+            <Link
+              to="/opportunities"
+              className="mt-7 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-brand no-underline transition hover:-translate-y-0.5"
+            >
+              Browse opportunities
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
+      </PublicEditorialShell>
     </div>
   );
 };

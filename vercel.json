@@ -36,7 +36,7 @@
     },
     {
       "source": "/opportunities/:category",
-      "destination": "https://edutu-platform.onrender.com/seo/opportunities/:category"
+      "destination": "https://edutu-platform.onrender.com/seo-hydration/opportunities/:category"
     },
     {
       "source": "/opportunity/:id",

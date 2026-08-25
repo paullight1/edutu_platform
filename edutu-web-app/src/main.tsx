@@ -6,7 +6,7 @@ import './index.css';
 import './i18n';
 
 import { ThemeProvider } from './hooks/useTheme';
-import App from './App.tsx';
+import PublicRouteGate from './components/PublicRouteGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import WhatsNewNotification from './components/WhatsNewNotification';
@@ -75,7 +75,7 @@ root.render(
                       <AnalyticsProvider>
                         <NotificationsProvider>
                           <GoalsProvider>
-                            <App />
+                            <PublicRouteGate />
                             <WhatsNewNotification />
                           </GoalsProvider>
                         </NotificationsProvider>

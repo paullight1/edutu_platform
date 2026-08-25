@@ -33,11 +33,17 @@ function buildBlogUrl(path: string, params?: URLSearchParams): string {
 }
 
 /**
- * Fetch published blog posts (newest first). Public endpoint — no auth required.
- * The backend defaults to `status=published`, so only live posts are returned.
+ * Fetch one published blog page (newest first). Public endpoint — no auth
+ * required. Offset is explicit so the public archive can mirror the
+ * server-rendered page boundaries after hydration.
  */
 export async function fetchPublishedPosts(
-  options: { limit?: number; category?: string; signal?: AbortSignal } = {},
+  options: {
+    limit?: number;
+    offset?: number;
+    category?: string;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<BlogPost[]> {
   const params = new URLSearchParams();
   params.set("status", "published");
@@ -45,6 +51,11 @@ export async function fetchPublishedPosts(
     "limit",
     String(Math.min(Math.max(Number(options.limit) || 50, 1), 100)),
   );
+
+  const offset = Math.max(Math.floor(Number(options.offset) || 0), 0);
+  if (offset > 0) {
+    params.set("offset", String(offset));
+  }
   if (options.category) {
     params.set("category", options.category);
   }
@@ -61,6 +72,51 @@ export async function fetchPublishedPosts(
 
   const payload = await response.json().catch(() => null);
   return Array.isArray(payload) ? (payload as BlogPost[]) : [];
+}
+
+/**
+ * Load the complete bounded public archive so React cannot replace a valid
+ * server-rendered page with an arbitrary first-60-post client subset. The
+ * backend caps each request at 100; this helper walks those pages and stops on
+ * the first short response.
+ */
+export async function fetchAllPublishedPosts(
+  options: {
+    category?: string;
+    signal?: AbortSignal;
+    pageSize?: number;
+    maximum?: number;
+  } = {},
+): Promise<BlogPost[]> {
+  const pageSize = Math.min(
+    Math.max(Math.floor(Number(options.pageSize) || 100), 1),
+    100,
+  );
+  const maximum = Math.min(
+    Math.max(Math.floor(Number(options.maximum) || 1000), 1),
+    1000,
+  );
+  const posts = new Map<string, BlogPost>();
+
+  for (let offset = 0; offset < maximum; offset += pageSize) {
+    const limit = Math.min(pageSize, maximum - offset);
+    const batch = await fetchPublishedPosts({
+      category: options.category,
+      signal: options.signal,
+      limit,
+      offset,
+    });
+
+    for (const post of batch) {
+      if (post.id && !posts.has(post.id)) {
+        posts.set(post.id, post);
+      }
+    }
+
+    if (batch.length < limit) break;
+  }
+
+  return Array.from(posts.values()).slice(0, maximum);
 }
 
 /** Fetch a single published post by slug. Public endpoint. */
