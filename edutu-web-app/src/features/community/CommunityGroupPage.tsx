@@ -509,7 +509,7 @@ function PostsPanel({
               {sending ? <Loader2 size={19} className="animate-spin" /> : <Send size={19} />}
             </button>
           </div>
-          <p className="mt-1.5 text-right text-[11px] text-[#a18c83]">{draft.length}/2000</p>
+          <p className="mt-1.5 text-end text-[11px] text-[#a18c83]">{draft.length}/2000</p>
         </div>
       ) : null}
     </section>
@@ -573,7 +573,7 @@ function ResourcesPanel({
               onError(caught instanceof Error ? caught.message : "That resource is unavailable.");
             }
           }}
-          className="flex min-h-20 w-full items-center gap-3 rounded-[20px] border border-[#f4dcc9] bg-white p-3 text-left shadow-sm transition hover:border-[#f45b16]/30 dark:border-subtle dark:bg-surface-layer"
+          className="flex min-h-20 w-full items-center gap-3 rounded-[20px] border border-[#f4dcc9] bg-white p-3 text-start shadow-sm transition hover:border-[#f45b16]/30 dark:border-subtle dark:bg-surface-layer"
         >
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"><FileText size={19} /></span>
           <span className="min-w-0 flex-1">
