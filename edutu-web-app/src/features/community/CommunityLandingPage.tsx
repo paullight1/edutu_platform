@@ -99,7 +99,7 @@ export default function CommunityLandingPage() {
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#f45b16] px-6 text-sm font-extrabold text-white shadow-[0_14px_32px_-20px_rgba(244,91,22,.8)] transition hover:-translate-y-0.5 hover:bg-[#d94b0f]"
                 >
                   {isSignedIn ? "Open community" : "Join the community"}
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} className="rtl:rotate-180" />
                 </Link>
                 <a href="#public-communities" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#efd5c5] bg-white px-6 text-sm font-extrabold text-[#5a3326] transition hover:border-[#f45b16]/40 hover:text-[#d94b0f] dark:border-subtle dark:bg-surface-layer dark:text-text-primary">
                   See active communities
@@ -123,11 +123,11 @@ export default function CommunityLandingPage() {
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-2xl">🎓</span>
                   </div>
                   <div className="mt-6 space-y-3">
-                    <div className="max-w-[86%] rounded-2xl rounded-tl-md bg-white/10 p-3">
+                    <div className="max-w-[86%] rounded-2xl rounded-ss-md bg-white/10 p-3">
                       <p className="text-xs font-bold text-orange-100">Maya</p>
                       <p className="mt-1 text-sm leading-6 text-white/90">Does anyone have a clean way to structure the leadership essay without repeating the networking example?</p>
                     </div>
-                    <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-md bg-[#f45b16] p-3">
+                    <div className="ms-auto max-w-[82%] rounded-2xl rounded-se-md bg-[#f45b16] p-3">
                       <p className="text-xs font-bold text-orange-100">You</p>
                       <p className="mt-1 text-sm leading-6">I used problem → action → measurable result, then saved networking for the next question.</p>
                     </div>
@@ -170,7 +170,7 @@ export default function CommunityLandingPage() {
                 <h2 className="mt-2 font-display text-3xl font-semibold tracking-[-0.035em] text-[#39180f] dark:text-text-primary">Public communities worth exploring</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#765e55] dark:text-text-secondary">These are real public Edutu groups returned by the community service. Private rooms never appear here.</p>
               </div>
-              <Link to={productPath} className="inline-flex min-h-11 shrink-0 items-center gap-2 text-sm font-extrabold text-[#d94b0f] dark:text-brand">Explore all <ArrowRight size={16} /></Link>
+              <Link to={productPath} className="inline-flex min-h-11 shrink-0 items-center gap-2 text-sm font-extrabold text-[#d94b0f] dark:text-brand">Explore all <ArrowRight size={16} className="rtl:rotate-180" /></Link>
             </div>
 
             {loadingGroups ? (
@@ -198,7 +198,7 @@ export default function CommunityLandingPage() {
           <div className="mx-auto max-w-5xl overflow-hidden rounded-[32px] bg-[#4a170d] px-6 py-10 text-white shadow-[0_30px_70px_-45px_rgba(74,23,13,.75)] sm:px-10 sm:py-12">
             <div className="grid items-center gap-7 md:grid-cols-[1fr_auto]">
               <div><p className="text-xs font-extrabold uppercase tracking-[0.16em] text-orange-200">Your next application does not have to be solo</p><h2 className="mt-3 max-w-2xl font-display text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Find a focused room, contribute something useful, and keep moving.</h2></div>
-              <Link to={productPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#f45b16] px-6 text-sm font-extrabold text-white">{isSignedIn ? "Open community" : "Create your Edutu account"}<ArrowRight size={17} /></Link>
+              <Link to={productPath} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#f45b16] px-6 text-sm font-extrabold text-white">{isSignedIn ? "Open community" : "Create your Edutu account"}<ArrowRight size={17} className="rtl:rotate-180" /></Link>
             </div>
           </div>
         </section>
