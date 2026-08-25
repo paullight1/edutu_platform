@@ -90,7 +90,7 @@ export default function CommunityChatsPage() {
                 >
                   <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#fcead5] text-sm font-extrabold text-[#8f3f1b] dark:bg-surface-elevated dark:text-text-secondary">
                     {conversation.otherUser.displayName.slice(0, 1).toUpperCase()}
-                    {conversation.unreadCount > 0 ? <span className="absolute -right-0.5 -top-0.5 min-w-[19px] rounded-full border-2 border-white bg-[#f45b16] px-1 text-center text-[9px] font-extrabold leading-[15px] text-white dark:border-surface-layer">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
+                    {conversation.unreadCount > 0 ? <span className="absolute -end-0.5 -top-0.5 min-w-[19px] rounded-full border-2 border-white bg-[#f45b16] px-1 text-center text-[9px] font-extrabold leading-[15px] text-white dark:border-surface-layer">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-sm text-[#4a170d] dark:text-text-primary ${conversation.unreadCount > 0 ? "font-extrabold" : "font-bold"}`}>{conversation.otherUser.displayName}</span>
