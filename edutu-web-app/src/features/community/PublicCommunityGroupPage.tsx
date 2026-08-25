@@ -81,7 +81,7 @@ export default function PublicCommunityGroupPage() {
       />
       <PublicHeader />
       <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-        <Link to="/community" className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#765e55] transition hover:text-[#d94b0f] dark:text-text-secondary dark:hover:text-brand"><ArrowLeft size={16} /> Back to community</Link>
+        <Link to="/community" className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#765e55] transition hover:text-[#d94b0f] dark:text-text-secondary dark:hover:text-brand"><ArrowLeft size={16} className="rtl:rotate-180" /> Back to community</Link>
 
         {loading ? (
           <div className="mt-6 animate-pulse rounded-[30px] border border-[#efd9ca] bg-white p-6 dark:border-subtle dark:bg-surface-layer sm:p-9"><div className="h-16 w-16 rounded-2xl bg-[#f6e6dc] dark:bg-surface-elevated" /><div className="mt-5 h-10 w-2/3 rounded bg-[#f6e6dc] dark:bg-surface-elevated" /><div className="mt-4 h-5 w-full rounded bg-[#f6e6dc] dark:bg-surface-elevated" /><div className="mt-2 h-5 w-3/4 rounded bg-[#f6e6dc] dark:bg-surface-elevated" /></div>
@@ -125,7 +125,7 @@ export default function PublicCommunityGroupPage() {
                   <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#d94b0f] dark:text-brand">Join the conversation</p>
                   <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.025em] text-[#39180f] dark:text-text-primary">Open the real community room</h2>
                   <p className="mt-2 text-sm leading-6 text-[#765e55] dark:text-text-secondary">Inside Edutu you can see the current conversation, resources and group membership state.</p>
-                  <Link to={joinPath} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#f45b16] px-4 text-sm font-extrabold text-white shadow-sm">{isSignedIn ? "Open community" : "Sign up to join"}<ArrowRight size={17} /></Link>
+                  <Link to={joinPath} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#f45b16] px-4 text-sm font-extrabold text-white shadow-sm">{isSignedIn ? "Open community" : "Sign up to join"}<ArrowRight size={17} className="rtl:rotate-180" /></Link>
                 </aside>
               </div>
             </article>
