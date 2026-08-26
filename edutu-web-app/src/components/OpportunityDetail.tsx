@@ -16,6 +16,7 @@ import { organizationLabel } from "../lib/organizationLabel";
 import { prepareOpportunityDescription } from "../lib/opportunityDetailPresentation";
 import ImageWithFallback from "./ImageWithFallback";
 import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
+import TrustSignal from "./opportunity/TrustSignal";
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -145,6 +146,8 @@ function OpportunityHero({
                 {organization}
               </p>
             ) : null}
+
+            <TrustSignal trust={opportunity.trust} className="mt-3" />
 
             {facts.length > 0 ? (
               <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">

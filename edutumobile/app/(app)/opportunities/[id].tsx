@@ -81,6 +81,7 @@ import { DismissReasonSheet } from "../../../components/opportunity/DismissReaso
 import { OpportunityHero } from "../../../components/opportunity/OpportunityHero";
 import { DecisionStrip } from "../../../components/opportunity/DecisionStrip";
 import { OpportunityApplicationSupportActions } from "../../../components/opportunity/OpportunityApplicationSupportActions";
+import { TrustSignal } from "../../../components/opportunity/TrustSignal";
 import { FactRows, type Fact } from "../../../components/opportunity/FactRows";
 import { CollapsibleSection } from "../../../components/opportunity/CollapsibleSection";
 import { RequirementChecklist } from "../../../components/opportunity/RequirementChecklist";
@@ -1776,6 +1777,8 @@ export default function OpportunityDetailScreen() {
           <Text style={[styles.titleMeta, { color: textSecondary }]} numberOfLines={1}>
             {[organization, location].filter(Boolean).join("  ·  ")}
           </Text>
+
+          <TrustSignal trust={opportunity.trust} mutedColor={textSecondary} />
 
           <DecisionStrip
             fitTitle={t("detail.fit.title")}
