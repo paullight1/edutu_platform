@@ -35,6 +35,12 @@ function createPool(connectionString: string) {
 
 export const pool = createPool(process.env.DATABASE_URL!);
 
+pool.on("connect", (client) => {
+  client.on("error", (error) => {
+    console.error("Unexpected database client error", error);
+  });
+});
+
 pool.on("error", (error) => {
   console.error("Unexpected database pool error", error);
 });
