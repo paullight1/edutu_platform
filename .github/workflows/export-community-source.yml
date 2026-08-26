@@ -1,0 +1,27 @@
+name: Export Community Source
+
+on:
+  push:
+    branches:
+      - agent/community-merge-base-export
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package source
+        run: |
+          git archive --format=zip --output=edutu-platform-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edutu-platform-merge-base-source
+          path: edutu-platform-source.zip
+          if-no-files-found: error
+          retention-days: 1
