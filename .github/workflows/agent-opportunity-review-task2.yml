@@ -1,0 +1,82 @@
+name: Agent Opportunity Review Task 2
+
+on:
+  push:
+    branches: [agent/opportunity-ai-review]
+    paths:
+      - ".agent/opportunity-review-task2.py"
+      - ".github/workflows/agent-opportunity-review-task2.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-opportunity-review-task2
+  cancel-in-progress: true
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/opportunity-ai-review
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+
+      - name: Apply backend implementation patch
+        run: python .agent/opportunity-review-task2.py
+
+      - name: Install backend dependencies
+        working-directory: backend/services/services/api
+        run: npm ci
+
+      - name: Format touched backend files
+        working-directory: backend/services/services/api
+        run: |
+          npx prettier --write \
+            src/opportunities/opportunity-enhancement-review.ts \
+            src/opportunities/opportunity-enhancement-review.spec.ts \
+            src/opportunities/opportunity-enhancement-review.service.ts \
+            src/opportunities/opportunity-enhancement-review.service.spec.ts \
+            src/opportunities/opportunity-enhancement-review.repository.ts \
+            src/opportunities/opportunity-enhancement-review.dto.ts \
+            src/opportunities/opportunity-enhancement-review.controller.ts \
+            src/opportunities/opportunity-source-evidence.service.ts \
+            src/scraper/scraper.module.ts
+
+      - name: Run focused review tests
+        working-directory: backend/services/services/api
+        run: npm test -- opportunity-enhancement-review --runInBand
+
+      - name: Run backend lint
+        working-directory: backend/services/services/api
+        run: npm run lint
+
+      - name: Build backend
+        working-directory: backend/services/services/api
+        run: npm run build
+
+      - name: Remove temporary patch machinery
+        run: |
+          rm -f .agent/opportunity-review-task2.py
+          rm -f .github/workflows/agent-opportunity-review-task2.yml
+          rmdir .agent 2>/dev/null || true
+
+      - name: Commit verified implementation
+        run: |
+          git config user.name "Edutu Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(opportunities): add non-persisting AI review endpoints"
+          git push origin HEAD:agent/opportunity-ai-review
