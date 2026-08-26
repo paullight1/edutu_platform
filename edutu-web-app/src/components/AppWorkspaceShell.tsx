@@ -145,6 +145,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
   const workspaceTitle = workspaceTitleKey ? t(workspaceTitleKey) : greetingLabel;
   const isHomeRoute = pathname === "/dashboard" || pathname === "/app/home";
   const isOpportunityDetailRoute = pathname.startsWith("/app/opportunity/");
+  const isCommunityRoute = pathname.startsWith("/app/community");
 
   const goBack = () => {
     navigate(-1);
@@ -663,7 +664,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         </div>
       ) : null}
 
-      {!isOpportunityDetailRoute ? (
+      {!isOpportunityDetailRoute && !isCommunityRoute ? (
         // No aria-hidden here: the More toggle inside stays focused/interactive
         // while the sheet is open (hiding a focused subtree is an a11y violation).
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden">
@@ -679,7 +680,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             )}
             aria-label="Mobile app navigation"
           >
-          <div className="grid grid-cols-5">
+          <div className="grid grid-cols-4">
             {mobilePrimaryWorkspaceNavItems.map((item) => {
               const Icon = workspaceNavIcons[item.icon];
               const active = isRouteActive(pathname, item.to, item.exact);

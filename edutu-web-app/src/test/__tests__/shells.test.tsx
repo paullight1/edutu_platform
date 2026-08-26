@@ -110,4 +110,18 @@ describe("AppWorkspaceShell", () => {
     fireEvent.click(screen.getByRole("button", { name: /log out/i }));
     expect(workspaceMocks.signOut).toHaveBeenCalledTimes(1);
   });
+
+  it("hands mobile navigation ownership to the community workspace", () => {
+    render(
+      <MemoryRouter initialEntries={["/app/community/explore"]}>
+        <AppWorkspaceShell>
+          <div>Community workspace</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByRole("navigation", { name: "Mobile app navigation" }),
+    ).not.toBeInTheDocument();
+  });
 });

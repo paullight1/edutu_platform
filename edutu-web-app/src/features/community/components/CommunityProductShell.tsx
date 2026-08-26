@@ -4,9 +4,24 @@ import { Compass, MessageCircle, UserCircle, UsersRound } from "lucide-react";
 import { cn } from "../../../lib/cn";
 
 const tabs = [
-  { to: "/app/community/explore", label: "Explore", icon: Compass },
-  { to: "/app/community/groups", label: "Groups", icon: UsersRound },
-  { to: "/app/community/chats", label: "Chats", icon: MessageCircle },
+  {
+    to: "/app/community/explore",
+    desktopLabel: "Explore",
+    mobileLabel: "Discover",
+    icon: Compass,
+  },
+  {
+    to: "/app/community/groups",
+    desktopLabel: "Groups",
+    mobileLabel: "Your groups",
+    icon: UsersRound,
+  },
+  {
+    to: "/app/community/chats",
+    desktopLabel: "Chats",
+    mobileLabel: "Messages",
+    icon: MessageCircle,
+  },
 ];
 
 export default function CommunityProductShell({
@@ -24,7 +39,16 @@ export default function CommunityProductShell({
 
   return (
     <section className="community-product -mx-4 min-h-[calc(100dvh-8rem)] bg-[#fff9f1] text-[#4a170d] dark:bg-surface-body dark:text-text-primary sm:-mx-6 lg:-mx-8">
-      <div className="border-b border-[#f4dcc9] bg-[#fff9f1]/95 px-4 pt-5 backdrop-blur dark:border-subtle dark:bg-surface-body/95 sm:px-6 lg:px-8">
+      <div className="border-b border-[#f4dcc9] bg-[#fff9f1]/95 px-4 py-3 backdrop-blur dark:border-subtle dark:bg-surface-body/95 sm:px-6 lg:hidden">
+        <div className="mx-auto flex min-h-11 max-w-6xl items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate font-display text-lg font-semibold tracking-[-0.02em]">
+            {title}
+          </h1>
+          {action ? <div className="flex shrink-0 items-center">{action}</div> : null}
+        </div>
+      </div>
+
+      <div className="hidden border-b border-[#f4dcc9] bg-[#fff9f1]/95 px-8 pt-5 backdrop-blur dark:border-subtle dark:bg-surface-body/95 lg:block">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f45b16] dark:text-brand">
@@ -55,11 +79,11 @@ export default function CommunityProductShell({
           aria-label="Community sections"
           className="mx-auto mt-5 flex max-w-6xl gap-1 overflow-x-auto pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {tabs.map(({ to, label, icon: Icon }) => {
+          {tabs.map(({ to, desktopLabel, icon: Icon }) => {
             const active =
               pathname === to ||
               pathname.startsWith(`${to}/`) ||
-              (label === "Groups" &&
+              (desktopLabel === "Groups" &&
                 pathname.startsWith("/app/community/groups/"));
             return (
               <NavLink
@@ -74,7 +98,7 @@ export default function CommunityProductShell({
                 )}
               >
                 <Icon size={17} />
-                {label}
+                {desktopLabel}
                 {active ? (
                   <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#f45b16] dark:bg-brand" />
                 ) : null}
@@ -84,9 +108,50 @@ export default function CommunityProductShell({
         </nav>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-8 sm:px-6 sm:py-7 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:px-8 lg:pb-8">
         {children}
       </div>
+
+      <nav
+        aria-label="Community mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-[#f4dcc9] bg-[#fff9f1]/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_-18px_rgba(74,23,13,0.35)] backdrop-blur dark:border-subtle dark:bg-surface-layer/95 lg:hidden"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-3">
+          {tabs.map(({ to, mobileLabel, icon: Icon }) => {
+            const active =
+              pathname === to ||
+              pathname.startsWith(`${to}/`) ||
+              (to.endsWith("/groups") &&
+                pathname.startsWith("/app/community/groups/"));
+
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 px-1 text-2xs font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35",
+                  active
+                    ? "text-[#f45b16] dark:text-brand"
+                    : "text-[#796f6b] hover:text-[#4a170d] dark:text-text-secondary dark:hover:text-text-primary",
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "absolute top-0 h-0.5 w-7 rounded-full transition-opacity",
+                    active
+                      ? "bg-[#f45b16] opacity-100 dark:bg-brand"
+                      : "opacity-0",
+                  )}
+                />
+                <Icon size={21} strokeWidth={active ? 2.5 : 2} />
+                <span className="truncate">{mobileLabel}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      </nav>
     </section>
   );
 }

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import CommunityProductShell from "../../features/community/components/CommunityProductShell";
 
 describe("CommunityProductShell", () => {
-  it("keeps section tabs accessible without mounting a second fixed mobile nav", () => {
+  it("provides a dedicated mobile navigation for community work", () => {
     render(
       <MemoryRouter initialEntries={["/app/community/explore"]}>
         <CommunityProductShell title="Explore">
@@ -19,9 +19,21 @@ describe("CommunityProductShell", () => {
     expect(sections).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Explore/i }).length).toBeGreaterThan(0);
     expect(
-      screen.queryByRole("navigation", {
+      screen.getByRole("navigation", {
         name: "Community mobile navigation",
       }),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Discover" })).toHaveAttribute(
+      "href",
+      "/app/community/explore",
+    );
+    expect(screen.getByRole("link", { name: "Your groups" })).toHaveAttribute(
+      "href",
+      "/app/community/groups",
+    );
+    expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      "href",
+      "/app/community/chats",
+    );
   });
 });

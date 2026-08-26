@@ -1488,6 +1488,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </section>
             )}
 
+            <EventsHomeSection variant="app" />
+
             {user?.id &&
               personalizationReady &&
               !isPersonalized &&
@@ -1987,8 +1989,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   )}
                 </section>
 
-                {/* Upcoming events — hides itself when nothing is scheduled. */}
-                <EventsHomeSection variant="app" />
               </div>
 
             </div>

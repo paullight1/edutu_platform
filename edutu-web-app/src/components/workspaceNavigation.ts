@@ -64,7 +64,6 @@ export const mobilePrimaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     label: "navigation.community",
     icon: "community",
   },
-  { to: "/app/deadlines", label: "navigation.dates", icon: "deadlines" },
 ];
 
 export const mobileMoreWorkspaceNavItems = personalWorkspaceNavItems.filter(

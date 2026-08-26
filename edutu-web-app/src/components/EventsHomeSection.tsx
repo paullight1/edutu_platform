@@ -33,6 +33,7 @@ export default function EventsHomeSection({
   variant = "public",
 }: EventsHomeSectionProps) {
   const [events, setEvents] = useState<EdutuEvent[]>([]);
+  const isPublic = variant === "public";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,11 +49,10 @@ export default function EventsHomeSection({
     return () => controller.abort();
   }, []);
 
-  // Nothing upcoming (or still loading) renders nothing at all, so neither home
-  // shows an empty shell or shifts layout on the common no-events case.
-  if (events.length === 0) return null;
-
-  const isPublic = variant === "public";
+  // The public landing page stays editorial and hides an empty events block.
+  // In the signed-in app, the calendar shortcut remains available even when
+  // there is nothing scheduled yet.
+  if (events.length === 0 && isPublic) return null;
 
   const grid = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -99,22 +99,48 @@ export default function EventsHomeSection({
 
   if (!isPublic) {
     return (
-      <section aria-labelledby="home-events-heading">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <h2
-            id="home-events-heading"
-            className="font-display text-xl font-bold tracking-tight text-text-primary"
-          >
-            Upcoming events
-          </h2>
-          <Link
-            to="/events"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand no-underline transition hover:gap-2"
-          >
-            View more <ArrowRight size={14} />
-          </Link>
-        </div>
-        {grid}
+      <section aria-labelledby="home-calendar-heading" className="space-y-5">
+        <Link
+          to="/app/deadlines"
+          aria-label="Calendar and upcoming dates"
+          className="group flex min-h-[82px] items-center gap-3 rounded-[22px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+            <Calendar size={21} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span
+              id="home-calendar-heading"
+              className="block font-display text-base font-bold tracking-tight"
+            >
+              Calendar &amp; upcoming
+            </span>
+            <span className="mt-0.5 block text-sm leading-5 text-text-secondary">
+              See deadlines, goals, and upcoming events in one place.
+            </span>
+          </span>
+          <ArrowRight
+            size={18}
+            className="shrink-0 text-brand-500 transition-transform group-hover:translate-x-0.5 rtl:rotate-180"
+          />
+        </Link>
+
+        {events.length > 0 ? (
+          <div>
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <h2 className="font-display text-lg font-bold tracking-tight text-text-primary">
+                Upcoming events
+              </h2>
+              <Link
+                to="/events"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand no-underline transition hover:gap-2"
+              >
+                View all <ArrowRight size={14} />
+              </Link>
+            </div>
+            {grid}
+          </div>
+        ) : null}
       </section>
     );
   }
