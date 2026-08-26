@@ -31,6 +31,7 @@ import { ScraperRunControl } from "./scraper-run-control";
 import { ScraperHttpClient } from "./scraper-http-client";
 import { OpportunityStatusRepository } from "./opportunity-status.repository";
 import { ScrapedUrlIndexRepository } from "./scraped-url-index.repository";
+import { mergeRunOutcomes } from "./scraper-run-outcome";
 import {
   ALLOWED_OPPORTUNITY_TYPES,
   APPLY_TEXT_RE,
@@ -1315,6 +1316,7 @@ export class ScraperService implements OnModuleInit {
   }> {
     const allResults: RawItem[] = [];
     const sourceResults: SourceResult[] = [];
+    let runOutcome: RunOutcome | null = null;
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
 
     for (const source of sources) {
@@ -1329,6 +1331,8 @@ export class ScraperService implements OnModuleInit {
       let urlsDiscovered = 0;
       const sourceWarnings: string[] = [];
       const retriedPages = new Set<number>();
+      const sourceItems: RawItem[] = [];
+      let sourceResult: SourceResult | null = null;
 
       onEvent?.({ type: "source-start", name: source.name });
 
@@ -1447,6 +1451,7 @@ export class ScraperService implements OnModuleInit {
               source.config?.content_selectors,
             );
             allResults.push(...enrichedItems);
+            sourceItems.push(...enrichedItems);
             itemsFound += enrichedItems.length;
             // Stream each enriched opportunity to any live listener (SSE).
             for (const item of enrichedItems) {
@@ -1500,7 +1505,7 @@ export class ScraperService implements OnModuleInit {
           sourceFailed ? sourceWarnings[0] : undefined,
         );
         const duration = Math.round((Date.now() - sourceStartTime) / 1000);
-        sourceResults.push({
+        sourceResult = {
           name: source.name,
           url: source.url,
           status: sourceFailed ? "failed" : "success",
@@ -1510,7 +1515,8 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           duration,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
-        });
+        };
+        sourceResults.push(sourceResult);
         onEvent?.({
           type: "source-done",
           name: source.name,
@@ -1532,7 +1538,7 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           error.message,
         );
-        sourceResults.push({
+        sourceResult = {
           name: source.name,
           url: source.url,
           status: "failed",
@@ -1542,20 +1548,29 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           error: error.message,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
-        });
+        };
+        sourceResults.push(sourceResult);
+      } finally {
+        if (sourceItems.length > 0) {
+          try {
+            const sourceOutcome = await this.persistOpportunities(
+              sourceItems,
+              sourceResult ? [sourceResult] : [],
+              jobLogId,
+            );
+            runOutcome = mergeRunOutcomes(runOutcome, sourceOutcome);
+          } catch (error) {
+            this.logger.error(
+              `Failed to persist items for "${source.name}": ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
       }
     }
 
-    let outcome: RunOutcome | null = null;
-    if (allResults.length > 0) {
-      outcome = await this.persistOpportunities(
-        allResults,
-        sourceResults,
-        jobLogId,
-      );
-    }
-
-    return { results: allResults, sourceResults, outcome };
+    return { results: allResults, sourceResults, outcome: runOutcome };
   }
 
   /** Recheck window (days) for incremental runs, from scraper_config. */

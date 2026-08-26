@@ -10,7 +10,9 @@ const budgets = {
   // +5 lines of delegation only; the quality-scorecard query itself lives in
   // its own cohesive module rather than expanding this service.
   "backend/services/services/api/src/opportunities/opportunities.service.ts": 3627,
-  "backend/services/services/api/src/scraper/scraper.service.ts": 3962,
+  // +15 lines for per-source persistence orchestration; outcome aggregation is
+  // extracted into scraper-run-outcome.ts.
+  "backend/services/services/api/src/scraper/scraper.service.ts": 3977,
   "edutu-web-app/src/components/Dashboard.tsx": 2005,
   "edutumobile/app/(app)/chat.tsx": 2245,
   "edutumobile/app/(app)/index.tsx": 3113,
