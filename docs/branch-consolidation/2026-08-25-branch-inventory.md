@@ -1,7 +1,7 @@
 # Edutu Branch Consolidation Inventory
 
-**Generated:** 2026-08-25  
-**Baseline:** `fea6259d6d6ade688009bea0e29b16665d328b93` (`origin/main`)  
+**Generated:** 2026-08-25
+**Baseline:** `fea6259d6d6ade688009bea0e29b16665d328b93` (`origin/main`)
 **Integration branch:** `integration/branch-consolidation-20260825`
 
 ## Status

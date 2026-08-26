@@ -1,7 +1,7 @@
 # Edutu Branch Consolidation Integration Log
 
-**Baseline:** `fea6259d6d6ade688009bea0e29b16665d328b93`  
-**Worktree:** `/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder-integration-20260825`  
+**Baseline:** `fea6259d6d6ade688009bea0e29b16665d328b93`
+**Worktree:** `/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder-integration-20260825`
 **Branch:** `integration/branch-consolidation-20260825`
 
 ## Baseline verification
@@ -106,3 +106,20 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 - Rejected the older `CommunityAppGate`: it owns an obsolete route/page set and would bypass current App-level behavior; the canonical `CommunityAppRouter` already lazy-loads current Community screens.
 - A final fetch discovered `agent/community-legacy-export`, `agent/community-web-clean`, and `archive/web-community-product-legacy-20260826`. The first two add only temporary export workflows; the third is an archive of the already-reviewed stale branch.
 - The local social-identity worktree was inspected read-only and left untouched because its checkout is dirty and its branch is 638 commits behind `origin/main`.
+
+## Final combined verification
+
+**Verified source head:** `ed2a8745` (the final evidence commit changes documentation only)
+
+| Surface | Commands | Result |
+|---|---|---|
+| Repository | architecture budgets; boundary tests; migration ownership/timestamps; admin runtime guard; mobile audit guard; `git diff --check` | PASS — 7 critical-file budgets, 7 boundary tests, 3 migration-ownership tests, 73 migrations with no new timestamp collisions, 3 runtime tests, 5 mobile-audit tests |
+| SEO deployment | route parity, Vercel configuration, hydration, and routing tests | PASS — 12 tests |
+| Backend | lint; full Jest with `--runInBand --no-cache`; build; e2e with `--runInBand --no-cache` | PASS — 193 suites/2,072 unit tests; 4 suites/12 e2e tests |
+| Admin | lint; full Vitest; production build with `VITE_BACKEND_URL=https://api.example.com` | PASS — 29 files/114 tests |
+| Web | lint; typecheck; full Vitest; SEO/PWA production build | PASS — 80 files/395 tests; 21 prerendered routes; PWA output generated |
+| Mobile | lint; typecheck; full Jest with `--runInBand` | PASS — 114 suites/805 tests |
+
+The first combined run correctly failed on two integration-test assumptions: the PGlite catalog fixture lacked `title_fingerprint`, and the page-SEO registry accepted only static HTML despite the verified `/blog` and `/opportunities` API renderers. Commit `ed2a8745` aligned both contracts. Their focused suites passed 8/8 each, followed by the complete green backend and web reruns above.
+
+The web build's generated `public/robots.txt`, `public/sitemap.xml`, and `public/sitemaps/*.xml` outputs were restored/removed after verification; no generated build artifact is part of the integration diff.
