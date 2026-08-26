@@ -60,6 +60,29 @@ describe("Community browser API", () => {
     expect(url).toContain("limit=40");
   });
 
+  it("serializes the complete member-roster cursor", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ members: [], hasMore: false, nextCursor: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new CommunityApi(async () => "token");
+
+    await api.getMembers("group-1", 25, {
+      role: "mod",
+      joinedAt: "2026-08-20T10:00:00.000Z",
+      id: "11111111-1111-4111-8111-111111111111",
+    });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("limit=25");
+    expect(url).toContain("afterRole=mod");
+    expect(url).toContain("afterJoinedAt=2026-08-20T10%3A00%3A00.000Z");
+    expect(url).toContain("afterId=11111111-1111-4111-8111-111111111111");
+  });
+
   it("fetches public group discovery without an Authorization header", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }),

@@ -18,6 +18,7 @@ import Seo from "../../components/Seo";
 import { CommunityApi, uploadCommunityAttachment } from "./api";
 import { classifyCommunityAttachmentFile } from "./attachmentWorkflow";
 import { removeLocalBlockedAuthor } from "./blockState";
+import { useCommunityMemberRoster } from "./useCommunityMemberRoster";
 import CommunityProductShell from "./components/CommunityProductShell";
 import CommunityState from "./components/CommunityState";
 import {
@@ -42,7 +43,6 @@ export default function CommunityGroupSettingsPage() {
   const api = useMemo(() => new CommunityApi(getToken), [getToken]);
   const navigate = useNavigate();
   const [detail, setDetail] = useState<GroupDetail | null>(null);
-  const [members, setMembers] = useState<CommunityMemberSummary[]>([]);
   const [blocks, setBlocks] = useState<BlockedUser[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -56,6 +56,11 @@ export default function CommunityGroupSettingsPage() {
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const canManage = detail
+    ? canManageCommunityGroup(detail, userId)
+    : false;
+  const roster = useCommunityMemberRoster(api, id, canManage, 50);
+  const { members, setMembers } = roster;
 
   useEffect(() => {
     let active = true;
@@ -72,9 +77,8 @@ export default function CommunityGroupSettingsPage() {
         setCoverEmoji(next.group.coverEmoji);
         if (!canManageCommunityGroup(next, userId)) return;
 
-        const [formResult, memberResult, blockResult] = await Promise.allSettled([
+        const [formResult, blockResult] = await Promise.allSettled([
           api.getForm(id),
-          api.getMembers(id, 100),
           api.listBlocks(),
         ]);
         if (!active) return;
@@ -90,9 +94,6 @@ export default function CommunityGroupSettingsPage() {
                 : {}),
             })),
           );
-        }
-        if (memberResult.status === "fulfilled") {
-          setMembers(memberResult.value.members);
         }
         if (blockResult.status === "fulfilled") {
           setBlocks(blockResult.value);
@@ -135,7 +136,7 @@ export default function CommunityGroupSettingsPage() {
     );
   }
 
-  if (!canManageCommunityGroup(detail, userId)) {
+  if (!canManage) {
     return (
       <CommunityProductShell title="Community settings">
         <CommunityState
@@ -482,6 +483,12 @@ export default function CommunityGroupSettingsPage() {
                 );
               })}
             </div>
+            {roster.error ? <p className="mt-3 text-sm text-red-600" role="alert">{roster.error}</p> : null}
+            {roster.hasMore ? (
+              <button type="button" disabled={roster.loadingMore} onClick={() => void roster.loadMore()} className="mx-auto mt-3 block min-h-10 rounded-xl px-4 text-sm font-bold text-[#f45b16] disabled:opacity-50">
+                {roster.loadingMore ? "Loading…" : "Load more members"}
+              </button>
+            ) : null}
           </SettingsSection>
 
           <SettingsSection

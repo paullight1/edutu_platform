@@ -17,9 +17,9 @@ import {
 import Seo from "../../components/Seo";
 import { CommunityApi, isCommunityApiError } from "./api";
 import { useGroupMessages } from "./useGroupMessages";
+import { useCommunityMemberRoster } from "./useCommunityMemberRoster";
 import type {
   CommunityGroupResource,
-  CommunityMemberSummary,
   CommunityMessage,
   GroupDetail,
   GroupForm,
@@ -606,20 +606,10 @@ function AboutPanel({
   onError: (message: string | null) => void;
 }) {
   const { group, membership } = detail;
-  const [members, setMembers] = useState<CommunityMemberSummary[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(true);
+  const roster = useCommunityMemberRoster(api, group.id, true, 20);
   const [inviteUserId, setInviteUserId] = useState("");
   const [working, setWorking] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let active = true;
-    void api.getMembers(group.id, 100)
-      .then((result) => { if (active) setMembers(result.members); })
-      .catch(() => undefined)
-      .finally(() => { if (active) setLoadingMembers(false); });
-    return () => { active = false; };
-  }, [api, group.id]);
 
   const leave = async () => {
     if (!userId || !membership) return;
@@ -667,9 +657,9 @@ function AboutPanel({
             <div><h2 className="font-display text-lg font-semibold text-[#4a170d] dark:text-text-primary">Members</h2><p className="mt-1 text-xs text-[#796f6b] dark:text-text-secondary">Only active members appear here.</p></div>
             <span className="text-xs font-bold text-[#9a8278]">{group.memberCount}</span>
           </div>
-          {loadingMembers ? <p className="mt-4 text-sm text-[#796f6b]">Loading members…</p> : (
+          {roster.loading ? <p className="mt-4 text-sm text-[#796f6b]">Loading members…</p> : (
             <div className="mt-4 divide-y divide-[#f4dcc9] dark:divide-subtle">
-              {members.slice(0, 20).map((member) => (
+              {roster.members.map((member) => (
                 <div key={member.membership.id} className="flex min-h-14 items-center gap-3 py-2">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fcead5] text-xs font-extrabold text-[#8f3f1b] dark:bg-surface-elevated">{member.profile.displayName.slice(0, 1).toUpperCase()}</span>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#4a170d] dark:text-text-primary">{member.profile.displayName}</p><p className="text-xs capitalize text-[#796f6b] dark:text-text-secondary">{member.membership.role === "mod" ? "Moderator" : member.membership.role}</p></div>
@@ -677,6 +667,12 @@ function AboutPanel({
               ))}
             </div>
           )}
+          {roster.error ? <p className="mt-3 text-sm text-red-600" role="alert">{roster.error}</p> : null}
+          {roster.hasMore ? (
+            <button type="button" disabled={roster.loadingMore} onClick={() => void roster.loadMore()} className="mx-auto mt-3 block min-h-10 rounded-xl px-4 text-sm font-bold text-[#f45b16] disabled:opacity-50">
+              {roster.loadingMore ? "Loading…" : "Load more members"}
+            </button>
+          ) : null}
         </section>
       </div>
 

@@ -67,9 +67,16 @@ export interface CommunityMemberSummary {
   profile: MessageAuthor;
 }
 
+export interface CommunityMemberCursor {
+  role: MemberRole;
+  joinedAt: string;
+  id: string;
+}
+
 export interface CommunityMemberList {
   members: CommunityMemberSummary[];
   hasMore: boolean;
+  nextCursor: CommunityMemberCursor | null;
 }
 
 export type GroupQuestion =

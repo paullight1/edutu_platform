@@ -8,6 +8,7 @@ import type {
   CommunityGroup,
   CommunityGroupImageUploadInput,
   CommunityGroupMember,
+  CommunityMemberCursor,
   CommunityMemberList,
   CommunityMessage,
   CommunityProfileContentPage,
@@ -216,9 +217,18 @@ export class CommunityApi {
     return this.request(`/communities/groups/${encodeURIComponent(groupId)}`);
   }
 
-  getMembers(groupId: string, limit = 100): Promise<CommunityMemberList> {
+  getMembers(
+    groupId: string,
+    limit = 100,
+    cursor: CommunityMemberCursor | null = null,
+  ): Promise<CommunityMemberList> {
     return this.request(
-      `/communities/groups/${encodeURIComponent(groupId)}/members${queryString({ limit })}`,
+      `/communities/groups/${encodeURIComponent(groupId)}/members${queryString({
+        limit,
+        afterRole: cursor?.role,
+        afterJoinedAt: cursor?.joinedAt,
+        afterId: cursor?.id,
+      })}`,
     );
   }
 
