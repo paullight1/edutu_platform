@@ -55,6 +55,12 @@ import {
   shareOutcomeMessage,
 } from "../services/opportunityShare";
 import DashboardOpportunityCard from "./dashboard/DashboardOpportunityCard";
+import { ProfileCompletionPrompt } from "./dashboard/ProfileCompletionPrompt";
+import {
+  dismissProfilePromptForSession,
+  readDismissedProfilePromptSession,
+  shouldShowProfileCompletionPrompt,
+} from "./dashboard/profileCompletionPromptState";
 import {
   createOpportunityShuffleSeed,
   shuffleOpportunityFeed,
@@ -428,7 +434,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const { isDarkMode } = useDarkMode();
     const prefersReducedMotion = useReducedMotion();
     const { t } = useTranslation();
-    const { getToken } = useClerkAuth();
+    const { getToken, sessionId } = useClerkAuth();
     const toast = useToast();
     const routerNavigate = useNavigate();
     const {
@@ -536,11 +542,41 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       missingFields: string[];
       isMatchEnabled: boolean;
     } | null>(null);
+    const [dismissedProfilePromptSessionId, setDismissedProfilePromptSessionId] =
+      useState<string | null>(() =>
+        readDismissedProfilePromptSession(
+          typeof window === "undefined" ? null : window.sessionStorage,
+        ),
+      );
     const [backendProfile, setBackendProfile] = useState<BackendProfile | null>(null);
     // Hero banners are admin-managed (Settings → Web hero banners); the
     // hardcoded defaults only show until the public config loads or when the
     // admin list is empty/unreachable.
     const [heroBanners, setHeroBanners] = useState<BannerAd[]>(DEFAULT_BANNERS);
+
+    const profilePromptSessionId =
+      sessionId ?? (user?.id ? `user:${user.id}` : null);
+    const showProfileCompletionPrompt = shouldShowProfileCompletionPrompt({
+      isSignedIn: Boolean(user?.id),
+      profileScore: profileScore?.score ?? null,
+      dismissed:
+        Boolean(profilePromptSessionId) &&
+        dismissedProfilePromptSessionId === profilePromptSessionId,
+    });
+
+    const dismissProfileCompletionPrompt = useCallback(() => {
+      if (!profilePromptSessionId) return;
+      setDismissedProfilePromptSessionId(profilePromptSessionId);
+      dismissProfilePromptForSession(
+        typeof window === "undefined" ? null : window.sessionStorage,
+        profilePromptSessionId,
+      );
+    }, [profilePromptSessionId]);
+
+    const startProfileCompletion = useCallback(() => {
+      dismissProfileCompletionPrompt();
+      routerNavigate("/app/personalization");
+    }, [dismissProfileCompletionPrompt, routerNavigate]);
 
     useEffect(() => {
       let cancelled = false;
@@ -1278,6 +1314,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       <div
         className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
+        <ProfileCompletionPrompt
+          open={showProfileCompletionPrompt}
+          missingFields={profileScore?.missingFields ?? []}
+          onComplete={startProfileCompletion}
+          onDismiss={dismissProfileCompletionPrompt}
+        />
+
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
 
