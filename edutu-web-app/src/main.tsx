@@ -6,7 +6,7 @@ import './index.css';
 import './i18n';
 
 import { ThemeProvider } from './hooks/useTheme';
-import CommunityAppGate from './components/CommunityAppGate';
+import PublicRouteGate from './components/PublicRouteGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import WhatsNewNotification from './components/WhatsNewNotification';
@@ -23,6 +23,7 @@ import { PersonalizationProvider } from './hooks/usePersonalization';
 import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
 import { AnalyticsProvider } from './hooks/useAnalytics';
+import { preconnectAuthOrigins } from './lib/authWarmup';
 
 // The production Clerk instance (clerk.edutu.org). Publishable keys are
 // public by design — this ships in every browser bundle either way.
@@ -49,6 +50,11 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
 }
 
 initSentry();
+
+preconnectAuthOrigins({
+  clerkPublishableKey: clerkPubKey,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+});
 
 // Loading fallback for Suspense
 const LoadingScreen = () => (
@@ -79,7 +85,7 @@ root.render(
                       <AnalyticsProvider>
                         <NotificationsProvider>
                           <GoalsProvider>
-                            <CommunityAppGate />
+                            <PublicRouteGate />
                             <WhatsNewNotification />
                           </GoalsProvider>
                         </NotificationsProvider>

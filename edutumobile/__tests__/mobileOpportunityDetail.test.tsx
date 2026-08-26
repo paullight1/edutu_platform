@@ -285,6 +285,18 @@ function pressNearestTouchTarget(node: any) {
   current.props.onPress?.();
 }
 
+function expandApplicationSupport(getByText: (text: string) => any) {
+  fireEvent.press(getByText('Help me apply'));
+}
+
+function collectRenderedText(node: unknown): string[] {
+  if (typeof node === 'string') return [node];
+  if (Array.isArray(node)) return node.flatMap(collectRenderedText);
+  if (!node || typeof node !== 'object' || !('children' in node)) return [];
+
+  return collectRenderedText((node as { children?: unknown }).children);
+}
+
 function makeOpportunity() {
   return {
     id: 'opp-1',
@@ -360,6 +372,7 @@ describe('mobile opportunity detail route', () => {
     const { getByText } = render(<OpportunityDetailScreen />);
     await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
 
+    expandApplicationSupport(getByText);
     fireEvent.press(getByText('Ask Edutu more…'));
 
     expect(mockPush).toHaveBeenCalledWith(
@@ -396,8 +409,9 @@ describe('mobile opportunity detail route', () => {
     const { getByText } = render(<OpportunityDetailScreen />);
     await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
 
-    // The chip renders for guests too — this is the whole point of the fix:
-    // it used to be nested inside an `isSignedIn &&` block and disappeared.
+    // The support section remains available to guests; opening it reveals
+    // the same Ask Edutu action without exposing signed-in-only tools.
+    expandApplicationSupport(getByText);
     const chip = getByText('Ask Edutu more…');
     expect(chip).toBeTruthy();
 
@@ -424,10 +438,29 @@ describe('mobile opportunity detail route', () => {
     expect(queryByText('Explain fit')).toBeNull();
     expect(queryByText('Tailor CV')).toBeNull();
     expect(queryByText('Plan prep')).toBeNull();
+    expect(queryByText('Am I a fit?')).toBeNull();
+
+    expandApplicationSupport(getByText);
+
     // The win-coach pills stay: they answer in place.
     expect(getByText('Am I a fit?')).toBeTruthy();
     expect(getByText('Next move')).toBeTruthy();
     expect(getByText('Upload your CV for a sharper fit check')).toBeTruthy();
+  });
+
+  it('places optional application support after source-backed opportunity details', async () => {
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+
+    const { getByText, toJSON } = render(<OpportunityDetailScreen />);
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+
+    const renderedText = collectRenderedText(toJSON());
+    const about = renderedText.indexOf('About This Opportunity');
+    const support = renderedText.indexOf('Help me apply');
+
+    expect(about).toBeGreaterThan(-1);
+    expect(support).toBeGreaterThan(about);
   });
 
   it('never invents an applicant count when the data is missing', async () => {
@@ -470,6 +503,7 @@ describe('mobile opportunity detail route', () => {
       await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
 
       await waitFor(() => expect(getByText('Strong fit')).toBeTruthy());
+      expandApplicationSupport(getByText);
       expect(getByText('Matches your interest in Climate')).toBeTruthy();
       expect(queryByText('Not ranked yet')).toBeNull();
     });
@@ -482,6 +516,7 @@ describe('mobile opportunity detail route', () => {
 
       const { getByText, queryAllByText } = render(<OpportunityDetailScreen />);
       await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+      expandApplicationSupport(getByText);
 
       // Was rendered twice: the decision strip's fit cell AND the fit panel.
       expect(queryAllByText('Not ranked yet')).toHaveLength(1);
@@ -615,6 +650,7 @@ describe('mobile opportunity detail route', () => {
         message: expect.any(String),
       }));
 
+      expandApplicationSupport(getByText);
       jest.useFakeTimers();
       await act(async () => {
         pressNearestTouchTarget(getByText('Generate ROADMAP using AI'));

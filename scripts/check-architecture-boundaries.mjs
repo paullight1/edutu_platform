@@ -7,6 +7,10 @@ const CANONICAL_API_FILES = [
   "backend/services/services/api/src/main.ts",
 ];
 
+const ADMIN_ENGINE_LEGACY_FILE = "admin/src/pages/Scraper.tsx";
+const ADMIN_ENGINE_FORBIDDEN_IMPLEMENTATION =
+  /\b(?:useState|useEffect|useRef|useCallback)\s*\(|\bfetch\s*\(|\bconfirm\s*\(|\bgetAdminAuthHeaders\b|\bbackendFetchJson\b|\bopenRunStream\b/u;
+
 const ALLOWED_MIGRATION_ROOTS = new Set([
   "backend/services/services/api/supabase/migrations",
   "supabase/migrations",
@@ -128,6 +132,24 @@ async function inspectClientBoundary(root, files) {
   return violations;
 }
 
+async function inspectRetiredAdminEngineRoute(root, files) {
+  if (!files.includes(ADMIN_ENGINE_LEGACY_FILE)) return [];
+
+  const content = await readFile(resolve(root, ADMIN_ENGINE_LEGACY_FILE), "utf8");
+  const lineCount = content.trimEnd().split(/\r?\n/u).length;
+
+  if (
+    lineCount > 8 ||
+    ADMIN_ENGINE_FORBIDDEN_IMPLEMENTATION.test(content)
+  ) {
+    return [
+      `legacy Engine route must not contain implementation: ${ADMIN_ENGINE_LEGACY_FILE}`,
+    ];
+  }
+
+  return [];
+}
+
 export async function inspectArchitecture(root) {
   const violations = [];
 
@@ -170,6 +192,7 @@ export async function inspectArchitecture(root) {
   }
 
   violations.push(...(await inspectClientBoundary(root, files)));
+  violations.push(...(await inspectRetiredAdminEngineRoute(root, files)));
   return [...new Set(violations)].sort();
 }
 

@@ -2,6 +2,8 @@ import type {
   Opportunity,
   OpportunityDifficulty,
   OpportunitySource,
+  OpportunityTrust,
+  DeadlineConfidence,
 } from "../types/opportunity";
 import {
   differenceInCalendarDays,
@@ -214,6 +216,39 @@ function pickOptionalString(...values: unknown[]): string | undefined {
 
 function pickNullableString(...values: unknown[]): string | null {
   return pickOptionalString(...values) ?? null;
+}
+
+function normalizeDeadlineConfidence(value: unknown): DeadlineConfidence | null {
+  return value === "explicit" ||
+    value === "inferred" ||
+    value === "rolling" ||
+    value === "unknown"
+    ? value
+    : null;
+}
+
+/**
+ * Narrow the backend's `trust` block. Absent on legacy/admin payloads, so the
+ * UI treats a missing block as "no signal" rather than fabricating one.
+ */
+function pickOpportunityTrust(value: unknown): OpportunityTrust | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  return {
+    verificationStatus:
+      typeof raw.verificationStatus === "string"
+        ? raw.verificationStatus
+        : "unverified",
+    lastVerifiedAt:
+      typeof raw.lastVerifiedAt === "string" ? raw.lastVerifiedAt : null,
+    deadlineConfidence: normalizeDeadlineConfidence(raw.deadlineConfidence),
+    verificationMethod:
+      typeof raw.verificationMethod === "string"
+        ? raw.verificationMethod
+        : null,
+    sourceDomain:
+      typeof raw.sourceDomain === "string" ? raw.sourceDomain : null,
+  };
 }
 
 function pickOptionalBoolean(...values: unknown[]): boolean | undefined {
@@ -644,6 +679,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     viewCount: pickOptionalNumber(row.view_count, row.viewCount),
     applyCount: pickOptionalNumber(row.apply_count, row.applyCount),
     bookmarkCount: pickOptionalNumber(row.bookmark_count, row.bookmarkCount),
+    trust: pickOpportunityTrust(row.trust),
   };
 }
 

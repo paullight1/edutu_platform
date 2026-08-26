@@ -18,6 +18,12 @@ import {
 } from "./deadline.util";
 import { AiService } from "../ai";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
+import { SCRAPER_FETCH_RELAY_URL } from "../scraper/scraper.config";
+import {
+  classifyHttpStatus,
+  decideHealthOutcome,
+  isInconclusive,
+} from "./verification-classify";
 
 export interface VerificationRunOptions {
   limit?: number;
@@ -58,6 +64,7 @@ type VerificationOutcome = {
    */
   newCloseDate?: string | null;
   newDeadlineConfidence?: DeadlineConfidence;
+  newBrokenLinkCount?: number;
   submissionId?: string | null;
   submissionReviewVersion?: number | null;
   verificationOperationId?: string | null;
@@ -888,8 +895,8 @@ export class OpportunityVerificationService {
     const page = await this.fetchPageText(url, signal);
     base.httpStatus = page.httpStatus;
 
-    if (page.error && page.httpStatus === null) {
-      // Transient network failure — don't close on missing evidence.
+    const fetchClass = classifyHttpStatus(page.httpStatus);
+    if (isInconclusive(fetchClass)) {
       return {
         ...base,
         status: "stale",
@@ -898,8 +905,13 @@ export class OpportunityVerificationService {
         nextCheckAt: this.hoursFromNow(12),
       };
     }
-    if (page.httpStatus === 404 || page.httpStatus === 410) {
-      return { ...base, status: "broken_link", error: page.error };
+    if (fetchClass === "dead") {
+      return {
+        ...base,
+        status: "broken_link",
+        error: page.error,
+        newBrokenLinkCount: Number(candidate.broken_link_count ?? 0) + 1,
+      };
     }
     if (!page.text || pageSaysClosed(page.text)) {
       return base;
@@ -1069,6 +1081,38 @@ export class OpportunityVerificationService {
     text: string | null;
     error: string | null;
   }> {
+    const direct = await this.rawFetchPageText(url, signal);
+    if (
+      process.env.OPPORTUNITY_VERIFICATION_RELAY !== "false" &&
+      SCRAPER_FETCH_RELAY_URL &&
+      isInconclusive(classifyHttpStatus(direct.httpStatus))
+    ) {
+      const relayed = await this.rawFetchPageText(
+        this.buildRelayUrl(url),
+        signal,
+      );
+      if (classifyHttpStatus(relayed.httpStatus) === "ok" && relayed.text) {
+        return relayed;
+      }
+    }
+    return direct;
+  }
+
+  private buildRelayUrl(url: string): string {
+    const encoded = encodeURIComponent(url);
+    return SCRAPER_FETCH_RELAY_URL.includes("{url}")
+      ? SCRAPER_FETCH_RELAY_URL.replace("{url}", encoded)
+      : `${SCRAPER_FETCH_RELAY_URL}${encoded}`;
+  }
+
+  private async rawFetchPageText(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<{
+    httpStatus: number | null;
+    text: string | null;
+    error: string | null;
+  }> {
     try {
       const response = await this.fetchWithTimeout(url, "GET", 15000, signal);
       if (response.status >= 400) {
@@ -1117,36 +1161,25 @@ export class OpportunityVerificationService {
       };
     }
 
-    if (check.ok) {
-      return {
-        opportunityId: candidate.id,
-        title: candidate.title,
-        url,
-        status: "verified",
-        opportunityStatus: "active",
-        httpStatus: check.httpStatus,
-        error: null,
-        nextCheckAt: this.nextHealthyCheck(candidate),
-        ...this.submissionContext(candidate),
-      };
-    }
-
-    const hardBroken =
-      check.httpStatus === 404 ||
-      check.httpStatus === 410 ||
-      Number(candidate.broken_link_count ?? 0) >= 1;
+    const decision = decideHealthOutcome({
+      fetchClass: classifyHttpStatus(check.httpStatus),
+      currentStatus: candidate.status,
+      currentBrokenCount: candidate.broken_link_count,
+    });
 
     return {
       opportunityId: candidate.id,
       title: candidate.title,
       url,
-      status: hardBroken ? "broken_link" : "stale",
-      opportunityStatus: hardBroken
-        ? "pending_review"
-        : candidate.status || "active",
+      status: decision.verificationStatus,
+      opportunityStatus: decision.opportunityStatus,
       httpStatus: check.httpStatus,
-      error: check.error,
-      nextCheckAt: this.hoursFromNow(hardBroken ? 24 * 7 : 12),
+      error: decision.verificationStatus === "verified" ? null : check.error,
+      nextCheckAt:
+        decision.verificationStatus === "verified"
+          ? this.nextHealthyCheck(candidate)
+          : this.hoursFromNow(decision.recheckHours),
+      newBrokenLinkCount: decision.brokenLinkCount,
       ...this.submissionContext(candidate),
     };
   }
@@ -1199,9 +1232,9 @@ export class OpportunityVerificationService {
         last_verified_at = now(),
         last_http_status = ${outcome.httpStatus},
         broken_link_count = case
+          when ${outcome.newBrokenLinkCount ?? null}::int is not null
+            then ${outcome.newBrokenLinkCount ?? null}::int
           when ${outcome.status} = 'verified' then 0
-          when ${outcome.status} in ('broken_link', 'stale', 'needs_review')
-            then coalesce(broken_link_count, 0) + 1
           else coalesce(broken_link_count, 0)
         end,
         updated_at = now()
@@ -1237,29 +1270,47 @@ export class OpportunityVerificationService {
   }
 
   private async checkUrl(url: string, signal?: AbortSignal) {
+    let status: number | null = null;
+    let requestError: string | null = null;
     try {
       const head = await this.fetchWithTimeout(url, "HEAD", 12000, signal);
-      if (head.status === 405 || head.status === 403) {
-        const get = await this.fetchWithTimeout(url, "GET", 12000, signal);
-        return {
-          httpStatus: get.status,
-          ok: get.status >= 200 && get.status < 400,
-          error: get.status >= 400 ? `HTTP ${get.status}` : null,
-        };
+      status = head.status;
+      if (isInconclusive(classifyHttpStatus(status))) {
+        try {
+          const get = await this.fetchWithTimeout(url, "GET", 12000, signal);
+          status = get.status;
+        } catch (error) {
+          // Keep the HEAD result and give the relay a chance below.
+          requestError =
+            error instanceof Error ? error.message : "GET verification failed";
+        }
       }
-
-      return {
-        httpStatus: head.status,
-        ok: head.status >= 200 && head.status < 400,
-        error: head.status >= 400 ? `HTTP ${head.status}` : null,
-      };
     } catch (error) {
-      return {
-        httpStatus: null,
-        ok: false,
-        error: error instanceof Error ? error.message : "URL check failed",
-      };
+      // A network failure is inconclusive and may still succeed via the relay.
+      requestError =
+        error instanceof Error ? error.message : "URL verification failed";
     }
+
+    if (
+      isInconclusive(classifyHttpStatus(status)) &&
+      process.env.OPPORTUNITY_VERIFICATION_RELAY !== "false" &&
+      SCRAPER_FETCH_RELAY_URL
+    ) {
+      const relayed = await this.rawFetchPageText(
+        this.buildRelayUrl(url),
+        signal,
+      );
+      if (classifyHttpStatus(relayed.httpStatus) === "ok" && relayed.text) {
+        status = relayed.httpStatus;
+      }
+    }
+
+    const ok = classifyHttpStatus(status) === "ok";
+    return {
+      httpStatus: status,
+      ok,
+      error: ok ? null : (requestError ?? `HTTP ${status ?? "error"}`),
+    };
   }
 
   private async fetchWithTimeout(

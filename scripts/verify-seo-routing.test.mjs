@@ -17,13 +17,16 @@ const requiredRoutes = new Map([
   ["/blog", "/seo/blog"],
   ["/blog/:slug", "/seo/blog/:slug"],
   ["/opportunities", "/seo/opportunities"],
-  ["/opportunities/:category", "/seo/opportunities/:category"],
+  [
+    "/opportunities/:category",
+    "/seo-hydration/opportunities/:category",
+  ],
   ["/opportunity/:id", "/seo/opportunity/:id"],
   ["/share/opportunity/:id", "/seo/share/opportunity/:id"],
   ["/events/:slugOrId", "/seo/event/:slugOrId"],
 ]);
 
-test("every public SEO route has the consolidated backend as its owner", () => {
+test("every public SEO route has an explicit backend owner", () => {
   for (const [source, expectedPath] of requiredRoutes) {
     const rewrite = rewriteFor(source);
     assert.ok(rewrite, `Missing rewrite for ${source}`);

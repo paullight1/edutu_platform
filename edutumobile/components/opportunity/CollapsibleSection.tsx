@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { ChevronDown } from "lucide-react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useTheme } from "../context/ThemeContext";
@@ -71,7 +72,10 @@ export function CollapsibleSection({
   const [fullContentVisible, setFullContentVisible] = useState(false);
   const textSecondary = isDark ? "#94A3B8" : "#64748B";
   const wantsProgressiveDisclosure = progressiveDisclosure ?? defaultExpanded;
-  const narrativeText = useMemo(() => extractNarrativeText(children), [children]);
+  const narrativeText = useMemo(
+    () => extractNarrativeText(children),
+    [children],
+  );
   const useProgressiveDisclosure =
     wantsProgressiveDisclosure && needsProgressiveDisclosure(narrativeText);
   const displayChildren = useMemo(
@@ -163,6 +167,14 @@ export function CollapsibleSection({
             ]}
           >
             {displayChildren}
+            {contentIsClipped ? (
+              <LinearGradient
+                testID="collapsible-content-fade"
+                pointerEvents="none"
+                colors={["transparent", colors.background]}
+                style={styles.contentFade}
+              />
+            ) : null}
           </View>
 
           {useProgressiveDisclosure ? (
@@ -171,7 +183,13 @@ export function CollapsibleSection({
               onPress={toggleFullContent}
               scaleTo={0.98}
               hapticFeedback="selection"
-              style={styles.viewMoreButton}
+              style={[
+                styles.viewMoreButton,
+                {
+                  backgroundColor: `${colors.accent}0D`,
+                  borderColor: `${colors.accent}24`,
+                },
+              ]}
               accessibilityRole="button"
               accessibilityState={{ expanded: fullContentVisible }}
               accessibilityLabel={
@@ -224,16 +242,28 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
   },
   body: { paddingBottom: 18, gap: 10 },
-  contentClip: { gap: 10 },
+  contentClip: { gap: 10, position: "relative" },
+  contentFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 78,
+  },
   viewMoreButton: {
-    alignSelf: "flex-start",
-    minHeight: 36,
+    alignSelf: "stretch",
+    minHeight: 42,
     justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    borderCurve: "continuous",
+    paddingHorizontal: 12,
   },
   viewMoreInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    gap: 5,
   },
   viewMoreText: {
     fontSize: 14,

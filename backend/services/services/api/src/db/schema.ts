@@ -229,6 +229,7 @@ export const opportunities = pgTable(
     sourceUrl: text("source_url").unique(),
     canonicalUrl: text("canonical_url"),
     contentFingerprint: text("content_fingerprint"),
+    titleFingerprint: text("title_fingerprint"),
     applyUrl: text("apply_url"),
     applicationUrl: text("application_url"),
     imageUrl: text("image_url"),

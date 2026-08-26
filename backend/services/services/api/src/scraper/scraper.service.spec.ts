@@ -106,6 +106,55 @@ describe("ScraperService", () => {
     });
   });
 
+  describe("crawl persistence", () => {
+    it("persists each completed source before crawling the next source", async () => {
+      const internal = service as any;
+      internal.fetchListHTML = jest.fn().mockResolvedValue("<html></html>");
+      internal.extractItemsFromList = jest.fn((_html, source) => [
+        {
+          title: `${source.name} scholarship`,
+          source: source.name,
+          sourceUrl: `${source.url}/opportunity`,
+        },
+      ]);
+      internal.enrichItems = jest.fn(async (items) => items);
+      internal.delay = jest.fn().mockResolvedValue(undefined);
+      internal.updateSourceStatus = jest.fn().mockResolvedValue(undefined);
+      internal.scrapedUrlIndexRepository = {
+        recordDiscovered: jest.fn().mockResolvedValue(undefined),
+      };
+      internal.persistOpportunities = jest.fn(async (items) => ({
+        saved: items.length,
+        published: items.length,
+        needsReview: 0,
+        withDeadline: 0,
+        withImage: 0,
+        withOrganization: 0,
+        withDirectApplyLink: 0,
+        duplicateImagesStripped: 0,
+        missingFieldCounts: {},
+      }));
+
+      const result = await internal.crawlSources(
+        [
+          { id: 1, name: "Source A", url: "https://a.example", config: {} },
+          { id: 2, name: "Source B", url: "https://b.example", config: {} },
+        ],
+        1,
+        "job-1",
+      );
+
+      expect(internal.persistOpportunities).toHaveBeenCalledTimes(2);
+      expect(internal.persistOpportunities.mock.calls[0][0]).toEqual([
+        expect.objectContaining({ source: "Source A" }),
+      ]);
+      expect(internal.persistOpportunities.mock.calls[1][0]).toEqual([
+        expect.objectContaining({ source: "Source B" }),
+      ]);
+      expect(result.outcome).toMatchObject({ saved: 2, published: 2 });
+    });
+  });
+
   describe("parseAmount", () => {
     it("should parse USD amount", () => {
       const result = (service as any).parseAmount("$5000");
@@ -320,6 +369,49 @@ describe("ScraperService", () => {
       );
 
       expect(result).toBe("https://provider.example/apply");
+    });
+  });
+
+  describe("extractApplyLink", () => {
+    // The aggregator we're scraping; a real apply link points OFF this host.
+    const sourceHost = "jobs.smartyacad.com";
+    const baseUrl = "https://jobs.smartyacad.com/rhodes-scholarship/";
+
+    it("does not pick an external listing/taxonomy page as the apply link", () => {
+      const html = `
+        <html><body>
+          <a href="https://opportunitiesforafricans.com/category/botswana/" class="apply-button">Apply Now</a>
+        </body></html>`;
+      const result = (service as any).extractApplyLink(
+        html,
+        sourceHost,
+        baseUrl,
+      );
+      // A /category/ page lists many opportunities — it is never one item's
+      // application URL, even when it is external and the text says "Apply".
+      expect(result).toBeNull();
+    });
+
+    it("rejects an external /tag/ and /page/ listing too", () => {
+      for (const path of ["/tag/scholarships/", "/opportunities/page/2/"]) {
+        const html = `<a href="https://example.org${path}" class="apply-button">Apply Now</a>`;
+        expect(
+          (service as any).extractApplyLink(html, sourceHost, baseUrl),
+        ).toBeNull();
+      }
+    });
+
+    it("still returns a genuine external application URL", () => {
+      const html = `
+        <html><body>
+          <a href="https://rhodeshouse.ox.ac.uk/apply/" class="apply-button">Apply Now</a>
+        </body></html>`;
+      const result = (service as any).extractApplyLink(
+        html,
+        sourceHost,
+        baseUrl,
+      );
+      expect(result).toBe("https://rhodeshouse.ox.ac.uk/apply/");
     });
   });
 

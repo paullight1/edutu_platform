@@ -32,12 +32,23 @@ Never reuse an existing timestamp prefix.
 
 ## CI guard
 
-`scripts/check-migration-timestamps.mjs` validates the authoritative tree. Five timestamp collisions predate this rule and are already applied; they are explicitly grandfathered. Any new collision fails CI.
+Repository Governance applies complementary checks:
+
+- `scripts/check-migration-ownership.mjs` freezes each historical migration
+  directory by its Git tree SHA, so additions, edits, renames, and deletions
+  fail CI.
+- The workflow's legacy-tree diff guard rejects changes relative to the pull
+  request or push base.
+- `scripts/check-migration-timestamps.mjs` validates the authoritative tree.
+  Five timestamp collisions predate this rule and are already applied; they
+  remain explicitly grandfathered. Any new collision fails CI.
 
 Run locally with:
 
 ```bash
 node scripts/check-migration-timestamps.mjs
+node --test scripts/migration-ownership.test.mjs
+node scripts/check-migration-ownership.mjs
 ```
 
 Do not add a new collision to the grandfather list to make CI pass. Pick a fresh timestamp instead.

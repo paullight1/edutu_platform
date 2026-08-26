@@ -3,6 +3,7 @@ import {
   cleanOpportunityNarrative,
   needsProgressiveDisclosure,
   previewText,
+  shouldShowOpportunitySummary,
 } from "../opportunityDisplay";
 
 describe("opportunity display cleanup", () => {
@@ -16,7 +17,9 @@ describe("opportunity display cleanup", () => {
       Join our WhatsApp channel for updates.
     `);
 
-    expect(cleaned).not.toMatch(/Advertisement|Apply now|https?:\/\/|WhatsApp/i);
+    expect(cleaned).not.toMatch(
+      /Advertisement|Apply now|https?:\/\/|WhatsApp/i,
+    );
     expect(cleaned).toContain("27 to 29 July 2026");
     expect(cleaned).toContain("\n\n");
   });
@@ -54,5 +57,27 @@ describe("opportunity display cleanup", () => {
       ),
     ).toBe(true);
     expect(needsProgressiveDisclosure("Detailed copy ".repeat(50))).toBe(true);
+  });
+
+  it("hides a summary that repeats the description", () => {
+    const description =
+      "The programme supports founders with practical business training and expert guidance. Participants also build useful peer networks.";
+
+    expect(shouldShowOpportunitySummary(description, description)).toBe(false);
+    expect(
+      shouldShowOpportunitySummary(
+        "The programme supports founders with practical business training and expert guidance.",
+        description,
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps a concise summary when it adds distinct decision context", () => {
+    expect(
+      shouldShowOpportunitySummary(
+        "A three-day hybrid programme for registered and unregistered SME owners.",
+        "Participants receive practical training on profitability, operations and business networks from experienced facilitators.",
+      ),
+    ).toBe(true);
   });
 });

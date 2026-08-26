@@ -95,8 +95,7 @@ const BLOCK_TAG_RE =
   /<\/?(?:article|aside|blockquote|br|div|footer|h[1-6]|header|li|main|nav|ol|p|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>/gi;
 const OTHER_TAG_RE = /<[^>]+>/g;
 const RAW_URL_RE = /(?:https?:\/\/|www\.)\S+/gi;
-const BULLET_PREFIX_RE =
-  /^\s*(?:[-–—•●▪◦*✓✔☑→›»]+|\d+[.)]|[a-z][.)])\s*/i;
+const BULLET_PREFIX_RE = /^\s*(?:[-–—•●▪◦*✓✔☑→›»]+|\d+[.)]|[a-z][.)])\s*/i;
 
 const NOISE_LINE_PATTERNS: RegExp[] = [
   /^(?:advertisement|advertorial|sponsored(?:\s+content)?|promoted(?:\s+content)?)\.?$/i,
@@ -144,7 +143,8 @@ function contentKey(value: string): string {
 
 function cleanInlineNoise(value: string): string {
   let text = value;
-  for (const pattern of INLINE_NOISE_PATTERNS) text = text.replace(pattern, " ");
+  for (const pattern of INLINE_NOISE_PATTERNS)
+    text = text.replace(pattern, " ");
   return normalizeWhitespace(text.replace(RAW_URL_RE, " "));
 }
 
@@ -169,8 +169,10 @@ function groupSentences(sentences: string[]): string[] {
   };
 
   for (const sentence of sentences) {
-    const nextLength = currentLength + sentence.length + (current.length ? 1 : 0);
-    if (current.length >= 2 || (current.length > 0 && nextLength > 320)) flush();
+    const nextLength =
+      currentLength + sentence.length + (current.length ? 1 : 0);
+    if (current.length >= 2 || (current.length > 0 && nextLength > 320))
+      flush();
     current.push(sentence);
     currentLength += sentence.length + (current.length > 1 ? 1 : 0);
   }
@@ -191,15 +193,13 @@ export function cleanOpportunityNarrative(value?: string | null): string {
 
   if (!decoded.trim()) return "";
 
-  const units = decoded
-    .split(/\n+/)
-    .flatMap((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return [];
-      return /\s[|·]\s/.test(trimmed) && trimmed.length < 180
-        ? trimmed.split(/\s*[|·]\s*/)
-        : [trimmed];
-    });
+  const units = decoded.split(/\n+/).flatMap((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return [];
+    return /\s[|·]\s/.test(trimmed) && trimmed.length < 180
+      ? trimmed.split(/\s*[|·]\s*/)
+      : [trimmed];
+  });
 
   const seen = new Set<string>();
   const cleanedUnits: string[] = [];
@@ -215,7 +215,9 @@ export function cleanOpportunityNarrative(value?: string | null): string {
   }
 
   const paragraphs = cleanedUnits.flatMap((unit) => {
-    const sentences = splitSentences(unit).filter((sentence) => !isNoiseLine(sentence));
+    const sentences = splitSentences(unit).filter(
+      (sentence) => !isNoiseLine(sentence),
+    );
     if (sentences.length === 0) return [];
     return unit.length > 360 || sentences.length > 2
       ? groupSentences(sentences)
@@ -261,6 +263,52 @@ export function needsProgressiveDisclosure(
   if (!cleaned) return false;
   const paragraphs = cleaned.split(/\n{2,}/).filter(Boolean);
   return cleaned.length > maxChars || paragraphs.length > maxParagraphs;
+}
+
+function normaliseForComparison(value?: string | null): string {
+  return cleanOpportunityNarrative(value)
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Keep the compact summary only when it adds decision context. A summary that
+ * repeats the opening description adds reading time without adding hierarchy.
+ */
+export function shouldShowOpportunitySummary(
+  summary?: string | null,
+  description?: string | null,
+): boolean {
+  const cleanSummary = normaliseForComparison(summary);
+  if (!cleanSummary) return false;
+
+  const cleanDescription = normaliseForComparison(description);
+  if (!cleanDescription) return true;
+  if (
+    cleanSummary === cleanDescription ||
+    cleanDescription.startsWith(cleanSummary) ||
+    cleanSummary.startsWith(cleanDescription)
+  ) {
+    return false;
+  }
+
+  const summaryTokens = new Set(
+    cleanSummary.split(" ").filter((token) => token.length > 2),
+  );
+  const descriptionTokens = new Set(
+    cleanDescription.split(" ").filter((token) => token.length > 2),
+  );
+  if (summaryTokens.size === 0) return false;
+
+  let sharedTokens = 0;
+  for (const token of summaryTokens) {
+    if (descriptionTokens.has(token)) sharedTokens += 1;
+  }
+
+  return sharedTokens / summaryTokens.size < 0.78;
 }
 
 export function previewText(value: string, maxChars = 140): string {

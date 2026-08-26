@@ -15,6 +15,7 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import { Observable, Subject } from "rxjs";
 import { AdminGuard } from "../auth";
+import { getScraperRuntimeIdentity } from "./scraper-runtime-identity";
 import {
   ScraperSourceAdminService,
   type ScraperSourceCreateInput,
@@ -174,12 +175,17 @@ export class ScraperController {
   @Get("engine-status")
   async getEngineStatus() {
     try {
-      return await this.scraperService.getEngineStatus();
+      const status = await this.scraperService.getEngineStatus();
+      return {
+        ...status,
+        runtime: getScraperRuntimeIdentity(),
+      };
     } catch (error: any) {
       this.logger.error(`Get engine status failed: ${error.message}`);
       return {
         success: false,
         error: error.message || "Could not read scraper engine status",
+        runtime: getScraperRuntimeIdentity(),
       };
     }
   }

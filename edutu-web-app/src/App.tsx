@@ -30,6 +30,7 @@ import { useAuth as useAppAuth } from "./hooks/useAuth";
 import { getDocsUrl, isExternalDocsUrl } from "./lib/apiProductUrls";
 import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
 import { parseEdutuDeepLink } from "./features/community-calls/deepLinks";
+import { scheduleAuthChunkPrefetch } from "./lib/authWarmup";
 
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
@@ -58,7 +59,15 @@ const EdutuForYouStoryPage = lazy(
   () => import("./components/EdutuForYouStoryPage"),
 );
 const UpgradePage = lazy(() => import("./components/UpgradePage"));
-const CommunityPage = lazy(() => import("./components/CommunityPage"));
+const CommunityPage = lazy(
+  () => import("./features/community/CommunityPublicRouter"),
+);
+const CommunityAppRouter = lazy(
+  () => import("./features/community/CommunityAppRouter"),
+);
+const CommunityDeepLinkRedirect = lazy(
+  () => import("./features/community/CommunityDeepLinkRedirect"),
+);
 const CommunityCallPage = lazy(
   () => import("./features/community-calls/CommunityCallPage"),
 );
@@ -477,6 +486,15 @@ function App() {
     return () => window.clearTimeout(warmup);
   }, []);
 
+  useEffect(() => {
+    if (isSignedIn) return;
+
+    return scheduleAuthChunkPrefetch(() => {
+      void import("./components/AuthScreen").catch(() => {});
+      void import("./components/Dashboard").catch(() => {});
+    });
+  }, [isSignedIn]);
+
   // Route native deep links / notification taps (Capacitor appUrlOpen) into
   // the SPA. No-op on web — initializeCapacitor returns early off-native.
   useEffect(() => {
@@ -598,7 +616,23 @@ function App() {
         path="/our-belief"
         element={<Navigate to="/what-we-believe" replace />}
       />
-      <Route path="/community" element={<CommunityPage />} />
+      <Route
+      path="/discussions/*"
+      element={
+        <ProtectedRoute>
+          <CommunityDeepLinkRedirect />
+        </ProtectedRoute>
+      }
+    />
+    <Route path="/community/*" element={<CommunityPage />} />
+      <Route
+        path="/app/community/*"
+        element={
+          <AppWorkspaceRoute>
+            <CommunityAppRouter />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route
         path="/communities/calls/:callId"
         element={

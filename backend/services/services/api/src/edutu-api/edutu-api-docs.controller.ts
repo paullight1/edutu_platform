@@ -43,6 +43,7 @@ const REQUIRED_SCOPES = {
 @Controller("v1")
 export class EdutuApiDocsController {
   @Get()
+  @Header("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
   getApiOverview() {
     const apiBaseUrl = this.normalizeBaseUrl(
       process.env.EDUTU_API_PUBLIC_URL ||
@@ -187,6 +188,7 @@ export class EdutuApiDocsController {
    */
   @Get("llms.txt")
   @Header("Content-Type", "text/markdown; charset=utf-8")
+  @Header("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
   getLlmsDocument(): string {
     const apiBaseUrl = this.normalizeBaseUrl(
       process.env.EDUTU_API_PUBLIC_URL ||
@@ -310,6 +312,7 @@ Recommended integration pattern: full pull via /opportunities (cursor pagination
   }
 
   @Get("openapi.json")
+  @Header("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
   getOpenApiDocument() {
     const apiBaseUrl = this.normalizeBaseUrl(
       process.env.EDUTU_API_PUBLIC_URL ||

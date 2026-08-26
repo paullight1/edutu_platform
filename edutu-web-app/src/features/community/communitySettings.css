@@ -1,0 +1,28 @@
+.community-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #f4dcc9;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.625rem 0.75rem;
+  color: #4a170d;
+  font-size: 0.875rem;
+  line-height: 1.35rem;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.community-input:focus {
+  border-color: rgba(244, 91, 22, 0.62);
+  box-shadow: 0 0 0 3px rgba(244, 91, 22, 0.1);
+}
+
+.community-input::placeholder {
+  color: #a18c83;
+}
+
+.dark .community-input {
+  border-color: rgb(var(--color-border-subtle));
+  background: rgb(var(--color-surface-body));
+  color: rgb(var(--color-text-primary));
+}

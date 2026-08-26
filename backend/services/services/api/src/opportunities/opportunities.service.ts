@@ -40,6 +40,7 @@ import {
   publicOpportunityConditions,
   publicOpportunitySql,
 } from "./opportunity-visibility";
+import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -1144,6 +1145,10 @@ export class OpportunitiesService {
         expiringSoon: 0,
       }
     );
+  }
+
+  async getQualityScorecard() {
+    return readOpportunityQualityScorecard();
   }
 
   async getJobOpportunities(jobId: string, limit = 200) {

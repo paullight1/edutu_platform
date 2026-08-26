@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { MatchReason, Opportunity, OpportunityDifficulty } from '../types/opportunity';
+import {
+  MatchReason,
+  Opportunity,
+  OpportunityDifficulty,
+  OpportunityTrust,
+  DeadlineConfidence,
+} from '../types/opportunity';
 import { toSafeUUID } from '../utils/auth';
 import { categorizeOpportunity } from './opportunityCategorization';
 
@@ -281,7 +287,72 @@ function normaliseOpportunity(row: any): Opportunity {
     eligibility: row.eligibility || {},
     roadmap: row.roadmap || meta.roadmap || [],
     tags: row.tags || [],
+    trust: deriveTrust(row, meta),
   };
+}
+
+function normaliseDeadlineConfidence(value: any): DeadlineConfidence | null {
+  return value === 'explicit' || value === 'inferred' || value === 'rolling' || value === 'unknown'
+    ? value
+    : null;
+}
+
+/**
+ * Trust signals, from either the public API's curated `trust` block or — on the
+ * direct-Supabase read path where metadata is still present — the raw columns.
+ */
+function deriveTrust(row: any, meta: any): OpportunityTrust | null {
+  if (row.trust && typeof row.trust === 'object') {
+    return {
+      verificationStatus:
+        typeof row.trust.verificationStatus === 'string'
+          ? row.trust.verificationStatus
+          : 'unverified',
+      lastVerifiedAt: typeof row.trust.lastVerifiedAt === 'string' ? row.trust.lastVerifiedAt : null,
+      deadlineConfidence: normaliseDeadlineConfidence(row.trust.deadlineConfidence),
+      verificationMethod:
+        typeof row.trust.verificationMethod === 'string' ? row.trust.verificationMethod : null,
+      sourceDomain: typeof row.trust.sourceDomain === 'string' ? row.trust.sourceDomain : null,
+    };
+  }
+  const verificationStatus = row.verification_status ?? row.verificationStatus;
+  const lastVerifiedAt = row.last_verified_at ?? row.lastVerifiedAt ?? null;
+  const confidence = meta?.deadline_confidence;
+  // Nothing to say if none of these signals are present.
+  if (verificationStatus == null && lastVerifiedAt == null && confidence == null) {
+    return null;
+  }
+  return {
+    verificationStatus:
+      typeof verificationStatus === 'string' ? verificationStatus : 'unverified',
+    lastVerifiedAt: typeof lastVerifiedAt === 'string' ? lastVerifiedAt : null,
+    deadlineConfidence: normaliseDeadlineConfidence(confidence),
+    verificationMethod:
+      typeof meta?.verification_method === 'string' ? meta.verification_method : null,
+    sourceDomain: opportunitySourceDomain(row),
+  };
+}
+
+function opportunitySourceDomain(row: any): string | null {
+  const candidates = [
+    row.source_url,
+    row.sourceUrl,
+    row.canonical_url,
+    row.canonicalUrl,
+    row.application_url,
+    row.applicationUrl,
+    row.apply_url,
+    row.applyUrl,
+  ];
+  for (const value of candidates) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    try {
+      return new URL(value).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      // Try the next public URL rather than inventing source evidence.
+    }
+  }
+  return null;
 }
 
 function normaliseProfileInput(profile: Record<string, any> | null | undefined) {

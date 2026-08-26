@@ -13,6 +13,16 @@ export type OpportunityCanonicalCategory =
   | 'events'
   | 'other';
 
+export type DeadlineConfidence = 'explicit' | 'inferred' | 'rolling' | 'unknown';
+
+export interface OpportunityTrust {
+  verificationStatus: string;
+  lastVerifiedAt: string | null;
+  deadlineConfidence: DeadlineConfidence | null;
+  verificationMethod: string | null;
+  sourceDomain: string | null;
+}
+
 export type MatchReasonKind =
   | 'field'
   | 'interest'
@@ -104,6 +114,9 @@ export interface Opportunity {
 
   // Roadmap / preparation steps
   roadmap?: Array<{ id?: string; title: string; description?: string }>;
+
+  /** Curated public verification evidence; internal verifier fields stay private. */
+  trust?: OpportunityTrust | null;
 }
 
 export interface OpportunityFilters {

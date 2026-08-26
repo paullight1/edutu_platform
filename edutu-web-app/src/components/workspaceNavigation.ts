@@ -24,7 +24,11 @@ export const primaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     label: "navigation.opportunities",
     icon: "opportunities",
   },
-  { to: "/app/community", label: "navigation.community", icon: "community" },
+  {
+    to: "/app/community",
+    label: "navigation.community",
+    icon: "community",
+  },
   { to: "/app/deadlines", label: "navigation.deadlines", icon: "deadlines" },
 ];
 
@@ -55,7 +59,11 @@ export const mobilePrimaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     label: "navigation.explore",
     icon: "opportunities",
   },
-  { to: "/app/community", label: "navigation.community", icon: "community" },
+  {
+    to: "/app/community",
+    label: "navigation.community",
+    icon: "community",
+  },
   { to: "/app/deadlines", label: "navigation.dates", icon: "deadlines" },
 ];
 
