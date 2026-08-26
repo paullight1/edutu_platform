@@ -1,5 +1,6 @@
 name: Agent Opportunity Review Task 3
 
+# Follow-up push intentionally triggers this newly introduced one-shot workflow.
 on:
   push:
     branches: [agent/opportunity-ai-review]
