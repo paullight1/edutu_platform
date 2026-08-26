@@ -31,7 +31,9 @@ jobs:
       - run: node --test scripts/check-mobile-audit.test.mjs
       - run: node --test scripts/check-admin-runtime-config.test.mjs
       - run: node --test scripts/validate-vercel-config.test.mjs
+      - run: node --test scripts/validate-seo-routes.test.mjs
       - run: node --test scripts/migration-ownership.test.mjs
+      - run: node scripts/validate-seo-routes.mjs
       - run: node scripts/check-migration-ownership.mjs
       - run: node scripts/check-migration-timestamps.mjs
       - run: node scripts/check-large-file-budgets.mjs

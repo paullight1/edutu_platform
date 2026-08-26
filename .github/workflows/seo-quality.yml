@@ -7,6 +7,9 @@ on:
       - "vercel.json"
       - "scripts/verify-seo-routing.test.mjs"
       - "scripts/verify-seo-hydration.test.mjs"
+      - "scripts/validate-seo-routes.mjs"
+      - "scripts/validate-seo-routes.test.mjs"
+      - "edutu-web-app/vercel.json"
       - "backend/services/services/api/src/seo/**"
       - "backend/services/services/api/src/app.module.ts"
       - "edutu-web-app/scripts/generate-sitemap.mjs"
@@ -28,6 +31,9 @@ on:
       - "vercel.json"
       - "scripts/verify-seo-routing.test.mjs"
       - "scripts/verify-seo-hydration.test.mjs"
+      - "scripts/validate-seo-routes.mjs"
+      - "scripts/validate-seo-routes.test.mjs"
+      - "edutu-web-app/vercel.json"
       - "backend/services/services/api/src/seo/**"
       - "backend/services/services/api/src/app.module.ts"
       - "edutu-web-app/scripts/generate-sitemap.mjs"
@@ -59,7 +65,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test scripts/verify-seo-routing.test.mjs scripts/verify-seo-hydration.test.mjs
+      - run: node --test scripts/verify-seo-routing.test.mjs scripts/verify-seo-hydration.test.mjs scripts/validate-seo-routes.test.mjs
+      - run: node scripts/validate-seo-routes.mjs
 
   backend-contract:
     name: SEO Backend Contract
