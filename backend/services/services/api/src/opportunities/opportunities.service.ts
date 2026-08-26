@@ -41,6 +41,10 @@ import {
   publicOpportunitySql,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
+import {
+  buildOpportunityMetadataPatch,
+  mergeOpportunityMetadata,
+} from "./opportunity-metadata-merge";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -71,21 +75,37 @@ const OpportunityDtoSchema = z.object({
   location: z.string().optional().nullable(),
   type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
+  eligibility_criteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
+  funding_type: z.string().optional().nullable(),
   targetRegion: z.string().optional().nullable(),
+  target_region: z.string().optional().nullable(),
   deadline: z.string().optional().nullable(),
   sourceUrl: z.string().optional().nullable(),
+  source_url: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
   applicationUrl: z.string().optional().nullable(),
   application_url: z.string().optional().nullable(),
   apply_url: z.string().optional().nullable(),
   link: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
-  eligibility: z.record(z.string(), z.unknown()).optional(),
+  image_url: z.string().optional().nullable(),
+  eligibility: z.record(z.string(), z.unknown()).optional().nullable(),
+  requirements: z.array(z.string()).optional(),
+  benefits: z.array(z.string()).optional(),
+  applicationProcess: z.array(z.string()).optional(),
+  application_process: z.array(z.string()).optional(),
+  skills: z.array(z.string()).optional(),
   isFeatured: z.boolean().optional().default(false),
+  is_featured: z.boolean().optional(),
   isRemote: z.boolean().optional().default(true),
+  is_remote: z.boolean().optional(),
   status: z.string().optional().default("pending_review"),
   tags: z.array(z.string()).optional(),
+  qualityScore: z.number().optional().nullable(),
+  quality_score: z.number().optional().nullable(),
+  validationStatus: z.string().optional().nullable(),
+  validation_status: z.string().optional().nullable(),
 });
 
 // Canonical status vocabulary is pending_review/active/draft/closed/rejected
@@ -1610,12 +1630,27 @@ export class OpportunitiesService {
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {
+    const existing = await this.findOne(id);
+    if (!existing) throw new NotFoundException("Opportunity not found");
+
+    const existingMetadata =
+      existing.metadata &&
+      typeof existing.metadata === "object" &&
+      !Array.isArray(existing.metadata)
+        ? (existing.metadata as Record<string, unknown>)
+        : {};
+    const canonicalPayload = this.toCanonicalOpportunityPayload(
+      data,
+      undefined,
+      { partial: true, existingMetadata },
+    );
+
     this.invalidateReadCaches();
     if (this.supabase) {
       const { data: updated, error } = await this.supabase
         .from("opportunities")
         .update({
-          ...this.toCanonicalOpportunityPayload(data),
+          ...canonicalPayload,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
@@ -1626,14 +1661,7 @@ export class OpportunitiesService {
         return withOpportunityUrlAliases(updated as Record<string, any>);
       }
 
-      if (!error) {
-        // No error and no row means the id didn't match anything.
-        throw new NotFoundException("Opportunity not found");
-      }
-
-      // A duplicate apply/source URL is a real conflict, not a server fault —
-      // report it as 409 with a clear message instead of an opaque 500 (and
-      // don't bother with the fallback, which hits the same unique index).
+      if (!error) throw new NotFoundException("Opportunity not found");
       if (this.isUniqueViolation(error)) {
         throw new ConflictException(
           "Another opportunity already uses this apply or source URL. Change the URL and try again.",
@@ -1645,55 +1673,7 @@ export class OpportunitiesService {
       );
     }
 
-    // Fallback path (Supabase service client unavailable, or the canonical
-    // update errored). The admin DTO carries camelCase fields AND metadata-only
-    // keys (applicationProcess / application_process / requirements / benefits)
-    // that are NOT columns on the Drizzle table. Spreading `...data` therefore
-    // emitted `SET "application_process" = …` → invalid SQL → 500 on every
-    // edit whenever this path ran. Map ONLY real columns, like create() does,
-    // and only touch fields that were actually provided (partial update).
-    const updateData: Partial<typeof opportunities.$inferInsert> = {
-      updatedAt: new Date(),
-    };
-
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.summary !== undefined) updateData.summary = data.summary;
-    if (data.description !== undefined)
-      updateData.description = data.description;
-    if (data.category !== undefined) updateData.category = data.category;
-    if (data.organization !== undefined)
-      updateData.organization = data.organization;
-    if (data.location !== undefined || data.targetRegion !== undefined)
-      updateData.location = data.location || data.targetRegion || null;
-    if (data.type !== undefined) updateData.type = data.type;
-    if (data.eligibilityCriteria !== undefined)
-      updateData.eligibilityCriteria = data.eligibilityCriteria;
-    if (data.fundingType !== undefined)
-      updateData.fundingType = data.fundingType;
-    if (data.targetRegion !== undefined)
-      updateData.targetRegion = data.targetRegion;
-    if (data.sourceUrl !== undefined) updateData.sourceUrl = data.sourceUrl;
-    if (data.applyUrl !== undefined || data.sourceUrl !== undefined)
-      updateData.applyUrl = data.applyUrl || data.sourceUrl || null;
-    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
-    if (data.eligibility !== undefined)
-      updateData.eligibility = data.eligibility as any;
-    if (data.tags !== undefined) updateData.tags = data.tags as any;
-    if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
-    if (data.isRemote !== undefined) updateData.isRemote = data.isRemote;
-    if (data.status !== undefined) updateData.status = data.status;
-
-    // Guard the date: an invalid string used to throw RangeError → 500.
-    if (data.deadline !== undefined) {
-      const parsed = data.deadline ? new Date(data.deadline) : null;
-      updateData.deadline =
-        parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
-    }
-
-    // NOTE: no `.returning()`. The Drizzle `opportunities` model declares a
-    // `provider_id` column that does NOT exist on the live table, so a full
-    // RETURNING clause throws `column "provider_id" does not exist` → 500. We
-    // update, then re-read through findOne(), which is resilient on its own.
+    const updateData = this.toDrizzleOpportunityUpdate(canonicalPayload);
     try {
       await db
         .update(opportunities)
@@ -1710,6 +1690,92 @@ export class OpportunitiesService {
     }
 
     return this.findOne(id);
+  }
+
+  private toDrizzleOpportunityUpdate(
+    payload: Record<string, unknown>,
+  ): Partial<typeof opportunities.$inferInsert> {
+    const updateData: Partial<typeof opportunities.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (payload.title !== undefined) updateData.title = String(payload.title);
+    if (payload.summary !== undefined)
+      updateData.summary =
+        payload.summary === null ? null : String(payload.summary);
+    if (payload.description !== undefined)
+      updateData.description =
+        payload.description === null ? null : String(payload.description);
+    if (payload.category !== undefined)
+      updateData.category =
+        payload.category === null ? null : String(payload.category);
+    if (payload.canonical_category !== undefined)
+      updateData.canonicalCategory = String(payload.canonical_category);
+    if (payload.organization !== undefined)
+      updateData.organization =
+        payload.organization === null ? null : String(payload.organization);
+    if (payload.location !== undefined)
+      updateData.location =
+        payload.location === null ? null : String(payload.location);
+    if (payload.type !== undefined) updateData.type = String(payload.type);
+    if (payload.eligibility_criteria !== undefined)
+      updateData.eligibilityCriteria =
+        payload.eligibility_criteria === null
+          ? null
+          : String(payload.eligibility_criteria);
+    if (payload.eligibility !== undefined)
+      updateData.eligibility = payload.eligibility as any;
+    if (payload.funding_type !== undefined)
+      updateData.fundingType =
+        payload.funding_type === null ? null : String(payload.funding_type);
+    if (payload.target_region !== undefined)
+      updateData.targetRegion =
+        payload.target_region === null ? null : String(payload.target_region);
+    if (payload.close_date !== undefined) {
+      const deadline = payload.close_date
+        ? String(payload.close_date).slice(0, 10)
+        : null;
+      updateData.closeDate = deadline;
+      const parsed = deadline ? new Date(deadline) : null;
+      updateData.deadline =
+        parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+    }
+    if (payload.source_url !== undefined)
+      updateData.sourceUrl =
+        payload.source_url === null ? null : String(payload.source_url);
+    if (payload.application_url !== undefined) {
+      const applicationUrl =
+        payload.application_url === null
+          ? null
+          : String(payload.application_url);
+      updateData.applicationUrl = applicationUrl;
+      updateData.applyUrl = applicationUrl;
+    }
+    if (payload.canonical_url !== undefined)
+      updateData.canonicalUrl =
+        payload.canonical_url === null ? null : String(payload.canonical_url);
+    if (payload.image_url !== undefined)
+      updateData.imageUrl =
+        payload.image_url === null ? null : String(payload.image_url);
+    if (payload.tags !== undefined) updateData.tags = payload.tags as string[];
+    if (payload.skills !== undefined)
+      updateData.skills = payload.skills as string[];
+    if (payload.is_remote !== undefined)
+      updateData.isRemote = Boolean(payload.is_remote);
+    if (payload.is_featured !== undefined)
+      updateData.isFeatured = Boolean(payload.is_featured);
+    if (payload.quality_score !== undefined)
+      updateData.qualityScore =
+        payload.quality_score === null ? null : Number(payload.quality_score);
+    if (payload.validation_status !== undefined)
+      updateData.validationStatus =
+        payload.validation_status === null
+          ? null
+          : String(payload.validation_status);
+    if (payload.status !== undefined)
+      updateData.status = String(payload.status);
+    if (payload.metadata !== undefined)
+      updateData.metadata = payload.metadata as Record<string, unknown>;
+    return updateData;
   }
 
   // Postgres unique-violation detector (SQLSTATE 23505), tolerant of both the
@@ -2283,110 +2349,167 @@ export class OpportunitiesService {
   private toCanonicalOpportunityPayload(
     input: Partial<CreateOpportunityDto> & Record<string, any>,
     defaultStatus?: string,
+    options: {
+      partial?: boolean;
+      existingMetadata?: Record<string, unknown>;
+    } = {},
   ) {
     const record = input as Record<string, any>;
-    const metadata: Record<string, unknown> = {};
-    if (input.eligibilityCriteria !== undefined) {
-      metadata.eligibility_criteria = input.eligibilityCriteria;
-      metadata.requirements = input.eligibilityCriteria
-        ? [input.eligibilityCriteria]
-        : [];
-    }
-    if (input.fundingType !== undefined) {
-      metadata.funding_type = input.fundingType;
-      metadata.benefits = input.fundingType ? [input.fundingType] : [];
-    }
-    if (input.targetRegion !== undefined) {
-      metadata.target_region = input.targetRegion;
-    }
-    const classification = classifyOpportunity(
-      input as Record<string, unknown>,
-    );
-    metadata.canonical_category = classification.canonicalCategory;
-    metadata.classification_confidence = classification.confidence;
-    metadata.classification_reason = classification.reason;
-    metadata.classification_source = classification.source;
-    metadata.classification_signals = classification.matchedSignals;
-    metadata.classification_needs_review = classification.needsReview;
+    const partial = options.partial === true;
+    const hasOwn = (...keys: string[]) =>
+      keys.some((key) => Object.prototype.hasOwnProperty.call(record, key));
+    const ownValue = (...keys: string[]) => {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(record, key))
+          return record[key];
+      }
+      return undefined;
+    };
 
-    const summary = this.normalizeSummary(
-      record.summary ?? record.description ?? "",
-      record.description ?? "",
-      String(input.title ?? ""),
-    );
-    const organization = this.cleanOptionalText(record.organization ?? "", 200);
-    const eligibility =
-      (record.eligibility as Record<string, unknown> | undefined) || undefined;
-    const requirements = this.normalizeStringList(
-      record.requirements || metadata.requirements,
-    );
-    const benefits = this.normalizeStringList(
-      record.benefits || metadata.benefits,
-    );
-    const applicationProcess = this.normalizeStringList(
-      record.applicationProcess ||
-        record.application_process ||
-        metadata.application_process,
-    );
+    const metadataPatch = buildOpportunityMetadataPatch(record);
+    const shouldClassify = !partial || hasOwn("category");
+    const classification = shouldClassify
+      ? classifyOpportunity(input as Record<string, unknown>)
+      : null;
+    if (classification) {
+      metadataPatch.canonical_category = classification.canonicalCategory;
+      metadataPatch.classification_confidence = classification.confidence;
+      metadataPatch.classification_reason = classification.reason;
+      metadataPatch.classification_source = classification.source;
+      metadataPatch.classification_signals = classification.matchedSignals;
+      metadataPatch.classification_needs_review = classification.needsReview;
+    }
 
-    const applicationUrl = pickOpportunityUrl(
-      input.applyUrl,
-      input.applicationUrl,
-      input.application_url,
-      input.apply_url,
-      input.link,
-      input.sourceUrl,
-      input.source_url,
+    const summaryProvided =
+      hasOwn("summary") || (!partial && hasOwn("description"));
+    const summary = summaryProvided
+      ? this.normalizeSummary(
+          ownValue("summary") ?? ownValue("description") ?? "",
+          ownValue("description") ?? "",
+          String(input.title ?? ""),
+        )
+      : undefined;
+    if (hasOwn("summary")) metadataPatch.summary = summary || null;
+
+    const organizationProvided = hasOwn("organization");
+    const organization = organizationProvided
+      ? this.cleanOptionalText(ownValue("organization") ?? "", 200) || null
+      : undefined;
+    if (organizationProvided) metadataPatch.organization = organization;
+
+    const eligibilityCriteriaProvided = hasOwn(
+      "eligibilityCriteria",
+      "eligibility_criteria",
+    );
+    const eligibilityCriteria = eligibilityCriteriaProvided
+      ? (ownValue("eligibilityCriteria", "eligibility_criteria") ?? null)
+      : undefined;
+    const fundingTypeProvided = hasOwn("fundingType", "funding_type");
+    const fundingType = fundingTypeProvided
+      ? (ownValue("fundingType", "funding_type") ?? null)
+      : undefined;
+    const targetRegionProvided = hasOwn("targetRegion", "target_region");
+    const targetRegion = targetRegionProvided
+      ? (ownValue("targetRegion", "target_region") ?? null)
+      : undefined;
+    const sourceUrlProvided = hasOwn("sourceUrl", "source_url");
+    const sourceUrl = sourceUrlProvided
+      ? (ownValue("sourceUrl", "source_url") ?? null)
+      : undefined;
+    const applicationUrlProvided = hasOwn(
+      "applyUrl",
+      "applicationUrl",
+      "application_url",
+      "apply_url",
+      "link",
+    );
+    const applicationUrl = applicationUrlProvided
+      ? pickOpportunityUrl(
+          ownValue("applyUrl"),
+          ownValue("applicationUrl"),
+          ownValue("application_url"),
+          ownValue("apply_url"),
+          ownValue("link"),
+        ) || null
+      : !partial && sourceUrlProvided
+        ? String(sourceUrl || "") || null
+        : undefined;
+    const deadlineProvided = hasOwn("deadline", "close_date", "closeDate");
+    const deadline = deadlineProvided
+      ? (ownValue("deadline", "close_date", "closeDate") ?? null)
+      : undefined;
+    const imageProvided = hasOwn("imageUrl", "image_url");
+    const imageUrl = imageProvided
+      ? (ownValue("imageUrl", "image_url") ?? null)
+      : undefined;
+    const isFeaturedProvided = hasOwn("isFeatured", "is_featured");
+    const isRemoteProvided = hasOwn("isRemote", "is_remote");
+    const qualityProvided = hasOwn("qualityScore", "quality_score");
+    const validationProvided = hasOwn("validationStatus", "validation_status");
+
+    const mergedMetadata = mergeOpportunityMetadata(
+      options.existingMetadata,
+      metadataPatch,
     );
     const now = new Date().toISOString();
     const payload: Record<string, unknown> = {
-      title: input.title,
-      summary: summary || undefined,
-      description: input.description,
-      category: input.category,
-      canonical_category: classification.canonicalCategory,
-      organization: organization || undefined,
-      location: input.location || input.targetRegion,
-      is_remote: input.isRemote,
-      close_date: input.deadline || undefined,
-      // Real columns (not just metadata) so ranking/embedding can read them.
-      skills: Array.isArray(record.skills)
+      title: hasOwn("title") ? input.title : undefined,
+      summary,
+      description: hasOwn("description") ? input.description : undefined,
+      category: hasOwn("category") ? input.category : undefined,
+      canonical_category: classification?.canonicalCategory,
+      organization,
+      location:
+        hasOwn("location") || targetRegionProvided
+          ? (ownValue("location") ?? targetRegion ?? null)
+          : undefined,
+      type: hasOwn("type") ? input.type : undefined,
+      is_remote: isRemoteProvided
+        ? Boolean(ownValue("isRemote", "is_remote"))
+        : undefined,
+      close_date: deadline,
+      skills: hasOwn("skills")
         ? this.normalizeStringList(record.skills)
         : undefined,
-      eligibility_criteria:
-        input.eligibilityCriteria !== undefined
-          ? input.eligibilityCriteria
-          : ((record.eligibility_criteria as string | null | undefined) ??
-            undefined),
-      eligibility,
-      funding_type: input.fundingType,
-      target_region: input.targetRegion || input.location,
-      source_url: input.sourceUrl,
-      application_url: applicationUrl,
-      canonical_url: applicationUrl
-        ? this.normalizeUrlForStorage(applicationUrl)
+      eligibility_criteria: eligibilityCriteria,
+      eligibility: hasOwn("eligibility")
+        ? (record.eligibility ?? null)
         : undefined,
-      image_url: input.imageUrl,
-      is_featured: input.isFeatured ?? false,
-      tags: input.tags,
-      status: canonicalOpportunityStatus(input.status, defaultStatus),
-      quality_score: record.qualityScore ?? record.quality_score,
-      validation_status:
-        record.validationStatus ?? record.validation_status ?? undefined,
-      last_seen_at: now,
-      verification_next_check_at: now,
-      metadata: {
-        ...metadata,
-        summary: summary || null,
-        organization: organization || null,
-        requirements,
-        benefits,
-        application_process: applicationProcess,
-        eligibility: eligibility || {},
-        quality_score: record.qualityScore ?? record.quality_score ?? null,
-        validation_status:
-          record.validationStatus ?? record.validation_status ?? null,
-      },
+      funding_type: fundingType,
+      target_region: targetRegionProvided
+        ? targetRegion
+        : !partial && hasOwn("location")
+          ? input.location
+          : undefined,
+      source_url: sourceUrl,
+      application_url: applicationUrl,
+      canonical_url:
+        applicationUrl !== undefined
+          ? applicationUrl
+            ? this.normalizeUrlForStorage(String(applicationUrl))
+            : null
+          : undefined,
+      image_url: imageUrl,
+      is_featured: isFeaturedProvided
+        ? Boolean(ownValue("isFeatured", "is_featured"))
+        : undefined,
+      tags: hasOwn("tags") ? this.normalizeStringList(record.tags) : undefined,
+      status:
+        hasOwn("status") || defaultStatus !== undefined
+          ? canonicalOpportunityStatus(input.status, defaultStatus)
+          : undefined,
+      quality_score: qualityProvided
+        ? (ownValue("qualityScore", "quality_score") ?? null)
+        : undefined,
+      validation_status: validationProvided
+        ? (ownValue("validationStatus", "validation_status") ?? null)
+        : undefined,
+      last_seen_at: partial ? undefined : now,
+      verification_next_check_at: partial ? undefined : now,
+      metadata:
+        !partial || Object.keys(metadataPatch).length > 0
+          ? mergedMetadata
+          : undefined,
     };
 
     return Object.fromEntries(

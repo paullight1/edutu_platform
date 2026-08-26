@@ -56,9 +56,7 @@ describe("opportunity metadata patching", () => {
     });
     expect(merged.requirements).toEqual(["Existing verified requirement"]);
     expect(merged.benefits).toEqual(["Existing verified benefit"]);
-    expect(merged.application_process).toEqual([
-      "Existing application step",
-    ]);
+    expect(merged.application_process).toEqual(["Existing application step"]);
     expect(merged.application_fee).toEqual(existingMetadata.application_fee);
     expect(merged.content_refinement).toEqual(
       existingMetadata.content_refinement,
@@ -79,9 +77,7 @@ describe("opportunity metadata patching", () => {
     );
 
     expect(merged.requirements).toEqual(["New verified requirement"]);
-    expect(merged.application_process).toEqual([
-      "Complete the official form.",
-    ]);
+    expect(merged.application_process).toEqual(["Complete the official form."]);
     expect(merged.benefits).toEqual(["Existing verified benefit"]);
     expect(merged.application_fee).toEqual(existingMetadata.application_fee);
     expect(merged.content_refinement).toEqual(
@@ -96,9 +92,7 @@ describe("opportunity metadata patching", () => {
     expect(patch).toEqual({ benefits: [] });
     expect(merged.benefits).toEqual([]);
     expect(merged.requirements).toEqual(["Existing verified requirement"]);
-    expect(merged.application_process).toEqual([
-      "Existing application step",
-    ]);
+    expect(merged.application_process).toEqual(["Existing application step"]);
   });
 
   it("merges nested objects while arrays remain replacement values", () => {

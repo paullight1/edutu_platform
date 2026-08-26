@@ -57,6 +57,77 @@ function asNonEmptyString(value: unknown): string | null {
     : null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function cleanStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.replace(/\s+/g, " ").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function publicList(
+  row: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  topLevelKeys: string[],
+  metadataKeys: string[],
+): string[] {
+  for (const key of topLevelKeys) {
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      return cleanStringList(row[key]);
+    }
+  }
+  for (const key of metadataKeys) {
+    if (Object.prototype.hasOwnProperty.call(metadata, key)) {
+      return cleanStringList(metadata[key]);
+    }
+  }
+  return [];
+}
+
+function publicString(
+  row: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  topLevelKeys: string[],
+  metadataKeys: string[],
+): string | null {
+  for (const key of topLevelKeys) {
+    const value = asNonEmptyString(row[key]);
+    if (value) return value;
+  }
+  for (const key of metadataKeys) {
+    const value = asNonEmptyString(metadata[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function publicRecord(
+  row: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  topLevelKeys: string[],
+  metadataKeys: string[],
+): Record<string, unknown> | null {
+  for (const key of topLevelKeys) {
+    const value = asRecord(row[key]);
+    if (value) return value;
+  }
+  for (const key of metadataKeys) {
+    const value = asRecord(metadata[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
 function sourceDomain(row: Record<string, unknown>): string | null {
   const candidates = [
     row.source_url,
@@ -81,7 +152,7 @@ function sourceDomain(row: Record<string, unknown>): string | null {
 }
 
 function buildLearnerTrust(row: Record<string, unknown>) {
-  const metadata = row.metadata as Record<string, unknown> | null | undefined;
+  const metadata = asRecord(row.metadata) ?? {};
   const verificationStatus =
     asNonEmptyString(row.verification_status) ??
     asNonEmptyString(row.verificationStatus) ??
@@ -89,8 +160,8 @@ function buildLearnerTrust(row: Record<string, unknown>) {
   const lastVerifiedAt =
     asNonEmptyString(row.last_verified_at) ??
     asNonEmptyString(row.lastVerifiedAt);
-  const deadlineConfidence = asNonEmptyString(metadata?.deadline_confidence);
-  const verificationMethod = asNonEmptyString(metadata?.verification_method);
+  const deadlineConfidence = asNonEmptyString(metadata.deadline_confidence);
+  const verificationMethod = asNonEmptyString(metadata.verification_method);
   const domain = sourceDomain(row);
 
   return {
@@ -111,16 +182,13 @@ export function stripInternalOpportunityFields(
     cleaned[key] = value;
   }
 
-  const metadata = row.metadata as Record<string, unknown> | null | undefined;
-  const sourceImageUrl = metadata?.source_image_url;
+  const metadata = asRecord(row.metadata) ?? {};
+  const sourceImageUrl = metadata.source_image_url;
   if (typeof sourceImageUrl === "string" && sourceImageUrl.length > 0) {
     cleaned.source_image_url = sourceImageUrl;
   }
 
-  const shareCard = metadata?.share_card as
-    | Record<string, unknown>
-    | null
-    | undefined;
+  const shareCard = asRecord(metadata.share_card);
   const shareCardUrl = shareCard?.url;
   if (
     typeof shareCardUrl === "string" &&
@@ -129,6 +197,58 @@ export function stripInternalOpportunityFields(
   ) {
     cleaned.share_image_url = shareCardUrl;
   }
+
+  cleaned.requirements = publicList(
+    row,
+    metadata,
+    ["requirements"],
+    ["requirements"],
+  );
+  cleaned.benefits = publicList(row, metadata, ["benefits"], ["benefits"]);
+  cleaned.application_process = publicList(
+    row,
+    metadata,
+    ["application_process", "applicationProcess"],
+    ["application_process", "applicationProcess"],
+  );
+
+  const eligibility = publicRecord(
+    row,
+    metadata,
+    ["eligibility"],
+    ["eligibility"],
+  );
+  if (eligibility) cleaned.eligibility = eligibility;
+
+  const learnerStrings: Array<[string, string[], string[]]> = [
+    [
+      "eligibility_criteria",
+      ["eligibility_criteria", "eligibilityCriteria"],
+      ["eligibility_criteria", "eligibilityCriteria"],
+    ],
+    [
+      "funding_type",
+      ["funding_type", "fundingType"],
+      ["funding_type", "fundingType"],
+    ],
+    [
+      "target_region",
+      ["target_region", "targetRegion"],
+      ["target_region", "targetRegion"],
+    ],
+    [
+      "content_updated_at",
+      ["content_updated_at", "contentUpdatedAt"],
+      ["content_refined_at", "content_updated_at", "contentUpdatedAt"],
+    ],
+  ];
+  for (const [outputKey, rowKeys, metadataKeys] of learnerStrings) {
+    const value = publicString(row, metadata, rowKeys, metadataKeys);
+    if (value) cleaned[outputKey] = value;
+  }
+
+  const domain = sourceDomain(row);
+  if (domain) cleaned.source_domain = domain;
 
   cleaned.trust = buildLearnerTrust(row);
   return cleaned;
