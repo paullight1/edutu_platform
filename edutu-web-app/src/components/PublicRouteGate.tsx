@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
-import App from "../App";
 import BlogPage from "./BlogPage";
+import CommunityAppGate from "./CommunityAppGate";
 import PublicOpportunitiesArchivePage from "./PublicOpportunitiesArchivePage";
 
 function normalisePathname(pathname: string): string {
@@ -30,5 +30,5 @@ export default function PublicRouteGate() {
     return <PublicOpportunitiesArchivePage />;
   }
 
-  return <App />;
+  return <CommunityAppGate />;
 }

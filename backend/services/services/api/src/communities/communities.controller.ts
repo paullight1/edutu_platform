@@ -404,6 +404,11 @@ export class CommunitiesController {
     };
   }
 
+  /**
+   * An unparseable cursor is refused rather than silently ignored: dropping it
+   * would restart the page at the newest message, and the client — which is
+   * appending — would show the same block of history over and over.
+   */
   private parseBefore(value: string | undefined): Date | undefined {
     if (value === undefined || value.trim() === "") return undefined;
     const parsed = new Date(value);

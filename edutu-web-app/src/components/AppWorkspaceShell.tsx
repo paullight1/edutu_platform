@@ -15,7 +15,7 @@ import {
   Settings,
   Sparkles,
   UserCheck,
-  UsersRound,
+  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -41,7 +41,7 @@ interface AppWorkspaceShellProps {
 const workspaceNavIcons: Record<WorkspaceNavIconKey, LucideIcon> = {
   home: LayoutGrid,
   opportunities: Briefcase,
-  community: UsersRound,
+  community: Users,
   deadlines: Calendar,
   saved: Bookmark,
   applications: Send,
@@ -679,7 +679,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             )}
             aria-label="Mobile app navigation"
           >
-          <div className="grid grid-cols-4">
+          <div className="grid grid-cols-5">
             {mobilePrimaryWorkspaceNavItems.map((item) => {
               const Icon = workspaceNavIcons[item.icon];
               const active = isRouteActive(pathname, item.to, item.exact);
