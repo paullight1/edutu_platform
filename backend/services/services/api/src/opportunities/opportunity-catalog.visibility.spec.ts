@@ -64,6 +64,7 @@ async function createCatalogTable(database: PGlite) {
       source_url text,
       canonical_url text,
       content_fingerprint text,
+      title_fingerprint text,
       apply_url text,
       application_url text,
       source text,

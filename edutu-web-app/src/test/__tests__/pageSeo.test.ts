@@ -5,6 +5,11 @@ import { OG_METADATA, PAGE_SEO } from "../../lib/pageSeo.generated";
 import { findPageSeo, getPageOgImage } from "../../lib/pageSeo";
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const seoApiOrigin = "https://edutu-platform.onrender.com";
+const apiRenderedRoutes = new Map([
+  ["/blog", `${seoApiOrigin}/seo/blog`],
+  ["/opportunities", `${seoApiOrigin}/seo/opportunities`],
+]);
 
 describe("page SEO registry", () => {
   it("uses the canonical screenshot dimensions", () => {
@@ -76,22 +81,42 @@ describe("page SEO registry", () => {
     }
   });
 
-  it("routes every registry entry in vercel.json", () => {
-    // A prerendered dist/<path>/index.html is dead weight if the router never
-    // serves it — the SPA catch-all would quietly answer with generic tags.
+  it("routes every registry entry to static or API-rendered public HTML", () => {
     const config = JSON.parse(
       readFileSync(path.join(repoRoot, "vercel.json"), "utf8"),
-    ) as { rewrites: { source: string; destination: string }[] };
+    ) as {
+      rewrites: {
+        source: string;
+        destination: string | Record<string, unknown>;
+        has?: unknown;
+        missing?: unknown;
+      }[];
+    };
 
     const routed = new Set(
       config.rewrites
-        .filter((rule) => rule.destination.endsWith("/index.html"))
+        .filter((rule) => {
+          if (
+            rule.has ||
+            rule.missing ||
+            typeof rule.destination !== "string"
+          ) {
+            return false;
+          }
+          return (
+            rule.destination.endsWith("/index.html") ||
+            rule.destination === apiRenderedRoutes.get(rule.source)
+          );
+        })
         .map((rule) => rule.source),
     );
 
     for (const routePath of Object.keys(PAGE_SEO)) {
       if (routePath === "/") continue;
-      expect(routed.has(routePath), `vercel.json has no rewrite for ${routePath}`).toBe(true);
+      expect(
+        routed.has(routePath),
+        `vercel.json has no public render route for ${routePath}`,
+      ).toBe(true);
     }
   });
 });
