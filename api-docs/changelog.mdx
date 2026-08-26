@@ -1,0 +1,37 @@
+---
+title: "Changelog"
+description: "Dated history of changes to the Edutu Scholarship API."
+---
+
+All notable changes to the `/v1` API are recorded here. We follow the
+[versioning & stability](/versioning) contract: within `/v1`, changes are
+additive and your integration should ignore unknown fields.
+
+<Update label="2026-08-26" description="Trust signals, caching, metering">
+  **Added**
+  - Opportunities now include a curated `trust` block — `verificationStatus`,
+    `lastVerifiedAt`, `deadlineConfidence`, `verificationMethod`, and
+    `sourceDomain` — so integrators can show verification evidence without
+    exposing internal verifier or provider fields.
+  - Documentation endpoints (`/v1`, `/v1/openapi.json`, `/v1/llms.txt`) now send
+    `Cache-Control: public, max-age=3600` and are safe to cache.
+
+  **Changed**
+  - Credit reservation failures now fail closed with the documented billing
+    unavailable response, and emit a structured reconciliation event. Paid
+    requests are never silently served without a successful reservation.
+
+  **Engine (affects data quality, not the API shape)**
+  - Deadline verification no longer treats a WAF/anti-bot block as a closed
+    opportunity, and reuses a fetch relay — fewer live opportunities wrongly
+    disappear.
+  - Duplicate detection now also collapses same-run duplicates before insert.
+</Update>
+
+<Update label="Earlier" description="Baseline /v1">
+  - Stable `{ object, data, meta }` envelope with cursor pagination.
+  - API-key auth (`x-edutu-api-key` / `Authorization: Bearer`), per-minute rate
+    limits, monthly quota, and per-request credit metering.
+  - Endpoints: `opportunities`, `opportunities/{id}`, `opportunities/stats`,
+    `opportunities/sync`, `recommendations`, `events`, `categories`, `usage`.
+</Update>
