@@ -8,7 +8,7 @@
 
 This inventory began as the first execution checkpoint and now records the completed local consolidation review. The four approved canonical branches were merged into the isolated integration branch, and every proposed selective-port source received an accept, superseded, defer, archive, or reject outcome. Nothing has been pushed to or merged into `main` yet.
 
-Original remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**, **6 reject**. A final fetch on 2026-08-26 discovered three additional Community refs: two temporary export-workflow branches were rejected and one legacy snapshot was archived.
+Original remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**, **6 reject**. Final fetches on 2026-08-26 discovered additional Community export/backup refs: temporary export workflows were rejected, legacy snapshots were archived, and the force-updated clean squash was superseded by the canonical Community integration plus the adapted roster-pagination port.
 
 ## Execution outcome
 
@@ -85,7 +85,9 @@ The user approved this order. Each blocker was fixed, adapted, or explicitly exc
 | Branch | Tip | Behind/Ahead | Ancestry | Unique | Family | Touched roots | PRs | Decision | Evidence |
 |---|---|---:|---|---:|---|---|---|---|---|
 | `agent/community-legacy-export` | `3944b9b3` | 309/110 | unmerged | 110 | community/operations | .github plus stale community tree | none | **reject** | Adds only a temporary source-export workflow on top of `feat/web-community-product`; no new product patch. |
-| `agent/community-web-clean` | `cd339b38` | 0/1 | unmerged | 1 | community/operations | .github | none | **reject** | The sole patch is a temporary source-export workflow; it contains no Community product source. |
+| `agent/community-merge-base-export` | `38319e76` | 309/1 | unmerged | 1 | community/operations | .github | none | **reject** | The sole patch is a temporary merge-base source-export workflow. |
+| `agent/community-web-clean` | `71cfc518` | 0/1 | unmerged | 1 | community | admin,backend,edutu-web-app | none | **superseded** | Force-updated to a squash of the already-reviewed legacy parallel Community tree. Canonical PR #56 plus `f2f9784e` contains the accepted behavior without the obsolete duplicate router/components. |
+| `agent/community-web-clean-backup-71cfc5` | `71cfc518` | 0/1 | unmerged | 1 | community/archive | admin,backend,edutu-web-app | none | **archive** | Backup ref at the exact same tip as `agent/community-web-clean`; retain for provenance only. |
 | `agent/opportunity-content-ux` | `cda393fa` | 0/30 | unmerged | 29 | SEO/opportunity | .github,docs,edutumobile | #66 OPEN; #64 MERGED | **integrate** | #66 OPEN; #64 MERGED; current canonical candidate at 0 commits behind main. |
 | `archive/admin-shell-engine-wip-2026-08-24` | `06dc6e1d` | 25/56 | unmerged | 55 | admin/engine | .github,admin,backend,docs,scripts | none | **archive** | Ancestor of refactor/admin-shell-engine-production; retain as snapshot. |
 | `archive/pr56-before-pr57-reconciliation-2026-08-24` | `be233561` | 25/43 | unmerged | 43 | archive | .github,backend,docs,edutu-web-app,edutumobile | none | **archive** | Named historical snapshot; never merge directly. |

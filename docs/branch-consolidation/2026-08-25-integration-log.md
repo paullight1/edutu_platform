@@ -44,6 +44,7 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 | 20 | `origin/feat/web-community-product` | member-roster cursor series `897425d2`..`139b1d84` | semantic port into canonical `features/community` architecture | source used an obsolete parallel component tree | focused Community 14 files/43 tests; web lint/typecheck | `f2f9784e` | roster pagination accepted; obsolete route gate and alternate component tree rejected |
 | 21 | refreshed Community refs | `3944b9b3`; `cd339b38`; `4d55c495` | residual inspection after final fetch | none | ancestry, commit, and tree-diff review | n/a | source-export workflows rejected; legacy branch retained as archive |
 | 22 | `worktree-edutu-communities-slice-1` | `21d49818` | read-only worktree/commit inspection | active worktree is dirty with tracked dependency deletions and is 638 commits behind | `git status`, ancestry count, commit list, and diff inventory | n/a | deferred — owner handoff required; no files imported |
+| 23 | final refreshed Community refs | `38319e76`; `71cfc518` | residual inspection after force-update | none | ancestry, commit, and tree-diff review against both canonical integration and legacy product branch | n/a | export workflow rejected; clean squash superseded; backup retained as archive |
 
 ### Event 1 notes
 
@@ -106,6 +107,7 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 - Rejected the older `CommunityAppGate`: it owns an obsolete route/page set and would bypass current App-level behavior; the canonical `CommunityAppRouter` already lazy-loads current Community screens.
 - A final fetch discovered `agent/community-legacy-export`, `agent/community-web-clean`, and `archive/web-community-product-legacy-20260826`. The first two add only temporary export workflows; the third is an archive of the already-reviewed stale branch.
 - The local social-identity worktree was inspected read-only and left untouched because its checkout is dirty and its branch is 638 commits behind `origin/main`.
+- A later fetch force-updated `agent/community-web-clean` to `71cfc518` and added matching backup and merge-base-export refs. The clean squash contains the same already-reviewed alternate Community tree; it adds no accepted residual beyond `f2f9784e`.
 
 ## Final combined verification
 
