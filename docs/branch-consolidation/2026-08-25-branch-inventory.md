@@ -6,9 +6,27 @@
 
 ## Status
 
-This inventory is the first execution checkpoint. No feature branch has been merged. Decisions below are proposals until the user approves the exact `integrate` and `port` lists.
+This inventory began as the first execution checkpoint and now records the completed local consolidation review. The four approved canonical branches were merged into the isolated integration branch, and every proposed selective-port source received an accept, superseded, defer, archive, or reject outcome. Nothing has been pushed to or merged into `main` yet.
 
-Remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**, **6 reject**.
+Original remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**, **6 reject**. A final fetch on 2026-08-26 discovered three additional Community refs: two temporary export-workflow branches were rejected and one legacy snapshot was archived.
+
+## Execution outcome
+
+| Source | Final outcome | Integration evidence |
+|---|---|---|
+| Four canonical `integrate` branches | accepted | Merge commits `7b22edac`, `57bf30b9`, `bf039438`, and `8830e38d` |
+| `feat/admin-engine-operability` | adapted port | `6b802bbf` |
+| `perf/web-auth-speed` | adapted port | `8de2d4f3` |
+| `feat/engine-prelaunch-hardening` | five adapted ports | `925a07b6`, `a26d2089`, `c9f8ea82`, `1d9dee93`, `a15d2e1b` |
+| `feat/engine-fingerprint-ratelimit` | fingerprint accepted; Redis fallback rejected | `254e0fc5`; current atomic DB rate limiter retained |
+| `docs/feature-5of5-production-plans` | canonical plans accepted; probe/markers rejected | `5de647d6` |
+| `refactor/architecture-simplification` | migration ownership guard accepted; stale runtime/admin rewrites rejected | `4cbe0a88` |
+| `codex/seo-p0-p4-hardening` | deployment-route parity residual accepted; duplicated behavior omitted | `95e65cec` |
+| `feat/web-community-product` | member-roster pagination adapted; obsolete parallel UI/router rejected | `f2f9784e` |
+| Supabase remediation, credits hardening, and local API billing | superseded by equivalent or stronger current implementations | no source changes |
+| `chore/remove-legacy-scrapers` | rejected | conflicts with the repository's active `crawl4ai-scraper` contract |
+| `worktree-scraper-progress-refactor` | rejected | unrelated old history targeting the retired admin Scraper monolith |
+| `worktree-edutu-communities-slice-1` | deferred | dirty active worktree, 638 commits behind; owner handoff required |
 
 ## Decision meanings
 
@@ -18,7 +36,7 @@ Remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**
 - `archive`: preserve for history; never merge directly.
 - `reject`: temporary, closed, obsolete, operational-only, or unrelated history.
 
-## Proposed direct integrations
+## Completed direct integrations
 
 | Branch | PR | Behind | Unique patches | Scope | Evidence |
 |---|---:|---:|---:|---|---|
@@ -27,7 +45,7 @@ Remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**
 | `feat/web-community-parity-seo` | #56 OPEN draft | 0 | 63 | admin,backend,docs,edutu-web-app,edutumobile | #56 OPEN draft; current canonical candidate at 0 commits behind main. |
 | `refactor/admin-shell-engine-production` | #60 OPEN draft | 0 | 141 | .github,__invalid__,admin,backend,docs,scripts | #60 OPEN draft; current canonical candidate at 0 commits behind main. |
 
-## Proposed selective ports
+## Reviewed selective-port candidates
 
 | Branch | PR | Behind | Unique patches | Scope | Evidence |
 |---|---:|---:|---:|---|---|
@@ -48,9 +66,9 @@ Remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**
 | `security/credits-hardening` | #4 OPEN→feat/personalized-yours-overhaul | 997 | NA | unrelated-history | #4 OPEN→feat/personalized-yours-overhaul; stale/stacked history requires selected commits or a refreshed diff. |
 | `worktree-scraper-progress-refactor` | #5 OPEN draft→feat/personalized-yours-overhaul | 997 | NA | unrelated-history | #5 OPEN draft→feat/personalized-yours-overhaul; stale/stacked history requires selected commits or a refreshed diff. |
 
-## Overlap resolution and proposed order
+## Overlap resolution and executed order
 
-| Order | Family | Canonical source | Residual sources | Resolution | Current blocker |
+| Order | Family | Canonical source | Residual sources | Resolution | Original blocker |
 |---:|---|---|---|---|---|
 | 1 | Opportunity content | `agent/opportunity-content-ux` / PR #66 | none | Merge the current branch, then verify mobile opportunity-detail/application-support behavior. | GitHub Mobile Tests currently fail; external Vercel checks are rate-limited. |
 | 2 | SEO/hydration | `codex/seo-hydration-consistency` / PR #67 | `codex/seo-p0-p4-hardening` / PR #62 | Merge #67 as the current baseline; port only hardening behavior from #62 that is absent after #67. PR #61 (`codex/seo-p0-p4`) is already merged. | #67 currently fails backend lint, web lint, web build/typecheck, and two SEO contracts. #62 conflicts with main. |
@@ -60,16 +78,19 @@ Remote decisions: **4 integrate**, **16 port**, **37 superseded**, **3 archive**
 | 6 | Engine hardening | current integration baseline | PRs #43, #47, #46, and #44 | Port in dependency order: prelaunch hardening, fingerprint/rate-limit, admin operability, then deliberate legacy deletion. | All source histories are roughly 660 commits behind; #43/#46/#44 conflict with main. |
 | 7 | Security and local-only residuals | current integration baseline | Supabase/Render remediation, PR #4, `codex/push-main-20260813`, and `worktree-edutu-communities-slice-1` | Review individual security/social commits against current schemas and billing code; never merge their old histories. | PR #4 and the local worktrees are based on old or unrelated histories; active-worktree owner handoff is required. |
 
-No direct source merge begins until this order and the proposed `port` set are approved. Each blocker is fixed or explicitly excluded on the integration branch before the next family proceeds.
+The user approved this order. Each blocker was fixed, adapted, or explicitly excluded on the integration branch before the next family proceeded; the resulting commits and checks are recorded in the integration log.
 
 ## Full remote inventory
 
 | Branch | Tip | Behind/Ahead | Ancestry | Unique | Family | Touched roots | PRs | Decision | Evidence |
 |---|---|---:|---|---:|---|---|---|---|---|
+| `agent/community-legacy-export` | `3944b9b3` | 309/110 | unmerged | 110 | community/operations | .github plus stale community tree | none | **reject** | Adds only a temporary source-export workflow on top of `feat/web-community-product`; no new product patch. |
+| `agent/community-web-clean` | `cd339b38` | 0/1 | unmerged | 1 | community/operations | .github | none | **reject** | The sole patch is a temporary source-export workflow; it contains no Community product source. |
 | `agent/opportunity-content-ux` | `cda393fa` | 0/30 | unmerged | 29 | SEO/opportunity | .github,docs,edutumobile | #66 OPEN; #64 MERGED | **integrate** | #66 OPEN; #64 MERGED; current canonical candidate at 0 commits behind main. |
 | `archive/admin-shell-engine-wip-2026-08-24` | `06dc6e1d` | 25/56 | unmerged | 55 | admin/engine | .github,admin,backend,docs,scripts | none | **archive** | Ancestor of refactor/admin-shell-engine-production; retain as snapshot. |
 | `archive/pr56-before-pr57-reconciliation-2026-08-24` | `be233561` | 25/43 | unmerged | 43 | archive | .github,backend,docs,edutu-web-app,edutumobile | none | **archive** | Named historical snapshot; never merge directly. |
 | `archive/web-community-parity-seo-pre-rebase-20260823` | `de15b3bd` | 328/85 | unmerged | 84 | community | backend,docs,edutu-web-app | none | **archive** | Named historical snapshot; never merge directly. |
+| `archive/web-community-product-legacy-20260826` | `4d55c495` | 309/109 | unmerged | 108 | community/archive | .github,admin,backend,edutu-web-app | none | **archive** | Same product tip as `feat/web-community-product`; retained as the explicit legacy snapshot after selective review. |
 | `chatgpt-write-test-20260820-1249` | `b9040827` | 331/2 | unmerged | 2 | other | none | none | **reject** | Temporary write-access test history; current tree contributes no files. |
 | `chore/ci-hardening` | `fbeb799d` | 760/17 | unmerged | 16 | CI | .github,backend,edutumobile | #17 MERGED | **superseded** | #17 MERGED; GitHub records the source PR merged. |
 | `chore/engine-governance-docs` | `fd7fc050` | 660/1 | unmerged | 1 | admin/engine | docs,scripts | #45 CLOSED | **superseded** | Closed PR #45; secret-rotation/readiness governance subsequently landed through PRs #58 and #59. |

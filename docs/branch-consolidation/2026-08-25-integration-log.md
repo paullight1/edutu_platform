@@ -31,6 +31,19 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 | 7 | `origin/feat/mobile-haptics-toggle` | `8d31ccab` | patch-equivalence and source inspection | none | current `lib/haptics.ts` and `haptics.test.ts` are identical to source; mobile full suite passed at event 4 | n/a | no-op — already present; rejected source's tracked `node_modules` symlink |
 | 8 | `origin/fix/backend-lint-cleanup`; `origin/fix/profile-raw-clerk-id-and-remove-web-ai-coach` | `f6005d1e`; `a6fe6de1` | residual inspection | mutually exclusive historic UI variants | current PR #66 Best Shots state is newer, compact, accessible, and routes both variants correctly; mobile focused/full tests passed at events 1 and 4 | n/a | no-op — superseded by event 1 |
 | 9 | `origin/feat/admin-engine-operability` | `602c466af5770b7ffeac346a9f7fb8a025554741` | semantic port into the refactored Engine architecture | legacy `admin/src/pages/Scraper.tsx` was deleted by event 3 | backend focused 2 suites/4 tests; backend lint/build; admin focused 3 files/14 tests; admin lint/build; architecture and diff checks | `6b802bbf` | accepted in adapted form |
+| 10 | `origin/feat/engine-prelaunch-hardening` | `8ff55134` | semantic port into current scraper/verifier services | stale service layout | focused backend verification, crawl-state, and scraper suites; backend lint/build | `925a07b6` | accepted in adapted form |
+| 11 | `origin/feat/engine-prelaunch-hardening` | `36a1e194` | semantic port with current opportunity model and listing guards | stale DTO/service layout | focused backend scraper, opportunity, and apply-link coverage; backend lint/build | `a26d2089` | accepted in adapted form |
+| 12 | `origin/feat/engine-prelaunch-hardening` | `8706fedc` | semantic port preserving the current backend trust schema | stale learner UI | focused web/mobile opportunity tests; lint/typecheck | `c9f8ea82` | accepted in adapted form |
+| 13 | `origin/feat/engine-prelaunch-hardening` | `1be6a2a2` | semantic port into current ranking policy | none | focused backend ranking tests; backend lint/build | `1d9dee93` | accepted |
+| 14 | `origin/feat/engine-prelaunch-hardening` | `75ca62ab` | documentation/cache-metadata port only | source also contained fail-open metering | focused API metadata tests; backend lint/build | `a15d2e1b` | accepted in narrowed form; fail-open metering rejected |
+| 15 | `origin/feat/engine-fingerprint-ratelimit` | `00b5e8bc`; `fd37d3d2` | semantic fingerprint port; residual rate-limit inspection | current scraper service split and schema growth guard | focused backend 79 tests; backend lint/build; architecture; migration timestamp checks | `254e0fc5` | fingerprint accepted; Redis fallback rejected because the current atomic DB bucket remains fail-closed across replicas |
+| 16 | `origin/docs/feature-5of5-production-plans` | `d4580752` | documentation-only port | none | `git diff --check`; source commit inspection | `5de647d6` | accepted; probe and execution-marker commits rejected |
+| 17 | `origin/refactor/architecture-simplification` | `b0c6e248`, `99db3575`, `d13b04aa` behavior | semantic port into current architecture checker | stale Express deletion and admin transport rewrites excluded | migration ownership 3 tests; timestamp scan 73 migrations with 5 grandfathered collisions and no new collision; boundary 7 tests; architecture budgets | `4cbe0a88` | accepted in narrowed form |
+| 18 | `origin/codex/seo-p0-p4-hardening` | route-contract and release-evidence residuals through `bb6f3899` | semantic port after PR #67 | root/app Vercel route drift | routing/hydration 9 tests; Vercel config 3 tests; JSON validation | `95e65cec` | accepted in adapted form; already-present sitemap/pagination behavior not duplicated |
+| 19 | Supabase/security and local billing branches | `8f403db1`; `79d325f7`; `123771e6` | source and patch-equivalence review | old or unrelated histories | current ACL/RLS/Edge protections are equivalent or stronger; current API-key, credit, billing, and rate-limit implementations are newer | n/a | no-op — superseded; no stale security or billing history imported |
+| 20 | `origin/feat/web-community-product` | member-roster cursor series `897425d2`..`139b1d84` | semantic port into canonical `features/community` architecture | source used an obsolete parallel component tree | focused Community 14 files/43 tests; web lint/typecheck | `f2f9784e` | roster pagination accepted; obsolete route gate and alternate component tree rejected |
+| 21 | refreshed Community refs | `3944b9b3`; `cd339b38`; `4d55c495` | residual inspection after final fetch | none | ancestry, commit, and tree-diff review | n/a | source-export workflows rejected; legacy branch retained as archive |
+| 22 | `worktree-edutu-communities-slice-1` | `21d49818` | read-only worktree/commit inspection | active worktree is dirty with tracked dependency deletions and is 638 commits behind | `git status`, ancestry count, commit list, and diff inventory | n/a | deferred — owner handoff required; no files imported |
 
 ### Event 1 notes
 
@@ -72,3 +85,24 @@ The backend full run encountered `ENOSPC` while writing Jest transform cache for
 - Rebuilt the scorecard as a tested Engine status component instead of restoring the deleted legacy Scraper monolith.
 - Extracted the SQL aggregate into `opportunity-quality-scorecard.ts`. The large-service ceiling was explicitly adjusted by five delegation-only lines; the query itself does not expand `opportunities.service.ts`.
 - The admin production build passed with the repository-required `VITE_BACKEND_URL=https://api.example.com` fixture.
+
+### Events 10–15 notes
+
+- Ported launch-hardening behavior against the current scraper, opportunity, verification, and ranking architecture instead of replaying six-hundred-commit-old service files.
+- Preserved the current stricter backend trust model and atomic database-backed API rate limiter. The stale Redis implementation degraded to per-instance memory on Redis failure, so it was not an acceptable replacement.
+- Added a source-independent `title_fingerprint` with a deployable migration and extracted its helper to keep the scraper service inside the repository size budget.
+- Kept API versioning and cache-metadata documentation while excluding the source branch's optional fail-open credit metering.
+
+### Events 16–19 notes
+
+- Ported only the canonical 5/5 production plans; temporary probe and execution-marker commits were excluded.
+- Added frozen legacy-migration ownership checks to the current architecture guard without restoring the retired Express runtime or older admin transport layers.
+- Added a deployment-route parity validator and aligned the root and web-app Vercel route contracts. Existing fail-closed sitemap and crawlable-pagination behavior was retained without duplication.
+- The Supabase remediation tree is already present byte-for-byte where relevant, while current production-environment validation and RevenueCat entitlement handling are newer. Local API-key and credit branches were likewise superseded by stronger current implementations.
+
+### Events 20–22 notes
+
+- Added cursor-aware roster loading to the canonical Community API client and shared hook, including deduplication and “Load more members” controls in the group About panel and settings.
+- Rejected the older `CommunityAppGate`: it owns an obsolete route/page set and would bypass current App-level behavior; the canonical `CommunityAppRouter` already lazy-loads current Community screens.
+- A final fetch discovered `agent/community-legacy-export`, `agent/community-web-clean`, and `archive/web-community-product-legacy-20260826`. The first two add only temporary export workflows; the third is an archive of the already-reviewed stale branch.
+- The local social-identity worktree was inspected read-only and left untouched because its checkout is dirty and its branch is 638 commits behind `origin/main`.
