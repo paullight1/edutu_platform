@@ -2584,6 +2584,11 @@ ${text}`;
 
       try {
         const parsed = new URL(resolved);
+        // A category/tag/page listing is never a single opportunity's apply
+        // URL — even when it's external and the anchor says "Apply". Without
+        // this, an item on an aggregator's "/category/<x>/" page could adopt
+        // that listing as its application_url.
+        if (NON_OPPORTUNITY_URL_RE.test(parsed.pathname)) return "";
         const redirectTarget =
           parsed.searchParams.get("url") ||
           parsed.searchParams.get("u") ||

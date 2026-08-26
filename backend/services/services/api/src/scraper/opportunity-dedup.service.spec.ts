@@ -8,7 +8,75 @@ import {
   isDomainTrustGateEnabled,
   TITLE_SIMILARITY_THRESHOLD,
   OpportunityDedupService,
+  findWithinBatchDuplicates,
 } from "./opportunity-dedup.service";
+
+describe("findWithinBatchDuplicates", () => {
+  it("flags a later record with the same fingerprint as an earlier one", () => {
+    const dupes = findWithinBatchDuplicates([
+      {
+        canonical_url: "a",
+        content_fingerprint: "rhodes|rhodes trust|2026-08-03",
+      },
+      {
+        canonical_url: "b",
+        content_fingerprint: "rhodes|rhodes trust|2026-08-03",
+      },
+    ]);
+    expect(dupes.has(0)).toBe(false); // first occurrence is kept
+    expect(dupes.has(1)).toBe(true); // second is the duplicate
+  });
+
+  it("does not flag identical canonical_url (already collapsed upstream)", () => {
+    const dupes = findWithinBatchDuplicates([
+      { canonical_url: "a", content_fingerprint: "x|y|z" },
+      { canonical_url: "a", content_fingerprint: "x|y|z" },
+    ]);
+    expect(dupes.size).toBe(0);
+  });
+
+  it("catches org-drift dupes via title+deadline when a fingerprint differs", () => {
+    // Same opportunity, org present on one row and blank on the other, so the
+    // fingerprints differ — title similarity + compatible deadline still catch it.
+    const dupes = findWithinBatchDuplicates([
+      {
+        canonical_url: "a",
+        content_fingerprint: "chevening scholarship 2026|fcdo|2026-11-05",
+        title: "Chevening Scholarship 2026",
+        organization: "FCDO",
+        close_date: "2026-11-05",
+      },
+      {
+        canonical_url: "b",
+        content_fingerprint: "chevening scholarship 2026||2026-11-05",
+        title: "Chevening Scholarship 2026",
+        organization: "",
+        close_date: "2026-11-06",
+      },
+    ]);
+    expect(dupes.has(1)).toBe(true);
+  });
+
+  it("keeps genuinely different opportunities", () => {
+    const dupes = findWithinBatchDuplicates([
+      {
+        canonical_url: "a",
+        content_fingerprint: "mandela rhodes|mrf|2026-04-01",
+        title: "Mandela Rhodes Scholarship",
+        organization: "MRF",
+        close_date: "2026-04-01",
+      },
+      {
+        canonical_url: "b",
+        content_fingerprint: "chevening|fcdo|2026-11-05",
+        title: "Chevening Scholarship",
+        organization: "FCDO",
+        close_date: "2026-11-05",
+      },
+    ]);
+    expect(dupes.size).toBe(0);
+  });
+});
 
 describe("OpportunityDedupService pure helpers", () => {
   describe("normalizeTitleTokens", () => {

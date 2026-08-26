@@ -39,6 +39,68 @@ export function normalizeOrganization(org: string | null | undefined): string {
   return (org || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+type BatchDupRow = {
+  canonical_url?: string | null;
+  content_fingerprint?: string | null;
+  title?: string | null;
+  organization?: string | null;
+  close_date?: string | null;
+};
+
+/**
+ * Find records that duplicate an EARLIER record in the SAME persist batch.
+ * The DB-comparison tiers only match batch rows against already-stored rows, so
+ * two brand-new items in one run (different canonical_url, same opportunity)
+ * would both be inserted. This closes that gap in memory, before the upsert.
+ *
+ * A record is a within-batch duplicate of an earlier kept record when either:
+ *   - it shares a non-empty content_fingerprint, or
+ *   - compatible organizations + title similarity ≥ threshold + compatible
+ *     deadline (catches missing-organization drift where fingerprints diverge).
+ * Returns the set of duplicate indices (the first occurrence is always kept).
+ */
+export function findWithinBatchDuplicates(
+  records: BatchDupRow[],
+  titleThreshold = TITLE_SIMILARITY_THRESHOLD,
+): Set<number> {
+  const duplicates = new Set<number>();
+  const kept: Array<BatchDupRow & { index: number }> = [];
+
+  records.forEach((rec, index) => {
+    const canonical = rec.canonical_url ?? null;
+    const fp = rec.content_fingerprint ?? null;
+    const orgKey = normalizeOrganization(rec.organization);
+
+    const isDup = kept.some((prev) => {
+      // Identical canonical_url is collapsed by the payload-dedup pass already.
+      if (canonical && prev.canonical_url === canonical) return false;
+      if (fp && prev.content_fingerprint && prev.content_fingerprint === fp) {
+        return true;
+      }
+      // Org-drift tolerant: a missing org on either side is treated as
+      // compatible (that's exactly the null↔value case that defeats the
+      // fingerprint), but two DIFFERENT non-empty orgs are never merged.
+      // titleSimilarity returns 0 for empty titles, so a strong title match
+      // plus a compatible deadline is required — never title alone.
+      const prevOrg = normalizeOrganization(prev.organization);
+      const orgsCompatible = !orgKey || !prevOrg || prevOrg === orgKey;
+      if (
+        orgsCompatible &&
+        deadlinesCompatible(prev.close_date, rec.close_date) &&
+        titleSimilarity(prev.title ?? "", rec.title ?? "") >= titleThreshold
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (isDup) duplicates.add(index);
+    else kept.push({ ...rec, index });
+  });
+
+  return duplicates;
+}
+
 /** True when both dates parse and are within `days` of each other, or both are absent. */
 export function deadlinesCompatible(
   a: string | null | undefined,
@@ -205,6 +267,7 @@ export interface DedupAnnotationSummary {
   duplicates: number;
   byFingerprint: number;
   byTitleOrg: number;
+  byWithinBatch: number;
 }
 
 @Injectable()
@@ -247,8 +310,24 @@ export class OpportunityDedupService {
       duplicates: 0,
       byFingerprint: 0,
       byTitleOrg: 0,
+      byWithinBatch: 0,
     };
-    if (!this.supabase || records.length === 0) return summary;
+    if (records.length === 0) return summary;
+
+    // Within-batch pass (no DB needed): collapse new/new duplicates that the
+    // DB tiers below can't see because they only compare against stored rows.
+    // Runs even when Supabase is unconfigured (e.g. tests) so same-run dupes
+    // are always caught.
+    const withinBatchDupes = findWithinBatchDuplicates(records);
+    withinBatchDupes.forEach((index) => {
+      this.markWithinBatchDuplicate(records[index]);
+      summary.byWithinBatch++;
+    });
+
+    if (!this.supabase) {
+      summary.duplicates = summary.byWithinBatch;
+      return summary;
+    }
 
     try {
       // Tier 1: exact content_fingerprint match (one IN query for the batch).
@@ -357,14 +436,29 @@ export class OpportunityDedupService {
       this.logger.warn(`Duplicate detection skipped: ${e.message}`);
     }
 
-    summary.duplicates = summary.byFingerprint + summary.byTitleOrg;
+    summary.duplicates =
+      summary.byFingerprint + summary.byTitleOrg + summary.byWithinBatch;
     if (summary.duplicates > 0) {
       this.logger.log(
         `Dedup: flagged ${summary.duplicates}/${summary.checked} record(s) as likely duplicates ` +
-          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleOrg} by title+deadline).`,
+          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleOrg} by title+deadline, ` +
+          `${summary.byWithinBatch} within-batch).`,
       );
     }
     return summary;
+  }
+
+  /**
+   * A within-batch duplicate has no persisted sibling to point `duplicate_of`
+   * at (both rows are new this run), so we can't set an id — but we still hold
+   * it for review so only the first occurrence can go live.
+   */
+  private markWithinBatchDuplicate(rec: Record<string, any>): void {
+    rec.status = "pending_review";
+    const metadata = (rec.metadata ?? {}) as Record<string, unknown>;
+    metadata.dedup = { matchedBy: "within_batch", withinBatch: true };
+    metadata.needs_review = true;
+    rec.metadata = metadata;
   }
 
   private markDuplicate(
