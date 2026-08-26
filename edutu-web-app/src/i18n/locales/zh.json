@@ -188,7 +188,8 @@
         "deadlines": "截止日期",
         "wallet": "钱包",
         "creator": "创作者",
-        "upgradeToPro": "升级到 Pro"
+        "upgradeToPro": "升级到 Pro",
+        "community": "社区"
     },
     "saved": {
         "title": "已保存的机会",
