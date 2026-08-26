@@ -27,21 +27,23 @@ import {
 } from "../lib/adminApi";
 
 interface HealthStatus {
-  status: "ok" | "degraded" | "down";
+  status: "ready" | "not_ready";
   timestamp: string;
-  uptime: number;
-  database: {
-    status: "connected" | "disconnected";
-    responseTime?: number;
-  };
-  ai: {
-    gemini: "configured" | "missing";
-    openrouter: "configured" | "missing";
-  };
-  memory: {
-    heapUsed: number;
-    heapTotal: number;
-    rss: number;
+  uptimeSeconds: number;
+  version: string;
+  checks: {
+    database: {
+      status: "up" | "down";
+      responseTimeMs: number;
+      reason?: "query_failed" | "timeout";
+    };
+    ai: {
+      status: "configured" | "degraded";
+      providers: {
+        gemini: "configured" | "missing";
+        openrouter: "configured" | "missing";
+      };
+    };
   };
 }
 
@@ -372,35 +374,27 @@ const Dashboard = () => {
   ] as const;
 
   const healthMetrics: DashboardMetric[] = useMemo(() => {
-    const databaseConnected = health?.database.status === "connected";
-    const memoryPercent = health
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            Math.round((health.memory.heapUsed / Math.max(health.memory.heapTotal, 1)) * 100),
-          ),
-        )
-      : 0;
+    const databaseConnected = health?.checks.database.status === "up";
+    const apiReady = health?.status === "ready";
     const aiConfigured =
-      (health?.ai.gemini === "configured" ? 1 : 0) +
-      (health?.ai.openrouter === "configured" ? 1 : 0);
+      (health?.checks.ai.providers.gemini === "configured" ? 1 : 0) +
+      (health?.checks.ai.providers.openrouter === "configured" ? 1 : 0);
 
     return [
       {
         label: "Database",
         value: databaseConnected
-          ? `${health?.database.responseTime ?? 0} ms`
+          ? `${health?.checks.database.responseTimeMs ?? 0} ms`
           : "Disconnected",
         progress: databaseConnected ? 100 : 0,
         color: databaseConnected ? "#34c759" : "#ef4444",
         icon: CheckCircle2,
       },
       {
-        label: "Memory Usage",
-        value: `${memoryPercent}%`,
-        progress: memoryPercent,
-        color: "#0071e3",
+        label: "API Readiness",
+        value: apiReady ? "Ready" : "Not ready",
+        progress: apiReady ? 100 : 0,
+        color: apiReady ? "#0071e3" : "#ef4444",
         icon: Award,
       },
       {
@@ -689,14 +683,14 @@ const Dashboard = () => {
             </p>
             </div>
             <span
-              className={`badge ${health ? (health.status === "ok" ? "badge-success" : "badge-warning") : "badge-danger"}`}
+              className={`badge ${health ? (health.status === "ready" ? "badge-success" : "badge-warning") : "badge-danger"}`}
             >
-              {health ? (health.status === "ok" ? "Healthy" : "Degraded") : "Unavailable"}
+              {health ? (health.status === "ready" ? "Healthy" : "Degraded") : "Unavailable"}
             </span>
           </div>
 
           <div style={{ marginTop: "20px", marginBottom: "18px", color: "var(--text-secondary)", fontSize: "14px" }}>
-            Uptime: {health ? formatUptime(health.uptime) : "Unavailable"}
+            Uptime: {health ? formatUptime(health.uptimeSeconds) : "Unavailable"}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -753,14 +747,14 @@ const Dashboard = () => {
           {health && (
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "20px" }}>
               <span
-                className={`badge ${health.ai.gemini === "configured" ? "badge-success" : "badge-danger"}`}
+                className={`badge ${health.checks.ai.providers.gemini === "configured" ? "badge-success" : "badge-danger"}`}
               >
-                Gemini: {health.ai.gemini}
+                Gemini: {health.checks.ai.providers.gemini}
               </span>
               <span
-                className={`badge ${health.ai.openrouter === "configured" ? "badge-success" : "badge-danger"}`}
+                className={`badge ${health.checks.ai.providers.openrouter === "configured" ? "badge-success" : "badge-danger"}`}
               >
-                OpenRouter: {health.ai.openrouter}
+                OpenRouter: {health.checks.ai.providers.openrouter}
               </span>
             </div>
           )}
