@@ -2,11 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  BookOpen,
   CalendarClock,
   HeartHandshake,
   LockKeyhole,
   MessageCircle,
-  Mic2,
   ShieldCheck,
   Sparkles,
   Users,
@@ -82,9 +82,9 @@ const CommunityPage: React.FC = () => {
                 body: 'Join learner spaces where participation, membership and access are governed by authenticated product state.',
               },
               {
-                icon: Mic2,
-                title: 'Live voice rooms',
-                body: 'Supported community calls use the dedicated voice gateway, short-lived tokens and server-owned room control.',
+                icon: BookOpen,
+                title: 'Shared resources',
+                body: 'Exchange relevant documents, application guides and preparation material inside the communities you belong to.',
               },
               {
                 icon: HeartHandshake,
@@ -128,7 +128,7 @@ const CommunityPage: React.FC = () => {
                   'Use real production metrics only when the metric definition and source are known.',
                   'Use named learner or mentor stories only with explicit permission and traceable source content.',
                   'Label illustrative visuals as illustrations or generic community imagery—not as real Edutu graduates.',
-                  'Keep private conversations, voice rooms and member information behind authenticated authorization boundaries.',
+                  'Keep private conversations, member information and protected resources behind authenticated authorization boundaries.',
                 ].map((item) => (
                   <div key={item} className="flex gap-3 text-sm leading-relaxed text-text-secondary">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success/10 text-success"><ShieldCheck size={12} /></span>

@@ -188,7 +188,8 @@
         "deadlines": "Fristen",
         "wallet": "Wallet",
         "creator": "Ersteller",
-        "upgradeToPro": "Auf Pro upgraden"
+        "upgradeToPro": "Auf Pro upgraden",
+        "community": "Community"
     },
     "saved": {
         "title": "Gespeicherte Möglichkeiten",

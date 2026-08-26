@@ -9,9 +9,11 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { z } from "zod";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
+import { communityThrottle } from "./community-throttle";
 import {
   CommunityAttachmentUploadSchema,
   CommunityGroupImageUploadSchema,
@@ -32,7 +34,7 @@ import {
 } from "./dto/community.dto";
 import { FormsService, type JoinRequestFilter } from "./forms.service";
 import { CommunityContentService } from "./content.service";
-import { GroupsService } from "./groups.service";
+import { GroupsService, type CommunityMemberCursor } from "./groups.service";
 import { MessagesService } from "./messages.service";
 import { ModerationService } from "./moderation.service";
 
@@ -139,11 +141,20 @@ export class CommunitiesController {
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
     @Query("limit") limit?: string,
+    @Query("afterRole") afterRole?: string,
+    @Query("afterJoinedAt") afterJoinedAt?: string,
+    @Query("afterId") afterId?: string,
   ) {
-    return this.groups.listMembers(userId, id, this.parseLimit(limit));
+    return this.groups.listMembers(
+      userId,
+      id,
+      this.parseLimit(limit),
+      this.parseMemberCursor(afterRole, afterJoinedAt, afterId),
+    );
   }
 
   @Post("groups")
+  @Throttle(communityThrottle("createGroup"))
   createGroup(
     @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(CreateGroupSchema)) dto: CreateGroupDto,
@@ -152,6 +163,7 @@ export class CommunitiesController {
   }
 
   @Patch("groups/:id")
+  @Throttle(communityThrottle("mutateMembership"))
   updateGroup(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -161,6 +173,7 @@ export class CommunitiesController {
   }
 
   @Post("groups/:id/cover-image/upload-url")
+  @Throttle(communityThrottle("uploadReservation"))
   createGroupCoverImageUpload(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -181,6 +194,7 @@ export class CommunitiesController {
    * private group refuses the caller here exactly as `join` would.
    */
   @Post("groups/:id/join")
+  @Throttle(communityThrottle("joinGroup"))
   async joinGroup(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -193,6 +207,7 @@ export class CommunitiesController {
 
   /** Owner only, and irreversible — there is deliberately no unarchive. */
   @Post("groups/:id/archive")
+  @Throttle(communityThrottle("mutateMembership"))
   archiveGroup(@CurrentUser("authId") userId: string, @Param("id") id: string) {
     return this.groups.archive(userId, id);
   }
@@ -204,6 +219,7 @@ export class CommunitiesController {
    * people their owner wants in.
    */
   @Post("groups/:id/invite")
+  @Throttle(communityThrottle("inviteMember"))
   inviteToGroup(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -213,6 +229,7 @@ export class CommunitiesController {
   }
 
   @Patch("groups/:id/members/:uid/role")
+  @Throttle(communityThrottle("mutateMembership"))
   setMemberRole(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -228,6 +245,7 @@ export class CommunitiesController {
    * so one route serves both and the two can never disagree.
    */
   @Delete("groups/:id/members/:uid")
+  @Throttle(communityThrottle("mutateMembership"))
   removeMember(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -246,6 +264,7 @@ export class CommunitiesController {
   }
 
   @Post("groups/:id/form")
+  @Throttle(communityThrottle("mutateMembership"))
   setForm(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -275,6 +294,7 @@ export class CommunitiesController {
    * approve somebody into a group the caller does not administer.
    */
   @Post("groups/:id/requests/:rid")
+  @Throttle(communityThrottle("mutateMembership"))
   decideRequest(
     @CurrentUser("authId") userId: string,
     @Param("rid") requestId: string,
@@ -324,6 +344,7 @@ export class CommunitiesController {
   }
 
   @Post("groups/:id/messages")
+  @Throttle(communityThrottle("sendGroupMessage"))
   sendMessage(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -333,6 +354,7 @@ export class CommunitiesController {
   }
 
   @Post("groups/:id/attachments/upload-url")
+  @Throttle(communityThrottle("uploadReservation"))
   createAttachmentUpload(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -358,6 +380,7 @@ export class CommunitiesController {
   }
 
   @Delete("messages/:id")
+  @Throttle(communityThrottle("mutateMembership"))
   deleteMessage(
     @CurrentUser("authId") userId: string,
     @Param("id") id: string,
@@ -370,6 +393,7 @@ export class CommunitiesController {
   // -------------------------------------------------------------------------
 
   @Post("reports")
+  @Throttle(communityThrottle("report"))
   report(
     @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(ReportSchema)) dto: ReportDto,
@@ -388,6 +412,7 @@ export class CommunitiesController {
    * in a group applies to that person's roadmap comments too.
    */
   @Post("blocks")
+  @Throttle(communityThrottle("block"))
   block(
     @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(BlockSchema)) dto: BlockDto,
@@ -407,6 +432,7 @@ export class CommunitiesController {
    * mis-tap that could never be reversed would hide a member for good.
    */
   @Delete("blocks/:uid")
+  @Throttle(communityThrottle("block"))
   unblock(
     @CurrentUser("authId") userId: string,
     @Param("uid") targetUserId: string,
@@ -450,6 +476,29 @@ export class CommunitiesController {
       throw new BadRequestException("Ask for a positive number of results.");
     }
     return Math.floor(parsed);
+  }
+
+  private parseMemberCursor(
+    roleValue: string | undefined,
+    joinedAtValue: string | undefined,
+    idValue: string | undefined,
+  ): CommunityMemberCursor | undefined {
+    const role = roleValue?.trim();
+    const joinedAt = joinedAtValue?.trim();
+    const id = idValue?.trim();
+    const supplied = [role, joinedAt, id].filter(Boolean).length;
+    if (supplied === 0) return undefined;
+    if (supplied != 3) {
+      throw new BadRequestException("That member-page cursor isn't complete.");
+    }
+    if (role !== "owner" && role !== "mod" && role !== "member") {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    const parsedDate = new Date(joinedAt!);
+    if (Number.isNaN(parsedDate.getTime())) {
+      throw new BadRequestException("That member-page cursor isn't valid.");
+    }
+    return { role, joinedAt: parsedDate.toISOString(), id: id! };
   }
 
   /**
