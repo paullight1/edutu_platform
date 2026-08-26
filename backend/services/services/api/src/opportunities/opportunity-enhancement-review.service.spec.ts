@@ -272,11 +272,14 @@ describe("OpportunityEnhancementReviewService", () => {
         }),
       }),
     );
-    expect(opportunitiesService.invalidateCatalogCache).toHaveBeenCalledTimes(1);
+    expect(opportunitiesService.invalidateCatalogCache).toHaveBeenCalledTimes(
+      1,
+    );
     expect(embeddingService.embedOpportunity).toHaveBeenCalledWith(original.id);
-    expect(
-      shareCardService.ensureShareCardForOpportunity,
-    ).toHaveBeenCalledWith(updated, { force: true });
+    expect(shareCardService.ensureShareCardForOpportunity).toHaveBeenCalledWith(
+      updated,
+      { force: true },
+    );
     expect(result).toEqual({
       success: true,
       opportunity: updated,

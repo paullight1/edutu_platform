@@ -11,7 +11,9 @@ const EXPIRES_AT = "2026-08-26T04:50:00.000Z";
 const BASE_UPDATED_AT = "2026-08-26T04:00:00.000Z";
 
 function buildReview(
-  overrides: Partial<Parameters<typeof buildOpportunityEnhancementReview>[0]> = {},
+  overrides: Partial<
+    Parameters<typeof buildOpportunityEnhancementReview>[0]
+  > = {},
 ): OpportunityEnhancementPreview {
   return buildOpportunityEnhancementReview({
     opportunityId: "opportunity-1",
@@ -114,9 +116,7 @@ describe("opportunity enhancement review", () => {
   it("blocks a newly proposed hard fact when no useful source text supports it", () => {
     const review = buildReview({ sourceBacked: false });
     const deadline = review.fields.find((field) => field.name === "deadline");
-    const funding = review.fields.find(
-      (field) => field.name === "fundingType",
-    );
+    const funding = review.fields.find((field) => field.name === "fundingType");
 
     expect(deadline).toMatchObject({
       status: "unsupported",
@@ -215,9 +215,9 @@ describe("opportunity enhancement review tokens", () => {
   });
 
   it("fails closed when no signing secret is configured", () => {
-    expect(() =>
-      signOpportunityEnhancementPreview(buildReview(), ""),
-    ).toThrow(/secret/i);
+    expect(() => signOpportunityEnhancementPreview(buildReview(), "")).toThrow(
+      /secret/i,
+    );
     expect(() =>
       verifyOpportunityEnhancementPreviewToken("payload.signature", ""),
     ).toThrow(/secret/i);

@@ -1,358 +1,4 @@
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def write(path: str, content: str) -> None:
-    target = ROOT / path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-
-
-write(
-    "backend/services/services/api/src/opportunities/opportunity-source-evidence.service.ts",
-    r'''import { Injectable } from "@nestjs/common";
-import { lookup } from "node:dns/promises";
-import * as https from "node:https";
-import type { IncomingMessage } from "node:http";
-import * as cheerio from "cheerio";
 import {
-  buildPinnedHttpsRequestOptions,
-  isGlobalUnicastAddress,
-  type ResolvedEgressAddress,
-} from "../scraper/scraper-egress.service";
-
-export interface OpportunitySourceEvidence {
-  sourceBacked: boolean;
-  sourceUrl: string | null;
-  sourceDomain: string | null;
-  sourceTextLength: number;
-  error: string | null;
-}
-
-const SOURCE_FETCH_TIMEOUT_MS = 12_000;
-const SOURCE_FETCH_MAX_BYTES = 1_500_000;
-const SOURCE_FETCH_MAX_REDIRECTS = 3;
-const MIN_USEFUL_SOURCE_CHARS = 400;
-
-function sourceError(message: string): Error {
-  const error = new Error(message);
-  error.name = "OpportunitySourceEvidenceError";
-  return error;
-}
-
-function parseSafeSourceUrl(rawUrl: string, baseUrl?: URL): URL {
-  let parsed: URL;
-  try {
-    parsed = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl);
-  } catch {
-    throw sourceError("The source URL is invalid.");
-  }
-
-  if (
-    parsed.protocol !== "https:" ||
-    parsed.username ||
-    parsed.password ||
-    parsed.port
-  ) {
-    throw sourceError("The source URL must be a standard HTTPS address.");
-  }
-
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (
-    !hostname ||
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost")
-  ) {
-    throw sourceError("The source host is not publicly reachable.");
-  }
-  if (/^\d+(?:\.\d+){3}$/.test(hostname) && !isGlobalUnicastAddress(hostname)) {
-    throw sourceError("The source host is not publicly reachable.");
-  }
-
-  parsed.hash = "";
-  return parsed;
-}
-
-function responseContentType(response: IncomingMessage): string {
-  const value = response.headers["content-type"];
-  return (Array.isArray(value) ? value[0] : value || "").toLowerCase();
-}
-
-function isHtmlLike(contentType: string): boolean {
-  return (
-    !contentType ||
-    contentType.includes("text/html") ||
-    contentType.includes("application/xhtml+xml") ||
-    contentType.includes("text/plain")
-  );
-}
-
-function isRedirect(status: number): boolean {
-  return [301, 302, 303, 307, 308].includes(status);
-}
-
-async function resolvePublicAddress(
-  url: URL,
-  signal: AbortSignal,
-): Promise<ResolvedEgressAddress> {
-  const hostname = url.hostname.replace(/^\[|\]$/g, "");
-  const entries = await lookup(hostname, { all: true, verbatim: true });
-  if (signal.aborted) throw sourceError("The source request timed out.");
-  if (
-    entries.length === 0 ||
-    entries.some((entry) => !isGlobalUnicastAddress(entry.address))
-  ) {
-    throw sourceError("The source host did not resolve to a public address.");
-  }
-
-  const selected = entries[0];
-  return {
-    address: selected.address,
-    family: selected.family as 4 | 6,
-  };
-}
-
-function requestSourcePage(
-  url: URL,
-  address: ResolvedEgressAddress,
-  signal: AbortSignal,
-): Promise<{
-  status: number;
-  contentType: string;
-  body: string;
-  location: string | null;
-}> {
-  return new Promise((resolve, reject) => {
-    let bytesRead = 0;
-    const chunks: Buffer[] = [];
-    let settled = false;
-
-    const fail = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      reject(error instanceof Error ? error : sourceError("Source fetch failed."));
-    };
-
-    const request = https.request(
-      buildPinnedHttpsRequestOptions(url, address, signal),
-      (response) => {
-        response.on("data", (chunk: Buffer | string) => {
-          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-          bytesRead += buffer.byteLength;
-          if (bytesRead > SOURCE_FETCH_MAX_BYTES) {
-            response.destroy();
-            fail(sourceError("The source page is too large to inspect safely."));
-            return;
-          }
-          chunks.push(buffer);
-        });
-        response.once("aborted", () => fail(sourceError("Source response aborted.")));
-        response.once("error", fail);
-        response.once("end", () => {
-          if (settled) return;
-          settled = true;
-          resolve({
-            status: response.statusCode ?? 0,
-            contentType: responseContentType(response),
-            body: Buffer.concat(chunks).toString("utf8"),
-            location:
-              typeof response.headers.location === "string"
-                ? response.headers.location
-                : null,
-          });
-        });
-      },
-    );
-
-    request.once("error", fail);
-    request.end();
-  });
-}
-
-function extractUsefulSourceText(html: string): string {
-  if (!html) return "";
-  const $ = cheerio.load(html);
-  $("script, style, noscript, nav, footer, header, aside, form, iframe").remove();
-  const candidates: string[] = [];
-  $(
-    "article, main, .entry-content, .post-content, .content, [class*='content'], [class*='article']",
-  ).each((_, element) => {
-    const text = $(element).text().replace(/\s+/g, " ").trim();
-    if (text.length >= 120) candidates.push(text);
-  });
-
-  return (candidates.length
-    ? candidates.sort((left, right) => right.length - left.length).slice(0, 3).join("\n\n")
-    : $("body").text()
-  )
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 12_000);
-}
-
-@Injectable()
-export class OpportunitySourceEvidenceService {
-  async inspect(rawUrl?: string | null): Promise<OpportunitySourceEvidence> {
-    if (!rawUrl?.trim()) {
-      return {
-        sourceBacked: false,
-        sourceUrl: null,
-        sourceDomain: null,
-        sourceTextLength: 0,
-        error: "No source URL is available for verification.",
-      };
-    }
-
-    let initialUrl: URL;
-    try {
-      initialUrl = parseSafeSourceUrl(rawUrl.trim());
-    } catch (error) {
-      return {
-        sourceBacked: false,
-        sourceUrl: rawUrl.trim(),
-        sourceDomain: null,
-        sourceTextLength: 0,
-        error: error instanceof Error ? error.message : "The source URL is invalid.",
-      };
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(sourceError("The source request timed out.")),
-      SOURCE_FETCH_TIMEOUT_MS,
-    );
-
-    try {
-      let currentUrl = initialUrl;
-      for (let redirects = 0; redirects <= SOURCE_FETCH_MAX_REDIRECTS; redirects += 1) {
-        const address = await resolvePublicAddress(currentUrl, controller.signal);
-        const response = await requestSourcePage(
-          currentUrl,
-          address,
-          controller.signal,
-        );
-
-        if (isRedirect(response.status)) {
-          if (!response.location || redirects === SOURCE_FETCH_MAX_REDIRECTS) {
-            throw sourceError("The source redirected too many times.");
-          }
-          currentUrl = parseSafeSourceUrl(response.location, currentUrl);
-          continue;
-        }
-
-        if (response.status < 200 || response.status >= 300) {
-          throw sourceError("The source page could not be reached successfully.");
-        }
-        if (!isHtmlLike(response.contentType)) {
-          throw sourceError("The source did not return a readable web page.");
-        }
-
-        const text = extractUsefulSourceText(response.body);
-        const sourceBacked = text.length >= MIN_USEFUL_SOURCE_CHARS;
-        return {
-          sourceBacked,
-          sourceUrl: currentUrl.toString(),
-          sourceDomain: currentUrl.hostname.replace(/^www\./, "").toLowerCase(),
-          sourceTextLength: text.length,
-          error: sourceBacked
-            ? null
-            : "Source page did not contain enough useful text.",
-        };
-      }
-    } catch (error) {
-      return {
-        sourceBacked: false,
-        sourceUrl: initialUrl.toString(),
-        sourceDomain: initialUrl.hostname.replace(/^www\./, "").toLowerCase(),
-        sourceTextLength: 0,
-        error:
-          error instanceof Error
-            ? error.message
-            : "The source page could not be verified.",
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    return {
-      sourceBacked: false,
-      sourceUrl: initialUrl.toString(),
-      sourceDomain: initialUrl.hostname.replace(/^www\./, "").toLowerCase(),
-      sourceTextLength: 0,
-      error: "The source page could not be verified.",
-    };
-  }
-}
-''',
-)
-
-write(
-    "backend/services/services/api/src/opportunities/opportunity-enhancement-review.repository.ts",
-    r'''import { Injectable } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
-import { db } from "../db";
-import { opportunities } from "../db/schema";
-
-export type OpportunityEnhancementPersistencePayload = Partial<
-  typeof opportunities.$inferInsert
->;
-
-@Injectable()
-export class OpportunityEnhancementReviewRepository {
-  async apply(
-    id: string,
-    expectedUpdatedAt: string,
-    payload: OpportunityEnhancementPersistencePayload,
-  ): Promise<boolean> {
-    const expectedVersion = new Date(expectedUpdatedAt);
-    if (Number.isNaN(expectedVersion.getTime())) return false;
-
-    const updated = await db
-      .update(opportunities)
-      .set({ ...payload, updatedAt: new Date() })
-      .where(
-        and(
-          eq(opportunities.id, id),
-          eq(opportunities.updatedAt, expectedVersion),
-        ),
-      )
-      .returning({ id: opportunities.id })
-      .execute();
-
-    return updated.length > 0;
-  }
-}
-''',
-)
-
-write(
-    "backend/services/services/api/src/opportunities/opportunity-enhancement-review.dto.ts",
-    r'''import { z } from "zod";
-import { OPPORTUNITY_ENHANCEMENT_FIELD_NAMES } from "./opportunity-enhancement-review";
-
-export const OpportunityEnhancementFieldSchema = z.enum(
-  OPPORTUNITY_ENHANCEMENT_FIELD_NAMES,
-);
-
-export const ApplyOpportunityEnhancementSchema = z.object({
-  previewToken: z.string().min(20).max(200_000),
-  selectedFields: z
-    .array(OpportunityEnhancementFieldSchema)
-    .min(1)
-    .max(OPPORTUNITY_ENHANCEMENT_FIELD_NAMES.length),
-  edits: z.record(z.string(), z.unknown()).optional(),
-});
-
-export type ApplyOpportunityEnhancementDto = z.infer<
-  typeof ApplyOpportunityEnhancementSchema
->;
-''',
-)
-
-write(
-    "backend/services/services/api/src/opportunities/opportunity-enhancement-review.service.ts",
-    r'''import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -394,10 +40,7 @@ function metadataOf(record: OpportunityRecord): Record<string, any> {
     : {};
 }
 
-function firstValue(
-  record: OpportunityRecord,
-  ...keys: string[]
-): unknown {
+function firstValue(record: OpportunityRecord, ...keys: string[]): unknown {
   const metadata = metadataOf(record);
   for (const key of keys) {
     for (const candidate of [record?.[key], metadata?.[key]]) {
@@ -460,7 +103,9 @@ function applicationUrlOf(record: OpportunityRecord): unknown {
   );
 }
 
-function valuesFromRecord(record: OpportunityRecord): OpportunityEnhancementValues {
+function valuesFromRecord(
+  record: OpportunityRecord,
+): OpportunityEnhancementValues {
   return {
     summary: firstValue(record, "summary"),
     description: firstValue(record, "description"),
@@ -507,7 +152,9 @@ function missingFieldsFor(record: OpportunityRecord): string[] {
   ];
 }
 
-function qualityFromRecord(record: OpportunityRecord): OpportunityEnhancementQuality {
+function qualityFromRecord(
+  record: OpportunityRecord,
+): OpportunityEnhancementQuality {
   const metadata = metadataOf(record);
   const stored = Number(
     record.quality_score ??
@@ -593,7 +240,8 @@ function scraperInput(record: OpportunityRecord): Record<string, unknown> {
       "application_process",
       "applicationProcess",
     ),
-    eligibility: firstValue(record, "eligibility") || metadata.eligibility || {},
+    eligibility:
+      firstValue(record, "eligibility") || metadata.eligibility || {},
   };
 }
 
@@ -681,7 +329,9 @@ function selectedPayload(
       : [];
   }
   if (Object.prototype.hasOwnProperty.call(selected, "tags")) {
-    payload.tags = Array.isArray(selected.tags) ? selected.tags.map(String) : [];
+    payload.tags = Array.isArray(selected.tags)
+      ? selected.tags.map(String)
+      : [];
   }
   if (Object.prototype.hasOwnProperty.call(selected, "requirements")) {
     nextMetadata.requirements = Array.isArray(selected.requirements)
@@ -799,11 +449,10 @@ export class OpportunityEnhancementReviewService {
     const beforeQuality = qualityFromRecord(original);
     const afterQuality: OpportunityEnhancementQuality = {
       score: Number(
-        previewResult?.completeness?.score ?? qualityFromRecord(candidate).score,
+        previewResult?.completeness?.score ??
+          qualityFromRecord(candidate).score,
       ),
-      missingFields: Array.isArray(
-        previewResult?.completeness?.missingFields,
-      )
+      missingFields: Array.isArray(previewResult?.completeness?.missingFields)
         ? previewResult.completeness.missingFields.map(String)
         : missingFieldsFor(candidate),
     };
@@ -885,9 +534,7 @@ export class OpportunityEnhancementReviewService {
       );
     }
 
-    let selected: Partial<
-      Record<OpportunityEnhancementFieldName, unknown>
-    >;
+    let selected: Partial<Record<OpportunityEnhancementFieldName, unknown>>;
     try {
       selected = buildSelectedEnhancementUpdate(preview, {
         selectedFields: body.selectedFields,
@@ -929,124 +576,3 @@ export class OpportunityEnhancementReviewService {
     };
   }
 }
-''',
-)
-
-write(
-    "backend/services/services/api/src/opportunities/opportunity-enhancement-review.controller.ts",
-    r'''import { Body, Controller, Param, Post, UseGuards } from "@nestjs/common";
-import { AdminGuard } from "../auth";
-import { ZodValidationPipe } from "../common/zod-validation.pipe";
-import {
-  ApplyOpportunityEnhancementSchema,
-  type ApplyOpportunityEnhancementDto,
-} from "./opportunity-enhancement-review.dto";
-import { OpportunityEnhancementReviewService } from "./opportunity-enhancement-review.service";
-
-@Controller("opportunities/admin")
-@UseGuards(AdminGuard)
-export class OpportunityEnhancementReviewController {
-  constructor(
-    private readonly reviewService: OpportunityEnhancementReviewService,
-  ) {}
-
-  @Post(":id/enhance-preview")
-  createPreview(@Param("id") id: string) {
-    return this.reviewService.createPreview(id);
-  }
-
-  @Post(":id/apply-enhancement")
-  applyPreview(
-    @Param("id") id: string,
-    @Body(new ZodValidationPipe(ApplyOpportunityEnhancementSchema))
-    body: ApplyOpportunityEnhancementDto,
-  ) {
-    return this.reviewService.applyPreview(id, body);
-  }
-}
-''',
-)
-
-write(
-    "backend/services/services/api/src/scraper/scraper.module.ts",
-    r'''import { Module, type OnModuleDestroy } from "@nestjs/common";
-import { AiModule } from "../ai";
-import { OpportunityEnhancementReviewController } from "../opportunities/opportunity-enhancement-review.controller";
-import { OpportunityEnhancementReviewRepository } from "../opportunities/opportunity-enhancement-review.repository";
-import { OpportunityEnhancementReviewService } from "../opportunities/opportunity-enhancement-review.service";
-import { OpportunitySourceEvidenceService } from "../opportunities/opportunity-source-evidence.service";
-import { OpportunitiesModule } from "../opportunities/opportunities.module";
-import { OpportunityDedupService } from "./opportunity-dedup.service";
-import { RobotsChecker } from "./robots-checker";
-import { installSafeImageAxiosBridge } from "./safe-image-axios-bridge";
-import { ScraperAlertsService } from "./scraper-alerts.service";
-import { ScraperController } from "./scraper.controller";
-import { loadScraperEgressConfig } from "./scraper-egress.config";
-import { ScraperEgressController } from "./scraper-egress.controller";
-import { ScraperEgressLimiter } from "./scraper-egress.limiter";
-import { ScraperEgressService } from "./scraper-egress.service";
-import { installScraperRuntimePolicy } from "./scraper-runtime-policy";
-import { ScraperService } from "./scraper.service";
-import { ScraperSourceAdminService } from "./scraper-source-admin.service";
-
-@Module({
-  imports: [AiModule, OpportunitiesModule],
-  controllers: [
-    ScraperController,
-    ScraperEgressController,
-    OpportunityEnhancementReviewController,
-  ],
-  providers: [
-    { provide: "SCRAPER_EGRESS_CONFIG", useFactory: loadScraperEgressConfig },
-    {
-      provide: ScraperEgressLimiter,
-      useFactory: (config: ReturnType<typeof loadScraperEgressConfig>) =>
-        new ScraperEgressLimiter({
-          limit: config.enabled ? config.rateLimitPerMinute : 1,
-        }),
-      inject: ["SCRAPER_EGRESS_CONFIG"],
-    },
-    {
-      provide: ScraperEgressService,
-      useFactory: (
-        config: ReturnType<typeof loadScraperEgressConfig>,
-        limiter: ScraperEgressLimiter,
-      ) => new ScraperEgressService(config, { limiter }),
-      inject: ["SCRAPER_EGRESS_CONFIG", ScraperEgressLimiter],
-    },
-    {
-      provide: ScraperSourceAdminService,
-      useValue: ScraperSourceAdminService.fromEnvironment(),
-    },
-    ScraperService,
-    ScraperAlertsService,
-    RobotsChecker,
-    OpportunityDedupService,
-    OpportunitySourceEvidenceService,
-    OpportunityEnhancementReviewRepository,
-    OpportunityEnhancementReviewService,
-  ],
-  exports: [
-    ScraperService,
-    ScraperSourceAdminService,
-    ScraperAlertsService,
-    RobotsChecker,
-    OpportunityDedupService,
-    OpportunityEnhancementReviewService,
-  ],
-})
-export class ScraperModule implements OnModuleDestroy {
-  private readonly restoreSafeImageBridge = installSafeImageAxiosBridge();
-  private readonly restoreRuntimePolicy: () => void;
-
-  constructor(scraperService: ScraperService) {
-    this.restoreRuntimePolicy = installScraperRuntimePolicy(scraperService);
-  }
-
-  onModuleDestroy(): void {
-    this.restoreRuntimePolicy();
-    this.restoreSafeImageBridge();
-  }
-}
-''',
-)

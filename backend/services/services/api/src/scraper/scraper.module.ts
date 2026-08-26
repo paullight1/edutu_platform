@@ -1,5 +1,9 @@
 import { Module, type OnModuleDestroy } from "@nestjs/common";
 import { AiModule } from "../ai";
+import { OpportunityEnhancementReviewController } from "../opportunities/opportunity-enhancement-review.controller";
+import { OpportunityEnhancementReviewRepository } from "../opportunities/opportunity-enhancement-review.repository";
+import { OpportunityEnhancementReviewService } from "../opportunities/opportunity-enhancement-review.service";
+import { OpportunitySourceEvidenceService } from "../opportunities/opportunity-source-evidence.service";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
 import { RobotsChecker } from "./robots-checker";
@@ -16,7 +20,11 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
 
 @Module({
   imports: [AiModule, OpportunitiesModule],
-  controllers: [ScraperController, ScraperEgressController],
+  controllers: [
+    ScraperController,
+    ScraperEgressController,
+    OpportunityEnhancementReviewController,
+  ],
   providers: [
     { provide: "SCRAPER_EGRESS_CONFIG", useFactory: loadScraperEgressConfig },
     {
@@ -43,6 +51,9 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
     ScraperAlertsService,
     RobotsChecker,
     OpportunityDedupService,
+    OpportunitySourceEvidenceService,
+    OpportunityEnhancementReviewRepository,
+    OpportunityEnhancementReviewService,
   ],
   exports: [
     ScraperService,
@@ -50,6 +61,7 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
     ScraperAlertsService,
     RobotsChecker,
     OpportunityDedupService,
+    OpportunityEnhancementReviewService,
   ],
 })
 export class ScraperModule implements OnModuleDestroy {

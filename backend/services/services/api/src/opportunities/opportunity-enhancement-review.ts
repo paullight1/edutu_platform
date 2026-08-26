@@ -207,10 +207,7 @@ function classifyField(
   before: unknown,
   after: unknown,
   sourceBacked: boolean,
-): Omit<
-  OpportunityEnhancementReviewField,
-  "name" | "before" | "after"
-> {
+): Omit<OpportunityEnhancementReviewField, "name" | "before" | "after"> {
   const beforePresent = hasMeaningfulValue(before);
   const afterPresent = hasMeaningfulValue(after);
   const changed = !valuesEqual(before, after);
@@ -262,7 +259,8 @@ function classifyField(
       selectable: true,
       selectedByDefault: true,
       editable: true,
-      reason: "The wording changed without granting authority to a new hard fact.",
+      reason:
+        "The wording changed without granting authority to a new hard fact.",
     };
   }
 
@@ -272,7 +270,8 @@ function classifyField(
       selectable: false,
       selectedByDefault: false,
       editable,
-      reason: "The new factual value is not supported by useful source-page text.",
+      reason:
+        "The new factual value is not supported by useful source-page text.",
     };
   }
 
