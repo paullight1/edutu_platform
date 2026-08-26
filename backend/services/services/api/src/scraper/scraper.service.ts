@@ -63,6 +63,7 @@ import {
   STALE_RUN_TIMEOUT_MS,
 } from "./scraper.config";
 import { categorizeOpportunityTitle } from "./scraper-classification";
+import { createTitleFingerprint } from "./scraper-title-fingerprint";
 export {
   DeepSeekExtractionSchema,
   type DeepSeekExtraction,
@@ -2984,6 +2985,7 @@ ${text}`;
       source_url: detailUrl || sourceUrl || null,
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
+      title_fingerprint: createTitleFingerprint(item.title, closeDate),
       quality_score: quality.score,
       validation_status: publishable ? "valid" : "needs_review",
       image_url: item.image_url || null,

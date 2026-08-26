@@ -257,6 +257,7 @@ interface ExistingRow {
   id: string;
   canonical_url: string | null;
   content_fingerprint: string | null;
+  title_fingerprint: string | null;
   title: string | null;
   organization: string | null;
   close_date: string | null;
@@ -266,6 +267,7 @@ export interface DedupAnnotationSummary {
   checked: number;
   duplicates: number;
   byFingerprint: number;
+  byTitleFingerprint: number;
   byTitleOrg: number;
   byWithinBatch: number;
 }
@@ -309,6 +311,7 @@ export class OpportunityDedupService {
       checked: records.length,
       duplicates: 0,
       byFingerprint: 0,
+      byTitleFingerprint: 0,
       byTitleOrg: 0,
       byWithinBatch: 0,
     };
@@ -343,7 +346,7 @@ export class OpportunityDedupService {
         const { data, error } = await this.supabase
           .from("opportunities")
           .select(
-            "id, canonical_url, content_fingerprint, title, organization, close_date",
+            "id, canonical_url, content_fingerprint, title_fingerprint, title, organization, close_date",
           )
           .in("content_fingerprint", fingerprints);
         if (error) throw error;
@@ -357,7 +360,7 @@ export class OpportunityDedupService {
         }
       }
 
-      const unresolved: Record<string, any>[] = [];
+      let unresolved: Record<string, any>[] = [];
       for (const rec of records) {
         const fp = rec.content_fingerprint as string | null;
         const match = fp ? byFingerprint.get(fp) : undefined;
@@ -371,6 +374,54 @@ export class OpportunityDedupService {
         } else {
           unresolved.push(rec);
         }
+      }
+
+      // Tier 1b: exact title + deadline, independent of the harvesting source.
+      const titleFingerprints = Array.from(
+        new Set(
+          unresolved
+            .map((record) => record.title_fingerprint as string | null)
+            .filter((fingerprint): fingerprint is string =>
+              Boolean(fingerprint),
+            ),
+        ),
+      );
+      if (titleFingerprints.length > 0) {
+        const { data, error } = await this.supabase
+          .from("opportunities")
+          .select(
+            "id, canonical_url, content_fingerprint, title_fingerprint, title, organization, close_date",
+          )
+          .in("title_fingerprint", titleFingerprints);
+        if (error) throw error;
+
+        const byTitleFingerprint = new Map<string, ExistingRow>();
+        for (const row of (data as ExistingRow[]) ?? []) {
+          if (
+            row.title_fingerprint &&
+            !byTitleFingerprint.has(row.title_fingerprint)
+          ) {
+            byTitleFingerprint.set(row.title_fingerprint, row);
+          }
+        }
+
+        const stillUnresolved: Record<string, any>[] = [];
+        for (const record of unresolved) {
+          const fingerprint = record.title_fingerprint as string | null;
+          const match = fingerprint
+            ? byTitleFingerprint.get(fingerprint)
+            : undefined;
+          if (
+            match?.canonical_url &&
+            match.canonical_url !== record.canonical_url
+          ) {
+            this.markDuplicate(record, match.id, "title_fingerprint");
+            summary.byTitleFingerprint++;
+          } else {
+            stillUnresolved.push(record);
+          }
+        }
+        unresolved = stillUnresolved;
       }
 
       // Tier 2: near-identical title + deadline within 3 days.
@@ -437,12 +488,15 @@ export class OpportunityDedupService {
     }
 
     summary.duplicates =
-      summary.byFingerprint + summary.byTitleOrg + summary.byWithinBatch;
+      summary.byFingerprint +
+      summary.byTitleFingerprint +
+      summary.byTitleOrg +
+      summary.byWithinBatch;
     if (summary.duplicates > 0) {
       this.logger.log(
         `Dedup: flagged ${summary.duplicates}/${summary.checked} record(s) as likely duplicates ` +
-          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleOrg} by title+deadline, ` +
-          `${summary.byWithinBatch} within-batch).`,
+          `(${summary.byFingerprint} by fingerprint, ${summary.byTitleFingerprint} by title-fp, ` +
+          `${summary.byTitleOrg} by title+deadline, ${summary.byWithinBatch} within-batch).`,
       );
     }
     return summary;

@@ -353,6 +353,34 @@ describe("OpportunityDedupService.annotateDuplicates — Tier 2", () => {
     expect(summary.duplicates).toBe(1);
   });
 
+  it("flags the same title and deadline across different source fingerprints", async () => {
+    const titleFingerprint = "global scholarship|2026-11-05";
+    const service = serviceWithRows([
+      {
+        ...existing,
+        title: "Global Scholarship",
+        close_date: "2026-11-05",
+        title_fingerprint: titleFingerprint,
+      },
+    ]);
+    const incoming = {
+      canonical_url: "https://another-aggregator.example/global-scholarship",
+      content_fingerprint: "global scholarship|Different Source|2026-11-05",
+      title_fingerprint: titleFingerprint,
+      title: "Global Scholarship",
+      organization: "Different Source",
+      close_date: "2026-11-05",
+    };
+
+    const summary = await service.annotateDuplicates([incoming as any]);
+
+    expect(summary.byTitleFingerprint).toBe(1);
+    expect((incoming as any).duplicate_of).toBe("existing-1");
+    expect((incoming as any).metadata.dedup.matchedBy).toBe(
+      "title_fingerprint",
+    );
+  });
+
   it("leaves a genuinely different opportunity alone", async () => {
     const service = serviceWithRows([existing]);
     const incoming = {

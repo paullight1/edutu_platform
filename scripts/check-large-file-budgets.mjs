@@ -12,7 +12,7 @@ const budgets = {
   "backend/services/services/api/src/opportunities/opportunities.service.ts": 3627,
   // +20 lines for per-source persistence orchestration and direct-apply URL
   // validation; outcome aggregation is extracted into scraper-run-outcome.ts.
-  "backend/services/services/api/src/scraper/scraper.service.ts": 3982,
+  "backend/services/services/api/src/scraper/scraper.service.ts": 3984,
   "edutu-web-app/src/components/Dashboard.tsx": 2005,
   "edutumobile/app/(app)/chat.tsx": 2245,
   "edutumobile/app/(app)/index.tsx": 3113,
