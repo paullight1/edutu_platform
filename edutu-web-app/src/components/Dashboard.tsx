@@ -163,7 +163,7 @@ function getDiscoveryCategoryRoute(category: DiscoveryCategory) {
   return `opportunities?category=${encodeURIComponent(category.id)}`;
 }
 
-type BannerAd = {
+export type BannerAd = {
   image: string;
   url: string;
   alt: string;
@@ -177,7 +177,7 @@ type BannerAd = {
 // Copy stays in HTML so it remains crisp, accessible, and easy to update.
 const DEFAULT_BANNERS: BannerAd[] = [
   {
-    image: "/advertising/dashboard-launch-mobile.png",
+    image: "/advertising/dashboard-launch-mobile-clean.png",
     url: "/download",
     alt: "Edutu mobile app floating above a glowing horizon with opportunity cards",
     eyebrow: "Coming soon to the web",
@@ -214,7 +214,7 @@ const DEFAULT_BANNERS: BannerAd[] = [
   },
 ];
 
-const BannerCarousel = React.memo(function BannerCarousel({
+export const BannerCarousel = React.memo(function BannerCarousel({
   banners,
   mobileHeight,
 }: {
@@ -300,20 +300,28 @@ const BannerCarousel = React.memo(function BannerCarousel({
               <span className="mt-1 block max-w-[32rem] text-[0.68rem] font-medium leading-relaxed text-white/80 drop-shadow-sm sm:text-sm">
                 {activeBanner.subtitle}
               </span>
-              {activeBanner.cta ? (
-                <span className="mt-2 inline-flex rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[0.6rem] font-semibold text-white backdrop-blur-sm sm:mt-3 sm:px-3 sm:py-1.5 sm:text-xs">
-                  {activeBanner.cta}
-                  <ChevronRight size={13} className="ml-1" aria-hidden="true" />
-                </span>
-              ) : null}
             </div>
           </div>
         </motion.a>
       </AnimatePresence>
 
       {banners.length > 1 ? (
-        <div className="absolute bottom-3 right-4 rounded-full bg-black/25 px-2.5 py-2 backdrop-blur-sm">
-          <div className="flex items-center gap-1.5" role="tablist" aria-label="Dashboard promotions">
+        <>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setCurrent((index) => (index + 1) % banners.length);
+              setIsPaused(false);
+            }}
+            className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-[#06152f]/55 text-white shadow-[0_8px_24px_rgba(6,21,47,0.28)] backdrop-blur-md transition hover:translate-x-0.5 hover:bg-[#06152f]/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 sm:right-4 sm:h-11 sm:w-11"
+            aria-label="Next promotion"
+          >
+            <ChevronRight size={20} strokeWidth={2.25} aria-hidden="true" />
+          </button>
+          <div className="absolute bottom-2.5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/20 px-2.5 py-2 backdrop-blur-sm sm:bottom-3">
+            <div className="flex items-center gap-2" role="tablist" aria-label="Dashboard promotions">
             {banners.map((banner, index) => (
               <button
                 key={banner.image}
@@ -326,12 +334,13 @@ const BannerCarousel = React.memo(function BannerCarousel({
                   setIsPaused(false);
                 }}
                 className={`h-1.5 rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                  index === current ? "w-1.5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/75"
+                  index === current ? "w-5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/75"
                 }`}
               />
             ))}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
       <span className="sr-only" aria-live="polite">
         Promotion {current + 1} of {banners.length}: {activeBanner.title}
@@ -444,6 +453,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       explainOpportunity,
       isPersonalized,
       ready: personalizationReady,
+      refresh: refreshPersonalization,
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
@@ -573,10 +583,44 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       );
     }, [profilePromptSessionId]);
 
-    const startProfileCompletion = useCallback(() => {
+    const reopenProfileCompletionPrompt = useCallback(() => {
+      setDismissedProfilePromptSessionId(null);
+    }, []);
+
+    const refreshProfileCompleteness = useCallback(async () => {
+      if (!user?.id) {
+        setBackendProfile(null);
+        setProfileScore(null);
+        return;
+      }
+
+      try {
+        const token = await getToken().catch(() => null);
+        if (!token) return;
+        const profile = await fetchBackendProfile(token);
+        const percent = profile.completeness?.percent ?? 0;
+        setBackendProfile(profile);
+        setProfileScore({
+          score: percent,
+          missingFields:
+            profile.completeness?.missing.map((field) => field.label) ?? [],
+          isMatchEnabled: percent >= 60,
+        });
+      } catch (error) {
+        console.error("Failed to load profile completeness:", error);
+      }
+    }, [getToken, user?.id]);
+
+    const completeProfileOnboarding = useCallback(() => {
       dismissProfileCompletionPrompt();
-      routerNavigate("/app/personalization");
-    }, [dismissProfileCompletionPrompt, routerNavigate]);
+      refreshPersonalization();
+      opportunitiesRefreshRef.current?.();
+      void refreshProfileCompleteness();
+    }, [
+      dismissProfileCompletionPrompt,
+      refreshPersonalization,
+      refreshProfileCompleteness,
+    ]);
 
     useEffect(() => {
       let cancelled = false;
@@ -630,38 +674,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     }, [user?.id]);
 
     useEffect(() => {
-      if (!user?.id) {
-        setBackendProfile(null);
-        setProfileScore(null);
-        return;
-      }
-      let isMounted = true;
-
-      async function loadProfileData() {
-        try {
-          const token = await getToken().catch(() => null);
-          if (!token) return;
-          const profile = await fetchBackendProfile(token);
-          if (!isMounted) return;
-          const percent = profile.completeness?.percent ?? 0;
-          setBackendProfile(profile);
-          setProfileScore({
-            score: percent,
-            missingFields:
-              profile.completeness?.missing.map((field) => field.label) ?? [],
-            isMatchEnabled: percent >= 60,
-          });
-        } catch (e) {
-          console.error("Failed to load profile completeness:", e);
-        }
-      }
-
-      loadProfileData();
-
-      return () => {
-        isMounted = false;
-      };
-    }, [getToken, user?.id]);
+      void refreshProfileCompleteness();
+    }, [refreshProfileCompleteness]);
 
     const personalizedUserId = user?.id;
     const userCourseOfStudy = user?.courseOfStudy;
@@ -1316,8 +1330,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       >
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
-          missingFields={profileScore?.missingFields ?? []}
-          onComplete={startProfileCompletion}
+          onComplete={completeProfileOnboarding}
           onDismiss={dismissProfileCompletionPrompt}
         />
 
@@ -1662,21 +1675,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-4 rounded-2xl border border-dashed border-subtle bg-surface-elevated p-5 text-center">
-                      <p className="text-sm font-semibold text-text-primary">
-                        No strong matches yet — and that&apos;s fixable.
-                      </p>
-                      <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-5 text-text-muted">
-                        The more Edutu knows about your field, goals and region,
-                        the sharper this shortlist gets.
-                      </p>
+                    <div className="mt-5 flex flex-col gap-3 border-t border-subtle pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary">
+                          No strong matches yet — and that&apos;s fixable.
+                        </p>
+                        <p className="mt-1 max-w-lg text-xs font-medium leading-5 text-text-muted">
+                          Add your field, goals and region to sharpen this shortlist.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => routerNavigate("/app/personalization")}
-                        className="mt-3 inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 active:scale-[0.98]"
+                        onClick={reopenProfileCompletionPrompt}
+                        className="group inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-xl px-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:self-auto"
                       >
-                        <Sparkles size={15} />
-                        Complete your profile
+                        Refine profile
+                        <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                       </button>
                     </div>
                   )}

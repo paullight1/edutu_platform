@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Clock3,
   GraduationCap,
   Loader2,
   Sparkles,
@@ -170,13 +171,24 @@ const fieldClass =
 
 const labelClass = "mb-1.5 block text-sm font-medium text-text-secondary";
 
+export interface OnboardingFlowProps {
+  presentation?: "modal" | "page";
+  showWelcome?: boolean;
+  onComplete?: () => void;
+  onDismiss?: () => void;
+}
+
 // ---------------------------------------------------------------------------
 // Fullscreen onboarding wizard — rendered OUTSIDE the app shell so it owns the
 // whole viewport (no header, no bottom nav) until the member finishes or skips.
 // ---------------------------------------------------------------------------
 
-export default function PersonalizationScreen() {
-  const navigate = useNavigate();
+export function OnboardingFlow({
+  presentation = "page",
+  showWelcome = false,
+  onComplete,
+  onDismiss,
+}: OnboardingFlowProps) {
   const { success, error } = useToast();
   const { preferences, savePreferences } = usePersonalization();
   const { user } = useAuth();
@@ -185,6 +197,7 @@ export default function PersonalizationScreen() {
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [showingWelcome, setShowingWelcome] = useState(showWelcome);
 
   // Step 1 — profile
   const [fullName, setFullName] = useState(() => user?.name ?? "");
@@ -251,7 +264,7 @@ export default function PersonalizationScreen() {
   };
 
   const handleSkip = () => {
-    navigate("/dashboard", { replace: true });
+    onDismiss?.();
   };
 
   const handleFinish = async () => {
@@ -316,7 +329,7 @@ export default function PersonalizationScreen() {
       }
 
       success("Your feed is now personalized");
-      navigate("/dashboard");
+      onComplete?.();
     } catch {
       error("Could not save preferences", "Please try again.");
     } finally {
@@ -326,8 +339,73 @@ export default function PersonalizationScreen() {
 
   const StepIcon = step.icon;
 
+  if (showingWelcome) {
+    const firstName = (user?.name ?? "").trim().split(/\s+/)[0];
+
+    return (
+      <div className="grid min-h-0 overflow-hidden md:grid-cols-[0.9fr_1.1fr]">
+        <div className="relative flex min-h-[210px] items-end justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_35%,rgba(45,212,191,0.24),transparent_40%),linear-gradient(145deg,#eaf3ff_0%,#f7fbff_56%,#e8fbf7_100%)] px-6 pt-8 md:min-h-[500px] md:items-center dark:bg-[radial-gradient(circle_at_50%_35%,rgba(45,212,191,0.18),transparent_40%),linear-gradient(145deg,#10213f_0%,#0c1830_56%,#0b292a_100%)]">
+          <span className="absolute left-[14%] top-[16%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_0_7px_rgba(251,191,36,0.12)]" />
+          <span className="absolute bottom-[18%] right-[12%] h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_0_8px_rgba(34,211,238,0.1)]" />
+          <div className="absolute inset-x-[18%] bottom-3 h-12 rounded-[50%] bg-blue-900/10 blur-xl" />
+          <img
+            src="/mascot/edutu-profile-guide.png"
+            alt="Edutu mascot welcoming you"
+            className="relative z-10 w-[180px] select-none object-contain drop-shadow-[0_22px_24px_rgba(16,63,126,0.18)] md:w-[310px]"
+            draggable={false}
+          />
+        </div>
+
+        <div className="flex flex-col justify-center px-6 pb-7 pt-6 sm:px-9 md:px-11 md:py-12">
+          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-xl bg-brand-500/10 px-3 py-2 text-xs font-semibold text-brand-700 dark:text-brand-300">
+            <Clock3 size={14} aria-hidden="true" />
+            About 2 minutes
+          </div>
+          <h1 className="max-w-md text-balance text-2xl font-bold leading-[1.08] tracking-[-0.035em] text-text-primary sm:text-[2rem]">
+            Welcome to Edutu{firstName ? `, ${firstName}` : ""}
+          </h1>
+          <p className="mt-3 max-w-md text-pretty text-sm font-medium leading-6 text-text-muted">
+            Let&apos;s tune your feed around what you study, where you are, and
+            the opportunities you want next.
+          </p>
+          <div className="mt-6 flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowingWelcome(false)}
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(20,110,245,0.24)] transition hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.98]"
+            >
+              <Sparkles size={17} aria-hidden="true" />
+              Personalize my feed
+              <ArrowRight
+                size={17}
+                className="transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="h-11 rounded-2xl text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
+            >
+              Maybe later
+            </button>
+          </div>
+          <p className="mt-4 text-center text-xs font-medium text-text-muted">
+            Change these details anytime from your profile.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-surface-body text-text-primary">
+    <div
+      className={
+        presentation === "modal"
+          ? "flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col overflow-hidden bg-surface-layer text-text-primary"
+          : "flex min-h-[100dvh] flex-col bg-surface-body text-text-primary"
+      }
+    >
       {/* ── Top bar: brand + skip ─────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-subtle bg-surface-body/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface-body/80">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -356,8 +434,11 @@ export default function PersonalizationScreen() {
           </button>
         </div>
 
-        {/* Step rail */}
-        <div className="mx-auto flex w-full max-w-xl items-center gap-2 px-4 pb-3 sm:px-6">
+        {/* Compact progress dots keep the quiz legible without another heavy rail. */}
+        <div
+          className="mx-auto flex w-full max-w-xl items-center justify-center gap-2 px-4 pb-3 sm:px-6"
+          aria-label="Onboarding progress"
+        >
           {STEPS.map((entry, index) => {
             const done = index < stepIndex;
             const current = index === stepIndex;
@@ -372,30 +453,23 @@ export default function PersonalizationScreen() {
                   }
                 }}
                 disabled={index > stepIndex}
-                className="flex flex-1 flex-col items-center gap-1.5"
+                className={`h-2 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                  current
+                    ? "w-7 bg-brand"
+                    : done
+                      ? "w-2 bg-brand/70"
+                      : "w-2 bg-surface-elevated"
+                }`}
                 aria-current={current ? "step" : undefined}
                 aria-label={entry.label}
-              >
-                <span
-                  className={`h-1.5 w-full rounded-full transition-colors ${
-                    done || current ? "bg-brand" : "bg-surface-elevated"
-                  }`}
-                />
-                <span
-                  className={`hidden text-2xs font-medium sm:block ${
-                    current ? "text-brand" : "text-text-muted"
-                  }`}
-                >
-                  {entry.label}
-                </span>
-              </button>
+              />
             );
           })}
         </div>
       </header>
 
       {/* ── Step body ─────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className={`mx-auto w-full max-w-xl flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 ${presentation === "modal" ? "min-h-0" : ""}`}>
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={step.id}
@@ -635,5 +709,17 @@ export default function PersonalizationScreen() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function PersonalizationScreen() {
+  const navigate = useNavigate();
+
+  return (
+    <OnboardingFlow
+      presentation="page"
+      onComplete={() => navigate("/dashboard", { replace: true })}
+      onDismiss={() => navigate("/dashboard", { replace: true })}
+    />
   );
 }

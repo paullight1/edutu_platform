@@ -8,6 +8,36 @@ import {
   shouldShowProfileCompletionPrompt,
 } from "./profileCompletionPromptState";
 
+vi.mock("../../hooks/usePersonalization", () => ({
+  usePersonalization: () => ({
+    preferences: {
+      interests: [],
+      careerGoals: [],
+      educationLevel: "",
+      experienceLevel: "intermediate",
+      location: "",
+    },
+    savePreferences: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+vi.mock("../../hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "user-1", name: "Ada Lovelace" } }),
+}));
+
+vi.mock("../ui/ToastProvider", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+}));
+
+vi.mock("../../services/profile", () => ({
+  saveOnboardingProfile: vi.fn().mockResolvedValue({ completed: true }),
+  updateBackendProfile: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("../../services/opportunityPreferences", () => ({
+  syncOpportunityPreferences: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe("profile prompt session dismissal", () => {
   it("survives a page remount within the same browser session", () => {
     window.sessionStorage.clear();
@@ -58,7 +88,7 @@ describe("ProfileCompletionPrompt", () => {
     render(<Harness />);
 
     expect(
-      screen.getByRole("dialog", { name: /meet opportunities picked for you/i }),
+      screen.getByRole("dialog", { name: /welcome to edutu/i }),
     ).toBeInTheDocument();
     expect(screen.getByAltText(/edutu mascot/i)).toBeInTheDocument();
 
@@ -67,7 +97,7 @@ describe("ProfileCompletionPrompt", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("starts profile completion from the primary action", () => {
+  it("starts the profile quiz inside the dialog", () => {
     const onComplete = vi.fn();
 
     render(
@@ -80,9 +110,12 @@ describe("ProfileCompletionPrompt", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /complete my profile/i }),
+      screen.getByRole("button", { name: /personalize my feed/i }),
     );
 
-    expect(onComplete).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("heading", { name: /tell us about you/i }),
+    ).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });
