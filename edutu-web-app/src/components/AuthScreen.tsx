@@ -102,6 +102,7 @@ const baseInputClass =
   "h-12 w-full rounded-xl border border-subtle bg-surface-layer px-4 text-sm text-text-primary outline-none transition focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 placeholder:text-text-muted";
 
 const OTP_LENGTH = 6;
+const OTP_FIELD_NAME = "verificationCode";
 
 const OtpInput = ({
   value,
@@ -128,6 +129,7 @@ const OtpInput = ({
         inputMode="numeric"
         autoComplete="one-time-code"
         aria-label={label}
+        name={OTP_FIELD_NAME}
         value={value}
         onChange={(event) => {
           const next = event.target.value
@@ -211,6 +213,18 @@ const isExistingAccountError = (err: unknown) => {
   return /already exists|already taken|identifier.*taken|form_identifier_exists|email_address_exists/i.test(
     message,
   );
+};
+
+const getSubmittedVerificationCode = (
+  form: HTMLFormElement,
+  fallbackCode: string,
+  numericCode = true,
+) => {
+  const submittedCode = new FormData(form).get(OTP_FIELD_NAME);
+  const value = typeof submittedCode === "string"
+    ? submittedCode.trim()
+    : fallbackCode.trim();
+  return numericCode ? value.replace(/\D/g, "").slice(0, OTP_LENGTH) : value;
 };
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
@@ -425,8 +439,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   ) => {
     event.preventDefault();
     setError("");
+    const submittedCode = getSubmittedVerificationCode(
+      event.currentTarget,
+      code,
+      secondFactorStrategy !== "backup_code",
+    );
 
-    if (!code.trim()) {
+    if (!submittedCode) {
       setError(t("auth.errors.enterCode"));
       return;
     }
@@ -440,7 +459,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     try {
       const attempt = await clerkSignIn.attemptSecondFactor({
         strategy: secondFactorStrategy || "totp",
-        code: code.trim(),
+        code: submittedCode,
       });
 
       if (attempt.status === "complete" && attempt.createdSessionId) {
@@ -463,8 +482,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleVerifySignInEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+    const submittedCode = getSubmittedVerificationCode(
+      event.currentTarget,
+      code,
+    );
 
-    if (code.length < 6) {
+    if (submittedCode.length < 6) {
       setError(t("auth.errors.enter6DigitCode"));
       return;
     }
@@ -478,7 +501,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     try {
       const attempt = await clerkSignIn.attemptFirstFactor({
         strategy: "email_code",
-        code,
+        code: submittedCode,
       });
 
       if (attempt.status === "complete" && attempt.createdSessionId) {
@@ -661,8 +684,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleVerifyEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+    const submittedCode = getSubmittedVerificationCode(
+      event.currentTarget,
+      code,
+    );
 
-    if (code.length < 6) {
+    if (submittedCode.length < 6) {
       setError(t("auth.errors.enter6DigitCode"));
       return;
     }
@@ -672,7 +699,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       if (!clerkSignUp)
         throw new Error(t("auth.errors.clerkLoading"));
       const attempt = await clerkSignUp.attemptEmailAddressVerification({
-        code,
+        code: submittedCode,
       });
       if (attempt.status === "complete") {
         if (attempt.createdSessionId) {
@@ -967,6 +994,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         <input
                           type="text"
                           inputMode="text"
+                          name={OTP_FIELD_NAME}
                           maxLength={32}
                           value={code}
                           onChange={(event) =>
