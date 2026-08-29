@@ -155,6 +155,50 @@ describe('communities service', () => {
     expect(JSON.parse(init.body as string)).toEqual({ name: 'Study group' });
   });
 
+  it('submits a community proposal to the moderated creation route', async () => {
+    mockFetch.mockResolvedValue(
+      ok({
+        request: { id: 'request-1', name: 'Study group', status: 'pending' },
+        slots: { used: 1, limit: 2 },
+      }),
+    );
+    const { submitCommunityCreationRequest } = loadCommunities();
+
+    const result = await submitCommunityCreationRequest(
+      { name: 'Study group', visibility: 'public', joinPolicy: 'open' },
+      getAuthToken,
+    );
+
+    const [url, init] = lastCall();
+    expect(url).toBe(`${API_BASE}/communities/creation-requests`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: 'Study group',
+      visibility: 'public',
+      joinPolicy: 'open',
+    });
+    expect(result.slots).toEqual({ used: 1, limit: 2 });
+  });
+
+  it('loads curated discovery without recomputing the trending order', async () => {
+    mockFetch.mockResolvedValue(
+      ok({
+        trending: [
+          { group: { id: 'g2' }, membership: null },
+          { group: { id: 'g1' }, membership: null },
+        ],
+        communities: [{ group: { id: 'g3' }, membership: null }],
+      }),
+    );
+    const { fetchCommunityDiscovery } = loadCommunities();
+
+    const result = await fetchCommunityDiscovery(getAuthToken, 50);
+
+    const [url] = lastCall();
+    expect(url).toBe(`${API_BASE}/communities/discovery?limit=50`);
+    expect(result.trending.map((row) => row.group.id)).toEqual(['g2', 'g1']);
+  });
+
   it('posts a message to the group message route with the DTO body', async () => {
     mockFetch.mockResolvedValue(ok({ id: 'm1', body: 'hello' }));
     const { sendMessage } = loadCommunities();

@@ -14,7 +14,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useTranslation } from "react-i18next";
 import {
-  fetchGroups,
+  fetchCommunityDiscovery,
   type GroupWithMembership,
 } from "@edutu/core/src/services/communities";
 import { useTheme } from "../../../components/context/ThemeContext";
@@ -68,10 +68,14 @@ export default function CommunityExploreScreen() {
     setLoadError(false);
     try {
       const [result, mobileControl] = await Promise.all([
-        fetchGroups({ limit: 50 }, getToken),
+        fetchCommunityDiscovery(getToken, 50),
         fetchMobileControlConfig().catch(() => null),
       ]);
-      setRows(result.filter((row) => !row.group.archivedAt));
+      setRows(
+        [...result.trending, ...result.communities].filter(
+          (row) => !row.group.archivedAt,
+        ),
+      );
       setHeroCampaigns(
         mobileControl
           ? selectCampaigns(mobileControl.campaigns, "community").filter(
@@ -249,6 +253,7 @@ export default function CommunityExploreScreen() {
         ) : (
           <CommunityDiscoveryShuffle
             rows={filteredRows}
+            preserveOrder
             heroCampaigns={heroCampaigns}
             onPress={(group) => router.push(`/discussions/${group.id}` as never)}
             onHeroPress={openCampaign}

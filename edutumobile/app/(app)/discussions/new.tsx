@@ -32,10 +32,9 @@ import {
   X,
 } from 'lucide-react-native';
 import {
-  createGroup,
-  createGroupCoverImageUpload,
   isCommunityApiError,
-  updateGroup,
+  submitCommunityCreationRequest,
+  type CommunityCreationRequestResponse,
   type GroupJoinPolicy,
   type GroupVisibility,
 } from '@edutu/core/src/services/communities';
@@ -54,11 +53,6 @@ import {
   LabeledField,
 } from '../../../components/community/QuestionBuilder';
 import { haptics } from '../../../lib/haptics';
-import { uploadPrivateCommunityAsset } from '@edutu/core/src/services/storage';
-import {
-  GroupImagePicker,
-  type PickedGroupImage,
-} from '../../../components/community/GroupImagePicker';
 
 /**
  * Start a group — a SCREEN, not a modal.
@@ -126,8 +120,8 @@ export default function CreateGroupScreen() {
   const [nameTouched, setNameTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [coverEmoji, setCoverEmoji] = useState(EMOJI_CHOICES[0]);
-  const [coverImage, setCoverImage] = useState<PickedGroupImage | null>(null);
-  const [coverImageError, setCoverImageError] = useState<string | null>(null);
+  const [receipt, setReceipt] =
+    useState<CommunityCreationRequestResponse | null>(null);
   const [visibility, setVisibility] = useState<GroupVisibility>('public');
   const [joinPolicy, setJoinPolicy] = useState<GroupJoinPolicy>('open');
   const [submitting, setSubmitting] = useState(false);
@@ -241,7 +235,7 @@ export default function CreateGroupScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const group = await createGroup(
+      const result = await submitCommunityCreationRequest(
         {
           name: trimmedName,
           description: description.trim() || undefined,
@@ -252,37 +246,9 @@ export default function CreateGroupScreen() {
         },
         getToken,
       );
-      if (coverImage) {
-        try {
-          const reservation = await createGroupCoverImageUpload(
-            group.id,
-            {
-              kind: 'image',
-              name: coverImage.name,
-              mime: coverImage.mime,
-              size: coverImage.size,
-            },
-            getToken,
-          );
-          await uploadPrivateCommunityAsset(reservation.uploadUrl, {
-            uri: coverImage.uri,
-            type: coverImage.mime,
-          });
-          await updateGroup(
-            group.id,
-            { coverImageResourceUrl: reservation.resourceUrl },
-            getToken,
-          );
-        } catch {
-          haptics.error();
-          router.replace(`/discussions/${group.id}/settings?photoError=1` as never);
-          return;
-        }
-      }
+      setReceipt(result);
       haptics.success();
-      // `replace`, not `push`: the point of creating a group is to be in it, and
-      // Back from a group you just made should not return to a spent form.
-      router.replace(`/discussions/${group.id}` as never);
+      setSubmitting(false);
     } catch (caught) {
       // The 2-active-group cap and every other refusal arrive as a sentence the
       // server wrote for this person to read — including that the way out is
@@ -305,11 +271,46 @@ export default function CreateGroupScreen() {
     visibility,
     joinPolicy,
     coverEmoji,
-    coverImage,
     getToken,
-    router,
     t,
   ]);
+
+  if (receipt) {
+    return (
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <ScreenHeader title="Community request" showBack />
+        <View testID="create-group-receipt" style={styles.receiptWrap}>
+          <View
+            style={[
+              styles.receiptIcon,
+              { backgroundColor: `${colors.accent}16` },
+            ]}
+          >
+            <Check size={30} color={colors.accent} strokeWidth={2.5} />
+          </View>
+          <Text style={[styles.receiptTitle, { color: colors.foreground }]}>Pending admin review</Text>
+          <Text style={[styles.receiptBody, { color: colors.textSecondary }]}>An admin will review {receipt.request.name}. If approved, it will appear in Your groups automatically.</Text>
+          <View style={[styles.slotCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.slotTitle, { color: colors.foreground }]}>{receipt.slots.used} of {receipt.slots.limit} community slots used</Text>
+            <Text style={[styles.slotBody, { color: colors.textSecondary }]}>Pending requests reserve a slot until they are approved, rejected, or cancelled.</Text>
+          </View>
+          <AnimatedPressable
+            testID="create-group-view-groups"
+            accessibilityRole="button"
+            accessibilityLabel="View my communities"
+            hapticFeedback="light"
+            onPress={() => router.replace('/discussions' as never)}
+            style={[styles.receiptButton, { backgroundColor: colors.accent }]}
+          >
+            <Text style={styles.submitLabel}>View my communities</Text>
+          </AnimatedPressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -705,20 +706,6 @@ export default function CreateGroupScreen() {
             </LabeledField>
           )}
 
-          <LabeledField label="Group identity" error={coverImageError ?? undefined}>
-            <GroupImagePicker
-              testID="create-group-photo"
-              emoji={coverEmoji}
-              selected={coverImage}
-              disabled={submitting}
-              onChange={(image) => {
-                setCoverImage(image);
-                setCoverImageError(null);
-              }}
-              onError={setCoverImageError}
-            />
-          </LabeledField>
-
           <LabeledField
             label={t('community:create.emojiLabel')}
             helper={t('community:create.emojiHelper')}
@@ -852,7 +839,7 @@ export default function CreateGroupScreen() {
           <AnimatedPressable
             testID="create-group-submit"
             accessibilityRole="button"
-            accessibilityLabel={t('community:actions.createGroup')}
+            accessibilityLabel="Submit for review"
             accessibilityState={{ disabled: !canSubmit, busy: submitting }}
             hapticFeedback="medium"
             scaleTo={0.98}
@@ -878,7 +865,7 @@ export default function CreateGroupScreen() {
                 <Check size={19} color="#FFFFFF" strokeWidth={2.7} />
               )}
               <Text style={styles.submitLabel} numberOfLines={1}>
-                {t('community:actions.createGroup')}
+                {submitting ? 'Submitting…' : 'Submit for review'}
               </Text>
             </View>
           </AnimatedPressable>
@@ -891,6 +878,62 @@ export default function CreateGroupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  receiptWrap: {
+    flex: 1,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  receiptIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  receiptTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  receiptBody: {
+    maxWidth: 390,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  slotCard: {
+    width: '100%',
+    maxWidth: 390,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    gap: 5,
+    marginTop: 6,
+  },
+  slotTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  slotBody: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  receiptButton: {
+    minHeight: 52,
+    width: '100%',
+    maxWidth: 390,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
   },
   flex: {
     flex: 1,

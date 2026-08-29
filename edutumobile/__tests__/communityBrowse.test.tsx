@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const mockPush = jest.fn();
 const mockGetToken = jest.fn().mockResolvedValue('token');
 const mockFetchGroups = jest.fn();
+const mockFetchMyCommunityCreationRequests = jest.fn();
 const mockFetchSavedOpportunities = jest.fn();
 const mockOpenURL = jest.fn().mockResolvedValue(undefined);
 let mockFocusCallback: (() => void) | undefined;
@@ -72,7 +73,12 @@ jest.mock('../lib/supabase', () => ({
 // exercises the shape the service actually throws, not a stand-in.
 jest.mock('@edutu/core/src/services/communities', () => {
   const actual = jest.requireActual('@edutu/core/src/services/communities');
-  return { ...actual, fetchGroups: (...args: unknown[]) => mockFetchGroups(...args) };
+  return {
+    ...actual,
+    fetchGroups: (...args: unknown[]) => mockFetchGroups(...args),
+    fetchMyCommunityCreationRequests: (...args: unknown[]) =>
+      mockFetchMyCommunityCreationRequests(...args),
+  };
 });
 
 jest.mock('@edutu/core/src/services/bookmarks', () => ({
@@ -185,6 +191,10 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockFetchSavedOpportunities.mockResolvedValue([]);
   wireGroups([], []);
+  mockFetchMyCommunityCreationRequests.mockResolvedValue({
+    requests: [],
+    slots: { used: 0, limit: 2 },
+  });
   mockFocusCallback = undefined;
 });
 
@@ -208,6 +218,26 @@ describe('Chats tab ownership', () => {
 // ---------------------------------------------------------------------------
 
 describe('browse screen affordances', () => {
+  it('shows pending community proposals and their two-slot usage', async () => {
+    mockFetchMyCommunityCreationRequests.mockResolvedValue({
+      requests: [
+        {
+          id: 'request-1',
+          name: 'Chevening Support Circle',
+          status: 'pending',
+        },
+      ],
+      slots: { used: 1, limit: 2 },
+    });
+
+    const { getByText, getByTestId } = render(<DiscussionsBrowseScreen />);
+
+    await waitFor(() => getByTestId('community-creation-requests'));
+    getByText('Chevening Support Circle');
+    getByText('Pending admin review');
+    getByText('1 of 2 slots used');
+  });
+
   it('refreshes when Groups regains focus so a newly created group appears', async () => {
     const existing = makeGroup({
       id: 'existing-1',

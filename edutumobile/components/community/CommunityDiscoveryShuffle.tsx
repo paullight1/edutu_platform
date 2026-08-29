@@ -21,6 +21,7 @@ import { getCommunityGroupCoverUrl, sortDiscoveryRows } from '../../lib/communit
 
 interface CommunityDiscoveryShuffleProps {
   rows: GroupWithMembership[];
+  preserveOrder?: boolean;
   heroCampaigns?: MobileCampaign[];
   onPress: (group: CommunityGroup) => void;
   onHeroPress?: (campaign: MobileCampaign) => void;
@@ -47,6 +48,7 @@ const DEFAULT_HERO: HeroSlide = {
 
 export function CommunityDiscoveryShuffle({
   rows,
+  preserveOrder = false,
   heroCampaigns = [],
   onPress,
   onHeroPress,
@@ -56,7 +58,10 @@ export function CommunityDiscoveryShuffle({
 }: CommunityDiscoveryShuffleProps) {
   const { t } = useTranslation('community');
   const { colors, isDark, reducedMotion } = useTheme();
-  const ranked = useMemo(() => sortDiscoveryRows(rows), [rows]);
+  const ranked = useMemo(
+    () => (preserveOrder ? rows : sortDiscoveryRows(rows)),
+    [preserveOrder, rows],
+  );
   const heroSlides = useMemo<HeroSlide[]>(
     () => [
       ...heroCampaigns.map((campaign) => ({
@@ -177,7 +182,7 @@ export function CommunityDiscoveryShuffle({
 
       <View style={styles.headingRow}>
         <View style={styles.headingCopy}>
-          <Text style={[styles.heading, { color: palette.foreground }]}>Featured</Text>
+          <Text style={[styles.heading, { color: palette.foreground }]}>Trending</Text>
           <Text style={[styles.featuredLabel, { color: palette.accent }]}>
             {t('discovery.featured')}
           </Text>

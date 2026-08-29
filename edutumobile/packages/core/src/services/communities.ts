@@ -96,7 +96,10 @@ export interface CommunityGroup {
   memberCount: number;
   messageCount: number;
   lastMessageAt: string | null;
+  managementScope?: 'member' | 'platform';
+  trendingRank?: number | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CommunityGroupMember {
@@ -384,6 +387,51 @@ export interface CreateGroupInput {
   coverEmoji?: string;
 }
 
+export type CommunityCreationRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+export interface CommunityCreationRequest {
+  id: string;
+  requesterId: string;
+  name: string;
+  description: string | null;
+  opportunityId: string | null;
+  visibility: GroupVisibility;
+  joinPolicy: GroupJoinPolicy;
+  coverEmoji: string;
+  coverImageResourceUrl: string | null;
+  status: CommunityCreationRequestStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  approvedGroupId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityCreationSlots {
+  used: number;
+  limit: 2;
+}
+
+export interface CommunityCreationRequestResponse {
+  request: CommunityCreationRequest;
+  slots: CommunityCreationSlots;
+}
+
+export interface CommunityCreationRequestListResponse {
+  requests: CommunityCreationRequest[];
+  slots: CommunityCreationSlots;
+}
+
+export interface CommunityDiscoveryResponse {
+  trending: GroupWithMembership[];
+  communities: GroupWithMembership[];
+}
+
 /** `opportunityId` is omitted: a group's opportunity link is fixed at creation. */
 export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, 'opportunityId'> & {
   coverImageResourceUrl?: string | null;
@@ -641,6 +689,53 @@ export async function fetchGroups(
   return result.filter(
     (row): row is GroupWithMembership =>
       !!row && typeof row === 'object' && 'group' in row && !!row.group,
+  );
+}
+
+export async function fetchCommunityDiscovery(
+  getAuthToken: GetAuthToken,
+  limit = 50,
+): Promise<CommunityDiscoveryResponse> {
+  const result = await requestCommunityApi<CommunityDiscoveryResponse>(
+    `/communities/discovery${toQuery({ limit })}`,
+    { method: 'GET' },
+    getAuthToken,
+  );
+  return {
+    trending: Array.isArray(result?.trending) ? result.trending : [],
+    communities: Array.isArray(result?.communities) ? result.communities : [],
+  };
+}
+
+export async function submitCommunityCreationRequest(
+  input: CreateGroupInput,
+  getAuthToken: GetAuthToken,
+): Promise<CommunityCreationRequestResponse> {
+  return requestCommunityApi<CommunityCreationRequestResponse>(
+    '/communities/creation-requests',
+    { method: 'POST', body: JSON.stringify(compact({ ...input })) },
+    getAuthToken,
+  );
+}
+
+export async function fetchMyCommunityCreationRequests(
+  getAuthToken: GetAuthToken,
+): Promise<CommunityCreationRequestListResponse> {
+  return requestCommunityApi<CommunityCreationRequestListResponse>(
+    '/communities/creation-requests/mine',
+    { method: 'GET' },
+    getAuthToken,
+  );
+}
+
+export async function cancelCommunityCreationRequest(
+  requestId: string,
+  getAuthToken: GetAuthToken,
+): Promise<CommunityCreationRequestResponse> {
+  return requestCommunityApi<CommunityCreationRequestResponse>(
+    `/communities/creation-requests/${encodeURIComponent(requestId)}/cancel`,
+    { method: 'POST' },
+    getAuthToken,
   );
 }
 

@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 import { render, waitFor } from "@testing-library/react-native";
 
 const mockPush = jest.fn();
-const mockFetchGroups = jest.fn();
+const mockFetchCommunityDiscovery = jest.fn();
 const mockFetchMobileControlConfig = jest.fn();
 
 jest.mock("expo-router", () => ({
@@ -16,7 +16,7 @@ jest.mock("@clerk/clerk-expo", () => ({
 }));
 
 jest.mock("@edutu/core/src/services/communities", () => ({
-  fetchGroups: (...args: unknown[]) => mockFetchGroups(...args),
+  fetchCommunityDiscovery: (...args: unknown[]) => mockFetchCommunityDiscovery(...args),
 }));
 
 jest.mock("../lib/mobileControl", () => ({
@@ -67,8 +67,8 @@ beforeEach(() => {
     paywall: {},
     serverTime: "2026-08-09T00:00:00.000Z",
   });
-  mockFetchGroups.mockResolvedValue([
-    {
+  mockFetchCommunityDiscovery.mockResolvedValue({
+    trending: [{
       group: {
         id: "group-1",
         name: "Testing",
@@ -82,8 +82,9 @@ beforeEach(() => {
         createdAt: "2026-08-08T09:00:00.000Z",
       },
       membership: null,
-    },
-  ]);
+    }],
+    communities: [],
+  });
 });
 
 it("renders discovery communities as visual focus cards", async () => {

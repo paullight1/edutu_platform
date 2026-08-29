@@ -19,7 +19,7 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
 const mockGetToken = jest.fn().mockResolvedValue('token');
-const mockCreateGroup = jest.fn();
+const mockSubmitCommunityCreationRequest = jest.fn();
 const mockUpdateGroup = jest.fn();
 const mockArchiveGroup = jest.fn();
 const mockFetchGroup = jest.fn();
@@ -85,7 +85,8 @@ jest.mock('@edutu/core/src/services/communities', () => {
   const actual = jest.requireActual('@edutu/core/src/services/communities');
   return {
     ...actual,
-    createGroup: (...args: unknown[]) => mockCreateGroup(...args),
+    submitCommunityCreationRequest: (...args: unknown[]) =>
+      mockSubmitCommunityCreationRequest(...args),
     updateGroup: (...args: unknown[]) => mockUpdateGroup(...args),
     archiveGroup: (...args: unknown[]) => mockArchiveGroup(...args),
     fetchGroup: (...args: unknown[]) => mockFetchGroup(...args),
@@ -153,7 +154,14 @@ beforeEach(() => {
   mockGetCachedOpportunity.mockResolvedValue(null);
   mockGetCachedOpportunitiesSnapshot.mockResolvedValue([]);
   mockFetchOpportunities.mockResolvedValue([]);
-  mockCreateGroup.mockResolvedValue(makeGroup({ id: 'g-new' }));
+  mockSubmitCommunityCreationRequest.mockResolvedValue({
+    request: {
+      id: 'request-new',
+      name: 'Chevening 2027',
+      status: 'pending',
+    },
+    slots: { used: 1, limit: 2 },
+  });
   mockUpdateGroup.mockResolvedValue(makeGroup());
   mockArchiveGroup.mockResolvedValue(makeGroup({ archivedAt: '2026-08-03T00:00:00.000Z' }));
   mockFetchGroup.mockResolvedValue({
@@ -176,8 +184,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('create group', () => {
-  it('lands the user inside the group they just made, not back on the list', async () => {
-    const { getByTestId } = render(<CreateGroupScreen />);
+  it('submits the proposal for review and shows the two-slot receipt', async () => {
+    const { getByTestId, getByText } = render(<CreateGroupScreen />);
 
     fireEvent.changeText(getByTestId('create-group-name'), 'Chevening 2027');
     fireEvent.changeText(getByTestId('create-group-description'), 'Applicants helping each other');
@@ -185,8 +193,10 @@ describe('create group', () => {
     fireEvent.press(getByTestId('create-group-visibility-private'));
     fireEvent.press(getByTestId('create-group-submit'));
 
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
-    expect(mockCreateGroup.mock.calls[0][0]).toMatchObject({
+    await waitFor(() =>
+      expect(mockSubmitCommunityCreationRequest).toHaveBeenCalledTimes(1),
+    );
+    expect(mockSubmitCommunityCreationRequest.mock.calls[0][0]).toMatchObject({
       name: 'Chevening 2027',
       description: 'Applicants helping each other',
       // Independent axes: private did not drag the join policy with it.
@@ -194,10 +204,10 @@ describe('create group', () => {
       joinPolicy: 'request',
     });
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/discussions/g-new'));
-    // Not pushed on top of the form, and not sent back to browse.
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(mockReplace).not.toHaveBeenCalledWith('/discussions');
+    await waitFor(() => getByTestId('create-group-receipt'));
+    getByText('Pending admin review');
+    getByText('1 of 2 community slots used');
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('validates the name inline and blocks submit below 3 characters', async () => {
@@ -212,7 +222,7 @@ describe('create group', () => {
     expect(getByTestId('create-group-submit').props.accessibilityState.disabled).toBe(true);
 
     fireEvent.press(getByTestId('create-group-submit'));
-    expect(mockCreateGroup).not.toHaveBeenCalled();
+    expect(mockSubmitCommunityCreationRequest).not.toHaveBeenCalled();
 
     // The third character clears it live, without a submit round trip.
     fireEvent.changeText(getByTestId('create-group-name'), 'abc');
@@ -220,8 +230,8 @@ describe('create group', () => {
     expect(getByTestId('create-group-submit').props.accessibilityState.disabled).toBe(false);
 
     fireEvent.press(getByTestId('create-group-submit'));
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
-    expect(mockCreateGroup.mock.calls[0][0].name).toBe('abc');
+    await waitFor(() => expect(mockSubmitCommunityCreationRequest).toHaveBeenCalledTimes(1));
+    expect(mockSubmitCommunityCreationRequest.mock.calls[0][0].name).toBe('abc');
   });
 
   it('prefills and locks the opportunity when opened from one', async () => {
@@ -241,8 +251,8 @@ describe('create group', () => {
     fireEvent.changeText(getByTestId('create-group-name'), 'Mastercard crew');
     fireEvent.press(getByTestId('create-group-submit'));
 
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
-    expect(mockCreateGroup.mock.calls[0][0].opportunityId).toBe('opp-1');
+    await waitFor(() => expect(mockSubmitCommunityCreationRequest).toHaveBeenCalledTimes(1));
+    expect(mockSubmitCommunityCreationRequest.mock.calls[0][0].opportunityId).toBe('opp-1');
   });
 
   it('links only an existing opportunity selected from the real opportunity feed', async () => {
@@ -266,8 +276,8 @@ describe('create group', () => {
     fireEvent.changeText(getByTestId('create-group-name'), 'Chevening applicants');
     fireEvent.press(getByTestId('create-group-submit'));
 
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledTimes(1));
-    expect(mockCreateGroup.mock.calls[0][0].opportunityId).toBe(
+    await waitFor(() => expect(mockSubmitCommunityCreationRequest).toHaveBeenCalledTimes(1));
+    expect(mockSubmitCommunityCreationRequest.mock.calls[0][0].opportunityId).toBe(
       'opp-chevening',
     );
   });
@@ -275,7 +285,7 @@ describe('create group', () => {
   it("shows the server's sentence when the group cap is hit, never a status code", async () => {
     const sentence =
       'You can run 2 active groups at a time. Archive one to start another — archiving is permanent.';
-    mockCreateGroup.mockRejectedValue(new CommunityApiError(sentence, 403));
+    mockSubmitCommunityCreationRequest.mockRejectedValue(new CommunityApiError(sentence, 409));
 
     const { getByTestId, getByText, queryByText } = render(<CreateGroupScreen />);
 

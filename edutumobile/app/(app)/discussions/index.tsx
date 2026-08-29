@@ -17,11 +17,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@clerk/clerk-expo';
-import { Plus } from 'lucide-react-native';
+import { Clock3, Plus } from 'lucide-react-native';
 import {
+  fetchMyCommunityCreationRequests,
   fetchGroups,
   isCommunityApiError,
   type CommunityGroup,
+  type CommunityCreationRequest,
+  type CommunityCreationSlots,
   type GroupWithMembership,
   type MembershipStatus,
 } from '@edutu/core/src/services/communities';
@@ -59,6 +62,13 @@ export default function DiscussionsBrowseScreen() {
   // `{ group, membership }` rows, not bare groups. The API returns live
   // relationships, and the screen keeps only active memberships below.
   const [mine, setMine] = useState<GroupWithMembership[]>([]);
+  const [creationRequests, setCreationRequests] = useState<
+    CommunityCreationRequest[]
+  >([]);
+  const [creationSlots, setCreationSlots] = useState<CommunityCreationSlots>({
+    used: 0,
+    limit: 2,
+  });
   const { groupUnreadCounts } = useCommunityUnreadCounts(userId, getToken);
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
@@ -73,8 +83,9 @@ export default function DiscussionsBrowseScreen() {
     const requestId = ++requestIdRef.current;
     const tokenProvider = getTokenRef.current;
 
-    const [mineResult] = await Promise.allSettled([
+    const [mineResult, creationResult] = await Promise.allSettled([
       fetchGroups({ mine: true, limit: 50 }, tokenProvider),
+      fetchMyCommunityCreationRequests(tokenProvider),
     ]);
 
     if (!mountedRef.current || requestId !== requestIdRef.current) return;
@@ -93,6 +104,10 @@ export default function DiscussionsBrowseScreen() {
           ? caught.message
           : t('common:errors.generic'),
       );
+    }
+    if (creationResult.status === 'fulfilled') {
+      setCreationRequests(creationResult.value.requests);
+      setCreationSlots(creationResult.value.slots);
     }
   }, [t]);
 
@@ -216,9 +231,29 @@ export default function DiscussionsBrowseScreen() {
           </View>
         ) : (
           <>
+            {creationRequests.length > 0 ? (
+              <View testID="community-creation-requests" style={styles.requestSection}>
+                <View style={styles.requestHeadingRow}>
+                  <View>
+                    <Text style={[styles.requestEyebrow, { color: colors.accent }]}>COMMUNITY PROPOSALS</Text>
+                    <Text style={[styles.requestHeading, { color: colors.foreground }]}>Under review</Text>
+                  </View>
+                  <Text style={[styles.slotPill, { color: colors.accent, backgroundColor: `${colors.accent}14` }]}>{creationSlots.used} of {creationSlots.limit} slots used</Text>
+                </View>
+                {creationRequests.map((request) => (
+                  <View key={request.id} style={[styles.requestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.requestIcon, { backgroundColor: `${colors.accent}14` }]}><Clock3 size={18} color={colors.accent} /></View>
+                    <View style={styles.requestCopy}>
+                      <Text style={[styles.requestName, { color: colors.foreground }]} numberOfLines={1}>{request.name}</Text>
+                      <Text style={[styles.requestStatus, { color: request.status === 'rejected' ? colors.error : colors.textSecondary }]}>{request.status === 'pending' ? 'Pending admin review' : request.status === 'rejected' ? request.rejectionReason || 'Changes needed' : request.status}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {/* ── 1. Your groups: list rows ────────────────────────────── */}
             <View style={styles.section}>
-              {mineAvailable && relationshipRows.length === 0 ? (
+              {mineAvailable && relationshipRows.length === 0 && creationRequests.length === 0 ? (
                 <View testID="discussions-empty">
                   <StateView
                     state={{ kind: 'empty', reason: 'firstRun' }}
@@ -268,7 +303,7 @@ export default function DiscussionsBrowseScreen() {
           </>
         )}
       </ScrollView>
-      {relationshipRows.length > 0 ? (
+      {relationshipRows.length > 0 || creationRequests.length > 0 ? (
         <AnimatedPressable
           testID="discussions-create"
           accessibilityRole="button"
@@ -304,6 +339,63 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
+  },
+  requestSection: {
+    gap: 10,
+  },
+  requestHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  requestEyebrow: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  requestHeading: {
+    marginTop: 3,
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+  },
+  slotPill: {
+    borderRadius: 99,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  requestCard: {
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  requestIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  requestName: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  requestStatus: {
+    fontSize: 12,
+    lineHeight: 17,
+    textTransform: 'capitalize',
   },
   listSurface: {
     borderWidth: 1,
