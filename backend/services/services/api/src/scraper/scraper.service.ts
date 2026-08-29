@@ -1134,7 +1134,7 @@ export class ScraperService implements OnModuleInit {
           .lt("last_seen_at", cutoffDate.toISOString())
           .limit(1000);
 
-        if (error && !this.isStorageDuplicateError(error)) throw error;
+        if (error) throw error;
         if (!data || data.length === 0) {
           hasMore = false;
           break;

@@ -25,6 +25,7 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "test:e2e:production": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --testPathPatterns='(api-production|credit-purchase|opportunity-publication)\\.e2e-spec\\.ts$'",
     "smoke:api-production": "node scripts/smoke-api-production.mjs",
+    "storage:cleanup": "ts-node --transpile-only scripts/cleanup-supabase-storage.ts",
     "lint:fix": "eslint \"src/**/*.ts\" --fix"
   },
   "dependencies": {
