@@ -3,6 +3,7 @@ import { SchedulerRegistry } from "@nestjs/schedule";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { CronJob } from "cron";
 import axios from "axios";
+import { createHash } from "crypto";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { pool } from "../db";
@@ -1133,7 +1134,7 @@ export class ScraperService implements OnModuleInit {
           .lt("last_seen_at", cutoffDate.toISOString())
           .limit(1000);
 
-        if (error) throw error;
+        if (error && !this.isStorageDuplicateError(error)) throw error;
         if (!data || data.length === 0) {
           hasMore = false;
           break;
@@ -1163,6 +1164,21 @@ export class ScraperService implements OnModuleInit {
     }
   }
 
+  private isStorageDuplicateError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const storageError = error as {
+      error?: unknown;
+      message?: unknown;
+      statusCode?: unknown;
+    };
+    return (
+      storageError.error === "Duplicate" ||
+      storageError.statusCode === "409" ||
+      storageError.statusCode === 409 ||
+      (typeof storageError.message === "string" &&
+        /already exists|duplicate/i.test(storageError.message))
+    );
+  }
   // ─── Source Resolution ────────────────────────────────────────────────────
 
   private async resolveSources({
@@ -2660,11 +2676,20 @@ ${text}`;
         responseType: "arraybuffer",
         timeout: 10_000,
       });
-      const buffer = res.data;
+      const buffer = Buffer.isBuffer(res.data)
+        ? res.data
+        : Buffer.from(res.data);
       const contentType =
-        (res.headers["content-type"] as string) || "image/jpeg";
-      const extension = contentType.split("/")[1] || "jpg";
-      const filename = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
+        ((res.headers["content-type"] as string) || "image/jpeg")
+          .split(";")[0]
+          .trim()
+          .toLowerCase();
+      const extension =
+        contentType === "image/jpeg"
+          ? "jpg"
+          : contentType.split("/")[1]?.replace(/[^a-z0-9]/g, "") || "jpg";
+      const contentHash = createHash("sha256").update(buffer).digest("hex");
+      const filename = `sha256/${contentHash.slice(0, 2)}/${contentHash.slice(2, 4)}/${contentHash}.${extension}`;
 
       // 2. Ensure bucket exists
       const bucketName = "opportunities_images";
@@ -2675,16 +2700,23 @@ ${text}`;
       }
 
       // 3. Upload to bucket
-      const { error } = await this.supabase.storage
-        .from(bucketName)
-        .upload(filename, buffer, { contentType, upsert: true });
+      const bucket = this.supabase.storage.from(bucketName);
+      const { data: alreadyStored, error: existsError } =
+        await bucket.exists(filename);
+      if (existsError) throw existsError;
 
-      if (error) throw error;
+      if (!alreadyStored) {
+        const { error } = await bucket.upload(filename, buffer, {
+          contentType,
+          upsert: false,
+          cacheControl: "31536000",
+        });
+
+        if (error && !this.isStorageDuplicateError(error)) throw error;
+      }
 
       // 4. Return Public CDN URL
-      const { data } = this.supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filename);
+      const { data } = bucket.getPublicUrl(filename);
       return data.publicUrl;
     } catch (e: any) {
       this.logger.warn(`Failed to proxy image ${imageUrl}: ${e.message}`);

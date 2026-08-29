@@ -8,6 +8,7 @@ import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedd
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
+import axios from "axios";
 
 describe("ScraperService", () => {
   let service: ScraperService;
@@ -95,6 +96,102 @@ describe("ScraperService", () => {
         data_retention_days: null,
         recheck_after_days: 3,
       });
+    });
+  });
+
+  describe("opportunity image storage", () => {
+    it("reuses one content-addressed object when the same image is scraped twice", async () => {
+      const image = Buffer.from("same-image");
+      jest.spyOn(axios, "get").mockResolvedValue({
+        data: image,
+        headers: { "content-type": "image/jpeg" },
+      });
+
+      const upload = jest.fn().mockResolvedValue({ error: null });
+      const exists = jest
+        .fn()
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ data: true, error: null });
+      const getPublicUrl = jest.fn((path: string) => ({
+        data: { publicUrl: `https://cdn.example.com/${path}` },
+      }));
+      const bucket = { exists, upload, getPublicUrl };
+
+      (service as any).supabase = {
+        storage: {
+          listBuckets: jest.fn().mockResolvedValue({
+            data: [{ name: "opportunities_images" }],
+          }),
+          createBucket: jest.fn(),
+          from: jest.fn().mockReturnValue(bucket),
+        },
+      };
+
+      const first = await (service as any).proxyImageToStorage(
+        "https://source.example.com/first.jpg",
+      );
+      const second = await (service as any).proxyImageToStorage(
+        "https://mirror.example.com/copy.jpg",
+      );
+
+      const expectedPath =
+        "sha256/fc/c6/fcc6824d4f99b1b5b6011e00c9b3db91555e6d2d8aab66693bc3a324c437bc6c.jpg";
+      expect(first).toBe(`https://cdn.example.com/${expectedPath}`);
+      expect(second).toBe(first);
+      expect(exists).toHaveBeenNthCalledWith(1, expectedPath);
+      expect(exists).toHaveBeenNthCalledWith(2, expectedPath);
+      expect(upload).toHaveBeenCalledTimes(1);
+      expect(upload).toHaveBeenCalledWith(expectedPath, image, {
+        contentType: "image/jpeg",
+        upsert: false,
+        cacheControl: "31536000",
+      });
+    });
+
+    it("uses the stored object when another worker wins the upload race", async () => {
+      jest.spyOn(axios, "get").mockResolvedValue({
+        data: Buffer.from("same-image"),
+        headers: { "content-type": "image/jpeg" },
+      });
+
+      const bucket = {
+        exists: jest.fn().mockResolvedValue({ data: false, error: null }),
+        upload: jest.fn().mockResolvedValue({
+          error: {
+            error: "Duplicate",
+            message: "The resource already exists",
+            statusCode: "409",
+          },
+        }),
+        getPublicUrl: jest.fn((path: string) => ({
+          data: { publicUrl: `https://cdn.example.com/${path}` },
+        })),
+      };
+      (service as any).supabase = {
+        storage: {
+          listBuckets: jest.fn().mockResolvedValue({
+            data: [{ name: "opportunities_images" }],
+          }),
+          createBucket: jest.fn(),
+          from: jest.fn().mockReturnValue(bucket),
+        },
+      };
+
+      expect(
+        (service as any).isStorageDuplicateError({
+          error: "Duplicate",
+          message: "The resource already exists",
+          statusCode: "409",
+        }),
+      ).toBe(true);
+
+      const result = await (service as any).proxyImageToStorage(
+        "https://source.example.com/image.jpg",
+      );
+
+      expect(result).toBe(
+        "https://cdn.example.com/sha256/fc/c6/fcc6824d4f99b1b5b6011e00c9b3db91555e6d2d8aab66693bc3a324c437bc6c.jpg",
+      );
     });
   });
 
