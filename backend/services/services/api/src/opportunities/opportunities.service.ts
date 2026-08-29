@@ -289,7 +289,8 @@ const ADMIN_OPPORTUNITY_COLUMNS = [
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
   private readonly supabase: SupabaseClient | null = null;
-  private opportunityEnhancementTail: Promise<void> = Promise.resolve();
+  private opportunityEnhancementActive = 0;
+  private readonly opportunityEnhancementWaiters: Array<() => void> = [];
 
   // Read-through cache for the near-static catalog is served by the shared
   // (Redis-backed) CacheService under the "opps:" prefix. Every write
@@ -2248,75 +2249,101 @@ export class OpportunitiesService {
   }
 
   /**
-   * Serialize provider-backed opportunity enhancement across controllers,
-   * tabs, and concurrent admin requests within this API process. The runtime
-   * refinement policy uses this boundary around every provider call.
+   * Bound provider-backed opportunity enhancement across controllers, tabs,
+   * and concurrent admin requests within this API process. Three concurrent
+   * jobs match the validated admin batch limit without allowing an unbounded
+   * burst. Deployments with tighter provider limits can lower the value.
+   *
+   * The historical method name remains for compatibility with the runtime
+   * policy; its behavior is now a bounded semaphore instead of a global lock.
    */
   async runOpportunityEnhancementExclusive<T>(
     operation: () => Promise<T>,
   ): Promise<T> {
-    const previous = this.opportunityEnhancementTail;
-    let release!: () => void;
-    this.opportunityEnhancementTail = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-
-    await previous;
+    await this.acquireOpportunityEnhancementSlot();
     try {
       return await operation();
     } finally {
-      release();
+      this.releaseOpportunityEnhancementSlot();
     }
+  }
+
+  private opportunityEnhancementConcurrency(): number {
+    const configured = Number(process.env.OPPORTUNITY_AI_CONCURRENCY || 3);
+    if (!Number.isFinite(configured)) return 3;
+    return Math.min(Math.max(Math.trunc(configured), 1), 5);
+  }
+
+  private async acquireOpportunityEnhancementSlot(): Promise<void> {
+    if (
+      this.opportunityEnhancementActive <
+      this.opportunityEnhancementConcurrency()
+    ) {
+      this.opportunityEnhancementActive += 1;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      this.opportunityEnhancementWaiters.push(resolve);
+    });
+  }
+
+  private releaseOpportunityEnhancementSlot(): void {
+    const next = this.opportunityEnhancementWaiters.shift();
+    if (next) {
+      next();
+      return;
+    }
+    this.opportunityEnhancementActive = Math.max(
+      this.opportunityEnhancementActive - 1,
+      0,
+    );
   }
 
   /**
    * Run the admin AI-complete workflow for an explicit selection without
    * making the browser submit one rate-limited HTTP request per row.
-   * Processing remains sequential so the batch endpoint does not turn into a
-   * burst of provider calls; one failed row never aborts the rest of the batch.
+   * The route already validates at most three ids, so process that bounded set
+   * concurrently. The process-wide semaphore above protects the provider when
+   * multiple admin tabs or requests overlap; one failed row never aborts the
+   * rest of the batch.
    */
   async enhanceOpportunities(
     ids: readonly string[],
-    delayMs = 300,
   ): Promise<{ processed: number; enhanced: number; failed: number }> {
-    const result = { processed: 0, enhanced: 0, failed: 0 };
-    const pauseMs = Math.max(Number(delayMs) || 0, 0);
-
-    for (let index = 0; index < ids.length; index += 1) {
-      const id = ids[index];
-      result.processed += 1;
-      try {
-        const outcome = await this.enhanceOpportunity(id);
-        const refinementAiError = (
-          outcome as
-            | { contentRefinement?: { aiError?: unknown } }
-            | null
-            | undefined
-        )?.contentRefinement?.aiError;
-        if (
-          outcome &&
-          (outcome as { success?: boolean }).success !== false &&
-          !refinementAiError
-        ) {
-          result.enhanced += 1;
-        } else {
-          result.failed += 1;
+    const outcomes = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const outcome = await this.enhanceOpportunity(id);
+          const refinementAiError = (
+            outcome as
+              | { contentRefinement?: { aiError?: unknown } }
+              | null
+              | undefined
+          )?.contentRefinement?.aiError;
+          if (
+            outcome &&
+            (outcome as { success?: boolean }).success !== false &&
+            !refinementAiError
+          ) {
+            return true;
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Bulk opportunity enhancement failed for ${id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
         }
-      } catch (error) {
-        result.failed += 1;
-        this.logger.warn(
-          `Bulk opportunity enhancement failed for ${id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-
-      if (pauseMs > 0 && index < ids.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, pauseMs));
-      }
-    }
-
-    return result;
+        return false;
+      }),
+    );
+    const enhanced = outcomes.filter(Boolean).length;
+    return {
+      processed: outcomes.length,
+      enhanced,
+      failed: outcomes.length - enhanced,
+    };
   }
 
   /**

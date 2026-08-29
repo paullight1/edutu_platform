@@ -82,7 +82,7 @@ describe("OpportunitiesService bulk AI completion", () => {
     );
   });
 
-  it("enhances selected opportunities sequentially and isolates row failures", async () => {
+  it("enhances a three-row batch concurrently and isolates row failures", async () => {
     const service = new OpportunitiesService(
       { invalidateAllResponseCache: jest.fn() } as any,
       {} as any,
@@ -92,11 +92,17 @@ describe("OpportunitiesService bulk AI completion", () => {
     );
     let active = 0;
     let maxActive = 0;
+    let started = 0;
+    let releaseBatch!: () => void;
+    const batchGate = new Promise<void>((resolve) => {
+      releaseBatch = resolve;
+    });
 
     service.enhanceOpportunity = jest.fn(async (id: string) => {
       active += 1;
+      started += 1;
       maxActive = Math.max(maxActive, active);
-      await Promise.resolve();
+      await batchGate;
       active -= 1;
 
       if (id === "0f4309b5-d5f2-4e1e-a732-4932730dc4b3") {
@@ -108,17 +114,24 @@ describe("OpportunitiesService bulk AI completion", () => {
       return { success: true } as any;
     });
 
-    await expect(
-      service.enhanceOpportunities(
-        [
-          "1827885d-2d96-469e-b7f4-c580dd537334",
-          "0f4309b5-d5f2-4e1e-a732-4932730dc4b3",
-          "0d3a64ae-31f6-4afe-9bbb-73aff87cea98",
-        ],
-        0,
-      ),
-    ).resolves.toEqual({ processed: 3, enhanced: 1, failed: 2 });
-    expect(maxActive).toBe(1);
+    const run = service.enhanceOpportunities([
+      "1827885d-2d96-469e-b7f4-c580dd537334",
+      "0f4309b5-d5f2-4e1e-a732-4932730dc4b3",
+      "0d3a64ae-31f6-4afe-9bbb-73aff87cea98",
+    ]);
+
+    await Promise.resolve();
+    await Promise.resolve();
+    const startedBeforeRelease = started;
+    releaseBatch();
+
+    await expect(run).resolves.toEqual({
+      processed: 3,
+      enhanced: 1,
+      failed: 2,
+    });
+    expect(startedBeforeRelease).toBe(3);
+    expect(maxActive).toBe(3);
   });
 
   it("counts a refinement fallback with an AI error as a failed completion", async () => {
@@ -137,14 +150,14 @@ describe("OpportunitiesService bulk AI completion", () => {
       },
     });
 
-    await expect(service.enhanceOpportunities(["opp-1"], 0)).resolves.toEqual({
+    await expect(service.enhanceOpportunities(["opp-1"])).resolves.toEqual({
       processed: 1,
       enhanced: 0,
       failed: 1,
     });
   });
 
-  it("serializes overlapping enhancement operations across requests", async () => {
+  it("allows three enhancement operations and queues additional work", async () => {
     const service = new OpportunitiesService(
       { invalidateAllResponseCache: jest.fn() } as any,
       {} as any,
@@ -154,31 +167,34 @@ describe("OpportunitiesService bulk AI completion", () => {
     );
     let active = 0;
     let maxActive = 0;
-    let releaseFirst: (() => void) | undefined;
-
-    const first = service.runOpportunityEnhancementExclusive(async () => {
-      active += 1;
-      maxActive = Math.max(maxActive, active);
-      await new Promise<void>((resolve) => {
-        releaseFirst = resolve;
-      });
-      active -= 1;
-      return "first";
+    let started = 0;
+    let releaseRunning!: () => void;
+    const runningGate = new Promise<void>((resolve) => {
+      releaseRunning = resolve;
     });
-    const second = service.runOpportunityEnhancementExclusive(async () => {
-      active += 1;
-      maxActive = Math.max(maxActive, active);
-      active -= 1;
-      return "second";
-    });
+    const runs = ["first", "second", "third", "fourth"].map((label) =>
+      service.runOpportunityEnhancementExclusive(async () => {
+        active += 1;
+        started += 1;
+        maxActive = Math.max(maxActive, active);
+        await runningGate;
+        active -= 1;
+        return label;
+      }),
+    );
 
     await Promise.resolve();
-    expect(maxActive).toBe(1);
-    releaseFirst?.();
-    await expect(Promise.all([first, second])).resolves.toEqual([
+    await Promise.resolve();
+    const startedBeforeRelease = started;
+    releaseRunning();
+
+    await expect(Promise.all(runs)).resolves.toEqual([
       "first",
       "second",
+      "third",
+      "fourth",
     ]);
-    expect(maxActive).toBe(1);
+    expect(startedBeforeRelease).toBe(3);
+    expect(maxActive).toBe(3);
   });
 });
