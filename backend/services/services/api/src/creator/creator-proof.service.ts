@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { toDatabaseUserId } from "../common/user-id";
 
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
+const PROOF_DOWNLOAD_TTL_SECONDS = 5 * 60;
 
 export type MentorProofFile = {
   buffer: Buffer;
@@ -108,6 +109,60 @@ export class CreatorProofService {
       fileName: file.originalname.slice(0, 200),
       contentType: detected.contentType,
       size: file.size,
+    };
+  }
+
+  async createDownloadUrl(proof: {
+    path: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }): Promise<{
+    url: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    expiresIn: number;
+  }> {
+    const path = proof.path.trim();
+    const segments = path.split("/");
+    if (
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      segments.length < 3 ||
+      segments.some(
+        (segment) => !segment || segment === "." || segment === "..",
+      )
+    ) {
+      throw new BadRequestException("Invalid proof path");
+    }
+
+    const client = this.supabase;
+    if (!client) {
+      throw new ServiceUnavailableException("Proof storage is unavailable");
+    }
+
+    const fileName =
+      proof.fileName
+        .replace(/[\r\n/\\]/g, "_")
+        .trim()
+        .slice(0, 200) || "creator-proof";
+    const { data, error } = await client.storage
+      .from("creator-proofs")
+      .createSignedUrl(path, PROOF_DOWNLOAD_TTL_SECONDS, {
+        download: fileName,
+      });
+
+    if (error || !data?.signedUrl) {
+      throw new ServiceUnavailableException("Could not create proof download");
+    }
+
+    return {
+      url: data.signedUrl,
+      fileName,
+      mimeType: proof.mimeType,
+      size: proof.size,
+      expiresIn: PROOF_DOWNLOAD_TTL_SECONDS,
     };
   }
 }

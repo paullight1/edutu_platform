@@ -642,7 +642,7 @@ export const creatorApplications = pgTable("creator_applications", {
   portfolioUrl: text("portfolio_url"),
   socialLinks: text("social_links"),
   kycImageUrl: text("kyc_image_url"), // storage PATH in the private creator-applications bucket
-  proofUrl: text("proof_url"), // public URL in the creator-proofs bucket
+  proofUrl: text("proof_url"), // legacy URL; new private uploads use proofPath
   proofPath: text("proof_path"),
   proofFileName: text("proof_file_name"),
   proofFileType: text("proof_file_type"),

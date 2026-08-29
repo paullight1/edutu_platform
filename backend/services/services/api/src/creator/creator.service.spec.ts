@@ -196,3 +196,57 @@ describe("CreatorService.getApplicationStatus", () => {
     expect(query).toContain("application_kind");
   });
 });
+
+describe("CreatorService.getApplicationProof", () => {
+  let service: CreatorService;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    service = new CreatorService({ broadcast: jest.fn() } as any);
+  });
+
+  function wireApplication(rows: Array<Record<string, unknown>>) {
+    const chain: any = {
+      from: () => chain,
+      where: () => chain,
+      limit: () => chain,
+      execute: () => Promise.resolve(rows),
+    };
+    mockedDb.select.mockReturnValue(chain);
+  }
+
+  it("returns only the stored proof fields for an existing application", async () => {
+    wireApplication([
+      {
+        id: "app-1",
+        proofPath: "owner/2026-08-29/proof.pdf",
+        proofFileName: "eligibility letter.pdf",
+        proofFileType: "application/pdf",
+        proofFileSize: 2048,
+      },
+    ]);
+
+    await expect(service.getApplicationProof("app-1")).resolves.toEqual({
+      path: "owner/2026-08-29/proof.pdf",
+      fileName: "eligibility letter.pdf",
+      mimeType: "application/pdf",
+      size: 2048,
+    });
+  });
+
+  it("does not expose an application that has no private proof path", async () => {
+    wireApplication([
+      {
+        id: "app-1",
+        proofPath: null,
+        proofFileName: null,
+        proofFileType: null,
+        proofFileSize: null,
+      },
+    ]);
+
+    await expect(service.getApplicationProof("app-1")).rejects.toThrow(
+      "Application proof not found",
+    );
+  });
+});

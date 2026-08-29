@@ -207,6 +207,37 @@ export class CreatorService {
     return rows.map((row) => this.serializeApplication(row));
   }
 
+  async getApplicationProof(applicationId: string): Promise<{
+    path: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }> {
+    const [application] = await db
+      .select({
+        id: creatorApplications.id,
+        proofPath: creatorApplications.proofPath,
+        proofFileName: creatorApplications.proofFileName,
+        proofFileType: creatorApplications.proofFileType,
+        proofFileSize: creatorApplications.proofFileSize,
+      })
+      .from(creatorApplications)
+      .where(eq(creatorApplications.id, applicationId))
+      .limit(1)
+      .execute();
+
+    if (!application?.proofPath) {
+      throw new NotFoundException("Application proof not found");
+    }
+
+    return {
+      path: application.proofPath,
+      fileName: application.proofFileName || "creator-proof",
+      mimeType: application.proofFileType || "application/octet-stream",
+      size: application.proofFileSize || 0,
+    };
+  }
+
   async reviewApplication(
     applicationId: string,
     adminId: string,

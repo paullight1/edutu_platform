@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import "dotenv/config";
-import { createClient, type FileObject } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   collectReferencedStoragePaths,
   planStorageCleanup,
   type CleanupCandidate,
 } from "../src/storage/storage-cleanup-plan";
+import { loadOpportunityReferences } from "../src/storage/opportunity-reference-loader";
 
 const ALLOWED_BUCKETS = new Set([
   "opportunities_images",
@@ -14,11 +15,19 @@ const ALLOWED_BUCKETS = new Set([
 const DEFAULT_BUCKETS = [...ALLOWED_BUCKETS];
 const APPLY_CONFIRMATION = "DELETE_UNREFERENCED_STORAGE";
 
+interface StorageListEntry {
+  id: string | null;
+  name: string;
+  metadata: { size?: number } | null;
+  updated_at: string | null;
+  created_at: string | null;
+}
+
 function argumentValue(name: string): string | undefined {
   const prefix = `--${name}=`;
-  return process.argv.find((argument) => argument.startsWith(prefix))?.slice(
-    prefix.length,
-  );
+  return process.argv
+    .find((argument) => argument.startsWith(prefix))
+    ?.slice(prefix.length);
 }
 
 function positiveInteger(name: string, fallback: number): number {
@@ -59,25 +68,8 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(2)} ${units[unit]}`;
 }
 
-async function loadOpportunityReferences(
-  client: ReturnType<typeof createClient>,
-): Promise<unknown[]> {
-  const records: unknown[] = [];
-  const pageSize = 1000;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client
-      .from("opportunities")
-      .select("image_url,metadata")
-      .range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    records.push(...(data ?? []));
-    if (!data || data.length < pageSize) break;
-  }
-  return records;
-}
-
 async function listFolder(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient<any>,
   bucket: string,
   prefix = "",
 ): Promise<CleanupCandidate[]> {
@@ -114,12 +106,12 @@ async function listFolder(
   return objects;
 }
 
-function isFolder(entry: FileObject): boolean {
+function isFolder(entry: StorageListEntry): boolean {
   return !entry.id && !entry.metadata;
 }
 
 async function removeInBatches(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient<any>,
   bucket: string,
   paths: string[],
   batchSize: number,

@@ -48,6 +48,10 @@ interface AdminCreatorApplicationRecord {
   linkedin_url?: string | null;
   portfolio_url?: string | null;
   kyc_image_url?: string | null;
+  proofPath?: string | null;
+  proofFileName?: string | null;
+  proofFileType?: string | null;
+  proofFileSize?: number | null;
   social_links?: Record<string, string> | string | null;
   reviewer_notes?: string | null;
   applied_at?: string | null;
@@ -84,6 +88,14 @@ interface AdminCreatorReviewResponse {
   error?: string;
 }
 
+interface AdminCreatorProofDownloadResponse {
+  url: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  expiresIn: number;
+}
+
 interface CreatorApplicationView {
   id: string;
   userId: string;
@@ -102,6 +114,12 @@ interface CreatorApplicationView {
   contentType: string;
   experience: string;
   sampleContentUrl: string | null;
+  proof: {
+    path: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  } | null;
   adminNote: string | null;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -273,6 +291,7 @@ function normalizeApplication(
     lastApplication.sampleContentUrl,
     profileMetadata.sampleContentUrl,
   ) || null;
+  const proofPath = pickString(application.proofPath);
   const adminNote = pickString(
     application.adminNote,
     application.reviewer_notes,
@@ -312,6 +331,15 @@ function normalizeApplication(
     contentType,
     experience,
     sampleContentUrl,
+    proof: proofPath
+      ? {
+          path: proofPath,
+          fileName: pickString(application.proofFileName) || "Creator proof",
+          mimeType:
+            pickString(application.proofFileType) || "application/octet-stream",
+          size: Math.max(0, Number(application.proofFileSize ?? 0)),
+        }
+      : null,
     adminNote,
     reviewedBy: application.reviewedBy ?? null,
     reviewedAt,
@@ -474,6 +502,7 @@ const CreatorManagement = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [proofLoadingId, setProofLoadingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<CreatorTab>("pending");
   const [selectedApplication, setSelectedApplication] = useState<CreatorApplicationView | null>(null);
@@ -792,6 +821,28 @@ const CreatorManagement = () => {
     const filename = `creator-applications-${stamp}.csv`;
     downloadCsv(filename, filteredApplications);
   };
+
+  const openProof = useCallback(async (application: CreatorApplicationView) => {
+    if (!application.proof) return;
+
+    setProofLoadingId(application.id);
+    try {
+      const proof = await backendFetchJson<AdminCreatorProofDownloadResponse>(
+        `/admin/creator-applications/${application.id}/proof-download`,
+      );
+      window.open(proof.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setBanner({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to open the submitted proof.",
+      });
+    } finally {
+      setProofLoadingId(null);
+    }
+  }, []);
 
   const openApplication = (application: CreatorApplicationView) => {
     setSelectedApplication(application);
@@ -1539,6 +1590,34 @@ const CreatorManagement = () => {
                         <span style={{ color: "var(--text-tertiary)" }}>No sample content linked.</span>
                       )}
                     </div>
+                    {selectedApplication.proof && (
+                      <div>
+                        <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+                          Submitted Proof
+                        </div>
+                        <div style={{ display: "grid", gap: "8px", marginTop: "4px" }}>
+                          <span style={{ color: "var(--text-secondary)", wordBreak: "break-word" }}>
+                            {selectedApplication.proof.fileName}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => void openProof(selectedApplication)}
+                            disabled={proofLoadingId === selectedApplication.id}
+                            style={{ width: "fit-content" }}
+                          >
+                            {proofLoadingId === selectedApplication.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <ExternalLink size={14} />
+                            )}
+                            {proofLoadingId === selectedApplication.id
+                              ? "Preparing proof..."
+                              : "Open proof"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

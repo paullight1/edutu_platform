@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { CreatorService } from "./creator.service";
+import { CreatorProofService } from "./creator-proof.service";
 import { CurrentUser, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
@@ -23,7 +24,10 @@ import {
 
 @Controller()
 export class CreatorController {
-  constructor(private readonly creatorService: CreatorService) {}
+  constructor(
+    private readonly creatorService: CreatorService,
+    private readonly proofService: CreatorProofService,
+  ) {}
 
   @Get("wallet")
   getWallet(@CurrentUser("id") userId: string) {
@@ -92,6 +96,13 @@ export class CreatorController {
   @UseGuards(AdminGuard)
   listApplications(@Query("status") status?: string) {
     return this.creatorService.listApplications(status);
+  }
+
+  @Get("admin/creator-applications/:id/proof-download")
+  @UseGuards(AdminGuard)
+  async downloadApplicationProof(@Param("id") id: string) {
+    const proof = await this.creatorService.getApplicationProof(id);
+    return this.proofService.createDownloadUrl(proof);
   }
 
   @Patch("admin/creator-applications/:id")
