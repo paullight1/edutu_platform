@@ -98,10 +98,7 @@ export function resolveAdminRuntimeConfig(
 }
 
 export function getAdminRuntimeConfig(): AdminRuntimeConfig {
-  const meta = import.meta as ImportMeta & {
-    env?: Record<string, string | boolean | undefined>;
-  };
-  const env: Record<string, string | boolean | undefined> = meta.env ?? {};
+  const env: Record<string, string | boolean | undefined> = import.meta.env;
   const mode: AdminRuntimeMode = env["PROD"]
     ? "production"
     : env["MODE"] === "test"

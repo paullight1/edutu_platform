@@ -1,19 +1,42 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { build } from "vite";
+import { describe, expect, it } from "vitest";
 import {
   AdminRuntimeConfigError,
-  getAdminRuntimeConfig,
   resolveAdminRuntimeConfig,
 } from "./runtimeConfig";
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
-
 describe("getAdminRuntimeConfig", () => {
-  it("reads the Vite-injected backend origin in the browser runtime", () => {
-    vi.stubEnv("VITE_BACKEND_URL", "http://localhost:3010/");
+  it("reads the backend origin from the compiled browser module", async () => {
+    const result = await build({
+      configFile: false,
+      logLevel: "silent",
+      define: {
+        "import.meta.env": JSON.stringify({
+          VITE_BACKEND_URL: "http://localhost:3010/",
+          PROD: false,
+          MODE: "test",
+        }),
+      },
+      build: {
+        write: false,
+        minify: false,
+        lib: {
+          entry: new URL("./runtimeConfig.ts", import.meta.url).pathname,
+          formats: ["es"],
+          fileName: "runtime-config",
+        },
+      },
+    });
+    const output = Array.isArray(result) ? result[0] : result;
+    const chunk = output.output.find((item) => item.type === "chunk");
+    if (!chunk) throw new Error("Vite did not emit the runtime config module");
 
-    expect(getAdminRuntimeConfig()).toMatchObject({
+    const moduleUrl = `data:text/javascript;base64,${Buffer.from(chunk.code).toString("base64")}`;
+    const runtime = (await import(moduleUrl)) as {
+      getAdminRuntimeConfig: () => { apiOrigin: string; source: string; explicit: boolean };
+    };
+
+    expect(runtime.getAdminRuntimeConfig()).toMatchObject({
       apiOrigin: "http://localhost:3010",
       source: "VITE_BACKEND_URL",
       explicit: true,
