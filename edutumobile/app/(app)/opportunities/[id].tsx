@@ -2400,7 +2400,6 @@ export default function OpportunityDetailScreen() {
                               isActive || isComplete
                                 ? colors.accent
                                 : borderColor,
-                            width: isActive ? 20 : 8,
                           },
                         ]}
                       />
@@ -4144,7 +4143,7 @@ const styles = StyleSheet.create({
   },
   modalCloseBtn: { padding: 4 },
   modalProgress: { flexDirection: "row", alignItems: "center", gap: 6 },
-  progressDot: { height: 8, borderRadius: 4 },
+  progressDot: { width: 8, height: 8, borderRadius: 4 },
   progressLine: { width: 16, height: 2, borderRadius: 1 },
   modalTitleBar: { paddingHorizontal: 20, paddingVertical: 16 },
   modalStepTitle: { fontSize: 20, fontWeight: "800" },

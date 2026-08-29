@@ -2531,7 +2531,6 @@ const styles = StyleSheet.create({
     },
     paginationDotActive: {
         backgroundColor: '#6366F1',
-        width: 20,
     },
     // ─── Opportunity Card Styles ───────────────────────────────────────────
     opportunityCard: {
@@ -2887,7 +2886,6 @@ const styles = StyleSheet.create({
     },
     posterDotActive: {
         backgroundColor: '#6366F1',
-        width: 16,
     },
     viewMoreBtn: {
         flexDirection: 'row',

@@ -149,7 +149,6 @@ function Dots({ count, active, palette }: { count: number; active: number; palet
             style={[
               styles.dot,
               {
-                width: isActive ? 20 : 6,
                 backgroundColor: isActive ? palette.text : palette.textMuted,
                 opacity: isActive ? 1 : 0.35,
               },
@@ -352,6 +351,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   dot: {
+    width: 6,
     height: 6,
     borderRadius: 3,
   },

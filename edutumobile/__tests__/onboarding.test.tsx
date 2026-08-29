@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { StyleSheet, View } from 'react-native';
 import { ThemeProvider } from '../components/context/ThemeContext';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -59,12 +60,19 @@ const OnboardingScreen = require('../app/onboarding').default;
 
 describe('Onboarding Revamp', () => {
     it('renders onboarding welcome with correct steps', async () => {
-        const { findByText } = render(
+        const { findByText, UNSAFE_getAllByType } = render(
             <ThemeProvider>
                 <OnboardingWelcome />
             </ThemeProvider>
         );
         expect(await findByText(/Find real opportunities/i)).toBeTruthy();
+
+        const pageDots = UNSAFE_getAllByType(View)
+            .map((node) => StyleSheet.flatten(node.props.style))
+            .filter((style) => style?.height === 6 && style?.borderRadius === 3);
+
+        expect(pageDots.length).toBeGreaterThan(1);
+        expect(pageDots.every((style) => style.width === style.height)).toBe(true);
     });
 
     it('renders functional onboarding screen', async () => {

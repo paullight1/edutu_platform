@@ -251,7 +251,6 @@ export default function CreatorApply() {
                     <View key={s} style={styles.stepProgressItem}>
                         <View style={[styles.stepDot, {
                             backgroundColor: i <= stepIndex ? colors.accent : borderColor,
-                            width: i === stepIndex ? 24 : 10,
                         }]} />
                         {i < 4 && <View style={[styles.stepLine, { backgroundColor: i < stepIndex ? colors.accent : borderColor }]} />}
                     </View>
@@ -613,7 +612,7 @@ const styles = StyleSheet.create({
     // Step Progress
     stepProgress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderBottomWidth: 1 },
     stepProgressItem: { flexDirection: 'row', alignItems: 'center' },
-    stepDot: { height: 10, borderRadius: 5 },
+    stepDot: { width: 10, height: 10, borderRadius: 5 },
     stepLine: { width: 30, height: 2, marginHorizontal: 4 },
 
     // Hero Section

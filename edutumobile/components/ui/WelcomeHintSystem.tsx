@@ -366,7 +366,6 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
                   styles.progressDot,
                   {
                     backgroundColor: itemIndex <= index ? colors.accent : isDark ? '#334155' : '#CBD5E1',
-                    width: itemIndex === index ? 18 : 6,
                   },
                 ]}
               />
@@ -459,6 +458,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   progressDot: {
+    width: 6,
     height: 6,
     borderRadius: 999,
   },

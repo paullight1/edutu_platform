@@ -75,7 +75,6 @@ export function WizardProgress({
                                     {
                                         backgroundColor: isActive || isDone ? colors.primary : 'transparent',
                                         borderColor: isActive || isDone ? colors.primary : fieldBorder,
-                                        width: isActive ? 26 : 10,
                                     },
                                 ]}
                             >
@@ -204,6 +203,7 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
     },
     dot: {
+        width: 10,
         height: 10,
         borderRadius: 5,
         borderWidth: 1.5,

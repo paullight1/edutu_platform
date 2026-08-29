@@ -812,7 +812,6 @@ export default function CreatorDashboard() {
                                         <React.Fragment key={step}>
                                             <View style={[styles.wizardStepDot, {
                                                 backgroundColor: isActive || isCompleted ? colors.accent : borderColor,
-                                                width: isActive ? 24 : 10,
                                             }]} />
                                             {i < 3 && <View style={[styles.wizardStepLine, {
                                                 backgroundColor: isCompleted ? colors.accent : borderColor,
@@ -1373,7 +1372,7 @@ const styles = StyleSheet.create({
     wizardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
     wizardCloseBtn: { padding: 4 },
     wizardProgressContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    wizardStepDot: { height: 10, borderRadius: 5 },
+    wizardStepDot: { width: 10, height: 10, borderRadius: 5 },
     wizardStepLine: { width: 20, height: 2, borderRadius: 1 },
     wizardNextBtn: { padding: 4 },
     wizardTitleBar: { paddingHorizontal: 20, paddingVertical: 16 },
