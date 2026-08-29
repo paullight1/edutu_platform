@@ -1,157 +1,233 @@
-import type { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { Compass, MessageCircle, UserCircle, UsersRound } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import {
+  ArrowLeft,
+  Compass,
+  Home,
+  MessageCircle,
+  UserCircle,
+  UsersRound,
+} from "lucide-react";
 import { cn } from "../../../lib/cn";
 
 const tabs = [
   {
     to: "/app/community/explore",
-    desktopLabel: "Explore",
-    mobileLabel: "Discover",
+    label: "Explore",
     icon: Compass,
   },
   {
     to: "/app/community/groups",
-    desktopLabel: "Groups",
-    mobileLabel: "Your groups",
+    label: "Groups",
     icon: UsersRound,
   },
   {
     to: "/app/community/chats",
-    desktopLabel: "Chats",
-    mobileLabel: "Messages",
+    label: "Chats",
     icon: MessageCircle,
   },
 ];
 
+function focusedBackLink(pathname: string) {
+  if (pathname.startsWith("/app/community/dm/")) {
+    return { to: "/app/community/chats", label: "Back to chats" };
+  }
+  const postGroup = pathname.match(
+    /^\/app\/community\/groups\/([^/]+)\/posts\/[^/]+\/?$/,
+  );
+  if (postGroup) {
+    return {
+      to: `/app/community/groups/${postGroup[1]}`,
+      label: "Back to community",
+    };
+  }
+  if (pathname.startsWith("/app/community/groups/")) {
+    return { to: "/app/community/groups", label: "Back to groups" };
+  }
+  return { to: "/app/community/explore", label: "Back to Community" };
+}
+
 export default function CommunityProductShell({
   title,
+  restingTitle,
+  titleAnchorId,
   description,
   action,
   children,
 }: {
   title: string;
+  restingTitle?: string;
+  titleAnchorId?: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
 }) {
   const { pathname } = useLocation();
+  const showPrimaryNavigation = tabs.some(({ to }) => pathname === to);
+  const isExplorePage = pathname === "/app/community/explore";
+  const groupRoom =
+    /^\/app\/community\/groups\/[^/]+\/?$/.test(pathname) &&
+    pathname !== "/app/community/groups/new";
+  const backLink = focusedBackLink(pathname);
+  const headerRef = useRef<HTMLElement>(null);
+  const [scrollTitleVisible, setScrollTitleVisible] = useState(false);
+
+  useEffect(() => {
+    if (!titleAnchorId) {
+      setScrollTitleVisible(false);
+      return;
+    }
+
+    const updateScrollTitle = () => {
+      const titleAnchor = document.getElementById(titleAnchorId);
+      if (!titleAnchor) {
+        setScrollTitleVisible(false);
+        return;
+      }
+
+      const headerBottom =
+        headerRef.current?.getBoundingClientRect().bottom ?? 64;
+      setScrollTitleVisible(
+        titleAnchor.getBoundingClientRect().top <= headerBottom,
+      );
+    };
+
+    updateScrollTitle();
+    window.addEventListener("scroll", updateScrollTitle, { passive: true });
+    window.addEventListener("resize", updateScrollTitle);
+    return () => {
+      window.removeEventListener("scroll", updateScrollTitle);
+      window.removeEventListener("resize", updateScrollTitle);
+    };
+  }, [titleAnchorId]);
 
   return (
-    <section className="community-product -mx-4 min-h-[calc(100dvh-8rem)] bg-[#fff9f1] text-[#4a170d] dark:bg-surface-body dark:text-text-primary sm:-mx-6 lg:-mx-8">
-      <div className="border-b border-[#f4dcc9] bg-[#fff9f1]/95 px-4 py-3 backdrop-blur dark:border-subtle dark:bg-surface-body/95 sm:px-6 lg:hidden">
-        <div className="mx-auto flex min-h-11 max-w-6xl items-center justify-between gap-3">
-          <h1 className="min-w-0 truncate font-display text-lg font-semibold tracking-[-0.02em]">
-            {title}
-          </h1>
-          {action ? <div className="flex shrink-0 items-center">{action}</div> : null}
-        </div>
-      </div>
-
-      <div className="hidden border-b border-[#f4dcc9] bg-[#fff9f1]/95 px-8 pt-5 backdrop-blur dark:border-subtle dark:bg-surface-body/95 lg:block">
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f45b16] dark:text-brand">
-              Edutu Community
-            </p>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+    <section className="community-product min-h-[100dvh] overflow-x-clip bg-white text-[#17120f] dark:bg-surface-body dark:text-text-primary">
+      {description ? <p className="sr-only">{description}</p> : null}
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-30 border-b border-[#ece8e5] bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur-xl dark:border-subtle dark:bg-surface-body"
+      >
+        <div className="mx-auto grid min-h-16 max-w-3xl grid-cols-[3rem_1fr_3rem] items-center px-3 sm:px-5">
+          {showPrimaryNavigation ? (
+            <Link
+              to={isExplorePage ? "/dashboard" : "/app/community/profile"}
+              aria-label={
+                isExplorePage ? "Go to Edutu home" : "Community profile"
+              }
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#17120f] transition hover:bg-[#f7f4f2] hover:text-[#f45b16] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35 dark:text-text-primary dark:hover:bg-surface-elevated"
+            >
+              {isExplorePage ? (
+                <Home size={24} strokeWidth={2.1} />
+              ) : (
+                <UserCircle size={26} strokeWidth={2.1} />
+              )}
+            </Link>
+          ) : (
+            <Link
+              to={backLink.to}
+              aria-label={backLink.label}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#17120f] transition hover:bg-[#f7f4f2] hover:text-[#f45b16] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35 dark:text-text-primary dark:hover:bg-surface-elevated"
+            >
+              <ArrowLeft size={22} className="rtl:rotate-180" />
+            </Link>
+          )}
+          {groupRoom ? (
+            titleAnchorId ? (
+              <h1 className="relative h-7 min-w-0 overflow-hidden px-2 text-center font-display text-lg font-bold tracking-[-0.025em] sm:text-xl">
+                <span
+                  data-testid="community-resting-title"
+                  data-state={scrollTitleVisible ? "hidden" : "visible"}
+                  aria-hidden={scrollTitleVisible}
+                  className={cn(
+                    "absolute inset-x-2 truncate will-change-transform motion-reduce:transform-none motion-reduce:transition-none",
+                    "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    scrollTitleVisible
+                      ? "-translate-y-3 scale-[0.96] opacity-0"
+                      : "translate-y-0 scale-100 opacity-100",
+                  )}
+                >
+                  {restingTitle || "Community"}
+                </span>
+                <span
+                  data-testid="community-scroll-title"
+                  data-state={scrollTitleVisible ? "visible" : "hidden"}
+                  aria-hidden={!scrollTitleVisible}
+                  className={cn(
+                    "absolute inset-x-2 truncate will-change-transform motion-reduce:transform-none motion-reduce:transition-none",
+                    "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    scrollTitleVisible
+                      ? "translate-y-0 scale-100 opacity-100"
+                      : "translate-y-3 scale-[0.96] opacity-0",
+                  )}
+                >
+                  {title}
+                </span>
+              </h1>
+            ) : (
+              <span aria-hidden="true" />
+            )
+          ) : (
+            <h1 className="truncate px-2 text-center font-display text-xl font-bold tracking-[-0.025em] sm:text-2xl">
               {title}
             </h1>
-            {description ? (
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#796f6b] dark:text-text-secondary">
-                {description}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {action}
-            <NavLink
-              to="/app/community/profile"
-              aria-label="Community profile"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#4a170d] shadow-sm transition hover:border-[#f45b16]/40 hover:text-[#f45b16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35 dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
-            >
-              <UserCircle size={20} />
-            </NavLink>
+          )}
+          <div className="flex h-11 w-11 items-center justify-center justify-self-end">
+            {isExplorePage ? (
+              <Link
+                to="/app/community/profile"
+                aria-label="Community profile"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#17120f] transition hover:bg-[#f7f4f2] hover:text-[#f45b16] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35 dark:text-text-primary dark:hover:bg-surface-elevated"
+              >
+                <UserCircle size={26} strokeWidth={2.1} />
+              </Link>
+            ) : (
+              action
+            )}
           </div>
         </div>
+      </header>
 
-        <nav
-          aria-label="Community sections"
-          className="mx-auto mt-5 flex max-w-6xl gap-1 overflow-x-auto pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {tabs.map(({ to, desktopLabel, icon: Icon }) => {
-            const active =
-              pathname === to ||
-              pathname.startsWith(`${to}/`) ||
-              (desktopLabel === "Groups" &&
-                pathname.startsWith("/app/community/groups/"));
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-t-xl px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35",
-                  active
-                    ? "bg-white text-[#f45b16] shadow-[0_-1px_0_rgba(244,220,201,.8)] dark:bg-surface-layer dark:text-brand"
-                    : "text-[#796f6b] hover:bg-white/60 hover:text-[#4a170d] dark:text-text-secondary dark:hover:bg-surface-layer",
-                )}
-              >
-                <Icon size={17} />
-                {desktopLabel}
-                {active ? (
-                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#f45b16] dark:bg-brand" />
-                ) : null}
-              </NavLink>
-            );
-          })}
-        </nav>
-      </div>
-
-      <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:px-8 lg:pb-8">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-3xl px-4 sm:px-5",
+          showPrimaryNavigation
+            ? "pb-[calc(5rem+env(safe-area-inset-bottom))]"
+            : "pb-[calc(1rem+env(safe-area-inset-bottom))]",
+        )}
+      >
         {children}
       </div>
 
-      <nav
-        aria-label="Community mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-[#f4dcc9] bg-[#fff9f1]/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_-18px_rgba(74,23,13,0.35)] backdrop-blur dark:border-subtle dark:bg-surface-layer/95 lg:hidden"
-      >
-        <div className="mx-auto grid max-w-md grid-cols-3">
-          {tabs.map(({ to, mobileLabel, icon: Icon }) => {
-            const active =
-              pathname === to ||
-              pathname.startsWith(`${to}/`) ||
-              (to.endsWith("/groups") &&
-                pathname.startsWith("/app/community/groups/"));
-
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 px-1 text-2xs font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35",
-                  active
-                    ? "text-[#f45b16] dark:text-brand"
-                    : "text-[#796f6b] hover:text-[#4a170d] dark:text-text-secondary dark:hover:text-text-primary",
-                )}
-              >
-                <span
-                  aria-hidden="true"
+      {showPrimaryNavigation ? (
+        <nav
+          aria-label="Community mobile navigation"
+          data-keyboard-hide
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-[#ece8e5] bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-24px_rgba(23,18,15,.45)] backdrop-blur-xl dark:border-subtle dark:bg-surface-layer dark:shadow-[0_-14px_34px_-22px_rgba(0,0,0,.8)]"
+        >
+          <div className="mx-auto grid h-16 max-w-lg grid-cols-3 px-4">
+            {tabs.map(({ to, label, icon: Icon }) => {
+              const active = pathname === to;
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "absolute top-0 h-0.5 w-7 rounded-full transition-opacity",
+                    "relative flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f45b16]/35",
                     active
-                      ? "bg-[#f45b16] opacity-100 dark:bg-brand"
-                      : "opacity-0",
+                      ? "text-[#f45b16] dark:text-brand"
+                      : "text-[#817a76] dark:text-text-muted",
                   )}
-                />
-                <Icon size={21} strokeWidth={active ? 2.5 : 2} />
-                <span className="truncate">{mobileLabel}</span>
-              </NavLink>
-            );
-          })}
-        </div>
-      </nav>
+                >
+                  <Icon size={21} strokeWidth={active ? 2.4 : 2} />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      ) : null}
     </section>
   );
 }

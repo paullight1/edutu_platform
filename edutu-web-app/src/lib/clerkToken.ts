@@ -2,13 +2,21 @@ export type ClerkTokenGetter = (options?: {
   skipCache?: boolean;
 }) => Promise<string | null>;
 
+export async function getClerkSessionToken(
+  getToken: ClerkTokenGetter,
+  options: { forceRefresh?: boolean } = {},
+): Promise<string | null> {
+  const tokenPromise = options.forceRefresh
+    ? getToken({ skipCache: true })
+    : getToken();
+  return tokenPromise.catch(() => null);
+}
+
 export async function getProductApiToken(
   getToken: ClerkTokenGetter,
   options: { forceRefresh?: boolean } = {},
 ): Promise<string | null> {
-  return getToken(options.forceRefresh ? { skipCache: true } : undefined).catch(
-    () => null,
-  );
+  return getClerkSessionToken(getToken, options);
 }
 
 export function isInvalidOrExpiredTokenError(error: unknown): boolean {

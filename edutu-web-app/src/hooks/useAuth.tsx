@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, createContext, useCallback } from 'rea
 import { useAuth as useClerkAuth, useUser, useSignIn, useSignUp } from '@clerk/clerk-react';
 import type { AppUser } from '../types/user';
 import { setClerkTokenGetter } from '../lib/supabaseClient';
+import { getClerkSessionToken } from '../lib/clerkToken';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -26,12 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Bridge Clerk JWT → Supabase RLS for PostgREST and Realtime.
   useEffect(() => {
     if (!isLoaded) return;
-    setClerkTokenGetter(async () => {
-      const supabaseToken = await getToken({ template: 'supabase' }).catch(
-        () => null,
-      );
-      return supabaseToken || await getToken().catch(() => null);
-    });
+    setClerkTokenGetter(() => getClerkSessionToken(getToken));
   }, [isLoaded, getToken]);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Send } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { Loader2, Send } from "lucide-react";
 import Seo from "../../components/Seo";
 import {
   CommunityDmApi,
@@ -10,10 +10,7 @@ import {
   type DmMessage,
   type DmProfile,
 } from "./dmApi";
-import {
-  subscribeToDmMessages,
-  type DmRealtimeMessage,
-} from "./dmRealtime";
+import { subscribeToDmMessages, type DmRealtimeMessage } from "./dmRealtime";
 import CommunityProductShell from "./components/CommunityProductShell";
 import CommunityState from "./components/CommunityState";
 import { formatCommunityTime } from "./format";
@@ -64,8 +61,9 @@ export default function CommunityDmPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { getToken, userId } = useAuth();
   const api = useMemo(() => new CommunityDmApi(getToken), [getToken]);
-  const [conversation, setConversation] =
-    useState<DmConversationDetail | null>(null);
+  const [conversation, setConversation] = useState<DmConversationDetail | null>(
+    null,
+  );
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -198,15 +196,6 @@ export default function CommunityDmPage() {
       <CommunityProductShell
         title={name}
         description="Private community conversation"
-        action={
-          <Link
-            to="/app/community/chats"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer"
-            aria-label="Back to chats"
-          >
-            <ArrowLeft size={18} className="rtl:rotate-180" />
-          </Link>
-        }
       >
         {loading ? (
           <CommunityState kind="loading" />
@@ -276,7 +265,16 @@ export default function CommunityDmPage() {
                 })
               )}
             </div>
-            <div className="sticky bottom-0 border-t border-[#f4dcc9] bg-white/95 p-3 backdrop-blur dark:border-subtle dark:bg-surface-layer/95 sm:p-4">
+            <form
+              aria-label="Private message composer"
+              data-keyboard-avoid
+              data-keyboard-scope
+              onSubmit={(event) => {
+                event.preventDefault();
+                void send();
+              }}
+              className="sticky bottom-0 border-t border-[#f4dcc9] bg-white/95 p-3 backdrop-blur dark:border-subtle dark:bg-surface-layer sm:p-4"
+            >
               <div className="flex items-end gap-2">
                 <textarea
                   value={draft}
@@ -287,15 +285,16 @@ export default function CommunityDmPage() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
-                      void send();
+                      event.currentTarget.form?.requestSubmit();
                     }
                   }}
+                  enterKeyHint="send"
+                  autoCapitalize="sentences"
                   className="min-h-12 max-h-36 flex-1 resize-none rounded-2xl border border-[#f4dcc9] bg-[#fffdf9] px-3 py-2.5 text-base leading-6 outline-none focus:border-[#f45b16]/60 focus:ring-2 focus:ring-[#f45b16]/10 dark:border-subtle dark:bg-surface-body"
                 />
                 <button
-                  type="button"
+                  type="submit"
                   disabled={!draft.trim() || sending}
-                  onClick={() => void send()}
                   className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f45b16] text-white disabled:opacity-50"
                   aria-label="Send private message"
                 >
@@ -309,7 +308,7 @@ export default function CommunityDmPage() {
               <p className="mt-1 text-end text-[11px] text-[#a18c83]">
                 {draft.length}/{DM_MESSAGE_MAX_LENGTH}
               </p>
-            </div>
+            </form>
           </section>
         )}
       </CommunityProductShell>

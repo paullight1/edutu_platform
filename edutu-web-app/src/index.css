@@ -11,9 +11,11 @@
   /* Display carries brand moments only (hero, page titles, wordmark). Body
      carries every label, row, button and paragraph — a job Outfit's geometric
      forms and low x-height did badly at 12-15px. */
-  --font-display: 'Outfit', 'Instrument Sans', system-ui, -apple-system, sans-serif;
-  --font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display:
+    "Outfit", "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-body:
+    "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   /* Weight roles. Mirrors tailwind.config.js `fontWeight` so CSS and utility
      classes can't drift apart. Deliberately one step lighter than the usual
@@ -173,7 +175,7 @@
    Each pack overrides the full brand ramp; the `.dark[data-theme]` variant
    re-lightens brand-500/600 so accents stay legible on dark surfaces.
    ========================================================================== */
-[data-theme='violet'] {
+[data-theme="violet"] {
   --color-brand-50: 245 243 255;
   --color-brand-100: 237 233 254;
   --color-brand-200: 221 214 254;
@@ -188,14 +190,14 @@
   --surface-brand: 245 243 255;
   --text-link: 109 40 217;
 }
-.dark[data-theme='violet'] {
+.dark[data-theme="violet"] {
   --color-brand-500: 167 139 250;
   --color-brand-600: 139 92 246;
   --surface-brand: 44 32 74;
   --text-link: 167 139 250;
 }
 
-[data-theme='emerald'] {
+[data-theme="emerald"] {
   --color-brand-50: 236 253 245;
   --color-brand-100: 209 250 229;
   --color-brand-200: 167 243 208;
@@ -210,14 +212,14 @@
   --surface-brand: 236 253 245;
   --text-link: 4 120 87;
 }
-.dark[data-theme='emerald'] {
+.dark[data-theme="emerald"] {
   --color-brand-500: 52 211 153;
   --color-brand-600: 16 185 129;
   --surface-brand: 6 59 46;
   --text-link: 52 211 153;
 }
 
-[data-theme='rose'] {
+[data-theme="rose"] {
   --color-brand-50: 255 241 242;
   --color-brand-100: 255 228 230;
   --color-brand-200: 254 205 211;
@@ -232,14 +234,14 @@
   --surface-brand: 255 241 242;
   --text-link: 190 18 60;
 }
-.dark[data-theme='rose'] {
+.dark[data-theme="rose"] {
   --color-brand-500: 251 113 133;
   --color-brand-600: 244 63 94;
   --surface-brand: 74 13 30;
   --text-link: 251 113 133;
 }
 
-[data-theme='amber'] {
+[data-theme="amber"] {
   --color-brand-50: 255 251 235;
   --color-brand-100: 254 243 199;
   --color-brand-200: 253 230 138;
@@ -254,14 +256,14 @@
   --surface-brand: 255 251 235;
   --text-link: 180 83 9;
 }
-.dark[data-theme='amber'] {
+.dark[data-theme="amber"] {
   --color-brand-500: 251 191 36;
   --color-brand-600: 245 158 11;
   --surface-brand: 66 40 9;
   --text-link: 251 191 36;
 }
 
-[data-theme='sky'] {
+[data-theme="sky"] {
   --color-brand-50: 240 249 255;
   --color-brand-100: 224 242 254;
   --color-brand-200: 186 230 253;
@@ -276,7 +278,7 @@
   --surface-brand: 240 249 255;
   --text-link: 3 105 161;
 }
-.dark[data-theme='sky'] {
+.dark[data-theme="sky"] {
   --color-brand-500: 56 189 248;
   --color-brand-600: 14 165 233;
   --surface-brand: 8 47 73;
@@ -303,7 +305,9 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   text-rendering: optimizeLegibility;
-  transition: background-color var(--transition-medium), color var(--transition-medium);
+  transition:
+    background-color var(--transition-medium),
+    color var(--transition-medium);
 }
 
 /* Light text on a dark field loses perceived weight on three axes at once.
@@ -388,7 +392,10 @@ select {
   background: transparent;
   border-radius: 0.75rem;
   border: 1px solid rgb(var(--border-subtle));
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 input:focus-visible,
@@ -555,13 +562,19 @@ button:focus-visible {
   }
 
   .transition-theme {
-    transition: background-color var(--transition-medium), color var(--transition-medium), border-color var(--transition-medium), box-shadow var(--transition-fast);
+    transition:
+      background-color var(--transition-medium),
+      color var(--transition-medium),
+      border-color var(--transition-medium),
+      box-shadow var(--transition-fast);
   }
 
   .glass-panel {
-    background: linear-gradient(155deg,
-        rgb(var(--surface-layer) / 0.92),
-        rgb(var(--surface-body) / 0.82));
+    background: linear-gradient(
+      155deg,
+      rgb(var(--surface-layer) / 0.92),
+      rgb(var(--surface-body) / 0.82)
+    );
     backdrop-filter: blur(18px);
     border: 1px solid rgb(var(--border-subtle) / 0.6);
   }
@@ -573,19 +586,55 @@ button:focus-visible {
   }
 
   .gradient-accent {
-    background-image: linear-gradient(135deg, rgb(var(--color-brand-500) / 1), rgb(var(--color-brand-600) / 1));
+    background-image: linear-gradient(
+      135deg,
+      rgb(var(--color-brand-500) / 1),
+      rgb(var(--color-brand-600) / 1)
+    );
   }
 
   .mesh-gradient {
     background-image:
-      radial-gradient(at 0% 0%, rgb(var(--color-brand-500) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 50% 0%, rgb(var(--color-accent-500) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgb(var(--color-brand-600) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, rgb(var(--color-accent-600) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 100% 50%, rgb(var(--color-brand-400) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, rgb(var(--color-accent-400) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, rgb(var(--color-brand-500) / var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgb(var(--color-accent-500) / var(--mesh-opacity)) 0px, transparent 50%);
+      radial-gradient(
+        at 0% 0%,
+        rgb(var(--color-brand-500) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 50% 0%,
+        rgb(var(--color-accent-500) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 100% 0%,
+        rgb(var(--color-brand-600) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 0% 50%,
+        rgb(var(--color-accent-600) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 100% 50%,
+        rgb(var(--color-brand-400) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 0% 100%,
+        rgb(var(--color-accent-400) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 50% 100%,
+        rgb(var(--color-brand-500) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 100% 100%,
+        rgb(var(--color-accent-500) / var(--mesh-opacity)) 0px,
+        transparent 50%
+      );
   }
 
   /* Landing hero in dark mode: near-solid deep navy — drop the colored mesh
@@ -595,11 +644,15 @@ button:focus-visible {
   }
 
   .inner-glow {
-    box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.1), 0 10px 20px -5px rgba(0, 0, 0, 0.2);
+    box-shadow:
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.1),
+      0 10px 20px -5px rgba(0, 0, 0, 0.2);
   }
 
   .dark .inner-glow {
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+      0 10px 20px -5px rgba(0, 0, 0, 0.3);
   }
 
   .premium-card {
@@ -629,13 +682,17 @@ button:focus-visible {
   }
 
   .banner-hero::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     right: 0;
     width: 300px;
     height: 300px;
-    background: radial-gradient(circle at center, rgb(var(--color-brand-500) / 0.08), transparent 70%);
+    background: radial-gradient(
+      circle at center,
+      rgb(var(--color-brand-500) / 0.08),
+      transparent 70%
+    );
     pointer-events: none;
   }
 
@@ -765,7 +822,8 @@ button:focus-visible {
   }
 
   @keyframes pulse-right {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateX(0);
     }
     50% {
@@ -808,7 +866,6 @@ button:focus-visible {
   }
 
   @keyframes pulse-subtle {
-
     0%,
     100% {
       opacity: 0.8;
@@ -828,8 +885,6 @@ button:focus-visible {
   .animate-pulse-subtle {
     animation: pulse-subtle 4s ease-in-out infinite;
   }
-
-
 
   /* Body copy runs at regular weight. `.body-lg` was `font-medium`, which is
      why lead paragraphs read as semi-headings. Hand-set leading is gone too —
@@ -870,7 +925,7 @@ button:focus-visible {
   /* Figures that sit in columns, counters, tables or anything that ticks. */
   .numeric {
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1;
+    font-feature-settings: "tnum" 1;
   }
 
   /* Standardized Spacing */
@@ -980,9 +1035,31 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Fix position:fixed on Android Chrome with keyboard */
-.keyboard-visible .fixed-bottom {
-  position: absolute;
+/* Shared keyboard avoidance for Capacitor and mobile web. */
+[data-keyboard-avoid] {
+  transition:
+    bottom 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.keyboard-visible [data-keyboard-avoid] {
+  bottom: var(--keyboard-offset, 0px);
+}
+
+[data-keyboard-hide] {
+  transition:
+    opacity 160ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.keyboard-visible [data-keyboard-hide] {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(calc(100% + env(safe-area-inset-bottom)));
+}
+
+.keyboard-visible {
+  scroll-padding-bottom: calc(var(--keyboard-height, 0px) + 1rem);
 }
 
 /* Android status bar styling */
@@ -1002,14 +1079,8 @@ body {
   z-index: 50;
 }
 
-/* Prevent content jump when keyboard appears */
-.keyboard-aware {
-  transition: transform 0.3s ease;
-}
-
 /* Active states for touch devices */
 @media (hover: none) and (pointer: coarse) {
-
   /* Remove hover effects on touch devices */
   .hover\:scale-105:hover {
     transform: none;
@@ -1025,7 +1096,9 @@ body {
   [role="button"]:active {
     transform: scale(0.98);
     opacity: 0.9;
-    transition: transform 0.1s ease, opacity 0.1s ease;
+    transition:
+      transform 0.1s ease,
+      opacity 0.1s ease;
   }
 
   /* Hide scrollbars on mobile */
@@ -1063,18 +1136,34 @@ body {
 /* Country-reach marquee. Lives here rather than in an injected <style> tag so
    the keyframes aren't re-parsed on every render of the section. */
 .landing-marquee {
-  animation: landing-marquee 30s linear infinite;
+  will-change: transform;
+}
+
+.landing-marquee--forward {
+  animation: landing-marquee-forward 34s linear infinite;
+}
+
+.landing-marquee--reverse {
+  animation: landing-marquee-reverse 38s linear infinite;
 }
 
 .landing-country-fade-left {
-  background: linear-gradient(to right, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
+  background: linear-gradient(
+    to right,
+    rgb(var(--surface-body)),
+    rgb(var(--surface-body) / 0)
+  );
 }
 
 .landing-country-fade-right {
-  background: linear-gradient(to left, rgb(var(--surface-body)), rgb(var(--surface-body) / 0));
+  background: linear-gradient(
+    to left,
+    rgb(var(--surface-body)),
+    rgb(var(--surface-body) / 0)
+  );
 }
 
-@keyframes landing-marquee {
+@keyframes landing-marquee-forward {
   0% {
     transform: translateX(0);
   }
@@ -1084,8 +1173,21 @@ body {
   }
 }
 
+@keyframes landing-marquee-reverse {
+  0% {
+    transform: translateX(-50%);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
 .landing-grain {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1px);
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.28) 1px,
+    transparent 1px
+  );
   background-size: 12px 12px;
   mix-blend-mode: soft-light;
 }
@@ -1093,8 +1195,13 @@ body {
 /* Dark-mode hero: background photo with a neutral dark overlay for legibility. */
 .dark .landing-hero {
   background:
-    linear-gradient(180deg, rgba(10, 12, 16, 0.80) 0%, rgba(7, 9, 13, 0.86) 54%, rgba(4, 6, 10, 0.92) 100%),
-    url('/backgrounds/dark-hero.jpg');
+    linear-gradient(
+      180deg,
+      rgba(10, 12, 16, 0.8) 0%,
+      rgba(7, 9, 13, 0.86) 54%,
+      rgba(4, 6, 10, 0.92) 100%
+    ),
+    url("/backgrounds/dark-hero.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1107,7 +1214,11 @@ body {
     linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 64px 64px;
-  -webkit-mask-image: radial-gradient(72% 60% at 50% 32%, #000 0%, transparent 82%);
+  -webkit-mask-image: radial-gradient(
+    72% 60% at 50% 32%,
+    #000 0%,
+    transparent 82%
+  );
   mask-image: radial-gradient(72% 60% at 50% 32%, #000 0%, transparent 82%);
 }
 
@@ -1165,7 +1276,10 @@ body {
 
   .mobile-more-opportunities-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, calc((100vw - 2.75rem) / 2))) !important;
+    grid-template-columns: repeat(
+      2,
+      minmax(0, calc((100vw - 2.75rem) / 2))
+    ) !important;
     align-items: stretch !important;
     gap: 0.75rem !important;
     width: calc(100vw - 2rem) !important;

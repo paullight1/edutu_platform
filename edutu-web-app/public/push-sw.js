@@ -86,7 +86,7 @@ self.addEventListener("notificationclick", (event) => {
   const data = event.notification.data || {};
   const target = safeNavigationTarget(
     data.url,
-    new URL("/goals", self.location.origin).href,
+    new URL("/dashboard", self.location.origin).href,
   );
 
   const focusOrOpen = self.clients

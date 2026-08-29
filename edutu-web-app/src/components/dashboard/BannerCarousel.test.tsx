@@ -23,21 +23,18 @@ const banners: BannerAd[] = [
 ];
 
 describe("BannerCarousel", () => {
-  it("uses dots and a next arrow instead of a CTA pill", async () => {
+  it("keeps the next arrow but omits pagination controls and the CTA pill", async () => {
     render(<BannerCarousel banners={banners} />);
 
     expect(screen.queryByText("Old CTA")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: /show promotion 1/i }),
-    ).toHaveAttribute("aria-selected", "true");
+      screen.queryByRole("tablist", { name: /dashboard promotions/i }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /next promotion/i }));
 
     expect(
       await screen.findByRole("link", { name: /track every deadline/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: /show promotion 2/i }),
-    ).toHaveAttribute("aria-selected", "true");
   });
 });

@@ -64,7 +64,7 @@ export default function SubmitOpportunityPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
-  // Out-of-credits (HTTP 402) gets its own inline error with a wallet link.
+  // Out-of-credits (HTTP 402) gets its own inline upgrade path.
   const [creditsError, setCreditsError] = useState<{ required?: number } | null>(null);
   // Admin-controlled submission policy (fee + review). null while loading.
   const [policy, setPolicy] = useState<SubmissionsPolicy | null>(null);
@@ -228,8 +228,8 @@ export default function SubmitOpportunityPage() {
                 {typeof creditsError.required === 'number'
                   ? ` — this costs ${creditsError.required} credits.`
                   : '.'}{' '}
-                <Link to="/app/wallet" className="font-bold underline">
-                  Top up your wallet
+                <Link to="/upgrade" className="font-bold underline">
+                  View upgrade options
                 </Link>{' '}
                 and try again.
               </div>

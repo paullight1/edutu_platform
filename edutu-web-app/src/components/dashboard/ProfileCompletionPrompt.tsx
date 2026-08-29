@@ -18,7 +18,7 @@ export function ProfileCompletionPrompt({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onDismiss()}>
       <DialogContent
         ariaLabel="Welcome to Edutu"
-        className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-hidden rounded-[28px] border-white/70 bg-surface-layer p-0 shadow-[0_30px_90px_rgba(15,45,92,0.28)]"
+        className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-hidden rounded-[28px] !border-0 bg-surface-layer p-0 shadow-[0_30px_90px_rgba(15,45,92,0.28)]"
       >
         <button
           type="button"

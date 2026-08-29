@@ -7,7 +7,6 @@ import {
     ChevronDown,
     Bell,
     X,
-    Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -20,6 +19,14 @@ import CommunityShowcase from './CommunityShowcase';
 import EdutuForYouBand from './EdutuForYouBand';
 import EventsHomeSection from './EventsHomeSection';
 import { organizationLabel } from '../lib/organizationLabel';
+import {
+    createOpportunityShuffleSeed,
+    shuffleOpportunityFeed,
+} from '../lib/opportunityShuffle';
+import {
+    isOpportunityExpired,
+    parseOpportunityDeadline,
+} from '../services/opportunities';
 import {
     DEFAULT_WEB_ANNOUNCEMENT,
     fetchWebAnnouncement,
@@ -88,6 +95,11 @@ const flags = [
     'https://flagcdn.com/w80/eg.png',
     'https://flagcdn.com/w80/sg.png',
     'https://flagcdn.com/w80/cn.png',
+];
+
+const countryFlagRows = [
+    flags,
+    [...flags.slice(flags.length / 2), ...flags.slice(0, flags.length / 2)],
 ];
 
 const institutions = [
@@ -172,17 +184,14 @@ const OpportunityCardSkeleton: React.FC = () => (
     </li>
 );
 
-/**
- * Most recently added first — the section promises "fresh", so it has to be
- * ordered by when we found the opportunity, not by the feed's default ranking
- * (which is shuffled for variety and would put months-old records on top).
- * Records with no timestamp sort last rather than jumping the queue.
- */
-const addedAt = (opportunity: Opportunity): number => {
-    const stamp = opportunity.createdAt || opportunity.lastUpdated;
-    if (!stamp) return 0;
-    const ms = Date.parse(stamp);
-    return Number.isNaN(ms) ? 0 : ms;
+const isOpportunityCurrentlyAvailable = (
+    opportunity: Opportunity,
+    now: Date = new Date(),
+): boolean => {
+    if (isOpportunityExpired(opportunity, now)) return false;
+
+    const opensAt = parseOpportunityDeadline(opportunity.openDate);
+    return !opensAt || opensAt.getTime() <= now.getTime();
 };
 
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
@@ -200,6 +209,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         DEFAULT_WEB_ANNOUNCEMENT,
     );
     const [announcementDismissed, setAnnouncementDismissed] = useState(false);
+    const [opportunitySelection] = useState(() => ({
+        seed: createOpportunityShuffleSeed(),
+        selectedAt: new Date(),
+    }));
 
     useEffect(() => {
         const controller = new AbortController();
@@ -236,13 +249,19 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         };
     }, []);
 
-    // Six, not five: the grid runs three-up on desktop, so five leaves a hole.
-    const latestOpportunities = useMemo(
-        () => [...opportunities].sort((a, b) => addedAt(b) - addedAt(a)).slice(0, 6),
-        [opportunities],
+    // Generate the seed once per page load. Unrelated re-renders preserve the
+    // order, while a full refresh produces a new selection.
+    const selectedOpportunities = useMemo(
+        () => shuffleOpportunityFeed(
+            opportunities.filter((opportunity) =>
+                isOpportunityCurrentlyAvailable(opportunity, opportunitySelection.selectedAt),
+            ),
+            opportunitySelection.seed,
+        ).slice(0, 6),
+        [opportunities, opportunitySelection],
     );
-    const showOpportunitySkeletons = opportunitiesLoading && latestOpportunities.length === 0;
-    const opportunitiesUnavailable = !opportunitiesLoading && latestOpportunities.length === 0;
+    const showOpportunitySkeletons = opportunitiesLoading && selectedOpportunities.length === 0;
+    const opportunitiesUnavailable = !opportunitiesLoading && selectedOpportunities.length === 0;
     const showBlogSection = blogLoading || blogArticles.length > 0;
     const announcementUrl = announcement.linkUrl.trim() || '/edutuforyou';
     const announcementIsExternal = /^https?:\/\//i.test(announcementUrl);
@@ -402,37 +421,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </div>
                 </section>
 
-                {/* ─── What's new ─────────────────────────────────────── */}
-                <section className="border-t border-subtle px-4 py-8 sm:px-6 sm:py-10">
-                    <div className="mx-auto max-w-[1000px]">
-                        <motion.div
-                            {...fadeUp}
-                            className="group grid items-center gap-5 rounded-[22px] border border-brand/20 bg-brand-50 px-5 py-5 transition duration-300 hover:border-brand/40 hover:shadow-soft dark:bg-brand-950/45 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:px-7"
-                        >
-                            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white shadow-soft">
-                                <Sparkles size={19} aria-hidden="true" />
-                            </span>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">What&apos;s new</p>
-                                <h2 className="mt-1 font-display text-xl font-semibold tracking-[-0.02em] text-text-primary sm:text-2xl">
-                                    Edutu just got sharper, calmer, and more dependable.
-                                </h2>
-                                <p className="mt-1 text-sm leading-6 text-text-secondary">
-                                    Meet the updated AI engine, web app experience, and Edutu For You.
-                                </p>
-                            </div>
-                            <Link
-                                to="/whats-new"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-brand no-underline transition group-hover:translate-x-0.5"
-                            >
-                                See what&apos;s new <ArrowRight size={16} aria-hidden="true" />
-                            </Link>
-                        </motion.div>
-                    </div>
-                </section>
-
-                {/* ─── Latest Opportunities ─────────────────────────────── */}
-                {/* The newest records we have, newest first. No countdown or
+                {/* ─── Available Opportunities ──────────────────────────── */}
+                {/* Six currently open records, shuffled once per visit. No countdown or
                     "Closed" chip here: a visitor who hasn't signed up yet is
                     deciding whether the catalogue is worth their time, and a
                     wall of expiry states argues the opposite. Deadlines belong
@@ -446,8 +436,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 Fresh opportunities worth exploring
                             </h2>
                             <p className={SECTION_COPY}>
-                                Real scholarships, fellowships, internships, and programs — the
-                                newest ones we've found, added as they open.
+                                A fresh mix of open scholarships, fellowships, internships, and
+                                programs — selected again each time you visit.
                             </p>
                         </div>
 
@@ -476,7 +466,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     ? Array.from({ length: 6 }).map((_, i) => (
                                           <OpportunityCardSkeleton key={`skeleton-${i}`} />
                                       ))
-                                    : latestOpportunities.map((opportunity, index) => {
+                                    : selectedOpportunities.map((opportunity, index) => {
                                       // Most scraped records carry a junk organization that
                                       // organizationLabel suppresses, so the meta row is often
                                       // empty — don't reserve space for nothing.
@@ -562,17 +552,26 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </p>
                     </div>
 
-                    <div className="relative overflow-hidden" aria-hidden="true">
+                    <div className="relative space-y-3 overflow-hidden sm:space-y-4" aria-hidden="true" dir="ltr">
                         <div className="landing-country-fade-left pointer-events-none absolute bottom-0 left-0 top-0 z-10 hidden w-32 sm:block" />
                         <div className="landing-country-fade-right pointer-events-none absolute bottom-0 right-0 top-0 z-10 hidden w-32 sm:block" />
 
-                        <div className="landing-marquee flex gap-6">
-                            {[...flags, ...flags].map((flag, i) => (
-                                <div key={i} className="flex h-[60px] w-[80px] shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-elevated">
-                                    <img src={flag} alt="" className="h-[36px] w-[48px] rounded object-cover" loading="lazy" decoding="async" />
-                                </div>
-                            ))}
-                        </div>
+                        {countryFlagRows.map((rowFlags, rowIndex) => (
+                            <div
+                                key={rowIndex}
+                                className={`landing-marquee landing-marquee--${rowIndex === 0 ? 'forward' : 'reverse'} flex w-max`}
+                            >
+                                {[0, 1].map((setIndex) => (
+                                    <div key={setIndex} className="landing-marquee__set flex shrink-0 gap-3 pr-3 sm:gap-6 sm:pr-6">
+                                        {rowFlags.map((flag) => (
+                                            <div key={`${setIndex}-${flag}`} className="flex h-[52px] w-[68px] shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-elevated sm:h-[60px] sm:w-[80px]">
+                                                <img src={flag} alt="" className="h-8 w-11 rounded object-cover sm:h-9 sm:w-12" loading="lazy" decoding="async" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 </section>
 

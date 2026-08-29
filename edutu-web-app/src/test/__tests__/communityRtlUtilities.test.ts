@@ -12,7 +12,7 @@ describe("Community RTL direction utilities", () => {
     const explore = source("CommunityExplorePage.tsx");
     const create = source("CommunityCreateGroupPage.tsx");
 
-    expect(chats).toContain("absolute -end-0.5 -top-0.5");
+    expect(chats).toContain("flex shrink-0 flex-col items-end");
     expect(chats).not.toContain("absolute -right-0.5 -top-0.5");
 
     expect(explore).toContain("absolute start-4 top-1/2");
@@ -35,9 +35,7 @@ describe("Community RTL direction utilities", () => {
     const settings = source("CommunityGroupSettingsPage.tsx");
 
     expect(group).toContain("p-3 text-start shadow-sm");
-    expect(group).toContain("mt-1.5 text-end text-[11px]");
     expect(group).not.toContain("p-3 text-left shadow-sm");
-    expect(group).not.toContain("mt-1.5 text-right text-[11px]");
 
     expect(settings).toContain('ChevronLeft size={16} className="rtl:rotate-180"');
     expect(settings).toContain("rounded-2xl border p-3 text-start");

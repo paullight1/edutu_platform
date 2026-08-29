@@ -41,7 +41,9 @@ const PersonalizationScreen = lazy(
 );
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
-const SubmitOpportunityPage = lazy(() => import("./components/SubmitOpportunityPage"));
+const SubmitOpportunityPage = lazy(
+  () => import("./components/SubmitOpportunityPage"),
+);
 const OpportunityDetailFetcher = lazy(
   () => import("./components/OpportunityDetailFetcher"),
 );
@@ -78,17 +80,13 @@ const TermsPage = lazy(() => import("./components/TermsPage"));
 const CareersPage = lazy(() => import("./components/CareersPage"));
 const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
-const MentorDashboardPage = lazy(() => import("./components/MentorDashboardPage"));
-const MarketplacePage = lazy(() => import("./components/MarketplacePage"));
-const MarketplaceDetailPage = lazy(
-  () => import("./components/MarketplaceDetailPage"),
+const MentorDashboardPage = lazy(
+  () => import("./components/MentorDashboardPage"),
 );
-const MarketplaceCreatePage = lazy(
-  () => import("./components/MarketplaceCreatePage"),
-);
-const WalletPage = lazy(() => import("./components/WalletPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
-const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
+const ScholarshipApiPage = lazy(
+  () => import("./components/ScholarshipApiPage"),
+);
 const DevelopersLandingPage = lazy(
   () => import("./components/DevelopersLandingPage"),
 );
@@ -97,10 +95,8 @@ const DeveloperDashboardPage = lazy(
 );
 const DeveloperDocsPage = lazy(() => import("./components/DeveloperDocsPage"));
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
-const GoalsPage = lazy(() => import("./components/GoalsPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage"));
-const RoadmapsPage = lazy(() => import("./components/RoadmapsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
@@ -129,7 +125,6 @@ export type Screen =
   | "privacy"
   | "help"
   | "personalization"
-  | "community-marketplace"
   | "achievements"
   | "creator-apply"
   | "creator-dashboard"
@@ -138,7 +133,9 @@ export type Screen =
   | "about"
   | "blog";
 
-function buildAdminPortalUrl(location: ReturnType<typeof useLocation>): string | null {
+function buildAdminPortalUrl(
+  location: ReturnType<typeof useLocation>,
+): string | null {
   try {
     const base = new URL(ADMIN_PORTAL_URL, window.location.origin);
 
@@ -495,10 +492,11 @@ function App() {
     });
   }, [isSignedIn]);
 
-  // Route native deep links / notification taps (Capacitor appUrlOpen) into
-  // the SPA. No-op on web — initializeCapacitor returns early off-native.
+  // Route native deep links into the SPA and install the shared mobile
+  // keyboard lifecycle for both Capacitor and the web app.
   useEffect(() => {
     let disposed = false;
+    let cleanup: (() => void) | undefined;
     void initializeCapacitor({
       isDarkMode:
         typeof document !== "undefined" &&
@@ -507,9 +505,13 @@ function App() {
         const path = parseEdutuDeepLink(url);
         if (!disposed && path) navigate(path);
       },
+    }).then((nextCleanup) => {
+      if (disposed) nextCleanup();
+      else cleanup = nextCleanup;
     });
     return () => {
       disposed = true;
+      cleanup?.();
     };
   }, [navigate]);
 
@@ -531,366 +533,322 @@ function App() {
       {isSignedIn ? <DeadlineReminders /> : null}
       <Suspense fallback={<PageSuspense />}>
         <Routes>
-      <Route
-        path="/"
-        element={<LandingPageV3 onGetStarted={handleGetStarted} />}
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <AppWorkspaceRoute>
-            <UserDashboardPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/home"
-        element={
-          <AppWorkspaceRoute>
-            <UserDashboardPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/opportunities" element={<OpportunitiesPage />} />
-      <Route
-        path="/app/opportunities"
-        element={
-          <AppWorkspaceRoute>
-            <OpportunitiesPage embedded />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/submit-opportunity"
-        element={
-          <AppWorkspaceRoute>
-            <SubmitOpportunityPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/events" element={<EventsPage />} />
-      <Route path="/events/:slugOrId" element={<EventDetailPage />} />
-      <Route path="/mentor" element={<MentorPage />} />
-      <Route path="/marketplace" element={<MarketplacePage />} />
-      <Route path="/marketplace/:id" element={<MarketplaceDetailPage />} />
-      <Route
-        path="/app/marketplace"
-        element={
-          <AppWorkspaceRoute>
-            <MarketplacePage embedded />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/marketplace/new"
-        element={
-          <AppWorkspaceRoute>
-            <MarketplaceCreatePage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/marketplace/:id"
-        element={
-          <AppWorkspaceRoute>
-            <MarketplaceDetailPage embedded />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="/impact" element={<ImpactPage />} />
-      <Route path="/edutuforyou" element={<EdutuForYouPage />} />
-      <Route path="/whats-new" element={<WhatsNewPage />} />
-      <Route
-        path="/edutuforyou/stories/:slug"
-        element={<EdutuForYouStoryPage />}
-      />
-      <Route path="/upgrade" element={<UpgradePage />} />
-      <Route path="/pro" element={<Navigate to="/upgrade" replace />} />
-      <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
-      <Route
-        path="/beliefs"
-        element={<Navigate to="/what-we-believe" replace />}
-      />
-      <Route
-        path="/our-belief"
-        element={<Navigate to="/what-we-believe" replace />}
-      />
-      <Route
-      path="/discussions/*"
-      element={
-        <ProtectedRoute>
-          <CommunityDeepLinkRedirect />
-        </ProtectedRoute>
-      }
-    />
-    <Route path="/community/*" element={<CommunityPage />} />
-      <Route
-        path="/app/community/*"
-        element={
-          <AppWorkspaceRoute>
-            <CommunityAppRouter />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/communities/calls/:callId"
-        element={
-          <ProtectedRoute>
-            <CommunityCallPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/blog" element={<BlogPage />} />
-      <Route path="/blog/:slug" element={<BlogPostPage />} />
-      <Route path="/privacy" element={<PrivacyPolicyPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      {/* Mobile app.config supportUrl points here; /privacy is the single legal/contact hub. */}
-      <Route path="/support" element={<Navigate to="/privacy" replace />} />
-      <Route path="/careers" element={<CareersPage />} />
-      <Route path="/help" element={<HelpCenterPage />} />
-      <Route path="/app/help" element={<Navigate to="/help" replace />} />
-      <Route path="/download" element={<DownloadPage />} />
-      <Route path="/docs" element={<DocsRedirect />} />
-      <Route
-        path="/scholarship-engine"
-        element={
-          <MarketingRedirect path="/scholarship-api" fallback={<ScholarshipApiPage />} />
-        }
-      />
-      <Route
-        path="/scholarship-api"
-        element={
-          <MarketingRedirect
-            path="/scholarship-api"
-            fallback={<Navigate to="/scholarship-engine" replace />}
+          <Route
+            path="/"
+            element={<LandingPageV3 onGetStarted={handleGetStarted} />}
           />
-        }
-      />
-      <Route
-        path="/developers"
-        element={
-          <MarketingRedirect path="/scholarship-api" fallback={<DevelopersLandingPage />} />
-        }
-      />
-      <Route path="/developers/docs" element={<DeveloperDocsPage />} />
-      <Route
-        path="/dashboard/developer"
-        element={
-          <ProtectedRoute>
-            <DeveloperDashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/mentor/dashboard"
-        element={
-          <ProtectedRoute>
-            <MentorDashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      {/* AI Coach removed — send legacy coach/chat deep links to the dashboard. */}
-      <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/chat" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/chat" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/cv" element={<Navigate to="/dashboard" replace />} />
-      <Route
-        path="/roadmaps"
-        element={
-          <AppWorkspaceRoute>
-            <RoadmapsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/roadmaps/:id" element={<Navigate to="/roadmaps" replace />} />
-      <Route
-        path="/app/roadmaps"
-        element={
-          <AppWorkspaceRoute>
-            <RoadmapsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
-      <Route
-        path="/saved"
-        element={
-          <AppWorkspaceRoute>
-            <SavedPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/saved"
-        element={
-          <AppWorkspaceRoute>
-            <SavedPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/applications"
-        element={
-          <AppWorkspaceRoute>
-            <ApplicationsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/applied"
-        element={<Navigate to="/applications" replace />}
-      />
-      <Route
-        path="/app/applications"
-        element={
-          <AppWorkspaceRoute>
-            <ApplicationsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/applied"
-        element={<Navigate to="/app/applications" replace />}
-      />
-      <Route
-        path="/notifications"
-        element={
-          <AppWorkspaceRoute>
-            <NotificationsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/notifications"
-        element={
-          <AppWorkspaceRoute>
-            <NotificationsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <AppWorkspaceRoute>
-            <ProfilePage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/profile"
-        element={
-          <AppWorkspaceRoute>
-            <ProfilePage />
-          </AppWorkspaceRoute>
-        }
-      />
-      {/* Fullscreen onboarding — deliberately outside AppWorkspaceShell so it
+          <Route
+            path="/dashboard"
+            element={
+              <AppWorkspaceRoute>
+                <UserDashboardPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/home"
+            element={
+              <AppWorkspaceRoute>
+                <UserDashboardPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route
+            path="/app/opportunities"
+            element={
+              <AppWorkspaceRoute>
+                <OpportunitiesPage embedded />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/submit-opportunity"
+            element={
+              <AppWorkspaceRoute>
+                <SubmitOpportunityPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:slugOrId" element={<EventDetailPage />} />
+          <Route path="/mentor" element={<MentorPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/impact" element={<ImpactPage />} />
+          <Route path="/edutuforyou" element={<EdutuForYouPage />} />
+          <Route path="/whats-new" element={<WhatsNewPage />} />
+          <Route
+            path="/edutuforyou/stories/:slug"
+            element={<EdutuForYouStoryPage />}
+          />
+          <Route path="/upgrade" element={<UpgradePage />} />
+          <Route path="/pro" element={<Navigate to="/upgrade" replace />} />
+          <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
+          <Route
+            path="/beliefs"
+            element={<Navigate to="/what-we-believe" replace />}
+          />
+          <Route
+            path="/our-belief"
+            element={<Navigate to="/what-we-believe" replace />}
+          />
+          <Route
+            path="/discussions/*"
+            element={
+              <ProtectedRoute>
+                <CommunityDeepLinkRedirect />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/community/*" element={<CommunityPage />} />
+          <Route
+            path="/app/community/*"
+            element={
+              <AppWorkspaceRoute>
+                <CommunityAppRouter />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/communities/calls/:callId"
+            element={
+              <ProtectedRoute>
+                <CommunityCallPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          {/* Mobile app.config supportUrl points here; /privacy is the single legal/contact hub. */}
+          <Route path="/support" element={<Navigate to="/privacy" replace />} />
+          <Route path="/careers" element={<CareersPage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/app/help" element={<Navigate to="/help" replace />} />
+          <Route path="/download" element={<DownloadPage />} />
+          <Route path="/docs" element={<DocsRedirect />} />
+          <Route
+            path="/scholarship-engine"
+            element={
+              <MarketingRedirect
+                path="/scholarship-api"
+                fallback={<ScholarshipApiPage />}
+              />
+            }
+          />
+          <Route
+            path="/scholarship-api"
+            element={
+              <MarketingRedirect
+                path="/scholarship-api"
+                fallback={<Navigate to="/scholarship-engine" replace />}
+              />
+            }
+          />
+          <Route
+            path="/developers"
+            element={
+              <MarketingRedirect
+                path="/scholarship-api"
+                fallback={<DevelopersLandingPage />}
+              />
+            }
+          />
+          <Route path="/developers/docs" element={<DeveloperDocsPage />} />
+          <Route
+            path="/dashboard/developer"
+            element={
+              <ProtectedRoute>
+                <DeveloperDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mentor/dashboard"
+            element={
+              <ProtectedRoute>
+                <MentorDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* AI Coach removed — send legacy coach/chat deep links to the dashboard. */}
+          <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/app/coach"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          <Route path="/chat" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/app/chat"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/app/cv"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          <Route
+            path="/templates"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          <Route
+            path="/saved"
+            element={
+              <AppWorkspaceRoute>
+                <SavedPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/saved"
+            element={
+              <AppWorkspaceRoute>
+                <SavedPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/applications"
+            element={
+              <AppWorkspaceRoute>
+                <ApplicationsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/applied"
+            element={<Navigate to="/applications" replace />}
+          />
+          <Route
+            path="/app/applications"
+            element={
+              <AppWorkspaceRoute>
+                <ApplicationsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/applied"
+            element={<Navigate to="/app/applications" replace />}
+          />
+          <Route
+            path="/notifications"
+            element={
+              <AppWorkspaceRoute>
+                <NotificationsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/notifications"
+            element={
+              <AppWorkspaceRoute>
+                <NotificationsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <AppWorkspaceRoute>
+                <ProfilePage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/profile"
+            element={
+              <AppWorkspaceRoute>
+                <ProfilePage />
+              </AppWorkspaceRoute>
+            }
+          />
+          {/* Fullscreen onboarding — deliberately outside AppWorkspaceShell so it
           covers the header and bottom nav. */}
-      <Route
-        path="/app/personalization"
-        element={
-          <ProtectedRoute>
-            <PersonalizationScreen />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <AppWorkspaceRoute>
-            <SettingsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/settings"
-        element={
-          <AppWorkspaceRoute>
-            <SettingsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/deadlines"
-        element={
-          <AppWorkspaceRoute>
-            <DeadlinesPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/deadlines"
-        element={
-          <AppWorkspaceRoute>
-            <DeadlinesPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/goals"
-        element={
-          <AppWorkspaceRoute>
-            <GoalsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/goals"
-        element={
-          <AppWorkspaceRoute>
-            <GoalsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/wallet" element={<Navigate to="/app/wallet" replace />} />
-      <Route path="/premium" element={<Navigate to="/dashboard" replace />} />
-      <Route
-        path="/app/wallet"
-        element={
-          <AppWorkspaceRoute>
-            <WalletPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/opportunity/:id"
-        element={
-          <OpportunityDetailFetcher onBack={() => navigate("/opportunities")} />
-        }
-      />
-      <Route
-        path="/app/opportunity/:id"
-        element={
-          <AppWorkspaceRoute>
-            <OpportunityDetailFetcher
-              onBack={() => navigate("/app/opportunities")}
-              embedded
-            />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/share/opportunity/:id" element={<OpportunitySharePage />} />
-      <Route
-        path="/auth"
-        element={<AuthScreen onAuthSuccess={handleAuthSuccess} />}
-      />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route
-        path="/login"
-        element={<Navigate to="/auth?mode=sign-in" replace />}
-      />
-      <Route
-        path="/signup"
-        element={<Navigate to="/auth?signup=true" replace />}
-      />
-      <Route path="/admin/*" element={<AdminPortalGate />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+          <Route
+            path="/app/personalization"
+            element={
+              <ProtectedRoute>
+                <PersonalizationScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <AppWorkspaceRoute>
+                <SettingsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/settings"
+            element={
+              <AppWorkspaceRoute>
+                <SettingsPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/deadlines"
+            element={
+              <AppWorkspaceRoute>
+                <DeadlinesPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/deadlines"
+            element={
+              <AppWorkspaceRoute>
+                <DeadlinesPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/premium"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          <Route
+            path="/opportunity/:id"
+            element={
+              <OpportunityDetailFetcher
+                onBack={() => navigate("/opportunities")}
+              />
+            }
+          />
+          <Route
+            path="/app/opportunity/:id"
+            element={
+              <AppWorkspaceRoute>
+                <OpportunityDetailFetcher
+                  onBack={() => navigate("/app/opportunities")}
+                  embedded
+                />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/share/opportunity/:id"
+            element={<OpportunitySharePage />}
+          />
+          <Route
+            path="/auth"
+            element={<AuthScreen onAuthSuccess={handleAuthSuccess} />}
+          />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route
+            path="/login"
+            element={<Navigate to="/auth?mode=sign-in" replace />}
+          />
+          <Route
+            path="/signup"
+            element={<Navigate to="/auth?signup=true" replace />}
+          />
+          <Route path="/admin/*" element={<AdminPortalGate />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </Suspense>
       <InstallAppPrompt />
       <CookieConsent />

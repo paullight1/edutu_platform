@@ -522,133 +522,212 @@ function OpportunityCard({
   })();
 
   return (
-    <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated ${CARD_SURFACE}`}
-    >
-      <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
-        <ImageWithFallback
-          src={opportunity.image}
-          fallbackSrc={opportunity.imageFallback}
-          alt={`${opportunity.title} cover image`}
-          category={opportunity.category}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-          fallbackClassName="flex h-full w-full items-center justify-center"
+    <>
+      <article
+        className={`mobile-opportunity-result-card group relative flex min-h-[216px] min-w-0 flex-col overflow-hidden rounded-2xl border shadow-sm transition active:scale-[0.98] sm:hidden ${CARD_SURFACE}`}
+      >
+        <Link
+          to={detailPath}
+          state={{ opportunity }}
+          onClick={() => onOpen?.(opportunity)}
+          onMouseEnter={prefetchOpportunityDetail}
+          onFocus={prefetchOpportunityDetail}
+          className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+          aria-label={`View ${opportunity.title}`}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
-        {expired ? (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-md bg-surface-elevated px-2.5 py-1 text-xs font-semibold text-text-secondary shadow-soft backdrop-blur">
-            Expired
-          </span>
-        ) : (
-          <UrgencyPill
-            badge={deadlineBadge}
-            className="absolute left-3 top-3 shadow-sm backdrop-blur"
+        <div className="mobile-opportunity-result-media pointer-events-none relative z-0 h-20 w-full shrink-0 overflow-hidden bg-surface-elevated">
+          <ImageWithFallback
+            src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
+            alt={`${opportunity.title} cover image`}
+            category={opportunity.category}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            fallbackClassName="flex h-full w-full items-center justify-center"
           />
-        )}
-        <div className="absolute right-3 top-3 z-20 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onToggleBookmark(opportunity)}
-            disabled={isBookmarking}
-            aria-pressed={isBookmarked}
-            className={`flex h-9 w-9 items-center justify-center rounded-md shadow-soft backdrop-blur transition disabled:cursor-wait disabled:opacity-60 ${
-              isBookmarked
-                ? "bg-brand text-white hover:bg-brand/90"
-                : "bg-surface-layer text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
-            }`}
-            aria-label={
-              isBookmarked
-                ? `Remove ${opportunity.title} from saved`
-                : `Save ${opportunity.title}`
-            }
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
+          {expired ? (
+            <span className="absolute left-2 top-2 rounded-md bg-surface-elevated/95 px-2 py-1 text-2xs font-semibold text-text-secondary shadow-sm backdrop-blur">
+              Expired
+            </span>
+          ) : (
+            <UrgencyPill
+              badge={deadlineBadge}
+              compact
+              className="absolute left-2 top-2 shadow-sm backdrop-blur"
+            />
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggleBookmark(opportunity)}
+          disabled={isBookmarking}
+          aria-pressed={isBookmarked}
+          aria-label={
+            isBookmarked
+              ? `Remove ${opportunity.title} from saved`
+              : `Save ${opportunity.title}`
+          }
+          className={`absolute right-2 top-2 z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm backdrop-blur transition active:scale-[0.97] disabled:opacity-60 ${
+            isBookmarked
+              ? "bg-brand text-white"
+              : "bg-surface-layer/95 text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
+          }`}
+        >
+          <Bookmark size={16} fill={isBookmarked ? "currentColor" : "none"} />
+        </button>
+        <div className="pointer-events-none relative z-0 flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
+          <div className="mb-1 flex min-w-0 items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-2xs font-semibold leading-4 text-brand">
+              {opportunity.category || "Opportunity"}
+            </p>
+            {match && match.score >= 40 ? (
+              <MatchScoreBadge
+                score={match.score}
+                minScore={40}
+                className="shrink-0 !px-1.5 !py-0 !text-2xs"
+              />
+            ) : null}
+          </div>
+          <h2 className="line-clamp-3 break-words font-display text-sm font-semibold leading-[1.2] tracking-[-0.015em] text-text-primary transition group-hover:text-brand">
+            {opportunity.title}
+          </h2>
+          <p
+            className={`mt-auto flex min-w-0 items-center gap-1 pt-2 text-2xs font-medium leading-4 text-text-muted ${deadlineDisplay.className}`}
           >
-            <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onShare(opportunity)}
-            disabled={isSharing}
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-60"
-            aria-label={`Share ${opportunity.title}`}
-          >
-            <Share2 size={15} />
-          </button>
-          {onNotInterested ? (
+            <Calendar size={12} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">{deadlineDisplay.text}</span>
+          </p>
+        </div>
+      </article>
+
+      <article
+        className={`group relative hidden h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated sm:flex ${CARD_SURFACE}`}
+      >
+        <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
+          <ImageWithFallback
+            src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
+            alt={`${opportunity.title} cover image`}
+            category={opportunity.category}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            fallbackClassName="flex h-full w-full items-center justify-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
+          {expired ? (
+            <span className="absolute left-3 top-3 inline-flex items-center rounded-md bg-surface-elevated px-2.5 py-1 text-xs font-semibold text-text-secondary shadow-soft backdrop-blur">
+              Expired
+            </span>
+          ) : (
+            <UrgencyPill
+              badge={deadlineBadge}
+              className="absolute left-3 top-3 shadow-sm backdrop-blur"
+            />
+          )}
+          <div className="absolute right-3 top-3 z-20 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onNotInterested(opportunity)}
-              className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary"
-              aria-label={`Not interested in ${opportunity.title}`}
-              title="Not interested"
+              onClick={() => onToggleBookmark(opportunity)}
+              disabled={isBookmarking}
+              aria-pressed={isBookmarked}
+              className={`flex h-9 w-9 items-center justify-center rounded-md shadow-soft backdrop-blur transition disabled:cursor-wait disabled:opacity-60 ${
+                isBookmarked
+                  ? "bg-brand text-white hover:bg-brand/90"
+                  : "bg-surface-layer text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
+              }`}
+              aria-label={
+                isBookmarked
+                  ? `Remove ${opportunity.title} from saved`
+                  : `Save ${opportunity.title}`
+              }
             >
-              <EyeOff size={15} />
+              <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} />
             </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="relative flex flex-1 flex-col p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <MatchScoreBadge score={match?.score} minScore={40} />
-          {opportunity.category ? (
-            <span
-              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${palette.chip}`}
+            <button
+              type="button"
+              onClick={() => onShare(opportunity)}
+              disabled={isSharing}
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-60"
+              aria-label={`Share ${opportunity.title}`}
             >
-              {opportunity.category}
-            </span>
-          ) : null}
-          {opportunity.difficulty ? (
-            <span className="inline-flex items-center rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-xs font-semibold text-text-secondary">
-              {opportunity.difficulty}
-            </span>
-          ) : null}
+              <Share2 size={15} />
+            </button>
+            {onNotInterested ? (
+              <button
+                type="button"
+                onClick={() => onNotInterested(opportunity)}
+                className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary"
+                aria-label={`Not interested in ${opportunity.title}`}
+                title="Not interested"
+              >
+                <EyeOff size={15} />
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-text-primary transition group-hover:text-brand">
-          {opportunity.title}
-        </h2>
-        {organizationLabel(opportunity.organization, opportunity.title) ? (
-          <p className="mt-1 truncate text-sm text-text-muted">
-            {organizationLabel(opportunity.organization, opportunity.title)}
-          </p>
-        ) : null}
+        <div className="relative flex flex-1 flex-col p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <MatchScoreBadge score={match?.score} minScore={40} />
+            {opportunity.category ? (
+              <span
+                className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${palette.chip}`}
+              >
+                {opportunity.category}
+              </span>
+            ) : null}
+            {opportunity.difficulty ? (
+              <span className="inline-flex items-center rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-xs font-semibold text-text-secondary">
+                {opportunity.difficulty}
+              </span>
+            ) : null}
+          </div>
 
-        {match && match.score >= 40 ? (
-          <TopMatchReason reason={match.reasons[0]} />
-        ) : null}
-
-        {funding ? (
-          <p className="mt-3 text-sm font-medium text-success">
-            {funding}
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-3 border-t border-subtle pt-3 text-sm text-text-muted">
-          {opportunity.location ? (
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin size={14} />
-              {opportunity.location}
-            </span>
+          <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-text-primary transition group-hover:text-brand">
+            {opportunity.title}
+          </h2>
+          {organizationLabel(opportunity.organization, opportunity.title) ? (
+            <p className="mt-1 truncate text-sm text-text-muted">
+              {organizationLabel(opportunity.organization, opportunity.title)}
+            </p>
           ) : null}
-          <span
-            className={`inline-flex items-center gap-1.5 ${deadlineDisplay.className}`}
-          >
-            <Calendar size={14} />
-            {deadlineDisplay.text}
-          </span>
-        </div>
-      </div>
 
-      <Link
-        to={detailPath}
-        state={{ opportunity }}
-        onClick={() => onOpen?.(opportunity)}
-        onMouseEnter={prefetchOpportunityDetail}
-        onFocus={prefetchOpportunityDetail}
-        className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
-        aria-label={`View ${opportunity.title}`}
-      />
-    </article>
+          {match && match.score >= 40 ? (
+            <TopMatchReason reason={match.reasons[0]} />
+          ) : null}
+
+          {funding ? (
+            <p className="mt-3 text-sm font-medium text-success">
+              {funding}
+            </p>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-3 border-t border-subtle pt-3 text-sm text-text-muted">
+            {opportunity.location ? (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={14} />
+                {opportunity.location}
+              </span>
+            ) : null}
+            <span
+              className={`inline-flex items-center gap-1.5 ${deadlineDisplay.className}`}
+            >
+              <Calendar size={14} />
+              {deadlineDisplay.text}
+            </span>
+          </div>
+        </div>
+
+        <Link
+          to={detailPath}
+          state={{ opportunity }}
+          onClick={() => onOpen?.(opportunity)}
+          onMouseEnter={prefetchOpportunityDetail}
+          onFocus={prefetchOpportunityDetail}
+          className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
+          aria-label={`View ${opportunity.title}`}
+        />
+      </article>
+    </>
   );
 }
 
@@ -656,26 +735,37 @@ function LoadingCard() {
   // Content-shaped skeleton mirroring OpportunityCard: image area, badge row,
   // title lines, meta row — so the grid doesn't jump when real cards land.
   return (
-    <div className="flex h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft">
-      <Skeleton
-        variant="rectangular"
-        className="w-full"
-        style={{ aspectRatio: "16/9" }}
-      />
-      <div className="flex flex-1 flex-col p-4">
-        <div className="mb-3 flex gap-2">
-          <Skeleton variant="rounded" className="h-6 w-20 rounded-md" />
-          <Skeleton variant="rounded" className="h-6 w-16 rounded-md" />
-        </div>
-        <Skeleton variant="text" className="h-5 w-full" />
-        <Skeleton variant="text" className="mt-2 h-5 w-3/4" />
-        <Skeleton variant="text" className="mt-2 h-4 w-1/2" />
-        <div className="mt-auto flex gap-3 border-t border-subtle pt-3">
-          <Skeleton variant="text" className="h-4 w-24" />
-          <Skeleton variant="text" className="h-4 w-28" />
+    <>
+      <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-sm sm:hidden">
+        <Skeleton variant="rectangular" className="mobile-opportunity-result-media h-20 w-full" />
+        <div className="p-2.5">
+          <Skeleton variant="text" className="h-3 w-16" />
+          <Skeleton variant="text" className="mt-2 h-4 w-full" />
+          <Skeleton variant="text" className="mt-1 h-4 w-4/5" />
+          <Skeleton variant="text" className="mt-5 h-3 w-24" />
         </div>
       </div>
-    </div>
+      <div className="hidden h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft sm:flex">
+        <Skeleton
+          variant="rectangular"
+          className="w-full"
+          style={{ aspectRatio: "16/9" }}
+        />
+        <div className="flex flex-1 flex-col p-4">
+          <div className="mb-3 flex gap-2">
+            <Skeleton variant="rounded" className="h-6 w-20 rounded-md" />
+            <Skeleton variant="rounded" className="h-6 w-16 rounded-md" />
+          </div>
+          <Skeleton variant="text" className="h-5 w-full" />
+          <Skeleton variant="text" className="mt-2 h-5 w-3/4" />
+          <Skeleton variant="text" className="mt-2 h-4 w-1/2" />
+          <div className="mt-auto flex gap-3 border-t border-subtle pt-3">
+            <Skeleton variant="text" className="h-4 w-24" />
+            <Skeleton variant="text" className="h-4 w-28" />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1194,6 +1284,13 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     setSearchParams(new URLSearchParams());
   };
 
+  const chooseCategory = (categoryId?: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (categoryId) nextParams.set("category", categoryId);
+    else nextParams.delete("category");
+    setSearchParams(nextParams);
+  };
+
   const handleShareOpportunity = async (opportunity: Opportunity) => {
     setSharingId(opportunity.id);
     trackInteraction(opportunity, "share");
@@ -1232,8 +1329,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         aria-label="Search opportunities"
         value={searchTerm}
         onChange={(event) => setSearchTerm(event.target.value)}
-        placeholder={t("opportunities.searchPlaceholder")}
-        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-[5.25rem] text-sm text-text-primary shadow-soft placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+        placeholder="Search opportunities"
+        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-[5.25rem] text-sm text-text-primary shadow-sm placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
       />
       {searchTerm ? (
         <button
@@ -1253,7 +1350,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             ? "bg-brand/10 text-brand"
             : "text-text-muted hover:text-text-primary"
         }`}
-        aria-label="Filters and sorting"
+        aria-label="More opportunity filters"
         aria-expanded={filtersOpen}
       >
         <SlidersHorizontal size={17} />
@@ -1269,7 +1366,49 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             className="fixed inset-0 z-30 cursor-default"
             onClick={() => setFiltersOpen(false)}
           />
-          <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 rounded-2xl border border-subtle bg-surface-elevated p-3 shadow-elevated">
+          <div
+            role="dialog"
+            aria-label="Opportunity filters"
+            className="fixed inset-x-0 bottom-0 z-40 grid max-h-[78dvh] grid-rows-[auto_minmax(0,1fr)_auto] rounded-t-[28px] border border-subtle bg-surface-layer shadow-elevated sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-[calc(100%+8px)] sm:block sm:w-64 sm:rounded-2xl sm:bg-surface-elevated sm:p-3"
+          >
+            <div className="sticky top-0 flex items-center justify-between border-b border-subtle bg-surface-layer px-4 py-3 sm:hidden">
+              <div>
+                <h2 className="font-display text-xl font-semibold text-text-primary">
+                  Filters
+                </h2>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Categories and sorting
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-elevated"
+                aria-label="Close opportunity filters"
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-4 py-3 sm:overflow-visible sm:p-0">
+              <div className="mb-3 sm:hidden">
+                <p className="mb-1 px-1 text-xs font-semibold text-text-muted">
+                  More categories
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    chooseCategory("programs");
+                    setFiltersOpen(false);
+                  }}
+                  className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold ${
+                    selectedCategoryId === "programs"
+                      ? "bg-brand/10 text-brand"
+                      : "text-text-primary"
+                  }`}
+                >
+                  Programs and bootcamps
+                </button>
+              </div>
             <p className="px-1 pb-1 text-2xs font-semibold uppercase tracking-[0.14em] text-text-muted">
               Sort by
             </p>
@@ -1342,6 +1481,16 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 Reset to defaults
               </button>
             ) : null}
+            </div>
+            <div className="border-t border-subtle bg-surface-layer p-3 sm:hidden">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="flex h-11 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white"
+              >
+                Show results
+              </button>
+            </div>
           </div>
         </>
       ) : null}
@@ -1350,6 +1499,61 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const content = (
     <>
+        <section className="mb-3 sm:hidden">
+          {!embedded ? (
+            <h1 className="font-display text-[30px] font-semibold leading-9 tracking-[-0.035em] text-text-primary">
+              Opportunities
+            </h1>
+          ) : null}
+          <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-4 mt-3 border-y border-subtle bg-surface-body/95 px-4 py-2 backdrop-blur min-[412px]:-mx-5 min-[412px]:px-5">
+            {searchBar}
+            <div
+              className="mt-2 flex h-11 items-stretch justify-between"
+              role="tablist"
+              aria-label="Opportunity categories"
+            >
+              {[
+                { id: "", label: "All" },
+                { id: "scholarships", label: "Scholarships" },
+                { id: "internships", label: "Internships" },
+                { id: "fellowships", label: "Fellowships" },
+              ].map((item) => {
+                const active = selectedCategoryId === item.id;
+                return (
+                  <button
+                    key={item.id || "all"}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => chooseCategory(item.id || undefined)}
+                    className={`relative px-1 text-[10px] font-semibold transition min-[360px]:text-[11px] ${
+                      active ? "text-brand" : "text-text-muted"
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {active ? (
+                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand" />
+                    ) : null}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(true)}
+                aria-expanded={filtersOpen}
+                className={`relative px-1 text-[10px] font-semibold min-[360px]:text-[11px] ${
+                  selectedCategoryId === "programs" || hasCustomFilters
+                    ? "text-brand"
+                    : "text-text-muted"
+                }`}
+              >
+                More
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className="hidden sm:block">
         {activeCollection ? (
           <section className="mb-6 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
             <div className="flex items-start justify-between gap-3">
@@ -1416,16 +1620,19 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </div>
           </section>
         )}
+        </div>
 
         {showRails && !loading ? (
-          <OpportunityRails
-            rails={discoveryRails}
-            detailPathFor={railDetailPathFor}
-            getPalette={getCardPalette}
-            matchInsights={matchInsights}
-            onOpen={handleRailOpen}
-            getToken={isSignedIn ? getToken : undefined}
-          />
+          <div className="hidden sm:block">
+            <OpportunityRails
+              rails={discoveryRails}
+              detailPathFor={railDetailPathFor}
+              getPalette={getCardPalette}
+              matchInsights={matchInsights}
+              onOpen={handleRailOpen}
+              getToken={isSignedIn ? getToken : undefined}
+            />
+          </div>
         ) : null}
 
         {showsContent(screenState) && screenState.kind === "partial" ? (
@@ -1440,7 +1647,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         ) : null}
 
         {loading ? (
-          <section className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          <section className="mobile-opportunity-results-grid mt-5 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {Array.from({ length: Math.min(pageSize, 12) }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
@@ -1469,7 +1676,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </div>
             <section
               ref={resultsRef}
-              className="mt-4 grid scroll-mt-28 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+              className="mobile-opportunity-results-grid mt-3 grid scroll-mt-40 grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
             >
               {visibleOpportunities.map((opportunity, index) => (
                 <ImpressionTracker
@@ -1478,7 +1685,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   surface="web_browse"
                   position={index}
                   getToken={isSignedIn ? getToken : undefined}
-                  className="h-full"
+                  className="h-full min-w-0"
                 >
                   <OpportunityCard
                     opportunity={opportunity}
@@ -1595,7 +1802,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         jsonLd={seoJsonLd}
       />
       {embedded ? (
-        <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl px-4 pb-5 pt-3 min-[412px]:px-5 sm:px-6 sm:py-6 lg:px-8">
           {content}
         </main>
       ) : (

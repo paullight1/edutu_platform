@@ -25,7 +25,10 @@ export interface CommunityGroup {
   memberCount: number;
   messageCount: number;
   lastMessageAt: string | null;
+  managementScope?: "member" | "platform";
+  trendingRank?: number | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CommunityGroupMember {
@@ -59,7 +62,24 @@ export interface CommunityMessage {
   createdAt: string;
   deletedAt: string | null;
   deletedBy: string | null;
+  parentMessageId?: string | null;
+  pinnedAt?: string | null;
+  pinnedBy?: string | null;
+  likeCount?: number;
+  commentCount?: number;
+  viewerHasLiked?: boolean;
   author?: MessageAuthor;
+}
+
+export interface CommunityPostThread {
+  post: CommunityMessage;
+  comments: CommunityMessage[];
+}
+
+export interface CommunityReactionState {
+  messageId: string;
+  likeCount: number;
+  viewerHasLiked: boolean;
 }
 
 export interface CommunityMemberSummary {
@@ -131,6 +151,51 @@ export interface CreateGroupInput {
   visibility?: GroupVisibility;
   joinPolicy?: GroupJoinPolicy;
   coverEmoji?: string;
+}
+
+export type CommunityCreationRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+
+export interface CommunityCreationRequest {
+  id: string;
+  requesterId: string;
+  name: string;
+  description: string | null;
+  opportunityId: string | null;
+  visibility: GroupVisibility;
+  joinPolicy: GroupJoinPolicy;
+  coverEmoji: string;
+  coverImageResourceUrl: string | null;
+  status: CommunityCreationRequestStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  approvedGroupId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityCreationSlots {
+  used: number;
+  limit: 2;
+}
+
+export interface CommunityCreationRequestResponse {
+  request: CommunityCreationRequest;
+  slots: CommunityCreationSlots;
+}
+
+export interface MyCommunityCreationRequestsResponse {
+  requests: CommunityCreationRequest[];
+  slots: CommunityCreationSlots;
+}
+
+export interface CommunityDiscoveryResponse {
+  trending: GroupWithMembership[];
+  communities: GroupWithMembership[];
 }
 
 export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, "opportunityId"> & {
@@ -226,6 +291,10 @@ export interface SendMessageInput {
   kind?: "text" | CommunityAttachmentKind | "call";
   opportunityId?: string;
   callId?: string;
+}
+
+export interface SendCommentInput {
+  body: string;
 }
 
 export interface BlockedUser {

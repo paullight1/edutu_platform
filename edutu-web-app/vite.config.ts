@@ -2,14 +2,23 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { resolve } from 'path';
+import { validateLocalClerkPublishableKey } from './src/lib/clerkEnvironment';
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const clerkConfigurationError = validateLocalClerkPublishableKey(
+    env.VITE_CLERK_PUBLISHABLE_KEY,
+    command === 'serve',
+  );
+  if (clerkConfigurationError) {
+    throw new Error(clerkConfigurationError);
+  }
+
   const configuredApiUrl =
     env.VITE_API_URL || env.VITE_API_BASE_URL || 'https://edutu-platform.onrender.com';
   let apiOrigin: string;

@@ -48,6 +48,8 @@ export function useGroupMessages({
     () => new Set(readLocalBlockedAuthors()),
   );
   const [blocksReady, setBlocksReady] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<CommunityMessage | null>(null);
+  const [blockBusy, setBlockBusy] = useState(false);
   const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
@@ -145,34 +147,33 @@ export function useGroupMessages({
       },
       onBlock: (message) => {
         if (message.groupId !== groupId) return;
-        const author = message.author?.displayName || "this member";
-        if (
-          !window.confirm(
-            `Block ${author}? Their community messages will be hidden on this account.`,
-          )
-        ) {
-          return;
-        }
-        void api
-          .blockUser(message.userId)
-          .then(() => {
-            addLocalBlockedAuthor(message.userId);
-            setBlockedIds((current) => {
-              const next = new Set(current);
-              next.add(message.userId);
-              return next;
-            });
-          })
-          .catch((caught) => {
-            setError(
-              caught instanceof Error
-                ? caught.message
-                : "That member could not be blocked.",
-            );
-          });
+        setBlockTarget(message);
       },
     });
   }, [api, enabled, groupId]);
+
+  const confirmBlock = useCallback(async () => {
+    if (!blockTarget || blockBusy) return;
+    setBlockBusy(true);
+    try {
+      await api.blockUser(blockTarget.userId);
+      addLocalBlockedAuthor(blockTarget.userId);
+      setBlockedIds((current) => {
+        const next = new Set(current);
+        next.add(blockTarget.userId);
+        return next;
+      });
+      setBlockTarget(null);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "That member could not be blocked.",
+      );
+    } finally {
+      setBlockBusy(false);
+    }
+  }, [api, blockBusy, blockTarget]);
 
   const loadMore = useCallback(async () => {
     if (!enabled || !hasMore || loadingMore || messages.length === 0) return;
@@ -225,5 +226,9 @@ export function useGroupMessages({
     loadMore,
     append,
     replace,
+    blockTarget,
+    blockBusy,
+    cancelBlock: () => setBlockTarget(null),
+    confirmBlock,
   };
 }

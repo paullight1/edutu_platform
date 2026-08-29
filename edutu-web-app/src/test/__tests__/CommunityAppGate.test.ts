@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { isCommunityProductPath } from "../../components/CommunityAppGate";
 
 describe("CommunityAppGate route boundary", () => {
-  it("owns only authenticated Community workspace and call paths", () => {
-    expect(isCommunityProductPath("/app/community")).toBe(true);
-    expect(isCommunityProductPath("/app/community/groups/group-1")).toBe(true);
-    expect(isCommunityProductPath("/app/community/messages")).toBe(true);
+  it("leaves authenticated Community product routes to the modern app router", () => {
+    expect(isCommunityProductPath("/app/community")).toBe(false);
+    expect(isCommunityProductPath("/app/community/explore")).toBe(false);
+    expect(isCommunityProductPath("/app/community/groups/group-1")).toBe(false);
+    expect(isCommunityProductPath("/app/community/chats")).toBe(false);
+  });
+
+  it("keeps native Community calls in the lightweight route gate", () => {
     expect(isCommunityProductPath("/communities/calls/call-1")).toBe(true);
   });
 

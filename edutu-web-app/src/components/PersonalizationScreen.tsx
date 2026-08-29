@@ -453,12 +453,12 @@ export function OnboardingFlow({
                   }
                 }}
                 disabled={index > stepIndex}
-                className={`h-2 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                className={`h-2.5 w-2.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
                   current
-                    ? "w-7 bg-brand"
+                    ? "bg-brand"
                     : done
-                      ? "w-2 bg-brand/70"
-                      : "w-2 bg-surface-elevated"
+                      ? "bg-brand/70"
+                      : "bg-surface-elevated"
                 }`}
                 aria-current={current ? "step" : undefined}
                 aria-label={entry.label}
@@ -469,7 +469,9 @@ export function OnboardingFlow({
       </header>
 
       {/* ── Step body ─────────────────────────────────────────────── */}
-      <main className={`mx-auto w-full max-w-xl flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 ${presentation === "modal" ? "min-h-0" : ""}`}>
+      <main
+        className={`mx-auto w-full max-w-xl flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 ${presentation === "modal" ? "min-h-0" : ""}`}
+      >
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={step.id}
@@ -665,7 +667,10 @@ export function OnboardingFlow({
       </main>
 
       {/* ── Footer nav ────────────────────────────────────────────── */}
-      <footer className="sticky bottom-0 z-20 border-t border-subtle bg-surface-layer/95 backdrop-blur supports-[backdrop-filter]:bg-surface-layer/80">
+      <footer
+        data-keyboard-avoid
+        className="sticky bottom-0 z-20 border-t border-subtle bg-surface-layer/95 backdrop-blur supports-[backdrop-filter]:bg-surface-layer/80"
+      >
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6">
           <button
             type="button"

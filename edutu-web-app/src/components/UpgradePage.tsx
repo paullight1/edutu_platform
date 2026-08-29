@@ -55,12 +55,11 @@ interface PlanCard {
  * so we sell outcomes, not features. Every claim here must be true on the web
  * app specifically: the AI coach and CV builder are mobile-app-only (the web
  * /coach and /cv routes redirect to the dashboard), so they're labelled as
- * such. The web-only items (closed-opportunity filter, roadmap calendar
- * export) are real Pro gates — see ProGate.tsx / OpportunitiesPage.tsx /
- * RoadmapsPage.tsx. */
+ * such. The closed-opportunity filter is a real web Pro gate — see
+ * ProGate.tsx and OpportunitiesPage.tsx. */
 const BENEFITS: string[] = [
   'See closed and expired opportunities too — not just what is still open',
-  'Add your roadmap milestones straight to your calendar, so deadlines never sneak up on you',
+  'Use the same active Pro pass across the Edutu web and mobile apps',
   'Unlimited AI coaching on essays, applications and interview prep — in the Edutu mobile app',
   'Standout CV templates and instant AI-polished CVs — in the Edutu mobile app',
 ];
@@ -68,7 +67,7 @@ const BENEFITS: string[] = [
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: 'What is Edutu Pro?',
-    a: 'Pro unlocks everything Edutu can do to help you win. In the Edutu mobile app, that means unlimited AI coaching on essays and applications, plus standout CV templates. Here on the web, it means seeing closed and expired opportunities and exporting your roadmap straight to your calendar. One purchase covers both while the pass is active.',
+    a: 'Pro unlocks everything Edutu can do to help you win. In the Edutu mobile app, that means unlimited AI coaching on essays and applications, plus standout CV templates. Here on the web, it means seeing closed and expired opportunities. One purchase covers both while the pass is active.',
   },
   {
     q: 'How do I pay?',
@@ -80,7 +79,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Does it work on mobile too?',
-    a: 'Yes — and that is where the AI coach and CV builder live. Pro follows your account across the web app and the Edutu mobile app, so the active pass works wherever you sign in. On the web, Pro unlocks closed-opportunity filters and roadmap calendar exports.',
+    a: 'Yes — and that is where the AI coach and CV builder live. Pro follows your account across the web app and the Edutu mobile app, so the active pass works wherever you sign in. On the web, Pro unlocks closed-opportunity filters.',
   },
 ];
 

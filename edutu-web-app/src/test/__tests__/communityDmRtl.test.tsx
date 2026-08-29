@@ -94,7 +94,7 @@ function renderDm() {
 }
 
 describe("Community DM RTL layout", () => {
-  it("uses logical message alignment, logical corners and a mirrored back affordance", async () => {
+  it("uses logical message alignment and logical corners", async () => {
     renderDm();
 
     const incoming = await screen.findByText("Incoming message");
@@ -109,7 +109,8 @@ describe("Community DM RTL layout", () => {
     expect(counter).toHaveClass("text-end");
     expect(counter).not.toHaveClass("text-right");
 
-    const back = screen.getByRole("link", { name: "Back to chats" });
-    expect(back.querySelector("svg")).toHaveClass("rtl:rotate-180");
+    expect(
+      screen.queryByRole("link", { name: "Back to chats" }),
+    ).not.toBeInTheDocument();
   });
 });

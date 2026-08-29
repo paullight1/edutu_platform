@@ -27,10 +27,13 @@ interface EventsHomeSectionProps {
    * `app` drops the outer chrome so it sits inside the dashboard column.
    */
   variant?: "public" | "app";
+  /** Places the app shortcut inside the dashboard's desktop priority grid. */
+  desktopPriority?: boolean;
 }
 
 export default function EventsHomeSection({
   variant = "public",
+  desktopPriority = false,
 }: EventsHomeSectionProps) {
   const [events, setEvents] = useState<EdutuEvent[]>([]);
   const isPublic = variant === "public";
@@ -99,34 +102,55 @@ export default function EventsHomeSection({
 
   if (!isPublic) {
     return (
-      <section aria-labelledby="home-calendar-heading" className="space-y-5">
+      <section
+        aria-labelledby="home-calendar-heading"
+        className={
+          desktopPriority ? "flex flex-col gap-5 lg:contents" : "space-y-5"
+        }
+      >
         <Link
           to="/app/deadlines"
           aria-label="Calendar and upcoming dates"
-          className="group flex min-h-[82px] items-center gap-3 rounded-[22px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className={`group relative flex min-h-[82px] items-center gap-3 rounded-[22px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+            desktopPriority
+              ? "lg:order-1 lg:col-span-3 lg:min-h-[190px] lg:flex-col lg:items-start lg:p-5"
+              : ""
+          }`}
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
             <Calendar size={21} />
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0 flex-1 lg:flex lg:flex-col">
+            {desktopPriority ? (
+              <span className="mb-2 hidden text-2xs font-semibold uppercase tracking-[0.16em] text-text-muted lg:block">
+                Plan ahead
+              </span>
+            ) : null}
             <span
               id="home-calendar-heading"
-              className="block font-display text-base font-bold tracking-tight"
+              className="block font-display text-base font-bold tracking-tight lg:text-lg"
             >
               Calendar &amp; upcoming
             </span>
             <span className="mt-0.5 block text-sm leading-5 text-text-secondary">
               See deadlines, goals, and upcoming events in one place.
             </span>
+            {desktopPriority ? (
+              <span className="mt-auto hidden pt-4 text-xs font-semibold text-brand-600 lg:block">
+                Open calendar
+              </span>
+            ) : null}
           </span>
           <ArrowRight
             size={18}
-            className="shrink-0 text-brand-500 transition-transform group-hover:translate-x-0.5 rtl:rotate-180"
+            className={`shrink-0 text-brand-500 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 ${
+              desktopPriority ? "lg:absolute lg:right-5 lg:top-5" : ""
+            }`}
           />
         </Link>
 
         {events.length > 0 ? (
-          <div>
+          <div className={desktopPriority ? "lg:order-3 lg:col-span-12" : ""}>
             <div className="mb-4 flex items-end justify-between gap-4">
               <h2 className="font-display text-lg font-bold tracking-tight text-text-primary">
                 Upcoming events

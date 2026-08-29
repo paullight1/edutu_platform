@@ -19,7 +19,7 @@ const sections: LegalSection[] = [
         body: [
             'We use your information to run Edutu and make global opportunities easier to reach.',
             [
-                'To personalise the opportunities and roadmaps we show you.',
+                'To personalise the opportunities and recommendations we show you.',
                 'To send deadline reminders and updates you have opted into.',
                 'To improve our matching, search, and recommendations.',
                 'To keep the platform secure and prevent misuse.',

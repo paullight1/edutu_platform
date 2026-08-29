@@ -193,7 +193,7 @@ function Rail({
         className={`flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
           rail.key === "recommended"
             ? "-mx-3 px-3 sm:-mx-4 sm:px-4"
-            : "-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+            : ""
         }`}
       >
         {rail.items.map((opportunity, index) => (

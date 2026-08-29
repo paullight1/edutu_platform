@@ -1,5 +1,4 @@
 import { StrictMode, Suspense } from 'react';
-import { createRoot } from 'react-dom/client';
 import './index.css';
 
 // Initialize i18n before rendering
@@ -9,7 +8,6 @@ import { ThemeProvider } from './hooks/useTheme';
 import PublicRouteGate from './components/PublicRouteGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
-import WhatsNewNotification from './components/WhatsNewNotification';
 import { CommunityProtectedImageHydrator } from './components/CommunityProtectedImage';
 import CommunityReportDialogAccessibility from './components/CommunityReportDialogAccessibility';
 import { initSentry } from './lib/sentry';
@@ -20,10 +18,10 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './hooks/useAuth';
 import { PaywallProvider } from './hooks/usePaywall';
 import { PersonalizationProvider } from './hooks/usePersonalization';
-import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
 import { AnalyticsProvider } from './hooks/useAnalytics';
 import { preconnectAuthOrigins } from './lib/authWarmup';
+import { getOrCreateReactRoot } from './lib/reactRoot';
 
 // The production Clerk instance (clerk.edutu.org). Publishable keys are
 // public by design — this ships in every browser bundle either way.
@@ -66,7 +64,7 @@ const LoadingScreen = () => (
   </div>
 );
 
-const root = createRoot(document.getElementById('root')!);
+const root = getOrCreateReactRoot(window, document.getElementById('root')!);
 
 root.render(
   <StrictMode>
@@ -84,10 +82,7 @@ root.render(
                     <PersonalizationProvider>
                       <AnalyticsProvider>
                         <NotificationsProvider>
-                          <GoalsProvider>
-                            <PublicRouteGate />
-                            <WhatsNewNotification />
-                          </GoalsProvider>
+                          <PublicRouteGate />
                         </NotificationsProvider>
                       </AnalyticsProvider>
                     </PersonalizationProvider>

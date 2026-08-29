@@ -15,19 +15,15 @@ export default function AppearanceSettings() {
   const { mode, setMode } = useTheme();
 
   return (
-    <section className="mb-6 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft">
-      <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-        Appearance
-      </h2>
-      <p className="mt-1 text-sm text-text-secondary">
-        Choose between Edutu&apos;s light and dark palettes.
-      </p>
-
-      {/* Light / Dark / System */}
+    <div className="border-b border-subtle px-4 py-3">
+      <div>
+        <p className="text-sm font-semibold text-text-primary">Appearance</p>
+        <p className="mt-0.5 text-xs text-text-muted">Light, dark or device setting</p>
+      </div>
       <div
         role="radiogroup"
         aria-label="Theme mode"
-        className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-surface-elevated p-1"
+        className="mt-2 grid grid-cols-3 border-t border-subtle"
       >
         {MODE_OPTIONS.map((option) => {
           const Icon = option.icon;
@@ -39,19 +35,19 @@ export default function AppearanceSettings() {
               role="radio"
               aria-checked={active}
               onClick={() => setMode(option.value)}
-              className={`flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-xs font-semibold transition ${
+              className={`relative flex min-h-11 items-center justify-center gap-1.5 px-1 text-xs font-semibold transition ${
                 active
-                  ? "bg-surface-layer text-brand shadow-soft"
+                  ? "text-brand"
                   : "text-text-muted hover:text-text-primary"
               }`}
             >
-              <Icon size={18} />
+              <Icon size={15} />
               {option.label}
+              {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand" /> : null}
             </button>
           );
         })}
       </div>
-
-    </section>
+    </div>
   );
 }

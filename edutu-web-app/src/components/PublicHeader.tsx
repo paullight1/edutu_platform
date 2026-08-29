@@ -78,14 +78,14 @@ export default function PublicHeader({
       <button
         type="button"
         onClick={onPrimaryAction}
-        className={`inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-soft transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${className}`}
+        className={`inline-flex h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-soft transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${className}`}
       >
         {actionLabel}
       </button>
     ) : (
       <Link
         to={actionTarget}
-        className={`inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-soft transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${className}`}
+        className={`inline-flex h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-soft transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${className}`}
       >
         {actionLabel}
       </Link>
@@ -94,7 +94,7 @@ export default function PublicHeader({
   const profileLink = isSignedIn ? (
     <Link
       to="/profile"
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-elevated text-sm font-bold text-text-secondary transition hover:border-brand/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-elevated text-sm font-bold text-text-secondary transition hover:border-brand/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
       aria-label={`Open ${displayName} profile`}
       title="Profile"
     >
@@ -115,7 +115,7 @@ export default function PublicHeader({
 
   return (
     <header
-      className={`${positionClass} inset-x-0 top-0 z-50 border-b transition-theme ${
+      className={`${positionClass} inset-x-0 top-0 z-50 border-b pt-[env(safe-area-inset-top)] transition-theme ${
         scrolled
           ? "border-subtle bg-surface-layer/80 backdrop-blur-xl shadow-soft"
           : useDarkTopChrome

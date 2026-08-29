@@ -8,12 +8,13 @@ export default function GroupAvatar({
 }: {
   emoji?: string | null;
   name: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
   const classes = {
     sm: "h-10 w-10 rounded-xl text-lg",
     md: "h-12 w-12 rounded-2xl text-xl",
     lg: "h-16 w-16 rounded-[20px] text-2xl",
+    xl: "h-[5.5rem] w-[5.5rem] rounded-2xl text-3xl",
   }[size];
 
   return (
@@ -24,7 +25,7 @@ export default function GroupAvatar({
         classes,
       )}
     >
-      {emoji?.trim() ? emoji : <UsersRound size={size === "lg" ? 25 : 20} className="text-[#f45b16] dark:text-brand" />}
+      {emoji?.trim() ? emoji : <UsersRound size={size === "xl" ? 30 : size === "lg" ? 25 : 20} className="text-[#f45b16] dark:text-brand" />}
     </span>
   );
 }

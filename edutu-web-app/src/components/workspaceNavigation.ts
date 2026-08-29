@@ -5,8 +5,6 @@ export type WorkspaceNavIconKey =
   | "deadlines"
   | "saved"
   | "applications"
-  | "roadmaps"
-  | "goals"
   | "profile"
   | "settings";
 
@@ -34,8 +32,7 @@ export const primaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
 
 /**
  * Personal workspace order follows the learner lifecycle: collect work,
- * progress it, access marketplace support, plan the next moves, then manage
- * identity/settings.
+ * progress it, then manage identity and settings.
  */
 export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
   { to: "/app/saved", label: "navigation.saved", icon: "saved" },
@@ -44,10 +41,6 @@ export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     label: "navigation.applications",
     icon: "applications",
   },
-  { to: "/app/marketplace", label: "Marketplace", icon: "opportunities" },
-  { to: "/app/wallet", label: "Wallet", icon: "saved" },
-  { to: "/app/roadmaps", label: "navigation.plan", icon: "roadmaps" },
-  { to: "/app/goals", label: "dashboard.stats.goalsActive", icon: "goals" },
   { to: "/app/profile", label: "navigation.profile", icon: "profile" },
   { to: "/app/settings", label: "navigation.settings", icon: "settings" },
 ];

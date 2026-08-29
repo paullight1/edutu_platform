@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  X,
 } from "lucide-react";
 import { useOpportunities } from "../hooks/useOpportunities";
 import type { Opportunity } from "../types/opportunity";
@@ -270,7 +271,35 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
     opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated">
+    <>
+      <article className="relative flex min-h-[112px] items-start border-b border-subtle bg-surface-layer py-4 sm:hidden">
+        <div className="min-w-0 flex-1 pe-3">
+          <p className="truncate text-xs font-semibold text-brand">
+            {opportunity.category || "Opportunity"}
+          </p>
+          <h2 className="mt-1 line-clamp-2 font-display text-base font-semibold leading-5 tracking-[-0.015em] text-text-primary">
+            {opportunity.title}
+          </h2>
+          {opportunity.organization ? (
+            <p className="mt-1 truncate text-sm text-text-secondary">
+              {opportunity.organization}
+            </p>
+          ) : null}
+          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-text-muted">
+            <CalendarDays size={13} aria-hidden="true" />
+            {formatDeadline(opportunity.deadline)}
+          </p>
+        </div>
+        <ArrowRight size={17} aria-hidden="true" className="mt-7 shrink-0 text-text-muted" />
+        <Link
+          to={`/opportunity/${opportunity.id}`}
+          state={{ opportunity }}
+          className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/50"
+          aria-label={`View ${opportunity.title}`}
+        />
+      </article>
+
+      <article className="group relative hidden h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:flex">
       <div className="aspect-[16/9] overflow-hidden bg-surface-elevated">
         <img
           src={image}
@@ -325,7 +354,8 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         className="absolute inset-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2"
         aria-label={`View ${opportunity.title}`}
       />
-    </article>
+      </article>
+    </>
   );
 }
 
@@ -335,6 +365,7 @@ export default function PublicOpportunitiesArchivePage() {
   const [searchParams] = useSearchParams();
   const { data: opportunities, loading, error, refresh } = useOpportunities();
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const resultsRef = useRef<HTMLElement>(null);
   const [serverFallbackHtml] = useState(() =>
     document.querySelector<HTMLElement>("#seo-content")?.outerHTML ?? "",
@@ -533,10 +564,124 @@ export default function PublicOpportunitiesArchivePage() {
         image={getDefaultSeoImage()}
         jsonLd={seoJsonLd}
       />
-      <PublicEditorialShell mainClassName="max-w-7xl pb-24 pt-8 sm:pt-12">
+      <PublicEditorialShell mainClassName="max-w-7xl pb-24 pt-3 min-[412px]:px-5 sm:pt-12">
+        <section className="sm:hidden">
+          <h1 className="font-display text-[30px] font-semibold leading-9 tracking-[-0.035em] text-text-primary">
+            {category?.label || "Opportunities"}
+          </h1>
+          <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-4 mt-3 border-y border-subtle bg-surface-body/95 px-4 py-2 backdrop-blur min-[412px]:-mx-5 min-[412px]:px-5">
+            <label className="relative block">
+              <span className="sr-only">Search opportunities</span>
+              <Search
+                size={18}
+                aria-hidden="true"
+                className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-text-muted"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Search opportunities"
+                className="h-12 w-full rounded-xl border border-subtle bg-surface-layer ps-11 pe-4 text-sm text-text-primary outline-none shadow-sm placeholder:text-text-muted focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-brand/20"
+              />
+            </label>
+            <div
+              className="mt-2 flex h-11 items-stretch justify-between"
+              aria-label="Public opportunity filters"
+            >
+              {[
+                { slug: "", label: "All" },
+                { slug: "scholarships", label: "Scholarships" },
+                { slug: "internships", label: "Internships" },
+                { slug: "fellowships", label: "Fellowships" },
+              ].map((item) => {
+                const active = (category?.slug || "") === item.slug;
+                return (
+                  <Link
+                    key={item.slug || "all"}
+                    to={item.slug ? `/opportunities/${item.slug}` : "/opportunities"}
+                    aria-current={active ? "page" : undefined}
+                    className={`relative flex items-center justify-center px-1 text-[10px] font-semibold no-underline min-[360px]:text-[11px] ${active ? "text-brand" : "text-text-muted"}`}
+                  >
+                    <span>{item.label}</span>
+                    {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand" /> : null}
+                  </Link>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setCategoriesOpen(true)}
+                aria-expanded={categoriesOpen}
+                aria-label="More opportunity categories"
+                className={`relative px-1 text-[10px] font-semibold min-[360px]:text-[11px] ${category && !["scholarships", "internships", "fellowships"].includes(category.slug) ? "text-brand" : "text-text-muted"}`}
+              >
+                More
+              </button>
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-medium text-text-muted">
+            {filtered.length.toLocaleString()} result{filtered.length === 1 ? "" : "s"}
+          </p>
+        </section>
+
+        {categoriesOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Close opportunity categories"
+              className="fixed inset-0 z-40 bg-surface-overlay backdrop-blur-sm sm:hidden"
+              onClick={() => setCategoriesOpen(false)}
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-label="Public opportunity filters"
+              className="fixed inset-x-0 bottom-0 z-50 grid max-h-[78dvh] grid-rows-[auto_minmax(0,1fr)_auto] rounded-t-[28px] border border-subtle bg-surface-layer shadow-elevated sm:hidden"
+            >
+              <header className="sticky top-0 flex items-center justify-between border-b border-subtle bg-surface-layer px-4 py-3">
+                <div>
+                  <h2 className="font-display text-xl font-semibold text-text-primary">More categories</h2>
+                  <p className="mt-0.5 text-xs text-text-muted">Choose an opportunity type</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen(false)}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-elevated"
+                  aria-label="Close categories"
+                >
+                  <X size={19} />
+                </button>
+              </header>
+              <div className="overflow-y-auto px-4 py-2">
+                {PUBLIC_CATEGORIES.filter(
+                  (item) => !["scholarships", "internships", "fellowships"].includes(item.slug),
+                ).map((item) => (
+                  <Link
+                    key={item.slug}
+                    to={`/opportunities/${item.slug}`}
+                    onClick={() => setCategoriesOpen(false)}
+                    className={`flex min-h-11 items-center border-b border-subtle px-2 text-sm font-semibold no-underline last:border-b-0 ${category?.slug === item.slug ? "text-brand" : "text-text-primary"}`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+              <footer className="border-t border-subtle bg-surface-layer p-3">
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen(false)}
+                  className="h-11 w-full rounded-xl bg-brand text-sm font-semibold text-white"
+                >
+                  Done
+                </button>
+              </footer>
+            </section>
+          </>
+        ) : null}
+
         <nav
           aria-label="Breadcrumb"
-          className="mb-6 flex flex-wrap items-center gap-2 text-sm text-text-muted"
+          className="mb-6 hidden flex-wrap items-center gap-2 text-sm text-text-muted sm:flex"
         >
           <Link to="/" className="hover:text-brand">
             Home
@@ -555,7 +700,7 @@ export default function PublicOpportunitiesArchivePage() {
           )}
         </nav>
 
-        <section className="relative overflow-hidden rounded-3xl border border-brand/15 bg-surface-layer px-6 py-9 shadow-soft sm:px-10 sm:py-12">
+        <section className="relative hidden overflow-hidden rounded-3xl border border-brand/15 bg-surface-layer px-6 py-9 shadow-soft sm:block sm:px-10 sm:py-12">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
@@ -581,7 +726,7 @@ export default function PublicOpportunitiesArchivePage() {
 
         <nav
           aria-label="Opportunity categories"
-          className="mt-7 flex gap-2 overflow-x-auto pb-2"
+          className="mt-7 hidden gap-2 overflow-x-auto pb-2 sm:flex"
         >
           <Link
             to="/opportunities"
@@ -608,7 +753,7 @@ export default function PublicOpportunitiesArchivePage() {
           ))}
         </nav>
 
-        <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 hidden flex-col gap-4 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft sm:flex sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-xl">
             <Search
               size={18}
@@ -657,18 +802,25 @@ export default function PublicOpportunitiesArchivePage() {
 
         <section ref={resultsRef} className="scroll-mt-24 pt-8">
           {loading && opportunities.length === 0 ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="divide-y divide-subtle sm:grid sm:grid-cols-2 sm:gap-5 sm:divide-y-0 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-[390px] animate-pulse rounded-2xl border border-subtle bg-surface-layer"
-                />
+                  className="py-4 sm:h-[390px] sm:rounded-2xl sm:border sm:border-subtle sm:bg-surface-layer sm:py-0"
+                >
+                  <div className="animate-pulse sm:hidden">
+                    <div className="h-3 w-24 rounded bg-surface-elevated" />
+                    <div className="mt-2 h-5 w-5/6 rounded bg-surface-elevated" />
+                    <div className="mt-2 h-4 w-2/3 rounded bg-surface-elevated" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : null}
 
           {!loading && visible.length > 0 ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <>
+            <div className="sm:hidden">
               {visible.map((opportunity) => (
                 <OpportunityCard
                   key={opportunity.id}
@@ -676,6 +828,15 @@ export default function PublicOpportunitiesArchivePage() {
                 />
               ))}
             </div>
+            <div className="hidden sm:grid sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+              {visible.map((opportunity) => (
+                <OpportunityCard
+                  key={opportunity.id}
+                  opportunity={opportunity}
+                />
+              ))}
+            </div>
+            </>
           ) : null}
 
           {!loading && visible.length === 0 ? (

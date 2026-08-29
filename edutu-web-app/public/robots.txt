@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
-# Authenticated app shell and auth flows — no crawlable content.
 Disallow: /app/
 Disallow: /admin/
 Disallow: /auth

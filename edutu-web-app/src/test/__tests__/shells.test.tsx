@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppWorkspaceShell from "../../components/AppWorkspaceShell";
@@ -79,15 +79,32 @@ describe("PublicEditorialShell", () => {
       "href",
       "/",
     );
-    expect(
-      screen.getByRole("link", { name: "Sign in" }),
-    ).toHaveAttribute("href", "/auth?mode=sign-in");
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/auth?mode=sign-in",
+    );
     expect(screen.getByText("Editorial content")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("max-w-3xl", "py-8");
   });
 });
 
 describe("AppWorkspaceShell", () => {
+  it("shows the compact mobile page title without a brand image", () => {
+    render(
+      <MemoryRouter initialEntries={["/app/opportunities"]}>
+        <AppWorkspaceShell>
+          <div>Opportunity results</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    const mobileHeader = screen.getByRole("banner");
+    expect(within(mobileHeader).getByText("Opportunities")).toBeInTheDocument();
+    expect(
+      within(mobileHeader).queryByRole("img", { name: "Edutu" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the workspace nav and signs out from the current route", () => {
     render(
       <MemoryRouter initialEntries={["/app/settings"]}>
@@ -99,10 +116,13 @@ describe("AppWorkspaceShell", () => {
 
     expect(screen.getByText("Nia Okafor")).toBeInTheDocument();
     expect(screen.getByText("nia@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(
-      screen.getByRole("link", { name: "Settings" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("navigation", { name: "Primary workspace pages" })).toBeInTheDocument();
+      screen.getByRole("navigation", { name: "Primary workspace pages" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: /open more workspace pages/i }),
@@ -111,7 +131,38 @@ describe("AppWorkspaceShell", () => {
     expect(workspaceMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("hands mobile navigation ownership to the community workspace", () => {
+  it("uses color alone to emphasize active mobile navigation items", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AppWorkspaceShell>
+          <div>Dashboard content</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: "Mobile app navigation",
+    });
+    const homeLink = within(mobileNavigation).getByRole("link", {
+      name: "Home",
+    });
+    const moreButton = within(mobileNavigation).getByRole("button", {
+      name: "Open more workspace pages",
+    });
+
+    expect(homeLink).toHaveClass("text-brand-600");
+    expect(
+      homeLink.querySelector(":scope > span[aria-hidden='true']"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(moreButton);
+    expect(moreButton).toHaveClass("text-brand-600");
+    expect(
+      moreButton.querySelector(":scope > span[aria-hidden='true']"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("removes the universal mobile chrome inside the community workspace", () => {
     render(
       <MemoryRouter initialEntries={["/app/community/explore"]}>
         <AppWorkspaceShell>
@@ -123,5 +174,6 @@ describe("AppWorkspaceShell", () => {
     expect(
       screen.queryByRole("navigation", { name: "Mobile app navigation" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
 });

@@ -140,24 +140,29 @@ describe("MemberSettingsPanel", () => {
   it("links to the notifications page from settings", async () => {
     renderPanel();
 
-    await screen.findByText("Inbox and reminders");
+    await screen.findByText("Notification inbox");
 
     expect(
-      screen.getByRole("link", { name: /inbox and reminders/i }),
+      screen.getByRole("link", { name: /notification inbox/i }),
     ).toHaveAttribute("href", "/app/notifications");
   });
 
   it("opens the in-app sign-in security sheet with password form and sessions", async () => {
     renderPanel();
 
-    await screen.findByText("Inbox and reminders");
+    await screen.findByText("Notification inbox");
     fireEvent.click(screen.getByRole("button", { name: /sign-in security/i }));
 
     expect(
       await screen.findByRole("dialog", { name: /sign-in security/i }),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/current password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Current password")).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Confirm new password")).toBeInTheDocument();
     expect(screen.getByText("Active sessions")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: /sign-in security/i });
+    expect(dialog.querySelector("[data-sheet-body]")).toBeInTheDocument();
+    expect(dialog.querySelector("[data-sheet-actions]")).toBeInTheDocument();
     await waitFor(() => {
       expect(clerkMocks.getSessions).toHaveBeenCalledTimes(1);
     });
@@ -180,7 +185,7 @@ describe("MemberSettingsPanel", () => {
     expect(confirmButton).toBeDisabled();
 
     fireEvent.change(
-      screen.getByLabelText(/type delete to confirm/i),
+      screen.getByLabelText("Type DELETE to confirm"),
       { target: { value: "DELETE" } },
     );
     expect(confirmButton).toBeEnabled();

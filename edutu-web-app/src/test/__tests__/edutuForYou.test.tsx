@@ -81,6 +81,24 @@ describe("EdutuForYouPage", () => {
     ).toHaveAttribute("href", "/signup");
   });
 
+  it("opens with locally hosted learner photography", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("img", {
+        name: /young people working together on scholarship applications/i,
+      }),
+    ).toHaveAttribute("src", "/community/scholarships.jpg");
+  });
+
+  it("uses the Edutu mascot to guide the final choice", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("img", { name: /edutu guide mascot/i }),
+    ).toHaveAttribute("src", "/mascot/edutu-profile-guide.png");
+  });
+
   it("presents the scholarship journey as an interactive text slideshow", async () => {
     renderPage();
 

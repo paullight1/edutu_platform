@@ -4,21 +4,13 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { lazyWithRetry as lazy } from "../lib/lazyWithRetry";
 import { isNativePlatform } from "../lib/capacitor";
 import App from "../App";
-import AppWorkspaceShell from "./AppWorkspaceShell";
 import PageSuspense from "./PageSuspense";
 import PublicEditorialShell from "./PublicEditorialShell";
 
-const CommunityWorkspacePage = lazy(() => import("./CommunityWorkspacePage"));
-const CommunityGroupPage = lazy(() => import("./CommunityGroupPage"));
-const CommunityMessagesPage = lazy(() => import("./CommunityMessagesPage"));
 const CommunityCallPage = lazy(() => import("./CommunityCallPage"));
 
 export function isCommunityProductPath(pathname: string): boolean {
-  return (
-    pathname === "/app/community" ||
-    pathname.startsWith("/app/community/") ||
-    pathname.startsWith("/communities/calls/")
-  );
+  return pathname.startsWith("/communities/calls/");
 }
 
 function ProtectedCommunityRoute({ children }: { children: ReactNode }) {
@@ -57,14 +49,6 @@ function ProtectedCommunityRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
-function CommunityWorkspaceRoute({ children }: { children: ReactNode }) {
-  return (
-    <ProtectedCommunityRoute>
-      <AppWorkspaceShell>{children}</AppWorkspaceShell>
-    </ProtectedCommunityRoute>
-  );
-}
-
 function CommunityCallRoute() {
   if (!isNativePlatform) {
     return <Navigate to="/app/community" replace />;
@@ -82,38 +66,9 @@ function CommunityProductRoutes() {
     <Suspense fallback={<PageSuspense />}>
       <Routes>
         <Route
-          path="/app/community"
-          element={
-            <CommunityWorkspaceRoute>
-              <CommunityWorkspacePage />
-            </CommunityWorkspaceRoute>
-          }
+          path="/communities/calls/:callId"
+          element={<CommunityCallRoute />}
         />
-        <Route
-          path="/app/community/groups/:groupId"
-          element={
-            <CommunityWorkspaceRoute>
-              <CommunityGroupPage />
-            </CommunityWorkspaceRoute>
-          }
-        />
-        <Route
-          path="/app/community/messages"
-          element={
-            <CommunityWorkspaceRoute>
-              <CommunityMessagesPage />
-            </CommunityWorkspaceRoute>
-          }
-        />
-        <Route
-          path="/app/community/messages/:conversationId"
-          element={
-            <CommunityWorkspaceRoute>
-              <CommunityMessagesPage />
-            </CommunityWorkspaceRoute>
-          }
-        />
-        <Route path="/communities/calls/:callId" element={<CommunityCallRoute />} />
         <Route path="*" element={<Navigate to="/app/community" replace />} />
       </Routes>
     </Suspense>

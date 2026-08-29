@@ -5,13 +5,13 @@ import {
 } from "./workspaceNavigation";
 
 describe("workspace navigation", () => {
-  it("keeps planning surfaces directly discoverable", () => {
+  it("does not expose retired product surfaces", () => {
     const routes = personalWorkspaceNavItems.map((item) => item.to);
 
-    expect(routes).toContain("/app/goals");
-    expect(routes).toContain("/app/roadmaps");
-    expect(routes.indexOf("/app/goals")).toBeLessThan(routes.indexOf("/app/settings"));
-    expect(routes.indexOf("/app/roadmaps")).toBeLessThan(routes.indexOf("/app/settings"));
+    expect(routes).not.toContain("/app/goals");
+    expect(routes).not.toContain("/app/roadmaps");
+    expect(routes).not.toContain("/app/marketplace");
+    expect(routes).not.toContain("/app/wallet");
   });
 
   it("keeps dates off the compact mobile navigation", () => {

@@ -1,17 +1,25 @@
 # Edutu - AI Opportunity Coach
 
-React 18 + TypeScript SPA with Supabase auth, deployed as PWA + Android (Capacitor).
+React 18 + TypeScript SPA with Clerk auth and Supabase data, deployed as PWA + Android (Capacitor).
 
 ## Quick Start
 
 ```bash
 npm install
+npx clerk@latest auth login
+npx clerk@latest link
+npx clerk@latest env pull --instance dev --file .env.local
 npm run dev          # Vite dev server
 npm run build        # Production build → dist/
 npm run typecheck    # TypeScript check
 npm run lint         # ESLint
 npm run android      # Build + open Android Studio
 ```
+
+Localhost must use the Clerk development instance (`pk_test_`). A production
+`pk_live_` key is restricted to `edutu.org` and cannot initialize auth on
+localhost. The nested backend must use the matching development instance's
+`CLERK_SECRET_KEY` when testing authenticated API calls locally.
 
 ## Architecture
 
@@ -41,7 +49,7 @@ edutu_app/
 - **Routing**: React Router DOM v6
 - **Styling**: Tailwind CSS 3 + Framer Motion
 - **Database**: Supabase (PostgreSQL)
-- **Auth**: Supabase Auth
+- **Auth**: Clerk; Clerk session tokens are also passed to Supabase third-party auth
 - **Mobile**: Capacitor 6 (Android)
 - **PWA**: vite-plugin-pwa
 - **Analytics**: Sentry

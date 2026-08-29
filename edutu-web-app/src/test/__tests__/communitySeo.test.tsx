@@ -34,6 +34,18 @@ vi.mock("../../features/community/publicApi", () => ({
       expiresAt: "2026-12-01T00:00:00.000Z",
       createdAt: "2026-08-01T00:00:00.000Z",
     },
+    {
+      id: "group-2",
+      slug: "internship-search-abc123",
+      name: "Internship search circle",
+      description: "Early-career applicants sharing leads.",
+      coverEmoji: "💼",
+      memberCount: 18,
+      messageCount: 42,
+      opportunityId: null,
+      expiresAt: "2026-12-01T00:00:00.000Z",
+      createdAt: "2026-08-02T00:00:00.000Z",
+    },
   ]),
   fetchPublicGroup: vi.fn().mockResolvedValue({
     id: "group-1",
@@ -61,7 +73,13 @@ describe("community public SEO", () => {
     await waitFor(() => {
       expect(document.title).toContain("Scholarship & Career Community");
     });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/community/i);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Find people working toward the same opportunity.",
+    );
+    const previews = await screen.findByRole("region", {
+      name: "Active community previews",
+    });
+    expect(previews.querySelectorAll("a")).toHaveLength(2);
     expect(document.body.textContent).not.toContain("50K+");
     expect(document.body.textContent).not.toContain("800+");
     expect(document.body.textContent).not.toContain("3.2K");

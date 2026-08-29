@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Ban,
   FileText,
   Flag,
   Image as ImageIcon,
+  MoreHorizontal,
+  Pin,
   PhoneCall,
   Trash2,
 } from "lucide-react";
@@ -13,6 +16,7 @@ import {
   requestCommunityMessageReport,
 } from "../messageActions";
 import { parseCommunityAttachment, type CommunityMessage } from "../types";
+import PostActions from "./PostActions";
 
 export default function MessageBubble({
   message,
@@ -22,6 +26,10 @@ export default function MessageBubble({
   onOpenAttachment,
   onReport,
   onBlock,
+  onToggleLike,
+  canPin = false,
+  onPin,
+  showEngagement = true,
 }: {
   message: CommunityMessage;
   mine: boolean;
@@ -30,16 +38,21 @@ export default function MessageBubble({
   onOpenAttachment?: (message: CommunityMessage) => void;
   onReport?: (message: CommunityMessage) => void;
   onBlock?: (message: CommunityMessage) => void;
+  onToggleLike?: (message: CommunityMessage) => void;
+  canPin?: boolean;
+  onPin?: (message: CommunityMessage, pinned: boolean) => void;
+  showEngagement?: boolean;
 }) {
   const author = message.author?.displayName || "Edutu member";
   const deleted = Boolean(message.deletedAt);
   const attachment = parseCommunityAttachment(message.kind, message.body);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   if (message.kind === "call" && message.callId) {
     return (
-      <article className="my-3 rounded-[20px] border border-[#f4dcc9] bg-white p-4 shadow-sm dark:border-subtle dark:bg-surface-layer">
+      <article className="mx-3 my-2 rounded-[22px] bg-[#faf8f7] px-4 py-5 dark:bg-surface-elevated sm:mx-4 sm:px-5">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f3f1ef] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
             <PhoneCall size={18} />
           </span>
           <div className="min-w-0 flex-1">
@@ -51,7 +64,7 @@ export default function MessageBubble({
             </p>
             <Link
               to={`/communities/calls/${message.callId}`}
-              className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-[#f45b16] px-3 text-xs font-bold text-white"
+              className="mt-3 inline-flex min-h-10 items-center rounded-full bg-[#17120f] px-4 text-xs font-bold text-white transition hover:bg-[#f45b16] dark:bg-text-primary dark:text-surface-body"
             >
               Open call
             </Link>
@@ -65,57 +78,56 @@ export default function MessageBubble({
   const report = () => {
     if (onReport) onReport(message);
     else requestCommunityMessageReport(message);
+    setActionsOpen(false);
   };
   const block = () => {
     if (onBlock) onBlock(message);
     else requestCommunityAuthorBlock(message);
+    setActionsOpen(false);
   };
+  const topLevelPost = message.parentMessageId == null;
+  const hasActions =
+    !deleted && (canDelete || showSafetyActions || (topLevelPost && canPin));
+  const postHref = `/app/community/groups/${message.groupId}/posts/${message.id}`;
 
   return (
-    <article className={`group flex gap-2.5 py-2 ${mine ? "flex-row-reverse" : ""}`}>
+    <article className="group relative flex gap-3 px-4 py-5 transition-colors hover:bg-[#faf8f7]/70 dark:hover:bg-surface-elevated/45 sm:px-5">
       <div
         aria-hidden="true"
-        className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fcead5] text-xs font-extrabold text-[#8f3f1b] dark:bg-surface-elevated dark:text-text-secondary"
+        className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-[#eeeae7] text-sm font-bold text-[#5a514c] ring-1 ring-black/[0.035] dark:bg-surface-elevated dark:text-text-secondary dark:ring-white/[0.04]"
       >
-        {author.slice(0, 1).toUpperCase()}
+        {message.author?.avatarUrl ? (
+          <img
+            src={message.author.avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          author.slice(0, 1).toUpperCase()
+        )}
       </div>
-      <div
-        className={`min-w-0 max-w-[min(82%,680px)] ${mine ? "items-end text-end" : ""}`}
-      >
-        <div className={`mb-1 flex items-baseline gap-2 ${mine ? "justify-end" : ""}`}>
-          <span className="truncate text-xs font-bold text-[#6b4538] dark:text-text-secondary">
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2 pe-10">
+          <span className="truncate text-sm font-bold text-[#17120f] dark:text-text-primary">
             {mine ? "You" : author}
           </span>
-          <time className="shrink-0 text-[11px] text-[#a18c83] dark:text-text-muted">
+          <time className="shrink-0 text-xs tabular-nums text-[#817a76] dark:text-text-muted">
             {formatCommunityTime(message.createdAt)}
           </time>
         </div>
-        <div
-          className={`relative overflow-hidden rounded-[18px] px-3.5 py-2.5 text-start text-[15px] leading-6 shadow-sm sm:text-base ${
-            mine
-              ? "rounded-se-md bg-[#f45b16] text-white"
-              : "rounded-ss-md border border-[#f4dcc9] bg-white text-[#4a170d] dark:border-subtle dark:bg-surface-layer dark:text-text-primary"
-          }`}
-        >
+        <div className="relative mt-1 overflow-hidden text-start text-[15px] leading-6 text-[#2f2926] dark:text-text-primary sm:text-base">
           {deleted ? (
-            <p
-              className={`italic ${mine ? "text-white/75" : "text-[#9a8278] dark:text-text-muted"}`}
-            >
+            <p className="italic text-[#9a928d] dark:text-text-muted">
               Message removed
             </p>
           ) : attachment ? (
             <button
               type="button"
               onClick={() => onOpenAttachment?.(message)}
-              className="flex min-h-12 w-full items-center gap-3 text-start"
+              className="mt-2 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[#e3dedb] bg-[#faf8f7] p-2.5 text-start transition hover:border-[#f45b16]/35 dark:border-subtle dark:bg-surface-elevated"
             >
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                  mine
-                    ? "bg-white/15"
-                    : "bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand"
-                }`}
-              >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#fff0e8] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
                 {message.kind === "image" ? (
                   <ImageIcon size={18} />
                 ) : (
@@ -123,59 +135,102 @@ export default function MessageBubble({
                 )}
               </span>
               <span className="min-w-0">
-                <span className="block truncate font-bold">{attachment.name}</span>
+                <span className="block truncate font-bold">
+                  {attachment.name}
+                </span>
                 {attachment.caption ? (
-                  <span
-                    className={`mt-0.5 block text-xs ${
-                      mine
-                        ? "text-white/80"
-                        : "text-[#796f6b] dark:text-text-secondary"
-                    }`}
-                  >
+                  <span className="mt-0.5 block text-xs text-[#756d68] dark:text-text-secondary">
                     {attachment.caption}
                   </span>
                 ) : null}
               </span>
             </button>
+          ) : topLevelPost && showEngagement ? (
+            <Link
+              to={postHref}
+              className="block whitespace-pre-wrap break-words rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/30"
+            >
+              {message.body}
+            </Link>
           ) : (
             <p className="whitespace-pre-wrap break-words">{message.body}</p>
           )}
         </div>
-        {!deleted && (canDelete || showSafetyActions) ? (
-          <div
-            className={`mt-1 flex flex-wrap items-center gap-1 opacity-70 transition group-focus-within:opacity-100 group-hover:opacity-100 ${
-              mine ? "justify-end" : "justify-start"
-            }`}
-          >
-            {showSafetyActions ? (
-              <button
-                type="button"
-                onClick={report}
-                aria-label="Report message"
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-[#a18c83] hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
+        {!deleted && topLevelPost && showEngagement ? (
+          <PostActions
+            postHref={postHref}
+            title={`${author}'s post in Edutu Community`}
+            likeCount={message.likeCount ?? 0}
+            commentCount={message.commentCount ?? 0}
+            viewerHasLiked={message.viewerHasLiked ?? false}
+            onToggleLike={() => onToggleLike?.(message)}
+          />
+        ) : null}
+        {hasActions ? (
+          <div className="absolute end-3 top-3 sm:end-4">
+            <button
+              type="button"
+              aria-label={`Post actions for ${author}`}
+              aria-expanded={actionsOpen}
+              aria-haspopup="menu"
+              onClick={() => setActionsOpen((open) => !open)}
+              className="flex h-9 w-9 items-center justify-center rounded-full text-[#817a76] opacity-70 transition hover:bg-[#eeeae7] hover:text-[#17120f] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/35 group-hover:opacity-100 dark:text-text-muted dark:hover:bg-surface-elevated dark:hover:text-text-primary"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            {actionsOpen ? (
+              <div
+                role="menu"
+                aria-label={`Actions for ${author}'s post`}
+                className="absolute end-0 top-10 z-20 min-w-40 overflow-hidden rounded-2xl border border-[#e8e2de] bg-white p-1.5 shadow-[0_16px_40px_-18px_rgba(35,24,18,.42)] dark:border-subtle dark:bg-surface-layer dark:shadow-[0_18px_42px_-18px_rgba(0,0,0,.82)]"
               >
-                <Flag size={12} /> Report
-              </button>
-            ) : null}
-            {showSafetyActions ? (
-              <button
-                type="button"
-                onClick={block}
-                aria-label={`Block ${author}`}
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-[#a18c83] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-              >
-                <Ban size={12} /> Block
-              </button>
-            ) : null}
-            {canDelete && onDelete ? (
-              <button
-                type="button"
-                onClick={() => onDelete(message)}
-                aria-label="Delete message"
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-[#a18c83] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
-              >
-                <Trash2 size={12} /> Remove
-              </button>
+                {showSafetyActions ? (
+                  <button
+                    type="button"
+                    onClick={report}
+                    aria-label="Report message"
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-start text-xs font-semibold text-[#5f5752] transition hover:bg-amber-50 hover:text-amber-700 dark:text-text-secondary dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
+                  >
+                    <Flag size={14} /> Report post
+                  </button>
+                ) : null}
+                {topLevelPost && canPin && onPin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      onPin(message, !message.pinnedAt);
+                    }}
+                    aria-label={message.pinnedAt ? "Unpin post" : "Pin post"}
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-start text-xs font-semibold text-[#5f5752] transition hover:bg-[#fff0e8] hover:text-[#f45b16] dark:text-text-secondary dark:hover:bg-brand/10 dark:hover:text-brand"
+                  >
+                    <Pin size={14} /> {message.pinnedAt ? "Unpin post" : "Pin post"}
+                  </button>
+                ) : null}
+                {showSafetyActions ? (
+                  <button
+                    type="button"
+                    onClick={block}
+                    aria-label={`Block ${author}`}
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-start text-xs font-semibold text-[#5f5752] transition hover:bg-red-50 hover:text-red-600 dark:text-text-secondary dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                  >
+                    <Ban size={14} /> Block member
+                  </button>
+                ) : null}
+                {canDelete && onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      onDelete(message);
+                    }}
+                    aria-label="Delete message"
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-start text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
+                  >
+                    <Trash2 size={14} /> Remove post
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

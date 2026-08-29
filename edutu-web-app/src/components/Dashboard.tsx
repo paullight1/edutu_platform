@@ -320,26 +320,6 @@ export const BannerCarousel = React.memo(function BannerCarousel({
           >
             <ChevronRight size={20} strokeWidth={2.25} aria-hidden="true" />
           </button>
-          <div className="absolute bottom-2.5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/20 px-2.5 py-2 backdrop-blur-sm sm:bottom-3">
-            <div className="flex items-center gap-2" role="tablist" aria-label="Dashboard promotions">
-            {banners.map((banner, index) => (
-              <button
-                key={banner.image}
-                type="button"
-                role="tab"
-                aria-selected={index === current}
-                aria-label={`Show promotion ${index + 1}`}
-                onClick={() => {
-                  setCurrent(index);
-                  setIsPaused(false);
-                }}
-                className={`h-1.5 rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                  index === current ? "w-5 bg-white" : "w-1.5 bg-white/45 hover:bg-white/75"
-                }`}
-              />
-            ))}
-            </div>
-          </div>
         </>
       ) : null}
       <span className="sr-only" aria-live="polite">
@@ -1464,184 +1444,222 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </div>
             </motion.section>
 
-            <AnimatePresence>
-              {profileScore && profileScore.score < 100 && !dismissBanner && (
-                <motion.section
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: -12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: 100 }}
-                  transition={{ duration: 0.3 }}
-                  className="profile-completion-card relative overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActivePanel("profile")}
-                    className="group flex w-full items-center gap-3.5 p-4 pr-11 text-left transition hover:bg-surface-elevated/60"
+            <section
+              aria-label="Dashboard priorities"
+              className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-4"
+            >
+              <AnimatePresence>
+                {profileScore && profileScore.score < 100 && !dismissBanner && (
+                  <motion.section
+                    initial={
+                      prefersReducedMotion ? false : { opacity: 0, y: -12 }
+                    }
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: 100 }}
+                    transition={{ duration: 0.3 }}
+                    className="profile-completion-card relative overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px] lg:rounded-[24px]"
                   >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-                      <UserCheck size={19} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline justify-between gap-2">
-                        <span className="truncate text-sm font-semibold text-text-primary">
-                          {t("dashboard.completeProfile")}
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel("profile")}
+                      className="group flex h-full w-full items-center gap-3.5 p-4 pr-11 text-left transition hover:bg-surface-elevated/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 lg:items-start lg:p-5 lg:pr-12"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 lg:h-12 lg:w-12">
+                        <UserCheck size={19} />
+                      </span>
+                      <span className="min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
+                        <span className="mb-2 hidden text-2xs font-semibold uppercase tracking-[0.16em] text-text-muted lg:block">
+                          Profile readiness
                         </span>
-                        <span className="shrink-0 text-xs font-semibold text-brand-600">
-                          {profileScore.score}%
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-semibold text-text-primary lg:font-display lg:text-lg lg:tracking-tight">
+                            {t("dashboard.completeProfile")}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-brand-600 lg:text-sm">
+                            {profileScore.score}%
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs font-medium text-text-muted lg:mt-1 lg:whitespace-normal lg:leading-5">
+                          {!profileScore.isMatchEnabled
+                            ? t("dashboard.needForMatches")
+                            : profileScore.missingFields.length > 0
+                              ? `Next: ${profileScore.missingFields[0]}`
+                              : t("dashboard.profileBanner.unlock", {
+                                  score: profileScore.score,
+                                })}
+                        </span>
+                        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-elevated">
+                          <motion.span
+                            initial={
+                              prefersReducedMotion ? false : { width: 0 }
+                            }
+                            animate={{ width: `${profileScore.score}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className={`block h-full rounded-full ${
+                              profileScore.score >= 60
+                                ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                                : "bg-gradient-to-r from-amber-500 to-amber-400"
+                            }`}
+                          />
+                        </span>
+                        <span className="mt-auto hidden items-center justify-between gap-3 pt-4 text-xs font-semibold text-text-secondary lg:flex">
+                          <span>
+                            {profileScore.score < 60
+                              ? `${60 - profileScore.score}% to matching`
+                              : "Matching is active"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-brand-600">
+                            Continue profile
+                            <ChevronRight
+                              size={14}
+                              className="transition-transform group-hover:translate-x-0.5"
+                              aria-hidden="true"
+                            />
+                          </span>
                         </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-xs font-medium text-text-muted">
-                        {!profileScore.isMatchEnabled
-                          ? t("dashboard.needForMatches")
-                          : profileScore.missingFields.length > 0
-                            ? `Next: ${profileScore.missingFields[0]}`
-                            : t("dashboard.profileBanner.unlock", {
-                                score: profileScore.score,
-                              })}
-                      </span>
-                      <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-elevated">
-                        <motion.span
-                          initial={prefersReducedMotion ? false : { width: 0 }}
-                          animate={{ width: `${profileScore.score}%` }}
-                          transition={{ duration: 0.8, ease: "easeOut" }}
-                          className={`block h-full rounded-full ${
-                            profileScore.score >= 60
-                              ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-                              : "bg-gradient-to-r from-amber-500 to-amber-400"
-                          }`}
-                        />
-                      </span>
-                    </span>
-                    <ChevronRight
-                      size={17}
-                      className="shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-brand-500"
+                      <ChevronRight
+                        size={17}
+                        className="shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-brand-500 lg:hidden"
+                      />
+                    </button>
+                    <button
+                      onClick={() => setDismissBanner(true)}
+                      aria-label="Dismiss profile banner"
+                      className="absolute right-2 top-2 rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-elevated"
+                    >
+                      <X size={14} />
+                    </button>
+                  </motion.section>
+                )}
+              </AnimatePresence>
+
+              {(bookmarks.length > 0 ||
+                applications.length > 0 ||
+                dashboardDeadlines.length > 0) &&
+                !dismissActivityStrip && (
+                  <section className="lg:order-2 lg:col-span-12">
+                    <CalendarStrip
+                      bookmarks={bookmarks}
+                      applications={applications}
+                      deadlines={dashboardDeadlines}
+                      compact
+                      onClose={() => setDismissActivityStrip(true)}
+                      onEventClick={handleCalendarEventClick}
                     />
-                  </button>
-                  <button
-                    onClick={() => setDismissBanner(true)}
-                    aria-label="Dismiss profile banner"
-                    className="absolute right-2 top-2 rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-elevated"
+                  </section>
+                )}
+
+              <EventsHomeSection variant="app" desktopPriority />
+
+              {user?.id &&
+                personalizationReady &&
+                !isPersonalized &&
+                !(
+                  profileScore &&
+                  profileScore.score < 100 &&
+                  !dismissBanner
+                ) && (
+                  <section className="lg:order-1 lg:col-span-5 lg:min-h-[190px]">
+                    <button
+                      type="button"
+                      onClick={() => routerNavigate("/app/personalization")}
+                      className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                        <Sparkles size={19} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-text-primary">
+                          Personalize your feed
+                        </span>
+                        <span className="mt-0.5 block text-xs font-medium leading-5 text-text-muted">
+                          Pick your interests and goals so every opportunity
+                          here is matched to you.
+                        </span>
+                      </span>
+                      <ChevronRight
+                        size={18}
+                        className="shrink-0 text-brand-500 transition group-hover:translate-x-0.5"
+                      />
+                    </button>
+                  </section>
+                )}
+
+              {showHomeScreenPrompt ? (
+                <section className="sm:hidden">
+                  <div
+                    className={`relative overflow-hidden rounded-[24px] border border-subtle bg-white p-4 shadow-sm`}
                   >
-                    <X size={14} />
-                  </button>
-                </motion.section>
-              )}
-            </AnimatePresence>
-
-            {(bookmarks.length > 0 ||
-              applications.length > 0 ||
-              dashboardDeadlines.length > 0) &&
-              !dismissActivityStrip && (
-              <section>
-                <CalendarStrip
-                  bookmarks={bookmarks}
-                  applications={applications}
-                  deadlines={dashboardDeadlines}
-                  compact
-                  onClose={() => setDismissActivityStrip(true)}
-                  onEventClick={handleCalendarEventClick}
-                />
-              </section>
-            )}
-
-            <EventsHomeSection variant="app" />
-
-            {user?.id &&
-              personalizationReady &&
-              !isPersonalized &&
-              !(profileScore && profileScore.score < 100 && !dismissBanner) && (
-              <section>
-                <button
-                  type="button"
-                  onClick={() => routerNavigate("/app/personalization")}
-                  className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-                    <Sparkles size={19} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-text-primary">
-                      Personalize your feed
-                    </span>
-                    <span className="mt-0.5 block text-xs font-medium leading-5 text-text-muted">
-                      Pick your interests and goals so every opportunity here
-                      is matched to you.
-                    </span>
-                  </span>
-                  <ChevronRight
-                    size={18}
-                    className="shrink-0 text-brand-500 transition group-hover:translate-x-0.5"
-                  />
-                </button>
-              </section>
-            )}
-
-            {showHomeScreenPrompt ? (
-              <section className="sm:hidden">
-                <div
-                  className={`relative overflow-hidden rounded-[24px] border border-subtle bg-white p-4 shadow-sm`}
-                >
-                  <button
-                    type="button"
-                    onClick={closeHomeScreenPrompt}
-                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary`}
-                    aria-label="Dismiss add to home screen prompt"
-                  >
-                    <X size={16} />
-                  </button>
-                  <div className="flex items-start gap-3 pr-8">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-                      {isInstallable ? <Download size={19} /> : <Share2 size={19} />}
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="text-sm font-semibold text-text-primary">
-                        Add Edutu to Home Screen
-                      </h2>
-                      <p className="mt-1 text-xs font-semibold leading-5 text-text-muted">
-                        Keep opportunities, saved picks, and deadlines one tap
-                        away.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2">
-                    {isInstallable ? (
-                      <button
-                        type="button"
-                        onClick={handleInstallPrompt}
-                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
-                      >
-                        <Download size={16} />
-                        Add app
-                      </button>
-                    ) : (
-                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-semibold leading-5 text-brand-700">
-                        Tap Share, then Add to Home Screen.
-                      </div>
-                    )}
                     <button
                       type="button"
                       onClick={closeHomeScreenPrompt}
-                      className={`h-10 rounded-2xl bg-surface-elevated px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-brand`}
+                      className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary`}
+                      aria-label="Dismiss add to home screen prompt"
                     >
-                      Later
+                      <X size={16} />
                     </button>
+                    <div className="flex items-start gap-3 pr-8">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                        {isInstallable ? (
+                          <Download size={19} />
+                        ) : (
+                          <Share2 size={19} />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-sm font-semibold text-text-primary">
+                          Add Edutu to Home Screen
+                        </h2>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-text-muted">
+                          Keep opportunities, saved picks, and deadlines one tap
+                          away.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                      {isInstallable ? (
+                        <button
+                          type="button"
+                          onClick={handleInstallPrompt}
+                          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
+                        >
+                          <Download size={16} />
+                          Add app
+                        </button>
+                      ) : (
+                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-semibold leading-5 text-brand-700">
+                          Tap Share, then Add to Home Screen.
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={closeHomeScreenPrompt}
+                        className={`h-10 rounded-2xl bg-surface-elevated px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-brand`}
+                      >
+                        Later
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </section>
+              ) : null}
+
+              <section className="sm:hidden mb-6">
+                <BannerCarousel banners={heroBanners} mobileHeight="150px" />
               </section>
-            ) : null}
 
-            <section className="sm:hidden mb-6">
-              <BannerCarousel banners={heroBanners} mobileHeight="150px" />
-            </section>
-
-            {/* Your Best Shots — the winnable shortlist, always above the feed */}
-            {user?.id && personalizationReady && !opportunitiesLoading ? (
-              <motion.section
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                aria-labelledby="best-shots-heading"
-              >
-                <div className="rounded-[24px] border border-subtle bg-surface-layer p-5 shadow-sm">
+              {/* Your Best Shots — the winnable shortlist, always above the feed */}
+              {user?.id && personalizationReady && !opportunitiesLoading ? (
+                <motion.section
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  aria-labelledby="best-shots-heading"
+                  className={`py-1 ${
+                    bestShots.length === 0
+                      ? "lg:order-1 lg:col-span-4 lg:flex lg:min-h-[190px] lg:flex-col lg:rounded-[24px] lg:border lg:border-subtle lg:bg-surface-layer lg:p-5 lg:shadow-soft"
+                      : "lg:order-3 lg:col-span-12"
+                  }`}
+                >
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                       <Target size={19} />
@@ -1675,79 +1693,93 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-5 flex flex-col gap-3 border-t border-subtle pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-4 flex flex-col gap-3 border-t border-subtle/70 pt-4 sm:flex-row sm:items-center sm:justify-between lg:mt-auto lg:flex-col lg:items-start lg:border-t-0 lg:pt-4">
                       <div>
                         <p className="text-sm font-semibold text-text-primary">
                           No strong matches yet — and that&apos;s fixable.
                         </p>
                         <p className="mt-1 max-w-lg text-xs font-medium leading-5 text-text-muted">
-                          Add your field, goals and region to sharpen this shortlist.
+                          Add your field, goals and region to sharpen this
+                          shortlist.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={reopenProfileCompletionPrompt}
-                        className="group inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-xl px-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:self-auto"
+                        className="group inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-xl px-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:self-auto lg:-ml-2 lg:mt-auto"
                       >
                         Refine profile
-                        <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                        <ChevronRight
+                          size={16}
+                          className="transition-transform group-hover:translate-x-0.5"
+                          aria-hidden="true"
+                        />
                       </button>
                     </div>
                   )}
-                </div>
-              </motion.section>
-            ) : null}
+                </motion.section>
+              ) : null}
+            </section>
 
             {/* Content Layout — Recent Activity moved to the profile page,
                 so the feed always gets the full width. */}
             <div className="grid lg:grid-cols-12 gap-8 pb-8">
               <div className="lg:col-span-12 space-y-10">
                 {/* Recommended Opportunities */}
-                <section>
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between gap-2">
+                <section aria-labelledby="recommended-picks-heading">
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between gap-3 lg:items-end">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 lg:h-11 lg:w-11">
                           <Briefcase size={19} />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="truncate text-lg font-semibold tracking-tight text-text-primary">
+                          <h2
+                            id="recommended-picks-heading"
+                            className="truncate text-lg font-semibold tracking-tight text-text-primary lg:font-display lg:text-2xl"
+                          >
                             {t("dashboard.sections.recommendedPicks")}
                           </h2>
-                          <p
-                            className={`truncate text-xs font-normal text-text-muted`}
-                          >
+                          <p className="truncate text-xs font-medium text-text-muted lg:mt-0.5">
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
-                              : t("dashboard.forYou")}
+                              : `${visibleHomeOpportunities.length} selected for you`}
                           </p>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div
+                        role="toolbar"
+                        aria-label="View and organize recommendations"
+                        className="flex shrink-0 items-center gap-1.5"
+                      >
                         <div
-                          className={`hidden sm:flex items-center gap-1 rounded-2xl border border-subtle bg-white p-1 shadow-sm`}
+                          role="group"
+                          aria-label="Choose recommendation layout"
+                          className="hidden items-center gap-0.5 rounded-xl bg-surface-elevated p-1 sm:flex"
                         >
                           <button
                             type="button"
                             onClick={() => setViewMode("grid")}
-                            className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                               viewMode === "grid"
-                                ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : "text-text-muted hover:bg-surface-elevated hover:text-text-primary"
+                                ? "bg-surface-layer text-brand-600 shadow-sm"
+                                : "text-text-muted hover:text-text-primary"
                             }`}
                             aria-label="Grid view"
+                            aria-pressed={viewMode === "grid"}
                           >
                             <LayoutGrid size={15} />
                           </button>
                           <button
                             type="button"
                             onClick={() => setViewMode("list")}
-                            className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                               viewMode === "list"
-                                ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : "text-text-muted hover:bg-surface-elevated hover:text-text-primary"
+                                ? "bg-surface-layer text-brand-600 shadow-sm"
+                                : "text-text-muted hover:text-text-primary"
                             }`}
                             aria-label="List view"
+                            aria-pressed={viewMode === "list"}
                           >
                             <List size={15} />
                           </button>
@@ -1755,21 +1787,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={handleShuffleOpportunities}
-                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary active:scale-[0.98] sm:h-10 sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs font-semibold text-text-secondary transition-all hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:w-auto sm:px-3"
                           aria-label="Shuffle recommended opportunities"
                           title={t("dashboard.shuffle")}
                         >
                           <Shuffle size={14} />
-                          <span className="hidden sm:inline">{t("dashboard.shuffle")}</span>
+                          <span className="hidden sm:inline">
+                            {t("dashboard.shuffle")}
+                          </span>
                         </button>
                         <button
                           type="button"
                           onClick={onViewAllOpportunities}
-                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary sm:h-10 sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-xs font-semibold text-brand-600 transition-all hover:bg-brand-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:w-auto sm:px-3"
                           aria-label="View all opportunities"
                           title={t("dashboard.viewMore")}
                         >
-                          <span className="hidden sm:inline">{t("dashboard.viewMore")}</span>
+                          <span className="hidden sm:inline">
+                            {t("dashboard.viewMore")}
+                          </span>
                           <ChevronRight size={16} />
                         </button>
                       </div>
@@ -1891,12 +1927,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     )}
                   </div>
 
-                  <div className="hidden sm:block mb-6">
-                    <BannerCarousel banners={heroBanners} />
-                  </div>
-
                   {viewMode === "grid" ? (
-                    <div className="hidden grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4 sm:grid">
+                    <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
                       {opportunitiesLoading ? (
                         Array.from({ length: 6 }).map((_, i) => (
                           <div
@@ -2044,6 +2076,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       )}
                     </div>
                   )}
+                  <div className="mt-8 hidden sm:block">
+                    <div className="mb-3 flex items-center gap-3">
+                      <span className="text-2xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        From Edutu
+                      </span>
+                      <span
+                        className="h-px flex-1 bg-border-subtle"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <BannerCarousel banners={heroBanners} />
+                  </div>
                 </section>
 
               </div>

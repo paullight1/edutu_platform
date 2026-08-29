@@ -8,6 +8,16 @@ export function formatCommunityTime(value?: string | null): string {
   return `${formatDistanceToNowStrict(date, { addSuffix: true })}`;
 }
 
+export function formatCommunityCount(value: number): string {
+  const safe = Math.max(0, Number.isFinite(value) ? value : 0);
+  if (safe < 1_000) return Math.round(safe).toLocaleString();
+
+  const compact = safe >= 1_000_000 ? safe / 1_000_000 : safe / 1_000;
+  const suffix = safe >= 1_000_000 ? "M" : "K";
+  const rounded = compact >= 10 ? Math.round(compact).toString() : compact.toFixed(1).replace(/\.0$/, "");
+  return `${rounded}${suffix}`;
+}
+
 export function membershipLabel(status?: MembershipStatus | null): string {
   switch (status) {
     case "active":

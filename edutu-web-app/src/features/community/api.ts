@@ -5,6 +5,8 @@ import type {
   BlockedUser,
   CommunityAttachmentUploadInput,
   CommunityAttachmentUploadReservation,
+  CommunityCreationRequestResponse,
+  CommunityDiscoveryResponse,
   CommunityGroup,
   CommunityGroupImageUploadInput,
   CommunityGroupMember,
@@ -13,6 +15,8 @@ import type {
   CommunityMessage,
   CommunityProfileContentPage,
   CommunityResourceCursor,
+  CommunityPostThread,
+  CommunityReactionState,
   CommunityResourcesPage,
   CreateGroupInput,
   GroupDetail,
@@ -24,7 +28,9 @@ import type {
   JoinResult,
   MemberRole,
   MessagePageOptions,
+  MyCommunityCreationRequestsResponse,
   SendMessageInput,
+  SendCommentInput,
   UpdateGroupInput,
 } from "./types";
 
@@ -213,6 +219,34 @@ export class CommunityApi {
     return this.request(`/communities/groups${queryString({ ...filter })}`);
   }
 
+  getDiscovery(limit = 50): Promise<CommunityDiscoveryResponse> {
+    return this.request(
+      `/communities/discovery${queryString({ limit })}`,
+    );
+  }
+
+  submitCreationRequest(
+    input: CreateGroupInput,
+  ): Promise<CommunityCreationRequestResponse> {
+    return this.request("/communities/creation-requests", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  listMyCreationRequests(): Promise<MyCommunityCreationRequestsResponse> {
+    return this.request("/communities/creation-requests/mine");
+  }
+
+  cancelCreationRequest(
+    requestId: string,
+  ): Promise<CommunityCreationRequestResponse> {
+    return this.request(
+      `/communities/creation-requests/${encodeURIComponent(requestId)}/cancel`,
+      { method: "POST" },
+    );
+  }
+
   getGroup(groupId: string): Promise<GroupDetail> {
     return this.request(`/communities/groups/${encodeURIComponent(groupId)}`);
   }
@@ -343,6 +377,56 @@ export class CommunityApi {
   ): Promise<CommunityMessage[]> {
     return this.request(
       `/communities/groups/${encodeURIComponent(groupId)}/messages${pageQuery(options)}`,
+    );
+  }
+
+  fetchPinnedPost(groupId: string): Promise<CommunityMessage | null> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/pinned-post`,
+    );
+  }
+
+  fetchPostThread(
+    groupId: string,
+    postId: string,
+  ): Promise<CommunityPostThread> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/posts/${encodeURIComponent(postId)}`,
+    );
+  }
+
+  sendComment(
+    groupId: string,
+    postId: string,
+    input: SendCommentInput,
+  ): Promise<CommunityMessage> {
+    return this.request(
+      `/communities/groups/${encodeURIComponent(groupId)}/posts/${encodeURIComponent(postId)}/comments`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  }
+
+  likeMessage(messageId: string): Promise<CommunityReactionState> {
+    return this.request(
+      `/communities/messages/${encodeURIComponent(messageId)}/like`,
+      { method: "PUT" },
+    );
+  }
+
+  unlikeMessage(messageId: string): Promise<CommunityReactionState> {
+    return this.request(
+      `/communities/messages/${encodeURIComponent(messageId)}/like`,
+      { method: "DELETE" },
+    );
+  }
+
+  pinMessage(
+    messageId: string,
+    pinned: boolean,
+  ): Promise<CommunityMessage> {
+    return this.request(
+      `/communities/messages/${encodeURIComponent(messageId)}/pin`,
+      { method: "PATCH", body: JSON.stringify({ pinned }) },
     );
   }
 

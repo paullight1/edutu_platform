@@ -60,6 +60,58 @@ describe("Community browser API", () => {
     expect(url).toContain("limit=40");
   });
 
+  it("uses the post engagement endpoint contract", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new CommunityApi(async () => "token") as CommunityApi & {
+      fetchPinnedPost(groupId: string): Promise<unknown>;
+      fetchPostThread(groupId: string, postId: string): Promise<unknown>;
+      sendComment(
+        groupId: string,
+        postId: string,
+        input: { body: string },
+      ): Promise<unknown>;
+      likeMessage(messageId: string): Promise<unknown>;
+      unlikeMessage(messageId: string): Promise<unknown>;
+      pinMessage(messageId: string, pinned: boolean): Promise<unknown>;
+    };
+
+    await api.fetchPinnedPost("group/1");
+    await api.fetchPostThread("group/1", "post/1");
+    await api.sendComment("group/1", "post/1", { body: "Helpful" });
+    await api.likeMessage("post/1");
+    await api.unlikeMessage("post/1");
+    await api.pinMessage("post/1", true);
+
+    expect(
+      fetchMock.mock.calls.map(([url, options]) => [
+        String(url).replace("https://api.edutu.test", ""),
+        (options as RequestInit).method ?? "GET",
+        (options as RequestInit).body ?? null,
+      ]),
+    ).toEqual([
+      ["/communities/groups/group%2F1/pinned-post", "GET", null],
+      ["/communities/groups/group%2F1/posts/post%2F1", "GET", null],
+      [
+        "/communities/groups/group%2F1/posts/post%2F1/comments",
+        "POST",
+        JSON.stringify({ body: "Helpful" }),
+      ],
+      ["/communities/messages/post%2F1/like", "PUT", null],
+      ["/communities/messages/post%2F1/like", "DELETE", null],
+      [
+        "/communities/messages/post%2F1/pin",
+        "PATCH",
+        JSON.stringify({ pinned: true }),
+      ],
+    ]);
+  });
+
   it("serializes the complete member-roster cursor", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

@@ -6,11 +6,9 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Bell,
   Check,
   ChevronDown,
   ChevronRight,
-  Database,
   Download,
   KeyRound,
   Loader2,
@@ -234,26 +232,32 @@ function SheetShell({
   subtitle,
   onClose,
   children,
+  footer,
 }: {
   titleId: string;
   title: string;
   subtitle: string;
   onClose: () => void;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className="fixed inset-0 z-[80] flex items-end bg-surface-overlay px-3 pb-3 backdrop-blur-sm sm:items-center sm:justify-center"
-      onClick={onClose}
+      className="fixed inset-0 z-[80] flex items-end bg-surface-overlay backdrop-blur-sm sm:items-center sm:justify-center sm:p-3"
     >
+      <button
+        type="button"
+        aria-label={`Close ${title.toLowerCase()}`}
+        className="absolute inset-0"
+        onClick={onClose}
+      />
       <div
-        className="max-h-[85dvh] w-full overflow-y-auto rounded-[28px] border border-subtle bg-surface-layer p-4 shadow-elevated sm:max-w-md"
-        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative grid max-h-[85dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-t-[28px] border border-subtle bg-surface-layer shadow-elevated sm:max-w-md sm:rounded-[28px]"
       >
-        <div className="flex items-start justify-between gap-3">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-subtle bg-surface-layer px-4 py-3">
           <div className="min-w-0">
             <h2
               id={titleId}
@@ -273,8 +277,18 @@ function SheetShell({
           >
             <X size={18} />
           </button>
+        </header>
+        <div data-sheet-body className="overflow-y-auto px-4 pb-4">
+          {children}
         </div>
-        {children}
+        {footer ? (
+          <footer
+            data-sheet-actions
+            className="border-t border-subtle bg-surface-layer p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-3"
+          >
+            {footer}
+          </footer>
+        ) : null}
       </div>
     </div>
   );
@@ -603,41 +617,9 @@ export default function MemberSettingsPanel() {
         </div>
       )}
 
-      <section>
-        <Link
-          to="/app/notifications"
-          className="flex w-full items-center justify-between rounded-[22px] border border-subtle bg-surface-layer p-4 text-left shadow-soft transition hover:bg-surface-elevated"
-        >
-          <span className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-              <Bell size={19} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-text-primary">
-                Notifications
-              </span>
-              <span className="mt-1 block text-xs font-semibold text-text-muted">
-                Inbox and reminders
-              </span>
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {unreadCount > 0 ? (
-              <span className="rounded-full bg-brand/10 px-2 py-1 text-2xs font-semibold text-brand">
-                {unreadCount}
-              </span>
-            ) : null}
-            <ChevronRight size={18} className="text-text-muted" />
-          </span>
-        </Link>
-      </section>
-
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          <ShieldCheck size={14} />
-          Privacy
-        </div>
-        <div className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer shadow-soft">
+        <h2 className="px-1 text-sm font-semibold text-text-secondary">Privacy</h2>
+        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer">
           <div className="border-b border-subtle">
             <button
               type="button"
@@ -674,11 +656,23 @@ export default function MemberSettingsPanel() {
       </section>
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          <Database size={14} />
-          Account
-        </div>
-        <div className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer shadow-soft">
+        <h2 className="px-1 text-sm font-semibold text-text-secondary">Account</h2>
+        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer">
+          <Link
+            to="/app/notifications"
+            className="flex min-h-[64px] w-full items-center justify-between border-b border-subtle px-4 py-3 text-left transition hover:bg-surface-elevated"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-text-primary">Notification inbox</span>
+              <span className="mt-0.5 block truncate text-xs text-text-muted">Messages and reminder history</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              {unreadCount > 0 ? (
+                <span className="rounded-full bg-brand/10 px-2 py-1 text-2xs font-semibold text-brand">{unreadCount}</span>
+              ) : null}
+              <ChevronRight size={18} className="text-text-muted" />
+            </span>
+          </Link>
           <button
             type="button"
             onClick={openSecurity}
@@ -688,8 +682,8 @@ export default function MemberSettingsPanel() {
               <span className="block text-sm font-semibold text-text-primary">
                 Sign-in security
               </span>
-              <span className="mt-1 block text-xs font-semibold text-text-muted">
-                Change your password and manage signed-in devices
+              <span className="mt-0.5 block truncate text-xs text-text-muted">
+                Password and active sessions
               </span>
             </span>
             <ShieldCheck size={18} className="shrink-0 text-text-muted" />
@@ -704,7 +698,7 @@ export default function MemberSettingsPanel() {
               <span className="block text-sm font-semibold text-text-primary">
                 Export account data
               </span>
-              <span className="mt-1 block text-xs font-semibold text-text-muted">
+              <span className="mt-0.5 block truncate text-xs text-text-muted">
                 {lastExportIso
                   ? `Last exported ${new Date(lastExportIso).toLocaleDateString()}`
                   : "No export recorded"}
@@ -717,6 +711,11 @@ export default function MemberSettingsPanel() {
             )}
           </button>
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="px-1 text-sm font-semibold text-danger">Danger zone</h2>
+        <div className="overflow-hidden rounded-2xl border border-danger/30 bg-danger/5">
         <button
           type="button"
           onClick={() => {
@@ -724,7 +723,7 @@ export default function MemberSettingsPanel() {
             setDeleteOpen(true);
           }}
           disabled={deletionRequested}
-          className="flex w-full items-center justify-between rounded-2xl border border-danger/30 bg-danger/10 p-4 text-left text-danger transition hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex min-h-[64px] w-full items-center justify-between px-4 py-3 text-left text-danger transition hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-70"
         >
           <span className="min-w-0">
             <span className="block text-sm font-semibold">
@@ -744,6 +743,7 @@ export default function MemberSettingsPanel() {
           </span>
           <Trash2 size={18} className="shrink-0" />
         </button>
+        </div>
       </section>
 
       {visibilityPickerOpen ? (
@@ -752,6 +752,15 @@ export default function MemberSettingsPanel() {
           title="Profile visibility"
           subtitle="Choose who can see your Edutu member profile."
           onClose={() => setVisibilityPickerOpen(false)}
+          footer={
+            <button
+              type="button"
+              onClick={() => setVisibilityPickerOpen(false)}
+              className="h-11 w-full rounded-xl bg-brand text-sm font-semibold text-white"
+            >
+              Done
+            </button>
+          }
         >
           <div
             className="mt-4 grid gap-2"
@@ -811,44 +820,59 @@ export default function MemberSettingsPanel() {
           title="Sign-in security"
           subtitle="Update your password and review devices signed in to your account."
           onClose={() => setSecurityOpen(false)}
+          footer={
+            <button
+              type="button"
+              onClick={() => setSecurityOpen(false)}
+              className="h-11 w-full rounded-xl border border-subtle bg-surface-elevated text-sm font-semibold text-text-primary"
+            >
+              Done
+            </button>
+          }
         >
           <form onSubmit={submitPasswordChange} className="mt-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            <div className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
               <KeyRound size={14} />
               {passwordEnabled ? "Change password" : "Set a password"}
             </div>
             <div className="mt-3 space-y-2.5">
               {passwordEnabled ? (
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="Current password"
-                  value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
-                  className={inputClass}
-                />
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-text-secondary">Current password</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    className={inputClass}
+                  />
+                </label>
               ) : (
                 <p className="text-xs font-semibold leading-5 text-text-muted">
                   Your account currently signs in without a password. Set one
                   to add another way in.
                 </p>
               )}
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder="New password (min. 8 characters)"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className={inputClass}
-              />
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className={inputClass}
-              />
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-text-secondary">New password</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-text-secondary">Confirm new password</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
               <label className="flex items-center gap-2 py-1 text-xs font-semibold text-text-secondary">
                 <input
                   type="checkbox"
@@ -877,7 +901,7 @@ export default function MemberSettingsPanel() {
           </form>
 
           <div className="mt-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            <div className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
               <MonitorSmartphone size={14} />
               Active sessions
             </div>
@@ -979,17 +1003,7 @@ export default function MemberSettingsPanel() {
           onClose={() => {
             if (!deleting) setDeleteOpen(false);
           }}
-        >
-          <div className="mt-4 space-y-3">
-            <input
-              type="text"
-              autoComplete="off"
-              placeholder='Type "DELETE" to confirm'
-              value={deleteText}
-              onChange={(event) => setDeleteText(event.target.value)}
-              className={inputClass}
-              aria-label="Type DELETE to confirm account deletion"
-            />
+          footer={
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1005,14 +1019,23 @@ export default function MemberSettingsPanel() {
                 disabled={deleting || deleteText.trim() !== "DELETE"}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-danger text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deleting ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Trash2 size={15} />
-                )}
+                {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                 Request deletion
               </button>
             </div>
+          }
+        >
+          <div className="mt-4 space-y-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-text-secondary">Type DELETE to confirm</span>
+              <input
+                type="text"
+                autoComplete="off"
+                value={deleteText}
+                onChange={(event) => setDeleteText(event.target.value)}
+                className={inputClass}
+              />
+            </label>
           </div>
         </SheetShell>
       ) : null}
