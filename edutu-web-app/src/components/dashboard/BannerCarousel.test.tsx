@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { BannerCarousel, type BannerAd } from "../Dashboard";
+import BannerCarousel, { type BannerAd } from "./BannerCarousel";
 
 const banners: BannerAd[] = [
   {

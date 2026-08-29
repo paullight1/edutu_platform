@@ -1,8 +1,8 @@
+import "./node-websocket";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
 import type { NestExpressApplication } from "@nestjs/platform-express";
-import WebSocket from "ws";
 import { assertProductionClerkIssuerLock } from "./auth/clerk-production-config";
 import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
 import { requestIdMiddleware } from "./common/request-id.middleware";
@@ -10,11 +10,6 @@ import { loadEnvironmentFiles } from "./config/load-environment";
 import { createScraperEgressBodyLimitMiddleware } from "./scraper/scraper-egress-body-limit.middleware";
 
 loadEnvironmentFiles();
-
-if (typeof globalThis.WebSocket === "undefined") {
-  globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
-}
-
 export function validateEnvironment(): void {
   const logger = new Logger("Bootstrap");
   const nodeEnv = process.env.NODE_ENV?.trim();

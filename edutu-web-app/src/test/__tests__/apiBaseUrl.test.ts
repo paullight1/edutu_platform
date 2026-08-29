@@ -11,7 +11,7 @@ describe("getApiBaseUrl", () => {
     expect(getApiBaseUrl("Developer API")).toBe("http://localhost:3000");
   });
 
-  it("uses the public backend in production when build-time API URLs are missing", async () => {
+  it("falls back to the public backend in production when build-time env URLs are missing", async () => {
     vi.unstubAllEnvs();
     vi.stubEnv("VITE_BACKEND_URL", "");
     vi.stubEnv("VITE_API_URL", "");
@@ -19,7 +19,7 @@ describe("getApiBaseUrl", () => {
     vi.resetModules();
     const { getApiBaseUrl } = await import("../../lib/apiBaseUrl");
 
-    expect(getApiBaseUrl("Community API")).toBe(
+    expect(getApiBaseUrl("Opportunities API")).toBe(
       "https://edutu-platform.onrender.com",
     );
   });

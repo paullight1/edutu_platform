@@ -13,5 +13,8 @@ export function getApiBaseUrl(_serviceName: string): string {
     return "http://localhost:3000";
   }
 
+  // Keep production reads working even when the hosting provider omits Vite's
+  // build-time API variables. vite.config.ts uses this same canonical origin
+  // for service-worker caching, so runtime requests and cache policy agree.
   return PUBLIC_API_FALLBACK;
 }

@@ -13,8 +13,28 @@ vi.mock("../lib/backend", () => ({
 
 const mockedBackendFetchJson = vi.mocked(backendFetchJson);
 
+const readyHealthResponse = {
+  timestamp: "2026-08-25T16:27:53.501Z",
+  uptimeSeconds: 36,
+  version: "0.0.1",
+  status: "ready",
+  checks: {
+    database: { status: "up", responseTimeMs: 174 },
+    ai: {
+      status: "configured",
+      providers: {
+        gemini: "missing",
+        openrouter: "configured",
+      },
+    },
+  },
+} as const;
+
+let healthResponse: object = readyHealthResponse;
+
 describe("Dashboard health telemetry", () => {
   beforeEach(() => {
+    healthResponse = readyHealthResponse;
     mockedBackendFetchJson.mockImplementation(async (path: string) => {
       if (path === "/admin/dashboard") {
         return {
@@ -34,22 +54,7 @@ describe("Dashboard health telemetry", () => {
       }
 
       if (path === "/health") {
-        return {
-          timestamp: "2026-08-25T16:27:53.501Z",
-          uptimeSeconds: 36,
-          version: "0.0.1",
-          status: "ready",
-          checks: {
-            database: { status: "up", responseTimeMs: 174 },
-            ai: {
-              status: "configured",
-              providers: {
-                gemini: "missing",
-                openrouter: "configured",
-              },
-            },
-          },
-        };
+        return healthResponse;
       }
 
       if (path === "/admin/ai-usage/summary?days=30") {
@@ -83,5 +88,30 @@ describe("Dashboard health telemetry", () => {
     expect(await screen.findByText("174 ms")).toBeInTheDocument();
     expect(screen.getByText("Healthy")).toBeInTheDocument();
     expect(screen.getByText("OpenRouter: configured")).toBeInTheDocument();
+  });
+
+  it("renders a failed readiness probe as unavailable rather than crashing", async () => {
+    healthResponse = {
+      ...readyHealthResponse,
+      status: "not_ready",
+      checks: {
+        ...readyHealthResponse.checks,
+        database: {
+          status: "down",
+          responseTimeMs: 2_000,
+          reason: "timeout",
+        },
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Disconnected")).toBeInTheDocument();
+    expect(screen.getByText("Not ready")).toBeInTheDocument();
+    expect(screen.getByText("Degraded")).toBeInTheDocument();
   });
 });
