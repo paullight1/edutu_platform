@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from "@nestjs/common";
@@ -28,10 +29,12 @@ import {
   communityGroupMessages,
   communityGroups,
   communityMessageLikes,
+  opportunities,
   type CommunityGroup,
   type CommunityGroupMember,
   type CommunityGroupMessage,
 } from "../db/schema";
+import { shareableOpportunityConditions } from "../opportunities/opportunity-visibility";
 import {
   canModerateGroup,
   canPostInGroup,
@@ -304,10 +307,69 @@ export type CommunityMessageWithAuthor = CommunityGroupMessage & {
   author: MessageAuthor;
 };
 
+export type CommunityOpportunityCard = {
+  id: string;
+  title: string;
+  organization: string | null;
+  category: string | null;
+  deadline: string | null;
+  location: string | null;
+  summary: string | null;
+  imageUrl: string | null;
+};
+
+export interface CommunityOpportunityDirectory {
+  findPublicCards(ids: string[]): Promise<CommunityOpportunityCard[]>;
+}
+
+export class DrizzleCommunityOpportunityDirectory implements CommunityOpportunityDirectory {
+  async findPublicCards(ids: string[]): Promise<CommunityOpportunityCard[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean))).slice(
+      0,
+      LIST_LIMIT,
+    );
+    if (unique.length === 0) return [];
+    const rows = await db
+      .select({
+        id: opportunities.id,
+        title: opportunities.title,
+        organization: opportunities.organization,
+        category: opportunities.category,
+        deadline: opportunities.deadline,
+        closeDate: opportunities.closeDate,
+        location: opportunities.location,
+        summary: opportunities.summary,
+        imageUrl: opportunities.imageUrl,
+      })
+      .from(opportunities)
+      .where(
+        and(
+          inArray(opportunities.id, unique),
+          shareableOpportunityConditions(opportunities),
+        ),
+      );
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      organization: row.organization,
+      category: row.category,
+      deadline:
+        row.closeDate ??
+        (row.deadline instanceof Date
+          ? row.deadline.toISOString()
+          : (row.deadline ?? null)),
+      location: row.location,
+      summary: row.summary,
+      imageUrl: row.imageUrl,
+    }));
+  }
+}
+
 export type CommunityMessageView = CommunityMessageWithAuthor & {
   likeCount: number;
   commentCount: number;
   viewerHasLiked: boolean;
+  opportunity: CommunityOpportunityCard | null;
 };
 
 export type CommunityPostThread = {
@@ -799,12 +861,14 @@ export type CommunityResourcesPage = {
  */
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
   private readonly store: MessagesStore;
   private readonly authors: AuthorDirectory;
   private readonly blocks: BlockDirectory;
   private readonly storageOverride?: SupabaseClient;
   private cachedStorage?: SupabaseClient;
   private readonly notificationsService?: NotificationsService;
+  private readonly opportunities: CommunityOpportunityDirectory;
 
   constructor(
     @Optional() @Inject(MESSAGES_STORE) store?: MessagesStore,
@@ -814,6 +878,7 @@ export class MessagesService {
     @Inject(COMMUNITY_STORAGE_CLIENT)
     storageOverride?: SupabaseClient,
     @Optional() notificationsService?: NotificationsService,
+    @Optional() opportunities?: CommunityOpportunityDirectory,
   ) {
     this.store = store ?? new DrizzleMessagesStore();
     this.authors = authors ?? new DrizzleAuthorDirectory();
@@ -823,6 +888,8 @@ export class MessagesService {
     this.blocks = blocks ?? new DrizzleBlockDirectory();
     this.storageOverride = storageOverride;
     this.notificationsService = notificationsService;
+    this.opportunities =
+      opportunities ?? new DrizzleCommunityOpportunityDirectory();
   }
 
   private get storage(): SupabaseClient {
@@ -1324,19 +1391,38 @@ export class MessagesService {
     }
     const message = validation.data;
     const kind = message.kind ?? "text";
+    const isOpportunity = message.kind === "opportunity";
 
     // The screener grades the raw text a member typed, not metadata, so its
     // machine token ("scam_pattern") never reaches them — only a sentence
     // explaining what reads as unsafe, without accusing them of anything.
     // An empty body is a different failure and gets a different sentence: an
     // internal caller posting blank text has not tried to scam anybody.
-    let screenableBody = message.body;
-    if (kind === "image" || kind === "file") {
+    let opportunity: CommunityOpportunityCard | null = null;
+    if (isOpportunity) {
+      [opportunity] = await this.opportunities.findPublicCards([
+        message.opportunityId,
+      ]);
+      if (!opportunity) {
+        throw new NotFoundException(
+          "That opportunity is no longer available to share.",
+        );
+      }
+    }
+
+    let screenableBody = message.body ?? "";
+    if (message.kind === "image" || message.kind === "file") {
       const attachment = JSON.parse(message.body) as CommunityAttachmentDto;
       this.assertAttachmentResourceUrl(groupId, attachment.url);
       screenableBody = attachment.caption ?? "attachment";
     }
-    const verdict = screenMessage(screenableBody);
+    // The title came from Edutu's verified catalogue, not from the member. A
+    // one-click share therefore has no member-authored text to screen; only an
+    // optional note should pass through the community scam filter.
+    const verdict =
+      isOpportunity && !screenableBody
+        ? ({ allowed: true } as const)
+        : screenMessage(screenableBody);
     if (!verdict.allowed) {
       if (verdict.reason === "empty") {
         throw new BadRequestException("Type a message before sending it.");
@@ -1350,9 +1436,11 @@ export class MessagesService {
       {
         groupId,
         userId: senderId,
-        body: message.body,
+        body: isOpportunity
+          ? (message.body ?? opportunity?.title ?? "Shared an opportunity")
+          : message.body,
         kind,
-        opportunityId: message.opportunityId ?? null,
+        opportunityId: isOpportunity ? message.opportunityId : null,
       },
       // The counters are this service's decision, not the adapter's: one more
       // message, and this row becomes the group's most recent activity.
@@ -1682,15 +1770,22 @@ export class MessagesService {
     viewerId: string,
   ): Promise<CommunityMessageView[]> {
     if (messages.length === 0) return [];
-    const [authored, engagementRows] = await Promise.all([
+    const opportunityIds = Array.from(
+      new Set(messages.flatMap((message) => message.opportunityId ?? [])),
+    );
+    const [authored, engagementRows, opportunityRows] = await Promise.all([
       this.withAuthors(messages),
       this.store.getMessageEngagement(
         messages.map((message) => message.id),
         viewerId,
       ),
+      this.loadOpportunityCards(opportunityIds),
     ]);
     const engagement = new Map(
       engagementRows.map((row) => [row.messageId, row]),
+    );
+    const opportunitiesById = new Map(
+      opportunityRows.map((row) => [row.id, row]),
     );
     return authored.map((message) => {
       const row = engagement.get(message.id);
@@ -1699,8 +1794,24 @@ export class MessagesService {
         likeCount: row?.likeCount ?? 0,
         commentCount: row?.commentCount ?? 0,
         viewerHasLiked: row?.viewerHasLiked ?? false,
+        opportunity: message.opportunityId
+          ? (opportunitiesById.get(message.opportunityId) ?? null)
+          : null,
       };
     });
+  }
+
+  private async loadOpportunityCards(
+    opportunityIds: string[],
+  ): Promise<CommunityOpportunityCard[]> {
+    try {
+      return await this.opportunities.findPublicCards(opportunityIds);
+    } catch (error) {
+      this.logger.warn(
+        `Community opportunity-card enrichment failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
   }
 
   /**

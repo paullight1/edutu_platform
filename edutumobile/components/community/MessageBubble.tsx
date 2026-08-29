@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, Image, Linking, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@clerk/clerk-expo';
-import { Ban, EyeOff, FileText, Flag, ImageOff, Pin, Reply, Trash2, UserMinus } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Ban, EyeOff, FileText, Flag, GraduationCap, ImageOff, Pin, Reply, Trash2, UserMinus } from 'lucide-react-native';
 import * as communityApi from '@edutu/core/src/services/communities';
 import type { CommunityMessage } from '@edutu/core/src/services/communities';
 import { parseCommunityAttachment, resolveCommunityAttachmentUrl } from '@edutu/core/src/services/communities';
@@ -109,6 +110,7 @@ export function MessageBubble({
   const { t } = useTranslation(['community', 'common']);
   const { colors } = useTheme();
   const { getToken } = useAuth();
+  const router = useRouter();
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [confirming, setConfirming] = useState<BubbleAction | null>(null);
@@ -380,12 +382,16 @@ export function MessageBubble({
         testID={`message-bubble-${message.id}`}
         accessibilityRole="button"
         accessibilityLabel={messageAccessibilityLabel}
-        accessibilityHint={canReply ? 'Long press for actions, or swipe right to reply' : 'Long press for message actions'}
+        accessibilityHint={message.opportunity ? 'Opens the opportunity. Long press for message actions.' : canReply ? 'Long press for actions, or swipe right to reply' : 'Long press for message actions'}
         accessibilityState={{ expanded: actionsOpen, busy: pending }}
         hapticFeedback="none"
         scaleTo={0.98}
         disabled={!canAct}
         onPress={() => {
+          if (canAct && message.opportunity) {
+            router.push(`/opportunities/${message.opportunity.id}` as never);
+            return;
+          }
           if (canAct && actionsOpen) setActionsOpen(false);
         }}
         onLongPress={() => {
@@ -422,7 +428,17 @@ export function MessageBubble({
             </Text>
           </View>
         )}
-        {attachment ? (
+        {message.kind === 'opportunity' && message.opportunity ? (
+          <View testID={`message-opportunity-${message.id}`} style={[styles.opportunityCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
+            <View style={[styles.opportunityIcon, { backgroundColor: `${colors.accent}14` }]}><GraduationCap size={20} color={colors.accent} /></View>
+            <View style={styles.opportunityCopy}>
+              <Text style={[styles.opportunityEyebrow, { color: colors.accent }]}>OPPORTUNITY</Text>
+              <Text style={[styles.opportunityTitle, { color: colors.foreground }]} numberOfLines={3}>{message.opportunity.title}</Text>
+              {!!message.opportunity.organization && <Text style={[styles.opportunityMeta, { color: colors.textSecondary }]} numberOfLines={1}>{message.opportunity.organization}</Text>}
+              {!!(message.opportunity.location || message.opportunity.deadline) && <Text style={[styles.opportunityMeta, { color: colors.textSecondary }]} numberOfLines={2}>{[message.opportunity.location, message.opportunity.deadline].filter(Boolean).join(' · ')}</Text>}
+            </View>
+          </View>
+        ) : attachment ? (
           message.kind === 'image' ? (
             <View testID={`message-image-${message.id}`} style={styles.attachmentWrap}>
               {resolvedAttachmentUrl ? (
@@ -726,6 +742,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  opportunityCard: { width: 262, maxWidth: '100%', borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  opportunityIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  opportunityCopy: { flex: 1, minWidth: 0, gap: 3 },
+  opportunityEyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  opportunityTitle: { fontSize: 14, lineHeight: 19, fontWeight: '800' },
+  opportunityMeta: { fontSize: 11, lineHeight: 15 },
   attachmentWrap: { gap: 7 },
   imageButton: { borderRadius: 12, overflow: 'hidden' },
   imagePreview: { width: 224, height: 168, borderRadius: 12 },

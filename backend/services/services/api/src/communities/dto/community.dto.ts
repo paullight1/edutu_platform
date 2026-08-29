@@ -182,13 +182,10 @@ function attachmentBody(
     });
 }
 
-const messageOpportunity = z.string().uuid().optional();
-
 const TextMessageSchema = z
   .object({
     kind: z.literal("text").optional(),
     body: z.string().trim().min(1).max(2000),
-    opportunityId: messageOpportunity,
   })
   .strict();
 
@@ -196,7 +193,6 @@ const ImageMessageSchema = z
   .object({
     kind: z.literal("image"),
     body: attachmentBody(CommunityImageAttachmentSchema),
-    opportunityId: messageOpportunity,
   })
   .strict();
 
@@ -204,7 +200,16 @@ const FileMessageSchema = z
   .object({
     kind: z.literal("file"),
     body: attachmentBody(CommunityFileAttachmentSchema),
-    opportunityId: messageOpportunity,
+  })
+  .strict();
+
+const OpportunityMessageSchema = z
+  .object({
+    kind: z.literal("opportunity"),
+    opportunityId: z.string().uuid(),
+    // A card can be shared in one click. Copy is optional and, when present,
+    // is screened like any other member-authored text before it is stored.
+    body: z.string().trim().min(1).max(500).optional(),
   })
   .strict();
 
@@ -212,6 +217,7 @@ export const SendMessageSchema = z.union([
   TextMessageSchema,
   ImageMessageSchema,
   FileMessageSchema,
+  OpportunityMessageSchema,
 ]);
 export type SendMessageDto = z.infer<typeof SendMessageSchema>;
 

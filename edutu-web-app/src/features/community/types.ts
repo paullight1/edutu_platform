@@ -1,11 +1,7 @@
 export type GroupVisibility = "public" | "private";
 export type GroupJoinPolicy = "open" | "request";
 export type MembershipStatus =
-  | "active"
-  | "invited"
-  | "pending"
-  | "removed"
-  | "banned";
+  "active" | "invited" | "pending" | "removed" | "banned";
 export type MemberRole = "owner" | "mod" | "member";
 
 export interface CommunityGroup {
@@ -51,6 +47,17 @@ export interface MessageAuthor {
   avatarUrl: string | null;
 }
 
+export interface CommunityOpportunityCard {
+  id: string;
+  title: string;
+  organization: string | null;
+  category: string | null;
+  deadline: string | null;
+  location: string | null;
+  summary: string | null;
+  imageUrl: string | null;
+}
+
 export interface CommunityMessage {
   id: string;
   groupId: string;
@@ -58,6 +65,7 @@ export interface CommunityMessage {
   body: string;
   kind: string;
   opportunityId: string | null;
+  opportunity?: CommunityOpportunityCard | null;
   callId?: string | null;
   createdAt: string;
   deletedAt: string | null;
@@ -154,10 +162,7 @@ export interface CreateGroupInput {
 }
 
 export type CommunityCreationRequestStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "cancelled";
+  "pending" | "approved" | "rejected" | "cancelled";
 
 export interface CommunityCreationRequest {
   id: string;
@@ -198,7 +203,10 @@ export interface CommunityDiscoveryResponse {
   communities: GroupWithMembership[];
 }
 
-export type UpdateGroupInput = Omit<Partial<CreateGroupInput>, "opportunityId"> & {
+export type UpdateGroupInput = Omit<
+  Partial<CreateGroupInput>,
+  "opportunityId"
+> & {
   coverImageResourceUrl?: string | null;
 };
 
@@ -286,12 +294,11 @@ export interface CommunityProfileContentPage {
   nextCursor: CommunityResourceCursor | null;
 }
 
-export interface SendMessageInput {
-  body: string;
-  kind?: "text" | CommunityAttachmentKind | "call";
-  opportunityId?: string;
-  callId?: string;
-}
+export type SendMessageInput =
+  | { body: string; kind?: "text" }
+  | { body: string; kind: CommunityAttachmentKind }
+  | { kind: "opportunity"; opportunityId: string; body?: string }
+  | { kind: "call"; body: string; callId: string };
 
 export interface SendCommentInput {
   body: string;
@@ -339,14 +346,19 @@ export function parseCommunityAttachment(
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (!Object.keys(row).every((key) => ["url", "name", "mime", "size", "caption"].includes(key))) {
+  if (
+    !Object.keys(row).every((key) =>
+      ["url", "name", "mime", "size", "caption"].includes(key),
+    )
+  ) {
     return null;
   }
   const url = typeof row.url === "string" ? row.url.trim() : "";
   const name = typeof row.name === "string" ? row.name.trim() : "";
   const mime = typeof row.mime === "string" ? row.mime.toLowerCase() : "";
   const size = row.size;
-  const caption = typeof row.caption === "string" ? row.caption.trim() : undefined;
+  const caption =
+    typeof row.caption === "string" ? row.caption.trim() : undefined;
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -378,7 +390,9 @@ export function parseCommunityAttachment(
   }
   if (
     kind === "file" &&
-    (mime !== "application/pdf" || size > COMMUNITY_PDF_MAX_BYTES || !/\.pdf$/i.test(name))
+    (mime !== "application/pdf" ||
+      size > COMMUNITY_PDF_MAX_BYTES ||
+      !/\.pdf$/i.test(name))
   ) {
     return null;
   }

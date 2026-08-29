@@ -218,7 +218,9 @@ function pickNullableString(...values: unknown[]): string | null {
   return pickOptionalString(...values) ?? null;
 }
 
-function normalizeDeadlineConfidence(value: unknown): DeadlineConfidence | null {
+function normalizeDeadlineConfidence(
+  value: unknown,
+): DeadlineConfidence | null {
   return value === "explicit" ||
     value === "inferred" ||
     value === "rolling" ||
@@ -269,9 +271,7 @@ function pickOptionalNumber(...values: unknown[]): number | undefined {
 // only ever surface what the data explicitly says: `is_free` when it is a real
 // boolean, `amount` when it is a real number. Anything else stays null so the UI
 // renders nothing rather than guessing that an opportunity is free (or not).
-function pickApplicationFee(
-  value: unknown,
-): Opportunity["applicationFee"] {
+function pickApplicationFee(value: unknown): Opportunity["applicationFee"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -302,7 +302,10 @@ function pickRecord(...values: unknown[]): Record<string, unknown> | undefined {
 
 function isOpportunitySource(value: unknown): value is OpportunitySource {
   return (
-    value === "admin" || value === "n8n" || value === "manual" || value === "import"
+    value === "admin" ||
+    value === "n8n" ||
+    value === "manual" ||
+    value === "import"
   );
 }
 
@@ -889,7 +892,9 @@ export async function fetchOpportunities(
     if (resolvedOpportunities.length === 0) {
       const staleCache = getCachedOpportunitiesSync();
       if (staleCache && staleCache.length > 0) {
-        console.warn("Empty opportunity response; keeping the last known catalog");
+        console.warn(
+          "Empty opportunity response; keeping the last known catalog",
+        );
         return staleCache;
       }
     }
@@ -939,6 +944,29 @@ export async function fetchOpportunities(
 
     throw error;
   }
+}
+
+/** Search the complete public catalogue for bounded selector surfaces. */
+export async function searchOpportunityCatalog(
+  query: string,
+  signal?: AbortSignal,
+): Promise<Opportunity[]> {
+  const term = query.trim();
+  if (term.length < 2) return [];
+  const params = new URLSearchParams({ q: term, limit: "60" });
+  const response = await fetch(
+    `${getApiBaseUrl("Opportunities API")}/opportunities/catalog?${params}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error("Opportunity search could not be loaded.");
+  }
+  const payload = (await response.json()) as {
+    items?: BackendOpportunityRow[];
+  };
+  return Array.isArray(payload.items)
+    ? payload.items.map(normaliseOpportunity)
+    : [];
 }
 
 export async function fetchOpportunityRecommendations(
@@ -1026,7 +1054,11 @@ export async function fetchOpportunityMatchScores(
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   const results: OpportunityMatchScore[] = [];
 
-  for (let index = 0; index < uniqueIds.length; index += MATCH_SCORES_CHUNK_SIZE) {
+  for (
+    let index = 0;
+    index < uniqueIds.length;
+    index += MATCH_SCORES_CHUNK_SIZE
+  ) {
     const chunk = uniqueIds.slice(index, index + MATCH_SCORES_CHUNK_SIZE);
 
     let payload: unknown;

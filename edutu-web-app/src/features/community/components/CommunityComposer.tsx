@@ -1,4 +1,4 @@
-import { Loader2, Send, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, Send, ShieldAlert } from "lucide-react";
 
 export default function CommunityComposer({
   mode,
@@ -9,6 +9,7 @@ export default function CommunityComposer({
   onSubmit,
   safetyAccepted = true,
   onAcceptSafety,
+  onShareOpportunity,
 }: {
   mode: "post" | "comment";
   draft: string;
@@ -18,9 +19,12 @@ export default function CommunityComposer({
   onSubmit: () => void;
   safetyAccepted?: boolean;
   onAcceptSafety?: () => void;
+  onShareOpportunity?: () => void;
 }) {
   const label =
-    mode === "post" ? "Community message composer" : "Community comment composer";
+    mode === "post"
+      ? "Community message composer"
+      : "Community comment composer";
   const noun = mode === "post" ? "post" : "comment";
 
   return (
@@ -65,6 +69,17 @@ export default function CommunityComposer({
           </p>
         ) : null}
         <div className="flex items-end gap-2 rounded-[24px] bg-[#f3f1ef] p-1.5 ring-1 ring-black/[0.035] transition focus-within:bg-white focus-within:ring-2 focus-within:ring-[#f45b16]/20 dark:bg-surface-elevated dark:ring-white/[0.05] dark:focus-within:bg-surface-elevated dark:focus-within:ring-brand/25">
+          {mode === "post" && onShareOpportunity ? (
+            <button
+              type="button"
+              disabled={!safetyAccepted || sending}
+              aria-label="Share an opportunity"
+              onClick={onShareOpportunity}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#5f5752] transition hover:bg-white hover:text-[#f45b16] disabled:opacity-35 dark:text-text-secondary dark:hover:bg-surface-layer dark:hover:text-brand"
+            >
+              <Plus size={20} />
+            </button>
+          ) : null}
           <textarea
             value={draft}
             maxLength={2000}

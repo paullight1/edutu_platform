@@ -68,7 +68,9 @@ export function useGroupMessages({
     } catch (caught) {
       if (version !== requestVersion.current) return;
       setError(
-        caught instanceof Error ? caught.message : "Messages could not be loaded.",
+        caught instanceof Error
+          ? caught.message
+          : "Messages could not be loaded.",
       );
     } finally {
       if (version === requestVersion.current) setLoading(false);
@@ -120,11 +122,29 @@ export function useGroupMessages({
 
   useEffect(() => {
     if (!enabled || !groupId || !blocksReady) return;
-    return subscribeToGroupMessages(groupId, (message) => {
+    let opportunityReload: number | null = null;
+    const unsubscribe = subscribeToGroupMessages(groupId, (message) => {
       if (blockedIds.has(message.userId)) return;
+      // Realtime carries the raw database row, while opportunity cards are a
+      // public-catalog projection added by the API. Re-read the current page
+      // instead of rendering an unverified id or issuing one fetch per card.
+      if (message.kind === "opportunity" && !message.opportunity) {
+        setMessages((current) => mergeMessages(current, [message]));
+        if (opportunityReload === null) {
+          opportunityReload = window.setTimeout(() => {
+            opportunityReload = null;
+            void load();
+          }, 100);
+        }
+        return;
+      }
       setMessages((current) => mergeMessages(current, [message]));
     });
-  }, [blockedIds, blocksReady, enabled, groupId]);
+    return () => {
+      if (opportunityReload !== null) window.clearTimeout(opportunityReload);
+      unsubscribe();
+    };
+  }, [blockedIds, blocksReady, enabled, groupId, load]);
 
   useEffect(() => {
     if (!enabled || !groupId) return;

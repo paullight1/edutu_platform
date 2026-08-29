@@ -274,6 +274,7 @@ export interface CommunityMessage {
   body: string;
   kind: string;
   opportunityId: string | null;
+  opportunity?: CommunityOpportunityCard | null;
   /** Present for durable scheduled/live/ended call transcript cards. */
   callId?: string | null;
   createdAt: string;
@@ -287,6 +288,17 @@ export interface CommunityMessage {
    * rather than assuming it is there.
    */
   author?: MessageAuthor;
+}
+
+export interface CommunityOpportunityCard {
+  id: string;
+  title: string;
+  organization: string | null;
+  category: string | null;
+  deadline: string | null;
+  location: string | null;
+  summary: string | null;
+  imageUrl: string | null;
 }
 
 /**
@@ -509,8 +521,9 @@ export interface CommunityProfileContentPage {
 }
 
 export type SendMessageInput =
-  | { kind?: 'text'; body: string; opportunityId?: string }
-  | { kind: CommunityAttachmentKind; body: string; opportunityId?: string };
+  | { kind?: 'text'; body: string }
+  | { kind: CommunityAttachmentKind; body: string }
+  | { kind: 'opportunity'; opportunityId: string; body?: string };
 
 export interface CommunityAttachmentUploadInput {
   kind: CommunityAttachmentKind;

@@ -1945,7 +1945,9 @@ export const communityGroupMessages = pgTable(
     userId: text("user_id").notNull(),
     body: text("body").notNull(),
     kind: text("kind").default("text").notNull(),
-    opportunityId: uuid("opportunity_id"),
+    opportunityId: uuid("opportunity_id").references(() => opportunities.id, {
+      onDelete: "set null",
+    }),
     callId: uuid("call_id").references(() => communityGroupCalls.id, {
       onDelete: "set null",
     }),
@@ -1964,6 +1966,7 @@ export const communityGroupMessages = pgTable(
       table.groupId,
       table.createdAt,
     ),
+    index("community_group_messages_opportunity_idx").on(table.opportunityId),
     uniqueIndex("community_group_messages_call_idx")
       .on(table.callId)
       .where(sql`${table.callId} is not null`),

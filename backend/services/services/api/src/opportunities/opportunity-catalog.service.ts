@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import type { OpportunityCatalogQueryDto } from "./dto/catalog-query.dto";
-import { publicOpportunitySql } from "./opportunity-visibility";
+import { shareableOpportunitySql } from "./opportunity-visibility";
 import { withOpportunityUrlAliases } from "./opportunity-static-snapshot";
 
 type CatalogSort = "newest" | "deadline";
@@ -67,7 +67,6 @@ export class OpportunityCatalogService {
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 60);
     const sort = query.sort ?? "newest";
     const cursor = decodeCatalogCursor(query.cursor, sort);
-    const today = new Date().toISOString().slice(0, 10);
     const searchPattern = query.q ? `%${escapeLike(query.q)}%` : null;
     const locationPattern = query.location
       ? `%${escapeLike(query.location)}%`
@@ -102,8 +101,7 @@ export class OpportunityCatalogService {
     const result = await db.execute(sql`
       select o.*
       from opportunities o
-      where ${publicOpportunitySql("o")}
-        and (o.close_date is null or o.close_date >= ${today}::date)
+      where ${shareableOpportunitySql("o")}
         ${query.category ? sql`and o.category = ${query.category}` : sql``}
         ${query.funding ? sql`and o.funding_type = ${query.funding}` : sql``}
         ${locationPattern ? sql`and o.location ilike ${locationPattern} escape '\\'` : sql``}

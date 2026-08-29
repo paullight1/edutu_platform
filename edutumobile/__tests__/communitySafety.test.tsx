@@ -422,6 +422,31 @@ function renderForeignBubble(props: Partial<React.ComponentProps<typeof MessageB
 }
 
 describe('reporting', () => {
+  it('opens a shared opportunity card in the canonical detail route', () => {
+    const message = makeMessage({
+      kind: 'opportunity',
+      body: 'Pan-African Scholars Programme',
+      opportunityId: '33333333-3333-4333-8333-333333333333',
+      opportunity: {
+        id: '33333333-3333-4333-8333-333333333333',
+        title: 'Pan-African Scholars Programme',
+        organization: 'Africa Scholars Foundation',
+        category: 'scholarships',
+        deadline: '2026-11-30',
+        location: 'Africa',
+        summary: 'Funding for students across Africa.',
+        imageUrl: null,
+      },
+    });
+    const screen = render(<MessageBubble message={message} own={false} />);
+
+    expect(screen.getByTestId('message-opportunity-m1')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('message-bubble-m1'));
+    expect(mockPush).toHaveBeenCalledWith(
+      '/opportunities/33333333-3333-4333-8333-333333333333',
+    );
+  });
+
   it('hides the reported message from the reporter immediately', async () => {
     const screen = renderForeignBubble();
 

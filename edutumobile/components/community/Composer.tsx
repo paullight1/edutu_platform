@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { FileText, Image as ImageIcon, Paperclip, SendHorizonal, X } from 'lucide-react-native';
+import { FileText, GraduationCap, Image as ImageIcon, Paperclip, SendHorizonal, X } from 'lucide-react-native';
 import {
   COMMUNITY_IMAGE_MAX_BYTES,
   COMMUNITY_IMAGE_MIME_TYPES,
@@ -51,6 +51,7 @@ export interface ComposerProps {
   attachmentUploading?: boolean;
   attachmentProgress?: number;
   attachmentError?: string | null;
+  onShareOpportunity?: () => void;
 }
 
 export interface PickedCommunityAttachment {
@@ -79,6 +80,7 @@ export function Composer({
   attachmentUploading = false,
   attachmentProgress = 0,
   attachmentError = null,
+  onShareOpportunity,
 }: ComposerProps) {
   const { t } = useTranslation('community');
   const { colors } = useTheme();
@@ -99,7 +101,7 @@ export function Composer({
   const showCount = remaining <= 200;
   const canSend = value.trim().length > 0 && !overLimit && !sending && !attachmentUploading && !disabled;
   const sendLabel = replyTo ? 'Send reply' : t('chat.send');
-  const attachmentsEnabled = !!onAttachmentSelected && !replyTo;
+  const attachmentsEnabled = (!!onAttachmentSelected || !!onShareOpportunity) && !replyTo;
 
   const resolveSize = useCallback(async (known: number | undefined, uri: string) => {
     if (typeof known === 'number' && known > 0) return known;
@@ -203,8 +205,9 @@ export function Composer({
 
       {attachmentMenuOpen && attachmentsEnabled && (
         <View testID={`${testID}-attachment-menu`} style={styles.attachmentMenu}>
-          <AttachmentAction testID={`${testID}-pick-image`} label="Photo" icon={ImageIcon} disabled={attachmentUploading || disabled} onPress={() => void runPicker(pickImage)} />
-          <AttachmentAction testID={`${testID}-pick-pdf`} label="PDF" icon={FileText} disabled={attachmentUploading || disabled} onPress={() => void runPicker(pickPdf)} />
+          {onAttachmentSelected ? <AttachmentAction testID={`${testID}-pick-image`} label="Photo" icon={ImageIcon} disabled={attachmentUploading || disabled} onPress={() => void runPicker(pickImage)} /> : null}
+          {onAttachmentSelected ? <AttachmentAction testID={`${testID}-pick-pdf`} label="PDF" icon={FileText} disabled={attachmentUploading || disabled} onPress={() => void runPicker(pickPdf)} /> : null}
+          {onShareOpportunity ? <AttachmentAction testID={`${testID}-pick-opportunity`} label="Opportunity" icon={GraduationCap} disabled={attachmentUploading || disabled} onPress={() => { setAttachmentMenuOpen(false); onShareOpportunity(); }} /> : null}
         </View>
       )}
 
@@ -239,11 +242,11 @@ export function Composer({
       )}
 
       <View style={styles.row}>
-        {onAttachmentSelected && (
+        {(onAttachmentSelected || onShareOpportunity) && (
           <AnimatedPressable
             testID={`${testID}-attach`}
             accessibilityRole="button"
-            accessibilityLabel="Add photo or PDF"
+            accessibilityLabel="Add to message"
             accessibilityHint={replyTo ? 'Finish or cancel the reply before adding an attachment' : 'Choose a supported attachment to upload'}
             accessibilityState={{ disabled: disabled || attachmentUploading || !!replyTo, expanded: attachmentMenuOpen }}
             disabled={disabled || attachmentUploading || !!replyTo}

@@ -114,6 +114,42 @@ describe("community message safety actions", () => {
 });
 
 describe("community post engagement actions", () => {
+  it("renders a shared opportunity as a card that opens its canonical detail route", () => {
+    render(
+      <MemoryRouter>
+        <MessageBubble
+          message={{
+            ...otherMemberMessage,
+            kind: "opportunity",
+            body: "Pan-African Scholars Programme",
+            opportunityId: "33333333-3333-4333-8333-333333333333",
+            opportunity: {
+              id: "33333333-3333-4333-8333-333333333333",
+              title: "Pan-African Scholars Programme",
+              organization: "Africa Scholars Foundation",
+              category: "scholarships",
+              deadline: "2026-11-30",
+              location: "Africa",
+              summary: "Funding for students across Africa.",
+              imageUrl: null,
+            },
+          }}
+          mine={false}
+          canDelete={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByRole("link", {
+        name: "Open opportunity: Pan-African Scholars Programme",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/app/opportunity/33333333-3333-4333-8333-333333333333",
+    );
+  });
+
   it("shows persisted counts and opens the Facebook-style post detail", () => {
     renderOtherMemberMessage();
 

@@ -66,6 +66,8 @@ import { useTheme } from "../../../components/context/ThemeContext";
 import { MessageBubble } from "../../../components/community/MessageBubble";
 import { Composer } from "../../../components/community/Composer";
 import type { PickedCommunityAttachment } from "../../../components/community/Composer";
+import { OpportunitySharePicker } from "../../../components/community/OpportunitySharePicker";
+import type { Opportunity } from "@edutu/core/src/types/opportunity";
 import { uploadPrivateCommunityAsset } from "@edutu/core/src/services/storage";
 import { GroupAvatar } from "../../../components/community/GroupAvatar";
 import { getCommunityGroupCoverUrl } from "../../../lib/communityDiscovery";
@@ -293,6 +295,8 @@ function GroupChatPostsScreen() {
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentProgress, setAttachmentProgress] = useState(0);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [opportunityPickerOpen, setOpportunityPickerOpen] = useState(false);
+  const [opportunitySending, setOpportunitySending] = useState(false);
   const listRef = useRef<FlatList<LocalMessage>>(null);
   /** Set when the group is loaded — see `loadDetail` for why not in render. */
   const [expired, setExpired] = useState(false);
@@ -690,6 +694,34 @@ function GroupChatPostsScreen() {
     [attachmentUploading, firstPostBlocked, getToken, groupId, messages],
   );
 
+  const handleShareOpportunity = useCallback(
+    async (opportunity: Opportunity) => {
+      if (firstPostBlocked || opportunitySending) return;
+      setOpportunitySending(true);
+      setAttachmentError(null);
+      try {
+        const persisted = await sendMessage(
+          groupId,
+          { kind: "opportunity", opportunityId: opportunity.id },
+          getToken,
+        );
+        messages.applyMessage(persisted);
+        setOpportunityPickerOpen(false);
+      } catch (caught) {
+        setAttachmentError(
+          isCommunityApiError(caught)
+            ? caught.message
+            : caught instanceof Error
+              ? caught.message
+              : "That opportunity could not be shared.",
+        );
+      } finally {
+        setOpportunitySending(false);
+      }
+    },
+    [firstPostBlocked, getToken, groupId, messages, opportunitySending],
+  );
+
   // ── Posting availability ───────────────────────────────────────────────────
   const archived = !!group?.archivedAt;
   const postingDisabled = archived || expired;
@@ -1050,6 +1082,7 @@ function GroupChatPostsScreen() {
                   attachmentUploading={attachmentUploading}
                   attachmentProgress={attachmentProgress}
                   attachmentError={attachmentError}
+                  onShareOpportunity={() => setOpportunityPickerOpen(true)}
                 />
               </>
             ) : (
@@ -1064,6 +1097,15 @@ function GroupChatPostsScreen() {
           </>
         )}
       </KeyboardAvoidingView>
+      <OpportunitySharePicker
+        visible={opportunityPickerOpen}
+        sending={opportunitySending}
+        shareError={attachmentError}
+        onClose={() => {
+          if (!opportunitySending) setOpportunityPickerOpen(false);
+        }}
+        onShare={(opportunity) => void handleShareOpportunity(opportunity)}
+      />
     </SafeAreaView>
   );
 }

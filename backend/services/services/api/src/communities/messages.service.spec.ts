@@ -8,6 +8,8 @@ import type {
   CommunityGroup,
   CommunityGroupMember,
   CommunityGroupMessage,
+  CommunityOpportunityCard,
+  CommunityOpportunityDirectory,
   GroupCounterBump,
   MessageCursor,
   MessagePatch,
@@ -231,6 +233,21 @@ class FakeMessagesStore implements MessagesStore {
   }
 }
 
+class FakeCommunityOpportunityDirectory implements CommunityOpportunityDirectory {
+  cards = new Map<string, CommunityOpportunityCard>();
+  calls: string[][] = [];
+  error: Error | null = null;
+
+  async findPublicCards(ids: string[]): Promise<CommunityOpportunityCard[]> {
+    this.calls.push(ids);
+    if (this.error) throw this.error;
+    return ids.flatMap((id) => {
+      const card = this.cards.get(id);
+      return card ? [card] : [];
+    });
+  }
+}
+
 /**
  * The `profiles` side, and — like the message store — a dumb reader. It holds
  * the two columns the production adapter selects and hands them back verbatim:
@@ -443,8 +460,16 @@ function messagesService(
   directory: FakeAuthorDirectory = new FakeAuthorDirectory(),
   blocks: FakeBlockDirectory = new FakeBlockDirectory(),
   storage: SupabaseClient = makeAttachmentStorage().client,
+  opportunities: CommunityOpportunityDirectory = new FakeCommunityOpportunityDirectory(),
 ): MessagesService {
-  return new MessagesService(db, directory, blocks, storage);
+  return new MessagesService(
+    db,
+    directory,
+    blocks,
+    storage,
+    undefined,
+    opportunities,
+  );
 }
 
 describe("MessagesService", () => {
@@ -861,6 +886,17 @@ describe("MessagesService", () => {
   });
 
   describe("send", () => {
+    const opportunityId = "11111111-1111-4111-8111-111111111111";
+    const opportunityCard: CommunityOpportunityCard = {
+      id: opportunityId,
+      title: "Pan-African Scholars Programme",
+      organization: "Africa Scholars Foundation",
+      category: "scholarships",
+      deadline: "2026-11-30",
+      location: "Africa",
+      summary: "Funding for students across Africa.",
+      imageUrl: null,
+    };
     const imageBody = JSON.stringify({
       url: attachmentResourceUrl("webp"),
       name: "essay-plan.webp",
@@ -905,6 +941,63 @@ describe("MessagesService", () => {
       expect(message.userId).toBe("user_abc");
       expect(db.groups[0].messageCount).toBe(1);
       expect(db.groups[0].lastMessageAt).toBeInstanceOf(Date);
+    });
+
+    it("validates, stores, and enriches a one-click opportunity post", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      const directory = new FakeCommunityOpportunityDirectory();
+      directory.cards.set(opportunityId, opportunityCard);
+
+      const message = await messagesService(
+        db,
+        undefined,
+        undefined,
+        undefined,
+        directory,
+      ).send("user_abc", GROUP_ID, {
+        kind: "opportunity",
+        opportunityId,
+      });
+
+      expect(message.kind).toBe("opportunity");
+      expect(message.body).toBe(opportunityCard.title);
+      expect(message.opportunity).toEqual(opportunityCard);
+      expect(db.messages[0].opportunityId).toBe(opportunityId);
+    });
+
+    it("does not screen trusted catalog metadata as member-authored copy", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      const directory = new FakeCommunityOpportunityDirectory();
+      const catalogCard = {
+        ...opportunityCard,
+        title: "Send 5000 naira to WhatsApp for guaranteed admission",
+      };
+      directory.cards.set(opportunityId, catalogCard);
+
+      const message = await messagesService(
+        db,
+        undefined,
+        undefined,
+        undefined,
+        directory,
+      ).send("user_abc", GROUP_ID, {
+        kind: "opportunity",
+        opportunityId,
+      });
+
+      expect(message.body).toBe(catalogCard.title);
+      expect(message.opportunity).toEqual(catalogCard);
+    });
+
+    it("rejects an opportunity that is not in the public catalog", async () => {
+      const db = fakeDb({ members: [{ userId: "user_abc" }] });
+      await expect(
+        messagesService(db).send("user_abc", GROUP_ID, {
+          kind: "opportunity",
+          opportunityId,
+        }),
+      ).rejects.toThrow(/no longer available/i);
+      expect(db.messages).toHaveLength(0);
     });
 
     it.each([
@@ -1046,6 +1139,25 @@ describe("MessagesService", () => {
         .catch((caught: Error) => caught);
       expect((error as Error).message).toMatch(/type a message/i);
       expect((error as Error).message).not.toMatch(/money/i);
+    });
+  });
+
+  describe("opportunity card enrichment", () => {
+    it("does not take down ordinary message history when enrichment is unavailable", async () => {
+      const db = fakeDb({ messages: [{ userId: "user_ada" }] });
+      const opportunities = new FakeCommunityOpportunityDirectory();
+      opportunities.error = new Error("catalog offline");
+
+      const page = await messagesService(
+        db,
+        undefined,
+        undefined,
+        undefined,
+        opportunities,
+      ).list("user_reader", GROUP_ID);
+
+      expect(page).toHaveLength(1);
+      expect(page[0].opportunity).toBeNull();
     });
   });
 

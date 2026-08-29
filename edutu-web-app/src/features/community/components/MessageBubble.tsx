@@ -4,6 +4,7 @@ import {
   Ban,
   FileText,
   Flag,
+  GraduationCap,
   Image as ImageIcon,
   MoreHorizontal,
   Pin,
@@ -121,6 +122,47 @@ export default function MessageBubble({
             <p className="italic text-[#9a928d] dark:text-text-muted">
               Message removed
             </p>
+          ) : message.kind === "opportunity" && message.opportunity ? (
+            <Link
+              to={`/app/opportunity/${encodeURIComponent(message.opportunity.id)}`}
+              aria-label={`Open opportunity: ${message.opportunity.title}`}
+              className="mt-2 block overflow-hidden rounded-2xl border border-[#e8e2de] bg-[#fffaf7] p-4 transition hover:border-[#f45b16]/45 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/30 dark:border-subtle dark:bg-surface-elevated"
+            >
+              <span className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#fff0e8] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
+                  <GraduationCap size={20} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold uppercase tracking-[0.12em] text-[#f45b16] dark:text-brand">
+                    Opportunity
+                  </span>
+                  <span className="mt-1 block text-base font-bold leading-5 text-[#17120f] dark:text-text-primary">
+                    {message.opportunity.title}
+                  </span>
+                  {message.opportunity.organization ? (
+                    <span className="mt-1 block text-xs text-[#746c67] dark:text-text-secondary">
+                      {message.opportunity.organization}
+                    </span>
+                  ) : null}
+                  {message.opportunity.deadline ||
+                  message.opportunity.location ? (
+                    <span className="mt-2 block text-xs font-semibold text-[#6b4538] dark:text-text-secondary">
+                      {[
+                        message.opportunity.location,
+                        message.opportunity.deadline,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  ) : null}
+                </span>
+              </span>
+              {message.body && message.body !== message.opportunity.title ? (
+                <span className="mt-3 block border-t border-[#eee7e2] pt-3 text-sm dark:border-subtle">
+                  {message.body}
+                </span>
+              ) : null}
+            </Link>
           ) : attachment ? (
             <button
               type="button"
@@ -204,7 +246,8 @@ export default function MessageBubble({
                     aria-label={message.pinnedAt ? "Unpin post" : "Pin post"}
                     className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-start text-xs font-semibold text-[#5f5752] transition hover:bg-[#fff0e8] hover:text-[#f45b16] dark:text-text-secondary dark:hover:bg-brand/10 dark:hover:text-brand"
                   >
-                    <Pin size={14} /> {message.pinnedAt ? "Unpin post" : "Pin post"}
+                    <Pin size={14} />{" "}
+                    {message.pinnedAt ? "Unpin post" : "Pin post"}
                   </button>
                 ) : null}
                 {showSafetyActions ? (

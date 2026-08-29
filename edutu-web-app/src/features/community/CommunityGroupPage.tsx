@@ -48,6 +48,8 @@ import GroupAvatar from "./components/GroupAvatar";
 import MessageBubble from "./components/MessageBubble";
 import CommunityActionSheet from "./components/CommunityActionSheet";
 import CommunityComposer from "./components/CommunityComposer";
+import OpportunitySharePicker from "./components/OpportunitySharePicker";
+import type { Opportunity } from "../../types/opportunity";
 import { getCommunityFallbackCover } from "./communityCover";
 import {
   formatCommunityCount,
@@ -75,8 +77,10 @@ export default function CommunityGroupPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [pinnedPreview, setPinnedPreview] =
-    useState<CommunityMessage | null>(null);
+  const [opportunityPickerOpen, setOpportunityPickerOpen] = useState(false);
+  const [pinnedPreview, setPinnedPreview] = useState<CommunityMessage | null>(
+    null,
+  );
   const [previewLoading, setPreviewLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CommunityMessage | null>(
     null,
@@ -119,10 +123,10 @@ export default function CommunityGroupPage() {
       status === "invited");
   const canReadContent = Boolean(
     group &&
-      (status === "active" ||
-        (group.ownerId === userId &&
-          status !== "removed" &&
-          status !== "banned")),
+    (status === "active" ||
+      (group.ownerId === userId &&
+        status !== "removed" &&
+        status !== "banned")),
   );
   const canPost = status === "active" && !group?.archivedAt;
   const canModerate = Boolean(
@@ -195,6 +199,28 @@ export default function CommunityGroupPage() {
     }
   };
 
+  const shareOpportunity = async (opportunity: Opportunity) => {
+    if (!canPost || busy || !firstPostAccepted) return;
+    setBusy("send-opportunity");
+    setComposerError(null);
+    try {
+      const sent = await api.sendMessage(id, {
+        kind: "opportunity",
+        opportunityId: opportunity.id,
+      });
+      messages.append(sent);
+      setOpportunityPickerOpen(false);
+    } catch (caught) {
+      setComposerError(
+        caught instanceof Error
+          ? caught.message
+          : "That opportunity could not be shared.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const join = async (answers: JoinRequestAnswer[] = []) => {
     if (busy) return;
     setBusy("join");
@@ -250,7 +276,9 @@ export default function CommunityGroupPage() {
     } catch (caught) {
       messages.replace(previous);
       setComposerError(
-        caught instanceof Error ? caught.message : "The like could not be saved.",
+        caught instanceof Error
+          ? caught.message
+          : "The like could not be saved.",
       );
     }
   };
@@ -263,7 +291,9 @@ export default function CommunityGroupPage() {
       await messages.reload();
     } catch (caught) {
       setComposerError(
-        caught instanceof Error ? caught.message : "The pin could not be updated.",
+        caught instanceof Error
+          ? caught.message
+          : "The pin could not be updated.",
       );
     }
   };
@@ -340,7 +370,11 @@ export default function CommunityGroupPage() {
             className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#17120f] transition hover:bg-[#f7f4f2] hover:text-[#f45b16] active:scale-95 dark:text-text-primary dark:hover:bg-surface-elevated"
             aria-label="Community menu"
           >
-            {canModerate ? <Settings size={18} /> : <MoreHorizontal size={20} />}
+            {canModerate ? (
+              <Settings size={18} />
+            ) : (
+              <MoreHorizontal size={20} />
+            )}
           </Link>
         }
       >
@@ -468,35 +502,36 @@ export default function CommunityGroupPage() {
         {contentTab === "posts" ? (
           canReadContent ? (
             <PostsPanel
-            groupId={id}
-            userId={userId ?? null}
-            membershipRole={membership?.role ?? null}
-            canModerate={canModerate}
-            canPost={canPost}
-            firstPostAccepted={firstPostAccepted}
-            onAcceptFirstPost={() => {
-              setFirstPostAccepted(true);
-              try {
-                window.localStorage.setItem(FIRST_POST_KEY, "1");
-              } catch {
-                /* optional */
-              }
-            }}
-            draft={draft}
-            setDraft={setDraft}
-            composerError={composerError || messages.error}
-            sending={busy === "send"}
-            onSend={() => void sendMessage()}
-            messages={messages.messages}
-            loading={messages.loading}
-            loadingMore={messages.loadingMore}
-            hasMore={messages.hasMore}
-            onLoadMore={() => void messages.loadMore()}
-            onDelete={setDeleteTarget}
-            onOpenAttachment={(message) => void openAttachment(message)}
-            onToggleLike={(message) => void toggleLike(message)}
-            onPin={(message, pinned) => void setPinned(message, pinned)}
-          />
+              groupId={id}
+              userId={userId ?? null}
+              membershipRole={membership?.role ?? null}
+              canModerate={canModerate}
+              canPost={canPost}
+              firstPostAccepted={firstPostAccepted}
+              onAcceptFirstPost={() => {
+                setFirstPostAccepted(true);
+                try {
+                  window.localStorage.setItem(FIRST_POST_KEY, "1");
+                } catch {
+                  /* optional */
+                }
+              }}
+              draft={draft}
+              setDraft={setDraft}
+              composerError={composerError || messages.error}
+              sending={busy === "send" || busy === "send-opportunity"}
+              onSend={() => void sendMessage()}
+              onShareOpportunity={() => setOpportunityPickerOpen(true)}
+              messages={messages.messages}
+              loading={messages.loading}
+              loadingMore={messages.loadingMore}
+              hasMore={messages.hasMore}
+              onLoadMore={() => void messages.loadMore()}
+              onDelete={setDeleteTarget}
+              onOpenAttachment={(message) => void openAttachment(message)}
+              onToggleLike={(message) => void toggleLike(message)}
+              onPin={(message, pinned) => void setPinned(message, pinned)}
+            />
           ) : (
             <CommunityPreviewPanel
               post={pinnedPreview}
@@ -523,6 +558,14 @@ export default function CommunityGroupPage() {
           />
         )}
       </CommunityProductShell>
+      <OpportunitySharePicker
+        open={opportunityPickerOpen}
+        sending={busy === "send-opportunity"}
+        onClose={() => {
+          if (busy !== "send-opportunity") setOpportunityPickerOpen(false);
+        }}
+        onShare={(opportunity) => void shareOpportunity(opportunity)}
+      />
       <CommunityActionSheet
         open={deleteTarget !== null}
         title="Remove message"
@@ -744,6 +787,7 @@ function PostsPanel({
   composerError,
   sending,
   onSend,
+  onShareOpportunity,
   messages,
   loading,
   loadingMore,
@@ -766,6 +810,7 @@ function PostsPanel({
   composerError: string | null;
   sending: boolean;
   onSend: () => void;
+  onShareOpportunity: () => void;
   messages: CommunityMessage[];
   loading: boolean;
   loadingMore: boolean;
@@ -868,6 +913,7 @@ function PostsPanel({
           error={composerError}
           sending={sending}
           onSubmit={onSend}
+          onShareOpportunity={onShareOpportunity}
           safetyAccepted={firstPostAccepted}
           onAcceptSafety={onAcceptFirstPost}
         />
@@ -1312,7 +1358,6 @@ function AboutPanel({
             </button>
           </section>
         ) : null}
-
         {membership?.status === "active" && !owner ? (
           <button
             type="button"

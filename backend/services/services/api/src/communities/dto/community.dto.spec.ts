@@ -224,6 +224,43 @@ describe("unrelated schema limits are unchanged", () => {
   });
 });
 
+describe("SendMessageSchema opportunity posts", () => {
+  const opportunityId = "11111111-1111-4111-8111-111111111111";
+
+  it("accepts a one-click opportunity post without invented body copy", () => {
+    expect(
+      SendMessageSchema.parse({ kind: "opportunity", opportunityId }),
+    ).toEqual({ kind: "opportunity", opportunityId });
+  });
+
+  it("allows a short optional member note", () => {
+    expect(
+      SendMessageSchema.parse({
+        kind: "opportunity",
+        opportunityId,
+        body: "  Applications close soon.  ",
+      }),
+    ).toEqual({
+      kind: "opportunity",
+      opportunityId,
+      body: "Applications close soon.",
+    });
+  });
+
+  it("requires the id on opportunity posts and rejects ids on plain text", () => {
+    expect(SendMessageSchema.safeParse({ kind: "opportunity" }).success).toBe(
+      false,
+    );
+    expect(
+      SendMessageSchema.safeParse({
+        kind: "text",
+        body: "Look at this",
+        opportunityId,
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("community post engagement schemas", () => {
   it("accepts a trimmed one-level text comment and rejects extra fields", () => {
     expect(SendCommentSchema.parse({ body: "  Helpful answer  " })).toEqual({

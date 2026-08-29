@@ -269,11 +269,27 @@ export function useGroupMessages({
   useFocusEffect(
     useCallback(() => {
       if (!enabled || !groupId) return undefined;
+      let opportunityReload: ReturnType<typeof setTimeout> | null = null;
       const unsubscribe = subscribeToGroupMessages(groupId, (message) => {
+        // Realtime emits the raw row; the REST response carries the validated
+        // opportunity card. Coalesce hydration so bursts do not create N+1 reads.
+        if (message.kind === 'opportunity' && !message.opportunity) {
+          apply([message]);
+          if (opportunityReload === null) {
+            opportunityReload = setTimeout(() => {
+              opportunityReload = null;
+              void refresh();
+            }, 100);
+          }
+          return;
+        }
         apply([message]);
       });
-      return unsubscribe;
-    }, [enabled, groupId, apply]),
+      return () => {
+        if (opportunityReload !== null) clearTimeout(opportunityReload);
+        unsubscribe();
+      };
+    }, [enabled, groupId, apply, refresh]),
   );
 
   // ── Send ───────────────────────────────────────────────────────────────────
