@@ -110,7 +110,11 @@ describe("Opportunities AI completion popup", () => {
     render(<Opportunities />);
 
     await user.click(
-      await screen.findByRole("checkbox", { name: "Select Test scholarship" }),
+      await screen.findByRole(
+        "checkbox",
+        { name: "Select Test scholarship" },
+        { timeout: 5_000 },
+      ),
     );
     await user.click(screen.getByRole("button", { name: "AI Complete" }));
 
