@@ -17,6 +17,13 @@ import {
   isPastDate,
 } from "./opportunities/opportunity-status";
 import {
+  BulkEnhancementFatalError,
+  runBulkOpportunityEnhancement,
+} from "./opportunities/bulk-enhance";
+import BulkEnhancementProgressPopup, {
+  type AiCompletionJobState,
+} from "./opportunities/BulkEnhancementProgressPopup";
+import {
   Target,
   Plus,
   Trash2,
@@ -142,12 +149,7 @@ type ViewMode = "table" | "grid";
 // every toolbar button animate at once, so nothing communicated what was
 // actually happening.
 type BulkActionKind =
-  | "approve"
-  | "reject"
-  | "findDeadlines"
-  | "aiComplete"
-  | "category"
-  | "delete";
+  "approve" | "reject" | "findDeadlines" | "aiComplete" | "category" | "delete";
 
 interface BulkProgress {
   done: number;
@@ -514,8 +516,7 @@ function guessTitleFromUrl(rawUrl: string) {
 
 function formatEligibilityCriteria(
   eligibility:
-    | OpportunityEligibilityForm
-    | OpportunityPreviewItem["eligibility"],
+    OpportunityEligibilityForm | OpportunityPreviewItem["eligibility"],
 ) {
   if (!eligibility) return null;
 
@@ -717,7 +718,11 @@ export default function Opportunities() {
   // Lightweight toast notifications (same pattern as Scraper.tsx) — replaces
   // the blocking window.alert() calls for errors/successes.
   const [notifications, setNotifications] = useState<
-    { id: number; message: string; type: "success" | "error" | "warning" | "info" }[]
+    {
+      id: number;
+      message: string;
+      type: "success" | "error" | "warning" | "info";
+    }[]
   >([]);
   const showNotification = (
     message: string,
@@ -1065,6 +1070,9 @@ export default function Opportunities() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
+  const [aiCompletionJob, setAiCompletionJob] =
+    useState<AiCompletionJobState | null>(null);
+  const [aiCompletionMinimized, setAiCompletionMinimized] = useState(false);
   // True while "Select all N matching" is paging through the filtered set.
   const [selectingAll, setSelectingAll] = useState(false);
   const bulkActionBusy = bulkAction !== null;
@@ -1094,6 +1102,7 @@ export default function Opportunities() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pageNoticeTimeoutRef = useRef<number | null>(null);
+  const aiCompletionAbortRef = useRef<AbortController | null>(null);
 
   const NEST_API_URL = (
     import.meta.env.VITE_BACKEND_URL ||
@@ -1142,50 +1151,59 @@ export default function Opportunities() {
     ],
   );
 
-  const fetchOpportunities = useCallback(async (options?: { silent?: boolean }) => {
-    // Silent mode powers background auto-refresh (realtime + polling):
-    // no loading flash, no alert, and never clears the list on a blip.
-    const silent = options?.silent === true;
-    if (!silent) setLoading(true);
-    try {
-      const params = buildListParams(currentPage, pageSize);
+  const fetchOpportunities = useCallback(
+    async (options?: { silent?: boolean }) => {
+      // Silent mode powers background auto-refresh (realtime + polling):
+      // no loading flash, no alert, and never clears the list on a blip.
+      const silent = options?.silent === true;
+      if (!silent) setLoading(true);
+      try {
+        const params = buildListParams(currentPage, pageSize);
 
-      const headers = await getAdminHeaders();
-      const [listResponse, statsResponse] = await Promise.all([
-        fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
-          headers,
-        }),
-        fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
-          headers,
-        }),
-      ]);
+        const headers = await getAdminHeaders();
+        const [listResponse, statsResponse] = await Promise.all([
+          fetch(
+            `${NEST_API_URL}/opportunities/admin/list?${params.toString()}`,
+            {
+              headers,
+            },
+          ),
+          fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
+            headers,
+          }),
+        ]);
 
-      if (!listResponse.ok) {
-        const error = await listResponse.json().catch(() => ({}));
-        throw new Error(error.message || "Failed to load opportunities");
+        if (!listResponse.ok) {
+          const error = await listResponse.json().catch(() => ({}));
+          throw new Error(error.message || "Failed to load opportunities");
+        }
+
+        const result = (await listResponse.json()) as OpportunityListResponse;
+        const opps = result.data || [];
+        setFilteredOpps(opps);
+        setTotalOpportunities(result.total || 0);
+        setTotalPages(result.totalPages || 1);
+
+        if (statsResponse.ok) {
+          setStats(await statsResponse.json());
+        }
+      } catch (error: unknown) {
+        console.error("Failed to load opportunities:", error);
+        if (!silent) {
+          showNotification(
+            getErrorMessage(error, "Failed to load opportunities"),
+            "error",
+          );
+          setFilteredOpps([]);
+          setTotalOpportunities(0);
+          setTotalPages(1);
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-
-      const result = (await listResponse.json()) as OpportunityListResponse;
-      const opps = result.data || [];
-      setFilteredOpps(opps);
-      setTotalOpportunities(result.total || 0);
-      setTotalPages(result.totalPages || 1);
-
-      if (statsResponse.ok) {
-        setStats(await statsResponse.json());
-      }
-    } catch (error: unknown) {
-      console.error("Failed to load opportunities:", error);
-      if (!silent) {
-        showNotification(getErrorMessage(error, "Failed to load opportunities"), "error");
-        setFilteredOpps([]);
-        setTotalOpportunities(0);
-        setTotalPages(1);
-      }
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [buildListParams, currentPage, getAdminHeaders, NEST_API_URL, pageSize]);
+    },
+    [buildListParams, currentPage, getAdminHeaders, NEST_API_URL, pageSize],
+  );
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1230,6 +1248,7 @@ export default function Opportunities() {
       if (pageNoticeTimeoutRef.current !== null) {
         window.clearTimeout(pageNoticeTimeoutRef.current);
       }
+      aiCompletionAbortRef.current?.abort();
     };
   }, []);
 
@@ -1634,64 +1653,143 @@ export default function Opportunities() {
   async function handleBulkEnhance() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
+    const abortController = new AbortController();
+    aiCompletionAbortRef.current = abortController;
     setBulkAction("aiComplete");
-    setBulkProgress({ done: 0, total: ids.length });
+    setAiCompletionMinimized(false);
+    setAiCompletionJob({
+      status: "running",
+      done: 0,
+      total: ids.length,
+      completed: 0,
+      failed: 0,
+      batchStart: 1,
+      batchEnd: Math.min(3, ids.length),
+    });
     setEnhancingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
-    let completed = 0;
-    let failed = 0;
     try {
-      // Sequential to respect the AI provider's rate limits; each row is
-      // enriched via the same single-row enhance endpoint the icon uses.
-      for (const id of ids) {
-        try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
+      const { completed, failed, cancelled, remainingIds } =
+        await runBulkOpportunityEnhancement(
+          ids,
+          async (batchIds) => {
+            let headers: Record<string, string>;
+            try {
+              headers = await getAdminHeaders();
+            } catch (error) {
+              throw new BulkEnhancementFatalError(
+                getErrorMessage(error, "Admin session could not be refreshed"),
+              );
+            }
+            const response = await fetch(
+              `${NEST_API_URL}/opportunities/admin/bulk-enhance`,
+              {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ ids: batchIds }),
+                signal: abortController.signal,
+              },
+            );
+            const result = await response.json().catch(() => ({}));
+            if (response.status === 401 || response.status === 403) {
+              throw new BulkEnhancementFatalError(
+                result.error || result.message || "Admin session expired",
+              );
+            }
+            if (!response.ok || !result.success) {
+              throw new Error(
+                result.error || result.message || "AI enhancement failed",
+              );
+            }
+            return result;
+          },
+          ({ done, total, failed: failedSoFar, batchIds }) => {
+            setEnhancingIds((prev) => {
+              const next = new Set(prev);
+              batchIds.forEach((id) => next.delete(id));
+              return next;
+            });
+            setAiCompletionJob(
+              (current) =>
+                current && {
+                  ...current,
+                  done,
+                  total,
+                  completed: done - failedSoFar,
+                  failed: failedSoFar,
+                },
+            );
+          },
+          {
+            signal: abortController.signal,
+            onBatchStart: ({
+              done,
+              total,
+              completed: completedSoFar,
+              failed: failedSoFar,
+              batchStart,
+              batchEnd,
+            }) => {
+              setAiCompletionJob(
+                (current) =>
+                  current && {
+                    ...current,
+                    done,
+                    total,
+                    completed: completedSoFar,
+                    failed: failedSoFar,
+                    batchStart,
+                    batchEnd,
+                  },
+              );
             },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || "AI enhancement failed");
-          }
-          completed += 1;
-        } catch {
-          failed += 1;
-        } finally {
-          setEnhancingIds((prev) => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
-          setBulkProgress({
-            done: completed + failed,
-            total: ids.length,
-            note: failed ? `${failed} failed` : undefined,
-          });
-        }
-      }
-      setSelectedIds(new Set());
+          },
+        );
+      setSelectedIds(new Set(remainingIds));
       await fetchOpportunities();
-      showPageNotice(
-        failed === 0 ? "success" : "error",
-        `AI completed ${completed} profile${completed === 1 ? "" : "s"}${
-          failed ? `, ${failed} failed` : ""
-        }.`,
-      );
+      if (cancelled) {
+        showPageNotice(
+          "warning",
+          `AI completion cancelled. ${remainingIds.length} ${
+            remainingIds.length === 1
+              ? "opportunity remains"
+              : "opportunities remain"
+          } selected.`,
+        );
+      } else {
+        showPageNotice(
+          failed === 0 ? "success" : "warning",
+          `AI completed ${completed} profile${completed === 1 ? "" : "s"}${
+            failed ? `, ${failed} need retry and remain selected` : ""
+          }.`,
+        );
+      }
+    } catch (error: unknown) {
+      showPageNotice("error", getErrorMessage(error, "AI enhancement failed"));
     } finally {
+      if (aiCompletionAbortRef.current === abortController) {
+        aiCompletionAbortRef.current = null;
+      }
       setBulkAction(null);
-      setBulkProgress(null);
+      setAiCompletionJob(null);
+      setAiCompletionMinimized(false);
       setEnhancingIds((prev) => {
         const next = new Set(prev);
         ids.forEach((id) => next.delete(id));
         return next;
       });
     }
+  }
+
+  function handleCancelBulkEnhance() {
+    if (bulkAction !== "aiComplete") return;
+    setAiCompletionJob((current) =>
+      current ? { ...current, status: "cancelling" } : current,
+    );
+    aiCompletionAbortRef.current?.abort();
   }
 
   function showPageNotice(type: PageNotice["type"], message: string) {
@@ -1860,7 +1958,13 @@ export default function Opportunities() {
 
       if (!hasCard && !hasMeta) {
         // Nothing to choose between — share straight away without an image.
-        await executeShare(opportunity, sharePayload, "card", aiEnhanced, aiFallback);
+        await executeShare(
+          opportunity,
+          sharePayload,
+          "card",
+          aiEnhanced,
+          aiFallback,
+        );
         return;
       }
 
@@ -2117,7 +2221,10 @@ export default function Opportunities() {
         result.completeness?.score ?? opportunity.confidence ?? 0,
       );
       if (confidence < 60) {
-        showNotification(`Warning: Low confidence extraction (${confidence}%).`, "warning");
+        showNotification(
+          `Warning: Low confidence extraction (${confidence}%).`,
+          "warning",
+        );
       }
     } catch (error: unknown) {
       console.error("Scraping failed:", error);
@@ -2234,11 +2341,17 @@ export default function Opportunities() {
         (item) => item.errors.length > 0,
       ).length;
       if (errorCount > 0) {
-        showNotification(`Processed ${urls.length} URLs. ${errorCount} had issues.`, "warning");
+        showNotification(
+          `Processed ${urls.length} URLs. ${errorCount} had issues.`,
+          "warning",
+        );
       }
     } catch (error: unknown) {
       console.error("Bulk scraping failed:", error);
-      showNotification(`Bulk import failed: ${getErrorMessage(error)}`, "error");
+      showNotification(
+        `Bulk import failed: ${getErrorMessage(error)}`,
+        "error",
+      );
     } finally {
       setIsScraping(false);
     }
@@ -2269,7 +2382,10 @@ export default function Opportunities() {
       setShowModal(false);
       void fetchOpportunities();
     } catch (error: unknown) {
-      showNotification(getErrorMessage(error, "Failed to save opportunity"), "error");
+      showNotification(
+        getErrorMessage(error, "Failed to save opportunity"),
+        "error",
+      );
     }
   }
 
@@ -2578,7 +2694,7 @@ export default function Opportunities() {
               : `Select all ${totalOpportunities.toLocaleString()}`}
           </button>
         )}
-        {bulkProgress && (
+        {bulkProgress && bulkAction !== "aiComplete" && (
           <span
             style={{
               display: "inline-flex",
@@ -2666,14 +2782,8 @@ export default function Opportunities() {
           style={{ color: "#60a5fa" }}
           title="Use AI to complete the profile for each selected opportunity"
         >
-          {bulkAction === "aiComplete" ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Sparkles size={14} />
-          )}
-          {bulkAction === "aiComplete" && bulkProgress
-            ? "AI completing…"
-            : "AI Complete"}
+          <Sparkles size={14} />
+          AI Complete
         </button>
         <select
           aria-label="Move selected to category"
@@ -3092,6 +3202,16 @@ export default function Opportunities() {
         >
           {pageNotice.message}
         </div>
+      )}
+
+      {aiCompletionJob && (
+        <BulkEnhancementProgressPopup
+          job={aiCompletionJob}
+          minimized={aiCompletionMinimized}
+          onMinimize={() => setAiCompletionMinimized(true)}
+          onRestore={() => setAiCompletionMinimized(false)}
+          onCancel={handleCancelBulkEnhance}
+        />
       )}
 
       {/* Stats Cards — every card is a filter: click to see exactly the rows
@@ -4053,26 +4173,22 @@ export default function Opportunities() {
                 gap: "14px",
               }}
             >
-              {(
-                [
-                  {
-                    key: "card" as const,
-                    label: "Branded card",
-                    hint: "Generated Edutu design",
-                    imageUrl: shareChooser.payload?.shareCard?.url || "",
-                    badge: <Sparkles size={11} />,
-                  },
-                  {
-                    key: "meta" as const,
-                    label: "Original image",
-                    hint: "Auto-loaded from the source page",
-                    imageUrl: normalizeText(
-                      shareChooser.opportunity.image_url,
-                    ),
-                    badge: <LinkIcon size={11} />,
-                  },
-                ]
-              ).map((option) => {
+              {[
+                {
+                  key: "card" as const,
+                  label: "Branded card",
+                  hint: "Generated Edutu design",
+                  imageUrl: shareChooser.payload?.shareCard?.url || "",
+                  badge: <Sparkles size={11} />,
+                },
+                {
+                  key: "meta" as const,
+                  label: "Original image",
+                  hint: "Auto-loaded from the source page",
+                  imageUrl: normalizeText(shareChooser.opportunity.image_url),
+                  badge: <LinkIcon size={11} />,
+                },
+              ].map((option) => {
                 const available = Boolean(option.imageUrl);
                 const selected =
                   available && shareChooser.choice === option.key;
@@ -4083,9 +4199,7 @@ export default function Opportunities() {
                     disabled={!available || shareChooser.sharing}
                     onClick={() =>
                       setShareChooser((current) =>
-                        current
-                          ? { ...current, choice: option.key }
-                          : current,
+                        current ? { ...current, choice: option.key } : current,
                       )
                     }
                     style={{
@@ -5113,17 +5227,30 @@ export default function Opportunities() {
       {/* Toast notifications (non-blocking, replaces window.alert) */}
       <div className="opps-notifications-container">
         {notifications.map((n) => (
-          <div key={n.id} className={`opps-notification-toast opps-notification-${n.type}`}>
+          <div
+            key={n.id}
+            className={`opps-notification-toast opps-notification-${n.type}`}
+          >
             <div style={{ flexShrink: 0, marginTop: 1 }}>
-              {n.type === "success" && <CheckCircle2 size={18} color="#34c759" />}
+              {n.type === "success" && (
+                <CheckCircle2 size={18} color="#34c759" />
+              )}
               {n.type === "error" && <AlertCircle size={18} color="#ff3b30" />}
-              {n.type === "warning" && <AlertTriangle size={18} color="#ff9500" />}
+              {n.type === "warning" && (
+                <AlertTriangle size={18} color="#ff9500" />
+              )}
               {n.type === "info" && <AlertCircle size={18} color="#007aff" />}
             </div>
-            <div style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>{n.message}</div>
+            <div
+              style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}
+            >
+              {n.message}
+            </div>
             <button
               onClick={() =>
-                setNotifications((prev) => prev.filter((item) => item.id !== n.id))
+                setNotifications((prev) =>
+                  prev.filter((item) => item.id !== n.id),
+                )
               }
               style={{
                 background: "none",
