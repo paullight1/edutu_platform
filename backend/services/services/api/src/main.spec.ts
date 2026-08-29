@@ -16,6 +16,11 @@ describe("production environment validation", () => {
       BACHS_CHECKOUT_ENABLED: "false",
       LEGACY_PAYSTACK_WEBHOOK_ENABLED: "false",
     };
+    delete process.env.CLERK_PUBLISHABLE_KEY;
+    delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    delete process.env.VITE_CLERK_PUBLISHABLE_KEY;
+    delete process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    delete process.env.CLERK_ALLOW_TEST_INSTANCE;
     delete process.env.EDUTU_LOCAL_ADMIN_BYPASS;
   });
 

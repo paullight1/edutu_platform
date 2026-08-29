@@ -3,11 +3,13 @@ import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import WebSocket from "ws";
-import { AppModule } from "./app.module";
 import { assertProductionClerkIssuerLock } from "./auth/clerk-production-config";
 import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
 import { requestIdMiddleware } from "./common/request-id.middleware";
+import { loadEnvironmentFiles } from "./config/load-environment";
 import { createScraperEgressBodyLimitMiddleware } from "./scraper/scraper-egress-body-limit.middleware";
+
+loadEnvironmentFiles();
 
 if (typeof globalThis.WebSocket === "undefined") {
   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
@@ -111,6 +113,11 @@ export function validateEnvironment(): void {
 
 export async function bootstrap() {
   validateEnvironment();
+
+  // Import the application only after local environment overrides are loaded.
+  // Several modules create clients at import time and need the same Clerk
+  // instance as the browser during local development.
+  const { AppModule } = await import("./app.module.js");
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
