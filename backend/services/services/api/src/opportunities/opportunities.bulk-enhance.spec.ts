@@ -129,6 +129,10 @@ describe("OpportunitiesService bulk AI completion", () => {
       processed: 3,
       enhanced: 1,
       failed: 2,
+      failedIds: [
+        "0f4309b5-d5f2-4e1e-a732-4932730dc4b3",
+        "0d3a64ae-31f6-4afe-9bbb-73aff87cea98",
+      ],
     });
     expect(startedBeforeRelease).toBe(3);
     expect(maxActive).toBe(3);
@@ -154,6 +158,7 @@ describe("OpportunitiesService bulk AI completion", () => {
       processed: 1,
       enhanced: 0,
       failed: 1,
+      failedIds: ["opp-1"],
     });
   });
 

@@ -72,6 +72,23 @@ describe("runBulkOpportunityEnhancement", () => {
     });
   });
 
+  it("keeps only the backend-reported failed rows selected for retry", async () => {
+    await expect(
+      runBulkOpportunityEnhancement(["opp-1", "opp-2", "opp-3"], async () => ({
+        success: true,
+        processed: 3,
+        enhanced: 2,
+        failed: 1,
+        failedIds: ["opp-2"],
+      })),
+    ).resolves.toEqual({
+      completed: 2,
+      failed: 1,
+      cancelled: false,
+      remainingIds: ["opp-2"],
+    });
+  });
+
   it("reports the active batch before waiting for its network response", async () => {
     let resolveBatch!: (value: {
       success: boolean;

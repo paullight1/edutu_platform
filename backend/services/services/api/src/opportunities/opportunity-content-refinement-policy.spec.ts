@@ -57,4 +57,63 @@ describe("opportunity content refinement policy", () => {
     expect(service.enhanceOpportunity).toBe(originalEnhance);
     expect(service.backfillEnrichment).toBe(originalBackfill);
   });
+
+  it("shares one in-flight enhancement when requests target the same opportunity", async () => {
+    let originalCalls = 0;
+    let releaseEnhancement!: () => void;
+    const enhancementGate = new Promise<void>((resolve) => {
+      releaseEnhancement = resolve;
+    });
+    const service = {
+      runOpportunityEnhancementExclusive: async <T>(
+        operation: () => Promise<T>,
+      ) => operation(),
+      enhanceOpportunity: async (id: string) => {
+        originalCalls += 1;
+        await enhancementGate;
+        return { success: true, id };
+      },
+      backfillEnrichment: async () => ({ processed: 0 }),
+    };
+    const refiner = {
+      async refineOpportunity(
+        id: string,
+        options: { aiEnhance: (id: string) => Promise<unknown> },
+      ) {
+        const upstream = await options.aiEnhance(id);
+        return { success: true, id, upstream };
+      },
+      async backfill() {
+        return { processed: 0, enhanced: 0, failed: 0 };
+      },
+    };
+
+    const restore = installOpportunityContentRefinementPolicy(
+      service as never,
+      refiner as never,
+    );
+    const first = service.enhanceOpportunity("opp-shared");
+    const second = service.enhanceOpportunity("opp-shared");
+
+    await Promise.resolve();
+    await Promise.resolve();
+    const callsBeforeRelease = originalCalls;
+    releaseEnhancement();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      {
+        success: true,
+        id: "opp-shared",
+        upstream: { success: true, id: "opp-shared" },
+      },
+      {
+        success: true,
+        id: "opp-shared",
+        upstream: { success: true, id: "opp-shared" },
+      },
+    ]);
+    expect(callsBeforeRelease).toBe(1);
+    expect(originalCalls).toBe(1);
+    restore();
+  });
 });

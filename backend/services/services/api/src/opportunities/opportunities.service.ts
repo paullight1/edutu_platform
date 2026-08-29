@@ -2308,9 +2308,12 @@ export class OpportunitiesService {
    * multiple admin tabs or requests overlap; one failed row never aborts the
    * rest of the batch.
    */
-  async enhanceOpportunities(
-    ids: readonly string[],
-  ): Promise<{ processed: number; enhanced: number; failed: number }> {
+  async enhanceOpportunities(ids: readonly string[]): Promise<{
+    processed: number;
+    enhanced: number;
+    failed: number;
+    failedIds: string[];
+  }> {
     const outcomes = await Promise.all(
       ids.map(async (id) => {
         try {
@@ -2326,7 +2329,7 @@ export class OpportunitiesService {
             (outcome as { success?: boolean }).success !== false &&
             !refinementAiError
           ) {
-            return true;
+            return { id, enhanced: true };
           }
         } catch (error) {
           this.logger.warn(
@@ -2335,14 +2338,18 @@ export class OpportunitiesService {
             }`,
           );
         }
-        return false;
+        return { id, enhanced: false };
       }),
     );
-    const enhanced = outcomes.filter(Boolean).length;
+    const failedIds = outcomes
+      .filter((outcome) => !outcome.enhanced)
+      .map((outcome) => outcome.id);
+    const enhanced = outcomes.length - failedIds.length;
     return {
       processed: outcomes.length,
       enhanced,
-      failed: outcomes.length - enhanced,
+      failed: failedIds.length,
+      failedIds,
     };
   }
 

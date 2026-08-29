@@ -55,6 +55,8 @@ function jsonResponse(body: unknown): Response {
   } as unknown as Response;
 }
 
+let resolveBulkResponse: (response: Response) => void;
+
 describe("Opportunities AI completion popup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +68,8 @@ describe("Opportunities AI completion popup", () => {
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.includes("/opportunities/admin/bulk-enhance")) {
-          return new Promise<Response>((_resolve, reject) => {
+          return new Promise<Response>((resolve, reject) => {
+            resolveBulkResponse = resolve;
             const abort = () =>
               reject(
                 new DOMException("The operation was aborted", "AbortError"),
@@ -105,7 +108,7 @@ describe("Opportunities AI completion popup", () => {
     );
   });
 
-  it("shows real batch progress, minimizes, restores, and keeps unfinished rows selected after cancel", async () => {
+  it("shows real progress and waits for the active batch to reconcile after cancel", async () => {
     const user = userEvent.setup();
     render(<Opportunities />);
 
@@ -148,17 +151,33 @@ describe("Opportunities AI completion popup", () => {
       screen.getByRole("button", { name: "Cancel AI completion" }),
     );
 
+    expect(
+      screen.getByText("Stopping after the current request…"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Cancel AI completion" }),
+    ).toBeDisabled();
+
+    resolveBulkResponse(
+      jsonResponse({
+        success: true,
+        processed: 1,
+        enhanced: 1,
+        failed: 0,
+        failedIds: [],
+      }),
+    );
+
     await waitFor(() => {
       expect(
         screen.queryByRole("status", { name: "AI completion progress" }),
       ).not.toBeInTheDocument();
     });
-    expect(screen.getByText("1 selected")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "AI completion cancelled. 1 opportunity remains selected.",
+        "AI completion cancelled. 0 opportunities remain selected.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "AI Complete" })).toBeEnabled();
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
   });
 });

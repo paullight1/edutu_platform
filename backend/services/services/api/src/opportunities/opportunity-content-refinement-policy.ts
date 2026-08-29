@@ -34,14 +34,27 @@ export function installOpportunityContentRefinementPolicy(
   const originalEnhance = mutable.enhanceOpportunity;
   const originalBackfill = mutable.backfillEnrichment;
   const boundEnhance: EnhanceMethod = originalEnhance.bind(service);
+  const inFlightEnhancements = new Map<string, Promise<any>>();
 
-  const wrappedEnhance: EnhanceMethod = (id) =>
-    service.runOpportunityEnhancementExclusive(() =>
+  const wrappedEnhance: EnhanceMethod = async (id) => {
+    const existing = inFlightEnhancements.get(id);
+    if (existing) return existing;
+
+    const running = service.runOpportunityEnhancementExclusive(() =>
       refinementService.refineOpportunity(id, {
         aiEnhance: boundEnhance,
         forceAi: true,
       }),
     );
+    inFlightEnhancements.set(id, running);
+    try {
+      return await running;
+    } finally {
+      if (inFlightEnhancements.get(id) === running) {
+        inFlightEnhancements.delete(id);
+      }
+    }
+  };
 
   const wrappedBackfill: BackfillMethod = (options = {}) =>
     refinementService.backfill(options, {
@@ -59,6 +72,7 @@ export function installOpportunityContentRefinementPolicy(
     if (mutable.backfillEnrichment === wrappedBackfill) {
       mutable.backfillEnrichment = originalBackfill;
     }
+    inFlightEnhancements.clear();
     delete mutable[POLICY_MARK];
   };
 

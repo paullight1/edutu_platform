@@ -1102,7 +1102,8 @@ export default function Opportunities() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pageNoticeTimeoutRef = useRef<number | null>(null);
-  const aiCompletionAbortRef = useRef<AbortController | null>(null);
+  const aiCompletionStopRef = useRef<AbortController | null>(null);
+  const aiCompletionRequestAbortRef = useRef<AbortController | null>(null);
 
   const NEST_API_URL = (
     import.meta.env.VITE_BACKEND_URL ||
@@ -1248,7 +1249,8 @@ export default function Opportunities() {
       if (pageNoticeTimeoutRef.current !== null) {
         window.clearTimeout(pageNoticeTimeoutRef.current);
       }
-      aiCompletionAbortRef.current?.abort();
+      aiCompletionStopRef.current?.abort();
+      aiCompletionRequestAbortRef.current?.abort();
     };
   }, []);
 
@@ -1653,8 +1655,10 @@ export default function Opportunities() {
   async function handleBulkEnhance() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
-    const abortController = new AbortController();
-    aiCompletionAbortRef.current = abortController;
+    const stopController = new AbortController();
+    const requestAbortController = new AbortController();
+    aiCompletionStopRef.current = stopController;
+    aiCompletionRequestAbortRef.current = requestAbortController;
     setBulkAction("aiComplete");
     setAiCompletionMinimized(false);
     setAiCompletionJob({
@@ -1684,13 +1688,22 @@ export default function Opportunities() {
                 getErrorMessage(error, "Admin session could not be refreshed"),
               );
             }
+            if (stopController.signal.aborted) {
+              throw new DOMException(
+                "AI completion was cancelled",
+                "AbortError",
+              );
+            }
             const response = await fetch(
               `${NEST_API_URL}/opportunities/admin/bulk-enhance`,
               {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ ids: batchIds }),
-                signal: abortController.signal,
+                // User cancellation waits for this active request to finish so
+                // its saved rows can be reconciled accurately. Navigation or
+                // unmount still aborts the browser request via this controller.
+                signal: requestAbortController.signal,
               },
             );
             const result = await response.json().catch(() => ({}));
@@ -1724,7 +1737,7 @@ export default function Opportunities() {
             );
           },
           {
-            signal: abortController.signal,
+            signal: stopController.signal,
             onBatchStart: ({
               done,
               total,
@@ -1770,8 +1783,11 @@ export default function Opportunities() {
     } catch (error: unknown) {
       showPageNotice("error", getErrorMessage(error, "AI enhancement failed"));
     } finally {
-      if (aiCompletionAbortRef.current === abortController) {
-        aiCompletionAbortRef.current = null;
+      if (aiCompletionStopRef.current === stopController) {
+        aiCompletionStopRef.current = null;
+      }
+      if (aiCompletionRequestAbortRef.current === requestAbortController) {
+        aiCompletionRequestAbortRef.current = null;
       }
       setBulkAction(null);
       setAiCompletionJob(null);
@@ -1789,7 +1805,7 @@ export default function Opportunities() {
     setAiCompletionJob((current) =>
       current ? { ...current, status: "cancelling" } : current,
     );
-    aiCompletionAbortRef.current?.abort();
+    aiCompletionStopRef.current?.abort();
   }
 
   function showPageNotice(type: PageNotice["type"], message: string) {

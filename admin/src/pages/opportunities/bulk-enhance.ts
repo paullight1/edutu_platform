@@ -3,6 +3,7 @@ export interface BulkEnhanceResponse {
   processed?: number;
   enhanced?: number;
   failed?: number;
+  failedIds?: string[];
 }
 
 export interface BulkEnhanceProgress {
@@ -52,9 +53,10 @@ function uniqueIds(ids: readonly string[]): string[] {
 }
 
 /**
- * Collapse a large AI-complete selection into small, sequential API batches.
- * The backend also processes each batch sequentially, keeping both Nest and
- * the configured AI provider out of burst-rate-limit territory.
+ * Collapse a large AI-complete selection into small, sequential API requests.
+ * Nest processes the three rows inside each request with bounded concurrency;
+ * keeping requests sequential prevents the browser from creating a second
+ * unbounded concurrency layer.
  */
 export async function runBulkOpportunityEnhancement(
   ids: readonly string[],
@@ -96,7 +98,22 @@ export async function runBulkOpportunityEnhancement(
       // Treat any unaccounted rows as failed so progress can never stall.
       const batchFailed = batchIds.length - batchCompleted;
       failed += batchFailed;
-      if (batchFailed > 0) failedIds.push(...batchIds);
+      if (batchFailed > 0) {
+        const batchSet = new Set(batchIds);
+        const reportedFailedIds = uniqueIds(
+          Array.isArray(result.failedIds)
+            ? result.failedIds.filter((id) => batchSet.has(id))
+            : [],
+        );
+        // Older API deployments return aggregate counts only. Fall back to
+        // retrying the whole batch unless the per-ID response reconciles
+        // exactly with those counts; accuracy is more important than guessing.
+        failedIds.push(
+          ...(reportedFailedIds.length === batchFailed
+            ? reportedFailedIds
+            : batchIds),
+        );
+      }
     } catch (error) {
       if (error instanceof BulkEnhancementFatalError) throw error;
       if (options.signal?.aborted) {
@@ -118,6 +135,18 @@ export async function runBulkOpportunityEnhancement(
       failed,
       batchIds: [...batchIds],
     });
+
+    if (options.signal?.aborted) {
+      return {
+        completed,
+        failed,
+        cancelled: true,
+        remainingIds: uniqueIds([
+          ...failedIds,
+          ...ids.slice(offset + batchIds.length),
+        ]),
+      };
+    }
   }
 
   return {
