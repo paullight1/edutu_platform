@@ -3,6 +3,7 @@ import {
   canModerateGroup,
   canPostInGroup,
   canReadGroup,
+  canReadGroupContent,
   canSelfActivate,
   canSelfJoinWithoutInvite,
   isDepartedStatus,
@@ -156,6 +157,46 @@ describe("community-authz truth table", () => {
       // must be added to this predicate at the same time as the column value.
       expect(canReadGroup({ visibility: "unlisted" }, null)).toBe(true);
     });
+  });
+
+  describe("canReadGroupContent", () => {
+    it("keeps public feed history behind active membership", () => {
+      expect(canReadGroupContent(group("public"), OTHER, null)).toBe(false);
+      expect(
+        canReadGroupContent(
+          group("public"),
+          OTHER,
+          membership("active", "member"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not turn a private invitation into feed access", () => {
+      expect(
+        canReadGroupContent(
+          group("private"),
+          OTHER,
+          membership("invited", "member"),
+        ),
+      ).toBe(false);
+    });
+
+    it("admits the canonical owner when the operational row is missing", () => {
+      expect(canReadGroupContent(group("private"), OWNER, null)).toBe(true);
+    });
+
+    it.each(["removed", "banned"] as const)(
+      "lets an explicit %s status beat canonical ownership",
+      (status) => {
+        expect(
+          canReadGroupContent(
+            group("public"),
+            OWNER,
+            membership(status, "owner"),
+          ),
+        ).toBe(false);
+      },
+    );
   });
 
   // -------------------------------------------------------------------------

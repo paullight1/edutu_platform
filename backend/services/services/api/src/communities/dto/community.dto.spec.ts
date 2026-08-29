@@ -2,6 +2,8 @@ import {
   GroupFormSchema,
   GroupQuestionSchema,
   SendMessageSchema,
+  SendCommentSchema,
+  PinMessageSchema,
   ReportSchema,
 } from "./community.dto";
 
@@ -219,5 +221,31 @@ describe("unrelated schema limits are unchanged", () => {
       reason: "a".repeat(281),
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("community post engagement schemas", () => {
+  it("accepts a trimmed one-level text comment and rejects extra fields", () => {
+    expect(SendCommentSchema.parse({ body: "  Helpful answer  " })).toEqual({
+      body: "Helpful answer",
+    });
+    expect(
+      SendCommentSchema.safeParse({
+        body: "Helpful answer",
+        parentMessageId: "11111111-1111-4111-8111-111111111111",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects blank and overlong comments", () => {
+    expect(SendCommentSchema.safeParse({ body: "   " }).success).toBe(false);
+    expect(
+      SendCommentSchema.safeParse({ body: "a".repeat(2001) }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only an explicit boolean pin state", () => {
+    expect(PinMessageSchema.parse({ pinned: true })).toEqual({ pinned: true });
+    expect(PinMessageSchema.safeParse({ pinned: "true" }).success).toBe(false);
   });
 });

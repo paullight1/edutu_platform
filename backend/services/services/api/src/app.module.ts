@@ -49,7 +49,7 @@ import { SupportModule } from "./support/support.module";
 @Module({
   imports: [
     CacheModule,
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({ envFilePath: [".env.local", ".env"] }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {

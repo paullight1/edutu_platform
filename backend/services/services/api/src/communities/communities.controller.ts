@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
@@ -14,6 +16,7 @@ import { z } from "zod";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { communityThrottle } from "./community-throttle";
+import { CreationRequestsService } from "./creation-requests.service";
 import {
   CommunityAttachmentUploadSchema,
   CommunityGroupImageUploadSchema,
@@ -21,6 +24,8 @@ import {
   GroupFormSchema,
   JoinRequestSchema,
   ReportSchema,
+  PinMessageSchema,
+  SendCommentSchema,
   SendMessageSchema,
   UpdateGroupSchema,
   type CreateGroupDto,
@@ -29,9 +34,17 @@ import {
   type GroupFormDto,
   type JoinRequestDto,
   type ReportDto,
+  type PinMessageDto,
+  type SendCommentDto,
   type SendMessageDto,
   type UpdateGroupDto,
 } from "./dto/community.dto";
+import {
+  CreateCommunityRequestSchema,
+  UpdateCommunityRequestCoverSchema,
+  type CreateCommunityRequestDto,
+  type UpdateCommunityRequestCoverDto,
+} from "./dto/creation-request.dto";
 import { FormsService, type JoinRequestFilter } from "./forms.service";
 import { CommunityContentService } from "./content.service";
 import { GroupsService, type CommunityMemberCursor } from "./groups.service";
@@ -81,7 +94,47 @@ export class CommunitiesController {
     private readonly forms: FormsService,
     private readonly moderation: ModerationService,
     private readonly content: CommunityContentService,
+    private readonly creationRequests?: CreationRequestsService,
   ) {}
+
+  @Post("creation-requests")
+  @Throttle(communityThrottle("createGroup"))
+  submitCreationRequest(
+    @CurrentUser("authId") userId: string,
+    @Body(new ZodValidationPipe(CreateCommunityRequestSchema))
+    dto: CreateCommunityRequestDto,
+  ) {
+    return this.requestService().submit(userId, dto);
+  }
+
+  @Get("creation-requests/mine")
+  listMyCreationRequests(@CurrentUser("authId") userId: string) {
+    return this.requestService().listMine(userId);
+  }
+
+  @Post("creation-requests/:id/cancel")
+  @Throttle(communityThrottle("mutateMembership"))
+  cancelCreationRequest(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+  ) {
+    return this.requestService().cancel(userId, id);
+  }
+
+  @Patch("creation-requests/:id/cover-image")
+  @Throttle(communityThrottle("uploadReservation"))
+  setCreationRequestCover(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateCommunityRequestCoverSchema))
+    dto: UpdateCommunityRequestCoverDto,
+  ) {
+    return this.requestService().setCoverImage(
+      userId,
+      id,
+      dto.coverImageResourceUrl,
+    );
+  }
 
   @Get("groups")
   listGroups(
@@ -97,6 +150,14 @@ export class CommunitiesController {
       query: query?.trim() || undefined,
       limit: this.parseLimit(limit),
     });
+  }
+
+  @Get("discovery")
+  discovery(
+    @CurrentUser("authId") userId: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.groups.discovery(userId, this.parseLimit(limit));
   }
 
   @Get("groups/:id")
@@ -124,10 +185,15 @@ export class CommunitiesController {
   @Post("groups")
   @Throttle(communityThrottle("createGroup"))
   createGroup(
-    @CurrentUser("authId") userId: string,
-    @Body(new ZodValidationPipe(CreateGroupSchema)) dto: CreateGroupDto,
+    @CurrentUser("authId") _userId: string,
+    @Body(new ZodValidationPipe(CreateGroupSchema)) _dto: CreateGroupDto,
   ) {
-    return this.groups.create(userId, dto);
+    throw new ConflictException({
+      statusCode: 409,
+      code: "COMMUNITY_CREATION_REVIEW_REQUIRED",
+      message:
+        "Community creation now requires review. Update Edutu and submit a community request.",
+    });
   }
 
   @Patch("groups/:id")
@@ -253,6 +319,23 @@ export class CommunitiesController {
     });
   }
 
+  @Get("groups/:id/pinned-post")
+  getPinnedPost(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+  ) {
+    return this.messages.getPinnedPreview(userId, id);
+  }
+
+  @Get("groups/:id/posts/:postId")
+  getPostThread(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Param("postId") postId: string,
+  ) {
+    return this.messages.getPostThread(userId, id, postId);
+  }
+
   @Get("groups/:id/resources")
   listResources(
     @CurrentUser("authId") userId: string,
@@ -276,6 +359,42 @@ export class CommunitiesController {
     @Body(new ZodValidationPipe(SendMessageSchema)) dto: SendMessageDto,
   ) {
     return this.messages.send(userId, id, dto);
+  }
+
+  @Post("groups/:id/posts/:postId/comments")
+  @Throttle(communityThrottle("sendGroupMessage"))
+  sendComment(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Param("postId") postId: string,
+    @Body(new ZodValidationPipe(SendCommentSchema)) dto: SendCommentDto,
+  ) {
+    return this.messages.sendComment(userId, id, postId, dto);
+  }
+
+  @Put("messages/:id/like")
+  @Throttle(communityThrottle("mutateMembership"))
+  likeMessage(@CurrentUser("authId") userId: string, @Param("id") id: string) {
+    return this.messages.setLike(userId, id, true);
+  }
+
+  @Delete("messages/:id/like")
+  @Throttle(communityThrottle("mutateMembership"))
+  unlikeMessage(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+  ) {
+    return this.messages.setLike(userId, id, false);
+  }
+
+  @Patch("messages/:id/pin")
+  @Throttle(communityThrottle("mutateMembership"))
+  pinMessage(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(PinMessageSchema)) dto: PinMessageDto,
+  ) {
+    return this.messages.setPinned(userId, id, dto.pinned);
   }
 
   @Post("groups/:id/attachments/upload-url")
@@ -366,6 +485,15 @@ export class CommunitiesController {
       return true;
     }
     return false;
+  }
+
+  private requestService(): CreationRequestsService {
+    if (!this.creationRequests) {
+      throw new BadRequestException(
+        "Community creation requests are not configured right now.",
+      );
+    }
+    return this.creationRequests;
   }
 
   private parseLimit(value: string | undefined): number | undefined {

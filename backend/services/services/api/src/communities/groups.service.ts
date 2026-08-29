@@ -8,7 +8,17 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "../db";
 import { NotificationsService } from "../notifications/notifications.service";
 import {
@@ -102,6 +112,10 @@ export type GroupListFilter = {
   opportunityId?: string;
   query?: string;
   limit?: number;
+  /** Explicitly curated public communities ordered by editorial rank. */
+  trending?: boolean;
+  /** Regular discovery rows must not duplicate the Trending collection. */
+  excludeTrending?: boolean;
   /**
    * "Only the groups I'm in." The mobile browse screen leads with this section,
    * and without the filter `mine=true` returned every public group in the
@@ -469,6 +483,14 @@ export class DrizzleGroupsStore implements GroupsStore {
         sql`(${communityGroups.name} ilike ${pattern} or ${communityGroups.description} ilike ${pattern})`,
       );
     }
+    if (filter.trending) {
+      conditions.push(
+        isNotNull(communityGroups.trendingRank),
+        eq(communityGroups.visibility, "public"),
+      );
+    } else if (filter.excludeTrending) {
+      conditions.push(isNull(communityGroups.trendingRank));
+    }
     // `mine`, applied in the same query as the LIMIT for the same reason the
     // visibility rule is: narrowing after the 50-row cap would return a page
     // that is short of the caller's own groups because public ones filled it.
@@ -501,6 +523,15 @@ export class DrizzleGroupsStore implements GroupsStore {
       );
     }
     conditions.push(or(...visibilityConditions)!);
+    const limit = Math.min(filter.limit ?? LIST_LIMIT, LIST_LIMIT);
+    if (filter.trending) {
+      return db
+        .select()
+        .from(communityGroups)
+        .where(and(...conditions))
+        .orderBy(asc(communityGroups.trendingRank), asc(communityGroups.id))
+        .limit(limit);
+    }
     return db
       .select()
       .from(communityGroups)
@@ -508,8 +539,9 @@ export class DrizzleGroupsStore implements GroupsStore {
       .orderBy(
         sql`${communityGroups.lastMessageAt} desc nulls last`,
         desc(communityGroups.createdAt),
+        desc(communityGroups.id),
       )
-      .limit(Math.min(filter.limit ?? LIST_LIMIT, LIST_LIMIT));
+      .limit(limit);
   }
 
   async listMembershipsForUser(
@@ -952,6 +984,21 @@ export class GroupsService {
           live.has(group.id) ||
           (group.ownerId === userId && !isDepartedStatus(membership?.status)),
       );
+  }
+
+  async discovery(
+    userId: string,
+    limit = LIST_LIMIT,
+  ): Promise<{
+    trending: GroupWithMembership[];
+    communities: GroupWithMembership[];
+  }> {
+    const resolved = Math.max(1, Math.min(Math.floor(limit), LIST_LIMIT));
+    const [trending, communities] = await Promise.all([
+      this.list(userId, { trending: true, limit: resolved }),
+      this.list(userId, { excludeTrending: true, limit: resolved }),
+    ]);
+    return { trending, communities };
   }
 
   async get(userId: string, groupId: string): Promise<GroupWithMembership> {

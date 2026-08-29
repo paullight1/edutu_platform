@@ -1393,16 +1393,14 @@ describe("GroupsService", () => {
     });
 
     it("does not widen message access for anyone it newly lists", async () => {
-      // Being visible in a browse list is not being in the room. The read rule
-      // for messages is `canReadGroup` — the same function `list` filters on —
-      // so a `pending` applicant, who `list` refuses on a private group, is
-      // refused its messages too, and an `invited` user, who `list` shows the
-      // group to, still cannot POST in it until they accept.
+      // Being visible in a browse list is not being in the room. Full message
+      // access requires an active membership, while an invited user may only
+      // see the group preview until they accept.
       for (const status of ["pending", "removed", "banned", null]) {
         const { db, group } = privateGroupWith(status);
         await expect(
           messagesOver(db).list("user_guest", group.id),
-        ).rejects.toThrow(/not a member/i);
+        ).rejects.toThrow(/join this community/i);
       }
       const { db, group } = privateGroupWith("invited");
       await expect(

@@ -8,7 +8,18 @@ import {
 } from "@nestjs/common";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "../db";
 import { toDatabaseUserId } from "../common/user-id";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -16,6 +27,7 @@ import {
   communityGroupMembers,
   communityGroupMessages,
   communityGroups,
+  communityMessageLikes,
   type CommunityGroup,
   type CommunityGroupMember,
   type CommunityGroupMessage,
@@ -24,15 +36,18 @@ import {
   canModerateGroup,
   canPostInGroup,
   canReadGroup,
+  canReadGroupContent,
 } from "./community-authz";
 import {
   CommunityAttachmentUploadSchema,
   CommunityFileAttachmentSchema,
   CommunityImageAttachmentSchema,
   SendMessageSchema,
+  SendCommentSchema,
   type CommunityAttachmentDto,
   type CommunityAttachmentUploadDto,
   type SendMessageDto,
+  type SendCommentDto,
 } from "./dto/community.dto";
 import { screenMessage } from "./message-screen";
 
@@ -70,6 +85,7 @@ export type NewMessageRow = {
   body: string;
   kind: string;
   opportunityId?: string | null;
+  parentMessageId?: string | null;
 };
 
 /**
@@ -96,6 +112,15 @@ export type MessagePatch = {
   body?: string;
   deletedAt?: Date | null;
   deletedBy?: string | null;
+  pinnedAt?: Date | null;
+  pinnedBy?: string | null;
+};
+
+export type MessageEngagement = {
+  messageId: string;
+  likeCount: number;
+  commentCount: number;
+  viewerHasLiked: boolean;
 };
 
 /**
@@ -131,6 +156,23 @@ export interface MessagesStore {
     before: MessageCursor | null,
     limit: number,
   ): Promise<CommunityGroupMessage[]>;
+  findPinnedMessage(groupId: string): Promise<CommunityGroupMessage | null>;
+  listComments(parentMessageId: string): Promise<CommunityGroupMessage[]>;
+  getMessageEngagement(
+    messageIds: string[],
+    viewerId: string,
+  ): Promise<MessageEngagement[]>;
+  setMessageLike(
+    messageId: string,
+    userId: string,
+    liked: boolean,
+  ): Promise<void>;
+  setPinnedMessage(
+    groupId: string,
+    messageId: string,
+    pinnedBy: string,
+    pinned: boolean,
+  ): Promise<CommunityGroupMessage | null>;
   /** Attachment-only history used by the Resources surface. */
   listResourceMessages?(
     groupId: string,
@@ -262,6 +304,17 @@ export type CommunityMessageWithAuthor = CommunityGroupMessage & {
   author: MessageAuthor;
 };
 
+export type CommunityMessageView = CommunityMessageWithAuthor & {
+  likeCount: number;
+  commentCount: number;
+  viewerHasLiked: boolean;
+};
+
+export type CommunityPostThread = {
+  post: CommunityMessageView;
+  comments: CommunityMessageView[];
+};
+
 // ---------------------------------------------------------------------------
 // Drizzle-backed store
 // ---------------------------------------------------------------------------
@@ -311,7 +364,10 @@ export class DrizzleMessagesStore implements MessagesStore {
     before: MessageCursor | null,
     limit: number,
   ): Promise<CommunityGroupMessage[]> {
-    const conditions = [eq(communityGroupMessages.groupId, groupId)];
+    const conditions = [
+      eq(communityGroupMessages.groupId, groupId),
+      isNull(communityGroupMessages.parentMessageId),
+    ];
     if (before) {
       conditions.push(
         before.id
@@ -352,6 +408,7 @@ export class DrizzleMessagesStore implements MessagesStore {
       eq(communityGroupMessages.groupId, groupId),
       inArray(communityGroupMessages.kind, ["image", "file"]),
       isNull(communityGroupMessages.deletedAt),
+      isNull(communityGroupMessages.parentMessageId),
     ];
     if (before) {
       conditions.push(
@@ -386,6 +443,142 @@ export class DrizzleMessagesStore implements MessagesStore {
     return row ?? null;
   }
 
+  async findPinnedMessage(
+    groupId: string,
+  ): Promise<CommunityGroupMessage | null> {
+    const [row] = await db
+      .select()
+      .from(communityGroupMessages)
+      .where(
+        and(
+          eq(communityGroupMessages.groupId, groupId),
+          isNull(communityGroupMessages.parentMessageId),
+          isNull(communityGroupMessages.deletedAt),
+          sql`${communityGroupMessages.pinnedAt} is not null`,
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listComments(
+    parentMessageId: string,
+  ): Promise<CommunityGroupMessage[]> {
+    return db
+      .select()
+      .from(communityGroupMessages)
+      .where(eq(communityGroupMessages.parentMessageId, parentMessageId))
+      .orderBy(
+        asc(communityGroupMessages.createdAt),
+        asc(communityGroupMessages.id),
+      );
+  }
+
+  async getMessageEngagement(
+    messageIds: string[],
+    viewerId: string,
+  ): Promise<MessageEngagement[]> {
+    if (messageIds.length === 0) return [];
+    const [likeRows, commentRows, viewerRows] = await Promise.all([
+      db
+        .select({
+          messageId: communityMessageLikes.messageId,
+          value: count(),
+        })
+        .from(communityMessageLikes)
+        .where(inArray(communityMessageLikes.messageId, messageIds))
+        .groupBy(communityMessageLikes.messageId),
+      db
+        .select({
+          messageId: communityGroupMessages.parentMessageId,
+          value: count(),
+        })
+        .from(communityGroupMessages)
+        .where(
+          and(
+            inArray(communityGroupMessages.parentMessageId, messageIds),
+            isNull(communityGroupMessages.deletedAt),
+          ),
+        )
+        .groupBy(communityGroupMessages.parentMessageId),
+      db
+        .select({ messageId: communityMessageLikes.messageId })
+        .from(communityMessageLikes)
+        .where(
+          and(
+            inArray(communityMessageLikes.messageId, messageIds),
+            eq(communityMessageLikes.userId, viewerId),
+          ),
+        ),
+    ]);
+    const likes = new Map(likeRows.map((row) => [row.messageId, row.value]));
+    const comments = new Map(
+      commentRows.flatMap((row) =>
+        row.messageId ? [[row.messageId, row.value] as const] : [],
+      ),
+    );
+    const viewerLikes = new Set(viewerRows.map((row) => row.messageId));
+    return messageIds.map((messageId) => ({
+      messageId,
+      likeCount: likes.get(messageId) ?? 0,
+      commentCount: comments.get(messageId) ?? 0,
+      viewerHasLiked: viewerLikes.has(messageId),
+    }));
+  }
+
+  async setMessageLike(
+    messageId: string,
+    userId: string,
+    liked: boolean,
+  ): Promise<void> {
+    if (liked) {
+      await db
+        .insert(communityMessageLikes)
+        .values({ messageId, userId })
+        .onConflictDoNothing();
+      return;
+    }
+    await db
+      .delete(communityMessageLikes)
+      .where(
+        and(
+          eq(communityMessageLikes.messageId, messageId),
+          eq(communityMessageLikes.userId, userId),
+        ),
+      );
+  }
+
+  async setPinnedMessage(
+    groupId: string,
+    messageId: string,
+    pinnedBy: string,
+    pinned: boolean,
+  ): Promise<CommunityGroupMessage | null> {
+    return db.transaction(async (tx) => {
+      if (pinned) {
+        await tx
+          .update(communityGroupMessages)
+          .set({ pinnedAt: null, pinnedBy: null })
+          .where(eq(communityGroupMessages.groupId, groupId));
+      }
+      const [row] = await tx
+        .update(communityGroupMessages)
+        .set(
+          pinned
+            ? { pinnedAt: new Date(), pinnedBy }
+            : { pinnedAt: null, pinnedBy: null },
+        )
+        .where(
+          and(
+            eq(communityGroupMessages.id, messageId),
+            eq(communityGroupMessages.groupId, groupId),
+          ),
+        )
+        .returning();
+      return row ?? null;
+    });
+  }
+
   async insertMessage(
     row: NewMessageRow,
     bump: GroupCounterBump,
@@ -402,6 +595,7 @@ export class DrizzleMessagesStore implements MessagesStore {
           body: row.body,
           kind: row.kind,
           opportunityId: row.opportunityId ?? null,
+          parentMessageId: row.parentMessageId ?? null,
         })
         .returning();
       const counters: Record<string, unknown> = {};
@@ -712,7 +906,7 @@ export class MessagesService {
     const readerId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, readerId);
-    if (!canReadGroup(group, membership)) {
+    if (!canReadGroupContent(group, readerId, membership)) {
       throw new ForbiddenException("You're not a member of this group.");
     }
     this.assertAttachmentSignature(groupId, storagePath, signature);
@@ -774,12 +968,12 @@ export class MessagesService {
     userId: string,
     groupId: string,
     options: ListMessagesOptions = {},
-  ): Promise<CommunityMessageWithAuthor[]> {
+  ): Promise<CommunityMessageView[]> {
     const readerId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, readerId);
-    if (!canReadGroup(group, membership)) {
-      throw new ForbiddenException("You're not a member of this group.");
+    if (!canReadGroupContent(group, readerId, membership)) {
+      throw new ForbiddenException("Join this community to view its posts.");
     }
 
     const limit = this.resolveLimit(options.limit);
@@ -815,7 +1009,184 @@ export class MessagesService {
       if (batch.length < fetchSize || visible.length >= limit) break;
     }
 
-    return this.withAuthors(visible.slice(0, limit));
+    return this.withViews(visible.slice(0, limit), readerId);
+  }
+
+  async getPinnedPreview(
+    userId: string,
+    groupId: string,
+  ): Promise<CommunityMessageView | null> {
+    const readerId = this.requireUserId(userId);
+    const group = await this.requireGroup(groupId);
+    const membership = await this.store.findMembership(groupId, readerId);
+    if (!canReadGroup(group, membership)) {
+      throw new ForbiddenException("You're not allowed to preview this group.");
+    }
+    const pinned = await this.store.findPinnedMessage(groupId);
+    if (!pinned || pinned.deletedAt) return null;
+    const hidden = await this.loadHiddenAuthors(readerId);
+    if (this.isHidden(pinned, hidden)) return null;
+    const [view] = await this.withViews([pinned], readerId);
+    return view;
+  }
+
+  async getPostThread(
+    userId: string,
+    groupId: string,
+    postId: string,
+  ): Promise<CommunityPostThread> {
+    const readerId = this.requireUserId(userId);
+    this.assertUuid(postId, "post");
+    const group = await this.requireGroup(groupId);
+    const membership = await this.store.findMembership(groupId, readerId);
+    if (!canReadGroupContent(group, readerId, membership)) {
+      throw new ForbiddenException("Join this community to view its posts.");
+    }
+    const post = await this.store.findMessage(postId);
+    if (
+      !post ||
+      post.groupId !== groupId ||
+      post.parentMessageId !== null ||
+      post.deletedAt
+    ) {
+      throw new NotFoundException("That post was not found.");
+    }
+    const hidden = await this.loadHiddenAuthors(readerId);
+    if (this.isHidden(post, hidden)) {
+      throw new NotFoundException("That post was not found.");
+    }
+    const comments = (await this.store.listComments(postId)).filter(
+      (comment) => !this.isHidden(comment, hidden),
+    );
+    const views = await this.withViews([post, ...comments], readerId);
+    return { post: views[0], comments: views.slice(1) };
+  }
+
+  async sendComment(
+    userId: string,
+    groupId: string,
+    postId: string,
+    dto: SendCommentDto,
+  ): Promise<CommunityMessageView> {
+    const senderId = this.requireUserId(userId);
+    this.assertUuid(postId, "post");
+    const group = await this.requireGroup(groupId);
+    if (group.archivedAt) {
+      throw new BadRequestException(
+        "This group has been archived, so new comments can't be added.",
+      );
+    }
+    const membership = await this.store.findMembership(groupId, senderId);
+    if (!canPostInGroup(group, membership)) {
+      throw new ForbiddenException(
+        "Join this community before commenting on its posts.",
+      );
+    }
+    const validation = SendCommentSchema.safeParse(dto);
+    if (!validation.success) {
+      throw new BadRequestException("Type a comment before posting it.");
+    }
+    const post = await this.store.findMessage(postId);
+    if (!post || post.groupId !== groupId || post.deletedAt) {
+      throw new NotFoundException("That post was not found.");
+    }
+    if (post.parentMessageId !== null) {
+      throw new BadRequestException(
+        "Replies can only be added to a top-level post.",
+      );
+    }
+    const verdict = screenMessage(validation.data.body);
+    if (!verdict.allowed) {
+      throw new BadRequestException(
+        verdict.reason === "empty"
+          ? "Type a comment before posting it."
+          : "That comment can't be posted because it appears to request money, secrets, or contact outside Edutu.",
+      );
+    }
+    const stored = await this.store.insertMessage(
+      {
+        groupId,
+        userId: senderId,
+        body: validation.data.body,
+        kind: "text",
+        opportunityId: null,
+        parentMessageId: postId,
+      },
+      { messageCountDelta: 0, touchLastMessageAt: true },
+    );
+    const [view] = await this.withViews([stored], senderId);
+    return view;
+  }
+
+  async setLike(
+    userId: string,
+    messageId: string,
+    liked: boolean,
+  ): Promise<{
+    messageId: string;
+    likeCount: number;
+    viewerHasLiked: boolean;
+  }> {
+    const actorId = this.requireUserId(userId);
+    this.assertUuid(messageId, "message");
+    const message = await this.store.findMessage(messageId);
+    if (!message || message.deletedAt) {
+      throw new NotFoundException("That message was not found.");
+    }
+    const group = await this.requireGroup(message.groupId);
+    const membership = await this.store.findMembership(group.id, actorId);
+    if (!canPostInGroup(group, membership)) {
+      throw new ForbiddenException(
+        group.archivedAt
+          ? "Archived communities are read-only."
+          : "Join this community before liking its posts.",
+      );
+    }
+    await this.store.setMessageLike(messageId, actorId, liked);
+    const [engagement] = await this.store.getMessageEngagement(
+      [messageId],
+      actorId,
+    );
+    return {
+      messageId,
+      likeCount: engagement?.likeCount ?? 0,
+      viewerHasLiked: engagement?.viewerHasLiked ?? false,
+    };
+  }
+
+  async setPinned(
+    userId: string,
+    messageId: string,
+    pinned: boolean,
+  ): Promise<CommunityMessageView> {
+    const actorId = this.requireUserId(userId);
+    this.assertUuid(messageId, "message");
+    const message = await this.store.findMessage(messageId);
+    if (!message || message.deletedAt) {
+      throw new NotFoundException("That post was not found.");
+    }
+    if (message.parentMessageId !== null) {
+      throw new BadRequestException("Only a top-level post can be pinned.");
+    }
+    const group = await this.requireGroup(message.groupId);
+    if (group.archivedAt) {
+      throw new BadRequestException("Archived communities are read-only.");
+    }
+    const membership = await this.store.findMembership(group.id, actorId);
+    if (!canModerateGroup(group, actorId, membership)) {
+      throw new ForbiddenException(
+        "Only community owners and moderators can pin posts.",
+      );
+    }
+    const updated = await this.store.setPinnedMessage(
+      group.id,
+      messageId,
+      actorId,
+      pinned,
+    );
+    if (!updated) throw new NotFoundException("That post was not found.");
+    const [view] = await this.withViews([updated], actorId);
+    return view;
   }
 
   /**
@@ -834,7 +1205,7 @@ export class MessagesService {
     const readerId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     const membership = await this.store.findMembership(groupId, readerId);
-    if (!canReadGroup(group, membership)) {
+    if (!canReadGroupContent(group, readerId, membership)) {
       throw new ForbiddenException("You're not a member of this group.");
     }
 
@@ -909,7 +1280,7 @@ export class MessagesService {
     userId: string,
     groupId: string,
     dto: SendMessageDto,
-  ): Promise<CommunityMessageWithAuthor> {
+  ): Promise<CommunityMessageView> {
     const senderId = this.requireUserId(userId);
     const group = await this.requireGroup(groupId);
     if (group.archivedAt) {
@@ -990,7 +1361,7 @@ export class MessagesService {
     // The SAME shape `list` returns. The client appends this response straight
     // into the page it is already rendering; a message with no `author` would
     // show the sender's own bubble under the fallback name until they refreshed.
-    const [withAuthor] = await this.withAuthors([stored]);
+    const [withAuthor] = await this.withViews([stored], senderId);
 
     // Group activity has two delivery paths: the Realtime inbox updates open
     // group lists immediately, while this fan-out covers members who are
@@ -1046,7 +1417,7 @@ export class MessagesService {
   async softDelete(
     actorId: string,
     messageId: string,
-  ): Promise<CommunityMessageWithAuthor> {
+  ): Promise<CommunityMessageView> {
     const acting = this.requireUserId(actorId);
     // `messageId` is the one identifier a client hands straight in, and the
     // column is `uuid`: without this, "abc" reaches Postgres and comes back as
@@ -1063,11 +1434,13 @@ export class MessagesService {
       body: "",
       deletedAt: new Date(),
       deletedBy: acting,
+      pinnedAt: null,
+      pinnedBy: null,
     });
     if (!updated) throw new NotFoundException("That message was not found.");
     // A tombstone is folded back into the open page by the client, so it keeps
     // the author card the row it replaces had.
-    const [withAuthor] = await this.withAuthors([updated]);
+    const [withAuthor] = await this.withViews([updated], acting);
     return withAuthor;
   }
 
@@ -1302,6 +1675,32 @@ export class MessagesService {
       ...message,
       author: this.toAuthor(byId.get((message.userId || "").trim())),
     }));
+  }
+
+  private async withViews(
+    messages: CommunityGroupMessage[],
+    viewerId: string,
+  ): Promise<CommunityMessageView[]> {
+    if (messages.length === 0) return [];
+    const [authored, engagementRows] = await Promise.all([
+      this.withAuthors(messages),
+      this.store.getMessageEngagement(
+        messages.map((message) => message.id),
+        viewerId,
+      ),
+    ]);
+    const engagement = new Map(
+      engagementRows.map((row) => [row.messageId, row]),
+    );
+    return authored.map((message) => {
+      const row = engagement.get(message.id);
+      return {
+        ...message,
+        likeCount: row?.likeCount ?? 0,
+        commentCount: row?.commentCount ?? 0,
+        viewerHasLiked: row?.viewerHasLiked ?? false,
+      };
+    });
   }
 
   /**

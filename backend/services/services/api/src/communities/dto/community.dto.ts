@@ -215,6 +215,14 @@ export const SendMessageSchema = z.union([
 ]);
 export type SendMessageDto = z.infer<typeof SendMessageSchema>;
 
+export const SendCommentSchema = z
+  .object({ body: z.string().trim().min(1).max(2000) })
+  .strict();
+export type SendCommentDto = z.infer<typeof SendCommentSchema>;
+
+export const PinMessageSchema = z.object({ pinned: z.boolean() }).strict();
+export type PinMessageDto = z.infer<typeof PinMessageSchema>;
+
 // The constrained question set. Max 5, fixed types — a form builder, not a
 // form engine, so the builder / renderer / viewer each stay testable.
 //

@@ -14,6 +14,7 @@ import {
   vector,
   primaryKey,
   real,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // Users table (mirrors Supabase auth.users mostly, but owned by us for app profiles)
@@ -1711,11 +1712,57 @@ export const communityGroups = pgTable(
     memberCount: integer("member_count").default(0).notNull(),
     messageCount: integer("message_count").default(0).notNull(),
     lastMessageAt: timestamp("last_message_at"),
+    managementScope: text("management_scope").default("member").notNull(),
+    trendingRank: integer("trending_rank"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
     index("community_groups_opportunity_idx").on(table.opportunityId),
     index("community_groups_owner_idx").on(table.ownerId),
+    uniqueIndex("community_groups_trending_rank_unique")
+      .on(table.trendingRank)
+      .where(sql`${table.trendingRank} is not null`),
+  ],
+);
+
+export const communityCreationRequests = pgTable(
+  "community_creation_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requesterId: text("requester_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    opportunityId: uuid("opportunity_id").references(() => opportunities.id, {
+      onDelete: "set null",
+    }),
+    visibility: text("visibility").default("public").notNull(),
+    joinPolicy: text("join_policy").default("open").notNull(),
+    coverEmoji: text("cover_emoji").default("💬").notNull(),
+    coverImageResourceUrl: text("cover_image_resource_url"),
+    status: text("status").default("pending").notNull(),
+    reviewReason: text("review_reason"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at"),
+    approvedGroupId: uuid("approved_group_id").references(
+      () => communityGroups.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("community_creation_requests_requester_status_idx").on(
+      table.requesterId,
+      table.status,
+      table.createdAt,
+    ),
+    index("community_creation_requests_pending_queue_idx")
+      .on(table.createdAt, table.id)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("community_creation_requests_approved_group_unique")
+      .on(table.approvedGroupId)
+      .where(sql`${table.approvedGroupId} is not null`),
   ],
 );
 
@@ -1902,6 +1949,12 @@ export const communityGroupMessages = pgTable(
     callId: uuid("call_id").references(() => communityGroupCalls.id, {
       onDelete: "set null",
     }),
+    parentMessageId: uuid("parent_message_id").references(
+      (): AnyPgColumn => communityGroupMessages.id,
+      { onDelete: "cascade" },
+    ),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    pinnedBy: text("pinned_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),
     deletedBy: text("deleted_by"),
@@ -1914,6 +1967,31 @@ export const communityGroupMessages = pgTable(
     uniqueIndex("community_group_messages_call_idx")
       .on(table.callId)
       .where(sql`${table.callId} is not null`),
+    index("community_group_messages_comments_idx")
+      .on(table.parentMessageId, table.createdAt, table.id)
+      .where(sql`${table.parentMessageId} is not null`),
+    uniqueIndex("community_group_messages_one_pin_idx")
+      .on(table.groupId)
+      .where(
+        sql`${table.pinnedAt} is not null and ${table.parentMessageId} is null and ${table.deletedAt} is null`,
+      ),
+  ],
+);
+
+export const communityMessageLikes = pgTable(
+  "community_message_likes",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => communityGroupMessages.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.userId] }),
+    index("community_message_likes_user_idx").on(table.userId, table.createdAt),
   ],
 );
 
@@ -1945,8 +2023,13 @@ export const communityReports = pgTable("community_reports", {
 });
 
 export type CommunityGroup = typeof communityGroups.$inferSelect;
+export type CommunityCreationRequest =
+  typeof communityCreationRequests.$inferSelect;
+export type NewCommunityCreationRequest =
+  typeof communityCreationRequests.$inferInsert;
 export type CommunityGroupMember = typeof communityGroupMembers.$inferSelect;
 export type CommunityGroupMessage = typeof communityGroupMessages.$inferSelect;
+export type CommunityMessageLike = typeof communityMessageLikes.$inferSelect;
 export type CommunityGroupCall = typeof communityGroupCalls.$inferSelect;
 export type CommunityGroupCallParticipant =
   typeof communityGroupCallParticipants.$inferSelect;

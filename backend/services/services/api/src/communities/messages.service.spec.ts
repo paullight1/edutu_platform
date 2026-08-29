@@ -38,6 +38,8 @@ class FakeMessagesStore implements MessagesStore {
   groups: CommunityGroup[] = [];
   members: CommunityGroupMember[] = [];
   messages: CommunityGroupMessage[] = [];
+  likes = new Set<string>();
+  lastBump: GroupCounterBump | null = null;
 
   async findGroup(groupId: string): Promise<CommunityGroup | null> {
     return this.groups.find((group) => group.id === groupId) ?? null;
@@ -64,7 +66,10 @@ class FakeMessagesStore implements MessagesStore {
   ): Promise<CommunityGroupMessage[]> {
     this.lastLimit = limit;
     return this.messages
-      .filter((message) => message.groupId === groupId)
+      .filter(
+        (message) =>
+          message.groupId === groupId && message.parentMessageId === null,
+      )
       .filter((message) => {
         if (!before) return true;
         const delta = message.createdAt.getTime() - before.createdAt.getTime();
@@ -99,10 +104,91 @@ class FakeMessagesStore implements MessagesStore {
     return this.messages.find((message) => message.id === messageId) ?? null;
   }
 
+  async findPinnedMessage(
+    groupId: string,
+  ): Promise<CommunityGroupMessage | null> {
+    return (
+      this.messages.find(
+        (message) =>
+          message.groupId === groupId &&
+          message.parentMessageId === null &&
+          message.pinnedAt !== null &&
+          message.deletedAt === null,
+      ) ?? null
+    );
+  }
+
+  async listComments(
+    parentMessageId: string,
+  ): Promise<CommunityGroupMessage[]> {
+    return this.messages
+      .filter((message) => message.parentMessageId === parentMessageId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async getMessageEngagement(
+    messageIds: string[],
+    viewerId: string,
+  ): Promise<
+    Array<{
+      messageId: string;
+      likeCount: number;
+      commentCount: number;
+      viewerHasLiked: boolean;
+    }>
+  > {
+    return messageIds.map((messageId) => ({
+      messageId,
+      likeCount: [...this.likes].filter((key) =>
+        key.startsWith(`${messageId}:`),
+      ).length,
+      commentCount: this.messages.filter(
+        (message) =>
+          message.parentMessageId === messageId && message.deletedAt === null,
+      ).length,
+      viewerHasLiked: this.likes.has(`${messageId}:${viewerId}`),
+    }));
+  }
+
+  async setMessageLike(
+    messageId: string,
+    userId: string,
+    liked: boolean,
+  ): Promise<void> {
+    const key = `${messageId}:${userId}`;
+    if (liked) this.likes.add(key);
+    else this.likes.delete(key);
+  }
+
+  async setPinnedMessage(
+    groupId: string,
+    messageId: string,
+    pinnedBy: string,
+    pinned: boolean,
+  ): Promise<CommunityGroupMessage | null> {
+    if (pinned) {
+      for (const message of this.messages) {
+        if (message.groupId !== groupId) continue;
+        if (message.pinnedAt !== null) {
+          message.pinnedAt = null;
+          message.pinnedBy = null;
+        }
+      }
+    }
+    const target = this.messages.find((message) => message.id === messageId);
+    if (!target) return null;
+    if (pinned) {
+      target.pinnedAt = new Date();
+      target.pinnedBy = pinnedBy;
+    }
+    return target;
+  }
+
   async insertMessage(
     row: NewMessageRow,
     bump: GroupCounterBump,
   ): Promise<CommunityGroupMessage> {
+    this.lastBump = bump;
     const message: CommunityGroupMessage = {
       id: randomUUID(),
       groupId: row.groupId,
@@ -110,6 +196,14 @@ class FakeMessagesStore implements MessagesStore {
       body: row.body,
       kind: row.kind,
       opportunityId: row.opportunityId ?? null,
+      parentMessageId:
+        (
+          row as NewMessageRow & {
+            parentMessageId?: string | null;
+          }
+        ).parentMessageId ?? null,
+      pinnedAt: null,
+      pinnedBy: null,
       createdAt: new Date(),
       deletedAt: null,
       deletedBy: null,
@@ -303,7 +397,12 @@ function fakeDb(
   };
   store.groups.push(group);
 
-  for (const member of config.members ?? []) {
+  const members =
+    config.members ??
+    ["user_abc", "user_ada", "user_troll", "user_bola", "user_reader", "u"].map(
+      (userId) => ({ userId }),
+    );
+  for (const member of members) {
     store.members.push({
       id: randomUUID(),
       groupId: group.id,
@@ -321,6 +420,9 @@ function fakeDb(
       body: "Anyone got the referee form?",
       kind: "text",
       opportunityId: null,
+      parentMessageId: null,
+      pinnedAt: null,
+      pinnedBy: null,
       createdAt: new Date(Date.now() - (index + 1) * 1000),
       deletedAt: null,
       deletedBy: null,
@@ -369,18 +471,15 @@ describe("MessagesService", () => {
         fakeDb({ group: { visibility: "private" } }),
       );
       await expect(service.list("user_stranger", GROUP_ID)).rejects.toThrow(
-        /not a member/i,
+        /join|member/i,
       );
     });
 
-    it("lets a signed-in non-member read a public group before joining", async () => {
+    it("keeps a public group's feed hidden until the reader joins", async () => {
       const db = fakeDb({ messages: [{ userId: "user_abc" }] });
-      const messages = await messagesService(db).list(
-        "user_stranger",
-        GROUP_ID,
-      );
-      expect(messages).toHaveLength(1);
-      expect(messages[0].body).toBe("Anyone got the referee form?");
+      await expect(
+        messagesService(db).list("user_stranger", GROUP_ID),
+      ).rejects.toThrow(/join|member/i);
     });
 
     it("still lists messages for an archived group", async () => {
@@ -395,7 +494,7 @@ describe("MessagesService", () => {
     });
 
     // The two halves of the same rule, which must match GroupsService.get.
-    it("lets an invited user read a private group, so the invite preview works", async () => {
+    it("keeps the full feed hidden from an invited private-group user", async () => {
       const db = fakeDb({
         group: { visibility: "private" },
         members: [{ userId: "user_invitee", status: "invited" }],
@@ -403,7 +502,7 @@ describe("MessagesService", () => {
       });
       await expect(
         messagesService(db).list("user_invitee", GROUP_ID),
-      ).resolves.toHaveLength(1);
+      ).rejects.toThrow(/join|member/i);
     });
 
     it("refuses a pending applicant, who is unvetted rather than invited", async () => {
@@ -414,7 +513,7 @@ describe("MessagesService", () => {
       });
       await expect(
         messagesService(db).list("user_applicant", GROUP_ID),
-      ).rejects.toThrow(/not a member/i);
+      ).rejects.toThrow(/join|member/i);
     });
 
     it("refuses a signed-out reader", async () => {
@@ -468,6 +567,184 @@ describe("MessagesService", () => {
       // Without the id tiebreak this returns the 09:00 row and the tied 10:00
       // message is lost between pages.
       expect(secondPage[0].id).toBe("00000000-0000-4000-8000-0000000000b2");
+    });
+  });
+
+  describe("post engagement", () => {
+    type EngagementService = MessagesService & {
+      getPinnedPreview(
+        userId: string,
+        groupId: string,
+      ): Promise<CommunityGroupMessage | null>;
+      getPostThread(
+        userId: string,
+        groupId: string,
+        postId: string,
+      ): Promise<{
+        post: CommunityGroupMessage;
+        comments: CommunityGroupMessage[];
+      }>;
+      sendComment(
+        userId: string,
+        groupId: string,
+        postId: string,
+        dto: { body: string },
+      ): Promise<CommunityGroupMessage>;
+      setLike(
+        userId: string,
+        messageId: string,
+        liked: boolean,
+      ): Promise<{
+        messageId: string;
+        likeCount: number;
+        viewerHasLiked: boolean;
+      }>;
+      setPinned(
+        userId: string,
+        messageId: string,
+        pinned: boolean,
+      ): Promise<CommunityGroupMessage>;
+    };
+
+    function engagementService(db: FakeMessagesStore): EngagementService {
+      return messagesService(db) as EngagementService;
+    }
+
+    it("returns only the current pinned post to a public non-member preview", async () => {
+      const db = fakeDb({
+        messages: [
+          {
+            userId: "user_owner",
+            pinnedAt: new Date(),
+            pinnedBy: "user_owner",
+          },
+          { userId: "user_owner", body: "Member-only history" },
+        ],
+      });
+
+      const preview = await engagementService(db).getPinnedPreview(
+        "user_stranger",
+        GROUP_ID,
+      );
+
+      expect(preview?.id).toBe(MESSAGE_ID);
+      expect(preview?.body).toBe("Anyone got the referee form?");
+    });
+
+    it("creates a one-level comment without increasing the post count", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_ada" }],
+        messages: [{ userId: "user_owner" }],
+      });
+
+      const comment = await engagementService(db).sendComment(
+        "user_ada",
+        GROUP_ID,
+        MESSAGE_ID,
+        { body: "This helped me too." },
+      );
+
+      expect(comment.parentMessageId).toBe(MESSAGE_ID);
+      expect(db.lastBump).toEqual({
+        messageCountDelta: 0,
+        touchLastMessageAt: true,
+      });
+      expect(db.groups[0].messageCount).toBe(0);
+    });
+
+    it("refuses a reply to a comment so threads remain one level", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_ada" }],
+        messages: [
+          { userId: "user_owner" },
+          { userId: "user_bola", parentMessageId: MESSAGE_ID },
+        ],
+      });
+      const commentId = db.messages[1].id;
+
+      await expect(
+        engagementService(db).sendComment("user_ada", GROUP_ID, commentId, {
+          body: "Nested reply",
+        }),
+      ).rejects.toThrow(/top-level post|reply/i);
+    });
+
+    it("sets and clears a like idempotently", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_ada" }],
+        messages: [{ userId: "user_owner" }],
+      });
+      const service = engagementService(db);
+
+      await service.setLike("user_ada", MESSAGE_ID, true);
+      const liked = await service.setLike("user_ada", MESSAGE_ID, true);
+      expect(liked).toEqual({
+        messageId: MESSAGE_ID,
+        likeCount: 1,
+        viewerHasLiked: true,
+      });
+
+      await service.setLike("user_ada", MESSAGE_ID, false);
+      const unliked = await service.setLike("user_ada", MESSAGE_ID, false);
+      expect(unliked).toEqual({
+        messageId: MESSAGE_ID,
+        likeCount: 0,
+        viewerHasLiked: false,
+      });
+    });
+
+    it("lets a moderator atomically replace the group's pinned post", async () => {
+      const db = fakeDb({
+        members: [{ userId: "user_mod", role: "mod" }],
+        messages: [
+          {
+            userId: "user_owner",
+            pinnedAt: new Date(),
+            pinnedBy: "user_owner",
+          },
+          { userId: "user_ada" },
+        ],
+      });
+      const replacement = db.messages[1];
+
+      await engagementService(db).setPinned("user_mod", replacement.id, true);
+
+      expect(db.messages[0].pinnedAt).toBeNull();
+      expect(replacement.pinnedAt).toBeInstanceOf(Date);
+      expect(replacement.pinnedBy).toBe("user_mod");
+    });
+
+    it("returns a post followed by chronological comments to active members", async () => {
+      const later = new Date("2026-08-28T12:05:00.000Z");
+      const earlier = new Date("2026-08-28T12:00:00.000Z");
+      const db = fakeDb({
+        members: [{ userId: "user_ada" }],
+        messages: [
+          { userId: "user_owner" },
+          {
+            userId: "user_bola",
+            parentMessageId: MESSAGE_ID,
+            createdAt: later,
+          },
+          {
+            userId: "user_ada",
+            parentMessageId: MESSAGE_ID,
+            createdAt: earlier,
+          },
+        ],
+      });
+
+      const thread = await engagementService(db).getPostThread(
+        "user_ada",
+        GROUP_ID,
+        MESSAGE_ID,
+      );
+
+      expect(thread.post.id).toBe(MESSAGE_ID);
+      expect(thread.comments.map((comment) => comment.createdAt)).toEqual([
+        earlier,
+        later,
+      ]);
     });
   });
 

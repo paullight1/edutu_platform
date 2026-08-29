@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { ExecutionContext } from "@nestjs/common";
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { RequestMethod, type ExecutionContext } from "@nestjs/common";
+import {
+  METHOD_METADATA,
+  PATH_METADATA,
+  ROUTE_ARGS_METADATA,
+} from "@nestjs/common/constants";
 import { CommunitiesController } from "./communities.controller";
 import { GroupFormSchema } from "./dto/community.dto";
 import type {
@@ -59,8 +63,13 @@ function resolveCustomArgs(
 /** Every route on the controller, so none of them can be forgotten. */
 const HANDLERS: (keyof CommunitiesController)[] = [
   "listGroups",
+  "discovery",
   "getGroup",
   "listGroupMembers",
+  "submitCreationRequest",
+  "listMyCreationRequests",
+  "cancelCreationRequest",
+  "setCreationRequestCover",
   "createGroup",
   "updateGroup",
   "joinGroup",
@@ -73,8 +82,14 @@ const HANDLERS: (keyof CommunitiesController)[] = [
   "listRequests",
   "decideRequest",
   "listMessages",
+  "getPinnedPost" as keyof CommunitiesController,
+  "getPostThread" as keyof CommunitiesController,
   "listResources",
   "sendMessage",
+  "sendComment" as keyof CommunitiesController,
+  "likeMessage" as keyof CommunitiesController,
+  "unlikeMessage" as keyof CommunitiesController,
+  "pinMessage" as keyof CommunitiesController,
   "createAttachmentUpload",
   "createGroupCoverImageUpload",
   "getAttachmentDownloadUrl",
@@ -110,6 +125,26 @@ describe("CommunitiesController identity", () => {
         Reflect.getMetadata(ROUTE_ARGS_METADATA, CommunitiesController, name),
     );
     expect(declared.sort()).toEqual([...HANDLERS].sort());
+  });
+});
+
+describe("CommunitiesController post engagement routes", () => {
+  const routes = [
+    ["getPinnedPost", "groups/:id/pinned-post", RequestMethod.GET],
+    ["getPostThread", "groups/:id/posts/:postId", RequestMethod.GET],
+    ["sendComment", "groups/:id/posts/:postId/comments", RequestMethod.POST],
+    ["likeMessage", "messages/:id/like", RequestMethod.PUT],
+    ["unlikeMessage", "messages/:id/like", RequestMethod.DELETE],
+    ["pinMessage", "messages/:id/pin", RequestMethod.PATCH],
+  ] as const;
+
+  it.each(routes)("registers %s at %s", (name, path, method) => {
+    const handler = (
+      CommunitiesController.prototype as unknown as Record<string, unknown>
+    )[name];
+    expect(handler).toBeDefined();
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(path);
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(method);
   });
 });
 

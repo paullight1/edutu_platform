@@ -105,11 +105,10 @@ export function isLiveMembershipStatus(status: string | undefined): boolean {
 }
 
 /**
- * Can this person see the group and its messages?
+ * Can this person see the group preview?
  *
- * Public groups are readable by any signed-in user, joined or not —
- * read-before-join is intended. Private groups admit `active` or `invited` and
- * nothing else.
+ * Public groups are previewable by any signed-in user, joined or not.
+ * Private groups admit `active` or `invited` and nothing else.
  *
  * `invited` reads because an `invited` row is an owner's standing decision to
  * admit someone, and an invitation you cannot look at is unusable. `pending`
@@ -132,6 +131,25 @@ export function canReadGroup(
 ): boolean {
   if (group.visibility !== "private") return true;
   return membership?.status === "active" || membership?.status === "invited";
+}
+
+/**
+ * Can this person read member content such as posts, comments, and resources?
+ *
+ * Preview visibility is deliberately irrelevant here. Only an active
+ * membership unlocks content. The canonical creator remains admitted when an
+ * operational membership row is missing, while an explicit removal or ban
+ * still wins over `owner_id`.
+ */
+export function canReadGroupContent(
+  group: Pick<AuthzGroup, "ownerId">,
+  userId: string,
+  membership: MaybeMembership,
+): boolean {
+  if (group.ownerId === userId && !isDepartedStatus(membership?.status)) {
+    return true;
+  }
+  return membership?.status === "active";
 }
 
 /**

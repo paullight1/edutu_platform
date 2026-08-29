@@ -3,6 +3,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { CommunityArchiveCron } from "./archive.cron";
 import { CommunitiesController } from "./communities.controller";
 import { CommunityContentService } from "./content.service";
+import { CreationRequestsService } from "./creation-requests.service";
 import { FormsService } from "./forms.service";
 import { GroupsService } from "./groups.service";
 import { MessagesService } from "./messages.service";
@@ -24,6 +25,7 @@ import { PublicCommunityService } from "./public-community.service";
   controllers: [CommunitiesController, PublicCommunityController],
   providers: [
     GroupsService,
+    CreationRequestsService,
     CommunityContentService,
     MessagesService,
     FormsService,
@@ -36,6 +38,12 @@ import { PublicCommunityService } from "./public-community.service";
     // group would simply stay writable forever with nothing failing.
     CommunityArchiveCron,
   ],
-  exports: [GroupsService, MessagesService, FormsService, ModerationService],
+  exports: [
+    GroupsService,
+    CreationRequestsService,
+    MessagesService,
+    FormsService,
+    ModerationService,
+  ],
 })
 export class CommunitiesModule {}
