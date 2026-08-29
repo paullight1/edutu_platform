@@ -1,8 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AdminRuntimeConfigError,
+  getAdminRuntimeConfig,
   resolveAdminRuntimeConfig,
 } from "./runtimeConfig";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("getAdminRuntimeConfig", () => {
+  it("reads the Vite-injected backend origin in the browser runtime", () => {
+    vi.stubEnv("VITE_BACKEND_URL", "http://localhost:3010/");
+
+    expect(getAdminRuntimeConfig()).toMatchObject({
+      apiOrigin: "http://localhost:3010",
+      source: "VITE_BACKEND_URL",
+      explicit: true,
+    });
+  });
+});
 
 describe("resolveAdminRuntimeConfig", () => {
   it("uses the explicit canonical production origin", () => {
