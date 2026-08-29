@@ -28,6 +28,9 @@ describe("getAdminRuntimeConfig", () => {
       },
     });
     const output = Array.isArray(result) ? result[0] : result;
+    if (!("output" in output)) {
+      throw new Error("Vite unexpectedly started a watch build");
+    }
     const chunk = output.output.find((item) => item.type === "chunk");
     if (!chunk) throw new Error("Vite did not emit the runtime config module");
 
