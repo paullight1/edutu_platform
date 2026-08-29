@@ -17,6 +17,7 @@ import {
   LogIn,
   Megaphone,
   Mic,
+  MessagesSquare,
   Radio,
   Receipt,
   ShieldAlert,
@@ -51,6 +52,7 @@ export type AdminRouteId =
   | "events"
   | "users"
   | "creators"
+  | "communities"
   | "community-safety"
   | "roadmaps"
   | "marketplace"
@@ -205,6 +207,16 @@ export const ADMIN_ROUTES: readonly AdminRouteDefinition[] = [
     title: "Creators",
     groupId: "people",
     icon: ShieldCheck,
+    navigation: "group",
+    authenticated: true,
+  },
+  {
+    id: "communities",
+    path: "/communities",
+    label: "Communities",
+    title: "Communities",
+    groupId: "people",
+    icon: MessagesSquare,
     navigation: "group",
     authenticated: true,
   },
