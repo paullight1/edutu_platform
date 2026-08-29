@@ -30,16 +30,18 @@ jest.mock("../db", () => {
 function buildService(
   deepseek: Partial<DeepSeekAdapter>,
   openRouter: Partial<OpenRouterAdapter>,
+  openAi: Record<string, unknown> = {},
 ) {
   const encryption = {
     decrypt: (value: string) => value,
   } as unknown as AiEncryptionService;
 
-  return new AiService(
+  return new (AiService as any)(
     encryption,
     { provider: "deepseek", ...deepseek } as unknown as DeepSeekAdapter,
     { provider: "gemini" } as unknown as GeminiAdapter,
     { provider: "openrouter", ...openRouter } as unknown as OpenRouterAdapter,
+    { provider: "openai", ...openAi },
   );
 }
 
@@ -52,11 +54,13 @@ describe("AiService — provider failover", () => {
   const original = {
     deepseek: process.env.DEEPSEEK_API_KEY,
     openrouter: process.env.OPENROUTER_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
   };
 
   beforeEach(() => {
     process.env.DEEPSEEK_API_KEY = "test-deepseek-key";
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
     // Failover warns by design; keep the test output pristine.
     jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
   });
@@ -64,7 +68,11 @@ describe("AiService — provider failover", () => {
   afterEach(() => {
     for (const [name, value] of Object.entries(original)) {
       const key =
-        name === "deepseek" ? "DEEPSEEK_API_KEY" : "OPENROUTER_API_KEY";
+        name === "deepseek"
+          ? "DEEPSEEK_API_KEY"
+          : name === "openrouter"
+            ? "OPENROUTER_API_KEY"
+            : "OPENAI_API_KEY";
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
@@ -124,6 +132,37 @@ describe("AiService — provider failover", () => {
 
     expect(openRouterText).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ ok: true });
+  });
+
+  it("continues JSON failover to OpenAI when DeepSeek and OpenRouter both fail", async () => {
+    const openAiText = jest.fn(
+      async () =>
+        ({
+          text: '{"ok":true}',
+          provider: "openai",
+          model: "gpt-4.1-mini",
+        }) as AiGenerateResult,
+    );
+    const service = buildService(
+      {
+        generateText: jest.fn(async () => {
+          throw new Error("DeepSeek request failed: 402");
+        }),
+      },
+      {
+        generateText: jest.fn(async () => {
+          throw new Error("OpenRouter request failed: 401");
+        }),
+      },
+      { generateText: openAiText },
+    );
+
+    await expect(
+      service.generateJson<{ ok: boolean }>({
+        feature: "opportunities.enhance",
+        prompt: "complete this opportunity",
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 
   // The guarantee A2b's `delivered` flag exists for: replaying a round whose
@@ -188,8 +227,9 @@ describe("AiService — provider failover", () => {
     expect(result.text).toBe("buffered fallback answer");
   });
 
-  it("does not fail over when the fallback provider has no key", async () => {
+  it("does not fail over when no fallback provider has a key", async () => {
     delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENAI_API_KEY;
     const openRouterChat = jest.fn();
     const service = buildService(
       {

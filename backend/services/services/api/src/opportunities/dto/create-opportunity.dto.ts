@@ -66,6 +66,23 @@ export const BulkIdsSchema = z.object({
 
 export type BulkIdsDto = z.infer<typeof BulkIdsSchema>;
 
+// AI completion is synchronous and can include source-page retrieval plus
+// provider retries. Keep each HTTP request short and reject duplicates so a
+// client cannot spend twice on the same row within one batch.
+const BulkEnhanceIdsField = z
+  .array(z.string().uuid())
+  .min(1)
+  .max(3)
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "Opportunity IDs must be unique",
+  });
+
+export const BulkEnhanceSchema = z.object({
+  ids: BulkEnhanceIdsField,
+});
+
+export type BulkEnhanceDto = z.infer<typeof BulkEnhanceSchema>;
+
 export const BulkVerifySchema = z.object({
   ids: BulkIdsField,
   dryRun: z.boolean().optional(),

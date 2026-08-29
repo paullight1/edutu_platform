@@ -4,6 +4,9 @@ describe("opportunity content refinement policy", () => {
   it("routes existing enhance and backfill methods through the refiner and restores them", async () => {
     const originalCalls: string[] = [];
     const service = {
+      runOpportunityEnhancementExclusive: jest.fn(
+        async <T>(operation: () => Promise<T>) => operation(),
+      ),
       enhanceOpportunity: async (id: string) => {
         originalCalls.push(`original:${id}`);
         return { success: true, id };
@@ -48,6 +51,7 @@ describe("opportunity content refinement policy", () => {
       failed: 0,
     });
     expect(originalCalls).toEqual(["original:opp-1", "original:from-backfill"]);
+    expect(service.runOpportunityEnhancementExclusive).toHaveBeenCalledTimes(2);
 
     restore();
     expect(service.enhanceOpportunity).toBe(originalEnhance);

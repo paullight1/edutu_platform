@@ -21,6 +21,7 @@ import { timingSafeEqual } from "crypto";
 import type { Response } from "express";
 import {
   BulkCategorySchema,
+  BulkEnhanceSchema,
   BulkIdsSchema,
   BulkImportSchema,
   BulkStatusSchema,
@@ -28,6 +29,7 @@ import {
   CreateOpportunitySchema,
   UpdateOpportunitySchema,
   type BulkCategoryDto,
+  type BulkEnhanceDto,
   type BulkIdsDto,
   type BulkImportDto,
   type BulkStatusDto,
@@ -299,12 +301,28 @@ export class OpportunitiesController {
 
   @Post("admin/:id/enhance")
   @UseGuards(AdminGuard)
+  // AI Complete is an authenticated editorial workflow. Keep it isolated from
+  // the API-wide 100/minute ceiling so older admin builds that submit one row
+  // per request do not strand the remainder of a large selection with 429s.
+  @Throttle({ default: { limit: 200, ttl: 60000 } })
   async enhanceSavedOpportunity(@Param("id") id: string) {
     const result = await this.opportunitiesService.enhanceOpportunity(id);
     if (!result) {
       return { success: false, error: "Opportunity not found" };
     }
     return result;
+  }
+
+  @Post("admin/bulk-enhance")
+  @UseGuards(AdminGuard)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async adminBulkEnhance(
+    @Body(new ZodValidationPipe(BulkEnhanceSchema)) body: BulkEnhanceDto,
+  ) {
+    const result = await this.opportunitiesService.enhanceOpportunities(
+      body.ids,
+    );
+    return { success: true, ...result };
   }
 
   @Post("admin/bulk-import")

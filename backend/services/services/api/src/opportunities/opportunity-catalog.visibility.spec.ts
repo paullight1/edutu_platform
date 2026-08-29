@@ -198,6 +198,26 @@ describe("persisted shared catalog visibility", () => {
     );
   });
 
+  it("lets editorial workflows load a pending row without exposing it publicly", async () => {
+    const service = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    expect(await service.findOne(PENDING_ID)).toBeNull();
+    const adminReader = (service as any).findOneForAdmin;
+    expect(typeof adminReader).toBe("function");
+
+    await expect(adminReader.call(service, PENDING_ID)).resolves.toMatchObject({
+      id: PENDING_ID,
+      status: "pending_review",
+      verificationStatus: "unverified",
+    });
+  });
+
   it("only exposes a pending-review row after the persisted verification transition", async () => {
     const learnerService = new OpportunitiesService(
       {} as any,

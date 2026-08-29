@@ -182,7 +182,7 @@ const AI_SOURCE_FETCH_TIMEOUT_MS = 12_000;
 // Below this, page text is too thin to enrich from (nav-only pages, dead links,
 // interstitials) — the enricher falls back to an open-web search for the record.
 const AI_SOURCE_MIN_USEFUL_CHARS = 400;
-const AI_ENRICHMENT_SCHEMA = {
+export const AI_ENRICHMENT_SCHEMA = {
   type: "object",
   properties: {
     summary: { type: ["string", "null"] },
@@ -196,7 +196,16 @@ const AI_ENRICHMENT_SCHEMA = {
     benefits: { type: "array", items: { type: "string" } },
     applicationProcess: { type: "array", items: { type: "string" } },
     skills: { type: "array", items: { type: "string" } },
-    eligibility: { type: "object" },
+    eligibility: {
+      type: "object",
+      properties: {
+        level: { type: ["string", "null"] },
+        nationality: { type: ["string", "null"] },
+        field: { type: ["string", "null"] },
+      },
+      required: ["level", "nationality", "field"],
+      additionalProperties: false,
+    },
     tags: { type: "array", items: { type: "string" } },
     confidence: { type: "number" },
     notes: { type: "array", items: { type: "string" } },
@@ -280,6 +289,7 @@ const ADMIN_OPPORTUNITY_COLUMNS = [
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
   private readonly supabase: SupabaseClient | null = null;
+  private opportunityEnhancementTail: Promise<void> = Promise.resolve();
 
   // Read-through cache for the near-static catalog is served by the shared
   // (Redis-backed) CacheService under the "opps:" prefix. Every write
@@ -851,6 +861,40 @@ export class OpportunitiesService {
     return this.cache
       ? this.cache.wrap(`${OPPS_CACHE_PREFIX}detail:${id}`, 60, run)
       : run();
+  }
+
+  /**
+   * Load an opportunity for authenticated editorial work without weakening the
+   * active + verified visibility contract enforced by findOne().
+   */
+  async findOneForAdmin(id: string) {
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!error) {
+        return data
+          ? withOpportunityUrlAliases(data as Record<string, any>)
+          : null;
+      }
+
+      this.logger.warn(
+        `Admin opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
+    const rows = await db
+      .select()
+      .from(opportunities)
+      .where(eq(opportunities.id, id))
+      .limit(1)
+      .execute();
+    return rows[0]
+      ? withOpportunityUrlAliases(rows[0] as Record<string, any>)
+      : null;
   }
 
   async ensureShareCard(id: string) {
@@ -1955,7 +1999,7 @@ export class OpportunitiesService {
   }
 
   async enhanceOpportunity(id: string) {
-    const opportunity = await this.findOne(id);
+    const opportunity = await this.findOneForAdmin(id);
     if (!opportunity) return null;
 
     const metadata = (opportunity.metadata || {}) as Record<string, any>;
@@ -2043,8 +2087,8 @@ export class OpportunitiesService {
       200,
     );
     const descriptionText =
-      this.cleanOptionalText(aiData?.description) ||
-      this.cleanOptionalText(opportunity.description) ||
+      this.cleanOptionalText(aiData?.description, 1800) ||
+      this.cleanOptionalText(opportunity.description, 1800) ||
       "";
     const summaryText =
       this.cleanOptionalText(aiData?.summary) ||
@@ -2201,6 +2245,78 @@ export class OpportunitiesService {
       );
       return null;
     }
+  }
+
+  /**
+   * Serialize provider-backed opportunity enhancement across controllers,
+   * tabs, and concurrent admin requests within this API process. The runtime
+   * refinement policy uses this boundary around every provider call.
+   */
+  async runOpportunityEnhancementExclusive<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.opportunityEnhancementTail;
+    let release!: () => void;
+    this.opportunityEnhancementTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * Run the admin AI-complete workflow for an explicit selection without
+   * making the browser submit one rate-limited HTTP request per row.
+   * Processing remains sequential so the batch endpoint does not turn into a
+   * burst of provider calls; one failed row never aborts the rest of the batch.
+   */
+  async enhanceOpportunities(
+    ids: readonly string[],
+    delayMs = 300,
+  ): Promise<{ processed: number; enhanced: number; failed: number }> {
+    const result = { processed: 0, enhanced: 0, failed: 0 };
+    const pauseMs = Math.max(Number(delayMs) || 0, 0);
+
+    for (let index = 0; index < ids.length; index += 1) {
+      const id = ids[index];
+      result.processed += 1;
+      try {
+        const outcome = await this.enhanceOpportunity(id);
+        const refinementAiError = (
+          outcome as
+            | { contentRefinement?: { aiError?: unknown } }
+            | null
+            | undefined
+        )?.contentRefinement?.aiError;
+        if (
+          outcome &&
+          (outcome as { success?: boolean }).success !== false &&
+          !refinementAiError
+        ) {
+          result.enhanced += 1;
+        } else {
+          result.failed += 1;
+        }
+      } catch (error) {
+        result.failed += 1;
+        this.logger.warn(
+          `Bulk opportunity enhancement failed for ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      if (pauseMs > 0 && index < ids.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, pauseMs));
+      }
+    }
+
+    return result;
   }
 
   /**

@@ -129,7 +129,7 @@ export class OpportunityContentRefinementService {
   ) {}
 
   async refineOpportunity(id: string, options: RefineOptions = {}) {
-    const original = (await this.opportunitiesService.findOne(
+    const original = (await this.opportunitiesService.findOneForAdmin(
       id,
     )) as OpportunityRecord | null;
     if (!original) return null;
@@ -152,7 +152,7 @@ export class OpportunityContentRefinementService {
           );
         }
         candidate =
-          ((await this.opportunitiesService.findOne(
+          ((await this.opportunitiesService.findOneForAdmin(
             id,
           )) as OpportunityRecord | null) || original;
       } catch (error) {
@@ -261,7 +261,7 @@ export class OpportunityContentRefinementService {
       .execute();
 
     await this.opportunitiesService.invalidateCatalogCache();
-    const updated = (await this.opportunitiesService.findOne(
+    const updated = (await this.opportunitiesService.findOneForAdmin(
       id,
     )) as OpportunityRecord | null;
     const opportunity = updated || { ...candidate, ...definedPayload };
@@ -351,7 +351,7 @@ export class OpportunityContentRefinementService {
           aiEnhance: hooks.aiEnhance,
           forceAi: false,
         });
-        if (!outcome?.success) {
+        if (!outcome?.success || outcome.contentRefinement?.aiError) {
           result.failed += 1;
           continue;
         }

@@ -63,6 +63,18 @@ describe("extractDeadlineText", () => {
     ).toContain("1 September 2026");
   });
 
+  it("prefers a complete source date over a shorter yearless deadline phrase", () => {
+    const fragment = extractDeadlineText(
+      "For the current competition, the main portfolio deadline is November 1, 2026. Stage 1 results follow later.",
+    );
+
+    expect(fragment).toContain("November 1, 2026");
+    expect(parseDeadlineDetailed(fragment)).toEqual({
+      date: "2026-11-01",
+      confidence: "explicit",
+    });
+  });
+
   it("returns null when no deadline appears", () => {
     expect(
       extractDeadlineText("A great program for young leaders."),

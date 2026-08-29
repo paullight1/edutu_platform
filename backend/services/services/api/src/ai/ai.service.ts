@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import {
@@ -29,6 +29,7 @@ import {
 } from "./ai.types";
 import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
+import { OpenAiAdapter } from "./adapters/openai.adapter";
 import { createHash } from "crypto";
 import { TtlCache } from "../common/cache/ttl-cache";
 
@@ -367,10 +368,12 @@ export class AiService {
     deepseek: DeepSeekAdapter,
     gemini: GeminiAdapter,
     openRouter: OpenRouterAdapter,
+    @Optional() openAi?: OpenAiAdapter,
   ) {
     this.adapters.set(deepseek.provider, deepseek);
     this.adapters.set(gemini.provider, gemini);
     this.adapters.set(openRouter.provider, openRouter);
+    if (openAi) this.adapters.set(openAi.provider, openAi);
   }
 
   async generateText(options: AiGenerateOptions): Promise<AiGenerateResult> {
@@ -405,10 +408,10 @@ export class AiService {
 
       if (isCallerCancellation(error, options.signal)) throw error;
 
-      // A provider outage should not take down the feature if a fallback
-      // provider is configured. Retry once on the secondary before giving up.
-      const fallbackRoute = await this.resolveFallbackRoute(route);
-      if (fallbackRoute) {
+      // Keep trying configured providers in order. A stale key on the first
+      // fallback must not hide another adapter with a healthy credential.
+      const fallbackRoutes = await this.resolveFallbackRoutes(route);
+      for (const fallbackRoute of fallbackRoutes) {
         const fallbackAdapter = this.adapters.get(fallbackRoute.provider);
         if (fallbackAdapter) {
           this.logger.warn(
@@ -1041,28 +1044,57 @@ export class AiService {
   private async resolveFallbackRoute(
     primary: AiRouteConfig,
   ): Promise<AiRouteConfig | null> {
-    if (!primary.fallbackProvider) return null;
+    return (await this.resolveFallbackRoutes(primary))[0] ?? null;
+  }
 
-    const provider = this.normalizeProvider(primary.fallbackProvider);
-    if (!provider || provider === primary.provider) return null;
-    if (!this.adapters.has(provider)) return null;
+  private async resolveFallbackRoutes(
+    primary: AiRouteConfig,
+  ): Promise<AiRouteConfig[]> {
+    const candidates = [
+      primary.fallbackProvider,
+      "openrouter",
+      "openai",
+      "deepseek",
+      "gemini",
+    ];
+    const providers = Array.from(
+      new Set(
+        candidates
+          .filter((candidate): candidate is string => Boolean(candidate))
+          .map((candidate) => this.normalizeProvider(candidate)),
+      ),
+    );
+    const routes: AiRouteConfig[] = [];
 
-    const apiKey =
-      (await this.getLatestKey(provider)) || this.getEnvKey(provider);
-    if (!apiKey) return null;
+    for (const provider of providers) {
+      if (!provider || provider === primary.provider) continue;
+      if (!this.adapters.has(provider)) continue;
 
-    return {
-      ...primary,
-      provider,
-      model:
-        primary.fallbackModel ||
-        this.getDefaultModel(provider) ||
-        primary.model,
-      apiKey,
-      // Prevent a fallback from chaining into another fallback.
-      fallbackProvider: null,
-      fallbackModel: null,
-    };
+      let storedKey: string | null = null;
+      try {
+        storedKey = await this.getLatestKey(provider);
+      } catch {
+        storedKey = null;
+      }
+      const apiKey = storedKey || this.getEnvKey(provider);
+      if (!apiKey) continue;
+
+      routes.push({
+        ...primary,
+        provider,
+        model:
+          provider === this.normalizeProvider(primary.fallbackProvider || "")
+            ? primary.fallbackModel ||
+              this.getDefaultModel(provider) ||
+              primary.model
+            : this.getDefaultModel(provider) || primary.model,
+        apiKey,
+        fallbackProvider: null,
+        fallbackModel: null,
+      });
+    }
+
+    return routes;
   }
 
   private async getKeyById(id: string) {
@@ -1123,6 +1155,8 @@ export class AiService {
     // key-missing reroute) would send a DeepSeek-native model name it rejects.
     if (normalizedProvider === "openrouter")
       return process.env.OPENROUTER_MODEL || OPENROUTER_DEFAULT_MODEL;
+    if (normalizedProvider === "openai")
+      return process.env.OPENAI_MODEL || "gpt-4.1-mini";
     return null;
   }
 

@@ -37,4 +37,26 @@ describe("OpportunitiesController learner publication surface", () => {
     await expect(controller.getQualityScorecard()).resolves.toEqual(quality);
     expect(service.getQualityScorecard).toHaveBeenCalledTimes(1);
   });
+
+  it("delegates one bounded bulk AI-complete request to the opportunities service", async () => {
+    const ids = [
+      "1827885d-2d96-469e-b7f4-c580dd537334",
+      "0f4309b5-d5f2-4e1e-a732-4932730dc4b3",
+    ];
+    const outcome = { processed: 2, enhanced: 1, failed: 1 };
+    const service = {
+      enhanceOpportunities: jest.fn().mockResolvedValue(outcome),
+    };
+    const controller = new OpportunitiesController(
+      service as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(controller.adminBulkEnhance({ ids })).resolves.toEqual({
+      success: true,
+      ...outcome,
+    });
+    expect(service.enhanceOpportunities).toHaveBeenCalledWith(ids);
+  });
 });

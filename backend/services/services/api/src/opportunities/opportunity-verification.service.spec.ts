@@ -1,5 +1,7 @@
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { request as httpsRequest } from "node:https";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { db } from "../db";
 
 jest.mock("node:https", () => ({
   request: jest.fn(),
@@ -9,7 +11,17 @@ jest.mock("node:dns/promises", () => ({
   lookup: jest.fn(),
 }));
 
+jest.mock("../db", () => ({
+  db: {
+    execute: jest.fn(),
+  },
+}));
+
 import { lookup } from "node:dns/promises";
+
+const mockedDb = db as unknown as {
+  execute: jest.Mock;
+};
 
 describe("OpportunityVerificationService outbound URL policy", () => {
   const dnsLookup = lookup as jest.Mock;
@@ -88,6 +100,59 @@ describe("OpportunityVerificationService outbound URL policy", () => {
     ).rejects.toThrow(/unsafe|private|metadata/i);
     expect(request).toHaveBeenCalledTimes(1);
     request.mockReset();
+  });
+
+  it("returns the pinned address as an array when Node requests all DNS answers", async () => {
+    dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    const service = new OpportunityVerificationService({} as any);
+    const request = httpsRequest as unknown as jest.Mock;
+    let pinnedLookupResult: unknown[] = [];
+
+    request.mockImplementation(
+      (
+        _url: URL,
+        requestOptions: {
+          lookup: (
+            hostname: string,
+            options: { all: boolean },
+            callback: (...args: unknown[]) => void,
+          ) => void;
+        },
+        callback: (response: unknown) => void,
+      ) => {
+        requestOptions.lookup(
+          "public.example",
+          { all: true },
+          (...args: unknown[]) => {
+            pinnedLookupResult = args;
+          },
+        );
+        callback({
+          statusCode: 200,
+          headers: {},
+          on: jest.fn((event: string, handler: () => void) => {
+            if (event === "end") queueMicrotask(handler);
+          }),
+        });
+        return {
+          on: jest.fn(),
+          setTimeout: jest.fn(),
+          destroy: jest.fn(),
+          end: jest.fn(),
+        };
+      },
+    );
+
+    await (service as any).fetchWithTimeout(
+      "https://public.example/apply",
+      "HEAD",
+      100,
+    );
+
+    expect(pinnedLookupResult).toEqual([
+      null,
+      [{ address: "93.184.216.34", family: 4 }],
+    ]);
   });
 
   it("revalidates hexadecimal mapped and compatible IPv4 redirects", async () => {
@@ -263,5 +328,23 @@ describe("OpportunityVerificationService outbound URL policy", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("OpportunityVerificationService bulk verification query", () => {
+  it("binds selected IDs as one PostgreSQL uuid-array parameter", async () => {
+    const ids = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ];
+    mockedDb.execute.mockResolvedValue({ rows: [] });
+    const service = new OpportunityVerificationService({} as any);
+
+    await service.verifyMany(ids, true);
+
+    const statement = mockedDb.execute.mock.calls[0]?.[0];
+    const query = new PgDialect().sqlToQuery(statement);
+    expect(query.sql).toContain("where opportunity.id = any($1::uuid[])");
+    expect(query.params).toEqual([ids]);
   });
 });

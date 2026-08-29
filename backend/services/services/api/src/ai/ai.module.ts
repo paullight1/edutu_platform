@@ -5,6 +5,7 @@ import { installAiRuntimePolicy } from "./ai-runtime-policy";
 import { AiService } from "./ai.service";
 import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
+import { OpenAiAdapter } from "./adapters/openai.adapter";
 
 @Module({
   controllers: [AiController],
@@ -14,6 +15,7 @@ import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
     DeepSeekAdapter,
     GeminiAdapter,
     OpenRouterAdapter,
+    OpenAiAdapter,
   ],
   exports: [AiService],
 })

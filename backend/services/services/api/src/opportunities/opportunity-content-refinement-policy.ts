@@ -36,14 +36,17 @@ export function installOpportunityContentRefinementPolicy(
   const boundEnhance: EnhanceMethod = originalEnhance.bind(service);
 
   const wrappedEnhance: EnhanceMethod = (id) =>
-    refinementService.refineOpportunity(id, {
-      aiEnhance: boundEnhance,
-      forceAi: true,
-    });
+    service.runOpportunityEnhancementExclusive(() =>
+      refinementService.refineOpportunity(id, {
+        aiEnhance: boundEnhance,
+        forceAi: true,
+      }),
+    );
 
   const wrappedBackfill: BackfillMethod = (options = {}) =>
     refinementService.backfill(options, {
-      aiEnhance: boundEnhance,
+      aiEnhance: (id) =>
+        service.runOpportunityEnhancementExclusive(() => boundEnhance(id)),
     });
 
   mutable.enhanceOpportunity = wrappedEnhance;

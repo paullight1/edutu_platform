@@ -176,12 +176,16 @@ export function parseDeadlineDetailed(
 export function extractDeadlineText(text: string): string | null {
   if (!text) return null;
   const patterns = [
+    // Prefer complete dates before label-based fragments. The generic
+    // deadline matcher stops at commas, so "deadline is November 1, 2026"
+    // would otherwise lose the explicit year and incorrectly inherit the
+    // edition year from a title such as "Scholarship 2027".
+    new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, "i"),
+    new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, "i"),
     /(?:application\s+)?deadline[:\s]*([^\n,]{5,40})/i,
     /(?:applications?\s+)?closes?\s+(?:on\s+)?([^\n,]{5,40})/i,
     /closing\s+date[:\s]*([^\n,]{5,40})/i,
     /apply\s+(?:before|by)\s+([^\n,]{5,40})/i,
-    new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, "i"),
-    new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, "i"),
   ];
   for (const p of patterns) {
     const m = text.match(p);

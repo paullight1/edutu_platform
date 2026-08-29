@@ -14,6 +14,7 @@ export const EMBEDDING_DIMENSIONS = 768;
 // rate limits while staying resumable (embedded_at is the cursor).
 const BACKFILL_BATCH_SIZE = 50;
 const BACKFILL_BATCH_PAUSE_MS = 500;
+const MAX_PENDING_OPPORTUNITY_EMBEDDINGS = 100;
 const PROFILE_EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000;
 
 type ProfileLike = Record<string, unknown> | null | undefined;
@@ -77,6 +78,12 @@ export class OpportunityEmbeddingService {
     PROFILE_EMBEDDING_CACHE_TTL_MS,
     500,
   );
+  private readonly inFlightOpportunityEmbeddings = new Map<
+    string,
+    Promise<boolean>
+  >();
+  private opportunityEmbeddingTail: Promise<void> = Promise.resolve();
+  private pendingOpportunityEmbeddings = 0;
 
   constructor(private readonly aiService: AiService) {}
 
@@ -157,8 +164,58 @@ export class OpportunityEmbeddingService {
     return createHash("sha256").update(text).digest("hex");
   }
 
-  /** Embeds and persists one opportunity. Never throws; false = degraded. */
+  /**
+   * Embeds and persists one opportunity. Calls share a bounded single lane so
+   * fire-and-forget refreshes cannot burst Gemini after a bulk enhancement.
+   * Repeated refreshes for the same row reuse the in-flight promise.
+   */
   async embedOpportunity(opportunityId: string): Promise<boolean> {
+    const existing = this.inFlightOpportunityEmbeddings.get(opportunityId);
+    if (existing) return existing;
+
+    if (
+      this.pendingOpportunityEmbeddings >= MAX_PENDING_OPPORTUNITY_EMBEDDINGS
+    ) {
+      this.logger.warn(
+        `Opportunity embedding queue is full; skipping ${opportunityId}`,
+      );
+      return false;
+    }
+
+    this.pendingOpportunityEmbeddings += 1;
+    const queued = this.runOpportunityEmbeddingExclusive(() =>
+      this.performOpportunityEmbedding(opportunityId),
+    );
+    this.inFlightOpportunityEmbeddings.set(opportunityId, queued);
+    void queued.finally(() => {
+      if (this.inFlightOpportunityEmbeddings.get(opportunityId) === queued) {
+        this.inFlightOpportunityEmbeddings.delete(opportunityId);
+      }
+      this.pendingOpportunityEmbeddings -= 1;
+    });
+    return queued;
+  }
+
+  private async runOpportunityEmbeddingExclusive<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.opportunityEmbeddingTail;
+    let release!: () => void;
+    this.opportunityEmbeddingTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+
+  private async performOpportunityEmbedding(
+    opportunityId: string,
+  ): Promise<boolean> {
     try {
       const [row] = await db
         .select()

@@ -673,7 +673,7 @@ export class OpportunityVerificationService {
         opportunity.broken_link_count,
         opportunity.metadata
       from public.opportunities opportunity
-      where opportunity.id = any(${ids}::uuid[])
+      where opportunity.id = any(${sql.param(ids)}::uuid[])
     `);
     const candidates = this.rows<CandidateRow>(result);
 
@@ -1412,11 +1412,20 @@ export class OpportunityVerificationService {
             ? undefined
             : target.parsed.hostname,
           lookup: ((...args: any[]) => {
+            const options = args[1];
             const callback = args[args.length - 1] as (
-              error: Error | null,
-              address: string,
-              family: number,
+              ...values: any[]
             ) => void;
+            if (
+              options &&
+              typeof options === "object" &&
+              options.all === true
+            ) {
+              callback(null, [
+                { address: target.address, family: target.family },
+              ]);
+              return;
+            }
             callback(null, target.address, target.family);
           }) as any,
         },
