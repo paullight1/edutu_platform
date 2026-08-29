@@ -2679,11 +2679,12 @@ ${text}`;
       const buffer = Buffer.isBuffer(res.data)
         ? res.data
         : Buffer.from(res.data);
-      const contentType =
-        ((res.headers["content-type"] as string) || "image/jpeg")
-          .split(";")[0]
-          .trim()
-          .toLowerCase();
+      const contentType = (
+        (res.headers["content-type"] as string) || "image/jpeg"
+      )
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
       const extension =
         contentType === "image/jpeg"
           ? "jpg"

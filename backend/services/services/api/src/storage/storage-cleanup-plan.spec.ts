@@ -21,12 +21,12 @@ describe("storage cleanup planning", () => {
       },
     ];
 
-    expect(
-      [...collectReferencedStoragePaths(records, "opportunities_images")],
-    ).toEqual(["img_keep.jpg"]);
-    expect(
-      [...collectReferencedStoragePaths(records, "opportunity-share-cards")],
-    ).toEqual(["active/card-keep.png"]);
+    expect([
+      ...collectReferencedStoragePaths(records, "opportunities_images"),
+    ]).toEqual(["img_keep.jpg"]);
+    expect([
+      ...collectReferencedStoragePaths(records, "opportunity-share-cards"),
+    ]).toEqual(["active/card-keep.png"]);
   });
 
   it("only deletes unreferenced objects older than the grace period", () => {
