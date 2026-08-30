@@ -169,6 +169,8 @@ export class PostgresBillingEventsPersistence implements BillingEventsPersistenc
           from public.billing_provider_events
           where status in ('received', 'failed')
             and processed_at is null
+            and (${input.provider ?? null}::text is null
+              or provider = ${input.provider ?? null})
             and (next_retry_at is null or next_retry_at <= ${input.now})
           order by received_at, id
           for update skip locked

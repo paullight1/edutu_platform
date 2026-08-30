@@ -50,6 +50,7 @@ export interface BillingEventsPersistence {
   leaseBatch(input: {
     now: Date;
     limit: number;
+    provider?: BillingEventProvider;
   }): Promise<BillingEventRecord[]>;
   complete(id: string, now: Date): Promise<boolean>;
   retry(input: {
@@ -108,13 +109,17 @@ export class BillingEventsRepository {
     });
   }
 
-  async lease(limit = 100): Promise<BillingEventRecord[]> {
+  async lease(
+    limit = 100,
+    filters: { provider?: BillingEventProvider } = {},
+  ): Promise<BillingEventRecord[]> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
       throw new RangeError("event lease limit must be between 1 and 1000");
     }
     const events = await this.persistence.leaseBatch({
       now: this.clock(),
       limit,
+      ...filters,
     });
     for (const event of events)
       this.leasedAttempts.set(event.id, event.attemptCount);

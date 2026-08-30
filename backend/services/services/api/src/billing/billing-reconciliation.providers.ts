@@ -25,6 +25,11 @@ import type {
   ReconciliationRepairResult,
 } from "./reconciliation/reconciliation.types";
 import { CreditPurchaseService } from "./credit-purchase.service";
+import {
+  RevenueCatClient,
+  type RevenueCatSubscriberSnapshot,
+} from "./providers/revenuecat/revenuecat.client";
+import { REVENUECAT_PROCESSOR_DATABASE } from "./revenuecat-event.processor";
 
 function asMetadata(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -385,5 +390,339 @@ export class BillingReconciliationRepair {
       : result.status === "fulfilled"
         ? { status: "enqueued" }
         : { status: "skipped" };
+  }
+}
+
+export interface RevenueCatLocalSubscriptionState {
+  appUserId: string;
+  environment: ReconciliationEnvironment;
+  lineageId: string;
+  entitlementKey: string;
+  productKey: string;
+  providerProductId: string | null;
+  status: string;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  hasActiveGrant: boolean;
+  scheduledProductKey: string | null;
+  scheduledProviderProductId: string | null;
+  scheduledChangeAt: Date | null;
+}
+
+export interface RevenueCatReconciliationPersistence {
+  listSubjects(environment: ReconciliationEnvironment): Promise<string[]>;
+  readLocalState(
+    appUserId: string,
+    environment: ReconciliationEnvironment,
+  ): Promise<RevenueCatLocalSubscriptionState[]>;
+  repairMissingGrant(state: RevenueCatLocalSubscriptionState): Promise<boolean>;
+  createReviewCase(input: {
+    provider: "revenuecat";
+    environment: ReconciliationEnvironment;
+    category: string;
+    providerResourceId: string;
+    details: Record<string, unknown>;
+  }): Promise<void>;
+}
+
+type RevenueCatReconciliationDatabase = {
+  execute(statement: ReturnType<typeof sql>): Promise<{ rows?: unknown[] }>;
+};
+
+function optionalDate(value: unknown): Date | null {
+  if (value == null) return null;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+@Injectable()
+export class PostgresRevenueCatReconciliationPersistence implements RevenueCatReconciliationPersistence {
+  constructor(
+    @Inject(REVENUECAT_PROCESSOR_DATABASE)
+    private readonly database: RevenueCatReconciliationDatabase = db as unknown as RevenueCatReconciliationDatabase,
+  ) {}
+
+  async listSubjects(
+    environment: ReconciliationEnvironment,
+  ): Promise<string[]> {
+    const result = await this.database.execute(sql`
+      select distinct user_id
+      from public.billing_provider_subscriptions
+      where provider = 'revenuecat' and environment = ${environment}
+      order by user_id
+      limit 5000
+    `);
+    return ((result.rows ?? []) as Array<{ user_id?: unknown }>)
+      .map((row) => (row.user_id == null ? "" : String(row.user_id)))
+      .filter(Boolean);
+  }
+
+  async readLocalState(
+    appUserId: string,
+    environment: ReconciliationEnvironment,
+  ): Promise<RevenueCatLocalSubscriptionState[]> {
+    const result = await this.database.execute(sql`
+      select
+        subscription.user_id,
+        subscription.environment,
+        subscription.provider_subscription_id,
+        subscription.entitlement_key,
+        subscription.product_key,
+        binding.provider_product_id,
+        subscription.status,
+        subscription.current_period_start,
+        subscription.current_period_end,
+        subscription.scheduled_product_key,
+        scheduled_binding.provider_product_id as scheduled_provider_product_id,
+        subscription.scheduled_change_at,
+        exists (
+          select 1
+          from public.billing_entitlement_grants grant_row
+          where grant_row.provider = 'revenuecat'
+            and grant_row.environment = subscription.environment
+            and grant_row.source_kind = 'subscription'
+            and grant_row.source_resource_id = subscription.provider_subscription_id
+            and grant_row.feature_key = subscription.entitlement_key
+            and grant_row.status = 'active'
+            and grant_row.revoked_at is null
+            and (grant_row.valid_until is null or grant_row.valid_until > now())
+        ) as has_active_grant
+      from public.billing_provider_subscriptions subscription
+      left join public.billing_revenuecat_store_products binding
+        on binding.environment = subscription.environment
+       and binding.store = subscription.provider_store
+       and binding.product_key = subscription.product_key
+       and binding.cadence = subscription.cadence
+      left join public.billing_revenuecat_store_products scheduled_binding
+        on scheduled_binding.environment = subscription.environment
+       and scheduled_binding.store = subscription.provider_store
+       and scheduled_binding.product_key = subscription.scheduled_product_key
+       and scheduled_binding.cadence = subscription.scheduled_cadence
+      where subscription.provider = 'revenuecat'
+        and subscription.environment = ${environment}
+        and subscription.user_id = ${appUserId}
+      order by subscription.provider_subscription_id
+    `);
+    return ((result.rows ?? []) as Array<Record<string, unknown>>).map(
+      (row) => ({
+        appUserId: String(row.user_id),
+        environment: String(row.environment) as ReconciliationEnvironment,
+        lineageId: String(row.provider_subscription_id),
+        entitlementKey: String(row.entitlement_key),
+        productKey: String(row.product_key),
+        providerProductId:
+          row.provider_product_id == null
+            ? null
+            : String(row.provider_product_id),
+        status: String(row.status),
+        currentPeriodStart: optionalDate(row.current_period_start),
+        currentPeriodEnd: optionalDate(row.current_period_end),
+        hasActiveGrant: row.has_active_grant === true,
+        scheduledProductKey:
+          row.scheduled_product_key == null
+            ? null
+            : String(row.scheduled_product_key),
+        scheduledProviderProductId:
+          row.scheduled_provider_product_id == null
+            ? null
+            : String(row.scheduled_provider_product_id),
+        scheduledChangeAt: optionalDate(row.scheduled_change_at),
+      }),
+    );
+  }
+
+  async repairMissingGrant(
+    state: RevenueCatLocalSubscriptionState,
+  ): Promise<boolean> {
+    if (state.environment !== "live") return false;
+    const result = await this.database.execute(sql`
+      with eligible as (
+        select subscription.*
+        from public.billing_provider_subscriptions subscription
+        where subscription.provider = 'revenuecat'
+          and subscription.environment = 'live'
+          and subscription.provider_subscription_id = ${state.lineageId}
+          and subscription.user_id = ${state.appUserId}
+          and subscription.entitlement_key = ${state.entitlementKey}
+          and subscription.status in (
+            'active', 'canceled', 'grace_period', 'price_consent_required'
+          )
+          and (
+            subscription.current_period_end is null
+            or subscription.current_period_end > now()
+          )
+        for update
+      ), upserted as (
+        insert into public.billing_entitlement_grants as grant_row (
+          provider, environment, source_kind, source_resource_id, user_id,
+          feature_key, valid_from, valid_until, status
+        )
+        select
+          'revenuecat', 'live', 'subscription', provider_subscription_id,
+          user_id, entitlement_key, coalesce(current_period_start, now()),
+          current_period_end, 'active'
+        from eligible
+        on conflict (
+          provider, environment, source_kind, source_resource_id, feature_key
+        ) do update
+        set user_id = excluded.user_id,
+            valid_from = excluded.valid_from,
+            valid_until = excluded.valid_until,
+            status = 'active',
+            revoked_at = null,
+            revoke_reason = null,
+            updated_at = now()
+        returning user_id
+      )
+      select public.billing_refresh_paid_tier_projections(user_id, now())
+      from upserted
+    `);
+    return Boolean(result.rows?.length);
+  }
+
+  async createReviewCase(input: {
+    provider: "revenuecat";
+    environment: ReconciliationEnvironment;
+    category: string;
+    providerResourceId: string;
+    details: Record<string, unknown>;
+  }): Promise<void> {
+    await this.database.execute(sql`
+      insert into public.billing_review_cases (
+        provider, environment, case_type, details
+      ) values (
+        'revenuecat', ${input.environment}, ${input.category},
+        ${JSON.stringify(
+          redactProviderPayload({
+            providerResourceId: input.providerResourceId,
+            ...input.details,
+          }),
+        )}::jsonb
+      )
+    `);
+  }
+}
+
+export class RevenueCatReconciliationAdapter {
+  constructor(
+    private readonly client: Pick<RevenueCatClient, "getSubscriber">,
+    private readonly persistence: RevenueCatReconciliationPersistence,
+  ) {}
+
+  async reconcile(
+    environment: ReconciliationEnvironment,
+    options: { now?: Date } = {},
+  ): Promise<{ checked: number; repaired: number; reviewCases: number }> {
+    const result = { checked: 0, repaired: 0, reviewCases: 0 };
+    const now = options.now ?? new Date();
+    const subjects = await this.persistence.listSubjects(environment);
+    for (const appUserId of subjects) {
+      const [snapshot, localState] = await Promise.all([
+        this.client.getSubscriber(appUserId, environment),
+        this.persistence.readLocalState(appUserId, environment),
+      ]);
+      result.checked += 1;
+      const outcome = await this.reconcileSubscriber(
+        snapshot,
+        localState,
+        environment,
+        now,
+      );
+      result.repaired += outcome.repaired;
+      result.reviewCases += outcome.reviewCases;
+    }
+    return result;
+  }
+
+  private async reconcileSubscriber(
+    snapshot: RevenueCatSubscriberSnapshot,
+    localState: RevenueCatLocalSubscriptionState[],
+    environment: ReconciliationEnvironment,
+    now: Date,
+  ): Promise<{ repaired: number; reviewCases: number }> {
+    let repaired = 0;
+    let reviewCases = 0;
+    const handledLineages = new Set<string>();
+
+    for (const entitlement of snapshot.activeEntitlements) {
+      const staleScheduled = localState.find(
+        (state) =>
+          state.scheduledProviderProductId === entitlement.productId &&
+          state.scheduledChangeAt !== null &&
+          state.scheduledChangeAt <= now &&
+          state.providerProductId !== entitlement.productId,
+      );
+      if (staleScheduled) {
+        handledLineages.add(staleScheduled.lineageId);
+        await this.review(
+          environment,
+          "stale_scheduled_change",
+          staleScheduled.lineageId,
+          entitlement,
+        );
+        reviewCases += 1;
+        continue;
+      }
+
+      const exact = localState.find(
+        (state) => state.providerProductId === entitlement.productId,
+      );
+      if (!exact) {
+        const sameEntitlement = localState.find(
+          (state) => state.entitlementKey === entitlement.id,
+        );
+        if (sameEntitlement) {
+          handledLineages.add(sameEntitlement.lineageId);
+          await this.review(
+            environment,
+            "product_mismatch",
+            sameEntitlement.lineageId,
+            entitlement,
+          );
+        } else {
+          await this.review(
+            environment,
+            "paid_without_grant",
+            entitlement.productId,
+            entitlement,
+          );
+        }
+        reviewCases += 1;
+        continue;
+      }
+
+      handledLineages.add(exact.lineageId);
+      if (!exact.hasActiveGrant && environment === "live") {
+        if (await this.persistence.repairMissingGrant(exact)) repaired += 1;
+      }
+    }
+
+    for (const state of localState) {
+      if (state.hasActiveGrant && !handledLineages.has(state.lineageId)) {
+        await this.review(
+          environment,
+          "grant_without_provider_access",
+          state.lineageId,
+          { entitlementId: state.entitlementKey },
+        );
+        reviewCases += 1;
+      }
+    }
+    return { repaired, reviewCases };
+  }
+
+  private review(
+    environment: ReconciliationEnvironment,
+    category: string,
+    providerResourceId: string,
+    details: Record<string, unknown>,
+  ): Promise<void> {
+    return this.persistence.createReviewCase({
+      provider: "revenuecat",
+      environment,
+      category,
+      providerResourceId,
+      details: redactProviderPayload(details) as Record<string, unknown>,
+    });
   }
 }

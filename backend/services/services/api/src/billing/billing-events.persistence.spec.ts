@@ -3,6 +3,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { BillingEventsRepository } from "./billing-events.repository";
 import { PostgresBillingEventsPersistence } from "./billing-events.persistence";
 
+jest.setTimeout(30_000);
+
 async function createHarness() {
   const client = new PGlite();
   await client.exec(`
@@ -111,6 +113,37 @@ describe("PostgresBillingEventsPersistence", () => {
       expect(
         new Set([...firstLease, ...secondLease].map(({ id }) => id)).size,
       ).toBe(3);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("leases only the requested provider queue", async () => {
+    const { client, persistence } = await createHarness();
+    try {
+      const repository = new BillingEventsRepository(persistence, {
+        clock: () => new Date("2026-08-30T10:00:00.000Z"),
+      });
+      await repository.accept({ ...event("evt-revenuecat") });
+      await repository.accept({ ...event("evt-bachs"), provider: "bachs" });
+
+      const leased = await repository.lease(10, { provider: "revenuecat" });
+
+      expect(leased).toHaveLength(1);
+      expect(leased[0]).toMatchObject({
+        provider: "revenuecat",
+        eventId: "evt-revenuecat",
+      });
+      const remaining = await client.query<{
+        provider: string;
+        status: string;
+      }>(
+        `select provider, status from public.billing_provider_events order by provider`,
+      );
+      expect(remaining.rows).toEqual([
+        { provider: "bachs", status: "received" },
+        { provider: "revenuecat", status: "processing" },
+      ]);
     } finally {
       await client.close();
     }

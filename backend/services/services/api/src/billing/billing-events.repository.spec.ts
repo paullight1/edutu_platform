@@ -72,6 +72,7 @@ class MemoryEventsPersistence implements BillingEventsPersistence {
     const eligible = [...this.records.values()]
       .filter(
         (event) =>
+          (!input.provider || event.provider === input.provider) &&
           (event.status === "received" || event.status === "failed") &&
           (!event.nextRetryAt || event.nextRetryAt <= input.now),
       )

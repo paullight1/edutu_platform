@@ -30,7 +30,23 @@ import {
   BillingReconciliationRepair,
   BillingReconciliationStoreService,
   PaystackReconciliationAdapter,
+  PostgresRevenueCatReconciliationPersistence,
+  RevenueCatReconciliationAdapter,
 } from "./billing-reconciliation.providers";
+import {
+  PostgresRevenueCatIdentityResolver,
+  PostgresRevenueCatLifecycleApplier,
+  REVENUECAT_IDENTITY_RESOLVER,
+  REVENUECAT_LIFECYCLE_APPLIER,
+  REVENUECAT_PROCESSOR_DATABASE,
+  RevenueCatEventProcessor,
+  RevenueCatEventScheduler,
+} from "./revenuecat-event.processor";
+import { RevenueCatClient } from "./providers/revenuecat/revenuecat.client";
+import {
+  REVENUECAT_RECONCILIATION_ADAPTER,
+  RevenueCatReconciliationScheduler,
+} from "./revenuecat-reconciliation.scheduler";
 import { BILLING_RECONCILIATION_OPTIONS } from "./reconciliation/reconciliation.types";
 import {
   API_CREDIT_PRODUCT_QUANTITIES,
@@ -100,6 +116,39 @@ import {
       ],
     },
     BillingReconciliationService,
+    {
+      provide: REVENUECAT_PROCESSOR_DATABASE,
+      useValue: db,
+    },
+    PostgresRevenueCatIdentityResolver,
+    PostgresRevenueCatLifecycleApplier,
+    {
+      provide: REVENUECAT_IDENTITY_RESOLVER,
+      useExisting: PostgresRevenueCatIdentityResolver,
+    },
+    {
+      provide: REVENUECAT_LIFECYCLE_APPLIER,
+      useExisting: PostgresRevenueCatLifecycleApplier,
+    },
+    RevenueCatEventProcessor,
+    RevenueCatEventScheduler,
+    PostgresRevenueCatReconciliationPersistence,
+    {
+      provide: REVENUECAT_RECONCILIATION_ADAPTER,
+      useFactory: (
+        persistence: PostgresRevenueCatReconciliationPersistence,
+      ) => {
+        const secretApiKey = process.env.REVENUECAT_SECRET_API_KEY?.trim();
+        return secretApiKey
+          ? new RevenueCatReconciliationAdapter(
+              new RevenueCatClient({ secretApiKey }),
+              persistence,
+            )
+          : null;
+      },
+      inject: [PostgresRevenueCatReconciliationPersistence],
+    },
+    RevenueCatReconciliationScheduler,
     CreditPurchaseService,
     {
       provide: BILLING_EVENTS_DATABASE,
