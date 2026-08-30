@@ -15,6 +15,9 @@ alter table public.billing_provider_subscriptions
   add column if not exists scheduled_cadence text,
   add column if not exists scheduled_change_at timestamptz;
 
+alter table public.billing_provider_events
+  add column if not exists provider_reference text;
+
 create table if not exists public.billing_revenuecat_store_products (
   id uuid primary key default gen_random_uuid(),
   environment text not null references public.billing_environments (environment),

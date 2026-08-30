@@ -12,7 +12,17 @@ import { BillingRepository } from "./billing.repository";
 import { BachsClient } from "./providers/bachs/bachs.client";
 import { loadBachsConfig } from "./providers/bachs/bachs.config";
 import { BillingService } from "./billing.service";
+import { BillingEventsRepository } from "./billing-events.repository";
+import {
+  BILLING_EVENTS_DATABASE,
+  PostgresBillingEventsPersistence,
+} from "./billing-events.persistence";
 import { BachsWebhookService } from "./bachs-webhook.service";
+import {
+  REVENUECAT_WEBHOOK_SERVICES,
+  RevenueCatWebhookService,
+} from "./revenuecat-webhook.service";
+import { loadRevenueCatDeliveryConfigs } from "./providers/revenuecat/revenuecat.config";
 import { BillingReconciliationScheduler } from "./billing-reconciliation.scheduler";
 import { BillingReconciliationService } from "./billing-reconciliation.service";
 import {
@@ -91,6 +101,28 @@ import {
     },
     BillingReconciliationService,
     CreditPurchaseService,
+    {
+      provide: BILLING_EVENTS_DATABASE,
+      useValue: db,
+    },
+    PostgresBillingEventsPersistence,
+    {
+      provide: BillingEventsRepository,
+      useFactory: (persistence: PostgresBillingEventsPersistence) =>
+        new BillingEventsRepository(persistence),
+      inject: [PostgresBillingEventsPersistence],
+    },
+    {
+      provide: REVENUECAT_WEBHOOK_SERVICES,
+      useFactory: (events: BillingEventsRepository) => {
+        const configs = loadRevenueCatDeliveryConfigs();
+        return {
+          sandbox: new RevenueCatWebhookService(configs.sandbox, events),
+          production: new RevenueCatWebhookService(configs.production, events),
+        };
+      },
+      inject: [BillingEventsRepository],
+    },
     {
       provide: CREDIT_PURCHASE_DATABASE,
       useValue: db,

@@ -15,16 +15,16 @@ describe("BillingController Bachs routes", () => {
     handlePaystackWebhook: jest.fn(),
     handleBachsWebhook: jest.fn(),
   };
+  const sandboxRevenueCat = { handle: jest.fn() };
+  const productionRevenueCat = { handle: jest.fn() };
 
   function createController() {
     return new (BillingController as unknown as new (
       ...dependencies: unknown[]
-    ) => BillingController)(
-      legacyBilling,
-      checkout,
-      portal,
-      null,
-    ) as BillingController & {
+    ) => BillingController)(legacyBilling, checkout, portal, null, {
+      sandbox: sandboxRevenueCat,
+      production: productionRevenueCat,
+    }) as BillingController & {
       createBachsCheckout: (
         rawAuthSubject: string,
         email: string | undefined,
@@ -40,6 +40,12 @@ describe("BillingController Bachs routes", () => {
       createBachsPortalSession: (
         rawAuthSubject: string,
       ) => Promise<{ url: string }>;
+      handleRevenueCatWebhook: (
+        environment: string,
+        authorization: string | undefined,
+        signature: string | undefined,
+        request: { rawBody?: Buffer; body?: unknown },
+      ) => Promise<{ accepted: true; eventId: string; duplicate: boolean }>;
     };
   }
 
@@ -93,5 +99,52 @@ describe("BillingController Bachs routes", () => {
       "user_123",
       expect.any(String),
     );
+  });
+
+  it("forwards exact RevenueCat raw bytes to the selected environment service", async () => {
+    const rawBody = Buffer.from('{"api_version":"1.0"}');
+    productionRevenueCat.handle.mockResolvedValue({
+      accepted: true,
+      eventId: "event-one",
+      duplicate: false,
+    });
+
+    await expect(
+      createController().handleRevenueCatWebhook(
+        "production",
+        "authorization-value",
+        "t=1,v1=signature",
+        { rawBody, body: { api_version: "1.0" } },
+      ),
+    ).resolves.toEqual({
+      accepted: true,
+      eventId: "event-one",
+      duplicate: false,
+    });
+    expect(productionRevenueCat.handle).toHaveBeenCalledWith(
+      rawBody,
+      "authorization-value",
+      "t=1,v1=signature",
+    );
+  });
+
+  it("rejects missing raw body and an unknown delivery environment", async () => {
+    await expect(
+      createController().handleRevenueCatWebhook(
+        "sandbox",
+        "authorization-value",
+        "signature",
+        { body: {} },
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    await expect(
+      createController().handleRevenueCatWebhook(
+        "staging",
+        "authorization-value",
+        "signature",
+        { rawBody: Buffer.from("{}") },
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(sandboxRevenueCat.handle).not.toHaveBeenCalled();
   });
 });

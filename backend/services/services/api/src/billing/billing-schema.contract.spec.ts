@@ -566,6 +566,9 @@ describe("canonical billing schema migrations", () => {
     expect(sql).toMatch(
       /create unique index if not exists billing_provider_events_provider_event_unique[\s\S]*?\(provider, environment, event_id\)/i,
     );
+    expect(sql).toMatch(
+      /alter table public\.billing_provider_events[\s\S]*?add column if not exists provider_reference text/i,
+    );
   });
 });
 

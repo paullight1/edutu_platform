@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,6 +7,8 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Optional,
+  Param,
   Post,
   Query,
   Req,
@@ -23,6 +26,10 @@ import { BachsWebhookService } from "./bachs-webhook.service";
 import { CreateBachsCheckoutDto } from "./dto/create-checkout.dto";
 import type { CreateCheckoutDto } from "./dto/billing.dto";
 import { BACHS_WEBHOOK_SERVICE } from "./types/billing-checkout.types";
+import {
+  REVENUECAT_WEBHOOK_SERVICES,
+  type RevenueCatWebhookServices,
+} from "./revenuecat-webhook.service";
 
 @Controller("billing")
 export class BillingController {
@@ -32,6 +39,9 @@ export class BillingController {
     private readonly billingPortalService: BillingPortalService,
     @Inject(BACHS_WEBHOOK_SERVICE)
     private readonly bachsWebhookService: BachsWebhookService | null,
+    @Optional()
+    @Inject(REVENUECAT_WEBHOOK_SERVICES)
+    private readonly revenueCatWebhookServices?: RevenueCatWebhookServices,
   ) {}
 
   @Get("status")
@@ -166,5 +176,33 @@ export class BillingController {
       timestamp,
       signature,
     );
+  }
+
+  @Public()
+  @Post("webhooks/revenuecat/:environment")
+  @HttpCode(HttpStatus.ACCEPTED)
+  async handleRevenueCatWebhook(
+    @Param("environment") environment: string,
+    @Headers("authorization") authorization: string | undefined,
+    @Headers("x-revenuecat-webhook-signature") signature: string | undefined,
+    @Req() request: { rawBody?: Buffer },
+  ) {
+    if (environment !== "sandbox" && environment !== "production") {
+      throw new BadRequestException(
+        "RevenueCat webhook environment must be sandbox or production.",
+      );
+    }
+    if (!Buffer.isBuffer(request.rawBody)) {
+      throw new UnauthorizedException(
+        "Raw request body unavailable; cannot verify webhook signature",
+      );
+    }
+    const service = this.revenueCatWebhookServices?.[environment];
+    if (!service) {
+      throw new ServiceUnavailableException(
+        "RevenueCat webhook is unavailable.",
+      );
+    }
+    return service.handle(request.rawBody, authorization, signature);
   }
 }
