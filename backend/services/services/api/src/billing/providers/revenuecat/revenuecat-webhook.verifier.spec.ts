@@ -18,11 +18,13 @@ describe("RevenueCatWebhookVerifier", () => {
     return new RevenueCatWebhookVerifier({
       authorizationSecret: secret,
       hmacSecret,
-      expectedAppId: "app_edutu_ios",
+      allowedAppIds: ["app_edutu_ios", "app_edutu_android"],
       expectedEnvironment: "PRODUCTION",
       allowedStores: ["APP_STORE", "PLAY_STORE"],
       clock: () => nowSeconds * 1_000,
       ...overrides,
+    } as ConstructorParameters<typeof RevenueCatWebhookVerifier>[0] & {
+      allowedAppIds: string[];
     });
   }
 
@@ -192,6 +194,7 @@ describe("RevenueCatWebhookVerifier", () => {
 
   it.each([
     ["wrong app", { app_id: "other_app" }],
+    ["missing app", { app_id: undefined }],
     ["wrong environment", { environment: "SANDBOX" }],
     ["wrong store", { store: "STRIPE" }],
   ])("rejects %s for this configured integration", (_label, event) => {
@@ -199,6 +202,19 @@ describe("RevenueCatWebhookVerifier", () => {
     expect(() => verifier().verify(input)).toThrow(
       expect.objectContaining({ code: "unexpected_integration" }),
     );
+  });
+
+  it("accepts either explicitly allowed RevenueCat store app", () => {
+    const apple = signedInput(officialEnvelope({ app_id: "app_edutu_ios" }));
+    const google = signedInput(
+      officialEnvelope({
+        app_id: "app_edutu_android",
+        store: "PLAY_STORE",
+      }),
+    );
+
+    expect(verifier().verify(apple).event.app_id).toBe("app_edutu_ios");
+    expect(verifier().verify(google).event.app_id).toBe("app_edutu_android");
   });
 
   it("allows documented nullable transaction fields for a non-financial event", () => {

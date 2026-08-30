@@ -5,6 +5,7 @@ import helmet from "helmet";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { assertProductionClerkIssuerLock } from "./auth/clerk-production-config";
 import { loadBachsConfig } from "./billing/providers/bachs/bachs.config";
+import { loadRevenueCatDeliveryConfigs } from "./billing/providers/revenuecat/revenuecat.config";
 import { requestIdMiddleware } from "./common/request-id.middleware";
 import { loadEnvironmentFiles } from "./config/load-environment";
 import { createScraperEgressBodyLimitMiddleware } from "./scraper/scraper-egress-body-limit.middleware";
@@ -19,6 +20,11 @@ export function validateEnvironment(): void {
     );
   }
   const isProd = nodeEnv === "production";
+
+  // Webhook receipt is intentionally independent from purchase initiation.
+  // Whenever a delivery boundary is enabled, validate both environments and
+  // their secret isolation before the application accepts traffic.
+  loadRevenueCatDeliveryConfigs();
 
   if (process.env.COMMUNITY_CALLS_ENABLED === "true") {
     const tokenSecret = process.env.COMMUNITY_CALL_TOKEN_SECRET || "";

@@ -193,7 +193,7 @@ export class RevenueCatWebhookVerifier {
     const event = payload.event;
     const type = event.type;
     if (
-      this.config.expectedAppId &&
+      this.config.allowedAppIds?.length &&
       !event.app_id &&
       !this.config.allowMissingAppIdFor?.includes(type)
     ) {
@@ -204,9 +204,9 @@ export class RevenueCatWebhookVerifier {
       );
     }
     if (
-      this.config.expectedAppId &&
+      this.config.allowedAppIds?.length &&
       event.app_id &&
-      event.app_id !== this.config.expectedAppId
+      !this.config.allowedAppIds.includes(event.app_id)
     ) {
       throw new RevenueCatWebhookError(
         "unexpected_integration",

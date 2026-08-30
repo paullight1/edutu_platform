@@ -117,7 +117,7 @@ export interface RevenueCatWebhookVerifierConfig {
   authorizationSecret?: string;
   /** Optional HMAC signing secret configured for this integration. */
   hmacSecret?: string;
-  expectedAppId?: string;
+  allowedAppIds?: readonly string[];
   expectedEnvironment?: RevenueCatEnvironment | "sandbox" | "production";
   allowedStores?: readonly string[];
   allowMissingAppIdFor?: readonly string[];
