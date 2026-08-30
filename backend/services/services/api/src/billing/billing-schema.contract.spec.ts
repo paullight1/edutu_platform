@@ -55,6 +55,7 @@ const migrationNames = [
   "20260811123000_derived_entitlements.sql",
   "20260812120000_bachs_checkout_contract_hardening.sql",
   "20260813160000_api_credit_products.sql",
+  "20260830120000_revenuecat_subscription_authority.sql",
 ] as const;
 
 type VerificationManifest = {
@@ -177,7 +178,7 @@ describe("canonical billing schema migrations", () => {
   it("ships every additive root migration in deployment order", () => {
     expect(
       migrationNames.map((name) => existsSync(migrationPath(name))),
-    ).toEqual([true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true]);
   });
 
   it("defines distinct server-owned API credit products without changing broader-app credits products", () => {
@@ -454,6 +455,116 @@ describe("canonical billing schema migrations", () => {
     expect(sql).toMatch(/enabled = false/i);
     expect(sql).not.toMatch(
       /insert into public\.billing_product_provider_mappings[\s\S]*?values/i,
+    );
+  });
+
+  it("defines the exact nine-product RevenueCat subscription catalog", () => {
+    const sql = migration(
+      "20260830120000_revenuecat_subscription_authority.sql",
+    );
+
+    for (const productKey of [
+      "lite_weekly",
+      "lite_monthly",
+      "lite_yearly",
+      "pro_weekly",
+      "pro_monthly",
+      "pro_yearly",
+      "scholar_weekly",
+      "scholar_monthly",
+      "scholar_yearly",
+    ]) {
+      expect(sql).toMatch(new RegExp(`'${productKey}'`, "i"));
+    }
+
+    for (const appleProductId of [
+      "edutu_lite_weekly_v1",
+      "edutu_lite_monthly_v1",
+      "edutu_lite_yearly_v1",
+      "edutu_pro_weekly_v1",
+      "edutu_pro_monthly_v1",
+      "edutu_pro_yearly_v1",
+      "edutu_scholar_weekly_v1",
+      "edutu_scholar_monthly_v1",
+      "edutu_scholar_yearly_v1",
+    ]) {
+      expect(sql).toMatch(new RegExp(`'${appleProductId}'`, "i"));
+    }
+
+    for (const googleProductId of [
+      "edutu_lite_v1:weekly-auto",
+      "edutu_lite_v1:monthly-auto",
+      "edutu_lite_v1:yearly-auto",
+      "edutu_pro_v1:weekly-auto",
+      "edutu_pro_v1:monthly-auto",
+      "edutu_pro_v1:yearly-auto",
+      "edutu_scholar_v1:weekly-auto",
+      "edutu_scholar_v1:monthly-auto",
+      "edutu_scholar_v1:yearly-auto",
+    ]) {
+      expect(sql).toMatch(new RegExp(`'${googleProductId}'`, "i"));
+    }
+
+    expect(sql).toMatch(/'APP_STORE'/i);
+    expect(sql).toMatch(/'PLAY_STORE'/i);
+    expect(sql).toMatch(
+      /create table if not exists public\.billing_revenuecat_store_products/i,
+    );
+    expect(sql).toMatch(
+      /unique\s*\(environment,\s*store,\s*provider_product_id\)/i,
+    );
+    expect(sql).toMatch(/on conflict \(product_key\) do update/i);
+    expect(sql).toMatch(
+      /on conflict \(product_key, provider, environment\) do update/i,
+    );
+  });
+
+  it("applies RevenueCat lifecycle updates atomically and source-scoped", () => {
+    const sql = migration(
+      "20260830120000_revenuecat_subscription_authority.sql",
+    );
+
+    expect(sql).toMatch(
+      /create or replace function public\.billing_apply_revenuecat_subscription_event\s*\(/i,
+    );
+    expect(sql).toMatch(/security definer[\s\S]*?set search_path = ''/i);
+    expect(sql).toMatch(
+      /revoke all on function public\.billing_apply_revenuecat_subscription_event[\s\S]*?from public, anon, authenticated/i,
+    );
+    expect(sql).toMatch(
+      /grant execute on function public\.billing_apply_revenuecat_subscription_event[\s\S]*?to service_role/i,
+    );
+    expect(sql).toMatch(
+      /insert into public\.billing_provider_subscriptions[\s\S]*?on conflict \(provider, environment, provider_subscription_id\)/i,
+    );
+    expect(sql).toMatch(
+      /provider_updated_at[\s\S]*?p_occurred_at[\s\S]*?(?:stale|provider_updated_at)/i,
+    );
+    expect(sql).toMatch(
+      /delete from public\.billing_entitlement_grants[\s\S]*?provider = 'revenuecat'[\s\S]*?source_resource_id/i,
+    );
+    expect(sql).not.toMatch(
+      /delete from public\.billing_entitlement_grants\s+where user_id =/i,
+    );
+    expect(sql).toMatch(
+      /p_environment = 'live'[\s\S]*?insert into public\.billing_entitlement_grants/i,
+    );
+    expect(sql).toMatch(
+      /billing_refresh_entitlement_projection\([\s\S]*?'lite'[\s\S]*?billing_refresh_entitlement_projection\([\s\S]*?'pro'[\s\S]*?billing_refresh_entitlement_projection\([\s\S]*?'scholar'/i,
+    );
+  });
+
+  it("handles transfer and keeps the RevenueCat event boundary idempotent", () => {
+    const sql = migration(
+      "20260830120000_revenuecat_subscription_authority.sql",
+    );
+
+    expect(sql).toMatch(/p_event_type = 'TRANSFER'/i);
+    expect(sql).toMatch(/transferred_from/i);
+    expect(sql).toMatch(/transferred_to/i);
+    expect(sql).toMatch(/order by[\s\S]*?user_id[\s\S]*?for update/i);
+    expect(sql).toMatch(
+      /create unique index if not exists billing_provider_events_provider_event_unique[\s\S]*?\(provider, environment, event_id\)/i,
     );
   });
 });
