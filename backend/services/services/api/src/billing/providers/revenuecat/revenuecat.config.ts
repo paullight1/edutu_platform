@@ -1,10 +1,7 @@
 import type { RevenueCatEnvironment } from "./revenuecat-webhook.types";
 
 export type RevenueCatRouteEnvironment = "sandbox" | "production";
-export type RevenueCatAllowedStore =
-  | "APP_STORE"
-  | "PLAY_STORE"
-  | "TEST_STORE";
+export type RevenueCatAllowedStore = "APP_STORE" | "PLAY_STORE" | "TEST_STORE";
 
 export type RevenueCatDeliveryConfig =
   | {
@@ -122,10 +119,7 @@ export function loadRevenueCatDeliveryConfig(
     enabled: true,
     environment: routeEnvironment,
     expectedEnvironment,
-    authorizationSecret: secret(
-      environment,
-      `${prefix}_AUTHORIZATION_SECRET`,
-    ),
+    authorizationSecret: secret(environment, `${prefix}_AUTHORIZATION_SECRET`),
     hmacSecret: secret(environment, `${prefix}_HMAC_SECRET`),
     allowedAppIds: list(environment, `${prefix}_ALLOWED_APP_IDS`),
     allowedStores: stores(

@@ -36,20 +36,24 @@ function harness(options: {
   snapshot?: RevenueCatSubscriberSnapshot;
   local?: RevenueCatLocalSubscriptionState[];
 }) {
+  const getSubscriberMock = jest
+    .fn()
+    .mockResolvedValue(options.snapshot ?? snapshot([]));
   const client = {
-    getSubscriber: jest
-      .fn()
-      .mockResolvedValue(options.snapshot ?? snapshot([])),
+    getSubscriber: getSubscriberMock,
   };
+  const repairMissingGrantMock = jest.fn().mockResolvedValue(true);
+  const createReviewCaseMock = jest.fn().mockResolvedValue(undefined);
   const persistence: jest.Mocked<RevenueCatReconciliationPersistence> = {
     listSubjects: jest.fn().mockResolvedValue(["user_clerk_one"]),
     readLocalState: jest.fn().mockResolvedValue(options.local ?? []),
-    repairMissingGrant: jest.fn().mockResolvedValue(true),
-    createReviewCase: jest.fn().mockResolvedValue(undefined),
+    repairMissingGrant: repairMissingGrantMock,
+    createReviewCase: createReviewCaseMock,
   };
   return {
-    client,
-    persistence,
+    createReviewCaseMock,
+    getSubscriberMock,
+    repairMissingGrantMock,
     adapter: new RevenueCatReconciliationAdapter(client as never, persistence),
   };
 }
@@ -57,7 +61,12 @@ function harness(options: {
 describe("RevenueCatReconciliationAdapter", () => {
   it("repairs only a missing RevenueCat source grant proven active upstream", async () => {
     const state = local({ hasActiveGrant: false });
-    const { adapter, client, persistence } = harness({
+    const {
+      adapter,
+      createReviewCaseMock,
+      getSubscriberMock,
+      repairMissingGrantMock,
+    } = harness({
       local: [state],
       snapshot: snapshot([
         {
@@ -73,9 +82,9 @@ describe("RevenueCatReconciliationAdapter", () => {
       repaired: 1,
       reviewCases: 0,
     });
-    expect(persistence.repairMissingGrant).toHaveBeenCalledWith(state);
-    expect(persistence.createReviewCase).not.toHaveBeenCalled();
-    expect(client.getSubscriber).toHaveBeenCalledWith("user_clerk_one", "live");
+    expect(repairMissingGrantMock).toHaveBeenCalledWith(state);
+    expect(createReviewCaseMock).not.toHaveBeenCalled();
+    expect(getSubscriberMock).toHaveBeenCalledWith("user_clerk_one", "live");
   });
 
   it.each([
@@ -123,17 +132,19 @@ describe("RevenueCatReconciliationAdapter", () => {
   ] as const)(
     "creates a %s review case and does not make an ambiguous repair",
     async (category, providerSnapshot, localState) => {
-      const { adapter, persistence } = harness({
-        snapshot: providerSnapshot,
-        local: [...localState],
-      });
+      const { adapter, createReviewCaseMock, repairMissingGrantMock } = harness(
+        {
+          snapshot: providerSnapshot,
+          local: [...localState],
+        },
+      );
 
       const result = await adapter.reconcile("live", {
         now: new Date("2026-08-30T00:00:00Z"),
       });
 
       expect(result.reviewCases).toBeGreaterThan(0);
-      expect(persistence.createReviewCase).toHaveBeenCalledWith(
+      expect(createReviewCaseMock).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: "revenuecat",
           environment: "live",
@@ -141,13 +152,13 @@ describe("RevenueCatReconciliationAdapter", () => {
           providerResourceId: expect.any(String),
         }),
       );
-      expect(persistence.repairMissingGrant).not.toHaveBeenCalled();
+      expect(repairMissingGrantMock).not.toHaveBeenCalled();
     },
   );
 
   it("keeps sandbox reconciliation from creating an effective live grant", async () => {
     const state = local({ environment: "sandbox", hasActiveGrant: false });
-    const { adapter, persistence } = harness({
+    const { adapter, repairMissingGrantMock } = harness({
       local: [state],
       snapshot: snapshot([
         {
@@ -160,6 +171,6 @@ describe("RevenueCatReconciliationAdapter", () => {
 
     await adapter.reconcile("sandbox");
 
-    expect(persistence.repairMissingGrant).not.toHaveBeenCalled();
+    expect(repairMissingGrantMock).not.toHaveBeenCalled();
   });
 });

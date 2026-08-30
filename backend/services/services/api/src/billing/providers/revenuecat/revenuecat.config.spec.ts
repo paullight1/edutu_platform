@@ -11,13 +11,11 @@ describe("RevenueCat delivery configuration", () => {
       "sandbox-authorization-secret-123456",
     REVENUECAT_SANDBOX_HMAC_SECRET: "sandbox-hmac-secret-123456789012",
     REVENUECAT_SANDBOX_ALLOWED_APP_IDS: "app_ios_sandbox,app_android_sandbox",
-    REVENUECAT_SANDBOX_ALLOWED_STORES:
-      "APP_STORE,PLAY_STORE,TEST_STORE",
+    REVENUECAT_SANDBOX_ALLOWED_STORES: "APP_STORE,PLAY_STORE,TEST_STORE",
     REVENUECAT_PRODUCTION_WEBHOOK_ENABLED: "true",
     REVENUECAT_PRODUCTION_AUTHORIZATION_SECRET:
       "production-authorization-secret-123",
-    REVENUECAT_PRODUCTION_HMAC_SECRET:
-      "production-hmac-secret-123456789",
+    REVENUECAT_PRODUCTION_HMAC_SECRET: "production-hmac-secret-123456789",
     REVENUECAT_PRODUCTION_ALLOWED_APP_IDS:
       "app_ios_production,app_android_production",
     REVENUECAT_PRODUCTION_ALLOWED_STORES: "APP_STORE,PLAY_STORE",
@@ -97,8 +95,7 @@ describe("RevenueCat delivery configuration", () => {
     expect(() =>
       loadRevenueCatDeliveryConfig("production", {
         ...valid,
-        REVENUECAT_PRODUCTION_ALLOWED_STORES:
-          "APP_STORE,PLAY_STORE,TEST_STORE",
+        REVENUECAT_PRODUCTION_ALLOWED_STORES: "APP_STORE,PLAY_STORE,TEST_STORE",
       }),
     ).toThrow("TEST_STORE");
   });
@@ -114,8 +111,7 @@ describe("RevenueCat delivery configuration", () => {
     expect(() =>
       loadRevenueCatDeliveryConfigs({
         ...valid,
-        REVENUECAT_PRODUCTION_HMAC_SECRET:
-          valid.REVENUECAT_SANDBOX_HMAC_SECRET,
+        REVENUECAT_PRODUCTION_HMAC_SECRET: valid.REVENUECAT_SANDBOX_HMAC_SECRET,
       }),
     ).toThrow("HMAC secrets must be different");
   });

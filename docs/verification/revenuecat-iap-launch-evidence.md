@@ -35,4 +35,22 @@ Do not replace `Pending` with `Pass` without recording real provider/store evide
 
 ## Release gate output
 
-Task 8 records lint, build, full unit/integration test, production-focused e2e, and kill-switch results here. Secrets, customer payloads, emails, and full provider URLs must not be recorded.
+Executed locally on 2026-08-30 from branch `codex/revenuecat-iap-rollout`:
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | Pass (zero ESLint errors) |
+| `npm run build` | Pass (NestJS strict TypeScript build) |
+| `npm test -- --runInBand` | Pass — 222 suites, 2,260 tests, 0 failures |
+| `npm run test:e2e -- --runInBand` | Pass — 4 suites, 12 tests, 0 failures |
+
+The full suite includes raw-delivery rejection, exact duplicate/hash conflict, lifecycle reorder/stale behavior, source isolation, transfer, authenticated-subject controller routing, canonical status states, provider-scoped leasing, retry/review/dead-letter behavior, and sandbox/live reconciliation isolation.
+
+Remaining production evidence gaps:
+
+- No isolated external test database or real RevenueCat integration was configured for this run. The current e2e suite is disposable/PGlite-based and does not perform a signed network delivery followed by a second Clerk user attempting to read the first user’s status.
+- `NATIVE_IAP_PURCHASES_ENABLED=false` passes startup/configuration tests while webhook processing remains independently configured, but the kill switch has not been exercised against a store-signed mobile build.
+- Deno is unavailable locally, so the mutation-free legacy 410 test remains for CI or a Deno-enabled release host.
+- Real sandbox/production TEST IDs, controlled App Store/Play transactions, queue observations, and alert receipts remain pending in the external cutover table.
+
+Secrets, customer payloads, emails, and full provider URLs are intentionally absent from this record.

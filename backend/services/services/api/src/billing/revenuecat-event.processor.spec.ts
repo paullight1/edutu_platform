@@ -98,17 +98,16 @@ function harness(
               : options.resolvedIdentity,
           ),
   };
-  const applier: RevenueCatLifecycleApplier = {
-    apply: options.applyError
-      ? jest.fn().mockRejectedValue(options.applyError)
-      : jest.fn().mockResolvedValue({
-          outcome: options.outcome ?? "applied",
-          userId: "user_clerk_one",
-          tier: "pro",
-        }),
-  };
+  const applyMock = options.applyError
+    ? jest.fn().mockRejectedValue(options.applyError)
+    : jest.fn().mockResolvedValue({
+        outcome: options.outcome ?? "applied",
+        userId: "user_clerk_one",
+        tier: "pro",
+      });
+  const applier: RevenueCatLifecycleApplier = { apply: applyMock };
   return {
-    applier,
+    applyMock,
     events,
     identityResolver,
     processor: new RevenueCatEventProcessor(
@@ -142,14 +141,14 @@ describe("RevenueCatEventProcessor", () => {
             }
           : {},
       );
-      const { applier, events, processor } = harness({ events: [event] });
+      const { applyMock, events, processor } = harness({ events: [event] });
 
       await expect(processor.processBatch()).resolves.toEqual({
         processed: 1,
         retried: 0,
         reviewed: 0,
       });
-      expect(applier.apply).toHaveBeenCalledWith(
+      expect(applyMock).toHaveBeenCalledWith(
         expect.objectContaining({
           environment: "live",
           eventId: event.eventId,
@@ -173,12 +172,12 @@ describe("RevenueCatEventProcessor", () => {
     const event = inboxEvent("RENEWAL", {
       future_provider_field: { nested: ["safe", 123] },
     });
-    const { applier, processor } = harness({ events: [event] });
+    const { applyMock, processor } = harness({ events: [event] });
 
     await expect(processor.processBatch()).resolves.toMatchObject({
       processed: 1,
     });
-    expect(applier.apply).toHaveBeenCalledWith(
+    expect(applyMock).toHaveBeenCalledWith(
       expect.objectContaining({ payload: event.payload }),
     );
   });
@@ -194,7 +193,7 @@ describe("RevenueCatEventProcessor", () => {
     };
     const malformed = inboxEvent("RENEWAL", { event_timestamp_ms: "bad" });
     const unknown = inboxEvent("A_FUTURE_EVENT");
-    const { applier, events, processor } = harness({
+    const { applyMock, events, processor } = harness({
       events: [anonymous, malformed, unknown],
       resolvedIdentity: null,
     });
@@ -204,7 +203,7 @@ describe("RevenueCatEventProcessor", () => {
       retried: 0,
       reviewed: 3,
     });
-    expect(applier.apply).not.toHaveBeenCalled();
+    expect(applyMock).not.toHaveBeenCalled();
     expect(events.review).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(events.review.mock.calls)).not.toContain(
       "$RCAnonymousID:secret",
@@ -274,14 +273,14 @@ describe("RevenueCatEventProcessor", () => {
       original_transaction_id: null,
       transaction_id: null,
     });
-    const { applier, events, processor } = harness({ events: [event] });
+    const { applyMock, events, processor } = harness({ events: [event] });
 
     await expect(processor.processBatch()).resolves.toEqual({
       processed: 1,
       retried: 0,
       reviewed: 0,
     });
-    expect(applier.apply).not.toHaveBeenCalled();
+    expect(applyMock).not.toHaveBeenCalled();
     expect(events.complete).toHaveBeenCalledWith(event.id);
   });
 });
