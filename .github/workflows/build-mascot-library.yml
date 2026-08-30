@@ -1,0 +1,44 @@
+name: Build Edutu mascot library
+
+on:
+  push:
+    branches:
+      - feat/mascot-library
+    paths:
+      - 'mascots/tools/**'
+      - 'mascots/reference/**'
+      - 'mascots/README.md'
+      - '.github/workflows/build-mascot-library.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/mascot-library
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install renderer
+        run: pip install --disable-pip-version-check cairosvg pillow
+      - name: Generate mascot assets
+        run: python mascots/tools/generate_mascots.py
+      - name: Verify library
+        run: python mascots/tools/verify_assets.py
+      - name: Commit generated library
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mascots/characters mascots/exports mascots/manifest.json mascots/CATALOG.md
+          if git diff --cached --quiet; then
+            echo "Mascot library already up to date"
+            exit 0
+          fi
+          git commit -m "chore(mascots): generate social asset library [skip ci]"
+          git push origin HEAD:feat/mascot-library
