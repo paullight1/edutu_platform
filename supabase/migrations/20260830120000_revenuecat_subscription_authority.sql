@@ -541,9 +541,21 @@ begin
       last_event_id = excluded.last_event_id,
       grace_period_expires_at = excluded.grace_period_expires_at,
       auto_resume_at = excluded.auto_resume_at,
-      scheduled_product_key = coalesce(excluded.scheduled_product_key, subscription.scheduled_product_key),
-      scheduled_cadence = coalesce(excluded.scheduled_cadence, subscription.scheduled_cadence),
-      scheduled_change_at = coalesce(excluded.scheduled_change_at, subscription.scheduled_change_at),
+      scheduled_product_key = case
+        when p_event_type = 'PRODUCT_CHANGE' then excluded.scheduled_product_key
+        when subscription.scheduled_product_key = excluded.product_key then null
+        else subscription.scheduled_product_key
+      end,
+      scheduled_cadence = case
+        when p_event_type = 'PRODUCT_CHANGE' then excluded.scheduled_cadence
+        when subscription.scheduled_product_key = excluded.product_key then null
+        else subscription.scheduled_cadence
+      end,
+      scheduled_change_at = case
+        when p_event_type = 'PRODUCT_CHANGE' then excluded.scheduled_change_at
+        when subscription.scheduled_product_key = excluded.product_key then null
+        else subscription.scheduled_change_at
+      end,
       updated_at = now();
 
   if p_environment = 'live' then
