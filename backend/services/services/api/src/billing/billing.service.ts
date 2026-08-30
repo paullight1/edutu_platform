@@ -14,6 +14,9 @@ import type {
   BillingTransactionSummary,
   BillingStatus,
   CreateCheckoutDto,
+  NativeSubscriptionState,
+  NativeSubscriptionStatus,
+  SubscriptionTier,
 } from "./dto/billing.dto";
 import { SettingsService } from "../settings/settings.service";
 import {
@@ -121,6 +124,59 @@ type BillingTransactionRow = {
   created_at: Date | string | null;
 };
 
+type CanonicalNativeSubscriptionRow = {
+  status?: unknown;
+  entitlementKey?: unknown;
+  cadence?: unknown;
+  providerStore?: unknown;
+  currentPeriodStart?: unknown;
+  currentPeriodEnd?: unknown;
+  cancelAtPeriodEnd?: unknown;
+  gracePeriodExpiresAt?: unknown;
+  scheduledProductKey?: unknown;
+  scheduledCadence?: unknown;
+  scheduledChangeAt?: unknown;
+  lastEventId?: unknown;
+};
+
+const NATIVE_SUBSCRIPTION_STATES = new Set<NativeSubscriptionState>([
+  "active",
+  "canceled",
+  "grace_period",
+  "account_hold",
+  "paused",
+  "expired",
+  "refunded",
+  "price_consent_required",
+]);
+
+function jsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function isoDate(value: unknown): string | null {
+  if (value == null) return null;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function tier(value: unknown): SubscriptionTier {
+  return value === "lite" || value === "pro" || value === "scholar"
+    ? value
+    : "none";
+}
+
+function tierFromProductKey(value: unknown): SubscriptionTier {
+  return typeof value === "string" ? tier(value.split("_")[0]) : "none";
+}
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -172,35 +228,14 @@ export class BillingService {
       new Set([userId, toDatabaseUserId(userId)].filter(Boolean)),
     );
     let profile: any = null;
-    let creditProfile: { credits?: number | null } | null = null;
-    let activeEntitlements: any[] = [];
-    let activeSubscription: any = null;
     let recentTransactions: BillingTransactionSummary[] = [];
 
     if (supabase) {
-      // These four reads are independent — fetch them concurrently instead of
-      // serially (was 4 sequential round-trips on a hot status endpoint).
-      const [
-        profileResult,
-        entitlementResult,
-        subscriptionResult,
-        transactionResult,
-      ] = await Promise.all([
+      const [profileResult, transactionResult] = await Promise.all([
         supabase
           .from("profiles")
           .select("user_id, is_pro, pro_since, pro_expires_at, credits")
           .in("user_id", lookupUserIds),
-        supabase
-          .from("billing_entitlements")
-          .select("feature_key, expires_at, status")
-          .in("user_id", lookupUserIds)
-          .eq("status", "active"),
-        supabase
-          .from("billing_subscriptions")
-          .select("status, current_period_end")
-          .in("user_id", lookupUserIds)
-          .order("created_at", { ascending: false })
-          .limit(1),
         supabase
           .from("billing_transactions")
           .select(
@@ -227,19 +262,6 @@ export class BillingService {
           null;
       }
 
-      if (!entitlementResult.error) {
-        const now = Date.now();
-        activeEntitlements = (entitlementResult.data ?? []).filter((item) => {
-          return !item.expires_at || new Date(item.expires_at).getTime() > now;
-        });
-      }
-
-      if (!subscriptionResult.error) {
-        activeSubscription = Array.isArray(subscriptionResult.data)
-          ? (subscriptionResult.data[0] ?? null)
-          : (subscriptionResult.data ?? null);
-      }
-
       if (!transactionResult.error) {
         recentTransactions = this.mapBillingTransactionRows(
           (transactionResult.data ?? []) as BillingTransactionRow[],
@@ -247,56 +269,124 @@ export class BillingService {
       }
     }
 
+    let canonicalRow: Record<string, unknown> | null = null;
     try {
-      // Fallback read of the real balance column (profiles.credits) in case the
-      // Supabase profile load above failed.
-      const result = await db.execute(
-        sql`select credits from profiles where user_id = ${userId} limit 1`,
-      );
-      const rows =
-        (result as { rows?: Array<{ credits?: number | null }> }).rows ?? [];
-      creditProfile = rows[0] ?? null;
-    } catch (error) {
-      this.logger.warn(
-        `Unable to load API credits for ${userId}: ${
-          error instanceof Error ? error.message : "unknown error"
-        }`,
-      );
+      const derivedUserId = toDatabaseUserId(userId);
+      const result = await db.execute(sql`
+        select
+          (
+            select profile.credits
+            from public.profiles profile
+            where profile.user_id::text in (${userId}, ${derivedUserId})
+            order by case when profile.user_id::text = ${userId} then 0 else 1 end
+            limit 1
+          ) as credits,
+          (
+            exists (
+              select 1
+              from public.billing_provider_subscriptions subscription
+              where subscription.user_id = ${userId}
+                and subscription.environment = 'live'
+            ) or exists (
+              select 1
+              from public.billing_entitlement_grants grant_row
+              where grant_row.user_id = ${userId}
+                and grant_row.environment = 'live'
+            )
+          ) as has_canonical_data,
+          coalesce((
+            select jsonb_agg(
+              jsonb_build_object(
+                'status', subscription.status,
+                'entitlementKey', subscription.entitlement_key,
+                'cadence', subscription.cadence,
+                'providerStore', subscription.provider_store,
+                'currentPeriodStart', subscription.current_period_start,
+                'currentPeriodEnd', subscription.current_period_end,
+                'cancelAtPeriodEnd', subscription.cancel_at_period_end,
+                'gracePeriodExpiresAt', subscription.grace_period_expires_at,
+                'scheduledProductKey', subscription.scheduled_product_key,
+                'scheduledCadence', subscription.scheduled_cadence,
+                'scheduledChangeAt', subscription.scheduled_change_at,
+                'lastEventId', subscription.last_event_id
+              ) order by
+                case subscription.status
+                  when 'active' then 0
+                  when 'grace_period' then 1
+                  when 'price_consent_required' then 2
+                  when 'canceled' then 3
+                  else 4
+                end,
+                subscription.provider_updated_at desc nulls last,
+                subscription.updated_at desc
+            )
+            from public.billing_provider_subscriptions subscription
+            where subscription.provider = 'revenuecat'
+              and subscription.environment = 'live'
+              and subscription.user_id = ${userId}
+          ), '[]'::jsonb) as native_subscriptions,
+          coalesce((
+            select jsonb_agg(distinct grant_row.feature_key)
+            from public.billing_entitlement_grants grant_row
+            where grant_row.user_id = ${userId}
+              and grant_row.environment = 'live'
+              and grant_row.status = 'active'
+              and grant_row.revoked_at is null
+              and (grant_row.valid_until is null or grant_row.valid_until > now())
+          ), '[]'::jsonb) as active_grants
+      `);
+      canonicalRow =
+        ((result as { rows?: Array<Record<string, unknown>> }).rows ?? [])[0] ??
+        null;
+    } catch {
+      this.logger.warn(`Unable to load canonical billing status for ${userId}`);
     }
 
-    const proExpiresAt =
-      profile?.pro_expires_at ?? activeSubscription?.current_period_end ?? null;
+    const hasCanonicalData =
+      canonicalRow?.has_canonical_data === true ||
+      canonicalRow?.has_canonical_data === "true";
+    const canonicalGrants = new Set(
+      jsonArray(canonicalRow?.active_grants).filter(
+        (value): value is string => typeof value === "string",
+      ),
+    );
+    const nativeRow = (jsonArray(canonicalRow?.native_subscriptions)[0] ??
+      null) as CanonicalNativeSubscriptionRow | null;
+    const nativeSubscription = this.mapNativeSubscription(nativeRow);
+
+    let planTier: SubscriptionTier = "none";
+    if (hasCanonicalData) {
+      planTier = canonicalGrants.has("scholar")
+        ? "scholar"
+        : canonicalGrants.has("pro")
+          ? "pro"
+          : canonicalGrants.has("lite")
+            ? "lite"
+            : "none";
+    }
+
+    const legacyProExpiresAt = profile?.pro_expires_at ?? null;
     const profileProActive =
       Boolean(profile?.is_pro) &&
-      (!proExpiresAt || new Date(proExpiresAt).getTime() > Date.now());
-    const entitlementProActive = activeEntitlements.some(
-      (item) => item.feature_key === "pro",
-    );
-    const entitlementLiteActive = activeEntitlements.some(
-      (item) => item.feature_key === "lite",
-    );
-    const entitlementScholarActive = activeEntitlements.some(
-      (item) => item.feature_key === "scholar",
-    );
-    // `isPro` is the legacy name used by feature gates. Every paid consumer
-    // tier includes the premium feature set; the tier-specific fair-use meter
-    // decides how much usage is available.
-    const isPro =
-      profileProActive ||
-      entitlementProActive ||
-      entitlementLiteActive ||
-      entitlementScholarActive;
-    const planTier = entitlementScholarActive
-      ? ("scholar" as const)
-      : entitlementProActive || profileProActive
-        ? ("pro" as const)
-        : entitlementLiteActive
-          ? ("lite" as const)
-          : ("none" as const);
-    const entitlements = new Set(
-      activeEntitlements.map((item) => item.feature_key),
-    );
-    if (isPro) entitlements.add("pro");
+      (!legacyProExpiresAt ||
+        new Date(legacyProExpiresAt).getTime() > Date.now());
+    if (!hasCanonicalData && profileProActive) planTier = "pro";
+    const isPro = planTier !== "none";
+
+    const entitlements = hasCanonicalData
+      ? new Set(canonicalGrants)
+      : new Set<string>();
+    if (!hasCanonicalData && profileProActive) entitlements.add("pro");
+    if (planTier === "scholar") {
+      entitlements.add("scholar");
+      entitlements.add("pro");
+      entitlements.add("lite");
+    } else if (planTier === "pro") {
+      entitlements.add("pro");
+      entitlements.add("lite");
+    } else if (planTier === "lite") {
+      entitlements.add("lite");
+    }
 
     const featureAccess: Record<string, boolean> = {};
     for (const feature of PRO_FEATURES) {
@@ -307,17 +397,90 @@ export class BillingService {
       isPro,
       planTier,
       proSince: profile?.pro_since ?? null,
-      proExpiresAt:
-        planTier === "lite" || planTier === "scholar"
-          ? (activeEntitlements.find((item) => item.feature_key === planTier)
-              ?.expires_at ?? null)
-          : proExpiresAt,
-      credits: Number(profile?.credits ?? creditProfile?.credits ?? 0),
+      proExpiresAt: hasCanonicalData
+        ? nativeSubscription.accessUntil
+        : legacyProExpiresAt,
+      credits: Number(canonicalRow?.credits ?? profile?.credits ?? 0),
       subscriptionStatus:
-        activeSubscription?.status ?? (isPro ? "active" : null),
+        nativeSubscription.state !== "none"
+          ? nativeSubscription.state
+          : isPro
+            ? "active"
+            : null,
       entitlements: Array.from(entitlements),
       featureAccess,
+      nativeSubscription,
       transactions: recentTransactions,
+    };
+  }
+
+  private mapNativeSubscription(
+    row: CanonicalNativeSubscriptionRow | null,
+  ): NativeSubscriptionStatus {
+    if (!row) {
+      return {
+        state: "none",
+        tier: "none",
+        cadence: null,
+        store: null,
+        renewsAt: null,
+        accessUntil: null,
+        cancelAtPeriodEnd: false,
+        scheduledChange: null,
+        supportReference: null,
+      };
+    }
+    const state = NATIVE_SUBSCRIPTION_STATES.has(
+      row.status as NativeSubscriptionState,
+    )
+      ? (row.status as NativeSubscriptionState)
+      : "none";
+    const currentTier = tier(row.entitlementKey);
+    const cadence =
+      row.cadence === "weekly" ||
+      row.cadence === "monthly" ||
+      row.cadence === "yearly"
+        ? row.cadence
+        : null;
+    const store =
+      row.providerStore === "APP_STORE" || row.providerStore === "PLAY_STORE"
+        ? row.providerStore
+        : null;
+    const currentPeriodEnd = isoDate(row.currentPeriodEnd);
+    const gracePeriodEnd = isoDate(row.gracePeriodExpiresAt);
+    const cancelAtPeriodEnd = row.cancelAtPeriodEnd === true;
+    const scheduledTier = tierFromProductKey(row.scheduledProductKey);
+    const scheduledCadence =
+      row.scheduledCadence === "weekly" ||
+      row.scheduledCadence === "monthly" ||
+      row.scheduledCadence === "yearly"
+        ? row.scheduledCadence
+        : null;
+    const scheduledEffectiveAt = isoDate(row.scheduledChangeAt);
+    return {
+      state,
+      tier: currentTier,
+      cadence,
+      store,
+      renewsAt:
+        state === "active" && !cancelAtPeriodEnd ? currentPeriodEnd : null,
+      accessUntil:
+        state === "grace_period"
+          ? (gracePeriodEnd ?? currentPeriodEnd)
+          : currentPeriodEnd,
+      cancelAtPeriodEnd,
+      scheduledChange:
+        scheduledTier !== "none" &&
+        scheduledCadence !== null &&
+        scheduledEffectiveAt !== null
+          ? {
+              tier: scheduledTier,
+              cadence: scheduledCadence,
+              effectiveAt: scheduledEffectiveAt,
+            }
+          : null,
+      supportReference:
+        typeof row.lastEventId === "string" ? row.lastEventId : null,
     };
   }
 

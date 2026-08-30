@@ -1,5 +1,31 @@
 export type BillingInterval = "weekly" | "monthly" | "yearly";
 export type SubscriptionTier = "none" | "lite" | "pro" | "scholar";
+export type NativeSubscriptionState =
+  | "none"
+  | "active"
+  | "canceled"
+  | "grace_period"
+  | "account_hold"
+  | "paused"
+  | "expired"
+  | "refunded"
+  | "price_consent_required";
+
+export interface NativeSubscriptionStatus {
+  state: NativeSubscriptionState;
+  tier: SubscriptionTier;
+  cadence: BillingInterval | null;
+  store: "APP_STORE" | "PLAY_STORE" | null;
+  renewsAt: string | null;
+  accessUntil: string | null;
+  cancelAtPeriodEnd: boolean;
+  scheduledChange: {
+    tier: Exclude<SubscriptionTier, "none">;
+    cadence: BillingInterval;
+    effectiveAt: string;
+  } | null;
+  supportReference: string | null;
+}
 
 export interface CreateCheckoutDto {
   plan?: BillingInterval;
@@ -17,6 +43,7 @@ export interface BillingStatus {
   subscriptionStatus: string | null;
   entitlements: string[];
   featureAccess: Record<string, boolean>;
+  nativeSubscription: NativeSubscriptionStatus;
   transactions: BillingTransactionSummary[];
 }
 

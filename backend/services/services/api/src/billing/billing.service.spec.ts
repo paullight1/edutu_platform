@@ -541,6 +541,7 @@ describe("BillingService", () => {
   });
 
   it("includes recent billing transactions on billing status responses", async () => {
+    jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
     const service = new BillingService(settingsStub);
     (service as any).supabase = createSupabaseMock();
 
@@ -566,6 +567,115 @@ describe("BillingService", () => {
       createdAt: "2026-06-22T10:00:00.000Z",
     });
   });
+
+  it("lets canonical Scholar grants outrank legacy Pro fields and exposes a scheduled change", async () => {
+    jest.spyOn(db, "execute").mockResolvedValue({
+      rows: [
+        {
+          credits: 1200,
+          has_canonical_data: true,
+          active_grants: ["scholar"],
+          native_subscriptions: [
+            {
+              status: "active",
+              entitlementKey: "scholar",
+              cadence: "yearly",
+              providerStore: "APP_STORE",
+              currentPeriodEnd: "2027-08-30T10:00:00.000Z",
+              cancelAtPeriodEnd: false,
+              gracePeriodExpiresAt: null,
+              scheduledProductKey: "pro_monthly",
+              scheduledCadence: "monthly",
+              scheduledChangeAt: "2027-08-30T10:00:00.000Z",
+              lastEventId: "event-scholar",
+            },
+          ],
+        },
+      ],
+    } as never);
+    const service = new BillingService(settingsStub);
+    (service as any).supabase = createSupabaseMock();
+
+    const status = await service.getStatus("user-1");
+
+    expect(status).toMatchObject({
+      isPro: true,
+      planTier: "scholar",
+      entitlements: expect.arrayContaining(["lite", "pro", "scholar"]),
+      nativeSubscription: {
+        state: "active",
+        tier: "scholar",
+        cadence: "yearly",
+        store: "APP_STORE",
+        renewsAt: "2027-08-30T10:00:00.000Z",
+        accessUntil: "2027-08-30T10:00:00.000Z",
+        cancelAtPeriodEnd: false,
+        scheduledChange: {
+          tier: "pro",
+          cadence: "monthly",
+          effectiveAt: "2027-08-30T10:00:00.000Z",
+        },
+        supportReference: "event-scholar",
+      },
+    });
+  });
+
+  it.each([
+    ["grace_period", ["pro"], true],
+    ["canceled", ["pro"], true],
+    ["account_hold", [], false],
+    ["paused", [], false],
+    ["expired", [], false],
+    ["refunded", [], false],
+    ["price_consent_required", ["pro"], true],
+  ] as const)(
+    "returns canonical %s state and does not let legacy is_pro override it",
+    async (state, activeGrants, expectedAccess) => {
+      jest.spyOn(db, "execute").mockResolvedValue({
+        rows: [
+          {
+            credits: 1200,
+            has_canonical_data: true,
+            active_grants: activeGrants,
+            native_subscriptions: [
+              {
+                status: state,
+                entitlementKey: "pro",
+                cadence: "monthly",
+                providerStore: "PLAY_STORE",
+                currentPeriodEnd: "2026-09-30T10:00:00.000Z",
+                cancelAtPeriodEnd: state === "canceled",
+                gracePeriodExpiresAt:
+                  state === "grace_period" ? "2026-09-05T10:00:00.000Z" : null,
+                scheduledProductKey: null,
+                scheduledCadence: null,
+                scheduledChangeAt: null,
+                lastEventId: `event-${state}`,
+              },
+            ],
+          },
+        ],
+      } as never);
+      const service = new BillingService(settingsStub);
+      (service as any).supabase = createSupabaseMock();
+
+      const status = await service.getStatus("user-1");
+
+      expect(status.isPro).toBe(expectedAccess);
+      expect(status.planTier).toBe(expectedAccess ? "pro" : "none");
+      expect(status.subscriptionStatus).toBe(state);
+      expect(status.nativeSubscription).toMatchObject({
+        state,
+        tier: "pro",
+        cancelAtPeriodEnd: state === "canceled",
+        accessUntil:
+          state === "grace_period"
+            ? "2026-09-05T10:00:00.000Z"
+            : "2026-09-30T10:00:00.000Z",
+      });
+      expect(JSON.stringify(status)).not.toContain("private@example.com");
+    },
+  );
 
   it("returns zero API credits and no transactions for a new account", async () => {
     jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as any);
@@ -597,6 +707,10 @@ describe("BillingService", () => {
       subscriptionStatus: null,
       entitlements: [],
       transactions: [],
+      nativeSubscription: {
+        state: "none",
+        tier: "none",
+      },
     });
   });
 });

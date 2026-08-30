@@ -101,6 +101,17 @@ describe("BillingController Bachs routes", () => {
     );
   });
 
+  it("reads billing status only for the authenticated Clerk subject", async () => {
+    legacyBilling.getStatus.mockResolvedValue({
+      isPro: false,
+      nativeSubscription: { state: "none", tier: "none" },
+    });
+
+    await createController().getStatus("user_clerk_one");
+
+    expect(legacyBilling.getStatus).toHaveBeenCalledWith("user_clerk_one");
+  });
+
   it("forwards exact RevenueCat raw bytes to the selected environment service", async () => {
     const rawBody = Buffer.from('{"api_version":"1.0"}');
     productionRevenueCat.handle.mockResolvedValue({
