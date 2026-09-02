@@ -40,7 +40,7 @@ jobs:
       - run: node scripts/check-large-file-budgets.mjs
       - run: node scripts/check-admin-runtime-config.mjs
       - run: node scripts/validate-vercel-config.mjs
-      - name: Block changes to legacy migration trees
+      - name: Validate legacy migration and schema changes
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -52,18 +52,7 @@ jobs:
             echo "No comparable base commit; skipping legacy-tree diff guard for this first push."
             exit 0
           fi
-          LEGACY_CHANGES=$(git diff --name-only "$BASE" "$GITHUB_SHA" -- \
-            'supabase/migrations/*.sql' \
-            'edutu-web-app/supabase/migrations/*.sql' \
-            'edutumobile/supabase/migrations/*.sql' \
-            'backend/services/services/api/supabase/admin_schema.sql' \
-            'edutu-web-app/supabase/admin_schema.sql' \
-            'edutu-web-app/supabase/schema.sql' || true)
-          if [[ -n "$LEGACY_CHANGES" ]]; then
-            echo "Legacy/non-canonical Supabase schema paths are frozen. Move new database changes to backend/services/services/api/supabase/migrations/."
-            echo "$LEGACY_CHANGES"
-            exit 1
-          fi
+          node scripts/check-legacy-migration-diff.mjs "$BASE" "$GITHUB_SHA"
 
   edge-function-security:
     name: Edge Function Security
