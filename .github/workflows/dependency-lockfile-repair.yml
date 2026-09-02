@@ -55,7 +55,13 @@ jobs:
 
       - name: Patch mobile lockfile without changing package manifest ranges
         working-directory: edutumobile
-        run: npm audit fix --package-lock-only --audit-level=high
+        shell: bash
+        run: |
+          set +e
+          npm audit fix --package-lock-only --audit-level=high
+          AUDIT_FIX_STATUS=$?
+          set -e
+          echo "npm audit fix exited with ${AUDIT_FIX_STATUS}; the repository mobile policy classifies any residual Expo/Metro findings in the next step."
 
       - name: Verify mobile policy and explicit security floors
         run: |
