@@ -230,10 +230,9 @@ export const opportunityJourneyEvents = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull(),
-    journeyId: uuid("journey_id").references(
-      () => userOpportunityJourneys.id,
-      { onDelete: "cascade" },
-    ),
+    journeyId: uuid("journey_id").references(() => userOpportunityJourneys.id, {
+      onDelete: "cascade",
+    }),
     intentId: uuid("intent_id").references(() => opportunityIntents.id, {
       onDelete: "set null",
     }),
@@ -271,7 +270,8 @@ export type OpportunityIntent = typeof opportunityIntents.$inferSelect;
 export type NewOpportunityIntent = typeof opportunityIntents.$inferInsert;
 export type OpportunityJourney = typeof userOpportunityJourneys.$inferSelect;
 export type NewOpportunityJourney = typeof userOpportunityJourneys.$inferInsert;
-export type OpportunityJourneyTask = typeof opportunityJourneyTasks.$inferSelect;
+export type OpportunityJourneyTask =
+  typeof opportunityJourneyTasks.$inferSelect;
 export type NewOpportunityJourneyTask =
   typeof opportunityJourneyTasks.$inferInsert;
 export type OpportunityJourneyEvent =
