@@ -20,6 +20,12 @@ import {
 } from 'lucide-react';
 import { backendFetchJson } from '../lib/backend';
 import { uploadAdminImage, readImageDimensions } from '../lib/uploads';
+import {
+    DEFAULT_OPPORTUNITY_PIPELINE_FLAGS,
+    OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS,
+    normalizeOpportunityPipelineFlags,
+    type OpportunityPipelineFlags,
+} from '../lib/opportunityPipelineFlags';
 
 // One slide of the web app's dashboard hero carousel. Served publicly on
 // GET /public/web-config (enabled banners only); edited here, stored in the
@@ -124,6 +130,7 @@ interface AdminSettings {
     };
     webContent: {
         announcement: WebAnnouncement;
+        featureFlags: OpportunityPipelineFlags;
         heroBanners: WebHeroBanner[];
     };
     userContent: {
@@ -187,6 +194,7 @@ const defaultSettings: AdminSettings = {
             linkUrl: '/edutuforyou',
             linkLabel: 'See Edutu For You',
         },
+        featureFlags: { ...DEFAULT_OPPORTUNITY_PIPELINE_FLAGS },
         heroBanners: [],
     },
     userContent: {
@@ -228,6 +236,9 @@ function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminS
                 ...defaultSettings.webContent.announcement,
                 ...(value?.webContent?.announcement ?? {}),
             },
+            featureFlags: normalizeOpportunityPipelineFlags(
+                value?.webContent?.featureFlags,
+            ),
             heroBanners: (value?.webContent?.heroBanners ?? []).map((banner) => ({
                 ...newHeroBanner(),
                 ...banner,
@@ -305,6 +316,9 @@ const Settings = () => {
                     linkUrl: settings.webContent.announcement.linkUrl.trim(),
                     linkLabel: settings.webContent.announcement.linkLabel.trim(),
                 },
+                featureFlags: normalizeOpportunityPipelineFlags(
+                    settings.webContent.featureFlags,
+                ),
                 heroBanners: settings.webContent.heroBanners
                     .map((banner) => ({
                         ...banner,
@@ -473,6 +487,7 @@ const Settings = () => {
 
     const renderWebContentSection = () => {
         const announcement = settings.webContent.announcement;
+        const featureFlags = settings.webContent.featureFlags;
         const banners = settings.webContent.heroBanners;
 
         return (
@@ -520,6 +535,57 @@ const Settings = () => {
                             Show announcement on the homepage
                         </label>
                     </div>
+                </div>
+
+                <div className="card" style={{ padding: '24px' }}>
+                    <h3 style={{ margin: '0 0 8px 0', fontSize: '19px', fontWeight: 600 }}>
+                        Opportunity pipeline rollout
+                    </h3>
+                    <p style={{ color: 'var(--text-tertiary)', margin: '0 0 18px 0', fontSize: '14px', lineHeight: 1.6 }}>
+                        Dark-ship the intentional opportunity experience without changing Edutu's
+                        current colours, cards, typography, or navigation. Every switch is off by
+                        default and can be rolled back independently.
+                    </p>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                        {OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS.map((definition) => (
+                            <label
+                                key={definition.key}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: '12px',
+                                    padding: '14px',
+                                    border: '1px solid var(--border-medium)',
+                                    borderRadius: '12px',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={featureFlags[definition.key]}
+                                    onChange={(event) =>
+                                        updateSetting('webContent', 'featureFlags', {
+                                            ...featureFlags,
+                                            [definition.key]: event.target.checked,
+                                        })
+                                    }
+                                    style={{ marginTop: '3px' }}
+                                />
+                                <span>
+                                    <strong style={{ display: 'block', color: 'var(--text-primary)', fontSize: '14px' }}>
+                                        {definition.label}
+                                    </strong>
+                                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '13px', lineHeight: 1.5, marginTop: '3px' }}>
+                                        {definition.description}
+                                    </span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    <p style={{ color: 'var(--text-tertiary)', margin: '16px 0 0 0', fontSize: '13px', lineHeight: 1.5 }}>
+                        Recommended activation order: state-aware actions, My Path, focused home,
+                        then navigation consolidation.
+                    </p>
                 </div>
 
                 <div className="card" style={{ padding: '24px' }}>

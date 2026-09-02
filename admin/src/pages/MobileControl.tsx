@@ -25,6 +25,11 @@ import {
   type WidgetFeed,
 } from '../lib/mobileControlApi';
 import { ServerDrivenPanel } from '../components/ServerDrivenPanel';
+import {
+  OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS,
+  normalizeOpportunityPipelineFlags,
+  type OpportunityPipelineFlagKey,
+} from '../lib/opportunityPipelineFlags';
 
 type Tab = 'campaigns' | 'flags' | 'widgets' | 'serverUi' | 'appControl';
 
@@ -652,6 +657,15 @@ function AppControlPanel({ value, onChange, onNotice, onError }: {
     onChange({ ...value, maintenance: { ...value.maintenance, ...patch } });
   const setLock = (key: string, access: ModuleAccess) =>
     onChange({ ...value, moduleLocks: { ...value.moduleLocks, [key]: access } });
+  const pipelineFlags = normalizeOpportunityPipelineFlags(value.featureFlags);
+  const setPipelineFlag = (key: OpportunityPipelineFlagKey, enabled: boolean) =>
+    onChange({
+      ...value,
+      featureFlags: {
+        ...(value.featureFlags ?? {}),
+        [key]: enabled,
+      },
+    });
 
   async function save() {
     if (value.forceUpdate.enabled || value.maintenance.enabled) {
@@ -750,8 +764,42 @@ function AppControlPanel({ value, onChange, onNotice, onError }: {
             );
           })}
         </div>
+        <div className="mc-panel-head" style={{ marginTop: 24 }}>
+          <h2>Opportunity pipeline rollout</h2>
+        </div>
+        <p className="mc-panel-sub">
+          Dark-ship the intentional opportunity flow without changing the current
+          mobile theme or navigation. All switches are off by default.
+        </p>
+        <div className="mc-list">
+          {OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS.map((definition) => (
+            <article key={definition.key} className="mc-row">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={pipelineFlags[definition.key]}
+                aria-label={`${pipelineFlags[definition.key] ? 'Disable' : 'Enable'} ${definition.label}`}
+                className={`mc-switch ${pipelineFlags[definition.key] ? 'on' : ''}`}
+                onClick={() =>
+                  setPipelineFlag(definition.key, !pipelineFlags[definition.key])
+                }
+              >
+                <span className="mc-switch-thumb" />
+              </button>
+              <div className="mc-row-main">
+                <strong>{definition.label}</strong>
+                <span>{definition.description}</span>
+              </div>
+              <span className={`mc-status ${pipelineFlags[definition.key] ? 'status-active' : ''}`}>
+                {pipelineFlags[definition.key] ? 'On' : 'Off'}
+              </span>
+            </article>
+          ))}
+        </div>
         <p className="mc-panel-sub" style={{ marginTop: 12 }}>
           Changes take effect when you press <strong>Publish app control</strong> on the left.
+          Recommended order: state-aware actions, My Path, focused home, then
+          navigation consolidation.
         </p>
       </section>
     </>

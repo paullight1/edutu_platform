@@ -3,6 +3,7 @@ import { Public } from "../auth";
 import { SettingsService } from "./settings.service";
 import {
   DEFAULT_ADMIN_SETTINGS,
+  type OpportunityPipelineFeatureFlags,
   type WebAnnouncement,
   type WebHeroBanner,
 } from "./settings.dto";
@@ -18,12 +19,11 @@ interface WebSubmissionsPolicy {
 /**
  * Public (unauthenticated) remote config for the edutu.org web app — the web
  * equivalent of GET /mobile-control/config. Serves only admin-curated
- * settings (webContent announcement/banners + the userContent submission policy); never
- * put secrets in it.
+ * settings (webContent announcement/banners/flags + the userContent submission
+ * policy); never put secrets in it.
  *
- * Fail-open: if settings can't be read the web app receives an empty banner
- * list (keeps its built-in hardcoded hero carousel) and the default
- * submission policy (review everything, no fee).
+ * Content falls back to its built-in defaults. Rollout flags fail closed: a
+ * missing setting or settings outage keeps every dark-shipped surface disabled.
  */
 @Controller("public")
 export class WebConfigController {
@@ -34,11 +34,13 @@ export class WebConfigController {
   async getWebConfig(): Promise<{
     announcement: WebAnnouncement;
     heroBanners: WebHeroBanner[];
+    featureFlags: OpportunityPipelineFeatureFlags;
     submissions: WebSubmissionsPolicy;
     serverTime: string;
   }> {
     let heroBanners: WebHeroBanner[] = [];
     let announcement = DEFAULT_ADMIN_SETTINGS.webContent.announcement;
+    let featureFlags = DEFAULT_ADMIN_SETTINGS.webContent.featureFlags;
     let userContent = DEFAULT_ADMIN_SETTINGS.userContent;
 
     try {
@@ -50,16 +52,21 @@ export class WebConfigController {
       announcement =
         settings.webContent?.announcement ??
         DEFAULT_ADMIN_SETTINGS.webContent.announcement;
+      featureFlags =
+        settings.webContent?.featureFlags ??
+        DEFAULT_ADMIN_SETTINGS.webContent.featureFlags;
       userContent = settings.userContent ?? DEFAULT_ADMIN_SETTINGS.userContent;
     } catch {
       heroBanners = [];
       announcement = DEFAULT_ADMIN_SETTINGS.webContent.announcement;
+      featureFlags = DEFAULT_ADMIN_SETTINGS.webContent.featureFlags;
       userContent = DEFAULT_ADMIN_SETTINGS.userContent;
     }
 
     return {
       announcement,
       heroBanners,
+      featureFlags,
       submissions: {
         requireApproval: userContent.requireApproval,
         paidSubmissions: userContent.paidSubmissions,
