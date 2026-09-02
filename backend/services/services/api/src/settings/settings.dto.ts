@@ -36,6 +36,36 @@ const ApiSettingsSchema = z.object({
   rateLimitPerMinute: z.number().int().min(10).max(1000),
 });
 
+export const OPPORTUNITY_PIPELINE_FEATURE_FLAG_KEYS = [
+  "opportunity_pipeline_home",
+  "opportunity_my_path",
+  "opportunity_state_actions",
+  "opportunity_pipeline_navigation",
+] as const;
+
+export type OpportunityPipelineFeatureFlagKey =
+  (typeof OPPORTUNITY_PIPELINE_FEATURE_FLAG_KEYS)[number];
+
+export type OpportunityPipelineFeatureFlags = Record<
+  OpportunityPipelineFeatureFlagKey,
+  boolean
+>;
+
+export const DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS: OpportunityPipelineFeatureFlags =
+  {
+    opportunity_pipeline_home: false,
+    opportunity_my_path: false,
+    opportunity_state_actions: false,
+    opportunity_pipeline_navigation: false,
+  };
+
+const OpportunityPipelineFeatureFlagsSchema = z.object({
+  opportunity_pipeline_home: z.boolean().default(false),
+  opportunity_my_path: z.boolean().default(false),
+  opportunity_state_actions: z.boolean().default(false),
+  opportunity_pipeline_navigation: z.boolean().default(false),
+});
+
 // Remote control for the mobile app: forced upgrades, maintenance lockout and
 // per-module access locks. Served (read-only) on the public
 // GET /mobile-control/config endpoint, so keep this free of secrets.
@@ -252,6 +282,9 @@ const WebContentSettingsSchema = z.object({
     linkUrl: "/edutuforyou",
     linkLabel: "See Edutu For You",
   }),
+  featureFlags: OpportunityPipelineFeatureFlagsSchema.default(
+    DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS,
+  ),
   heroBanners: z.array(WebHeroBannerSchema).max(8).default([]),
 });
 
@@ -451,9 +484,9 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
         "Edutu is undergoing scheduled maintenance. Please check back shortly.",
     },
     moduleLocks: {},
-    // No flags, no server-driven layout, no custom features by default = the
-    // app renders its built-in home and native feature set.
-    featureFlags: {},
+    // The opportunity pipeline is dark-shipped. Other mobile flags can
+    // continue to coexist in this map.
+    featureFlags: { ...DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS },
     homeLayout: { draft: [], published: [], lastPublished: [] },
     customFeatures: [],
   },
@@ -534,6 +567,7 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
       linkUrl: "/edutuforyou",
       linkLabel: "See Edutu For You",
     },
+    featureFlags: { ...DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS },
     heroBanners: [],
   },
   // User submissions: reviewed before publishing, free to submit.
@@ -587,9 +621,10 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       moduleLocks:
         partial.mobileApp?.moduleLocks ??
         DEFAULT_ADMIN_SETTINGS.mobileApp.moduleLocks,
-      featureFlags:
-        partial.mobileApp?.featureFlags ??
-        DEFAULT_ADMIN_SETTINGS.mobileApp.featureFlags,
+      featureFlags: {
+        ...DEFAULT_ADMIN_SETTINGS.mobileApp.featureFlags,
+        ...(partial.mobileApp?.featureFlags ?? {}),
+      },
       // Preserve each sub-array independently so a save that only touches the
       // draft can't wipe the published layout (or vice versa).
       homeLayout: {
@@ -660,6 +695,10 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       announcement: {
         ...DEFAULT_ADMIN_SETTINGS.webContent.announcement,
         ...(partial.webContent?.announcement ?? {}),
+      },
+      featureFlags: {
+        ...DEFAULT_ADMIN_SETTINGS.webContent.featureFlags,
+        ...(partial.webContent?.featureFlags ?? {}),
       },
       heroBanners:
         partial.webContent?.heroBanners ??

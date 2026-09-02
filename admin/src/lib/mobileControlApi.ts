@@ -1,4 +1,8 @@
 import { getAdminAuthHeaders, getBackendBaseUrl } from './backend';
+import {
+  DEFAULT_OPPORTUNITY_PIPELINE_FLAGS,
+  normalizeOpportunityPipelineFlags,
+} from './opportunityPipelineFlags';
 
 const API_BASE_URL = getBackendBaseUrl();
 
@@ -180,7 +184,7 @@ export const DEFAULT_MOBILE_APP_SETTINGS: MobileAppSettings = {
     message: 'Edutu is briefly down for maintenance. Please check back shortly.',
   },
   moduleLocks: {},
-  featureFlags: {},
+  featureFlags: { ...DEFAULT_OPPORTUNITY_PIPELINE_FLAGS },
   homeLayout: { draft: [], published: [], lastPublished: [] },
   customFeatures: [],
 };
@@ -245,7 +249,10 @@ export const appControlApi = {
     // even when talking to a backend that predates them.
     return {
       ...mobileApp,
-      featureFlags: mobileApp.featureFlags ?? {},
+      featureFlags: {
+        ...(mobileApp.featureFlags ?? {}),
+        ...normalizeOpportunityPipelineFlags(mobileApp.featureFlags),
+      },
       homeLayout: mobileApp.homeLayout ?? { draft: [], published: [], lastPublished: [] },
       customFeatures: mobileApp.customFeatures ?? [],
     };

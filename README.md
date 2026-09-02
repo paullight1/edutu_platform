@@ -140,3 +140,16 @@ Client apps use their own `VITE_*` or package-specific environment files.
 - Keep privileged business logic in the backend API.
 - Treat direct Supabase client access as an explicit feature decision, not a default.
 - Update docs when routes, migrations, auth behavior, or service ownership changes.
+
+## Intentional Opportunity Pipeline
+
+The staged opportunity-journey programme is documented in:
+
+- `docs/product/opportunity-pipeline-contract.md`
+- `docs/product/opportunity-pipeline-test-matrix.md`
+- `docs/superpowers/plans/2026-09-02-edutu-intentional-opportunity-pipeline.md`
+- `docs/runbooks/opportunity-pipeline-flags.md`
+
+Implementation ownership remains unchanged: the NestJS API and web app live in
+this repository, and the active Expo source for this programme is
+`edutumobile`. All rollout switches are dark-shipped and disabled by default.

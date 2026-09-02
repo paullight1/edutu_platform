@@ -17,7 +17,10 @@ import type {
   PricingConfig,
   WidgetFeed,
 } from "./mobile-control.types";
-import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS,
+} from "../settings/settings.dto";
 
 // Safe posture when settings can't be read: nothing is gated.
 const OPEN_APP_CONTROL: AppControlConfig = {
@@ -32,7 +35,7 @@ const OPEN_APP_CONTROL: AppControlConfig = {
   },
   maintenance: { enabled: false, title: "", message: "" },
   moduleLocks: {},
-  featureFlags: {},
+  featureFlags: { ...DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS },
   homeLayout: [],
   customFeatures: [],
 };

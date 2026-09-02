@@ -28,6 +28,38 @@ export const DEFAULT_WEB_ANNOUNCEMENT: WebAnnouncement = {
   linkLabel: "See Edutu For You",
 };
 
+export const WEB_FEATURE_FLAG_KEYS = [
+  "opportunity_pipeline_home",
+  "opportunity_my_path",
+  "opportunity_state_actions",
+  "opportunity_pipeline_navigation",
+] as const;
+
+export type WebFeatureFlagKey = (typeof WEB_FEATURE_FLAG_KEYS)[number];
+export type WebFeatureFlags = Record<WebFeatureFlagKey, boolean>;
+
+export const DEFAULT_WEB_FEATURE_FLAGS: WebFeatureFlags = {
+  opportunity_pipeline_home: false,
+  opportunity_my_path: false,
+  opportunity_state_actions: false,
+  opportunity_pipeline_navigation: false,
+};
+
+function normalizeWebFeatureFlags(value: unknown): WebFeatureFlags {
+  const input =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  return WEB_FEATURE_FLAG_KEYS.reduce<WebFeatureFlags>(
+    (flags, key) => {
+      flags[key] = input[key] === true;
+      return flags;
+    },
+    { ...DEFAULT_WEB_FEATURE_FLAGS },
+  );
+}
+
 /**
  * Admin-controlled policy for user opportunity submissions (Settings →
  * Content → User submissions). Display-only on the client — the backend
@@ -48,6 +80,24 @@ export const DEFAULT_SUBMISSIONS_POLICY: SubmissionsPolicy = {
 let cachedBanners: HeroBanner[] | null = null;
 let cachedAnnouncement: WebAnnouncement | null = null;
 let cachedSubmissionsPolicy: SubmissionsPolicy | null = null;
+let cachedFeatureFlags: WebFeatureFlags | null = null;
+
+export async function fetchWebFeatureFlags(): Promise<WebFeatureFlags> {
+  if (cachedFeatureFlags) return cachedFeatureFlags;
+
+  try {
+    const response = await fetch(
+      `${getApiBaseUrl("Web config API")}/public/web-config`,
+    );
+    if (!response.ok) return { ...DEFAULT_WEB_FEATURE_FLAGS };
+
+    const data = (await response.json()) as { featureFlags?: unknown };
+    cachedFeatureFlags = normalizeWebFeatureFlags(data?.featureFlags);
+    return cachedFeatureFlags;
+  } catch {
+    return { ...DEFAULT_WEB_FEATURE_FLAGS };
+  }
+}
 
 export async function fetchWebAnnouncement(): Promise<WebAnnouncement> {
   if (cachedAnnouncement) return cachedAnnouncement;
@@ -74,7 +124,8 @@ export async function fetchWebAnnouncement(): Promise<WebAnnouncement> {
           ? announcement.linkUrl.trim()
           : DEFAULT_WEB_ANNOUNCEMENT.linkUrl,
       linkLabel:
-        typeof announcement.linkLabel === "string" && announcement.linkLabel.trim()
+        typeof announcement.linkLabel === "string" &&
+        announcement.linkLabel.trim()
           ? announcement.linkLabel.trim()
           : DEFAULT_WEB_ANNOUNCEMENT.linkLabel,
     };

@@ -1,6 +1,7 @@
 import {
   AdminSettingsSchema,
   DEFAULT_ADMIN_SETTINGS,
+  DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS,
   mergeAdminSettings,
 } from "./settings.dto";
 
@@ -143,7 +144,9 @@ describe("mergeAdminSettings — server-driven home + custom features", () => {
       },
     });
 
-    expect(merged.mobileApp.featureFlags).toEqual({});
+    expect(merged.mobileApp.featureFlags).toEqual(
+      DEFAULT_OPPORTUNITY_PIPELINE_FEATURE_FLAGS,
+    );
     expect(merged.mobileApp.homeLayout).toEqual({
       draft: [],
       published: [],

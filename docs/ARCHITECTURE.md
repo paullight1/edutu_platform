@@ -102,3 +102,22 @@ The following are separate migrations, not hidden requirements of ordinary featu
 3. Move reusable mobile-core modules into root packages after Metro/Jest/TypeScript/native-build verification.
 4. Introduce a versioned public API and generated OpenAPI contract through a compatibility migration rather than changing every client route in place.
 5. Standardize a global error envelope after existing client error handling is inventoried and contract-tested.
+
+## Intentional opportunity pipeline boundary
+
+The intentional opportunity pipeline is an API-owned cross-client domain.
+
+- `backend/services/services/api` owns intent, journey state, tasks, application
+  confirmation, outcomes, limits, idempotency, and version policy.
+- `edutu-web-app` and `edutumobile` render backend view models using their
+  existing design systems.
+- Clients may cache reads and mobile may queue API writes, but neither client
+  may write new journey tables directly.
+- `admin` owns staged rollout controls and later operational reporting.
+- Shared production tables use
+  `backend/services/services/api/supabase/migrations`.
+
+The four rollout keys are documented in
+`docs/runbooks/opportunity-pipeline-flags.md` and default to false. PR 1 adds
+only the contract and controls; user-facing pipeline components arrive in
+later, independently reversible PRs.
