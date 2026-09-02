@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  evaluateLegacyMigrationDiff,
   FROZEN_MIGRATION_TREES,
   validateFrozenMigrationTrees,
 } from "./migration-ownership.mjs";
@@ -27,4 +28,61 @@ test("rejects a missing frozen legacy migration tree", () => {
   assert.deepEqual(validateFrozenMigrationTrees(missing), [
     "frozen migration tree missing: edutumobile/supabase/migrations",
   ]);
+});
+
+test("legacy migration diff passes when the final trees equal the frozen manifest", () => {
+  assert.deepEqual(
+    evaluateLegacyMigrationDiff({
+      changedPaths: [
+        "supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
+      ],
+      frozenTreeViolations: [],
+    }),
+    {
+      ok: true,
+      status: "restored",
+      changedLegacyPaths: [
+        "supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
+      ],
+      errors: [],
+    },
+  );
+});
+
+test("legacy migration diff remains blocked when the final frozen tree differs", () => {
+  assert.deepEqual(
+    evaluateLegacyMigrationDiff({
+      changedPaths: [
+        "supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
+      ],
+      frozenTreeViolations: [
+        "frozen migration tree changed: supabase/migrations",
+      ],
+    }),
+    {
+      ok: false,
+      status: "blocked",
+      changedLegacyPaths: [
+        "supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
+      ],
+      errors: ["frozen migration tree changed: supabase/migrations"],
+    },
+  );
+});
+
+test("canonical migration changes are not treated as legacy-tree edits", () => {
+  assert.deepEqual(
+    evaluateLegacyMigrationDiff({
+      changedPaths: [
+        "backend/services/services/api/supabase/migrations/20260902090000_example.sql",
+      ],
+      frozenTreeViolations: [],
+    }),
+    {
+      ok: true,
+      status: "unchanged",
+      changedLegacyPaths: [],
+      errors: [],
+    },
+  );
 });
