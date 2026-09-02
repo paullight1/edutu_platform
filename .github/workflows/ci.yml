@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
+      - run: node --test scripts/security-audit.test.mjs
       - run: node --test scripts/check-admin-runtime-config.test.mjs
       - run: node --test scripts/validate-vercel-config.test.mjs
       - run: node --test scripts/validate-seo-routes.test.mjs
@@ -326,16 +327,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Backend high/critical audit
-        run: cd backend/services/services/api && npm ci && npm audit --audit-level=high
-      - name: Admin high/critical audit
-        run: cd admin && npm ci && npm audit --audit-level=high
-      - name: Web high/critical audit
-        run: cd edutu-web-app && npm ci && npm audit --audit-level=high
-      - name: Mobile install
-        run: cd edutumobile && npm ci
-      - name: Mobile high/critical policy audit
-        run: node scripts/check-mobile-audit.mjs
+      - name: Audit every workspace before reporting failure
+        run: node scripts/check-security-audits.mjs
 
   security-audit-voice:
     name: Security Audit — Voice Gateway
