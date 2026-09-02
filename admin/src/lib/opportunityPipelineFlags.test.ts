@@ -6,9 +6,9 @@ import {
 } from "./opportunityPipelineFlags";
 
 const EXPECTED_KEYS = [
-  "opportunity_pipeline_home",
-  "opportunity_my_path",
   "opportunity_state_actions",
+  "opportunity_my_path",
+  "opportunity_pipeline_home",
   "opportunity_pipeline_navigation",
 ];
 
