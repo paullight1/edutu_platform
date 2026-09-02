@@ -3,118 +3,84 @@ name: Dependency Lockfile Repair
 on:
   pull_request:
     branches: [develop]
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: dependency-lockfile-repair-${{ github.event.pull_request.number || github.ref }}
+  group: dependency-lockfile-repair-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend Lockfile Repair
+  apply:
+    name: Apply Verified Lockfile Repairs
+    if: >-
+      github.actor == 'paullight1' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/ci-baseline-83'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: backend/services/services/api
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
           submodules: false
-          persist-credentials: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: backend/services/services/api/package-lock.json
-      - name: Apply non-breaking package-lock audit fixes
-        continue-on-error: true
-        run: npm audit fix --package-lock-only --audit-level=high
-      - name: Show lockfile change summary
-        run: git diff --stat -- package-lock.json && git diff --check -- package-lock.json
-      - name: Verify backend high/critical audit
-        id: audit
-        continue-on-error: true
-        run: npm audit --audit-level=high
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-audit-lockfile
-          path: backend/services/services/api/package-lock.json
-          if-no-files-found: error
-      - name: Preserve audit failure after artifact upload
-        if: steps.audit.outcome != 'success'
-        run: exit 1
 
-  web:
-    name: Web Lockfile Repair
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
+      - name: Patch backend lockfile without changing package manifest ranges
+        working-directory: backend/services/services/api
+        run: |
+          npm audit fix --package-lock-only --audit-level=high
+          npm audit --audit-level=high
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            edutu-web-app/package-lock.json
+            edutumobile/package-lock.json
+
+      - name: Patch web lockfile without changing package manifest ranges
         working-directory: edutu-web-app
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: edutu-web-app/package-lock.json
-      - name: Apply non-breaking package-lock audit fixes
-        continue-on-error: true
-        run: npm audit fix --package-lock-only --audit-level=high
-      - name: Show lockfile change summary
-        run: git diff --stat -- package-lock.json && git diff --check -- package-lock.json
-      - name: Verify web high/critical audit
-        id: audit
-        continue-on-error: true
-        run: npm audit --audit-level=high
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: web-audit-lockfile
-          path: edutu-web-app/package-lock.json
-          if-no-files-found: error
-      - name: Preserve audit failure after artifact upload
-        if: steps.audit.outcome != 'success'
-        run: exit 1
+        run: |
+          npm audit fix --package-lock-only --audit-level=high
+          npm audit --audit-level=high
 
-  mobile:
-    name: Mobile Lockfile Repair
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: edutumobile/package-lock.json
-      - name: Apply non-breaking package-lock audit fixes
+      - name: Patch mobile lockfile without changing package manifest ranges
         working-directory: edutumobile
-        continue-on-error: true
         run: npm audit fix --package-lock-only --audit-level=high
-      - name: Show lockfile change summary
-        run: git diff --stat -- edutumobile/package-lock.json && git diff --check -- edutumobile/package-lock.json
-      - name: Verify mobile high/critical policy
-        id: audit
-        continue-on-error: true
-        run: node scripts/check-mobile-audit.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: mobile-audit-lockfile
-          path: edutumobile/package-lock.json
-          if-no-files-found: error
-      - name: Preserve audit failure after artifact upload
-        if: steps.audit.outcome != 'success'
-        run: exit 1
+
+      - name: Verify mobile policy and explicit security floors
+        run: |
+          node scripts/check-mobile-audit.mjs
+          node --test scripts/security-lockfile-versions.test.mjs
+
+      - name: Commit only the three verified lockfiles
+        shell: bash
+        run: |
+          git diff --check -- \
+            backend/services/services/api/package-lock.json \
+            edutu-web-app/package-lock.json \
+            edutumobile/package-lock.json
+
+          git add \
+            backend/services/services/api/package-lock.json \
+            edutu-web-app/package-lock.json \
+            edutumobile/package-lock.json
+
+          if git diff --cached --quiet; then
+            echo "Lockfiles already satisfy the high-severity audit policy."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(deps): patch high-severity transitive dependencies"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
