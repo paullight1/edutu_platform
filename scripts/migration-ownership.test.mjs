@@ -70,6 +70,23 @@ test("legacy migration diff remains blocked when the final frozen tree differs",
   );
 });
 
+test("standalone legacy schema files remain immutable", () => {
+  assert.deepEqual(
+    evaluateLegacyMigrationDiff({
+      changedPaths: ["edutu-web-app/supabase/schema.sql"],
+      frozenTreeViolations: [],
+    }),
+    {
+      ok: false,
+      status: "blocked",
+      changedLegacyPaths: ["edutu-web-app/supabase/schema.sql"],
+      errors: [
+        "legacy schema file is frozen: edutu-web-app/supabase/schema.sql",
+      ],
+    },
+  );
+});
+
 test("canonical migration changes are not treated as legacy-tree edits", () => {
   assert.deepEqual(
     evaluateLegacyMigrationDiff({
