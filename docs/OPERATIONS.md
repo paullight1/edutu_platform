@@ -137,6 +137,38 @@ VITE_API_URL=https://edutu-api.onrender.com
 VITE_CLERK_PUBLISHABLE_KEY=...
 ```
 
+Local and preview review must use local or staging values. Never place production
+service-role, payment, webhook, AI, or writable production database credentials
+in a review worktree.
+
+## Exact-Commit Local Review
+
+Review a feature pull request from a clean isolated worktree:
+
+```bash
+git fetch origin --prune
+git worktree add -b review/pr-123 ../edutu-pr-123 origin/feature-branch
+cd ../edutu-pr-123
+node scripts/local-review.mjs --base origin/develop --install
+```
+
+For a release or hotfix pull request into `main`:
+
+```bash
+node scripts/local-review.mjs --base origin/main --install
+```
+
+The command detects changed surfaces, runs their existing verification commands,
+and prints SHA-bound approval lines only after all selected checks pass. It never
+runs migrations, seeds, remote configuration writes, or deployment commands.
+
+The complete branch, staging, production-promotion, hotfix, database, and
+rollback process is documented in:
+
+```text
+docs/runbooks/local-review-and-release.md
+```
+
 ## Verification Baseline
 
 Run these before major releases:
@@ -150,6 +182,8 @@ cd edutu-web && npm run build
 
 ## Release Notes Checklist
 
+- Exact local-review SHA recorded
+- Staging-review SHA recorded for production candidates
 - Backend routes changed
 - Database schema or migration changed
 - RLS policies changed
@@ -158,13 +192,16 @@ cd edutu-web && npm run build
 - Mobile control campaigns/flags changed
 - Scraper source, rate limit, or quality threshold changed
 - Environment variables added or renamed
+- Previous production deployment identified for rollback
 
 ## Incident Checklist
 
 1. Identify impacted surface: backend, admin, web app, docs site, scraper, Supabase, or external provider.
-2. Check recent deployments and migrations.
-3. Check backend logs and AI usage logs if AI features are involved.
-4. Check Supabase function logs for edge-function paths.
-5. Disable risky mobile campaigns or feature flags if mobile behavior is involved.
-6. Roll back migrations only with a reviewed rollback script.
-7. Document root cause and add a regression test or operational guard.
+2. Check the released commit SHA against local and staging evidence.
+3. Check recent deployments and migrations.
+4. Check backend logs and AI usage logs if AI features are involved.
+5. Check Supabase function logs for edge-function paths.
+6. Disable risky mobile campaigns or feature flags if mobile behavior is involved.
+7. Return traffic to the previous known-good deployment where supported.
+8. Roll back migrations only with a reviewed rollback script.
+9. Document root cause and add a regression test or operational guard.
