@@ -56,6 +56,8 @@ jobs:
     name: Admin Runtime Config Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      VITE_BACKEND_URL: https://api.invalid.example
     defaults:
       run:
         working-directory: admin
