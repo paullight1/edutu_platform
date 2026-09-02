@@ -1,0 +1,120 @@
+name: Dependency Lockfile Repair
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-lockfile-repair-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend Lockfile Repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/services/services/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - name: Apply non-breaking package-lock audit fixes
+        continue-on-error: true
+        run: npm audit fix --package-lock-only --audit-level=high
+      - name: Show lockfile change summary
+        run: git diff --stat -- package-lock.json && git diff --check -- package-lock.json
+      - name: Verify backend high/critical audit
+        id: audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-audit-lockfile
+          path: backend/services/services/api/package-lock.json
+          if-no-files-found: error
+      - name: Preserve audit failure after artifact upload
+        if: steps.audit.outcome != 'success'
+        run: exit 1
+
+  web:
+    name: Web Lockfile Repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Apply non-breaking package-lock audit fixes
+        continue-on-error: true
+        run: npm audit fix --package-lock-only --audit-level=high
+      - name: Show lockfile change summary
+        run: git diff --stat -- package-lock.json && git diff --check -- package-lock.json
+      - name: Verify web high/critical audit
+        id: audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-audit-lockfile
+          path: edutu-web-app/package-lock.json
+          if-no-files-found: error
+      - name: Preserve audit failure after artifact upload
+        if: steps.audit.outcome != 'success'
+        run: exit 1
+
+  mobile:
+    name: Mobile Lockfile Repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+      - name: Apply non-breaking package-lock audit fixes
+        working-directory: edutumobile
+        continue-on-error: true
+        run: npm audit fix --package-lock-only --audit-level=high
+      - name: Show lockfile change summary
+        run: git diff --stat -- edutumobile/package-lock.json && git diff --check -- edutumobile/package-lock.json
+      - name: Verify mobile high/critical policy
+        id: audit
+        continue-on-error: true
+        run: node scripts/check-mobile-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-audit-lockfile
+          path: edutumobile/package-lock.json
+          if-no-files-found: error
+      - name: Preserve audit failure after artifact upload
+        if: steps.audit.outcome != 'success'
+        run: exit 1
