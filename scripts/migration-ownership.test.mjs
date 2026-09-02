@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   evaluateLegacyMigrationDiff,
@@ -102,4 +103,14 @@ test("canonical migration changes are not treated as legacy-tree edits", () => {
       errors: [],
     },
   );
+});
+
+test("CI uses the manifest-aware legacy migration diff guard", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/ci.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workflow, /scripts\/check-legacy-migration-diff\.mjs/);
+  assert.doesNotMatch(workflow, /LEGACY_CHANGES=\$\(git diff/);
 });
