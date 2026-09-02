@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrationPath = resolve(
   process.cwd(),
-  "../../../../supabase/migrations/20260828153000_community_admin_management.sql",
+  "supabase/migrations/20260828153000_community_admin_management.sql",
 );
 
 describe("community administration migration", () => {
