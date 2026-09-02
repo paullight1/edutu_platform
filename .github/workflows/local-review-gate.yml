@@ -1,7 +1,7 @@
 name: Local Review Gate
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main, develop]
     types:
       - opened
@@ -10,13 +10,12 @@ on:
       - reopened
       - ready_for_review
       - converted_to_draft
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: local-review-${{ github.event.pull_request.number || github.ref }}
+  group: local-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -28,13 +27,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: false
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Test release-review policy
-        run: node --test scripts/release-review.test.mjs
+      - name: Test trusted release-review policy
+        run: >-
+          node --test
+          scripts/release-review.test.mjs
+          scripts/local-review-workflow-security.test.mjs
       - name: Validate exact-commit review evidence
-        if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body || '' }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
@@ -42,6 +45,3 @@ jobs:
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: node scripts/check-release-review.mjs
-      - name: Explain manual dispatch
-        if: github.event_name == 'workflow_dispatch'
-        run: echo "Policy tests passed. Pull-request evidence is validated only on pull_request events."
