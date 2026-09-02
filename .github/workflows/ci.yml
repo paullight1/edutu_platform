@@ -8,7 +8,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -33,6 +33,7 @@ jobs:
       - run: node --test scripts/validate-vercel-config.test.mjs
       - run: node --test scripts/validate-seo-routes.test.mjs
       - run: node --test scripts/migration-ownership.test.mjs
+      - run: node --test scripts/release-review.test.mjs
       - run: node scripts/validate-seo-routes.mjs
       - run: node scripts/check-migration-ownership.mjs
       - run: node scripts/check-migration-timestamps.mjs

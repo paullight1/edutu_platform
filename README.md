@@ -106,6 +106,21 @@ python main.py --all --save
 python cli.py scrape --all
 ```
 
+### Exact-commit pull-request review
+
+From a clean feature or review worktree:
+
+```bash
+node scripts/local-review.mjs --base origin/develop --install
+```
+
+Use `--base origin/main` for a release or hotfix. The command runs the existing
+checks selected for the changed repository surfaces and emits review evidence
+bound to the exact current commit. It does not run migrations or deployments.
+
+See `docs/runbooks/local-review-and-release.md` for the complete feature →
+`develop` → staging → `main` → manual production-promotion workflow.
+
 ## Environment
 
 Backend variables are read from `backend/services/services/api/.env`.
@@ -124,7 +139,8 @@ ADMIN_URL=http://localhost:5173
 MOBILE_APP_URL=http://localhost:8081
 ```
 
-Client apps use their own `VITE_*` or package-specific environment files.
+Client apps use their own `VITE_*` or package-specific environment files. Local
+review must use local or staging values, never writable production secrets.
 
 ## Documentation
 
@@ -132,6 +148,7 @@ Client apps use their own `VITE_*` or package-specific environment files.
 - `docs/API.md` - backend modules, endpoint groups, and auth matrix
 - `docs/DATA_MODEL.md` - table ownership and migration guidance
 - `docs/OPERATIONS.md` - local commands, verification, and deployment notes
+- `docs/runbooks/local-review-and-release.md` - local review, staging, release, promotion, and rollback policy
 - `docs/edutu-architecture.html` - standalone visual documentation artifact
 
 ## Development Rules
@@ -139,4 +156,6 @@ Client apps use their own `VITE_*` or package-specific environment files.
 - Keep platform and mobile repository ownership separate.
 - Keep privileged business logic in the backend API.
 - Treat direct Supabase client access as an explicit feature decision, not a default.
-- Update docs when routes, migrations, auth behavior, or service ownership changes.
+- Open feature pull requests into `develop`; reserve `main` for release and hotfix pull requests.
+- Bind local and staging approval to the exact pull-request head SHA.
+- Update docs when routes, migrations, auth behavior, service ownership, or release policy changes.
