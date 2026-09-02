@@ -24,8 +24,7 @@ export const OPPORTUNITY_PUBLIC_STAGES = [
   "outcome",
 ] as const;
 
-export type OpportunityPublicStage =
-  (typeof OPPORTUNITY_PUBLIC_STAGES)[number];
+export type OpportunityPublicStage = (typeof OPPORTUNITY_PUBLIC_STAGES)[number];
 
 export const OPPORTUNITY_JOURNEY_OUTCOMES = [
   "offer",
