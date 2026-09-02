@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import "./security-lockfile-versions.test.mjs";
 
 let securityAudit = {};
 try {
