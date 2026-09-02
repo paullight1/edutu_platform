@@ -12,32 +12,10 @@ import {
 
 export const ALLOWED_OPPORTUNITY_JOURNEY_TRANSITIONS = {
   shortlisted: ["pursuing", "archived", "expired"],
-  pursuing: [
-    "preparing",
-    "ready_to_apply",
-    "withdrawn",
-    "archived",
-    "expired",
-  ],
-  preparing: [
-    "pursuing",
-    "ready_to_apply",
-    "withdrawn",
-    "archived",
-    "expired",
-  ],
-  ready_to_apply: [
-    "application_opened",
-    "preparing",
-    "withdrawn",
-    "expired",
-  ],
-  application_opened: [
-    "ready_to_apply",
-    "applied",
-    "withdrawn",
-    "expired",
-  ],
+  pursuing: ["preparing", "ready_to_apply", "withdrawn", "archived", "expired"],
+  preparing: ["pursuing", "ready_to_apply", "withdrawn", "archived", "expired"],
+  ready_to_apply: ["application_opened", "preparing", "withdrawn", "expired"],
+  application_opened: ["ready_to_apply", "applied", "withdrawn", "expired"],
   applied: ["interview", "offer", "rejected", "withdrawn", "no_response"],
   interview: ["offer", "rejected", "withdrawn", "no_response"],
   offer: ["archived"],
@@ -85,7 +63,9 @@ export function canTransition(
   to: OpportunityJourneyState,
 ): boolean {
   return (
-    ALLOWED_OPPORTUNITY_JOURNEY_TRANSITIONS[from] as readonly OpportunityJourneyState[]
+    ALLOWED_OPPORTUNITY_JOURNEY_TRANSITIONS[
+      from
+    ] as readonly OpportunityJourneyState[]
   ).includes(to);
 }
 
