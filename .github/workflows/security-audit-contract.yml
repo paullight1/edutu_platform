@@ -25,7 +25,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test scripts/security-audit.test.mjs
+      - run: >-
+          node --test
+          scripts/security-audit.test.mjs
+          scripts/security-lockfile-versions.test.mjs
 
   inventory:
     name: Workspace Security Audit Inventory
