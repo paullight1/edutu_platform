@@ -1,18 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-// These are debt ceilings, not targets. They were refreshed to the exact
-// 2026-08-20 main-branch line counts after governance had drifted behind the
-// repository. CI must reject any additional growth until cohesive features are
-// extracted and the ceilings can be lowered.
+// These are debt ceilings, not targets. They equal the exact 2026-08-29
+// main-branch line counts after reconciling already-merged feature work that
+// landed after the previous 2026-08-26 refresh. CI must reject any additional
+// growth until cohesive features are extracted and the ceilings can be lowered.
 const budgets = {
-  "admin/src/pages/Opportunities.tsx": 5175,
-  // +5 lines of delegation only; the quality-scorecard query itself lives in
-  // its own cohesive module rather than expanding this service.
-  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3627,
-  // +20 lines for per-source persistence orchestration and direct-apply URL
-  // validation; outcome aggregation is extracted into scraper-run-outcome.ts.
-  "backend/services/services/api/src/scraper/scraper.service.ts": 3984,
+  // Bulk AI enhancement and its completion hardening landed in e03fbfe and
+  // 227cd8a after the previous ceiling. No additional headroom is included.
+  "admin/src/pages/Opportunities.tsx": 5317,
+  // AI opportunity enrichment, bounded concurrency, and completion hardening
+  // landed in 59066bd, 95c5cee, and 227cd8a. Exact current count only.
+  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3777,
+  // Storage image de-duplication, guarded cleanup, and formatting landed in
+  // 481b9d6, eef1bdc, and 7a83692. Exact current count only.
+  "backend/services/services/api/src/scraper/scraper.service.ts": 4017,
   "edutu-web-app/src/components/Dashboard.tsx": 2005,
   "edutumobile/app/(app)/chat.tsx": 2245,
   "edutumobile/app/(app)/index.tsx": 3113,

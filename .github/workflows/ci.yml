@@ -8,7 +8,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test scripts/check-mobile-audit.test.mjs
+      - run: node --test scripts/security-audit.test.mjs
       - run: node --test scripts/check-admin-runtime-config.test.mjs
       - run: node --test scripts/validate-vercel-config.test.mjs
       - run: node --test scripts/validate-seo-routes.test.mjs
@@ -39,7 +40,7 @@ jobs:
       - run: node scripts/check-large-file-budgets.mjs
       - run: node scripts/check-admin-runtime-config.mjs
       - run: node scripts/validate-vercel-config.mjs
-      - name: Block changes to legacy migration trees
+      - name: Validate legacy migration and schema changes
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -51,18 +52,7 @@ jobs:
             echo "No comparable base commit; skipping legacy-tree diff guard for this first push."
             exit 0
           fi
-          LEGACY_CHANGES=$(git diff --name-only "$BASE" "$GITHUB_SHA" -- \
-            'supabase/migrations/*.sql' \
-            'edutu-web-app/supabase/migrations/*.sql' \
-            'edutumobile/supabase/migrations/*.sql' \
-            'backend/services/services/api/supabase/admin_schema.sql' \
-            'edutu-web-app/supabase/admin_schema.sql' \
-            'edutu-web-app/supabase/schema.sql' || true)
-          if [[ -n "$LEGACY_CHANGES" ]]; then
-            echo "Legacy/non-canonical Supabase schema paths are frozen. Move new database changes to backend/services/services/api/supabase/migrations/."
-            echo "$LEGACY_CHANGES"
-            exit 1
-          fi
+          node scripts/check-legacy-migration-diff.mjs "$BASE" "$GITHUB_SHA"
 
   edge-function-security:
     name: Edge Function Security
@@ -326,16 +316,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Backend high/critical audit
-        run: cd backend/services/services/api && npm ci && npm audit --audit-level=high
-      - name: Admin high/critical audit
-        run: cd admin && npm ci && npm audit --audit-level=high
-      - name: Web high/critical audit
-        run: cd edutu-web-app && npm ci && npm audit --audit-level=high
-      - name: Mobile install
-        run: cd edutumobile && npm ci
-      - name: Mobile high/critical policy audit
-        run: node scripts/check-mobile-audit.mjs
+      - name: Audit every workspace before reporting failure
+        run: node scripts/check-security-audits.mjs
 
   security-audit-voice:
     name: Security Audit — Voice Gateway

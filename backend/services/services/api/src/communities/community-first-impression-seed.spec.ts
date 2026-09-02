@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrationPath = resolve(
   process.cwd(),
-  "../../../../supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
+  "supabase/migrations/20260827070117_seed_community_first_impression_groups.sql",
 );
 
 async function createCommunityGroupsTable(database: PGlite) {
