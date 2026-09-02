@@ -4,42 +4,39 @@
 
 Edutu separates four decisions:
 
-1. **Implementation:** code exists on a feature or hotfix branch.
+1. **Implementation:** code exists on a feature branch.
 2. **Local approval:** the exact current commit has been reviewed in a clean local worktree.
 3. **Staging approval:** the exact release commit has been reviewed in a non-production deployment.
 4. **Production promotion:** the approved deployment is deliberately released to production.
 
-A merge is not a substitute for local or staging review. A new commit invalidates
-prior evidence because the pull-request head SHA changes.
+A merge is not a substitute for local or staging review. A new commit invalidates prior evidence because the pull-request head SHA changes.
 
 ## Branch model
 
 ```text
-feature/* or fix/*
-        ↓ pull request
-      develop
-        ↓ staging deployment and release pull request
-       main
-        ↓ manual production promotion
-    production
+feature/*, fix/*, chore/*, or docs/*
+                 ↓ pull request
+               develop
+                 ↓ staging deployment and release pull request
+                main
+                 ↓ manual production promotion
+             production
 ```
 
 Normal rules:
 
-- Feature and ordinary fix pull requests use `Release-Type: feature` and target
-  `develop`.
-- Production release pull requests use `Release-Type: release`, originate from
-  `develop`, and target `main`.
-- Emergency production fixes use `Release-Type: hotfix`, originate from a
-  `hotfix/*` branch, and target `main`.
-- Direct pushes to `main` or `develop` are prohibited after repository rulesets
-  are enabled.
+- Feature and ordinary fix pull requests use `Release-Type: feature` and target `develop`.
+- Production release pull requests use `Release-Type: release`, originate from `develop`, and target `main`.
+- Emergency production fixes use `Release-Type: hotfix`, originate from a `hotfix/*` branch, and target `main`.
+- Direct pushes to `main` or `develop` are prohibited after repository rulesets are enabled.
+
+`develop` was created from the unchanged production commit before release-safety PR #85 was retargeted. This allows the bootstrap to merge into a non-production branch first.
 
 ## Review the exact pull request locally
 
 ### 1. Fetch and create an isolated worktree
 
-From the existing local repository:
+For release-safety PR #85:
 
 ```bash
 git fetch origin --prune
@@ -52,35 +49,38 @@ git worktree add \
 cd ../edutu-pr-85
 ```
 
-For another pull request, replace the PR number and remote branch. A worktree
-keeps the review isolated from the developer's normal checkout.
+For another pull request, replace the PR number, local review-branch name, and remote source branch. A worktree keeps review isolated from the developer's normal checkout.
 
-### 2. Confirm the exact commit
+### 2. Confirm the exact commit and base
+
+For a feature pull request into `develop`:
 
 ```bash
 git rev-parse HEAD
+git rev-parse origin/develop
 git status --short
-git diff --stat origin/main...HEAD
+git diff --stat origin/develop...HEAD
 ```
 
-The worktree must be clean. The SHA shown by `git rev-parse HEAD` must equal the
-head SHA shown on GitHub.
+For a release or hotfix into `main`, compare against `origin/main` instead.
+
+The worktree must be clean. The SHA shown by `git rev-parse HEAD` must equal the head SHA shown on GitHub. Repository rules should require the branch to be up to date before merge so a base-branch change forces another review cycle.
 
 ### 3. Run the non-mutating review command
 
-For a feature pull request into `develop`:
+Feature pull request into `develop`:
 
 ```bash
 node scripts/local-review.mjs --base origin/develop --install
 ```
 
-For a release or hotfix pull request into `main`:
+Release or hotfix into `main`:
 
 ```bash
 node scripts/local-review.mjs --base origin/main --install
 ```
 
-To inspect the selected commands without running them:
+Inspect the selected commands without running them:
 
 ```bash
 node scripts/local-review.mjs --base origin/develop --dry-run
@@ -89,11 +89,12 @@ node scripts/local-review.mjs --base origin/develop --dry-run
 The command:
 
 - detects changed repository surfaces;
-- runs the existing lint, test, type-check, build, PWA, and governance commands
-  required for those surfaces;
+- runs the existing lint, test, type-check, build, PWA, and governance commands required for those surfaces;
 - never runs a migration, seed, remote settings write, or deployment command;
 - refuses to approve `main` or a dirty worktree;
 - prints exact-SHA approval lines only after every selected command succeeds.
+
+A repository-wide baseline failure also blocks local approval. Do not suppress a failing gate merely because it predates the feature; repair or explicitly resolve the baseline in a separate PR.
 
 ### 4. Review the application interactively
 
@@ -127,18 +128,18 @@ cd edutumobile
 npm run dev
 ```
 
-Use test accounts and a local or staging backend. Do not use production secrets,
-a production service-role key, a writable production database, production
-Paystack credentials, or production webhook destinations during local review.
+Use test accounts and a local or staging backend. Do not use production secrets, a production service-role key, a writable production database, production Paystack credentials, or production webhook destinations during local review.
 
-### 5. Bind approval to the SHA
+### 5. Bind approval to the current SHA
 
-Copy the output into the pull-request body:
+Copy the command output into the pull-request body:
 
 ```text
 Local-Review-Approved: yes
 Local-Review-SHA: <40-character current head SHA>
 ```
+
+The markers are a maintainer attestation, not cryptographic proof that a command ran. Only the maintainer who performed or directly observed the local review should change them to `yes`. Do not delegate this edit to untrusted automation or an external PR author.
 
 Then mark the pull request Ready for review. The Local Review Gate reruns when:
 
@@ -150,13 +151,17 @@ Then mark the pull request Ready for review. The Local Review Gate reruns when:
 
 A stale SHA blocks the non-draft PR.
 
+## Trusted gate execution
+
+The sensitive evidence workflow uses `pull_request_target`, read-only repository permissions, and the target branch's exact base SHA. It does not check out or execute code from the pull-request branch. This prevents a PR from weakening its own release validator.
+
+A separate ordinary pull-request workflow tests proposed policy-code changes. It is verification, not the trusted merge gate.
+
 ## Preview and staging review
 
 ### Feature preview
 
-Each feature branch should receive a preview deployment where hosting supports
-it. Preview environment variables must point to staging services, never the
-production database or production API.
+Each feature branch should receive a preview deployment where hosting supports it. Preview environment variables must point to staging services, never the production database or production API.
 
 Review at least:
 
@@ -183,23 +188,22 @@ Staging must have separate resources:
 - Supabase project and service-role key;
 - Clerk test configuration;
 - Paystack test mode;
-- Redis/cache instance;
-- webhook endpoints;
+- Redis/cache instance where required;
+- webhook destinations;
 - AI test keys, limits, or budgets;
 - Vercel/Render environment variables.
 
-Do not share writable production data with staging. Use anonymised fixtures or a
-staging-only seed process.
+Do not share writable production data with staging. Use anonymised fixtures or a staging-only seed process.
 
 ## Release pull request
 
-When approved feature PRs have been integrated and reviewed on `develop`, open:
+When approved work has been integrated and reviewed on `develop`, open:
 
 ```text
 develop → main
 ```
 
-Use this evidence:
+Use:
 
 ```text
 Release-Type: release
@@ -209,42 +213,33 @@ Staging-Review-Approved: yes
 Staging-Review-SHA: <same release head SHA>
 ```
 
-Local and staging SHAs must both equal the current PR head. If the release branch
-moves, repeat the relevant checks and update the evidence.
+Local and staging SHAs must both equal the current PR head. If `develop` moves, repeat the relevant checks and update the evidence.
+
+The first release-safety promotion from `develop` to `main` is a bootstrap exception because the trusted target-branch workflow is not present on `main` until that release lands. It still requires manual exact-SHA local review, staging review, successful policy tests, and explicit production approval. After that release, configure `main` to require `Local Review Evidence` for every later production PR.
 
 ## Production promotion
 
-Merging the release PR authorises a production candidate; it should not
-implicitly place traffic on an unreviewed deployment.
+Merging the release PR authorises a production candidate; it should not implicitly place traffic on an unreviewed deployment.
 
 ### Web and admin
 
-Configure Vercel so pull requests and `develop` create preview/staging
-deployments. Production should require deliberate promotion of the reviewed
-candidate. Before promotion:
+Configure hosting so pull requests and `develop` create preview/staging deployments. Production should require deliberate promotion of the reviewed candidate. Before promotion:
 
 - inspect the deployment commit SHA;
 - run smoke checks against the candidate URL;
 - inspect recent deployment errors;
 - confirm production environment variables are present;
-- confirm all opportunity-pipeline flags remain at their intended values.
+- confirm feature flags remain at their intended values.
 
-Promote only the reviewed candidate. Keep the previous production deployment
-available for immediate rollback.
+Promote only the reviewed candidate. Keep the previous production deployment available for immediate rollback.
 
 ### Backend
 
-Configure a separate staging API service from `develop`. The production backend
-should either have automatic deploy disabled or wait for all required checks and
-a manual approval. Deploy the exact approved release SHA, then run health and
-production smoke checks.
+Configure a separate staging API service from `develop`. The production backend should have automatic deployment disabled or require a protected manual approval after all required checks. Deploy the exact approved release SHA, then run health and production smoke checks.
 
 ### Mobile
 
-A Git merge does not itself release an App Store or Play Store build. Build from
-the approved release SHA, test the signed candidate, use internal testing tracks,
-and promote only after store-build review. OTA updates must follow the same
-release evidence and rollback policy.
+A Git merge does not itself release an App Store or Play Store build. Build from the approved release SHA, test the signed candidate through internal distribution, and promote only after store-build review. OTA updates follow the same evidence and rollback policy.
 
 ## Database changes
 
@@ -253,56 +248,52 @@ Database PRs add a separate gate:
 1. Apply the migration to a local disposable database.
 2. Apply it to staging.
 3. Run compatibility and backfill checks.
-4. Record staging evidence and recovery procedure.
+4. Record staging evidence and the recovery procedure.
 5. Back up production.
 6. Approve and run the production migration manually.
-7. Deploy a backend version compatible with both old and new states where
-   possible.
+7. Deploy a backend version compatible with both old and new states where possible.
 8. Enable user-facing flags only after schema, API, and clients are compatible.
 
-The local-review command intentionally never runs `db:migrate`, `db:push`,
-`db:seed`, or `supabase db` commands.
+The local-review command intentionally never runs `db:migrate`, `db:push`, `db:seed`, or `supabase db` commands.
 
 ## Hotfixes
 
-Use a branch named `hotfix/<description>` and target `main` directly only for an
-urgent production correction. Hotfixes still require:
+Use `hotfix/<description>` and target `main` directly only for an urgent production correction. Hotfixes still require:
 
 - exact-SHA local review;
 - tests appropriate to the affected surface;
-- staging or a production-candidate review;
+- staging or production-candidate review;
 - exact-SHA staging evidence;
 - manual production promotion;
-- immediate back-merge or equivalent integration into `develop` after release.
+- immediate integration back into `develop` after release.
 
 ## Repository settings checklist
 
-These settings are account-level and cannot be guaranteed by repository files.
-Configure them in GitHub after this bootstrap PR is accepted.
+These settings are account-level and cannot be guaranteed by repository files. Track them in issue #86.
 
 ### `main` ruleset
 
 - Require a pull request.
-- Block direct and force pushes.
-- Block branch deletion.
+- Block direct pushes, force pushes, and deletion.
 - Require conversation resolution.
 - Require the branch to be up to date.
-- Require successful CI, Architecture Boundaries, and Local Review Evidence.
-- Require a successful staging deployment when GitHub deployment environments
-  are configured.
-- Do not enable automatic merge to production.
+- Require successful CI checks.
+- Require `Architecture Boundaries`.
+- Require `Local Review Evidence` after the bootstrap release installs it on `main`.
+- Require a successful staging deployment when GitHub environments are connected.
+- Do not enable automatic merge or automatic production promotion.
 
 ### `develop` ruleset
 
 - Require a pull request.
-- Block direct and force pushes.
-- Require successful CI, Architecture Boundaries, and Local Review Evidence.
-- Require exact-SHA local review before a PR leaves draft.
+- Block direct pushes, force pushes, and deletion.
+- Require conversation resolution.
+- Require the branch to be up to date.
+- Require successful CI checks.
+- Require `Architecture Boundaries`.
+- Require `Local Review Evidence` after PR #85 is merged into `develop`.
 
-For a solo-maintainer repository, an unavailable second reviewer must not make
-all releases impossible. Keep the exact-SHA local and staging gates mandatory,
-and add an independent reviewer requirement when a second authorised reviewer
-is consistently available.
+For a solo-maintainer repository, an unavailable second reviewer must not make all releases impossible. Keep exact-SHA local and staging gates mandatory, and add an independent reviewer requirement when a second authorised reviewer is consistently available.
 
 ## Rollback
 
@@ -314,7 +305,7 @@ is consistently available.
 
 ### After web/admin promotion
 
-- Reassign production traffic to the previous known-good deployment.
+- Return production traffic to the previous known-good deployment.
 - Disable newly introduced feature flags where available.
 - Record the failed release SHA and preserve logs.
 
@@ -327,22 +318,26 @@ is consistently available.
 ### After mobile release
 
 - Disable affected remote flags.
-- Publish a tested OTA correction only when compatible.
+- Publish a tested compatible OTA correction where appropriate.
 - Otherwise prepare a store hotfix from a reviewed SHA.
 
-## Bootstrap sequence for the opportunity-pipeline work
+## Bootstrap sequence for the opportunity-pipeline programme
 
-1. Review and merge the release-safety bootstrap PR using this runbook.
-2. Create `develop` from the then-current `main`.
-3. Configure GitHub rulesets and staging hosting/resources.
-4. Retarget opportunity-pipeline PR #82 from `main` to `develop`.
-5. Change PR #82 to `Release-Type: feature`.
-6. Check out its exact current head SHA locally and run:
+1. `develop` already exists at the unchanged pre-bootstrap `main` commit.
+2. Review PR #85 locally at its exact current head SHA using:
 
    ```bash
    node scripts/local-review.mjs --base origin/develop --install
    ```
 
-7. Add exact-SHA evidence and mark it ready only after local review.
-8. Merge PR #82 into `develop`, review staging, and leave production unchanged.
-9. Release to `main` later through a separate `develop → main` release PR.
+3. Keep PR #85 draft until local review passes and its SHA evidence is updated.
+4. Merge PR #85 into `develop`, not `main`.
+5. Confirm the `develop` push runs CI, Architecture Governance, Release Policy Tests, and the trusted Local Review Gate is now available for later PRs.
+6. Configure isolated staging services and the `develop` ruleset from issue #86.
+7. Review the release-safety behaviour on staging.
+8. Open a focused `develop → main` release PR containing the release-safety infrastructure only.
+9. Perform exact-SHA local and staging review, then manually approve its production promotion.
+10. Configure the `main` ruleset after the gate exists on `main`.
+11. Retarget opportunity-pipeline PR #82 from `main` to `develop` and set `Release-Type: feature`.
+12. Review PR #82 locally, merge it only into `develop`, and review it on staging with all opportunity-pipeline flags initially off.
+13. Release opportunity-pipeline work to `main` later through a separate, reviewed `develop → main` release PR.
