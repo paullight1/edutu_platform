@@ -1,9 +1,9 @@
 export const OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS = [
   {
-    key: "opportunity_pipeline_home",
-    label: "Focused opportunity home",
+    key: "opportunity_state_actions",
+    label: "State-aware opportunity actions",
     description:
-      "Shows current focus, one next action, active pursuits, and a bounded recommendation shortlist.",
+      "Changes the primary opportunity action according to the user's journey state.",
   },
   {
     key: "opportunity_my_path",
@@ -12,10 +12,10 @@ export const OPPORTUNITY_PIPELINE_FLAG_DEFINITIONS = [
       "Enables the unified Discover, Pursuing, Applied, and Outcome workspace.",
   },
   {
-    key: "opportunity_state_actions",
-    label: "State-aware opportunity actions",
+    key: "opportunity_pipeline_home",
+    label: "Focused opportunity home",
     description:
-      "Changes the primary opportunity action according to the user's journey state.",
+      "Shows current focus, one next action, active pursuits, and a bounded recommendation shortlist.",
   },
   {
     key: "opportunity_pipeline_navigation",
