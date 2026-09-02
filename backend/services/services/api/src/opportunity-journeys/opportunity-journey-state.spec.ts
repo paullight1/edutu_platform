@@ -20,32 +20,10 @@ const EXPECTED_TRANSITIONS: Record<
   readonly OpportunityJourneyState[]
 > = {
   shortlisted: ["pursuing", "archived", "expired"],
-  pursuing: [
-    "preparing",
-    "ready_to_apply",
-    "withdrawn",
-    "archived",
-    "expired",
-  ],
-  preparing: [
-    "pursuing",
-    "ready_to_apply",
-    "withdrawn",
-    "archived",
-    "expired",
-  ],
-  ready_to_apply: [
-    "application_opened",
-    "preparing",
-    "withdrawn",
-    "expired",
-  ],
-  application_opened: [
-    "ready_to_apply",
-    "applied",
-    "withdrawn",
-    "expired",
-  ],
+  pursuing: ["preparing", "ready_to_apply", "withdrawn", "archived", "expired"],
+  preparing: ["pursuing", "ready_to_apply", "withdrawn", "archived", "expired"],
+  ready_to_apply: ["application_opened", "preparing", "withdrawn", "expired"],
+  application_opened: ["ready_to_apply", "applied", "withdrawn", "expired"],
   applied: ["interview", "offer", "rejected", "withdrawn", "no_response"],
   interview: ["offer", "rejected", "withdrawn", "no_response"],
   offer: ["archived"],
@@ -187,7 +165,11 @@ describe("opportunity journey state machine", () => {
     });
 
     expect(
-      validateOpportunityJourneyTransition("shortlisted", "interview", "generic"),
+      validateOpportunityJourneyTransition(
+        "shortlisted",
+        "interview",
+        "generic",
+      ),
     ).toEqual({
       ok: false,
       code: "INVALID_JOURNEY_TRANSITION",
