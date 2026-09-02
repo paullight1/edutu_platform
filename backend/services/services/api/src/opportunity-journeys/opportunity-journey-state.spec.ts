@@ -114,7 +114,7 @@ describe("opportunity journey state machine", () => {
     ["no_response", "outcome"],
     ["expired", "outcome"],
     ["archived", "outcome"],
-  ] satisfies Array<[OpportunityJourneyState, string]>) (
+  ] satisfies Array<[OpportunityJourneyState, string]>)(
     "maps %s to the %s public stage",
     (state, stage) => {
       expect(publicStageFor(state)).toBe(stage);
