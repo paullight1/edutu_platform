@@ -1,10 +1,4 @@
-import {
-  and,
-  asc,
-  eq,
-  inArray,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   opportunityIntents,
@@ -33,8 +27,7 @@ import {
 
 export type OpportunityJourneyPriority = "primary" | "secondary" | "none";
 
-export interface CreateOrReadJourneyInput
-  extends OpportunityJourneyEventInput {
+export interface CreateOrReadJourneyInput extends OpportunityJourneyEventInput {
   userId: string;
   opportunityId: string;
   intentId?: string | null;
@@ -75,16 +68,14 @@ export type OpportunityJourneyPatch = Partial<
   >
 >;
 
-export interface UpdateJourneyVersionedInput
-  extends OpportunityJourneyEventInput {
+export interface UpdateJourneyVersionedInput extends OpportunityJourneyEventInput {
   userId: string;
   journeyId: string;
   expectedVersion: number;
   patch: OpportunityJourneyPatch;
 }
 
-export interface ReplaceActiveIntentEvent
-  extends OpportunityJourneyEventInput {}
+export interface ReplaceActiveIntentEvent extends OpportunityJourneyEventInput {}
 
 export type ReplaceActiveIntentInput = Omit<
   NewOpportunityIntent,
@@ -119,22 +110,20 @@ const ACTIVE_STATES: OpportunityJourneyState[] = [
   "application_opened",
 ];
 
-const STAGE_STATES: Record<
-  OpportunityPublicStage,
-  OpportunityJourneyState[]
-> = {
-  discover: ["shortlisted"],
-  pursuing: ACTIVE_STATES,
-  applied: ["applied", "interview"],
-  outcome: [
-    "offer",
-    "rejected",
-    "withdrawn",
-    "no_response",
-    "expired",
-    "archived",
-  ],
-};
+const STAGE_STATES: Record<OpportunityPublicStage, OpportunityJourneyState[]> =
+  {
+    discover: ["shortlisted"],
+    pursuing: ACTIVE_STATES,
+    applied: ["applied", "interview"],
+    outcome: [
+      "offer",
+      "rejected",
+      "withdrawn",
+      "no_response",
+      "expired",
+      "archived",
+    ],
+  };
 
 function databaseUserId(userId: string): string {
   const converted = toDatabaseUserId(userId);
@@ -431,10 +420,7 @@ export class OpportunityJourneysRepository {
             .where(
               and(
                 eq(userOpportunityJourneys.userId, convertedUserId),
-                eq(
-                  userOpportunityJourneys.opportunityId,
-                  input.opportunityId,
-                ),
+                eq(userOpportunityJourneys.opportunityId, input.opportunityId),
               ),
             )
             .limit(1)
@@ -642,9 +628,7 @@ export class OpportunityJourneysRepository {
     return rows.length;
   }
 
-  async listEventsForUser(
-    userId: string,
-  ): Promise<OpportunityJourneyEvent[]> {
+  async listEventsForUser(userId: string): Promise<OpportunityJourneyEvent[]> {
     const convertedUserId = databaseUserId(userId);
     return this.database
       .select()

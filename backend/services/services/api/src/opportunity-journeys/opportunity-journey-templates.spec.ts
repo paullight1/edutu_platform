@@ -23,7 +23,13 @@ describe("opportunity journey templates", () => {
     expect(resolveOpportunityTemplateKind(category)).toBe(expected);
   });
 
-  it.each(["scholarship", "employment", "fellowship", "grant", "lightweight"] as const)(
+  it.each([
+    "scholarship",
+    "employment",
+    "fellowship",
+    "grant",
+    "lightweight",
+  ] as const)(
     "returns an ordered %s template ending with the official application action",
     (kind) => {
       const tasks = resolveOpportunityJourneyTemplate(kind);

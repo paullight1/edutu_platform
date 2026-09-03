@@ -90,10 +90,7 @@ function missingEvidence(
   ) {
     missing.push("age");
   }
-  if (
-    stringArray(eligibility.degree_levels).length > 0 &&
-    !profile.degree
-  ) {
+  if (stringArray(eligibility.degree_levels).length > 0 && !profile.degree) {
     missing.push("education");
   }
 

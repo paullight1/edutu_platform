@@ -42,9 +42,7 @@ async function createRepository() {
 
   return {
     client,
-    repository: new OpportunityJourneysRepository(
-      drizzle(client, { schema }),
-    ),
+    repository: new OpportunityJourneysRepository(drizzle(client, { schema })),
   };
 }
 

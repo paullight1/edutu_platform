@@ -46,8 +46,7 @@ export function estimateOpportunityEffortHours(input: {
   return Math.min(40, BASE_EFFORT_HOURS[kind] + adjustment);
 }
 
-export interface ScheduledOpportunityTask
-  extends OpportunityJourneyTaskTemplate {
+export interface ScheduledOpportunityTask extends OpportunityJourneyTaskTemplate {
   dueAt: Date;
 }
 

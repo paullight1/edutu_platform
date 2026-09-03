@@ -50,13 +50,7 @@ const GOAL_KEYWORDS: Record<OpportunityIntentGoal, string[]> = {
     "apprenticeship",
     "trainee",
   ],
-  employment: [
-    "job",
-    "employment",
-    "graduate role",
-    "vacancy",
-    "career role",
-  ],
+  employment: ["job", "employment", "graduate role", "vacancy", "career role"],
   business_funding: [
     "grant",
     "startup",
@@ -70,13 +64,7 @@ const GOAL_KEYWORDS: Record<OpportunityIntentGoal, string[]> = {
     "community leader",
     "public service",
   ],
-  skill_building: [
-    "course",
-    "bootcamp",
-    "skill",
-    "training",
-    "certification",
-  ],
+  skill_building: ["course", "bootcamp", "skill", "training", "certification"],
   open_exploration: [],
 };
 
@@ -103,9 +91,7 @@ function uniqueText(values: unknown): string[] {
 }
 
 function evidenceText(snapshot: OpportunityIntentSourceSnapshot): string {
-  return JSON.stringify(snapshot)
-    .toLowerCase()
-    .replace(/[_-]+/gu, " ");
+  return JSON.stringify(snapshot).toLowerCase().replace(/[_-]+/gu, " ");
 }
 
 function inferGoal(text: string): OpportunityIntentGoal {
@@ -181,10 +167,7 @@ export class DatabaseOpportunityIntentSource implements OpportunityIntentSource 
         .select()
         .from(goals)
         .where(
-          and(
-            eq(goals.userId, convertedUserId),
-            eq(goals.status, "active"),
-          ),
+          and(eq(goals.userId, convertedUserId), eq(goals.status, "active")),
         )
         .orderBy(desc(goals.updatedAt))
         .limit(10)
@@ -215,8 +198,7 @@ export class DatabaseOpportunityIntentSource implements OpportunityIntentSource 
 export class OpportunityIntentService {
   constructor(
     private readonly repository = new OpportunityJourneysRepository(),
-    private readonly source: OpportunityIntentSource =
-      new DatabaseOpportunityIntentSource(),
+    private readonly source: OpportunityIntentSource = new DatabaseOpportunityIntentSource(),
   ) {}
 
   async getCurrentIntent(userId: string) {

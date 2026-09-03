@@ -27,9 +27,7 @@ export const opportunityIntentInputSchema = z.object({
   readinessMode: z.enum(["apply_now", "prepare"]),
 });
 
-export type OpportunityIntentGoal = z.infer<
-  typeof opportunityIntentGoalSchema
->;
+export type OpportunityIntentGoal = z.infer<typeof opportunityIntentGoalSchema>;
 export type OpportunityIntentInput = z.infer<
   typeof opportunityIntentInputSchema
 >;

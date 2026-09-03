@@ -63,15 +63,12 @@ export function toEligibilityProfile(
       ? (value.location as Record<string, unknown>)
       : {};
 
-  const dateOfBirth = textValue(
-    value.dateOfBirth ?? value.date_of_birth,
-  );
+  const dateOfBirth = textValue(value.dateOfBirth ?? value.date_of_birth);
   const explicitAge = numberValue(value.age);
 
   return {
     country: textValue(value.country) ?? textValue(location.country),
     age: explicitAge ?? ageAt(dateOfBirth, now),
-    degree:
-      textValue(value.degree) ?? firstEducationDegree(value.education),
+    degree: textValue(value.degree) ?? firstEducationDegree(value.education),
   };
 }

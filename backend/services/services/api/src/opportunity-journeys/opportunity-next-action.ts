@@ -48,7 +48,9 @@ function progressFor(
     completedRequired: completed,
     totalRequired: required.length,
     percent:
-      required.length === 0 ? 0 : Math.round((completed / required.length) * 100),
+      required.length === 0
+        ? 0
+        : Math.round((completed / required.length) * 100),
   };
 }
 
@@ -64,7 +66,8 @@ function nextRequiredTask(
           task.status !== "skipped",
       )
       .sort((left, right) => {
-        const leftDue = dateValue(left.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const leftDue =
+          dateValue(left.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         const rightDue =
           dateValue(right.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         return leftDue - rightDue || left.position - right.position;
