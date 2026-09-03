@@ -1,0 +1,67 @@
+name: PR 6 Contract Fix Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr6
+    paths:
+      - ".github/workflows/pr6-fix-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr6
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - working-directory: edutu-web-app
+        run: npm ci
+      - name: Apply reviewed fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service_path = Path("edutu-web-app/src/services/opportunityJourney.ts")
+          service = service_path.read_text()
+          old = """      },
+      timeout: REQUEST_TIMEOUT_MS,
+    });"""
+          new = """      },
+    }, REQUEST_TIMEOUT_MS);"""
+          if old not in service:
+              raise SystemExit("timeout marker not found")
+          service_path.write_text(service.replace(old, new, 1))
+
+          test_path = Path("edutu-web-app/src/services/opportunityJourney.test.ts")
+          test = test_path.read_text()
+          old = """    const fetchSpy = vi
+      .spyOn(globalThis, \"fetch\")
+      .mockResolvedValue(response({ journey: {} }, 201));"""
+          new = """    const fetchSpy = vi
+      .spyOn(globalThis, \"fetch\")
+      .mockImplementation(async () => response({ journey: {} }, 201));"""
+          if old not in test:
+              raise SystemExit("response mock marker not found")
+          test_path.write_text(test.replace(old, new, 1))
+          PY
+      - name: Format touched files
+        working-directory: edutu-web-app
+        run: npx prettier --write src/services/opportunityJourney.ts src/services/opportunityJourney.test.ts
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add edutu-web-app/src/services/opportunityJourney.ts edutu-web-app/src/services/opportunityJourney.test.ts
+          git diff --cached --quiet || git commit -m "fix(web): correct journey request and response test"
+          git push origin HEAD:feat/opportunity-pipeline-pr6
