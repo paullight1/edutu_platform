@@ -1,0 +1,120 @@
+name: PR 8 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr8
+    paths:
+      - ".github/workflows/pr8-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr8
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+      - working-directory: edutumobile
+        run: npm ci
+      - name: Ensure one guarded home integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          home_path = Path("edutumobile/app/(app)/index.tsx")
+          home = home_path.read_text()
+          if 'IntentionalOpportunityHomeSection' not in home:
+              import_marker = 'import { useTheme } from "../../components/context/ThemeContext";'
+              import_addition = import_marker + '\nimport { useFeatureFlag } from "../../components/context/AppControlContext";\nimport IntentionalOpportunityHomeSection from "../../components/home/opportunity-path/IntentionalOpportunityHomeSection";'
+              if import_marker not in home:
+                  raise SystemExit('home import marker missing')
+              home = home.replace(import_marker, import_addition, 1)
+
+              user_marker = '    const userId = user?.id;'
+              if user_marker not in home:
+                  raise SystemExit('home user marker missing')
+              home = home.replace(
+                  user_marker,
+                  user_marker + '\n    const opportunityPipelineHomeEnabled = useFeatureFlag("opportunity_pipeline_home");',
+                  1,
+              )
+
+              start = home.find('                <BestForYouSection')
+              if start < 0:
+                  raise SystemExit('BestForYouSection start not found')
+              end = home.find('\n                />', start)
+              if end < 0:
+                  raise SystemExit('BestForYouSection end not found')
+              end += len('\n                />')
+              old_block = home[start:end]
+              indented_old = '\n'.join(
+                  '                    ' + line.lstrip()
+                  for line in old_block.splitlines()
+              )
+              replacement = (
+                  '                {opportunityPipelineHomeEnabled && userId && !isGuestBrowsing ? (\n'
+                  '                    <IntentionalOpportunityHomeSection\n'
+                  '                        userId={userId}\n'
+                  '                        getAuthToken={getToken}\n'
+                  '                    />\n'
+                  '                ) : (\n'
+                  f'{indented_old}\n'
+                  '                )}'
+              )
+              home = home[:start] + replacement + home[end:]
+              home_path.write_text(home)
+
+          card_path = Path("edutumobile/components/home/opportunity-path/FocusedRecommendationCard.tsx")
+          card = card_path.read_text()
+          card = card.replace(
+              '<Text style={styles.primaryText}>',
+              '<Text style={[styles.primaryText, { color: colors.background }]}>',
+          )
+          card = card.replace(
+              "primaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' }",
+              "primaryText: { fontSize: 13, fontWeight: '800' }",
+          )
+          card = card.replace(
+              "<Text style={[styles.badgeText, { color: colors.accent }]}> \n",
+              "<Text style={[styles.badgeText, { color: colors.accent }]}>\n",
+          )
+          card = card.replace(
+              "<Text style={[styles.effort, { color: colors.mutedForeground }]}> \n",
+              "<Text style={[styles.effort, { color: colors.mutedForeground }]}>\n",
+          )
+          card_path.write_text(card)
+          PY
+      - name: Format permanent PR 8 files
+        working-directory: edutumobile
+        run: >-
+          npx prettier --write
+          app/\(app\)/index.tsx
+          components/home/opportunity-path
+          packages/core/src/index.ts
+          packages/core/src/types/opportunityJourney.ts
+          packages/core/src/services/opportunityJourney.ts
+          packages/core/src/services/opportunityJourney.test.ts
+          packages/core/src/hooks/useOpportunityHome.ts
+          packages/core/src/hooks/useOpportunityJourney.ts
+      - name: Remove every temporary contents-write workflow
+        run: |
+          rm -f .github/workflows/pr8-home-integration-once.yml
+          rm -f .github/workflows/pr8-finalize-once.yml
+      - name: Commit final branch state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(mobile): finalize PR 8 review branch"
+          git push origin HEAD:feat/opportunity-pipeline-pr8
