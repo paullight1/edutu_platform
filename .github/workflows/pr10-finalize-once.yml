@@ -1,0 +1,179 @@
+name: PR 10 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr10
+    paths:
+      - ".github/workflows/pr10-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr10
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            backend/services/services/api/package-lock.json
+            admin/package-lock.json
+      - working-directory: backend/services/services/api
+        run: npm ci
+      - working-directory: admin
+        run: npm ci
+      - name: Integrate backend operations module and clean source imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          reminder_path = Path("backend/services/services/api/src/notifications/opportunity-journey-reminders.service.ts")
+          reminder = reminder_path.read_text()
+          reminder = reminder.replace('import { and, eq, isNull, sql } from "drizzle-orm";', 'import { sql } from "drizzle-orm";')
+          reminder = reminder.replace(
+              '''import {
+  notificationPreferences,
+  notificationQueue,
+  profiles,
+} from "../db/schema";''',
+              'import { notificationQueue } from "../db/schema";',
+          )
+          reminder = reminder.replace(
+              '''import {
+  opportunityJourneyEvents,
+  opportunityJourneyTasks,
+  userOpportunityJourneys,
+} from "../db/opportunity-journey.schema";''',
+              'import { opportunityJourneyEvents } from "../db/opportunity-journey.schema";',
+          )
+          reminder_path.write_text(reminder)
+
+          analytics_path = Path("backend/services/services/api/src/analytics/opportunity-pipeline-analytics.service.ts")
+          analytics = analytics_path.read_text()
+          analytics = analytics.replace('import { and, gte, lte } from "drizzle-orm";', 'import { sql } from "drizzle-orm";')
+          analytics = analytics.replace('import { opportunityJourneyEvents } from "../db/opportunity-journey.schema";\n', '')
+          old_source = '''  async listEvents(input: { from: Date; to: Date }) {
+    return this.database
+      .select({
+        userId: opportunityJourneyEvents.userId,
+        journeyId: opportunityJourneyEvents.journeyId,
+        opportunityId: opportunityJourneyEvents.opportunityId,
+        eventType: opportunityJourneyEvents.eventType,
+        source: opportunityJourneyEvents.source,
+        metadata: opportunityJourneyEvents.metadata,
+        createdAt: opportunityJourneyEvents.createdAt,
+      })
+      .from(opportunityJourneyEvents)
+      .where(
+        and(
+          gte(opportunityJourneyEvents.createdAt, input.from),
+          lte(opportunityJourneyEvents.createdAt, input.to),
+        ),
+      )
+      .execute();
+  }'''
+          new_source = '''  async listEvents(input: { from: Date; to: Date }) {
+    const result = await this.database.execute(sql`
+      select
+        event.user_id::text as "userId",
+        event.journey_id::text as "journeyId",
+        event.opportunity_id::text as "opportunityId",
+        event.event_type as "eventType",
+        event.source,
+        case
+          when event.event_type = 'journey_outcome' and journey.outcome is not null
+            then coalesce(event.metadata, '{}'::jsonb) || jsonb_build_object('outcome', journey.outcome)
+          else event.metadata
+        end as metadata,
+        event.created_at as "createdAt"
+      from public.opportunity_journey_events event
+      left join public.user_opportunity_journeys journey
+        on journey.id = event.journey_id
+      where event.created_at >= ${input.from}
+        and event.created_at <= ${input.to}
+      order by event.created_at asc, event.id asc
+    `);
+    return Array.isArray(result)
+      ? (result as OpportunityPipelineEventRow[])
+      : ((result as { rows?: OpportunityPipelineEventRow[] }).rows ?? []);
+  }'''
+          if old_source not in analytics:
+              raise SystemExit('analytics source marker missing')
+          analytics_path.write_text(analytics.replace(old_source, new_source, 1))
+
+          app_path = Path("backend/services/services/api/src/app.module.ts")
+          app = app_path.read_text()
+          if 'OpportunityPipelineOperationsModule' not in app:
+              import_marker = 'import { OpportunityJourneysModule } from "./opportunity-journeys/opportunity-journeys.module";'
+              if import_marker not in app:
+                  raise SystemExit('app module import marker missing')
+              app = app.replace(
+                  import_marker,
+                  import_marker + '\nimport { OpportunityPipelineOperationsModule } from "./opportunity-pipeline-operations.module";',
+                  1,
+              )
+              imports_marker = '    OpportunityJourneysModule,\n'
+              if imports_marker not in app:
+                  raise SystemExit('app module imports marker missing')
+              app = app.replace(
+                  imports_marker,
+                  imports_marker + '    OpportunityPipelineOperationsModule,\n',
+                  1,
+              )
+              app_path.write_text(app)
+
+          admin_path = Path("admin/src/App.tsx")
+          admin = admin_path.read_text()
+          if 'OpportunityPipeline' not in admin:
+              lines = admin.splitlines()
+              last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+              lines.insert(last_import + 1, 'import OpportunityPipeline from "./pages/OpportunityPipeline";')
+              admin = '\n'.join(lines) + ('\n' if admin.endswith('\n') else '')
+              if '<Routes' in admin:
+                  position = admin.find('>', admin.find('<Routes')) + 1
+                  admin = admin[:position] + '\n        <Route path="/opportunity-pipeline" element={<OpportunityPipeline />} />' + admin[position:]
+              elif 'children: [' in admin:
+                  admin = admin.replace(
+                      'children: [',
+                      'children: [\n      { path: "/opportunity-pipeline", element: <OpportunityPipeline /> },',
+                      1,
+                  )
+              else:
+                  raise SystemExit('admin route container not recognised')
+              admin_path.write_text(admin)
+          PY
+      - name: Format backend and admin files
+        run: |
+          cd backend/services/services/api
+          npx prettier --write \
+            src/app.module.ts \
+            src/opportunity-pipeline-operations.module.ts \
+            src/notifications/opportunity-journey-reminders.service.ts \
+            src/notifications/opportunity-journey-reminders.service.spec.ts \
+            src/notifications/opportunity-journey-reminders.cron.ts \
+            src/analytics/opportunity-pipeline-analytics.service.ts \
+            src/analytics/opportunity-pipeline-analytics.service.spec.ts \
+            src/analytics/opportunity-pipeline-analytics.controller.ts
+          cd ../../../../../admin
+          npx prettier --write \
+            src/App.tsx \
+            src/lib/opportunityPipelineApi.ts \
+            src/pages/OpportunityPipeline.tsx
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/pr10-finalize-once.yml
+      - name: Commit integrated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(operations): finalize PR 10 integration"
+          git push origin HEAD:feat/opportunity-pipeline-pr10
