@@ -1,0 +1,122 @@
+name: PR 7 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr7
+    paths:
+      - ".github/workflows/pr7-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr7
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - working-directory: edutu-web-app
+        run: npm ci
+      - name: Integrate focused home and routes conservatively
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dashboard_path = Path("edutu-web-app/src/components/Dashboard.tsx")
+          dashboard = dashboard_path.read_text()
+          if 'IntentionalOpportunityHomeSection' not in dashboard:
+              lines = dashboard.splitlines()
+              last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+              lines.insert(last_import + 1, 'import IntentionalOpportunityHomeSection from "./opportunity-path/IntentionalOpportunityHomeSection";')
+              lines.insert(last_import + 2, 'import { useWebFeatureFlag } from "../hooks/useWebFeatureFlag";')
+              dashboard = '\n'.join(lines) + ('\n' if dashboard.endswith('\n') else '')
+              function_markers = [
+                  'export default function Dashboard(',
+                  'function Dashboard(',
+                  'const Dashboard = (',
+              ]
+              start = next((dashboard.find(marker) for marker in function_markers if marker in dashboard), -1)
+              if start < 0:
+                  raise SystemExit('Dashboard function marker missing')
+              brace = dashboard.find('{', start)
+              if brace < 0:
+                  raise SystemExit('Dashboard body marker missing')
+              dashboard = dashboard[:brace+1] + '\n  const opportunityPipelineHomeEnabled = useWebFeatureFlag("opportunity_pipeline_home");' + dashboard[brace+1:]
+
+              render_markers = [
+                  '{topMatches.length > 0 && (',
+                  '{topMatches.length > 0 ? (',
+              ]
+              marker = next((m for m in render_markers if m in dashboard), None)
+              if marker:
+                  dashboard = dashboard.replace(marker, marker.replace('{', '{!opportunityPipelineHomeEnabled && ', 1), 1)
+                  insert_at = dashboard.find(marker.replace('{', '{!opportunityPipelineHomeEnabled && ', 1))
+                  dashboard = dashboard[:insert_at] + '<IntentionalOpportunityHomeSection />\n\n        ' + dashboard[insert_at:]
+              else:
+                  return_marker = dashboard.find('return (', brace)
+                  root_open = dashboard.find('>', return_marker)
+                  if return_marker < 0 or root_open < 0:
+                      raise SystemExit('Dashboard render insertion marker missing')
+                  dashboard = dashboard[:root_open+1] + '\n        <IntentionalOpportunityHomeSection />' + dashboard[root_open+1:]
+              dashboard_path.write_text(dashboard)
+
+          app_path = Path("edutu-web-app/src/App.tsx")
+          app = app_path.read_text()
+          if 'OpportunityDetailWithJourney' not in app:
+              lines = app.splitlines()
+              last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+              lines.insert(last_import + 1, 'import MyPathPage from "./components/MyPathPage";')
+              lines.insert(last_import + 2, 'import OpportunityDetailWithJourney from "./components/OpportunityDetailWithJourney";')
+              app = '\n'.join(lines) + ('\n' if app.endswith('\n') else '')
+              app = app.replace('element={<OpportunityDetail />}', 'element={<OpportunityDetailWithJourney />}', 1)
+              if '<Routes' in app:
+                  position = app.find('>', app.find('<Routes')) + 1
+                  app = app[:position] + '\n          <Route path="/app/my-path" element={<MyPathPage />} />\n          <Route path="/my-path" element={<MyPathPage />} />' + app[position:]
+              elif 'children: [' in app:
+                  app = app.replace(
+                      'children: [',
+                      'children: [\n      { path: "/app/my-path", element: <MyPathPage /> },\n      { path: "/my-path", element: <MyPathPage /> },',
+                      1,
+                  )
+              else:
+                  raise SystemExit('App route container not recognised')
+              app_path.write_text(app)
+          PY
+      - name: Format permanent PR 7 files
+        working-directory: edutu-web-app
+        run: >-
+          npx prettier --write
+          src/App.tsx
+          src/components/Dashboard.tsx
+          src/components/MyPathPage.tsx
+          src/components/OpportunityDetailWithJourney.tsx
+          src/components/opportunity-path/CurrentFocusCard.tsx
+          src/components/opportunity-path/CurrentFocusDialog.tsx
+          src/components/opportunity-path/NextActionCard.tsx
+          src/components/opportunity-path/ActivePursuitsSection.tsx
+          src/components/opportunity-path/FocusedRecommendationsSection.tsx
+          src/components/opportunity-path/IntentionalOpportunityHomeSection.tsx
+          src/components/opportunity-path/JourneyCard.tsx
+          src/components/opportunity-path/ApplicationConfirmationDialog.tsx
+          src/components/opportunity-path/OpportunityJourneyActions.tsx
+          src/components/opportunity-path/OpportunityJourneyActionMount.tsx
+          src/services/opportunityJourneySignals.ts
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/pr7-finalize-once.yml
+      - name: Commit integrated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(web): finalize PR 7 integration"
+          git push origin HEAD:feat/opportunity-pipeline-pr7
