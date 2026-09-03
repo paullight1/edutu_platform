@@ -35,18 +35,18 @@ export default function CurrentFocusCard({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+        { backgroundColor: colors.card, borderColor: colors.border },
       ]}
       accessibilityLabel={`Current focus: ${GOAL_LABELS[intent.goalKey] ?? intent.goalKey}`}
     >
       <View style={styles.headingRow}>
         <View style={styles.headingCopy}>
           <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>Current focus</Text>
-          <Text style={[styles.title, { color: colors.text }]}> 
+          <Text style={[styles.title, { color: colors.foreground }]}>
             {GOAL_LABELS[intent.goalKey] ?? intent.goalKey}
           </Text>
           {intent.source === 'inferred' ? (
-            <Text style={[styles.inferred, { color: colors.textMuted }]}>Based on your profile</Text>
+            <Text style={[styles.inferred, { color: colors.mutedForeground }]}>Based on your profile</Text>
           ) : null}
         </View>
         <Pressable
@@ -56,10 +56,10 @@ export default function CurrentFocusCard({
           hitSlop={8}
           style={({ pressed }) => [
             styles.editButton,
-            { backgroundColor: colors.surfaceAlt, opacity: pressed ? 0.7 : 1 },
+            { backgroundColor: colors.muted, opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Pencil size={16} color={colors.primary} />
+          <Pencil size={16} color={colors.accent} />
         </Pressable>
       </View>
       {tags.length > 0 ? (
@@ -67,9 +67,9 @@ export default function CurrentFocusCard({
           {tags.map((tag) => (
             <View
               key={tag}
-              style={[styles.tag, { backgroundColor: colors.primaryLight }]}
+              style={[styles.tag, { backgroundColor: colors.accentLight }]}
             >
-              <Text style={[styles.tagText, { color: colors.primary }]}>{tag}</Text>
+              <Text style={[styles.tagText, { color: colors.accent }]}>{tag}</Text>
             </View>
           ))}
         </View>
