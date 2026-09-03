@@ -5,6 +5,7 @@ export * from './types/chat';
 export * from './types/community';
 export * from './types/cv';
 export * from './types/feature-flags';
+export * from './types/opportunityJourney';
 
 export * from './services/supabase';
 export * from './services/productApi';
@@ -27,6 +28,7 @@ export * from './services/copilot';
 export * from './services/savedSearches';
 export * from './services/opportunitySubmissions';
 export * from './services/referrals';
+export * from './services/opportunityJourney';
 
 export * from './hooks/useChat';
 export * from './hooks/useOpportunities';
@@ -39,6 +41,8 @@ export * from './hooks/useCredits';
 export * from './hooks/useCreatorAccess';
 export * from './hooks/useFeatureFlags';
 export * from './hooks/useReferral';
+export * from './hooks/useOpportunityHome';
+export * from './hooks/useOpportunityJourney';
 export * from './utils/auth';
 export * from './utils/deadline';
 export * from './utils/feedAnchor';
