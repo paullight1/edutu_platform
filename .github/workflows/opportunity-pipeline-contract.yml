@@ -11,10 +11,12 @@ on:
       - "backend/services/services/api/src/db/schema.ts"
       - "backend/services/services/api/src/opportunities/eligibility-profile.util.ts"
       - "backend/services/services/api/src/opportunities/eligibility-profile.util.spec.ts"
+      - "backend/services/services/api/src/opportunities/eligibility.util.spec.ts"
       - "backend/services/services/api/src/opportunities/opportunity-ranking.service.ts"
       - "backend/services/services/api/src/opportunity-journeys/**"
       - "backend/services/services/api/test/task-opportunity-pipeline/**"
       - "backend/services/services/api/supabase/migrations/*opportunity_journey*.sql"
+      - "docs/operations/opportunity-pipeline-pr3-domain.md"
   workflow_dispatch:
 
 permissions:
@@ -54,6 +56,7 @@ jobs:
           opportunity-journey-schema.contract.spec.ts
           opportunity-journeys.repository.spec.ts
           eligibility-profile.util.spec.ts
+          eligibility.util.spec.ts
           opportunity-decision-support.spec.ts
           opportunity-intent.service.spec.ts
           opportunity-journey-templates.spec.ts
