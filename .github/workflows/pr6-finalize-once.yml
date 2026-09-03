@@ -1,0 +1,85 @@
+name: PR 6 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr6
+    paths:
+      - ".github/workflows/pr6-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr6
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - working-directory: edutu-web-app
+        run: npm ci
+      - name: Ensure the reviewed request and test fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service_path = Path("edutu-web-app/src/services/opportunityJourney.ts")
+          service = service_path.read_text()
+          service = service.replace(
+              """      },
+      timeout: REQUEST_TIMEOUT_MS,
+    });""",
+              """      },
+    }, REQUEST_TIMEOUT_MS);""",
+          )
+          service_path.write_text(service)
+
+          test_path = Path("edutu-web-app/src/services/opportunityJourney.test.ts")
+          test = test_path.read_text()
+          test = test.replace(
+              """    const fetchSpy = vi
+      .spyOn(globalThis, \"fetch\")
+      .mockResolvedValue(response({ journey: {} }, 201));""",
+              """    const fetchSpy = vi
+      .spyOn(globalThis, \"fetch\")
+      .mockImplementation(async () => response({ journey: {} }, 201));""",
+          )
+          test_path.write_text(test)
+          PY
+      - name: Format permanent PR 6 files
+        working-directory: edutu-web-app
+        run: >-
+          npx prettier --write
+          src/services/opportunityJourney.ts
+          src/services/opportunityJourney.test.ts
+          src/hooks/useOpportunityHome.ts
+          src/hooks/useOpportunityHome.test.tsx
+          src/hooks/useOpportunityJourney.ts
+          src/hooks/useOpportunityJourney.test.tsx
+          src/components/dashboard/DashboardOpportunityCard.tsx
+          src/components/dashboard/DashboardOpportunityCard.test.tsx
+          src/components/opportunity-path/JourneyStatusBadge.tsx
+          src/components/opportunity-path/JourneyStatusBadge.test.tsx
+          src/components/opportunity-path/OpportunityDecisionMeta.tsx
+          src/components/opportunity-path/OpportunityDecisionMeta.test.tsx
+      - name: Remove every temporary contents-write workflow
+        run: |
+          rm -f .github/workflows/pr6-fix-once.yml
+          rm -f .github/workflows/pr6-card-slots-once.yml
+          rm -f .github/workflows/pr6-finalize-once.yml
+      - name: Commit final branch state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(web): finalize PR 6 review branch"
+          git push origin HEAD:feat/opportunity-pipeline-pr6
