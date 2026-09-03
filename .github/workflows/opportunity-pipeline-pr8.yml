@@ -1,0 +1,48 @@
+name: Opportunity Pipeline PR 8 Mobile
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opportunity-pipeline-pr8.yml"
+      - "edutumobile/app/(app)/index.tsx"
+      - "edutumobile/components/home/opportunity-path/**"
+      - "edutumobile/packages/core/src/index.ts"
+      - "edutumobile/packages/core/src/types/opportunityJourney.ts"
+      - "edutumobile/packages/core/src/services/opportunityJourney*"
+      - "edutumobile/packages/core/src/hooks/useOpportunityHome*"
+      - "edutumobile/packages/core/src/hooks/useOpportunityJourney*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opportunity-pipeline-pr8-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-contract:
+    name: Mobile Journey Core + Existing Home
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: edutumobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact source SHA
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+      - run: npm ci
+      - name: Run focused mobile journey contracts
+        run: npm test -- opportunityJourney --runInBand
+      - run: npm run typecheck
+      - run: npm run lint
