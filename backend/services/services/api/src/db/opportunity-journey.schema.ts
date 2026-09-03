@@ -231,7 +231,7 @@ export const opportunityJourneyEvents = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull(),
     journeyId: uuid("journey_id").references(() => userOpportunityJourneys.id, {
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     intentId: uuid("intent_id").references(() => opportunityIntents.id, {
       onDelete: "set null",
