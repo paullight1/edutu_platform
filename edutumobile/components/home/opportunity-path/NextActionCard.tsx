@@ -19,25 +19,25 @@ export default function NextActionCard({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.primary },
+        { backgroundColor: colors.card, borderColor: colors.accent },
       ]}
     >
       <View style={styles.headingRow}>
-        <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
-          <CheckCircle2 size={20} color={colors.primary} />
+        <View style={[styles.icon, { backgroundColor: colors.accentLight }]}>
+          <CheckCircle2 size={20} color={colors.accent} />
         </View>
         <View style={styles.copy}>
           <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>Your next action</Text>
-          <Text style={[styles.title, { color: colors.text }]}>{action.label}</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{action.label}</Text>
           {action.dueAt ? (
-            <Text style={[styles.due, { color: colors.textMuted }]}>Due {new Date(action.dueAt).toLocaleDateString()}</Text>
+            <Text style={[styles.due, { color: colors.mutedForeground }]}>Due {new Date(action.dueAt).toLocaleDateString()}</Text>
           ) : null}
         </View>
       </View>
-      <View style={[styles.track, { backgroundColor: colors.surfaceAlt }]}>
+      <View style={[styles.track, { backgroundColor: colors.muted }]}>
         <View
           accessibilityLabel={`${percent}% complete`}
-          style={[styles.fill, { width: `${percent}%`, backgroundColor: colors.primary }]}
+          style={[styles.fill, { width: `${percent}%`, backgroundColor: colors.accent }]}
         />
       </View>
       <Pressable
@@ -49,8 +49,8 @@ export default function NextActionCard({
           { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.buttonText, { color: colors.textOnPrimary }]}>Continue</Text>
-        <ArrowRight size={17} color={colors.textOnPrimary} />
+        <Text style={[styles.buttonText, { color: colors.background }]}>Continue</Text>
+        <ArrowRight size={17} color={colors.background} />
       </Pressable>
     </View>
   );
