@@ -1,7 +1,5 @@
 import React from "react";
-import {
-  ChevronRight,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { usePersonalization } from "../../hooks/usePersonalization";
 import type { Opportunity } from "../../types/opportunity";
 import {
@@ -26,6 +24,9 @@ interface DashboardOpportunityCardProps {
   onOpen: (opportunity: Opportunity) => void;
   onToggleBookmark: (opportunity: Opportunity, event: React.MouseEvent) => void;
   onShare: (opportunity: Opportunity, event: React.MouseEvent) => void;
+  statusSlot?: React.ReactNode;
+  metaSlot?: React.ReactNode;
+  actionSlot?: React.ReactNode;
 }
 
 function formatOpportunityDeadline(deadline?: string | null) {
@@ -46,6 +47,9 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   opportunity,
   variant,
   onOpen,
+  statusSlot,
+  metaSlot,
+  actionSlot,
 }: DashboardOpportunityCardProps) {
   const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
 
@@ -59,6 +63,22 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
       ? deadlineBadge.shortLabel
       : formatOpportunityDeadline(opportunity.deadline);
   const deadlineClass = urgencyTextClasses(deadlineBadge.level);
+
+  const journeyStatusAndMeta =
+    statusSlot || metaSlot ? (
+      <div className="mt-2 space-y-2">
+        {statusSlot ? <div className="flex flex-wrap gap-2">{statusSlot}</div> : null}
+        {metaSlot}
+      </div>
+    ) : null;
+  const journeyActions = actionSlot ? (
+    <div
+      className="pointer-events-auto relative z-20 flex flex-wrap gap-2"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {actionSlot}
+    </div>
+  ) : null;
 
   if (variant === "list") {
     return (
@@ -105,8 +125,10 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
               <MatchScoreBadge score={match.score} minScore={40} />
             ) : null}
           </div>
+          {journeyStatusAndMeta}
         </div>
-        <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-1">
+        <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-2">
+          {journeyActions}
           <ChevronRight
             className="pointer-events-none text-text-muted group-hover:text-brand transition-colors"
             size={18}
@@ -161,6 +183,8 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           {match && match.score >= 40 ? (
             <TopMatchReason reason={match.reasons[0]} />
           ) : null}
+          {journeyStatusAndMeta}
+          {journeyActions ? <div className="mt-2">{journeyActions}</div> : null}
           <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-2xs font-semibold text-text-muted">
             {opportunity.location ? (
               <span className="truncate">{opportunity.location}</span>
@@ -226,6 +250,8 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           <span className="line-clamp-3 block min-w-0 break-words text-sm font-semibold leading-[1.16] text-text-primary">
             {opportunity.title}
           </span>
+          {journeyStatusAndMeta}
+          {journeyActions ? <div className="mt-2">{journeyActions}</div> : null}
           <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-2xs font-semibold leading-4 text-text-muted">
             {opportunity.location ? (
               <span className="truncate">{opportunity.location}</span>
@@ -287,6 +313,8 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         {match && match.score >= 40 ? (
           <TopMatchReason reason={match.reasons[0]} />
         ) : null}
+        {journeyStatusAndMeta}
+        {journeyActions ? <div className="mt-3">{journeyActions}</div> : null}
         <div className="mt-auto flex flex-col gap-1 pt-3 text-2xs font-medium text-text-muted sm:flex-row sm:items-center sm:justify-between">
           {opportunity.location ? (
             <span className="truncate">{opportunity.location}</span>

@@ -1,0 +1,57 @@
+name: Opportunity Pipeline PR 6 Web
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opportunity-pipeline-pr6.yml"
+      - "edutu-web-app/src/services/opportunityJourney*"
+      - "edutu-web-app/src/hooks/useOpportunityHome*"
+      - "edutu-web-app/src/hooks/useOpportunityJourney*"
+      - "edutu-web-app/src/components/dashboard/DashboardOpportunityCard*"
+      - "edutu-web-app/src/components/opportunity-path/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opportunity-pipeline-pr6-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-contract:
+    name: Web Journey Client + Existing Card
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact source SHA
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - name: Run focused web contracts
+        run: >-
+          npm test --
+          src/services/opportunityJourney.test.ts
+          src/hooks/useOpportunityHome.test.tsx
+          src/hooks/useOpportunityJourney.test.tsx
+          src/components/dashboard/DashboardOpportunityCard.test.tsx
+          src/components/opportunity-path/JourneyStatusBadge.test.tsx
+          src/components/opportunity-path/OpportunityDecisionMeta.test.tsx
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - name: Validate PWA output
+        working-directory: .
+        run: node scripts/validate-pwa-build.mjs edutu-web-app/dist
