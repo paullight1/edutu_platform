@@ -24,10 +24,7 @@ import { OpportunityShortlistService } from "./opportunity-shortlist.service";
     DatabaseOpportunityIntentSource,
     {
       provide: OpportunityIntentService,
-      inject: [
-        OpportunityJourneysRepository,
-        DatabaseOpportunityIntentSource,
-      ],
+      inject: [OpportunityJourneysRepository, DatabaseOpportunityIntentSource],
       useFactory: (
         repository: OpportunityJourneysRepository,
         source: DatabaseOpportunityIntentSource,

@@ -92,11 +92,15 @@ describe("OpportunityShortlistService", () => {
         expect.objectContaining({ title: "Opportunity 1" }),
       ]),
     });
-    expect((await service.getShortlist(USER_ID)).recommendations).toHaveLength(3);
-    expect((await service.getShortlist(USER_ID, 99)).recommendations).toHaveLength(
-      5,
+    expect((await service.getShortlist(USER_ID)).recommendations).toHaveLength(
+      3,
     );
-    expect(opportunitiesService.getPersonalizedRecommendations).toHaveBeenCalledWith(
+    expect(
+      (await service.getShortlist(USER_ID, 99)).recommendations,
+    ).toHaveLength(5);
+    expect(
+      opportunitiesService.getPersonalizedRecommendations,
+    ).toHaveBeenCalledWith(
       USER_ID,
       expect.objectContaining({ limit: 30, aiRerank: false }),
     );
@@ -123,7 +127,9 @@ describe("OpportunityShortlistService", () => {
     expect(result.recommendations.map((item) => item.title)).toEqual([
       "New choice",
     ]);
-    expect(opportunitiesService.getPersonalizedRecommendations).toHaveBeenCalledWith(
+    expect(
+      opportunitiesService.getPersonalizedRecommendations,
+    ).toHaveBeenCalledWith(
       USER_ID,
       expect.objectContaining({ excludeOpportunityIds: [excludedId] }),
     );
@@ -204,9 +210,7 @@ describe("OpportunityShortlistService", () => {
     await expect(service.getShortlist(USER_ID)).resolves.toMatchObject({
       degraded: true,
       degradedReasons: ["personalized_recommendations_unavailable"],
-      recommendations: [
-        expect.objectContaining({ title: "Catalog fallback" }),
-      ],
+      recommendations: [expect.objectContaining({ title: "Catalog fallback" })],
     });
     expect(repository.recordUserEvent).toHaveBeenCalledWith(
       USER_ID,

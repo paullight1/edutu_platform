@@ -145,9 +145,7 @@ export class OpportunityJourneysController {
     @Body(new ZodValidationPipe(createOpportunityJourneySchema))
     body: CreateOpportunityJourneyInput,
   ) {
-    return this.execute(() =>
-      this.journeysService.createJourney(userId, body),
-    );
+    return this.execute(() => this.journeysService.createJourney(userId, body));
   }
 
   @Get("opportunity-journeys/:journeyId")

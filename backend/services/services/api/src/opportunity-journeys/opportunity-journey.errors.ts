@@ -14,7 +14,8 @@ export type OpportunityJourneyDomainErrorCode =
   | "OPPORTUNITY_NOT_FOUND"
   | "JOURNEY_NOT_FOUND"
   | "TASK_NOT_FOUND"
-  | "INTENT_REQUIRED";
+  | "INTENT_REQUIRED"
+  | "INVALID_USER_ID";
 
 export class OpportunityJourneyDomainError extends Error {
   constructor(

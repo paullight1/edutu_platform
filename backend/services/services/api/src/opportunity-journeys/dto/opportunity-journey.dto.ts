@@ -26,26 +26,25 @@ export const createOpportunityJourneySchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(200),
 });
 
-export const transitionOpportunityJourneySchema = mutationIdentitySchema.extend({
-  state: z.enum(OPPORTUNITY_JOURNEY_STATES),
-});
+export const transitionOpportunityJourneySchema = mutationIdentitySchema.extend(
+  {
+    state: z.enum(OPPORTUNITY_JOURNEY_STATES),
+  },
+);
 
-export const setOpportunityJourneyPrioritySchema = mutationIdentitySchema.extend({
-  priority: z.enum(["primary", "secondary"]),
-});
+export const setOpportunityJourneyPrioritySchema =
+  mutationIdentitySchema.extend({
+    priority: z.enum(["primary", "secondary"]),
+  });
 
-export const updateOpportunityJourneyTaskSchema = mutationIdentitySchema.extend({
-  status: z.enum(["pending", "in_progress", "completed", "skipped"]),
-});
+export const updateOpportunityJourneyTaskSchema = mutationIdentitySchema.extend(
+  {
+    status: z.enum(["pending", "in_progress", "completed", "skipped"]),
+  },
+);
 
 export const opportunityJourneyOutcomeSchema = mutationIdentitySchema.extend({
-  outcome: z.enum([
-    "offer",
-    "rejected",
-    "withdrawn",
-    "no_response",
-    "expired",
-  ]),
+  outcome: z.enum(["offer", "rejected", "withdrawn", "no_response", "expired"]),
 });
 
 export const applicationMutationSchema = mutationIdentitySchema;

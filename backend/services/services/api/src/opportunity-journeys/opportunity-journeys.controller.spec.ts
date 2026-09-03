@@ -19,7 +19,9 @@ describe("OpportunityJourneysController", () => {
     };
     const journeysService = {
       listJourneys: jest.fn().mockResolvedValue([]),
-      createJourney: jest.fn().mockResolvedValue({ journey: { id: "journey" } }),
+      createJourney: jest
+        .fn()
+        .mockResolvedValue({ journey: { id: "journey" } }),
       getJourney: jest.fn().mockResolvedValue({ journey: { id: "journey" } }),
       transitionJourney: jest.fn().mockResolvedValue({ journey: {} }),
       setPriority: jest.fn().mockResolvedValue({ journey: {} }),

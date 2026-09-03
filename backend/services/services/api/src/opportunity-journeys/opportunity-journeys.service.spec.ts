@@ -71,11 +71,13 @@ function task(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createHarness(overrides: {
-  existing?: ReturnType<typeof journey> | null;
-  active?: Array<ReturnType<typeof journey>>;
-  foundOpportunity?: Record<string, unknown> | null;
-} = {}) {
+function createHarness(
+  overrides: {
+    existing?: ReturnType<typeof journey> | null;
+    active?: Array<ReturnType<typeof journey>>;
+    foundOpportunity?: Record<string, unknown> | null;
+  } = {},
+) {
   const state = {
     current: overrides.existing ?? null,
     tasks: [] as Array<ReturnType<typeof task>>,
@@ -107,11 +109,12 @@ function createHarness(overrides: {
     }),
     insertTasksIfAbsent: jest.fn(async (_userId, _journeyId, values) => {
       if (state.tasks.length === 0) {
-        state.tasks = values.map((value: Record<string, unknown>, index: number) =>
-          task({
-            id: `55555555-5555-4555-8555-${String(index + 1).padStart(12, "0")}`,
-            ...value,
-          }),
+        state.tasks = values.map(
+          (value: Record<string, unknown>, index: number) =>
+            task({
+              id: `55555555-5555-4555-8555-${String(index + 1).padStart(12, "0")}`,
+              ...value,
+            }),
         );
       }
       return state.tasks;
@@ -146,9 +149,16 @@ function createHarness(overrides: {
           ? opportunity()
           : overrides.foundOpportunity,
       ),
-    recordUserOpportunitySignal: jest.fn().mockResolvedValue({ recorded: true }),
+    recordUserOpportunitySignal: jest
+      .fn()
+      .mockResolvedValue({ recorded: true }),
   };
   const intentService = {
+    getProfileSnapshot: jest.fn().mockResolvedValue({
+      country: "Nigeria",
+      age: 24,
+      degree: "BSc",
+    }),
     ensureActiveIntent: jest.fn().mockResolvedValue({
       id: "44444444-4444-4444-8444-444444444444",
       goalKey: "study_funding",
@@ -282,11 +292,16 @@ describe("OpportunityJourneysService", () => {
     const { service, state, repository } = createHarness({ existing });
     state.tasks = [task({ status: "pending", required: true })];
 
-    const result = await service.updateTask(USER_ID, existing.id, state.tasks[0].id, {
-      status: "completed",
-      expectedVersion: 4,
-      idempotencyKey: "task-complete",
-    });
+    const result = await service.updateTask(
+      USER_ID,
+      existing.id,
+      state.tasks[0].id,
+      {
+        status: "completed",
+        expectedVersion: 4,
+        idempotencyKey: "task-complete",
+      },
+    );
 
     expect(repository.updateTaskStatus).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -325,9 +340,11 @@ describe("OpportunityJourneysService", () => {
       state: "application_opened",
       appliedAt: null,
     });
-    expect(opportunitiesService.recordUserOpportunitySignal).not.toHaveBeenCalledWith(
+    expect(
+      opportunitiesService.recordUserOpportunitySignal,
+    ).not.toHaveBeenCalledWith(
       USER_ID,
-      expect.objectContaining({ signalType: "applied" }),
+      expect.objectContaining({ signalType: "apply" }),
     );
 
     const confirmed = await service.confirmApplication(USER_ID, existing.id, {
@@ -344,9 +361,11 @@ describe("OpportunityJourneysService", () => {
         }),
       }),
     );
-    expect(opportunitiesService.recordUserOpportunitySignal).toHaveBeenCalledWith(
+    expect(
+      opportunitiesService.recordUserOpportunitySignal,
+    ).toHaveBeenCalledWith(
       USER_ID,
-      expect.objectContaining({ signalType: "applied" }),
+      expect.objectContaining({ signalType: "apply" }),
     );
   });
 

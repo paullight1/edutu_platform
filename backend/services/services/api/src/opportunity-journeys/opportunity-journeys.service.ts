@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { OpportunitiesService } from "../opportunities/opportunities.service";
-import type { OpportunityJourney, OpportunityJourneyTask } from "../db/opportunity-journey.schema";
+import type {
+  OpportunityJourney,
+  OpportunityJourneyTask,
+} from "../db/opportunity-journey.schema";
 import { OpportunityIntentService } from "./opportunity-intent.service";
 import { OpportunityJourneyOperationsRepository } from "./opportunity-journey-operations.repository";
 import {
@@ -8,7 +11,10 @@ import {
   type JourneyWithDeadline,
 } from "./opportunity-journeys.repository";
 import { buildOpportunityDecisionSupport } from "./opportunity-decision-support";
-import { estimateOpportunityEffortHours, scheduleOpportunityJourneyTasks } from "./opportunity-effort";
+import {
+  estimateOpportunityEffortHours,
+  scheduleOpportunityJourneyTasks,
+} from "./opportunity-effort";
 import { resolveOpportunityJourneyTemplate } from "./opportunity-journey-templates";
 import { deriveOpportunityNextAction } from "./opportunity-next-action";
 import {
@@ -50,7 +56,9 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function opportunityDeadline(opportunity: Record<string, unknown>): Date | null {
+function opportunityDeadline(
+  opportunity: Record<string, unknown>,
+): Date | null {
   const value =
     opportunity.deadline ?? opportunity.closeDate ?? opportunity.close_date;
   if (!value) return null;
@@ -112,7 +120,9 @@ export class OpportunityJourneysService {
     return record(opportunity);
   }
 
-  private async profileSnapshot(userId: string): Promise<Record<string, unknown>> {
+  private async profileSnapshot(
+    userId: string,
+  ): Promise<Record<string, unknown>> {
     try {
       return record(await this.intentService.getProfileSnapshot(userId));
     } catch {
@@ -145,10 +155,7 @@ export class OpportunityJourneysService {
     };
   }
 
-  async createJourney(
-    userId: string,
-    input: CreateOpportunityJourneyInput,
-  ) {
+  async createJourney(userId: string, input: CreateOpportunityJourneyInput) {
     const opportunity = await this.loadOpportunity(input.opportunityId);
     const deadline = opportunityDeadline(opportunity);
     if (
@@ -176,7 +183,9 @@ export class OpportunityJourneysService {
       matchReasons: stringArray(
         opportunity.matchReasons ?? opportunity.match_reasons,
       ),
-      matchRisks: stringArray(opportunity.matchRisks ?? opportunity.match_risks),
+      matchRisks: stringArray(
+        opportunity.matchRisks ?? opportunity.match_risks,
+      ),
       deadline,
     });
 
@@ -246,9 +255,7 @@ export class OpportunityJourneysService {
             );
           }
 
-          const hasPrimary = active.some(
-            (item) => item.priority === "primary",
-          );
+          const hasPrimary = active.some((item) => item.priority === "primary");
           const priority = input.priority
             ? input.priority === "primary" && hasPrimary
               ? "secondary"
@@ -275,11 +282,8 @@ export class OpportunityJourneysService {
                 patch: {
                   state: "pursuing",
                   priority,
-                  intentId: input.intentId ?? intent.id,
                   eligibilityStatus: support.eligibilityStatus,
-                  eligibilityConfidence: String(
-                    support.eligibilityConfidence,
-                  ),
+                  eligibilityConfidence: String(support.eligibilityConfidence),
                   eligibilityReasons: support.eligibilityReasons,
                   eligibilityBlockers: support.eligibilityBlockers,
                   matchScoreSnapshot: matchScore,
@@ -388,7 +392,10 @@ export class OpportunityJourneysService {
     }
 
     if (input.state === "ready_to_apply") {
-      const tasks = await this.repository.listTasksForJourney(userId, journeyId);
+      const tasks = await this.repository.listTasksForJourney(
+        userId,
+        journeyId,
+      );
       const incomplete = tasks.some(
         (task) => task.required && task.status !== "completed",
       );

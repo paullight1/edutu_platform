@@ -111,7 +111,9 @@ export class OpportunityJourneyOperationsRepository extends OpportunityJourneysR
 
   async withUserJourneyLock<T>(
     userId: string,
-    operation: (repository: OpportunityJourneyOperationsRepository) => Promise<T>,
+    operation: (
+      repository: OpportunityJourneyOperationsRepository,
+    ) => Promise<T>,
   ): Promise<T> {
     const databaseUserId = convertedUserId(userId);
     return this.operationsDatabase.transaction(async (transaction: any) => {
@@ -147,10 +149,7 @@ export class OpportunityJourneyOperationsRepository extends OpportunityJourneysR
         .where(
           and(
             eq(opportunityJourneyEvents.userId, databaseUserId),
-            eq(
-              opportunityJourneyEvents.idempotencyKey,
-              input.idempotencyKey,
-            ),
+            eq(opportunityJourneyEvents.idempotencyKey, input.idempotencyKey),
           ),
         )
         .limit(1)

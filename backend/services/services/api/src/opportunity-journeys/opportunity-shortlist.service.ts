@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { OpportunitiesService } from "../opportunities/opportunities.service";
 import { OpportunityIntentService } from "./opportunity-intent.service";
-import { OpportunityJourneysRepository } from "./opportunity-journeys.repository";
+import { OpportunityJourneyOperationsRepository } from "./opportunity-journey-operations.repository";
 import { buildOpportunityDecisionSupport } from "./opportunity-decision-support";
 import { estimateOpportunityEffortHours } from "./opportunity-effort";
 
@@ -60,10 +60,7 @@ function candidateId(candidate: Record<string, unknown>): string {
 
 function candidateDeadline(candidate: Record<string, unknown>): unknown {
   return (
-    candidate.deadline ??
-    candidate.closeDate ??
-    candidate.close_date ??
-    null
+    candidate.deadline ?? candidate.closeDate ?? candidate.close_date ?? null
   );
 }
 
@@ -73,12 +70,17 @@ function candidateIsRemote(candidate: Record<string, unknown>): boolean {
 
 function candidateType(candidate: Record<string, unknown>): string {
   return text(
-    candidate.type ?? candidate.canonicalCategory ?? candidate.canonical_category ?? candidate.category,
+    candidate.type ??
+      candidate.canonicalCategory ??
+      candidate.canonical_category ??
+      candidate.category,
   ).toLowerCase();
 }
 
 function candidateLocation(candidate: Record<string, unknown>): string {
-  return text(candidate.location ?? candidate.targetRegion ?? candidate.target_region).toLowerCase();
+  return text(
+    candidate.location ?? candidate.targetRegion ?? candidate.target_region,
+  ).toLowerCase();
 }
 
 function candidateMatchReasons(candidate: Record<string, unknown>): string[] {
@@ -124,10 +126,7 @@ function intentFit(
     score += 20;
   }
 
-  if (
-    intent.remotePreference === "required" &&
-    candidateIsRemote(candidate)
-  ) {
+  if (intent.remotePreference === "required" && candidateIsRemote(candidate)) {
     score += 20;
   } else if (
     intent.remotePreference === "required" &&
@@ -208,7 +207,7 @@ function toRecommendation(
 export class OpportunityShortlistService {
   constructor(
     private readonly opportunitiesService: OpportunitiesService,
-    private readonly repository: OpportunityJourneysRepository,
+    private readonly repository: OpportunityJourneyOperationsRepository,
     private readonly intentService: OpportunityIntentService,
   ) {}
 

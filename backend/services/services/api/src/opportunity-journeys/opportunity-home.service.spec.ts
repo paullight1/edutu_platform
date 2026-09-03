@@ -78,7 +78,9 @@ describe("OpportunityHomeService", () => {
 
   it("keeps active guidance available when recommendations degrade", async () => {
     const service = new OpportunityHomeService(
-      { getCurrentIntent: jest.fn().mockResolvedValue({ source: "inferred" }) } as never,
+      {
+        getCurrentIntent: jest.fn().mockResolvedValue({ source: "inferred" }),
+      } as never,
       {
         listJourneys: jest.fn().mockResolvedValue([
           {
