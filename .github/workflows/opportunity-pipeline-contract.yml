@@ -33,7 +33,7 @@ jobs:
   backend-contract:
     name: Opportunity Pipeline Backend Contract
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: backend/services/services/api
@@ -70,6 +70,8 @@ jobs:
           opportunity-journeys.service.spec.ts
           opportunity-home.service.spec.ts
           opportunity-journeys.controller.spec.ts
+      - name: Run route-level opportunity journey E2E
+        run: npm run test:e2e -- --runInBand opportunity-journeys.e2e-spec.ts
       - run: npm run lint
       - run: npm run build
       - name: Validate canonical migration timestamps
