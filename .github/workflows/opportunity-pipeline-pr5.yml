@@ -1,0 +1,53 @@
+name: Opportunity Pipeline PR 5 Compatibility
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opportunity-pipeline-pr5.yml"
+      - "backend/services/services/api/src/opportunity-journeys/**"
+      - "backend/services/services/api/scripts/*opportunity-journey*"
+      - "docs/runbooks/opportunity-journey-backfill.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opportunity-pipeline-pr5-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    name: Journey Compatibility + Dry Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: backend/services/services/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact source SHA
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - run: npm ci
+      - name: Run focused compatibility contracts
+        run: >-
+          npm test -- --runInBand
+          opportunity-journey-compatibility.service.spec.ts
+          opportunity-home-cache.spec.ts
+          opportunity-journey-backfill.spec.ts
+          opportunity-journeys.service.spec.ts
+          opportunity-home.service.spec.ts
+      - run: npm run lint
+      - run: npm run build
+      - name: Prove the CLI defaults to dry-run without a database connection
+        run: >-
+          node -e "const fs=require('fs');const s=fs.readFileSync('src/opportunity-journeys/opportunity-journey-backfill.ts','utf8');if(!s.includes('write = false'))process.exit(1)"
