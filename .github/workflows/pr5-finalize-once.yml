@@ -1,0 +1,242 @@
+name: PR 5 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr5
+    paths:
+      - ".github/workflows/pr5-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr5
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - working-directory: backend/services/services/api
+        run: npm ci
+      - name: Ensure compatibility effects and cache invalidation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("backend/services/services/api/src/opportunity-journeys/opportunity-journeys.service.ts")
+          text = path.read_text()
+          if 'private readonly compatibilityService?: OpportunityJourneyCompatibilityService' not in text:
+              text = text.replace(
+                  'import { Injectable } from "@nestjs/common";',
+                  'import { Injectable, Optional } from "@nestjs/common";',
+                  1,
+              )
+              import_marker = 'import { OpportunityJourneyDomainError } from "./opportunity-journey.errors";'
+              import_addition = import_marker + '\nimport { OpportunityJourneyCacheService } from "./opportunity-journey-cache.service";\nimport { OpportunityJourneyCompatibilityService } from "./opportunity-journey-compatibility.service";'
+              if import_marker not in text:
+                  raise SystemExit('service import marker missing')
+              text = text.replace(import_marker, import_addition, 1)
+
+              ctor_marker = '''    private readonly intentService: OpportunityIntentService,
+  ) {}'''
+              ctor_replacement = '''    private readonly intentService: OpportunityIntentService,
+    @Optional()
+    private readonly compatibilityService?: OpportunityJourneyCompatibilityService,
+    @Optional()
+    private readonly journeyCache?: OpportunityJourneyCacheService,
+  ) {}
+
+  private async finalizeMutation<T extends { journey: OpportunityJourney }>(
+    userId: string,
+    result: T,
+  ): Promise<T> {
+    if (this.compatibilityService) {
+      await this.compatibilityService.mirrorJourney(userId, result.journey);
+    }
+    if (this.journeyCache) {
+      await this.journeyCache.invalidateUser(userId);
+    }
+    return result;
+  }'''
+              if ctor_marker not in text:
+                  raise SystemExit('constructor marker missing')
+              text = text.replace(ctor_marker, ctor_replacement, 1)
+
+              create_marker = '''    try {
+      return await this.repository.withUserJourneyLock(
+        userId,
+        async (lockedRepository) => {'''
+              if create_marker not in text:
+                  raise SystemExit('create lock marker missing')
+              text = text.replace(
+                  create_marker,
+                  '''    try {
+      const result = await this.repository.withUserJourneyLock(
+        userId,
+        async (lockedRepository) => {''',
+                  1,
+              )
+              create_end = '''        },
+      );
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async getJourney'''
+              if create_end not in text:
+                  raise SystemExit('create end marker missing')
+              text = text.replace(
+                  create_end,
+                  '''        },
+      );
+      return this.finalizeMutation(userId, result);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async getJourney''',
+                  1,
+              )
+
+              transition_marker = '''      return this.toView(userId, updated);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async setPriority'''
+              if transition_marker not in text:
+                  raise SystemExit('transition end marker missing')
+              text = text.replace(
+                  transition_marker,
+                  '''      const result = await this.toView(userId, updated);
+      return this.finalizeMutation(userId, result);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async setPriority''',
+                  1,
+              )
+
+              priority_start = '''    try {
+      return await this.repository.withUserJourneyLock(
+        userId,
+        async (lockedRepository) => {'''
+              if priority_start not in text:
+                  raise SystemExit('priority lock marker missing')
+              text = text.replace(
+                  priority_start,
+                  '''    try {
+      const result = await this.repository.withUserJourneyLock(
+        userId,
+        async (lockedRepository) => {''',
+                  1,
+              )
+              priority_end = '''        },
+      );
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async updateTask'''
+              if priority_end not in text:
+                  raise SystemExit('priority end marker missing')
+              text = text.replace(
+                  priority_end,
+                  '''        },
+      );
+      return this.finalizeMutation(userId, result);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async updateTask''',
+                  1,
+              )
+
+              task_end = '''      return this.toView(userId, result.journey, opportunity, result.tasks);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async markApplicationOpened'''
+              if task_end not in text:
+                  raise SystemExit('task end marker missing')
+              text = text.replace(
+                  task_end,
+                  '''      const view = await this.toView(
+        userId,
+        result.journey,
+        opportunity,
+        result.tasks,
+      );
+      return this.finalizeMutation(userId, view);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+
+  async markApplicationOpened''',
+                  1,
+              )
+
+              protected_end = '''      return this.toView(userId, updated);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+}'''
+              if protected_end not in text:
+                  raise SystemExit('protected end marker missing')
+              text = text.replace(
+                  protected_end,
+                  '''      const result = await this.toView(userId, updated);
+      return this.finalizeMutation(userId, result);
+    } catch (error) {
+      return journeyError(error);
+    }
+  }
+}''',
+                  1,
+              )
+              path.write_text(text)
+          PY
+      - name: Format permanent PR 5 files
+        working-directory: backend/services/services/api
+        run: >-
+          npx prettier --write
+          src/opportunity-journeys/opportunity-journey-cache.service.ts
+          src/opportunity-journeys/opportunity-journey-compatibility.service.ts
+          src/opportunity-journeys/opportunity-journey-compatibility.service.spec.ts
+          src/opportunity-journeys/opportunity-journey-legacy.store.ts
+          src/opportunity-journeys/opportunity-home-cache.spec.ts
+          src/opportunity-journeys/opportunity-home.service.ts
+          src/opportunity-journeys/opportunity-journeys.module.ts
+          src/opportunity-journeys/opportunity-journeys.service.ts
+      - name: Remove every temporary contents-write workflow
+        run: |
+          rm -f .github/workflows/pr5-mutation-integration-once.yml
+          rm -f .github/workflows/pr5-finalize-once.yml
+      - name: Commit final integration state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(api): finalize PR 5 reconciliation integration"
+          git push origin HEAD:feat/opportunity-pipeline-pr5
