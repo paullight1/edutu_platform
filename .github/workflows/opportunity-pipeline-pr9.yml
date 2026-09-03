@@ -1,0 +1,50 @@
+name: Opportunity Pipeline PR 9 Mobile Experience
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opportunity-pipeline-pr9.yml"
+      - "edutumobile/app/(app)/_layout.tsx"
+      - "edutumobile/app/(app)/my-path/**"
+      - "edutumobile/app/(app)/opportunities/[id].tsx"
+      - "edutumobile/app/(app)/saved/**"
+      - "edutumobile/app/(app)/applied.tsx"
+      - "edutumobile/app/(app)/deadlines.tsx"
+      - "edutumobile/components/opportunity-path/**"
+      - "edutumobile/components/opportunity/OpportunityJourneyActions.tsx"
+      - "edutumobile/components/opportunity/ApplicationConfirmationSheet.tsx"
+      - "edutumobile/hooks/useOpportunityJourneyActions.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opportunity-pipeline-pr9-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-experience:
+    name: My Path + Truthful Application Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: edutumobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact source SHA
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+      - run: npm ci
+      - run: npm test -- --passWithNoTests --runInBand
+      - run: npm run typecheck
+      - run: npm run lint
