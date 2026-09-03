@@ -2,9 +2,10 @@
 -- backend service role. Corrections are recorded as new events rather than by
 -- mutating historical evidence.
 --
--- Events must also survive a future hard-delete or retention cleanup of the
--- parent journey. Replace the original cascade with SET NULL before adding the
--- immutability trigger.
+-- Events survive a future hard-delete or retention cleanup of the parent
+-- journey. PostgreSQL implements ON DELETE SET NULL as an update on the child,
+-- so the trigger permits only that narrow referential detach while rejecting
+-- every content mutation and all direct deletes.
 
 alter table public.opportunity_journey_events
   drop constraint if exists opportunity_journey_events_journey_id_fkey;
@@ -20,6 +21,34 @@ returns trigger
 language plpgsql
 as $$
 begin
+  if tg_op = 'UPDATE'
+    and old.journey_id is not null
+    and new.journey_id is null
+    and (
+      old.id,
+      old.user_id,
+      old.intent_id,
+      old.opportunity_id,
+      old.event_type,
+      old.source,
+      old.idempotency_key,
+      old.metadata,
+      old.created_at
+    ) is not distinct from (
+      new.id,
+      new.user_id,
+      new.intent_id,
+      new.opportunity_id,
+      new.event_type,
+      new.source,
+      new.idempotency_key,
+      new.metadata,
+      new.created_at
+    )
+  then
+    return new;
+  end if;
+
   raise exception 'opportunity journey events are immutable';
 end;
 $$;
