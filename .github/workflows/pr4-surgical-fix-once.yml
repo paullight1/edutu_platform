@@ -1,0 +1,117 @@
+name: PR 4 Surgical Fix Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr4
+    paths:
+      - ".github/workflows/pr4-surgical-fix-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr4
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - working-directory: backend/services/services/api
+        run: npm ci
+      - name: Apply reviewed PR 4 integrations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path("backend/services/services/api/src")
+
+          shortlist_path = root / "opportunity-journeys/opportunity-shortlist.service.ts"
+          shortlist = shortlist_path.read_text()
+          shortlist = shortlist.replace(
+              'import { OpportunityJourneysRepository } from "./opportunity-journeys.repository";',
+              'import { OpportunityJourneyOperationsRepository } from "./opportunity-journey-operations.repository";',
+          )
+          shortlist = shortlist.replace(
+              'private readonly repository: OpportunityJourneysRepository,',
+              'private readonly repository: OpportunityJourneyOperationsRepository,',
+          )
+          shortlist_path.write_text(shortlist)
+
+          intent_path = root / "opportunity-journeys/opportunity-intent.service.ts"
+          intent = intent_path.read_text()
+          marker = '  async getCurrentIntent(userId: string) {'
+          addition = (
+              '  async getProfileSnapshot(userId: string): Promise<Record<string, unknown>> {\n'
+              '    return (await this.source.load(userId)).profile;\n'
+              '  }\n\n'
+          )
+          if marker not in intent or 'async getProfileSnapshot' in intent:
+              raise SystemExit('intent profile marker missing or already changed')
+          intent_path.write_text(intent.replace(marker, addition + marker, 1))
+
+          errors_path = root / "opportunity-journeys/opportunity-journey.errors.ts"
+          errors = errors_path.read_text()
+          marker = '  | "INTENT_REQUIRED";'
+          if marker not in errors:
+              raise SystemExit('domain error marker missing')
+          errors_path.write_text(errors.replace(marker, '  | "INTENT_REQUIRED"\n  | "INVALID_USER_ID";', 1))
+
+          service_path = root / "opportunity-journeys/opportunity-journeys.service.ts"
+          service = service_path.read_text()
+          patch_marker = '                  intentId: input.intentId ?? intent.id,\n                  eligibilityStatus:'
+          if patch_marker not in service:
+              raise SystemExit('existing journey intent patch marker missing')
+          service = service.replace(
+              patch_marker,
+              '                  eligibilityStatus:',
+              1,
+          )
+          service_path.write_text(service)
+
+          spec_path = root / "opportunity-journeys/opportunity-journeys.service.spec.ts"
+          spec = spec_path.read_text()
+          source_marker = '  const intentService = {\n    ensureActiveIntent:'
+          if source_marker not in spec:
+              raise SystemExit('journey service spec intent marker missing')
+          spec = spec.replace(
+              source_marker,
+              '  const intentService = {\n    getProfileSnapshot: jest.fn().mockResolvedValue({\n      country: "Nigeria",\n      age: 24,\n      degree: "BSc",\n    }),\n    ensureActiveIntent:',
+              1,
+          )
+          spec = spec.replace('signalType: "applied"', 'signalType: "apply"')
+          spec_path.write_text(spec)
+          PY
+      - name: Format PR 4 source and contracts
+        working-directory: backend/services/services/api
+        run: >-
+          npx prettier --write
+          src/app.module.ts
+          src/opportunity-journeys/dto/opportunity-journey.dto.ts
+          src/opportunity-journeys/opportunity-home.service.ts
+          src/opportunity-journeys/opportunity-home.service.spec.ts
+          src/opportunity-journeys/opportunity-intent.service.ts
+          src/opportunity-journeys/opportunity-journey-operations.repository.ts
+          src/opportunity-journeys/opportunity-journey.errors.ts
+          src/opportunity-journeys/opportunity-journeys.controller.ts
+          src/opportunity-journeys/opportunity-journeys.controller.spec.ts
+          src/opportunity-journeys/opportunity-journeys.module.ts
+          src/opportunity-journeys/opportunity-journeys.service.ts
+          src/opportunity-journeys/opportunity-journeys.service.spec.ts
+          src/opportunity-journeys/opportunity-shortlist.service.ts
+          src/opportunity-journeys/opportunity-shortlist.service.spec.ts
+      - name: Commit reviewed integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/services/api/src
+          git diff --cached --quiet || git commit -m "style(api): integrate opportunity journey API"
+          git push origin HEAD:feat/opportunity-pipeline-pr4
