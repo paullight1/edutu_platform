@@ -8,7 +8,7 @@ const BASE_EFFORT_HOURS: Record<OpportunityTemplateKind, number> = {
   scholarship: 8,
   employment: 5,
   fellowship: 7,
-  grant: 14,
+  grant: 15,
   lightweight: 3,
 };
 
@@ -16,14 +16,20 @@ const REQUIREMENT_ADJUSTMENTS: Array<{
   pattern: RegExp;
   hours: number;
 }> = [
-  { pattern: /\b(transcript|academic record|certificate)\b/iu, hours: 2 },
-  { pattern: /\b(reference|recommendation letter|referee)\b/iu, hours: 2 },
-  { pattern: /\b(essay|statement|motivation letter)\b/iu, hours: 3 },
-  { pattern: /\b(portfolio|work sample)\b/iu, hours: 3 },
-  { pattern: /\b(budget|financial statement|accounts)\b/iu, hours: 4 },
-  { pattern: /\b(proposal|business plan|project plan)\b/iu, hours: 5 },
-  { pattern: /\b(video|pitch)\b/iu, hours: 3 },
-  { pattern: /\b(interview|assessment|test)\b/iu, hours: 3 },
+  { pattern: /\b(transcripts?|academic records?|certificates?)\b/iu, hours: 2 },
+  {
+    pattern: /\b(references?|recommendation letters?|referees?)\b/iu,
+    hours: 2,
+  },
+  { pattern: /\b(essays?|statements?|motivation letters?)\b/iu, hours: 3 },
+  { pattern: /\b(portfolios?|work samples?)\b/iu, hours: 3 },
+  {
+    pattern: /\b(budgets?|financial statements?|accounts?)\b/iu,
+    hours: 4,
+  },
+  { pattern: /\b(proposals?|business plans?|project plans?)\b/iu, hours: 5 },
+  { pattern: /\b(videos?|pitches?)\b/iu, hours: 3 },
+  { pattern: /\b(interviews?|assessments?|tests?)\b/iu, hours: 3 },
   { pattern: /\b(cv|resume|curriculum vitae)\b/iu, hours: 1 },
 ];
 
