@@ -1,0 +1,75 @@
+name: Opportunity Pipeline PR 10 Operations
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opportunity-pipeline-pr10.yml"
+      - "backend/services/services/api/src/opportunity-pipeline-operations.module.ts"
+      - "backend/services/services/api/src/app.module.ts"
+      - "backend/services/services/api/src/notifications/opportunity-journey-reminders*"
+      - "backend/services/services/api/src/analytics/opportunity-pipeline-analytics*"
+      - "admin/src/App.tsx"
+      - "admin/src/lib/opportunityPipelineApi.ts"
+      - "admin/src/pages/OpportunityPipeline.tsx"
+      - "docs/analytics/opportunity-pipeline-event-dictionary.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opportunity-pipeline-pr10-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-operations:
+    name: Journey Reminders + Funnel Analytics
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: backend/services/services/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact source SHA
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/services/services/api/package-lock.json
+      - run: npm ci
+      - name: Run focused operations contracts
+        run: >-
+          npm test -- --runInBand
+          opportunity-journey-reminders.service.spec.ts
+          opportunity-pipeline-analytics.service.spec.ts
+      - run: npm run lint
+      - run: npm run build
+
+  admin-report:
+    name: Opportunity Pipeline Admin Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          VITE_BACKEND_URL: https://api.invalid.example
