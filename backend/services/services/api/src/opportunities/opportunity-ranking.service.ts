@@ -45,6 +45,7 @@ import {
   mergePreferencePatch,
 } from "./profile-fit.util";
 import { checkEligibility } from "./eligibility.util";
+import { toEligibilityProfile } from "./eligibility-profile.util";
 import {
   HIDDEN_GEM_KIND,
   HIDDEN_GEM_REASON,
@@ -447,7 +448,7 @@ export class OpportunityRankingService {
     // O(1) membership instead of Array.includes per candidate (was O(n·m)).
     const dismissedIdSet = new Set(dismissedIds);
 
-    const eligibilityProfile = this.toEligibilityProfile(profile);
+    const eligibilityProfile = toEligibilityProfile(profile);
 
     const scored = rows
       .filter((row) => !dismissedIdSet.has(row.id))
@@ -577,7 +578,7 @@ export class OpportunityRankingService {
     ]);
 
     const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
-    const eligibilityProfile = this.toEligibilityProfile(profile);
+    const eligibilityProfile = toEligibilityProfile(profile);
     const scores = rows.map((row) => {
       const ranked = this.rankCandidate(row, {
         profile,
@@ -1090,26 +1091,6 @@ export class OpportunityRankingService {
     }
 
     return scores;
-  }
-
-  /**
-   * Maps either profile shape the pipeline sees — the inline
-   * RecommendationQueryDto profile or a raw `profiles` DB row — onto the flat
-   * shape `checkEligibility` expects. Accepts both camelCase (`dateOfBirth`)
-   * and snake_case (`date_of_birth`) DOB keys.
-   */
-  private toEligibilityProfile(
-    profile: RecommendationQueryDto["profile"] | Record<string, unknown> | null,
-  ) {
-    const p = (profile ?? {}) as Record<string, unknown>;
-    const age = typeof p.age === "number" ? p.age : null;
-    const dob = p.dateOfBirth ?? p.date_of_birth ?? null;
-    return {
-      country: typeof p.country === "string" ? p.country : null,
-      age,
-      dateOfBirth: typeof dob === "string" ? dob : null,
-      degree: typeof p.degree === "string" ? p.degree : null,
-    };
   }
 
   private async getUserProfile(userId: string) {

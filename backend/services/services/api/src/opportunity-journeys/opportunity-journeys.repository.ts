@@ -75,7 +75,7 @@ export interface UpdateJourneyVersionedInput extends OpportunityJourneyEventInpu
   patch: OpportunityJourneyPatch;
 }
 
-export interface ReplaceActiveIntentEvent extends OpportunityJourneyEventInput {}
+export type ReplaceActiveIntentEvent = OpportunityJourneyEventInput;
 
 export type ReplaceActiveIntentInput = Omit<
   NewOpportunityIntent,
