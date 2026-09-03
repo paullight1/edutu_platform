@@ -1,0 +1,163 @@
+name: PR 9 Finalize Once
+
+on:
+  push:
+    branches:
+      - feat/opportunity-pipeline-pr9
+    paths:
+      - ".github/workflows/pr9-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == 'paullight1/edutu_platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/opportunity-pipeline-pr9
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: edutumobile/package-lock.json
+      - working-directory: edutumobile
+        run: npm ci
+      - name: Integrate navigation, detail action, and legacy notices
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          layout_path = Path("edutumobile/app/(app)/_layout.tsx")
+          layout = layout_path.read_text()
+          if 'opportunityMyPathEnabled' not in layout:
+              if 'useFeatureFlag' not in layout:
+                  lines = layout.splitlines()
+                  last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+                  lines.insert(last_import + 1, 'import { useFeatureFlag } from "../../components/context/AppControlContext";')
+                  layout = '\n'.join(lines) + ('\n' if layout.endswith('\n') else '')
+              function_markers = ['export default function', 'function AppLayout', 'function Layout']
+              start = next((layout.find(marker) for marker in function_markers if marker in layout), -1)
+              if start < 0:
+                  raise SystemExit('layout function marker missing')
+              brace = layout.find('{', start)
+              layout = layout[:brace+1] + '\n  const opportunityMyPathEnabled = useFeatureFlag("opportunity_my_path");\n  const opportunityNavigationEnabled = useFeatureFlag("opportunity_pipeline_navigation");' + layout[brace+1:]
+              route_replacements = [
+                  ('href: "/roadmaps"', 'href: opportunityMyPathEnabled ? "/my-path" : "/roadmaps"'),
+                  ("href: '/roadmaps'", "href: opportunityMyPathEnabled ? '/my-path' : '/roadmaps'"),
+                  ('route: "/roadmaps"', 'route: opportunityMyPathEnabled ? "/my-path" : "/roadmaps"'),
+                  ("route: '/roadmaps'", "route: opportunityMyPathEnabled ? '/my-path' : '/roadmaps'"),
+              ]
+              replaced = False
+              for old, new in route_replacements:
+                  if old in layout:
+                      layout = layout.replace(old, new, 1)
+                      replaced = True
+                      break
+              if not replaced:
+                  raise SystemExit('Plan route marker missing')
+              label_replacements = [
+                  ('label: "Plan"', 'label: opportunityNavigationEnabled ? "My Path" : "Plan"'),
+                  ("label: 'Plan'", "label: opportunityNavigationEnabled ? 'My Path' : 'Plan'"),
+                  ('title: "Plan"', 'title: opportunityNavigationEnabled ? "My Path" : "Plan"'),
+                  ("title: 'Plan'", "title: opportunityNavigationEnabled ? 'My Path' : 'Plan'"),
+              ]
+              for old, new in label_replacements:
+                  if old in layout:
+                      layout = layout.replace(old, new, 1)
+                      break
+              layout_path.write_text(layout)
+
+          detail_path = Path("edutumobile/app/(app)/opportunities/[id].tsx")
+          detail = detail_path.read_text()
+          if 'OpportunityJourneyActions' not in detail:
+              lines = detail.splitlines()
+              last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+              lines.insert(last_import + 1, 'import OpportunityJourneyActions from "../../../components/opportunity/OpportunityJourneyActions";')
+              lines.insert(last_import + 2, 'import { useFeatureFlag } from "../../../components/context/AppControlContext";')
+              detail = '\n'.join(lines) + ('\n' if detail.endswith('\n') else '')
+              function_start = next((detail.find(marker) for marker in ['export default function', 'function OpportunityDetail'] if marker in detail), -1)
+              if function_start < 0:
+                  raise SystemExit('detail function marker missing')
+              brace = detail.find('{', function_start)
+              detail = detail[:brace+1] + '\n  const opportunityStateActionsEnabled = useFeatureFlag("opportunity_state_actions");' + detail[brace+1:]
+              sticky = detail.find('<StickyApplyBar')
+              if sticky < 0:
+                  raise SystemExit('StickyApplyBar marker missing')
+              sticky_end = detail.find('/>', sticky)
+              if sticky_end < 0:
+                  raise SystemExit('StickyApplyBar end missing')
+              sticky_end += 2
+              old_sticky = detail[sticky:sticky_end]
+              replacement = '''{opportunityStateActionsEnabled && user?.id ? (
+            <OpportunityJourneyActions
+              userId={user.id}
+              opportunityId={String(opportunity.id)}
+              title={opportunity.title ?? "Opportunity"}
+              applicationUrl={
+                opportunity.applicationUrl ?? opportunity.applyUrl ?? null
+              }
+              getAuthToken={getToken}
+              onOpenMyPath={() =>
+                router.push({
+                  pathname: "/my-path",
+                  params: { journey: String(opportunity.id) },
+                } as never)
+              }
+            />
+          ) : (
+            ''' + old_sticky + '''
+          )}'''
+              detail = detail[:sticky] + replacement + detail[sticky_end:]
+              detail_path.write_text(detail)
+
+          notices = [
+              (Path("edutumobile/app/(app)/saved/index.tsx"), 'discover'),
+              (Path("edutumobile/app/(app)/applied.tsx"), 'applied'),
+              (Path("edutumobile/app/(app)/deadlines.tsx"), 'pursuing'),
+          ]
+          for path, stage in notices:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              if 'LegacyPathNotice' in text:
+                  continue
+              lines = text.splitlines()
+              last_import = max(i for i, line in enumerate(lines) if line.startswith('import '))
+              relative = '../../../components/opportunity-path/LegacyPathNotice' if '/saved/' in str(path) else '../../components/opportunity-path/LegacyPathNotice'
+              lines.insert(last_import + 1, f'import LegacyPathNotice from "{relative}";')
+              text = '\n'.join(lines) + ('\n' if text.endswith('\n') else '')
+              return_pos = text.find('return (')
+              root_open = text.find('>', return_pos)
+              if return_pos < 0 or root_open < 0:
+                  raise SystemExit(f'legacy screen render marker missing: {path}')
+              text = text[:root_open+1] + f'\n      <LegacyPathNotice stage="{stage}" />' + text[root_open+1:]
+              path.write_text(text)
+          PY
+      - name: Format permanent PR 9 files
+        working-directory: edutumobile
+        run: >-
+          npx prettier --write
+          app/\(app\)/_layout.tsx
+          app/\(app\)/my-path/index.tsx
+          app/\(app\)/opportunities/\[id\].tsx
+          app/\(app\)/saved/index.tsx
+          app/\(app\)/applied.tsx
+          app/\(app\)/deadlines.tsx
+          components/opportunity-path
+          components/opportunity/OpportunityJourneyActions.tsx
+          components/opportunity/ApplicationConfirmationSheet.tsx
+          hooks/useOpportunityJourneyActions.ts
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/pr9-finalize-once.yml
+      - name: Commit integrated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(mobile): finalize PR 9 integration"
+          git push origin HEAD:feat/opportunity-pipeline-pr9
