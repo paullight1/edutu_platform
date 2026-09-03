@@ -54,6 +54,7 @@ jobs:
           npm test -- --runInBand
           opportunity-journey-state.spec.ts
           opportunity-journey-schema.contract.spec.ts
+          opportunity-journey-event-immutability.spec.ts
           opportunity-journeys.repository.spec.ts
           eligibility-profile.util.spec.ts
           eligibility.util.spec.ts
