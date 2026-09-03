@@ -1,13 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { BookmarkPlus, ChevronRight, X } from 'lucide-react-native';
-import { useTheme } from '../../context/ThemeContext';
-import type { IntentRecommendationView } from '@edutu/core';
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BookmarkPlus, ChevronRight, X } from "lucide-react-native";
+import { useTheme } from "../../context/ThemeContext";
+import type { IntentRecommendationView } from "@edutu/core";
 
 const ELIGIBILITY_LABELS = {
-  eligible: 'Eligible',
-  likely: 'Likely eligible',
-  unclear: 'Check eligibility',
-  ineligible: 'Not eligible',
+  eligible: "Eligible",
+  likely: "Likely eligible",
+  unclear: "Check eligibility",
+  ineligible: "Not eligible",
 } as const;
 
 export default function FocusedRecommendationCard({
@@ -19,7 +19,7 @@ export default function FocusedRecommendationCard({
   onPass,
 }: {
   item: IntentRecommendationView;
-  busyAction?: 'pursue' | 'shortlist' | 'pass' | null;
+  busyAction?: "pursue" | "shortlist" | "pass" | null;
   onOpen: () => void;
   onPursue: () => void;
   onShortlist: () => void;
@@ -27,10 +27,11 @@ export default function FocusedRecommendationCard({
 }) {
   const { colors } = useTheme();
   const organization =
-    typeof item.organization === 'string' ? item.organization : null;
+    typeof item.organization === "string" ? item.organization : null;
   const reason = item.matchReasons[0];
   const risk = item.matchRisks[0];
-  const disabled = Boolean(busyAction) || item.eligibilityStatus === 'ineligible';
+  const disabled =
+    Boolean(busyAction) || item.eligibilityStatus === "ineligible";
 
   return (
     <View
@@ -43,7 +44,10 @@ export default function FocusedRecommendationCard({
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.title}`}
         onPress={onOpen}
-        style={({ pressed }) => [styles.openArea, { opacity: pressed ? 0.75 : 1 }]}
+        style={({ pressed }) => [
+          styles.openArea,
+          { opacity: pressed ? 0.75 : 1 },
+        ]}
       >
         <View style={styles.headingRow}>
           <View style={styles.headingCopy}>
@@ -66,12 +70,12 @@ export default function FocusedRecommendationCard({
         </View>
         <View style={styles.metaRow}>
           <View style={[styles.badge, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.badgeText, { color: colors.accent }]}> 
+            <Text style={[styles.badgeText, { color: colors.accent }]}>
               {ELIGIBILITY_LABELS[item.eligibilityStatus]}
             </Text>
           </View>
-          {typeof item.estimatedEffortHours === 'number' ? (
-            <Text style={[styles.effort, { color: colors.mutedForeground }]}> 
+          {typeof item.estimatedEffortHours === "number" ? (
+            <Text style={[styles.effort, { color: colors.mutedForeground }]}>
               About {item.estimatedEffortHours}h preparation
             </Text>
           ) : null}
@@ -81,7 +85,9 @@ export default function FocusedRecommendationCard({
             numberOfLines={2}
             style={[styles.reason, { color: colors.textSecondary }]}
           >
-            <Text style={[styles.strong, { color: colors.foreground }]}>Why it fits: </Text>
+            <Text style={[styles.strong, { color: colors.foreground }]}>
+              Why it fits:{" "}
+            </Text>
             {reason}
           </Text>
         ) : null}
@@ -110,8 +116,8 @@ export default function FocusedRecommendationCard({
             },
           ]}
         >
-          <Text style={styles.primaryText}>
-            {busyAction === 'pursue' ? 'Starting…' : 'Pursue'}
+          <Text style={[styles.primaryText, { color: colors.background }]}>
+            {busyAction === "pursue" ? "Starting…" : "Pursue"}
           </Text>
         </Pressable>
         <Pressable
@@ -129,7 +135,9 @@ export default function FocusedRecommendationCard({
           ]}
         >
           <BookmarkPlus size={16} color={colors.accent} />
-          <Text style={[styles.secondaryText, { color: colors.foreground }]}>Save</Text>
+          <Text style={[styles.secondaryText, { color: colors.foreground }]}>
+            Save
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -150,23 +158,57 @@ export default function FocusedRecommendationCard({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
+  card: { borderWidth: 1, borderRadius: 18, overflow: "hidden" },
   openArea: { padding: 15, gap: 8 },
-  headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  headingRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   headingCopy: { flex: 1 },
-  title: { fontSize: 16, lineHeight: 21, fontWeight: '800' },
+  title: { fontSize: 16, lineHeight: 21, fontWeight: "800" },
   organization: { fontSize: 12, marginTop: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   badge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  badgeText: { fontSize: 11, fontWeight: '800' },
-  effort: { fontSize: 11, fontWeight: '600' },
+  badgeText: { fontSize: 11, fontWeight: "800" },
+  effort: { fontSize: 11, fontWeight: "600" },
   reason: { fontSize: 12, lineHeight: 17 },
   risk: { fontSize: 12, lineHeight: 17 },
-  strong: { fontWeight: '800' },
-  actions: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  primaryButton: { minHeight: 42, flex: 1, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  primaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  secondaryButton: { minHeight: 42, borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  secondaryText: { fontSize: 13, fontWeight: '800' },
-  passButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  strong: { fontWeight: "800" },
+  actions: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "transparent",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+  },
+  primaryButton: {
+    minHeight: 42,
+    flex: 1,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  primaryText: { fontSize: 13, fontWeight: "800" },
+  secondaryButton: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  secondaryText: { fontSize: 13, fontWeight: "800" },
+  passButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

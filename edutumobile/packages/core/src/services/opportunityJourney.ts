@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApiBaseUrl, type GetAuthToken } from './productApi';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApiBaseUrl, type GetAuthToken } from "./productApi";
 import type {
   OpportunityHomeResponse,
   OpportunityIntentView,
@@ -9,16 +9,16 @@ import type {
   OpportunityJourneyView,
   OpportunityPublicStage,
   QueuedOpportunityJourneyWrite,
-} from '../types/opportunityJourney';
+} from "../types/opportunityJourney";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const SNAPSHOT_PREFIX = 'opportunity-journey:snapshot:v1';
-const QUEUE_KEY = 'opportunity-journey:write-queue:v1';
+const SNAPSHOT_PREFIX = "opportunity-journey:snapshot:v1";
+const QUEUE_KEY = "opportunity-journey:write-queue:v1";
 
 export interface OpportunityJourneyErrorBody {
   code?: string;
   message?: string;
-  currentJourney?: OpportunityJourneyView['journey'];
+  currentJourney?: OpportunityJourneyView["journey"];
   [key: string]: unknown;
 }
 
@@ -29,7 +29,7 @@ export class OpportunityJourneyApiError extends Error {
     public readonly body: OpportunityJourneyErrorBody,
   ) {
     super(message);
-    this.name = 'OpportunityJourneyApiError';
+    this.name = "OpportunityJourneyApiError";
   }
 }
 
@@ -49,7 +49,7 @@ async function tokenWithTimeout(
     getAuthToken(),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
   ]);
-  if (!token) throw new Error('A current authentication token is required.');
+  if (!token) throw new Error("A current authentication token is required.");
   return token;
 }
 
@@ -65,12 +65,12 @@ async function request<T>(
     const token = await tokenWithTimeout(getAuthToken, timeoutMs);
     const hasBody = options.body !== undefined && options.body !== null;
     const response = await fetch(
-      `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`,
+      `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`,
       {
         ...options,
         headers: {
-          Accept: 'application/json',
-          ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+          Accept: "application/json",
+          ...(hasBody ? { "Content-Type": "application/json" } : {}),
           ...(options.headers ?? {}),
           Authorization: `Bearer ${token}`,
         },
@@ -79,9 +79,11 @@ async function request<T>(
     );
 
     if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as OpportunityJourneyErrorBody;
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as OpportunityJourneyErrorBody;
       throw new OpportunityJourneyApiError(
-        typeof body.message === 'string'
+        typeof body.message === "string"
           ? body.message
           : `Opportunity journey request failed with ${response.status}`,
         response.status,
@@ -134,7 +136,9 @@ async function readQueue(): Promise<QueuedOpportunityJourneyWrite[]> {
   if (!raw) return [];
   try {
     const values = JSON.parse(raw) as unknown;
-    return Array.isArray(values) ? (values as QueuedOpportunityJourneyWrite[]) : [];
+    return Array.isArray(values)
+      ? (values as QueuedOpportunityJourneyWrite[])
+      : [];
   } catch {
     return [];
   }
@@ -147,13 +151,14 @@ async function writeQueue(
 }
 
 export function createOpportunityJourneyIdempotencyKey(prefix: string): string {
-  const random = globalThis.crypto?.randomUUID?.() ??
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `${prefix}:${random}`;
 }
 
 export async function queueOpportunityJourneyWrite(
-  input: Omit<QueuedOpportunityJourneyWrite, 'id' | 'createdAt' | 'attempts'>,
+  input: Omit<QueuedOpportunityJourneyWrite, "id" | "createdAt" | "attempts">,
 ): Promise<QueuedOpportunityJourneyWrite> {
   const queue = await readQueue();
   const existing = queue.find(
@@ -165,7 +170,7 @@ export async function queueOpportunityJourneyWrite(
 
   const created: QueuedOpportunityJourneyWrite = {
     ...input,
-    id: createOpportunityJourneyIdempotencyKey('queued-write'),
+    id: createOpportunityJourneyIdempotencyKey("queued-write"),
     createdAt: new Date().toISOString(),
     attempts: 0,
   };
@@ -191,7 +196,7 @@ function shouldQueue(error: unknown): boolean {
 async function mutateWithQueue<T>(input: {
   userId: string;
   path: string;
-  method: 'POST' | 'PUT' | 'PATCH';
+  method: "POST" | "PUT" | "PATCH";
   body: Record<string, unknown>;
   idempotencyKey: string;
   expectedVersion?: number;
@@ -203,8 +208,8 @@ async function mutateWithQueue<T>(input: {
       {
         method: input.method,
         body: JSON.stringify(input.body),
-        ...(input.method === 'PUT'
-          ? { headers: { 'Idempotency-Key': input.idempotencyKey } }
+        ...(input.method === "PUT"
+          ? { headers: { "Idempotency-Key": input.idempotencyKey } }
           : {}),
       },
       input.getAuthToken,
@@ -229,7 +234,10 @@ async function mutateWithQueue<T>(input: {
 export async function replayOpportunityJourneyWrites(
   userId: string,
   getAuthToken: GetAuthToken,
-): Promise<{ completed: string[]; remaining: QueuedOpportunityJourneyWrite[] }> {
+): Promise<{
+  completed: string[];
+  remaining: QueuedOpportunityJourneyWrite[];
+}> {
   const queue = await readQueue();
   const completed: string[] = [];
   const remaining: QueuedOpportunityJourneyWrite[] = [];
@@ -245,8 +253,8 @@ export async function replayOpportunityJourneyWrites(
         {
           method: item.method,
           body: JSON.stringify(item.body),
-          ...(item.method === 'PUT'
-            ? { headers: { 'Idempotency-Key': item.idempotencyKey } }
+          ...(item.method === "PUT"
+            ? { headers: { "Idempotency-Key": item.idempotencyKey } }
             : {}),
         },
         getAuthToken,
@@ -275,12 +283,12 @@ async function readWithSnapshot<T>(input: {
   try {
     const data = await request<T>(input.path, {}, input.getAuthToken);
     await writeSnapshot(input.userId, input.resource, data);
-    return { data, isStale: false, source: 'network' };
+    return { data, isStale: false, source: "network" };
   } catch {
     const cached = await readSnapshot<T>(input.userId, input.resource);
     return cached
-      ? { data: cached, isStale: true, source: 'snapshot' }
-      : { data: null, isStale: false, source: 'none' };
+      ? { data: cached, isStale: true, source: "snapshot" }
+      : { data: null, isStale: false, source: "none" };
   }
 }
 
@@ -326,14 +334,14 @@ export function getOpportunityJourney(input: {
 
 export function saveOpportunityIntent(input: {
   userId: string;
-  intent: Omit<OpportunityIntentView, 'id' | 'persisted' | 'source'>;
+  intent: Omit<OpportunityIntentView, "id" | "persisted" | "source">;
   idempotencyKey: string;
   getAuthToken: GetAuthToken;
 }) {
   return mutateWithQueue<OpportunityIntentView>({
     userId: input.userId,
-    path: '/me/opportunity-intent',
-    method: 'PUT',
+    path: "/me/opportunity-intent",
+    method: "PUT",
     body: input.intent,
     idempotencyKey: input.idempotencyKey,
     getAuthToken: input.getAuthToken,
@@ -343,8 +351,8 @@ export function saveOpportunityIntent(input: {
 export function createOpportunityJourney(input: {
   userId: string;
   opportunityId: string;
-  action: 'shortlist' | 'pursue';
-  priority?: 'primary' | 'secondary';
+  action: "shortlist" | "pursue";
+  priority?: "primary" | "secondary";
   idempotencyKey: string;
   getAuthToken: GetAuthToken;
 }) {
@@ -356,8 +364,8 @@ export function createOpportunityJourney(input: {
   };
   return mutateWithQueue<OpportunityJourneyView>({
     userId: input.userId,
-    path: '/me/opportunity-journeys',
-    method: 'POST',
+    path: "/me/opportunity-journeys",
+    method: "POST",
     body,
     idempotencyKey: input.idempotencyKey,
     getAuthToken: input.getAuthToken,
@@ -368,7 +376,7 @@ function journeyMutation(input: {
   userId: string;
   journeyId: string;
   suffix: string;
-  method: 'POST' | 'PATCH';
+  method: "POST" | "PATCH";
   body: Record<string, unknown>;
   idempotencyKey: string;
   expectedVersion: number;
@@ -395,8 +403,8 @@ export function transitionOpportunityJourney(input: {
 }) {
   return journeyMutation({
     ...input,
-    suffix: 'transition',
-    method: 'PATCH',
+    suffix: "transition",
+    method: "PATCH",
     body: {
       state: input.state,
       expectedVersion: input.expectedVersion,
@@ -409,7 +417,7 @@ export function updateOpportunityJourneyTask(input: {
   userId: string;
   journeyId: string;
   taskId: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'skipped';
+  status: "pending" | "in_progress" | "completed" | "skipped";
   expectedVersion: number;
   idempotencyKey: string;
   getAuthToken: GetAuthToken;
@@ -417,7 +425,7 @@ export function updateOpportunityJourneyTask(input: {
   return mutateWithQueue<OpportunityJourneyView>({
     userId: input.userId,
     path: `/me/opportunity-journeys/${encodeURIComponent(input.journeyId)}/tasks/${encodeURIComponent(input.taskId)}`,
-    method: 'PATCH',
+    method: "PATCH",
     body: {
       status: input.status,
       expectedVersion: input.expectedVersion,
@@ -438,8 +446,8 @@ export function markOpportunityApplicationOpened(input: {
 }) {
   return journeyMutation({
     ...input,
-    suffix: 'application-opened',
-    method: 'POST',
+    suffix: "application-opened",
+    method: "POST",
     body: {
       expectedVersion: input.expectedVersion,
       idempotencyKey: input.idempotencyKey,
@@ -456,8 +464,8 @@ export function confirmOpportunityApplication(input: {
 }) {
   return journeyMutation({
     ...input,
-    suffix: 'application-confirmed',
-    method: 'POST',
+    suffix: "application-confirmed",
+    method: "POST",
     body: {
       expectedVersion: input.expectedVersion,
       idempotencyKey: input.idempotencyKey,
@@ -468,15 +476,15 @@ export function confirmOpportunityApplication(input: {
 export function recordOpportunityJourneyOutcome(input: {
   userId: string;
   journeyId: string;
-  outcome: 'offer' | 'rejected' | 'withdrawn' | 'no_response' | 'expired';
+  outcome: "offer" | "rejected" | "withdrawn" | "no_response" | "expired";
   expectedVersion: number;
   idempotencyKey: string;
   getAuthToken: GetAuthToken;
 }) {
   return journeyMutation({
     ...input,
-    suffix: 'outcome',
-    method: 'POST',
+    suffix: "outcome",
+    method: "POST",
     body: {
       outcome: input.outcome,
       expectedVersion: input.expectedVersion,

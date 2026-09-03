@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   confirmOpportunityApplication,
   createOpportunityJourneyIdempotencyKey,
@@ -6,9 +6,9 @@ import {
   markOpportunityApplicationOpened,
   recordOpportunityJourneyOutcome,
   updateOpportunityJourneyTask,
-} from '../services/opportunityJourney';
-import type { GetAuthToken } from '../services/productApi';
-import type { OpportunityJourneyView } from '../types/opportunityJourney';
+} from "../services/opportunityJourney";
+import type { GetAuthToken } from "../services/productApi";
+import type { OpportunityJourneyView } from "../types/opportunityJourney";
 
 export interface UseOpportunityJourneyOptions {
   userId?: string | null;
@@ -43,7 +43,7 @@ export function useOpportunityJourney({
       });
       if (requestId.current === active) {
         setData(result.data);
-        if (!result.data) setError('Unable to load this opportunity path.');
+        if (!result.data) setError("Unable to load this opportunity path.");
       }
       return result;
     } catch (nextError) {
@@ -51,7 +51,7 @@ export function useOpportunityJourney({
         setError(
           nextError instanceof Error
             ? nextError.message
-            : 'Unable to load this opportunity path.',
+            : "Unable to load this opportunity path.",
         );
       }
       throw nextError;
@@ -70,7 +70,7 @@ export function useOpportunityJourney({
 
   const requireContext = useCallback(() => {
     if (!userId || !journeyId || !getAuthToken || !data) {
-      throw new Error('The opportunity path is not ready for this action.');
+      throw new Error("The opportunity path is not ready for this action.");
     }
     return {
       userId,
@@ -98,7 +98,7 @@ export function useOpportunityJourney({
         setError(
           nextError instanceof Error
             ? nextError.message
-            : 'Unable to update this opportunity path.',
+            : "Unable to update this opportunity path.",
         );
         throw nextError;
       } finally {
@@ -117,7 +117,7 @@ export function useOpportunityJourney({
     refresh,
     updateTask: (
       taskId: string,
-      status: 'pending' | 'in_progress' | 'completed' | 'skipped',
+      status: "pending" | "in_progress" | "completed" | "skipped",
     ) => {
       const context = requireContext();
       return mutate(() =>
@@ -136,9 +136,8 @@ export function useOpportunityJourney({
       return mutate(() =>
         markOpportunityApplicationOpened({
           ...context,
-          idempotencyKey: createOpportunityJourneyIdempotencyKey(
-            'application-opened',
-          ),
+          idempotencyKey:
+            createOpportunityJourneyIdempotencyKey("application-opened"),
         }),
       );
     },
@@ -148,13 +147,13 @@ export function useOpportunityJourney({
         confirmOpportunityApplication({
           ...context,
           idempotencyKey: createOpportunityJourneyIdempotencyKey(
-            'application-confirmed',
+            "application-confirmed",
           ),
         }),
       );
     },
     recordOutcome: (
-      outcome: 'offer' | 'rejected' | 'withdrawn' | 'no_response' | 'expired',
+      outcome: "offer" | "rejected" | "withdrawn" | "no_response" | "expired",
     ) => {
       const context = requireContext();
       return mutate(() =>

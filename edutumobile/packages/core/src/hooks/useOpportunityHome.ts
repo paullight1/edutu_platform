@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getOpportunityHome,
   replayOpportunityJourneyWrites,
-} from '../services/opportunityJourney';
-import type { GetAuthToken } from '../services/productApi';
-import type { OpportunityHomeResponse } from '../types/opportunityJourney';
+} from "../services/opportunityJourney";
+import type { GetAuthToken } from "../services/productApi";
+import type { OpportunityHomeResponse } from "../types/opportunityJourney";
 
 export interface UseOpportunityHomeOptions {
   userId?: string | null;
@@ -40,7 +40,7 @@ export function useOpportunityHome({
       if (requestId.current === active) {
         setData(result.data);
         setIsStale(result.isStale);
-        if (!result.data) setError('Unable to load your opportunity path.');
+        if (!result.data) setError("Unable to load your opportunity path.");
       }
       return result;
     } catch (nextError) {
@@ -48,7 +48,7 @@ export function useOpportunityHome({
         setError(
           nextError instanceof Error
             ? nextError.message
-            : 'Unable to load your opportunity path.',
+            : "Unable to load your opportunity path.",
         );
       }
       throw nextError;

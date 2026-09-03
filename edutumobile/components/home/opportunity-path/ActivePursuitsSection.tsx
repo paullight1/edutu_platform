@@ -1,13 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ArrowRight, Clock3 } from 'lucide-react-native';
-import { useTheme } from '../../context/ThemeContext';
-import type { OpportunityJourneyView } from '@edutu/core';
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ArrowRight, Clock3 } from "lucide-react-native";
+import { useTheme } from "../../context/ThemeContext";
+import type { OpportunityJourneyView } from "@edutu/core";
 
 function opportunityTitle(item: OpportunityJourneyView): string {
   const title = item.opportunity.title;
-  return typeof title === 'string' && title.trim()
+  return typeof title === "string" && title.trim()
     ? title.trim()
-    : 'Opportunity';
+    : "Opportunity";
 }
 
 export default function ActivePursuitsSection({
@@ -22,7 +22,9 @@ export default function ActivePursuitsSection({
 
   return (
     <View style={styles.section}>
-      <Text style={[styles.heading, { color: colors.foreground }]}>Active pursuits</Text>
+      <Text style={[styles.heading, { color: colors.foreground }]}>
+        Active pursuits
+      </Text>
       {items.slice(0, 3).map((item) => (
         <Pressable
           key={item.journey.id}
@@ -42,7 +44,7 @@ export default function ActivePursuitsSection({
             <View style={styles.statusRow}>
               <Clock3 size={14} color={colors.accent} />
               <Text style={[styles.status, { color: colors.accent }]}>
-                {item.journey.state.replaceAll('_', ' ')}
+                {item.journey.state.replaceAll("_", " ")}
               </Text>
             </View>
             <Text
@@ -78,21 +80,21 @@ export default function ActivePursuitsSection({
 
 const styles = StyleSheet.create({
   section: { gap: 10 },
-  heading: { fontSize: 18, fontWeight: '800' },
+  heading: { fontSize: 18, fontWeight: "800" },
   card: {
     minHeight: 112,
     borderWidth: 1,
     borderRadius: 16,
     padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   copy: { flex: 1, gap: 5 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  status: { fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },
-  title: { fontSize: 15, fontWeight: '800', lineHeight: 20 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  status: { fontSize: 11, fontWeight: "800", textTransform: "capitalize" },
+  title: { fontSize: 15, fontWeight: "800", lineHeight: 20 },
   next: { fontSize: 12 },
-  track: { height: 5, borderRadius: 999, overflow: 'hidden', marginTop: 3 },
-  fill: { height: '100%', borderRadius: 999 },
+  track: { height: 5, borderRadius: 999, overflow: "hidden", marginTop: 3 },
+  fill: { height: "100%", borderRadius: 999 },
 });
