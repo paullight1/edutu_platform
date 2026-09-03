@@ -201,6 +201,10 @@ export class OpportunityIntentService {
     private readonly source: OpportunityIntentSource = new DatabaseOpportunityIntentSource(),
   ) {}
 
+  async getProfileSnapshot(userId: string): Promise<Record<string, unknown>> {
+    return (await this.source.load(userId)).profile;
+  }
+
   async getCurrentIntent(userId: string) {
     const active = await this.repository.getActiveIntent(userId);
     if (active) return { ...active, persisted: true as const };

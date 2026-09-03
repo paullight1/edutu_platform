@@ -4,6 +4,7 @@ import { AppService } from "./app.service";
 import { AuthModule } from "./auth";
 import { GoalsModule } from "./goals/goals.module";
 import { OpportunitiesModule } from "./opportunities/opportunities.module";
+import { OpportunityJourneysModule } from "./opportunity-journeys/opportunity-journeys.module";
 import { OpportunitySubmissionsModule } from "./opportunity-submissions/opportunity-submissions.module";
 import { CreatorModule } from "./creator/creator.module";
 import { QuizModule } from "./quiz/quiz.module";
@@ -60,6 +61,7 @@ import { SupportModule } from "./support/support.module";
     AuthModule,
     GoalsModule,
     OpportunitiesModule,
+    OpportunityJourneysModule,
     OpportunitySubmissionsModule,
     CreatorModule,
     QuizModule,

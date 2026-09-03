@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/opportunity-pipeline-contract.yml"
       - "backend/services/services/api/drizzle.config.ts"
+      - "backend/services/services/api/src/app.module.ts"
       - "backend/services/services/api/src/db/all-schema.ts"
       - "backend/services/services/api/src/db/index.ts"
       - "backend/services/services/api/src/db/opportunity-journey.schema.ts"
@@ -15,8 +16,10 @@ on:
       - "backend/services/services/api/src/opportunities/opportunity-ranking.service.ts"
       - "backend/services/services/api/src/opportunity-journeys/**"
       - "backend/services/services/api/test/task-opportunity-pipeline/**"
+      - "backend/services/services/api/test/opportunity-journeys.e2e-spec.ts"
       - "backend/services/services/api/supabase/migrations/*opportunity_journey*.sql"
       - "docs/operations/opportunity-pipeline-pr3-domain.md"
+      - "docs/operations/opportunity-pipeline-pr4-api.md"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +33,7 @@ jobs:
   backend-contract:
     name: Opportunity Pipeline Backend Contract
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: backend/services/services/api
@@ -63,6 +66,12 @@ jobs:
           opportunity-journey-templates.spec.ts
           opportunity-effort.spec.ts
           opportunity-next-action.spec.ts
+          opportunity-shortlist.service.spec.ts
+          opportunity-journeys.service.spec.ts
+          opportunity-home.service.spec.ts
+          opportunity-journeys.controller.spec.ts
+      - name: Run route-level opportunity journey E2E
+        run: npm run test:e2e -- --runInBand opportunity-journeys.e2e-spec.ts
       - run: npm run lint
       - run: npm run build
       - name: Validate canonical migration timestamps
