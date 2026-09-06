@@ -1,0 +1,35 @@
+name: Edutu Agent System
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edutu-agents-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Agent System Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test support tooling
+        run: python -m unittest discover -s agent-system/tests -v
+      - name: Validate registered skills and agents
+        run: python agent-system/scripts/edutu_agents.py validate
+      - name: Check named source evidence for drift
+        run: python agent-system/scripts/edutu_agents.py drift --strict

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "repository": "paullight1/edutu_platform",
+  "source_branch": "develop",
+  "source_commit": "f5598344e68ac1afa315edb6149b030a60946378",
+  "inspected_on": "2026-09-06",
+  "scope": "Targeted repository inspection, not a full-code or deployed-environment audit.",
+  "anchors": [
+    {
+      "path": "backend/services/services/api/package.json",
+      "git_blob": "16f09e62c1912715e8a1c10e32210ba83002738d",
+      "inspection": "manifest read"
+    },
+    {
+      "path": "edutu-web-app/package.json",
+      "git_blob": "15217e5ba1313d2503fce40d1d2694b38dac6877",
+      "inspection": "manifest read"
+    },
+    {
+      "path": "edutumobile/package.json",
+      "git_blob": "c28bd3c0dd27bb7f018648c22039c716b38cfe51",
+      "inspection": "manifest read"
+    },
+    {
+      "path": "admin/package.json",
+      "git_blob": "848d6a144db72165a40f1e7b4488a6a3e735fddc",
+      "inspection": "manifest read; CRLF bytes"
+    },
+    {
+      "path": "backend/services/services/api/src/app.module.ts",
+      "git_blob": "342bd4ecb13395184479033f45ddfeef282fe8f3",
+      "inspection": "module registration read"
+    },
+    {
+      "path": "backend/services/services/api/src/opportunities/opportunities.controller.ts",
+      "git_blob": "397b5f885838a31a737620f51e3bebba9f79c357",
+      "inspection": "lines 1-160 read; fingerprint covers full file"
+    },
+    {
+      "path": "code-review-agents/edutu-code-review/SKILL.md",
+      "git_blob": "b2768815d27938cdcd7781440d5032cc93521b05",
+      "inspection": "review contract read, not proof of application behavior"
+    },
+    {
+      "path": "code-review-agents/edutu-payments-review/SKILL.md",
+      "git_blob": "028f14466d52685dc20f12e3c1d42245493fce6b",
+      "inspection": "review contract read, not proof of application behavior"
+    },
+    {
+      "path": "code-review-agents/edutu-mobile-review/SKILL.md",
+      "git_blob": "15483931b1268912e452aa2b790bc1c3dbeaad82",
+      "inspection": "path and blob registered; read before use"
+    },
+    {
+      "path": "code-review-agents/edutu-web-review/SKILL.md",
+      "git_blob": "f00c372b401de3b0ea7c13f3bb3928e714039df6",
+      "inspection": "path and blob registered; read before use"
+    },
+    {
+      "path": ".github/workflows/architecture-governance.yml",
+      "git_blob": "716c72287960591add60d81ccf57169d890acb1e",
+      "inspection": "workflow read, checks not executed here"
+    }
+  ]
+}
