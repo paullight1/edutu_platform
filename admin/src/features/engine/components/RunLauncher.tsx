@@ -23,6 +23,7 @@ export default function RunLauncher({
 }: RunLauncherProps) {
   const [maxPagesInput, setMaxPagesInput] = useState("3");
   const [incremental, setIncremental] = useState(true);
+  const [grantsOnly, setGrantsOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!source) return null;
@@ -40,7 +41,11 @@ export default function RunLauncher({
     }
 
     try {
-      const result = await onStart(source, { maxPages, incremental });
+      const result = await onStart(source, {
+        maxPages,
+        incremental,
+        ...(grantsOnly ? { opportunityScope: "grants" as const } : {}),
+      });
       const found = result.opportunities?.length ?? result.totalResults ?? 0;
       onNotice(
         `Run complete · ${found.toLocaleString()} opportunities found.`,
@@ -156,6 +161,20 @@ export default function RunLauncher({
               <span>
                 <strong>Incremental run</strong>
                 <small>Skip recently verified records where policy allows.</small>
+              </span>
+            </label>
+            <label className="engine-checkbox-field">
+              <input
+                type="checkbox"
+                checked={grantsOnly}
+                onChange={(event) => setGrantsOnly(event.target.checked)}
+              />
+              <span>
+                <strong>Grants only</strong>
+                <small>
+                  Keep opportunities classified as grants and tag them
+                  “grants”.
+                </small>
               </span>
             </label>
           </div>

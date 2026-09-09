@@ -602,7 +602,7 @@ export class ScraperService implements OnModuleInit {
     const { sourceId, allSources, maxPages = 3 } = options;
 
     this.logger.log(
-      `Starting scrape: sourceId=${sourceId}, allSources=${allSources}, maxPages=${maxPages}, incremental=${options.incremental !== false}`,
+      `Starting scrape: sourceId=${sourceId}, allSources=${allSources}, maxPages=${maxPages}, incremental=${options.incremental !== false}, opportunityScope=${options.opportunityScope ?? "all"}`,
     );
 
     if (!this.supabase) {
@@ -708,6 +708,7 @@ export class ScraperService implements OnModuleInit {
         jobLogId,
         onEvent,
         incremental,
+        options.opportunityScope ?? "all",
       );
       const duration = Math.round((Date.now() - startTime) / 1000);
       const itemsSkipped = sourceResults.reduce(
@@ -1042,6 +1043,7 @@ export class ScraperService implements OnModuleInit {
         status: "running",
         started_at: new Date().toISOString(),
         run_type: options.runType === "scheduled" ? "scheduled" : "manual",
+        options,
         warnings: [
           {
             type: "options",
@@ -1310,6 +1312,7 @@ export class ScraperService implements OnModuleInit {
     jobLogId: string | null,
     onEvent?: ScrapeEventListener,
     incremental?: { recheckAfterDays: number } | null,
+    opportunityScope: "all" | "grants" = "all",
   ): Promise<{
     results: RawItem[];
     sourceResults: SourceResult[];
@@ -1451,15 +1454,18 @@ export class ScraperService implements OnModuleInit {
               freshItems,
               source.config?.content_selectors,
             );
-            allResults.push(...enrichedItems);
-            sourceItems.push(...enrichedItems);
-            itemsFound += enrichedItems.length;
+            const scopedItems = enrichedItems.filter((item) =>
+              this.matchesOpportunityScope(item, opportunityScope),
+            );
+            allResults.push(...scopedItems);
+            sourceItems.push(...scopedItems);
+            itemsFound += scopedItems.length;
             // Stream each enriched opportunity to any live listener (SSE).
-            for (const item of enrichedItems) {
+            for (const item of scopedItems) {
               onEvent?.({ type: "opportunity", opportunity: item });
             }
             this.logger.log(
-              `  ✓ ${enrichedItems.length} items enriched from page ${page}`,
+              `  ✓ ${scopedItems.length}/${enrichedItems.length} items matched the ${opportunityScope} scope on page ${page}`,
             );
           } catch (pageError: any) {
             // Give a failed page exactly one more chance before giving up on
@@ -3328,7 +3334,7 @@ ${text}`;
       internships: "Internships",
       programs: "Programs",
       fellowships: "Fellowships",
-      grants: "Grants",
+      grants: "grants",
       graduate_programs: "Graduate Programs",
       bootcamps: "Bootcamps",
       events: "Events",
@@ -3348,6 +3354,17 @@ ${text}`;
           .filter((tag) => tag && !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase())),
       ),
     ).slice(0, 5);
+  }
+
+  private matchesOpportunityScope(
+    item: RawItem,
+    scope: "all" | "grants",
+  ): boolean {
+    if (scope === "all") return true;
+    return (
+      classifyOpportunity(item as unknown as Record<string, unknown>)
+        .canonicalCategory === "grants"
+    );
   }
 
   private firstSentence(text: string): string {
@@ -3851,6 +3868,16 @@ ${text}`;
     return data ?? [];
   }
 
+  async getScopedJobs(limit = 20, opportunityScope: "grants") {
+    const jobs = await this.getJobs(200);
+    return jobs
+      .filter(
+        (job: Record<string, any>) =>
+          job.options?.opportunityScope === opportunityScope,
+      )
+      .slice(0, Math.min(Math.max(Number(limit) || 20, 1), 100));
+  }
+
   async getJobOpportunities(jobId: string, limit = 200) {
     if (!this.supabase) return [];
 
@@ -3867,6 +3894,42 @@ ${text}`;
       return [];
     }
 
+    return data ?? [];
+  }
+
+  async getScopedJobOpportunities(
+    jobId: string,
+    opportunityScope: "grants",
+    limit = 200,
+  ) {
+    const opportunities = await this.getJobOpportunities(jobId, limit);
+    return opportunities.filter(
+      (opportunity: Record<string, any>) =>
+        opportunity.canonical_category === opportunityScope ||
+        opportunity.tags?.some(
+          (tag: unknown) => String(tag).toLowerCase() === opportunityScope,
+        ),
+    );
+  }
+
+  async getScopedOpportunities(opportunityScope: "grants", limit = 50) {
+    if (!this.supabase) return [];
+    const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const { data, error } = await this.supabase
+      .from("opportunities")
+      .select(
+        "id, title, summary, organization, status, close_date, source_url, application_url, apply_url, canonical_url, tags, created_at",
+      )
+      .eq("canonical_category", opportunityScope)
+      .contains("tags", [opportunityScope])
+      .order("created_at", { ascending: false })
+      .limit(cappedLimit);
+    if (error) {
+      this.logger.error(
+        `Failed to load scoped opportunities: ${error.message}`,
+      );
+      return [];
+    }
     return data ?? [];
   }
 
