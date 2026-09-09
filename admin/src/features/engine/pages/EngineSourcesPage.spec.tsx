@@ -171,6 +171,7 @@ describe("EngineSourcesPage", () => {
     });
     await user.clear(maxPages);
     await user.type(maxPages, "4");
+    await user.click(within(dialog).getByRole("checkbox", { name: /Grants only/i }));
     await user.click(
       within(dialog).getByRole("button", { name: "Start group run" }),
     );
@@ -178,6 +179,7 @@ describe("EngineSourcesPage", () => {
     expect(mocks.startRun).toHaveBeenCalledWith(group, {
       maxPages: 4,
       incremental: true,
+      opportunityScope: "grants",
     });
   });
 });
