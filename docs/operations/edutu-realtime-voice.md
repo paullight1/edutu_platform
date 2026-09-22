@@ -9,18 +9,25 @@ truth for product behavior:
 
 ## Current implementation status
 
-The current `useVoiceSession` implementation is not an OpenAI Realtime
-session. Both `voice` and `live` currently use the same turn-based pipeline:
+Live mode now uses an authenticated OpenAI Realtime WebRTC session. The
+production path is:
 
 ```text
-expo-audio recording -> chat-proxy transcription -> Edutu chat SSE ->
-chat-proxy TTS/file playback -> (live only) arm the next recording
+native microphone -> OpenAI Realtime WebRTC/VAD/transcription -> ask_edutu ->
+authenticated Edutu chat stream + saved thread -> Realtime audio + captions
 ```
 
-That is a valid tap-to-talk fallback, but it does not provide a continuous
-audio transport, server VAD, native interruption, or incremental Realtime
-audio. Do not label this path “GPT Realtime” and do not enable a Realtime
-feature flag until the gates below pass.
+`useVoiceModeSession` automatically retains the existing record/transcribe/
+chat/TTS pipeline as the tap-to-talk fallback for non-Pro users, unavailable
+native WebRTC builds, and session-start failures. Live mode supports interim
+and final user transcripts, streaming assistant captions, mute, barge-in,
+background checkpoints, foreground recovery, session-expiry renewal, and
+transparent transport reconnect while preserving the Edutu thread.
+
+The Nest endpoint and mobile integration are implemented and covered by unit,
+contract, lifecycle, metering, and fallback tests. The remaining release gate
+is a physical-device staging pass for actual microphone, speaker, Bluetooth,
+and OS-interruption behavior.
 
 ## Required production architecture
 
@@ -83,11 +90,11 @@ hard-capped at 120 seconds and oversized/invalid M4A payloads are rejected.
 Raise the daily value only after cost telemetry confirms the active weekly,
 monthly, and yearly plans remain profitable.
 
-Expose no OpenAI secret through `EXPO_PUBLIC_*`. Roll out behind a server and
-client flag that defaults off. Enable only for authenticated Pro users after
+Expose no OpenAI secret through `EXPO_PUBLIC_*`. The server-derived Pro
+entitlement is the primary rollout gate. Release the native build only after
 the staging checks pass. Non-Pro users, entitlement-loading states, Expo Go,
-missing native WebRTC, and provider/session failures must use the abortable
-tap-to-talk fallback; they must not receive a premium provider session.
+missing native WebRTC, and provider/session failures use the abortable
+tap-to-talk fallback; they do not receive a premium provider session.
 
 ## Observability and rollback
 
@@ -102,12 +109,10 @@ If setup, tool fulfillment, audio teardown, or unit settlement is unhealthy,
 disable the flag and let users continue through tap-to-talk. Do not roll back
 by shipping an API key to the client or by bypassing the Pro check.
 
-## Explicit incomplete gates in this pass
+## Remaining environment-only gate
 
-This note does not claim that Realtime is implemented. The existing turn-based
-live loop still requires the authenticated Nest session proxy, the mobile
-`RTCPeerConnection`/data-channel session, `ask_edutu` tool fulfillment, and a
-physical-device validation pass. Those pieces must land together with the
-backend authorization and lifecycle changes described in the plan; wiring a
-partial session into the existing hook would create a second audio owner and
-could bypass cancellation or billing.
+The authenticated session proxy, native `RTCPeerConnection`/data channel,
+required `ask_edutu` fulfillment, live captions, persistence, reconnection,
+and fallback orchestration are implemented. A physical-device development or
+TestFlight build must still validate actual audio routing and interruption;
+Jest and TypeScript cannot prove device microphone/speaker behavior.
