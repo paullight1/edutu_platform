@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "Become a Mentor",
+        "progressLabel": "Application progress",
+        "progressCount": "{{current}} of {{total}}",
+        "steps": {
+            "intro": "Introduction",
+            "motivation": "Your motivation",
+            "details": "Your experience",
+            "review": "Review"
+        },
         "alerts": {
             "notSignedInTitle": "Not signed in",
             "notSignedInMessage": "Please sign in to submit a mentor application."
@@ -299,7 +307,7 @@
             "getStarted": "Get Started",
             "freeValue": "Free",
             "statFree": "No cost to apply",
-            "reviewValue": "2–3 days",
+            "reviewValue": "2-3 days",
             "statReview": "Application review"
         },
         "motivation": {

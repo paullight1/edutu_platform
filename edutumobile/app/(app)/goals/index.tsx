@@ -1,3 +1,5 @@
+import { PlanWorkspaceHeader } from '../../../components/opportunity-path/PlanWorkspaceHeader';
+import { useLocalSearchParams as usePlanParams , useRouter } from 'expo-router';
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
     View,
@@ -25,7 +27,6 @@ import {
     Volume2,
     Briefcase,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -224,6 +225,7 @@ function UpcomingStrip({ goals }: { goals: Goal[] }) {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function GoalsDashboard() {
+    const { planNav } = usePlanParams<{ planNav?: string }>();
     const { colors, isDark } = useTheme();
     const { user } = useUser();
     const router = useRouter();
@@ -389,13 +391,13 @@ export default function GoalsDashboard() {
 
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader
+            {planNav === '1' ? <PlanWorkspaceHeader section="goals" /> : (<ScreenHeader
                 title={t('dashboard.title')}
                 showBack
                 subtitle={stats.total === 0
                     ? t('dashboard.subtitleEmpty')
                     : t('dashboard.subtitle', { active: stats.active, rate: completionRate })}
-            />
+            />)}
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -415,7 +417,7 @@ export default function GoalsDashboard() {
                         <SlimStatCard
                             title={t('stats.active')}
                             value={stats.active}
-                            color="#3b82f6"
+                            color={colors.accent}
                             icon={Target}
                             selected={statusFilter === 'active'}
                             onPress={() => { setStatusFilter(statusFilter === 'active' ? 'all' : 'active'); }}
@@ -423,7 +425,7 @@ export default function GoalsDashboard() {
                         <SlimStatCard
                             title={t('stats.completed')}
                             value={stats.completed}
-                            color="#10b981"
+                            color={colors.accent}
                             icon={CheckCircle2}
                             selected={statusFilter === 'completed'}
                             onPress={() => { setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed'); }}
@@ -433,7 +435,7 @@ export default function GoalsDashboard() {
                         <SlimStatCard
                             title={t('stats.roadmaps')}
                             value={stats.roadmap}
-                            color="#f59e0b"
+                            color={colors.accent}
                             icon={Map}
                             onPress={() => router.push('/goals/all-roadmaps')}
                         />
@@ -458,7 +460,7 @@ export default function GoalsDashboard() {
                 />
 
                 {/* ── Share Opportunities Banner ── */}
-                {!dismissedBanner && (
+                {planNav !== '1' && !dismissedBanner && (
                     <AdBanner
                         config={SHARE_OPPORTUNITIES_BANNER}
                         onPress={() => router.push('/help')}
@@ -552,7 +554,7 @@ export default function GoalsDashboard() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
-                                <Map size={18} color="#f59e0b" />
+                                <Map size={18} color={colors.accent} />
                                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('sections.roadmaps')}</Text>
                                 {roadmapGoals.length > 0 && (
                                     <View style={[styles.sectionCount, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
@@ -574,8 +576,8 @@ export default function GoalsDashboard() {
                                 <Text style={[styles.sectionHint, { color: textSecondary }]}>{t('sections.roadmapsHint')}</Text>
                                 <View style={styles.grid}>
                                     {roadmapGoals.slice(0, 4).map((goal) => (
-                                        <View key={goal.id} style={{ width: GRID_ITEM_WIDTH }}>
-                                            <GoalCard goal={goal} compact getDaysUntil={getDaysUntil} />
+                                        <View key={goal.id} style={{ width: planNav === '1' ? '100%' : GRID_ITEM_WIDTH }}>
+                                            <GoalCard goal={goal} compact={planNav !== '1'} getDaysUntil={getDaysUntil} />
                                         </View>
                                     ))}
                                 </View>
@@ -679,7 +681,7 @@ export default function GoalsDashboard() {
                     {/* Stop the backdrop press from firing through the sheet. */}
                     <Pressable
                         onPress={(e) => e.stopPropagation()}
-                        style={[styles.filterMenu, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                        style={[styles.filterMenu, { backgroundColor: colors.card }]}
                     >
                         <View style={styles.filterMenuHeader}>
                             <Text style={[styles.menuTitle, { color: textPrimary }]}>{t('filter.byStatus')}</Text>
@@ -916,10 +918,10 @@ const styles = StyleSheet.create({
     // Empty State for sections
 
     // Modal / Filter Menu
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end', alignItems: 'center' },
     filterMenu: {
-        width: width * 0.8,
-        borderRadius: 20,
+        width: '100%',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 40,
         padding: 24,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },

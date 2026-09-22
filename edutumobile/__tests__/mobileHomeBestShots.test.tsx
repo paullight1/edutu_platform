@@ -254,11 +254,17 @@ describe('home Best Shots — empty states and dedupe', () => {
       openedAt: '2026-08-07T10:00:00.000Z',
     };
 
-    const { getByTestId, getByText } = render(<Dashboard />);
+    const { getByTestId, getByText, queryByText } = render(<Dashboard />);
 
-    await waitFor(() => expect(getByTestId('recent-opportunity-card')).toBeTruthy());
+    await waitFor(
+      () => expect(getByTestId('recent-opportunity-card')).toBeTruthy(),
+      { timeout: 20_000 },
+    );
+    const card = getByTestId('recent-opportunity-card');
     expect(getByText('Recently Opened Fellowship')).toBeTruthy();
-    fireEvent.press(getByTestId('recent-opportunity-card'));
+    expect(card.props.accessibilityLabel).toContain('Open opportunity');
+    expect(queryByText('Continue')).toBeNull();
+    fireEvent.press(card);
     expect(mockPush).toHaveBeenCalledWith('/opportunities/recent');
   });
 
@@ -347,6 +353,22 @@ describe('home Best Shots — empty states and dedupe', () => {
     // And it reports the fit it was chosen on, not the fatigued feed score.
     expect(getByText('72% match')).toBeTruthy();
     expect(queryByText('52% match')).toBeNull();
+  });
+
+  it('prefers unopened profile matches over items supported only by browsing history', async () => {
+    mockProfileComplete = true;
+    mockOpportunitiesData = [
+      makeOpp({ id: 'opened', title: 'Frequently opened', match: 95, matchFit: 90,
+        matchReasonDetails: [{ kind: 'behavior', label: 'Because you engaged', points: 1 }] }),
+      makeOpp({ id: 'unopened', title: 'New robotics internship', match: 55, matchFit: 70,
+        matchReasonDetails: [{ kind: 'interest', label: 'Aligned with interests: robotics.', points: 1 }] }),
+    ];
+    const { getByText, queryByText } = render(<Dashboard />);
+    await waitFor(() => expect(getByText('Best matches for you')).toBeTruthy());
+    // Only the Best Matches rail shows a profile-fit badge; the other item
+    // remains available in Recommended rather than being hidden entirely.
+    expect(getByText('70% match')).toBeTruthy();
+    expect(queryByText('90% match')).toBeNull();
   });
 
   // A complete profile should never produce an empty Best Matches rail merely

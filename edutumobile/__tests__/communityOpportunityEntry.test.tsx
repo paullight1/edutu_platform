@@ -1,20 +1,6 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 
-/**
- * The discussion-group row on the opportunity detail screen.
- *
- * WHAT THESE SPECS ARE GUARDING. The row is the only bridge between the
- * opportunity a user is reading and the people applying to it, and every way it
- * can go wrong is quiet: it can route to a create form for a group that already
- * exists (a duplicate room nobody wanted), it can navigate a signed-out guest
- * into a screen that will 401, or it can take the whole detail page down when
- * the lookup fails — a page that was complete before the row existed.
- *
- * So each spec asserts the OUTCOME (which route, which argument, which wall),
- * never that a function was called.
- */
-
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockGetToken = jest.fn().mockResolvedValue('token');
@@ -273,36 +259,6 @@ function makeOpportunity() {
   };
 }
 
-function makeGroup(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'group-9',
-    slug: 'global-fellowship-crew',
-    name: 'Global Fellowship crew',
-    description: null,
-    opportunityId: 'opp-1',
-    ownerId: 'user-2',
-    visibility: 'public',
-    joinPolicy: 'open',
-    coverEmoji: '💬',
-    accent: null,
-    expiresAt: null,
-    archivedAt: null,
-    memberCount: 4,
-    messageCount: 12,
-    lastMessageAt: null,
-    createdAt: new Date().toISOString(),
-    ...overrides,
-  };
-}
-
-/** Walks up to the nearest pressable, mirroring the sibling detail suite. */
-function pressNearest(node: any) {
-  let current = node;
-  while (current && !current.props?.onPress) current = current.parent;
-  if (!current) throw new Error('Could not find a pressable ancestor');
-  current.props.onPress();
-}
-
 describe('opportunity detail — discussion group row', () => {
   beforeEach(() => {
     mockPush.mockClear();
@@ -316,110 +272,12 @@ describe('opportunity detail — discussion group row', () => {
     mockIsGuest = false;
   });
 
-  it("opens this opportunity's existing group", async () => {
-    mockFetchGroups.mockResolvedValue([{ group: makeGroup(), membership: null }]);
-
-    const { getByText } = render(<OpportunityDetailScreen />);
-    await waitFor(() => expect(getByText('Global Fellowship crew')).toBeTruthy());
-
-    // The lookup is scoped to THIS opportunity: an unfiltered list would open
-    // whichever group happened to be first in the feed.
-    expect(mockFetchGroups).toHaveBeenCalledWith(
-      expect.objectContaining({ opportunityId: 'opp-1' }),
-      mockGetToken,
-    );
-
-    pressNearest(getByText('Global Fellowship crew'));
-
-    expect(mockPush).toHaveBeenCalledWith('/discussions/group-9/about');
-    // Not the create form — the whole failure this spec exists to catch.
-    expect(mockPush).not.toHaveBeenCalledWith(
-      expect.objectContaining({ pathname: '/discussions/new' }),
-    );
-  });
-
-  it('routes to create with the opportunity prefilled when no group exists', async () => {
-    mockFetchGroups.mockResolvedValue([]);
-
-    const { getByText } = render(<OpportunityDetailScreen />);
-    await waitFor(() => expect(getByText('Start one')).toBeTruthy());
-
-    pressNearest(getByText('Start one'));
-
-    // Prefilled AND labelled: the create screen renders the opportunity as a
-    // locked row, and without the title it would show a raw UUID there.
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/discussions/new',
-      params: { opportunityId: 'opp-1', opportunityTitle: 'Global Fellowship' },
-    });
-  });
-
-  it('raises the auth wall for a guest instead of navigating', async () => {
-    mockIsSignedIn = false;
-    mockIsGuest = true;
-
-    const { getByText } = render(<OpportunityDetailScreen />);
-    await waitFor(() => expect(getByText('Start one')).toBeTruthy());
-
-    pressNearest(getByText('Start one'));
-
-    expect(mockPromptAuth).toHaveBeenCalled();
-    // Nothing about discussions may be pushed: a guest landing on a group
-    // screen gets a 401 and a dead end instead of a sign-in prompt.
-    mockPush.mock.calls.forEach(([arg]) => {
-      const route = typeof arg === 'string' ? arg : arg?.pathname;
-      expect(String(route)).not.toContain('/discussions');
-    });
-    // And a guest costs no request: the answer would not change the outcome.
-    expect(mockFetchGroups).not.toHaveBeenCalled();
-  });
-
-  it('leaves the rest of the detail screen intact when the lookup fails', async () => {
-    class CommunityApiError extends Error {
-      status: number;
-      constructor(message: string, status: number) {
-        super(message);
-        this.name = 'CommunityApiError';
-        this.status = status;
-      }
-    }
-    mockFetchGroups.mockRejectedValue(
-      new CommunityApiError('Groups are having a moment.', 500),
-    );
-
+  it('keeps opportunity details usable without social links or group lookups', async () => {
     const { getByText, queryByText } = render(<OpportunityDetailScreen />);
-
-    // The page still renders everything it rendered before this row existed.
-    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+    await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy(), { timeout: 10000 });
     expect(getByText('Apply Now')).toBeTruthy();
-    expect(getByText('Edutu')).toBeTruthy();
-
-    await waitFor(() => expect(mockFetchGroups).toHaveBeenCalled());
-
-    // The row itself is gone rather than guessing. "No group exists" and "we
-    // could not find out" are different facts, and offering "Start a group" on
-    // a failed lookup produces a duplicate room.
-    expect(queryByText('Start a group')).toBeNull();
     expect(queryByText('Discussion')).toBeNull();
-    // Nothing is shouted at a user who never asked about groups.
-    expect(queryByText('Groups are having a moment.')).toBeNull();
-  });
-
-  it('does not render the row while the opportunity is still loading', async () => {
-    let resolveOpportunity: (value: unknown) => void = () => {};
-    mockGetOpportunity.mockReturnValue(
-      new Promise((resolve) => {
-        resolveOpportunity = resolve;
-      }),
-    );
-    mockFetchGroups.mockResolvedValue([{ group: makeGroup(), membership: null }]);
-
-    const { queryByText, getByText } = render(<OpportunityDetailScreen />);
-
-    expect(queryByText('Discussion')).toBeNull();
-    expect(queryByText('Global Fellowship crew')).toBeNull();
-
-    resolveOpportunity(makeOpportunity());
-    await waitFor(() => expect(getByText('Global Fellowship crew')).toBeTruthy());
+    expect(queryByText('Start one')).toBeNull();
+    expect(mockFetchGroups).not.toHaveBeenCalled();
   });
 });

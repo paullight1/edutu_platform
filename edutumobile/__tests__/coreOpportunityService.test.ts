@@ -151,6 +151,115 @@ describe('core opportunity service contract', () => {
     await expect(getCachedOpportunitiesSnapshot('user-1')).resolves.toEqual(result);
   });
 
+  describe('feed loading performance', () => {
+    const makeClient = () => ({
+      from: jest.fn(() => ({
+        select: () => ({ in: async () => ({ data: [], error: null }) }),
+      })),
+    });
+    const response = (id: string) => ({
+      ok: true,
+      json: async () => ({ opportunities: [{ id, title: id }] }),
+    });
+
+    it('loads authenticated recommendations without waiting for profile reads', async () => {
+      const { fetchOpportunities } = loadService();
+      const supabase = makeClient();
+      mockFetch.mockResolvedValue(response('fast-feed'));
+      const result = await fetchOpportunities({
+        supabase: supabase as never, userId: 'user-1', getAuthToken: async () => 'token',
+      });
+      expect(result[0].id).toBe('fast-feed');
+      expect(supabase.from).not.toHaveBeenCalled();
+    });
+
+    it('shares simultaneous requests and reuses a recent feed across screens', async () => {
+      const { fetchOpportunities } = loadService();
+      const options = { supabase: makeClient() as never, userId: 'user-1', getAuthToken: async () => 'token' };
+      mockFetch.mockResolvedValue(response('shared-feed'));
+      const syncHome = jest.fn().mockResolvedValue(undefined);
+      const syncExplore = jest.fn().mockResolvedValue(undefined);
+      const [home, explore] = await Promise.all([
+        fetchOpportunities({ ...options, onSyncSnapshot: syncHome }),
+        fetchOpportunities({ ...options, onSyncSnapshot: syncExplore }),
+      ]);
+      const reopened = await fetchOpportunities(options);
+      expect(home[0].id).toBe('shared-feed');
+      expect(explore).toEqual(home);
+      expect(reopened).toEqual(home);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(syncHome).toHaveBeenCalledWith(home);
+      expect(syncExplore).toHaveBeenCalledWith(explore);
+    });
+
+    it('refreshes on demand and after the short freshness window', async () => {
+      const { fetchOpportunities } = loadService();
+      const options = { supabase: makeClient() as never, userId: 'user-1', getAuthToken: async () => 'token' };
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      try {
+        mockFetch.mockResolvedValueOnce(response('first'))
+          .mockResolvedValueOnce(response('refreshed'))
+          .mockResolvedValueOnce(response('expired'));
+        await fetchOpportunities(options);
+        expect((await fetchOpportunities({ ...options, force: true }))[0].id).toBe('refreshed');
+        expect((await fetchOpportunities(options))[0].id).toBe('refreshed');
+        now.mockReturnValue(61000);
+        expect((await fetchOpportunities(options))[0].id).toBe('expired');
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+      } finally {
+        now.mockRestore();
+      }
+    });
+
+    it('retries an overdue in-flight request without letting its late result replace the retry', async () => {
+      const { fetchOpportunities } = loadService();
+      const options = { supabase: makeClient() as never, userId: 'user-1', getAuthToken: async () => 'token' };
+      let finishSlow!: (value: ReturnType<typeof response>) => void;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => { finishSlow = resolve; }))
+        .mockResolvedValueOnce(response('retry'));
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      const first = fetchOpportunities(options);
+      try {
+        // Let token resolution start the first request, but leave it pending.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        now.mockReturnValue(61000);
+        const retry = fetchOpportunities(options);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect((await retry)[0].id).toBe('retry');
+        finishSlow(response('late'));
+        await first;
+        expect((await fetchOpportunities(options))[0].id).toBe('retry');
+      } finally {
+        finishSlow(response('late'));
+        await first;
+        now.mockRestore();
+      }
+    });
+
+    it('never reuses a signed-in feed for guests or another account', async () => {
+      const { fetchOpportunities } = loadService();
+      const supabase = makeClient() as never;
+      mockFetch.mockResolvedValueOnce(response('private-a'))
+        .mockResolvedValueOnce(response('guest'))
+        .mockResolvedValueOnce(response('private-b'));
+      await fetchOpportunities({ supabase, userId: 'user-a', getAuthToken: async () => 'a' });
+      expect((await fetchOpportunities({ supabase }))[0].id).toBe('guest');
+      expect((await fetchOpportunities({ supabase, userId: 'user-b', getAuthToken: async () => 'b' }))[0].id).toBe('private-b');
+    });
+
+    it('does not reuse a feed after exclusions or profile inputs change', async () => {
+      const { fetchOpportunities } = loadService();
+      const options = { supabase: makeClient() as never, userId: 'user-1', getAuthToken: async () => 'token' };
+      mockFetch.mockResolvedValueOnce(response('original'))
+        .mockResolvedValueOnce(response('filtered'))
+        .mockResolvedValueOnce(response('new-profile'));
+      await fetchOpportunities(options);
+      expect((await fetchOpportunities({ ...options, excludeOpportunityIds: ['original'] }))[0].id).toBe('filtered');
+      expect((await fetchOpportunities({ ...options, profileOverride: { country: 'NG' } }))[0].id).toBe('new-profile');
+    });
+  });
+
   it('sends excludeOpportunityIds in the authenticated recommendations body', async () => {
     const { fetchOpportunities } = loadService();
     const supabase = {

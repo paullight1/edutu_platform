@@ -8,9 +8,20 @@
  */
 const mockFetch = jest.fn();
 
+let mockChannelSubscribed = false;
 const mockChannel = {
-  on: jest.fn(() => mockChannel),
-  subscribe: jest.fn(() => mockChannel),
+  on: jest.fn(() => {
+    if (mockChannelSubscribed) {
+      throw new Error(
+        'cannot add `postgres_changes` callbacks for realtime:community:group-inbox after `subscribe()`.',
+      );
+    }
+    return mockChannel;
+  }),
+  subscribe: jest.fn(() => {
+    mockChannelSubscribed = true;
+    return mockChannel;
+  }),
 };
 
 const mockSupabase = {
@@ -105,6 +116,7 @@ describe('communities service', () => {
 
   beforeEach(() => {
     jest.resetModules();
+    mockChannelSubscribed = false;
     mockFetch.mockReset();
     mockChannel.on.mockClear();
     mockChannel.subscribe.mockClear();
@@ -608,6 +620,7 @@ describe('communities service', () => {
 describe('subscribeToGroupMessages', () => {
   beforeEach(() => {
     jest.resetModules();
+    mockChannelSubscribed = false;
     mockChannel.on.mockClear();
     mockChannel.subscribe.mockClear();
     mockSupabase.channel.mockClear();
@@ -733,5 +746,58 @@ describe('subscribeToGroupMessages', () => {
     insertHandler({});
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('subscribeToCommunityGroupInbox', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    mockChannelSubscribed = false;
+    mockChannel.on.mockClear();
+    mockChannel.subscribe.mockClear();
+    mockSupabase.channel.mockClear();
+    mockSupabase.removeChannel.mockClear();
+  });
+
+  it('shares one subscribed channel across simultaneous unread-count consumers', () => {
+    const { subscribeToCommunityGroupInbox } = loadRealtime();
+    const firstListener = jest.fn();
+    const secondListener = jest.fn();
+
+    const unsubscribeFirst = subscribeToCommunityGroupInbox(firstListener);
+    let unsubscribeSecond: (() => void) | undefined;
+
+    expect(() => {
+      unsubscribeSecond = subscribeToCommunityGroupInbox(secondListener);
+    }).not.toThrow();
+    expect(mockSupabase.channel).toHaveBeenCalledTimes(1);
+    expect(mockChannel.subscribe).toHaveBeenCalledTimes(1);
+
+    const insertHandler = mockChannel.on.mock.calls[0][2] as () => void;
+    insertHandler();
+    expect(firstListener).toHaveBeenCalledTimes(1);
+    expect(secondListener).toHaveBeenCalledTimes(1);
+
+    unsubscribeFirst();
+    expect(mockSupabase.removeChannel).not.toHaveBeenCalled();
+
+    unsubscribeSecond?.();
+    expect(mockSupabase.removeChannel).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.removeChannel).toHaveBeenCalledWith(mockChannel);
+  });
+
+  it('degrades to polling instead of crashing when a stale topic is already subscribed', () => {
+    const { subscribeToCommunityGroupInbox } = loadRealtime();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockChannelSubscribed = true;
+
+    let unsubscribe: (() => void) | undefined;
+    expect(() => {
+      unsubscribe = subscribeToCommunityGroupInbox(jest.fn());
+    }).not.toThrow();
+    expect(mockSupabase.removeChannel).toHaveBeenCalledWith(mockChannel);
+
+    unsubscribe?.();
+    warn.mockRestore();
   });
 });

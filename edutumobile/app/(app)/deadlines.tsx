@@ -1,9 +1,11 @@
+import { groupPlanDeadlines } from '../../lib/deadlinePresentation';
+import { useLocalSearchParams as usePlanParams , useRouter } from 'expo-router';
+import { PlanWorkspaceHeader } from '../../components/opportunity-path/PlanWorkspaceHeader';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Bookmark, CheckCircle, ChevronRight } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
@@ -40,6 +42,7 @@ const DeadlineSection = ({
             {data.map((item) => (
                 <TouchableOpacity
                     key={item.id}
+                    accessibilityRole="button" accessibilityLabel={item.title}
                     style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
                     onPress={() => router.push(`/opportunities/${item.opportunityId}`)}
                     activeOpacity={0.7}
@@ -49,7 +52,7 @@ const DeadlineSection = ({
                             <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={2}>
                                 {item.title}
                             </Text>
-                            <Text style={[styles.cardOrg, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                            <Text style={[styles.cardOrg, { color: colors.textSecondary }]}>
                                 {item.organization}
                             </Text>
                         </View>
@@ -73,22 +76,22 @@ const DeadlineSection = ({
                                             : '#10B981'
                                 }
                             ]}>
-                                {item.daysRemaining <= 0 ? t('deadlines.pastDue') : t('deadlines.daysLeft', { count: item.daysRemaining })}
+                                {item.daysRemaining < 0 ? t('deadlines.pastDue') : item.daysRemaining === 0 ? t('deadlines.today', { defaultValue: 'Today' }) : t('deadlines.daysLeft', { count: item.daysRemaining })}
                             </Text>
                         </View>
                     </View>
 
-                    <View style={styles.cardFooter}>
+                    <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                         <View style={styles.typeBadge}>
                             {item.type === 'applied' ? (
                                 <>
-                                    <CheckCircle size={14} color="#10B981" />
-                                    <Text style={styles.typeText}>{t('deadlines.applied')}</Text>
+                                    <CheckCircle size={14} color={colors.accent} />
+                                    <Text style={[styles.typeText, { color: colors.textSecondary }]}>{t('deadlines.applied')}</Text>
                                 </>
                             ) : (
                                 <>
-                                    <Bookmark size={14} color="#6366F1" />
-                                    <Text style={styles.typeText}>{t('deadlines.bookmarked')}</Text>
+                                    <Bookmark size={14} color={colors.accent} />
+                                    <Text style={[styles.typeText, { color: colors.textSecondary }]}>{t('deadlines.bookmarked')}</Text>
                                 </>
                             )}
                         </View>
@@ -101,6 +104,7 @@ const DeadlineSection = ({
 };
 
 export default function DeadlinesScreen() {
+    const { planNav } = usePlanParams<{ planNav?: string }>();
     const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
     const router = useRouter();
@@ -157,41 +161,14 @@ export default function DeadlinesScreen() {
     // Clock snapshot from mount: render (incl. useMemo) must stay pure, and
     // day-granularity grouping doesn't need a live clock — the screen
     // remounts on every visit.
-    const [now] = useState(() => Date.now());
+    const [now, setNow] = useState(() => Date.now());
 
-    const groupedDeadlines = useMemo(() => {
-        const week = 7 * 24 * 60 * 60 * 1000;
-        const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-        const month = 30 * 24 * 60 * 60 * 1000;
-
-        const groups = {
-            thisWeek: [] as DeadlineItem[],
-            nextWeek: [] as DeadlineItem[],
-            thisMonth: [] as DeadlineItem[],
-            later: [] as DeadlineItem[],
-        };
-
-        deadlines.forEach((item) => {
-            const deadlineTime = new Date(item.deadline).getTime();
-            const diff = deadlineTime - now;
-
-            if (diff <= week) {
-                groups.thisWeek.push(item);
-            } else if (diff <= twoWeeks) {
-                groups.nextWeek.push(item);
-            } else if (diff <= month) {
-                groups.thisMonth.push(item);
-            } else {
-                groups.later.push(item);
-            }
-        });
-
-        return groups;
-    }, [deadlines, now]);
+    const groupedDeadlines = useMemo(() => groupPlanDeadlines(deadlines, now), [deadlines, now]);
 
     const onRefresh = useCallback(() => {
         if (!user) return;
         setRefreshing(true);
+        setNow(Date.now());
         // Match the previous behavior where a refresh also re-raised the
         // full-screen loader and cleared any error.
         setLoading(true);
@@ -210,7 +187,7 @@ export default function DeadlinesScreen() {
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-                <ScreenHeader title={t('deadlines.title')} showBack />
+                {planNav === '1' ? <PlanWorkspaceHeader section="deadlines" /> : (<ScreenHeader title={t('deadlines.title')} showBack />)}
                 <View style={styles.loadingContainer}>
                     <BrandedLoader label={t('deadlines.loading')} />
                 </View>
@@ -218,16 +195,16 @@ export default function DeadlinesScreen() {
         );
     }
 
-    const totalDeadlines = deadlines.length;
+    const totalDeadlines = Object.values(groupedDeadlines).reduce((total, group) => total + group.length, 0);
     const urgentCount = groupedDeadlines.thisWeek.length + groupedDeadlines.nextWeek.length;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-            <ScreenHeader
+            {planNav === '1' ? <PlanWorkspaceHeader section="deadlines" /> : (<ScreenHeader
                 title={t('deadlines.title')}
                 showBack
                 subtitle={t('deadlines.subtitle', { total: totalDeadlines, urgent: urgentCount })}
-            />
+            />)}
 
             <FlatList
                 data={[]}
@@ -284,6 +261,7 @@ export default function DeadlinesScreen() {
                                     colors={colors}
                                     router={router}
                                 />
+                                <DeadlineSection title={t('deadlines.pastDue')} data={groupedDeadlines.pastDue} isDark={isDark} colors={colors} router={router} />
                             </>
                         )}
                     </>
@@ -304,7 +282,7 @@ export default function DeadlinesScreen() {
 
 const styles = StyleSheet.create({
     listContent: {
-        paddingBottom: 100,
+        paddingBottom: 160,
     },
     loadingContainer: {
         flex: 1,
@@ -340,8 +318,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     card: {
-        borderRadius: 16,
-        padding: 16,
+        borderRadius: 24,
+        borderCurve: "continuous",
+        padding: 20,
         borderWidth: 1,
         marginBottom: 12,
     },
@@ -355,18 +334,19 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     cardTitle: {
-        fontSize: 15,
+        fontSize: 17,
         fontWeight: '600',
-        lineHeight: 20,
+        lineHeight: 23,
     },
     cardOrg: {
         fontSize: 13,
         marginTop: 4,
     },
     deadlineBadge: {
+        alignSelf: 'flex-start', maxWidth: '35%',
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 8,
+        borderRadius: 12,
     },
     deadlineText: {
         fontSize: 12,
@@ -377,7 +357,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingTop: 12,
-        borderTopWidth: 1,
+        borderTopWidth: StyleSheet.hairlineWidth,
     },
     typeBadge: {
         flexDirection: 'row',

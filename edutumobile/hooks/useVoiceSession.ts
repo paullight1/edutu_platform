@@ -34,6 +34,24 @@ export type VoiceSessionStatus =
 
 export type VoiceSessionError = 'permission' | 'limit' | 'network' | null;
 
+export interface VoiceSessionController {
+  status: VoiceSessionStatus;
+  errorCode: VoiceSessionError;
+  muted: boolean;
+  level: number;
+  userTranscript: string | null;
+  assistantReply: string | null;
+  spokenRatio: number;
+  turnCount: number;
+  paused: boolean;
+  begin: () => void;
+  end: () => void;
+  onOrbPress: () => void;
+  bargeIn: () => void;
+  toggleMute: () => void;
+  retry: () => void;
+}
+
 // Metering is dBFS (negative). Voice on phone mics typically peaks well
 // above -35; the floor maps the animation range, not the VAD gate.
 const SPEECH_DB_GATE = -35;
@@ -85,7 +103,7 @@ export interface UseVoiceSessionOptions {
   greeting?: string;
 }
 
-export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoiceSessionOptions) {
+export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoiceSessionOptions): VoiceSessionController {
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 120);
 

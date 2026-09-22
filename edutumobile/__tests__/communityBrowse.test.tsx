@@ -326,6 +326,13 @@ describe('browse screen affordances', () => {
 
     expect(unlinked.queryByTestId('group-row-opportunity-unlinked')).toBeNull();
   });
+
+  it('keeps the row entrance animation off the transform-animated pressable', () => {
+    const row = render(<GroupRow group={makeGroup({ id: 'animated' })} />);
+
+    expect(row.getByTestId('group-row-entry-animated').props.entering).toBeDefined();
+    expect(row.getByTestId('group-row-animated').props.entering).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

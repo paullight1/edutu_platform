@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "كن مرشدًا",
+        "progressLabel": "تقدم الطلب",
+        "progressCount": "{{current}} من {{total}}",
+        "steps": {
+            "intro": "مقدمة",
+            "motivation": "دافعك",
+            "details": "خبرتك",
+            "review": "المراجعة"
+        },
         "alerts": {
             "notSignedInTitle": "لم يتم تسجيل الدخول",
             "notSignedInMessage": "يرجى تسجيل الدخول لتقديم طلب إرشاد."

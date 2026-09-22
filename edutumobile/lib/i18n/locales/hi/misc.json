@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "मेंटर बनें",
+        "progressLabel": "आवेदन की प्रगति",
+        "progressCount": "{{total}} में से {{current}}",
+        "steps": {
+            "intro": "परिचय",
+            "motivation": "आपकी प्रेरणा",
+            "details": "आपका अनुभव",
+            "review": "समीक्षा"
+        },
         "alerts": {
             "notSignedInTitle": "साइन इन नहीं है",
             "notSignedInMessage": "मेंटर आवेदन सबमिट करने के लिए कृपया साइन इन करें।"

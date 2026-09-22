@@ -117,22 +117,43 @@ export interface TtsVoiceOption {
 }
 
 export const TTS_VOICES: TtsVoiceOption[] = [
-  { id: 'nova', label: 'Nova', tone: 'Warm · upbeat (recommended)' },
-  { id: 'shimmer', label: 'Shimmer', tone: 'Bright · friendly' },
-  { id: 'coral', label: 'Coral', tone: 'Warm · expressive' },
-  { id: 'sage', label: 'Sage', tone: 'Calm · reassuring' },
   { id: 'alloy', label: 'Alloy', tone: 'Neutral · balanced' },
+  { id: 'ash', label: 'Ash', tone: 'Clear · conversational' },
+  { id: 'ballad', label: 'Ballad', tone: 'Smooth · expressive' },
+  { id: 'coral', label: 'Coral', tone: 'Warm · expressive' },
   { id: 'echo', label: 'Echo', tone: 'Clear · confident' },
   { id: 'fable', label: 'Fable', tone: 'Storytelling · lively' },
+  { id: 'nova', label: 'Nova', tone: 'Warm · upbeat (recommended)' },
   { id: 'onyx', label: 'Onyx', tone: 'Deep · grounded' },
+  { id: 'sage', label: 'Sage', tone: 'Calm · reassuring' },
+  { id: 'shimmer', label: 'Shimmer', tone: 'Bright · friendly' },
+  { id: 'verse', label: 'Verse', tone: 'Natural · versatile' },
 ];
 
 export const DEFAULT_TTS_VOICE = 'nova';
+
+/** Complete built-in voice catalog accepted by OpenAI Realtime sessions. */
+export const OPENAI_REALTIME_VOICES: TtsVoiceOption[] = [
+  { id: 'alloy', label: 'Alloy', tone: 'Neutral · balanced' },
+  { id: 'ash', label: 'Ash', tone: 'Clear · conversational' },
+  { id: 'ballad', label: 'Ballad', tone: 'Smooth · expressive' },
+  { id: 'coral', label: 'Coral', tone: 'Warm · expressive' },
+  { id: 'echo', label: 'Echo', tone: 'Clear · confident' },
+  { id: 'sage', label: 'Sage', tone: 'Calm · reassuring' },
+  { id: 'shimmer', label: 'Shimmer', tone: 'Bright · friendly' },
+  { id: 'verse', label: 'Verse', tone: 'Natural · versatile' },
+  { id: 'marin', label: 'Marin', tone: 'Natural · premium (recommended)' },
+  { id: 'cedar', label: 'Cedar', tone: 'Warm · premium (recommended)' },
+];
+
+export const DEFAULT_REALTIME_VOICE = 'marin';
 
 export interface VoiceSettings {
   design: OrbDesign;
   /** OpenAI TTS voice id — Edutu's spoken voice. */
   ttsVoice: string;
+  /** OpenAI Realtime voice id — fixed for the life of each WebRTC session. */
+  realtimeVoice: string;
   /** Legacy expo-speech voice identifier; used only if server TTS is down. */
   voiceId: string | null;
   hydrated: boolean;
@@ -140,7 +161,13 @@ export interface VoiceSettings {
 
 const STORAGE_KEY = '@edutu/voiceSettings';
 
-let state: VoiceSettings = { design: 'particles', ttsVoice: DEFAULT_TTS_VOICE, voiceId: null, hydrated: false };
+let state: VoiceSettings = {
+  design: 'particles',
+  ttsVoice: DEFAULT_TTS_VOICE,
+  realtimeVoice: DEFAULT_REALTIME_VOICE,
+  voiceId: null,
+  hydrated: false,
+};
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -150,7 +177,12 @@ function emit() {
 function persist() {
   AsyncStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ design: state.design, ttsVoice: state.ttsVoice, voiceId: state.voiceId }),
+    JSON.stringify({
+      design: state.design,
+      ttsVoice: state.ttsVoice,
+      realtimeVoice: state.realtimeVoice,
+      voiceId: state.voiceId,
+    }),
   ).catch(() => {});
 }
 
@@ -161,9 +193,15 @@ function hydrate() {
     .then((raw) => {
       const saved = raw ? JSON.parse(raw) : null;
       const savedVoice = typeof saved?.ttsVoice === 'string' ? saved.ttsVoice : null;
+      const savedRealtimeVoice = typeof saved?.realtimeVoice === 'string'
+        ? saved.realtimeVoice
+        : null;
       state = {
         design: ORB_DESIGNS.includes(saved?.design) ? saved.design : 'particles',
         ttsVoice: TTS_VOICES.some((v) => v.id === savedVoice) ? savedVoice! : DEFAULT_TTS_VOICE,
+        realtimeVoice: OPENAI_REALTIME_VOICES.some((v) => v.id === savedRealtimeVoice)
+          ? savedRealtimeVoice!
+          : DEFAULT_REALTIME_VOICE,
         voiceId: typeof saved?.voiceId === 'string' ? saved.voiceId : null,
         hydrated: true,
       };
@@ -190,8 +228,17 @@ export function setVoiceId(voiceId: string | null) {
 }
 
 export function setTtsVoice(ttsVoice: string) {
+  if (!TTS_VOICES.some((voice) => voice.id === ttsVoice)) return;
   if (state.ttsVoice === ttsVoice) return;
   state = { ...state, ttsVoice };
+  persist();
+  emit();
+}
+
+export function setRealtimeVoice(realtimeVoice: string) {
+  if (!OPENAI_REALTIME_VOICES.some((voice) => voice.id === realtimeVoice)) return;
+  if (state.realtimeVoice === realtimeVoice) return;
+  state = { ...state, realtimeVoice };
   persist();
   emit();
 }

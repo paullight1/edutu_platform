@@ -106,12 +106,16 @@ Expo Go cannot load `react-native-webrtc`. Before inviting voice testers:
 3. Test on a physical device: microphone permission, remote audio, Bluetooth
    output, barge-in, interruption, background/foreground teardown, reconnect,
    and Pro-only access.
-4. Keep the Live flag off until the Realtime session proxy and `ask_edutu`
-   tool contract are deployed. Users without an active server-side Pro
-   entitlement must fall back to tap-to-talk, not receive a provider session.
+4. Deploy the Nest Realtime session proxy and mobile build together. Confirm
+   that an authenticated Pro user receives continuous Live audio and captions,
+   while non-Pro users and provider/native failures fall back to tap-to-talk.
+5. Start a conversation, background the app mid-turn, foreground it, and
+   confirm the same Edutu thread and captions resume without duplicate saved
+   messages. Then force a network drop and confirm transparent reconnect.
 
-The current mobile loop is a turn-based record/transcribe/chat/TTS fallback,
-not OpenAI Realtime. See
+Live uses OpenAI Realtime WebRTC as its audio transport and delegates every
+completed turn to the persisted Edutu chat stream through `ask_edutu`. The
+turn-based record/transcribe/chat/TTS engine remains the safe fallback. See
 [`docs/operations/edutu-realtime-voice.md`](../../docs/operations/edutu-realtime-voice.md)
 for the release gates, observability fields, and rollback procedure.
 

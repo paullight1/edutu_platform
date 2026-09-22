@@ -39,6 +39,8 @@ export function ScreenHeader({ title, subtitle, showBack = false, onBack, right,
 
                         router.replace('/(app)');
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
                     style={[styles.backBtn, {
                         backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                         marginRight: 8,

@@ -16,21 +16,25 @@ import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-nati
 import { OrbPreview } from '../ui/OrbPreview';
 import { speak as edutuSpeak, isPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import {
+    OPENAI_REALTIME_VOICES,
     ORB_DESIGNS,
     OrbDesign,
     TTS_VOICES,
     setOrbDesign,
+    setRealtimeVoice,
     setTtsVoice,
     useVoiceSettings,
 } from '../../lib/voiceSettingsStore';
+import type { VoiceModeKind } from '../../lib/voiceModeStore';
 
 interface VoiceSettingsSheetProps {
     visible: boolean;
+    mode: VoiceModeKind;
     onClose: () => void;
 }
 
 
-export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps) {
+export function VoiceSettingsSheet({ visible, mode, onClose }: VoiceSettingsSheetProps) {
     const { t } = useTranslation('chat');
     const insets = useSafeAreaInsets();
     const settings = useVoiceSettings();
@@ -52,14 +56,24 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
 
     // Selecting a voice previews it immediately in Edutu's own voice so the
     // user hears the difference before committing.
-    const previewVoice = (voiceId: string) => {
-        setTtsVoice(voiceId);
+    const selectVoice = (voiceId: string) => {
         haptics.selection();
+        if (mode === 'live') {
+            // Realtime voices are fixed after the first audio response. Save
+            // the choice for the next connection; the overlay restarts the
+            // paused session when this sheet closes.
+            setRealtimeVoice(voiceId);
+            return;
+        }
+        setTtsVoice(voiceId);
         void edutuSpeak(t('voiceMode.voiceSample'), {
             voice: voiceId,
             getAuthToken: getToken,
         });
     };
+
+    const voiceOptions = mode === 'live' ? OPENAI_REALTIME_VOICES : TTS_VOICES;
+    const selectedVoice = mode === 'live' ? settings.realtimeVoice : settings.ttsVoice;
 
     if (!visible) return null;
 
@@ -110,12 +124,12 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
                     </View>
 
                     <Text style={styles.sectionLabel}>{t('voiceMode.settingsVoice')}</Text>
-                    {TTS_VOICES.map((voice) => {
-                        const selected = settings.ttsVoice === voice.id;
+                    {voiceOptions.map((voice) => {
+                        const selected = selectedVoice === voice.id;
                         return (
                             <TouchableOpacity
                                 key={voice.id}
-                                onPress={() => previewVoice(voice.id)}
+                                onPress={() => selectVoice(voice.id)}
                                 activeOpacity={0.7}
                                 style={[styles.voiceRow, !premiumUnlocked && styles.voiceRowLocked]}
                                 accessibilityRole="button"

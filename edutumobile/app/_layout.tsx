@@ -12,7 +12,7 @@ import { useDeepLink } from "../hooks/useDeepLink";
 import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
-import { flushSignalQueue } from "../packages/core/src/services/signalQueue";
+import { flushSignalQueue, setSignalQueueSession } from "../packages/core/src/services/signalQueue";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { hydrateNavBarStyle } from "../lib/navStyleStore";
 import { hydrateHaptics } from "../lib/haptics";
@@ -134,8 +134,9 @@ function RootLayoutContent() {
 
     // Deliver any behavioral signals that queued while offline / unauthed.
     useEffect(() => {
-        if (!userId) return;
-        void flushSignalQueue(() => getToken().catch(() => null));
+        setSignalQueueSession(userId ?? null, () => getToken().catch(() => null));
+        if (userId) void flushSignalQueue();
+        return () => setSignalQueueSession(null);
     }, [userId, getToken]);
 
     // Register the background task once so iOS keeps the widget fresh even when
@@ -190,7 +191,7 @@ function RootLayoutContent() {
                         getToken,
                     });
                     if (userId) {
-                        void flushSignalQueue(() => getToken().catch(() => null));
+                        void flushSignalQueue();
                     }
                 }
                 appState.current = nextState;

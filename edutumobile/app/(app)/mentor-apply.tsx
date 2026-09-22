@@ -2,25 +2,30 @@ import React, { useState } from 'react';
 import {
     View, Text, ScrollView, TextInput, TouchableOpacity,
     StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-    Dimensions
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
 import {
-    ChevronLeft, CheckCircle2, HandHeart, Users, Award, Star,
-    Heart, BookOpen, Zap, ArrowRight, Check, Globe
+    CheckCircle2, HandHeart, Users, Award, Star,
+    Heart, BookOpen, Zap, ArrowRight, Globe
 } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
 
-const { width } = Dimensions.get('window');
-
 const MENTOR_STEPS = ['intro', 'motivation', 'details', 'review'] as const;
 type MentorStep = typeof MENTOR_STEPS[number];
+
+const BRAND_BLUE = '#146ef5';
+const STEP_LABELS: Record<MentorStep, string> = {
+    intro: 'Introduction',
+    motivation: 'Your motivation',
+    details: 'Your experience',
+    review: 'Review',
+};
 
 const MOTIVATION_OPTIONS = [
     { id: 'help_others', textKey: 'mentorApply.motivations.helpOthers', icon: Heart },
@@ -31,10 +36,10 @@ const MOTIVATION_OPTIONS = [
 ];
 
 const CONTENT_TYPES = [
-    { id: 'mentorship', labelKey: 'mentorApply.contentTypes.mentorship.label', icon: Users, color: '#146ef5', descKey: 'mentorApply.contentTypes.mentorship.desc' },
-    { id: 'course', labelKey: 'mentorApply.contentTypes.course.label', icon: BookOpen, color: '#7a3dff', descKey: 'mentorApply.contentTypes.course.desc' },
-    { id: 'template', labelKey: 'mentorApply.contentTypes.template.label', icon: Award, color: '#00d722', descKey: 'mentorApply.contentTypes.template.desc' },
-    { id: 'resource', labelKey: 'mentorApply.contentTypes.resource.label', icon: Star, color: '#ff6b00', descKey: 'mentorApply.contentTypes.resource.desc' },
+    { id: 'mentorship', labelKey: 'mentorApply.contentTypes.mentorship.label', icon: Users, descKey: 'mentorApply.contentTypes.mentorship.desc' },
+    { id: 'course', labelKey: 'mentorApply.contentTypes.course.label', icon: BookOpen, descKey: 'mentorApply.contentTypes.course.desc' },
+    { id: 'template', labelKey: 'mentorApply.contentTypes.template.label', icon: Award, descKey: 'mentorApply.contentTypes.template.desc' },
+    { id: 'resource', labelKey: 'mentorApply.contentTypes.resource.label', icon: Star, descKey: 'mentorApply.contentTypes.resource.desc' },
 ];
 
 export default function MentorApply() {
@@ -58,6 +63,14 @@ export default function MentorApply() {
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
+    const stepLabel = t(`mentorApply.steps.${currentStep}`, {
+        defaultValue: STEP_LABELS[currentStep],
+    });
+    const progressCount = t('mentorApply.progressCount', {
+        current: stepIndex + 1,
+        total: MENTOR_STEPS.length,
+        defaultValue: '{{current}} of {{total}}',
+    });
 
     const updateField = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -130,25 +143,45 @@ export default function MentorApply() {
         }
     };
 
-    const bg = isDark ? '#0a0a0a' : '#ffffff';
-    const textPrimary = isDark ? '#fafafa' : '#0a0a0a';
-    const textSecondary = isDark ? '#888888' : '#666666';
-    const cardBg = isDark ? '#111111' : '#fafafa';
-    const borderColor = isDark ? '#1e1e1e' : '#e8e8e8';
+    const handleBack = () => {
+        if (stepIndex > 0) {
+            prevStep();
+            return;
+        }
+
+        if (router.canGoBack()) {
+            router.back();
+            return;
+        }
+
+        router.replace('/(app)');
+    };
+
+    const bg = colors.background;
+    const textPrimary = colors.foreground;
+    const textSecondary = colors.textSecondary;
+    const cardBg = colors.card;
+    const borderColor = colors.border;
+    const mutedBg = colors.muted;
+    const accentSoft = isDark ? 'rgba(20,110,245,0.16)' : 'rgba(20,110,245,0.08)';
 
     if (isSubmitted) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
                 <View style={styles.successContainer}>
-                    <View style={[styles.successIcon, { backgroundColor: '#146ef5' }]}>
-                        <CheckCircle2 size={40} color="#fff" />
+                    <View style={[styles.successIconHalo, { backgroundColor: accentSoft }]}>
+                        <View style={[styles.successIcon, { backgroundColor: BRAND_BLUE }]}>
+                            <CheckCircle2 size={34} color="#fff" strokeWidth={2.2} />
+                        </View>
                     </View>
                     <Text style={[styles.successTitle, { color: textPrimary }]}>{t('mentorApply.success.title')}</Text>
                     <Text style={[styles.successDesc, { color: textSecondary }]}>
                         {t('mentorApply.success.desc')}
                     </Text>
                     <TouchableOpacity
-                        style={[styles.successBtn, { backgroundColor: '#146ef5' }]}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        style={[styles.successBtn, { backgroundColor: BRAND_BLUE }]}
                         onPress={() => router.replace('/profile')}
                     >
                         <Text style={styles.successBtnText}>{t('mentorApply.success.backToProfile')}</Text>
@@ -160,23 +193,26 @@ export default function MentorApply() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
-            <ScreenHeader title={t('mentorApply.title')} showBack />
+            <ScreenHeader title={t('mentorApply.title')} showBack onBack={handleBack} />
 
-            {/* Step Progress */}
-            <View style={[styles.stepProgress, { borderBottomColor: borderColor }]}>
-                {MENTOR_STEPS.map((s, i) => (
-                    <View key={s} style={styles.stepProgressItem}>
-                        <View style={[styles.stepDot, {
-                            backgroundColor: i <= stepIndex ? '#146ef5' : borderColor,
-                        }]}>
-                            {i < stepIndex && <Check size={12} color="#fff" />}
-                            {i === stepIndex && <Text style={styles.stepNumber}>{i + 1}</Text>}
-                        </View>
-                        {i < MENTOR_STEPS.length - 1 && (
-                            <View style={[styles.stepLine, { backgroundColor: i < stepIndex ? '#146ef5' : borderColor }]} />
-                        )}
-                    </View>
-                ))}
+            <View style={[styles.progressSection, { borderBottomColor: borderColor }]}>
+                <View style={styles.progressMeta}>
+                    <Text style={[styles.progressLabel, { color: textPrimary }]}>{stepLabel}</Text>
+                    <Text style={[styles.progressCount, { color: textSecondary }]}>{progressCount}</Text>
+                </View>
+                <View
+                    accessibilityRole="progressbar"
+                    accessibilityLabel={t('mentorApply.progressLabel', { defaultValue: 'Application progress' })}
+                    accessibilityValue={{ min: 1, max: MENTOR_STEPS.length, now: stepIndex + 1 }}
+                    style={[styles.progressTrack, { backgroundColor: mutedBg }]}
+                >
+                    <View
+                        style={[
+                            styles.progressFill,
+                            { backgroundColor: BRAND_BLUE, width: `${((stepIndex + 1) / MENTOR_STEPS.length) * 100}%` },
+                        ]}
+                    />
+                </View>
             </View>
 
             <KeyboardAvoidingView
@@ -186,116 +222,144 @@ export default function MentorApply() {
             >
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 28 }]}
                 >
                     {/* STEP 1: INTRO */}
                     {currentStep === 'intro' && (
-                        <View>
-                            <View style={styles.badge}>
-                                <Award size={12} color="#146ef5" />
-                                <Text style={styles.badgeText}>{t('mentorApply.title')}</Text>
+                        <View style={styles.stepFrame}>
+                            <View style={[styles.heroMark, { backgroundColor: accentSoft }]}>
+                                <Award size={22} color={BRAND_BLUE} strokeWidth={2} />
                             </View>
                             <Text style={[styles.heroTitle, { color: textPrimary }]}>
-                                <Trans t={t} i18nKey="mentorApply.intro.heroTitle" components={{ accent: <Text style={{ color: '#146ef5' }} /> }} />
+                                <Trans t={t} i18nKey="mentorApply.intro.heroTitle" components={{ accent: <Text style={{ color: BRAND_BLUE }} /> }} />
                             </Text>
                             <Text style={[styles.heroDesc, { color: textSecondary }]}>
                                 {t('mentorApply.intro.heroDesc')}
                             </Text>
 
-                            <View style={styles.statsRow}>
-                                {[
-                                    { num: '85%', label: t('mentorApply.intro.statRevenue'), color: '#00d722' },
-                                    { num: t('mentorApply.intro.freeValue', { defaultValue: 'Free' }), label: t('mentorApply.intro.statFree', { defaultValue: 'No cost to apply' }), color: '#146ef5' },
-                                    { num: t('mentorApply.intro.reviewValue', { defaultValue: '2–3 days' }), label: t('mentorApply.intro.statReview', { defaultValue: 'Application review' }), color: '#7a3dff' },
-                                ].map((stat, i) => (
-                                    <View key={i} style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
-                                        <Text style={[styles.statNum, { color: stat.color }]}>{stat.num}</Text>
-                                        <Text style={[styles.statLabel, { color: textSecondary }]}>{stat.label}</Text>
+                            <View style={[styles.valuePanel, { backgroundColor: cardBg, borderColor }]}>
+                                <View style={[styles.revenueBlock, { backgroundColor: accentSoft }]}>
+                                    <Text style={styles.revenueValue}>85%</Text>
+                                    <Text style={[styles.revenueLabel, { color: textSecondary }]}>
+                                        {t('mentorApply.intro.statRevenue')}
+                                    </Text>
+                                </View>
+                                <View style={styles.secondaryStats}>
+                                    <View style={styles.secondaryStat}>
+                                        <Text style={[styles.secondaryValue, { color: textPrimary }]}>
+                                            {t('mentorApply.intro.freeValue', { defaultValue: 'Free' })}
+                                        </Text>
+                                        <Text style={[styles.secondaryLabel, { color: textSecondary }]}>
+                                            {t('mentorApply.intro.statFree', { defaultValue: 'No cost to apply' })}
+                                        </Text>
                                     </View>
-                                ))}
+                                    <View style={[styles.secondaryDivider, { backgroundColor: borderColor }]} />
+                                    <View style={styles.secondaryStat}>
+                                        <Text style={[styles.secondaryValue, { color: textPrimary }]}>
+                                            {t('mentorApply.intro.reviewValue', { defaultValue: '2-3 days' })}
+                                        </Text>
+                                        <Text style={[styles.secondaryLabel, { color: textSecondary }]}>
+                                            {t('mentorApply.intro.statReview', { defaultValue: 'Application review' })}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
 
-                            <View style={[styles.infoCard, { backgroundColor: `${colors.accent}08`, borderColor: `${colors.accent}20` }]}>
-                                <Globe size={18} color={colors.accent} />
+                            <View style={[styles.reachRow, { borderColor }]}>
+                                <View style={[styles.reachIcon, { backgroundColor: accentSoft }]}>
+                                    <Globe size={18} color={BRAND_BLUE} strokeWidth={2} />
+                                </View>
                                 <Text style={[styles.infoText, { color: textSecondary }]}>
                                     {t('mentorApply.intro.info')}
                                 </Text>
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.primaryBtn, { backgroundColor: '#146ef5' }]}
+                                accessibilityRole="button"
+                                activeOpacity={0.82}
+                                style={[styles.primaryBtn, styles.introCta, { backgroundColor: BRAND_BLUE }]}
                                 onPress={nextStep}
                             >
                                 <Text style={styles.primaryBtnText}>{t('mentorApply.intro.getStarted')}</Text>
-                                <ArrowRight size={16} color="#fff" />
+                                <ArrowRight size={18} color="#fff" strokeWidth={2.2} />
                             </TouchableOpacity>
                         </View>
                     )}
 
                     {/* STEP 2: MOTIVATION */}
                     {currentStep === 'motivation' && (
-                        <View>
-                            <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
-                                <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
-                            </TouchableOpacity>
+                        <View style={styles.stepFrame}>
                             <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.motivation.title')}</Text>
                             <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.motivation.desc')}</Text>
 
-                            <View style={styles.optionsList}>
+                            <View
+                                accessibilityRole="radiogroup"
+                                accessibilityLabel={t('mentorApply.motivation.title')}
+                                style={styles.optionsList}
+                            >
                                 {MOTIVATION_OPTIONS.map((option) => {
                                     const isSelected = formData.motivation === option.id;
+                                    const optionText = t(option.textKey);
                                     return (
                                         <TouchableOpacity
                                             key={option.id}
+                                            accessibilityLabel={optionText}
+                                            accessibilityRole="radio"
+                                            accessibilityState={{ selected: isSelected }}
+                                            activeOpacity={0.82}
                                             onPress={() => updateField('motivation', option.id)}
                                             style={[styles.optionCard, {
                                                 backgroundColor: isSelected
-                                                    ? isDark ? 'rgba(20,110,245,0.12)' : 'rgba(20,110,245,0.06)'
+                                                    ? accentSoft
                                                     : cardBg,
-                                                borderColor: isSelected ? '#146ef5' : borderColor,
-                                                borderWidth: 2,
+                                                borderColor: isSelected ? BRAND_BLUE : borderColor,
                                             }]}
                                         >
                                             <View style={[styles.optionIcon, {
-                                                backgroundColor: isSelected ? '#146ef5' : isDark ? '#1e1e1e' : '#e5e5e5',
+                                                backgroundColor: isSelected ? BRAND_BLUE : mutedBg,
                                             }]}>
-                                                <option.icon size={16} color={isSelected ? '#fff' : textSecondary} />
+                                                <option.icon size={18} color={isSelected ? '#fff' : textSecondary} strokeWidth={2} />
                                             </View>
-                                            <Text style={[styles.optionText, { color: isSelected ? '#146ef5' : textPrimary }]}>
-                                                {t(option.textKey)}
+                                            <Text style={[styles.optionText, { color: isSelected ? BRAND_BLUE : textPrimary }]}>
+                                                {optionText}
                                             </Text>
+                                            <CheckCircle2
+                                                size={20}
+                                                color={isSelected ? BRAND_BLUE : borderColor}
+                                                strokeWidth={2}
+                                            />
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityState={{ disabled: !canProceed() }}
+                                activeOpacity={0.82}
                                 style={[styles.primaryBtn, {
-                                    backgroundColor: canProceed() ? '#146ef5' : borderColor,
+                                    backgroundColor: canProceed() ? BRAND_BLUE : mutedBg,
                                 }]}
                                 onPress={nextStep}
                                 disabled={!canProceed()}
                             >
                                 <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>{t('common:actions.continue')}</Text>
-                                <ArrowRight size={16} color={canProceed() ? '#fff' : textSecondary} />
+                                <ArrowRight size={18} color={canProceed() ? '#fff' : textSecondary} strokeWidth={2.2} />
                             </TouchableOpacity>
                         </View>
                     )}
 
                     {/* STEP 3: DETAILS */}
                     {currentStep === 'details' && (
-                        <View>
-                            <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
-                                <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
-                            </TouchableOpacity>
+                        <View style={styles.stepFrame}>
                             <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.details.title')}</Text>
                             <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.details.desc')}</Text>
 
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.displayNameLabel')}</Text>
                                 <TextInput
+                                    accessibilityLabel={t('mentorApply.details.displayNameLabel')}
                                     style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
                                     placeholder={t('mentorApply.details.displayNamePlaceholder')}
                                     placeholderTextColor={textSecondary}
@@ -306,23 +370,33 @@ export default function MentorApply() {
 
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.teachLabel')}</Text>
-                                <View style={styles.typeGrid}>
+                                <View
+                                    accessibilityRole="radiogroup"
+                                    accessibilityLabel={t('mentorApply.details.teachLabel')}
+                                    style={styles.typeGrid}
+                                >
                                     {CONTENT_TYPES.map((type) => {
                                         const isSelected = formData.contentType === type.id;
+                                        const typeLabel = t(type.labelKey);
                                         return (
                                             <TouchableOpacity
                                                 key={type.id}
+                                                accessibilityLabel={`${typeLabel}. ${t(type.descKey)}`}
+                                                accessibilityRole="radio"
+                                                accessibilityState={{ selected: isSelected }}
+                                                activeOpacity={0.82}
                                                 onPress={() => updateField('contentType', type.id)}
                                                 style={[styles.typeCard, {
                                                     backgroundColor: isSelected
-                                                        ? isDark ? 'rgba(20,110,245,0.12)' : 'rgba(20,110,245,0.06)'
+                                                        ? accentSoft
                                                         : cardBg,
-                                                    borderColor: isSelected ? type.color : borderColor,
-                                                    borderWidth: 2,
+                                                    borderColor: isSelected ? BRAND_BLUE : borderColor,
                                                 }]}
                                             >
-                                                <type.icon size={16} color={type.color} />
-                                                <Text style={[styles.typeLabel, { color: textPrimary }]}>{t(type.labelKey)}</Text>
+                                                <View style={[styles.typeIcon, { backgroundColor: isSelected ? BRAND_BLUE : mutedBg }]}>
+                                                    <type.icon size={18} color={isSelected ? '#fff' : textSecondary} strokeWidth={2} />
+                                                </View>
+                                                <Text style={[styles.typeLabel, { color: isSelected ? BRAND_BLUE : textPrimary }]}>{typeLabel}</Text>
                                                 <Text style={[styles.typeDesc, { color: textSecondary }]}>{t(type.descKey)}</Text>
                                             </TouchableOpacity>
                                         );
@@ -333,6 +407,7 @@ export default function MentorApply() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.bioLabel')}</Text>
                                 <TextInput
+                                    accessibilityLabel={t('mentorApply.details.bioLabel')}
                                     style={[styles.textarea, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
                                     placeholder={t('mentorApply.details.bioPlaceholder')}
                                     placeholderTextColor={textSecondary}
@@ -346,6 +421,7 @@ export default function MentorApply() {
                             <View style={styles.formGroup}>
                                 <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.experienceLabel')}</Text>
                                 <TextInput
+                                    accessibilityLabel={t('mentorApply.details.experienceLabel')}
                                     style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
                                     placeholder={t('mentorApply.details.experiencePlaceholder')}
                                     placeholderTextColor={textSecondary}
@@ -354,53 +430,57 @@ export default function MentorApply() {
                                 />
                             </View>
 
-                            <View style={styles.formRow}>
-                                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                                    <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.linkedinLabel')}</Text>
-                                    <TextInput
-                                        style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
-                                        placeholder="linkedin.com/in/..."
-                                        placeholderTextColor={textSecondary}
-                                        value={formData.linkedInUrl}
-                                        onChangeText={(v) => updateField('linkedInUrl', v)}
-                                    />
-                                </View>
-                                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                                    <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.portfolioLabel')}</Text>
-                                    <TextInput
-                                        style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
-                                        placeholder="your-portfolio.com"
-                                        placeholderTextColor={textSecondary}
-                                        value={formData.portfolioUrl}
-                                        onChangeText={(v) => updateField('portfolioUrl', v)}
-                                    />
-                                </View>
+                            <View style={styles.formGroup}>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.linkedinLabel')}</Text>
+                                <TextInput
+                                    accessibilityLabel={t('mentorApply.details.linkedinLabel')}
+                                    autoCapitalize="none"
+                                    keyboardType="url"
+                                    style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
+                                    placeholder="linkedin.com/in/..."
+                                    placeholderTextColor={textSecondary}
+                                    value={formData.linkedInUrl}
+                                    onChangeText={(v) => updateField('linkedInUrl', v)}
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.portfolioLabel')}</Text>
+                                <TextInput
+                                    accessibilityLabel={t('mentorApply.details.portfolioLabel')}
+                                    autoCapitalize="none"
+                                    keyboardType="url"
+                                    style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
+                                    placeholder="your-portfolio.com"
+                                    placeholderTextColor={textSecondary}
+                                    value={formData.portfolioUrl}
+                                    onChangeText={(v) => updateField('portfolioUrl', v)}
+                                />
                             </View>
 
                             <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityState={{ disabled: !canProceed() }}
+                                activeOpacity={0.82}
                                 style={[styles.primaryBtn, {
-                                    backgroundColor: canProceed() ? '#146ef5' : borderColor,
+                                    backgroundColor: canProceed() ? BRAND_BLUE : mutedBg,
                                 }]}
                                 onPress={nextStep}
                                 disabled={!canProceed()}
                             >
                                 <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>{t('mentorApply.details.reviewApplication')}</Text>
-                                <ArrowRight size={16} color={canProceed() ? '#fff' : textSecondary} />
+                                <ArrowRight size={18} color={canProceed() ? '#fff' : textSecondary} strokeWidth={2.2} />
                             </TouchableOpacity>
                         </View>
                     )}
 
                     {/* STEP 4: REVIEW */}
                     {currentStep === 'review' && (
-                        <View>
-                            <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
-                                <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
-                            </TouchableOpacity>
+                        <View style={styles.stepFrame}>
                             <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.review.title')}</Text>
                             <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.review.desc')}</Text>
 
-                            <View style={styles.reviewList}>
+                            <View style={[styles.reviewList, { backgroundColor: cardBg, borderColor }]}>
                                 {[
                                     { label: t('mentorApply.review.displayName'), value: formData.displayName },
                                     { label: t('mentorApply.review.motivation'), value: (() => { const selected = MOTIVATION_OPTIONS.find(m => m.id === formData.motivation); return selected ? t(selected.textKey) : ''; })() },
@@ -410,7 +490,13 @@ export default function MentorApply() {
                                     { label: t('mentorApply.review.linkedin'), value: formData.linkedInUrl || t('mentorApply.review.notProvided') },
                                     { label: t('mentorApply.review.portfolio'), value: formData.portfolioUrl || t('mentorApply.review.notProvided') },
                                 ].map((item, i) => (
-                                    <View key={i} style={[styles.reviewItem, { backgroundColor: cardBg, borderColor }]}>
+                                    <View
+                                        key={item.label}
+                                        style={[
+                                            styles.reviewItem,
+                                            i < 6 && { borderBottomColor: borderColor, borderBottomWidth: StyleSheet.hairlineWidth },
+                                        ]}
+                                    >
                                         <Text style={[styles.reviewLabel, { color: textSecondary }]}>{item.label}</Text>
                                         <Text style={[styles.reviewValue, { color: textPrimary }]}>{item.value}</Text>
                                     </View>
@@ -418,7 +504,10 @@ export default function MentorApply() {
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.primaryBtn, { backgroundColor: '#146ef5' }]}
+                                accessibilityRole="button"
+                                accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
+                                activeOpacity={0.82}
+                                style={[styles.primaryBtn, { backgroundColor: BRAND_BLUE }]}
                                 onPress={handleSubmit}
                                 disabled={isSubmitting}
                             >
@@ -430,7 +519,7 @@ export default function MentorApply() {
                                 ) : (
                                     <>
                                         <Text style={styles.primaryBtnText}>{t('mentorApply.review.submit')}</Text>
-                                        <ArrowRight size={16} color="#fff" />
+                                        <ArrowRight size={18} color="#fff" strokeWidth={2.2} />
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -444,49 +533,157 @@ export default function MentorApply() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    stepProgress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, borderBottomWidth: 1 },
-    stepProgressItem: { flexDirection: 'row', alignItems: 'center' },
-    stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    stepNumber: { fontSize: 12, fontWeight: '700', color: '#fff' },
-    stepLine: { width: 40, height: 2, borderRadius: 1 },
-    scrollContent: { padding: 20 },
-    badge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 20, backgroundColor: 'rgba(20,110,245,0.06)' },
-    badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', color: '#146ef5' },
-    heroTitle: { fontSize: 32, fontWeight: '800', lineHeight: 38, marginBottom: 12 },
-    heroDesc: { fontSize: 14, lineHeight: 22, marginBottom: 24 },
-    statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-    statCard: { flex: 1, padding: 16, borderRadius: 16, borderWidth: 1, alignItems: 'center' },
-    statNum: { fontSize: 20, fontWeight: '800' },
-    statLabel: { fontSize: 10, fontWeight: '600', marginTop: 4 },
-    infoCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 24 },
-    infoText: { flex: 1, fontSize: 12, lineHeight: 18 },
-    primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12, marginTop: 8 },
-    primaryBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
-    backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 16 },
-    backText: { fontSize: 13, fontWeight: '500' },
-    stepTitle: { fontSize: 24, fontWeight: '800', marginBottom: 4 },
-    stepDesc: { fontSize: 13, lineHeight: 20, marginBottom: 24 },
-    optionsList: { gap: 12, marginBottom: 24 },
-    optionCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16, borderWidth: 2 },
-    optionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    optionText: { fontSize: 13, fontWeight: '600', flex: 1 },
-    formGroup: { marginBottom: 18 },
-    label: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
-    input: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 14 },
-    textarea: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 14, textAlignVertical: 'top', minHeight: 100 },
-    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    typeCard: { width: (width - 64) / 2 - 5, padding: 14, borderRadius: 12, borderWidth: 2 },
-    typeLabel: { fontSize: 13, fontWeight: '700', marginTop: 8 },
-    typeDesc: { fontSize: 11, marginTop: 2 },
-    formRow: { flexDirection: 'row', marginBottom: 18 },
-    reviewList: { gap: 12, marginBottom: 24 },
-    reviewItem: { padding: 14, borderRadius: 12, borderWidth: 1 },
-    reviewLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-    reviewValue: { fontSize: 13, lineHeight: 18 },
-    successContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-    successIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 24, shadowColor: '#146ef5', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 16 },
-    successTitle: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
-    successDesc: { fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 32 },
-    successBtn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 },
-    successBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+    progressSection: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 16,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    progressMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    progressLabel: { fontSize: 13, fontWeight: '700', letterSpacing: -0.1 },
+    progressCount: { fontSize: 12, fontWeight: '600' },
+    progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+    progressFill: { height: 4, borderRadius: 2 },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: 20,
+        paddingTop: 28,
+    },
+    stepFrame: { flexGrow: 1 },
+    heroMark: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    heroTitle: {
+        fontSize: 36,
+        fontWeight: '800',
+        lineHeight: 41,
+        letterSpacing: -1.2,
+        marginBottom: 14,
+    },
+    heroDesc: { fontSize: 15, lineHeight: 23, marginBottom: 28, maxWidth: 520 },
+    valuePanel: {
+        flexDirection: 'row',
+        padding: 8,
+        gap: 8,
+        borderRadius: 18,
+        borderWidth: 1,
+        overflow: 'hidden',
+    },
+    revenueBlock: {
+        flex: 1.08,
+        minHeight: 138,
+        justifyContent: 'flex-end',
+        padding: 16,
+        borderRadius: 12,
+    },
+    revenueValue: { color: BRAND_BLUE, fontSize: 34, fontWeight: '800', letterSpacing: -1.2 },
+    revenueLabel: { fontSize: 12, fontWeight: '700', marginTop: 4 },
+    secondaryStats: { flex: 1, justifyContent: 'center', paddingHorizontal: 8 },
+    secondaryStat: { paddingVertical: 10 },
+    secondaryDivider: { height: StyleSheet.hairlineWidth },
+    secondaryValue: { fontSize: 17, lineHeight: 21, fontWeight: '800', letterSpacing: -0.3 },
+    secondaryLabel: { fontSize: 11, lineHeight: 15, fontWeight: '600', marginTop: 3 },
+    reachRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 20,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    reachIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    infoText: { flex: 1, fontSize: 12.5, lineHeight: 19 },
+    primaryBtn: {
+        minHeight: 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 9,
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        borderRadius: 14,
+        marginTop: 22,
+    },
+    introCta: { marginTop: 'auto' },
+    primaryBtnText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.1 },
+    stepTitle: { fontSize: 30, lineHeight: 35, fontWeight: '800', letterSpacing: -0.8, marginBottom: 8 },
+    stepDesc: { fontSize: 14.5, lineHeight: 22, marginBottom: 28 },
+    optionsList: { gap: 10, marginBottom: 4 },
+    optionCard: {
+        minHeight: 68,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 13,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+    },
+    optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    optionText: { fontSize: 14, lineHeight: 20, fontWeight: '600', flex: 1 },
+    formGroup: { marginBottom: 20 },
+    label: { fontSize: 13, fontWeight: '700', marginBottom: 9 },
+    input: {
+        minHeight: 52,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        fontSize: 15,
+    },
+    textarea: {
+        minHeight: 118,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        fontSize: 15,
+        lineHeight: 21,
+        textAlignVertical: 'top',
+    },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    typeCard: {
+        minHeight: 126,
+        flexBasis: '46%',
+        flexGrow: 1,
+        padding: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+    },
+    typeIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+    typeLabel: { fontSize: 14, fontWeight: '700', marginTop: 10 },
+    typeDesc: { fontSize: 11.5, lineHeight: 16, marginTop: 3 },
+    reviewList: { marginBottom: 4, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+    reviewItem: { paddingHorizontal: 16, paddingVertical: 15 },
+    reviewLabel: { fontSize: 10.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 5 },
+    reviewValue: { fontSize: 14, lineHeight: 20 },
+    successContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+    successIconHalo: {
+        width: 92,
+        height: 92,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 28,
+    },
+    successIcon: { width: 62, height: 62, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    successTitle: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8, marginBottom: 10, textAlign: 'center' },
+    successDesc: { maxWidth: 360, fontSize: 15, lineHeight: 23, textAlign: 'center', marginBottom: 32 },
+    successBtn: { width: '100%', minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, borderRadius: 14 },
+    successBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 });

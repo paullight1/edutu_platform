@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -8,13 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { BriefcaseBusiness, BookOpen, GraduationCap, Search } from "lucide-react-native";
+import { Search, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useTranslation } from "react-i18next";
 import {
   fetchCommunityDiscovery,
+  type CommunityDiscoveryResponse,
   type GroupWithMembership,
 } from "@edutu/core/src/services/communities";
 import { useTheme } from "../../../components/context/ThemeContext";
@@ -30,23 +31,43 @@ import {
 
 type FocusFilter = "all" | "scholarships" | "careers" | "study";
 
-const FILTERS: Array<{
-  id: FocusFilter;
-  label: string;
-  icon: typeof GraduationCap;
-}> = [
-  { id: "all", label: "All", icon: Search },
-  { id: "scholarships", label: "Scholarships", icon: GraduationCap },
-  { id: "careers", label: "Careers", icon: BriefcaseBusiness },
-  { id: "study", label: "Study help", icon: BookOpen },
+const FILTERS: Array<{ id: FocusFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "scholarships", label: "Scholarships" },
+  { id: "careers", label: "Careers" },
+  { id: "study", label: "Study help" },
 ];
+
+const EMPTY_DISCOVERY: CommunityDiscoveryResponse = {
+  trending: [],
+  communities: [],
+};
+
+function matchesDiscoveryFilters(
+  row: GroupWithMembership,
+  query: string,
+  focus: FocusFilter,
+): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchable = `${row.group.name} ${row.group.description ?? ""}`.toLowerCase();
+  const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+  const matchesFocus =
+    focus === "all" ||
+    (focus === "scholarships" &&
+      /scholar|funding|fellowship|erasmus/i.test(searchable)) ||
+    (focus === "careers" &&
+      /career|job|intern|leadership|work/i.test(searchable)) ||
+    (focus === "study" &&
+      /study|application|sop|essay|review|stem|ielts/i.test(searchable));
+  return matchesQuery && matchesFocus;
+}
 
 export default function CommunityExploreScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const { t } = useTranslation("community");
   const { colors, isDark } = useTheme();
-  const [rows, setRows] = useState<GroupWithMembership[]>([]);
+  const [discovery, setDiscovery] = useState<CommunityDiscoveryResponse>(EMPTY_DISCOVERY);
   const [heroCampaigns, setHeroCampaigns] = useState<MobileCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -58,7 +79,7 @@ export default function CommunityExploreScreen() {
     background: isDark ? colors.background : "#FFF9F1",
     foreground: isDark ? colors.foreground : "#4A170D",
     card: isDark ? colors.card : "#FFFFFF",
-    border: isDark ? colors.border : "#F7D9C3",
+    border: isDark ? colors.border : "#F2DCCB",
     accent: isDark ? colors.accent : "#F45B16",
     muted: isDark ? colors.muted : "#FCEAD5",
     textSecondary: isDark ? colors.textSecondary : "#796F6B",
@@ -71,11 +92,10 @@ export default function CommunityExploreScreen() {
         fetchCommunityDiscovery(getToken, 50),
         fetchMobileControlConfig().catch(() => null),
       ]);
-      setRows(
-        [...result.trending, ...result.communities].filter(
-          (row) => !row.group.archivedAt,
-        ),
-      );
+      setDiscovery({
+        trending: result.trending.filter(({ group }) => !group.archivedAt),
+        communities: result.communities.filter(({ group }) => !group.archivedAt),
+      });
       setHeroCampaigns(
         mobileControl
           ? selectCampaigns(mobileControl.campaigns, "community").filter(
@@ -102,19 +122,27 @@ export default function CommunityExploreScreen() {
     };
   }, [load]);
 
-  const filteredRows = React.useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return rows.filter(({ group }) => {
-      const searchable = `${group.name} ${group.description || ""}`.toLowerCase();
-      const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
-      const matchesFocus =
-        focus === "all" ||
-        (focus === "scholarships" && /scholar|funding|fellowship|erasmus/i.test(searchable)) ||
-        (focus === "careers" && /career|job|intern|leadership/i.test(searchable)) ||
-        (focus === "study" && /study|application|sop|review|stem/i.test(searchable));
-      return matchesQuery && matchesFocus;
-    });
-  }, [focus, query, rows]);
+  const trending = useMemo(
+    () =>
+      discovery.trending.filter((row) =>
+        matchesDiscoveryFilters(row, query, focus),
+      ),
+    [discovery.trending, focus, query],
+  );
+  const moreCommunities = useMemo(
+    () =>
+      discovery.communities.filter((row) =>
+        matchesDiscoveryFilters(row, query, focus),
+      ),
+    [discovery.communities, focus, query],
+  );
+  const totalRows = discovery.trending.length + discovery.communities.length;
+  const visibleCount = trending.length + moreCommunities.length;
+
+  const showAll = useCallback(() => {
+    setQuery("");
+    setFocus("all");
+  }, []);
 
   const openCampaign = useCallback(
     (campaign: MobileCampaign) => {
@@ -155,11 +183,13 @@ export default function CommunityExploreScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.accent}
+            tintColor={palette.accent}
+            colors={[palette.accent]}
           />
         }
       >
@@ -170,7 +200,7 @@ export default function CommunityExploreScreen() {
               { backgroundColor: palette.card, borderColor: palette.border },
             ]}
           >
-            <Search size={20} color={palette.textSecondary} strokeWidth={2.2} />
+            <Search size={21} color={palette.textSecondary} strokeWidth={2.1} />
             <TextInput
               testID="community-search"
               value={query}
@@ -180,56 +210,74 @@ export default function CommunityExploreScreen() {
               style={[styles.searchInput, { color: palette.foreground }]}
               returnKeyType="search"
               accessibilityLabel="Search communities"
+              clearButtonMode="while-editing"
             />
+            {!!query && (
+              <TouchableOpacity
+                testID="community-search-clear"
+                accessibilityRole="button"
+                accessibilityLabel="Clear community search"
+                onPress={() => setQuery("")}
+                hitSlop={10}
+                style={styles.clearSearch}
+              >
+                <X size={17} color={palette.textSecondary} strokeWidth={2.3} />
+              </TouchableOpacity>
+            )}
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
+
+          <View
+            accessibilityRole="tablist"
+            accessibilityLabel="Community focus"
+            style={[styles.filterTabs, { borderColor: palette.border }]}
           >
-            {FILTERS.map(({ id, label, icon: Icon }) => {
+            {FILTERS.map(({ id, label }) => {
               const active = focus === id;
               return (
                 <TouchableOpacity
                   key={id}
-                  accessibilityRole="button"
+                  testID={`community-focus-${id}`}
+                  accessibilityRole="tab"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={label}
                   onPress={() => setFocus(id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: active ? palette.accent : palette.card,
-                      borderColor: active ? palette.accent : palette.border,
-                    },
-                  ]}
+                  activeOpacity={0.72}
+                  style={styles.filterTab}
                 >
-                  <Icon
-                    size={16}
-                    color={active ? "#FFFFFF" : palette.foreground}
-                    strokeWidth={2.2}
-                  />
                   <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.86}
                     style={[
                       styles.filterLabel,
-                      { color: active ? "#FFFFFF" : palette.foreground },
+                      { color: active ? palette.foreground : palette.textSecondary },
                     ]}
                   >
                     {label}
                   </Text>
+                  {active ? (
+                    <View
+                      style={[styles.filterIndicator, { backgroundColor: palette.accent }]}
+                    />
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {loading ? (
-          <View style={styles.skeletons}>
-            {[0, 1, 2].map((key) => (
-              <Skeleton key={key} height={112} borderRadius={18} />
-            ))}
+          <View accessibilityLabel="Loading communities" style={styles.skeletons}>
+            <Skeleton height={232} borderRadius={22} />
+            <View style={styles.skeletonHeading}>
+              <Skeleton width={120} height={24} borderRadius={8} />
+            </View>
+            <View style={styles.skeletonRail}>
+              <Skeleton width={246} height={242} borderRadius={18} />
+              <Skeleton width={86} height={242} borderRadius={18} />
+            </View>
           </View>
-        ) : loadError ? (
+        ) : loadError && totalRows === 0 ? (
           <StateView
             state={{ kind: "error", cause: "network" }}
             flow="community"
@@ -238,7 +286,7 @@ export default function CommunityExploreScreen() {
             style={styles.largeState}
             onRetry={() => void refresh()}
           />
-        ) : rows.length === 0 ? (
+        ) : totalRows === 0 ? (
           <StateView
             state={{ kind: "empty", reason: "firstRun" }}
             flow="community"
@@ -250,12 +298,31 @@ export default function CommunityExploreScreen() {
             actionLabel={t("discovery.checkAgain")}
             onAction={() => void refresh()}
           />
+        ) : visibleCount === 0 ? (
+          <View style={[styles.noMatch, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Text style={[styles.noMatchTitle, { color: palette.foreground }]}>
+              {t("discovery.noMatchTitle")}
+            </Text>
+            <Text style={[styles.noMatchBody, { color: palette.textSecondary }]}>
+              {t("discovery.noMatchBody")}
+            </Text>
+            <TouchableOpacity
+              testID="community-explore-show-all"
+              accessibilityRole="button"
+              onPress={showAll}
+              style={[styles.showAllButton, { backgroundColor: palette.accent }]}
+            >
+              <Text style={styles.showAllLabel}>{t("discovery.showAll")}</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <CommunityDiscoveryShuffle
-            rows={filteredRows}
-            preserveOrder
+            trendingRows={trending}
+            communityRows={moreCommunities}
             heroCampaigns={heroCampaigns}
             onPress={(group) => router.push(`/discussions/${group.id}` as never)}
+            onBrowse={() => router.push("/discussions" as never)}
+            onSeeAll={() => router.push("/discussions" as never)}
             onHeroPress={openCampaign}
             onHeroImpression={trackHeroImpression}
             testID="community-explore-discover"
@@ -269,11 +336,11 @@ export default function CommunityExploreScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 132 },
-  searchBlock: { gap: 12, marginBottom: 12 },
+  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 132 },
+  searchBlock: { gap: 10, marginBottom: 16 },
   searchField: {
-    minHeight: 52,
-    borderRadius: 17,
+    minHeight: 54,
+    borderRadius: 18,
     borderWidth: 1,
     paddingHorizontal: 15,
     flexDirection: "row",
@@ -281,22 +348,42 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   searchInput: { flex: 1, fontSize: 16, paddingVertical: 0 },
-  filterRow: { gap: 9, paddingRight: 4 },
-  filterChip: {
-    minHeight: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 14,
+  clearSearch: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  filterTabs: {
+    height: 46,
     flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  filterTab: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
-    gap: 7,
+    justifyContent: "center",
+    paddingHorizontal: 2,
   },
-  filterLabel: { fontSize: 13, fontWeight: "700" },
-  skeletons: { gap: 12 },
-  // Keep the empty state compact on short phones. A fixed 450dp minimum made
-  // the illustration and copy center in a very tall block, pushing the CTA
-  // toward the tab bar and leaving the page looking broken.
-  largeState: {
-    paddingVertical: 24,
+  filterLabel: { fontSize: 12, fontWeight: "700" },
+  filterIndicator: {
+    position: "absolute",
+    bottom: -1,
+    left: 8,
+    right: 8,
+    height: 3,
+    borderRadius: 2,
   },
+  skeletons: { gap: 14 },
+  skeletonHeading: { marginTop: 6 },
+  skeletonRail: { flexDirection: "row", gap: 12, overflow: "hidden" },
+  largeState: { paddingVertical: 24 },
+  noMatch: {
+    marginTop: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 30,
+    borderWidth: 1,
+    borderRadius: 22,
+    alignItems: "center",
+  },
+  noMatchTitle: { fontSize: 20, lineHeight: 25, fontWeight: "800", textAlign: "center" },
+  noMatchBody: { marginTop: 8, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  showAllButton: { marginTop: 18, borderRadius: 16, paddingHorizontal: 20, paddingVertical: 12 },
+  showAllLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
 });

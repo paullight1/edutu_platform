@@ -12,6 +12,7 @@ import Animated, {
     useSharedValue,
     withTiming,
 } from 'react-native-reanimated';
+import { ChevronRight } from 'lucide-react-native';
 import { haptics } from '../../lib/haptics';
 import { useTheme } from './ThemeContext';
 
@@ -24,6 +25,8 @@ export interface ToastAction {
 
 export interface ToastOptions {
     message: string;
+    /** Makes the message itself a dismiss-and-open target. */
+    onPress?: () => void;
     emoji?: string;
     variant?: ToastVariant;
     /**
@@ -142,19 +145,34 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                             animatedStyle,
                         ]}
                         accessibilityLiveRegion="polite"
-                        accessibilityRole={toast.variant === 'error' ? 'alert' : 'text'}
+                        accessibilityRole={toast.onPress || toast.action ? undefined : toast.variant === 'error' ? 'alert' : 'text'}
                     >
                         <View style={[styles.accentBar, { backgroundColor: accent }]} />
-                        {toast.emoji ? (
-                            <Text style={styles.emoji}>{toast.emoji}</Text>
-                        ) : null}
-                        <Text
-                            style={[styles.message, { color: colors.foreground }]}
-                            numberOfLines={2}
-                            maxFontSizeMultiplier={1.4}
+                        <Pressable
+                            disabled={!toast.onPress}
+                            accessibilityRole={toast.onPress ? 'button' : undefined}
+                            accessibilityLabel={toast.message}
+                            onPress={() => {
+                                const run = toast.onPress;
+                                dismissNow();
+                                haptics.light();
+                                run?.();
+                            }}
+                            style={({ pressed }) => [styles.content, { opacity: pressed ? 0.7 : 1 }]}
                         >
-                            {toast.message}
-                        </Text>
+                            {toast.emoji ? (
+                                <Text style={styles.emoji}>{toast.emoji}</Text>
+                            ) : null}
+                            <Text
+                                style={[styles.message, { color: colors.foreground }]}
+                                numberOfLines={2}
+                                maxFontSizeMultiplier={1.4}
+                            >
+                                {toast.message}
+                            </Text>
+
+                            {toast.onPress ? <ChevronRight size={18} color={colors.textSecondary} /> : null}
+                        </Pressable>
 
                         {toast.action ? (
                             <Pressable
@@ -207,7 +225,7 @@ const styles = StyleSheet.create({
         maxWidth: '92%',
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 4,
         paddingLeft: 14,
         paddingRight: 14,
         borderRadius: 16,
@@ -217,6 +235,13 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.22,
         shadowRadius: 16,
+    },
+    content: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexShrink: 1,
+        minHeight: 44,
+        gap: 10,
     },
     accentBar: {
         position: 'absolute',

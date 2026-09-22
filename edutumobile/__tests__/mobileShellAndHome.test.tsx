@@ -50,7 +50,7 @@ jest.mock('expo-router', () => {
     Slot: () => <Text>slot</Text>,
     Stack,
     Redirect: ({ href }: { href: string }) => <Text>{`Redirect:${href}`}</Text>,
-    useRouter: () => ({ push: mockPush, replace: mockReplace }),
+    useRouter: () => ({ push: mockPush, navigate: mockPush, replace: mockReplace }),
     useSegments: () => mockSegments,
     usePathname: () => mockPathname,
     useGlobalSearchParams: () => mockGlobalSearchParams,
@@ -372,20 +372,20 @@ describe('mobile app shell and home dashboard', () => {
     };
     mockUserState = { user: { id: 'user-1', firstName: 'Amara', fullName: 'Amara Okafor', imageUrl: 'https://example.com/amara.jpg', unsafeMetadata: { onboardingComplete: true } } };
 
-    const { getAllByText, getByText, getByLabelText, getByTestId } = render(<AppLayout />);
+    const { getAllByText, getByText, queryByText, getByLabelText, getByTestId } = render(<AppLayout />);
 
     await waitFor(() => expect(getAllByText('Home').length).toBeGreaterThan(0));
     expect(String(getByTestId('home-header-greeting').props.children)).toContain('Amara');
     await waitFor(() => expect(getByText('2 deadlines this week')).toBeTruthy());
     expect(getByTestId('home-header-verified')).toBeTruthy();
-    expect(getByText('Groups')).toBeTruthy();
+    expect(getByText('My Plan')).toBeTruthy();
     expect(getByText('Explore')).toBeTruthy();
-    expect(getByText('Plan')).toBeTruthy();
+    expect(queryByText('Goals')).toBeNull();
     expect(getByText('More')).toBeTruthy();
     expect(getByLabelText('Open Edutu AI')).toBeTruthy();
 
-    fireEvent.press(getByText('Groups'));
-    expect(mockPush).toHaveBeenCalledWith('/discussions');
+    fireEvent.press(getByText('My Plan'));
+    expect(mockPush).toHaveBeenCalledWith('/my-plan');
 
     fireEvent.press(getByLabelText('Open menu'));
     expect(getByTestId('feature-menu-underlay')).toBeTruthy();
@@ -417,25 +417,36 @@ describe('mobile app shell and home dashboard', () => {
     expect(String(getByTestId('home-header-greeting').props.children)).not.toContain('Edutu');
   });
 
-  it('opens Community with Explore, Groups and Chats in its dedicated bottom nav', async () => {
-    mockAuthState = {
-      isLoaded: true,
-      isSignedIn: true,
-      getToken: jest.fn().mockResolvedValue('token'),
-      userId: 'user-1',
-    };
+  it.each(['/my-plan', '/applied', '/deadlines', '/roadmaps', '/goals'])('preserves global tabs while inside the plan workspace on %s', (path) => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
     mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
-    mockPathname = '/discussions/chats';
+    mockPathname = path;
+    mockGlobalSearchParams = path === '/my-plan' ? {} : { planNav: '1' };
+    const screen = render(<AppLayout />);
+    expect(screen.getByRole('tab', { name: 'My Plan' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('tab', { name: 'Explore' })).toBeTruthy();
+    expect(screen.queryByText('Applications')).toBeNull();
+    fireEvent.press(screen.getByRole('tab', { name: 'Explore' }));
+    expect(mockPush).toHaveBeenCalledWith('/opportunities');
+  });
 
-    const { getByLabelText, getByTestId, queryByTestId } = render(<AppLayout />);
+  it('keeps the journey detail above global navigation without a duplicate home header', () => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = '/my-plan/journey-one';
+    mockGlobalSearchParams = {};
+    const screen = render(<AppLayout />);
+    expect(screen.queryByTestId('nav-pill-surface')).toBeNull();
+    expect(screen.queryByTestId('home-header-greeting')).toBeNull();
+  });
 
-    await waitFor(() => expect(getByTestId('community-navigation')).toBeTruthy());
-    expect(getByLabelText('Explore')).toBeTruthy();
-    expect(getByLabelText('Groups')).toBeTruthy();
-    expect(getByLabelText('Chats')).toBeTruthy();
-    expect(getByTestId('community-profile-shortcut')).toBeTruthy();
-    expect(queryByTestId('nav-pill-surface')).toBeNull();
-    expect(queryByTestId('nav-bar-surface')).toBeNull();
+  it.each(['/discussions', '/discussions/chats', '/discussions/dm/person'])('redirects retired social route %s to My Plan', (path) => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = path;
+    const { getByText, queryByTestId } = render(<AppLayout />);
+    expect(getByText('Redirect:/my-plan')).toBeTruthy();
+    expect(queryByTestId('community-navigation')).toBeNull();
   });
 
   it('renders the streamlined home dashboard without the relocated quick actions', async () => {

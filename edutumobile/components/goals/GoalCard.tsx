@@ -41,9 +41,9 @@ export function GoalCard({
     // every card is pure noise. Only the priorities the user chose get ink.
     const showPriority = priority !== 'medium';
 
-    const cardBg = isDark ? 'rgba(255,255,255,0.04)' : '#ffffff';
-    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
-    const textSecondary = isDark ? '#94a3b8' : '#64748b';
+    const cardBg = colors.card;
+    const borderColor = colors.border;
+    const textSecondary = colors.textSecondary;
 
     const handleDelete = () => {
         Alert.alert(
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     card: {
         marginBottom: 12,
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 24, borderCurve: 'continuous',
         borderWidth: 1,
     },
     compactCard: {
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     },
     titleText: {
         fontWeight: 'bold',
-        fontSize: 16,
+        fontSize: 18,
         lineHeight: 20,
         marginBottom: 4,
     },

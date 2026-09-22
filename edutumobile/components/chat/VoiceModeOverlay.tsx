@@ -36,12 +36,13 @@ import { useTheme } from '../context/ThemeContext';
 import { EdutuLogo } from '../branding/EdutuLogo';
 import { ParticleOrb, OrbVisualState } from './ParticleOrb';
 import { VoiceSettingsSheet } from './VoiceSettingsSheet';
-import { useVoiceSession, VoiceSessionStatus } from '../../hooks/useVoiceSession';
+import type { VoiceSessionStatus } from '../../hooks/useVoiceSession';
+import { useVoiceModeSession } from '../../hooks/useVoiceModeSession';
 import { closeVoiceMode, useVoiceModeState, VoiceModeKind } from '../../lib/voiceModeStore';
 import { useVoiceSettings } from '../../lib/voiceSettingsStore';
 import { usePromptProUpgrade } from '../../lib/upsell';
+import i18n from '../../lib/i18n';
 
-const START_CHIME = require('../../assets/sounds/voice-mode-start.wav');
 const END_CHIME = require('../../assets/sounds/voice-mode-end.wav');
 
 function LiveDot({ reducedMotion }: { reducedMotion: boolean }) {
@@ -121,40 +122,43 @@ function VoiceSessionScreen({
     // synthesizer. Fail closed until this account has an explicit loaded Pro
     // result so a stale entitlement can never spend premium TTS credits.
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id ?? null);
+    const realtimeEnabled = premiumVoiceEnabledForEntitlement(isPro, proLoading);
     useEffect(() => {
-        setPremiumVoiceEnabled(premiumVoiceEnabledForEntitlement(isPro, proLoading));
-    }, [isPro, proLoading]);
+        setPremiumVoiceEnabled(realtimeEnabled);
+    }, [realtimeEnabled]);
     const { reducedMotion, colors } = useTheme();
-    const { design } = useVoiceSettings();
+    const { design, realtimeVoice } = useVoiceSettings();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const settingsPausedMicRef = useRef(false);
 
-    const startPlayer = useAudioPlayer(START_CHIME);
-
-    const session = useVoiceSession({
+    const session = useVoiceModeSession({
         mode,
         userId: user?.id ?? null,
         getAuthToken: getToken,
         greeting: t('voiceMode.greeting'),
+        realtimeEnabled,
+        voice: realtimeVoice || 'marin',
+        locale: i18n.language?.split('-')[0] || 'en',
     });
     const { begin, end } = session;
 
-    // Entry choreography: haptic + chime, the ball blooms in, then the mic
-    // arms. The chime plays before allowsRecording flips so iOS routes it to
-    // the main speaker.
+    // Start the session in the mount effect itself. A delayed timer used to
+    // leave the native overlay permanently idle on iOS when that timer was not
+    // delivered, so the screen could show “Starting…” forever without ever
+    // requesting mic permission or surfacing an error.
     useEffect(() => {
+        // Live sessions are premium provider work. Wait for the current
+        // account's server-backed entitlement before choosing Realtime versus
+        // the tap-to-talk fallback; starting during the loading state would
+        // permanently lock this mount onto the wrong engine.
+        if (mode === 'live' && proLoading) return;
         haptics.medium();
-        try {
-            startPlayer.seekTo(0);
-            startPlayer.play();
-        } catch {}
-        const timer = setTimeout(() => begin(), 750);
+        begin();
         return () => {
-            clearTimeout(timer);
             end();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [mode, proLoading]);
 
     // Entrance bloom for the whole field — a gentle swell + fade, not a big
     // zoom (it now fills the screen, so start close to 1).
@@ -456,7 +460,7 @@ function VoiceSessionScreen({
                 </View>
             </View>
 
-            <VoiceSettingsSheet visible={settingsOpen} onClose={handleCloseSettings} />
+            <VoiceSettingsSheet visible={settingsOpen} mode={mode} onClose={handleCloseSettings} />
         </View>
     );
 }

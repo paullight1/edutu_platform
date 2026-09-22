@@ -6,6 +6,11 @@ require File.join(File.dirname(`node --print "require.resolve('react-native/pack
 require 'json'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
 
+# Firebase's Swift packages are dynamic-only and conflict with this project's
+# static framework linkage. Resolve Firebase through CocoaPods instead.
+$RNFirebaseDisableSPM = true
+$RNFirebaseAsStaticFramework = true
+
 def ccache_enabled?(podfile_properties)
   # Environment variable takes precedence
   return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
@@ -24,6 +29,12 @@ prepare_react_native_project!
 
 target 'Edutu' do
   use_expo_modules!
+
+  # FirebaseCoreInternal is Swift and needs module maps from its Obj-C
+  # dependencies when the app uses static frameworks.
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'GoogleUtilities', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

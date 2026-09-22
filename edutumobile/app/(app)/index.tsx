@@ -1197,12 +1197,12 @@ const BEST_SHOT_CARD_WIDTH = Math.min(Math.round(width * 0.72), 290);
 // Reason kinds that only establish *eligibility* (you're allowed to apply)
 // rather than genuine fit. A best shot should be winnable for a substantive
 // reason, not merely because your country/region is on the list.
-const ELIGIBILITY_ONLY_REASON_KINDS = new Set<MatchReasonKind>([
-    'location',
-    'remote',
+const PROFILE_MATCH_REASON_KINDS = new Set<MatchReasonKind>([
+    'field', 'interest', 'category', 'experience', 'goal', 'education', 'semantic',
 ]);
 
-// A best shot must have at least one substantive (non-eligibility) reason.
+// Best Matches requires profile evidence. Views, deadline urgency and
+// popularity alone are not evidence that an opportunity suits this person.
 // We can only judge this from reason *kinds* (labels are translated across 9
 // languages, so string-matching them is unreliable); when no kind data is
 // present we can't classify, so we don't over-filter and keep the item.
@@ -1219,7 +1219,7 @@ function bestShotScore(o: Opportunity): number {
 function hasSubstantiveMatch(o: Opportunity): boolean {
     const details = o.matchReasonDetails;
     if (!details || details.length === 0) return true;
-    return details.some((d) => !ELIGIBILITY_ONLY_REASON_KINDS.has(d.kind));
+    return details.some((d) => PROFILE_MATCH_REASON_KINDS.has(d.kind));
 }
 
 function _BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index = 0 }: {
@@ -1470,7 +1470,6 @@ type HomeFocusModel = {
     title: string;
     supporting: string;
     route: string;
-    cta: string;
     image: string | null;
 };
 
@@ -1481,7 +1480,8 @@ function NextMoveCard({ model, isDark, onPress }: { model: HomeFocusModel; isDar
         <AnimatedPressable
             onPress={onPress}
             accessibilityRole="button"
-            accessibilityLabel={`Continue with ${model.title}. ${model.supporting}`}
+            accessibilityLabel={`Open opportunity: ${model.title}. ${model.supporting}`}
+            accessibilityHint="Opens opportunity details"
             style={styles.nextMoveCard}
             testID="recent-opportunity-card"
             entering={FadeInDown.duration(420).springify()}
@@ -1524,18 +1524,34 @@ function NextMoveCard({ model, isDark, onPress }: { model: HomeFocusModel; isDar
                         </View>
                     </View>
                 ) : null}
-                <Text style={[styles.nextMoveEyebrow, { color: hasImage || isDark ? '#7DD3FC' : '#2563EB' }]}>
-                    {t('home.nextMove', { defaultValue: 'YOUR NEXT MOVE' })}
-                </Text>
-                <Text style={[styles.nextMoveTitle, { color: hasImage || isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={2}>
-                    {model.title}
-                </Text>
-                <Text style={[styles.nextMoveSupporting, { color: hasImage || isDark ? '#FBBF24' : '#B45309' }]} numberOfLines={1}>
-                    {model.supporting}
-                </Text>
-                <View style={styles.nextMoveButton}>
-                    <Text style={styles.nextMoveButtonText}>{model.cta}</Text>
-                    <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.4} />
+                <View pointerEvents="none" style={styles.nextMoveCopy}>
+                    <Text style={[styles.nextMoveEyebrow, { color: hasImage || isDark ? '#7DD3FC' : '#2563EB' }]}>
+                        {t('home.nextMove', { defaultValue: 'YOUR NEXT MOVE' })}
+                    </Text>
+                    <Text style={[styles.nextMoveTitle, { color: hasImage || isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={2}>
+                        {model.title}
+                    </Text>
+                    <Text style={[styles.nextMoveSupporting, { color: hasImage || isDark ? '#FBBF24' : '#B45309' }]} numberOfLines={1}>
+                        {model.supporting}
+                    </Text>
+                </View>
+                <View
+                    pointerEvents="none"
+                    accessible={false}
+                    style={[
+                        styles.nextMoveArrow,
+                        {
+                            backgroundColor: hasImage || isDark
+                                ? 'rgba(255,255,255,0.18)'
+                                : 'rgba(37,99,235,0.12)',
+                        },
+                    ]}
+                >
+                    <ChevronRight
+                        size={23}
+                        color={hasImage || isDark ? '#FFFFFF' : '#2563EB'}
+                        strokeWidth={2.6}
+                    />
                 </View>
             </View>
         </AnimatedPressable>
@@ -1746,10 +1762,9 @@ export default function Dashboard() {
             title: recentlyOpenedOpportunity.title,
             supporting: getDeadlineBadge(recentlyOpenedOpportunity.deadline).label,
             route: `/opportunities/${recentlyOpenedOpportunity.id}`,
-            cta: t('home.continue', { defaultValue: 'Continue' }),
             image: recentlyOpenedOpportunity.image ?? currentOpportunity?.image ?? null,
         };
-    }, [opportunities, recentlyOpenedOpportunity, t]);
+    }, [opportunities, recentlyOpenedOpportunity]);
 
     const toggleBookmark = async (opportunityId: string) => {
         if (isGuestBrowsing) {
@@ -2119,6 +2134,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    nextMoveCopy: {
+        transform: [{ translateY: 10 }],
+    },
     nextMoveEyebrow: {
         fontSize: 10,
         lineHeight: 13,
@@ -2141,23 +2159,15 @@ const styles = StyleSheet.create({
         lineHeight: 16,
         fontWeight: '700',
     },
-    nextMoveButton: {
-        minWidth: 104,
-        minHeight: 38,
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
+    nextMoveArrow: {
+        position: 'absolute',
+        right: 14,
+        bottom: 14,
+        width: 42,
+        height: 42,
+        borderRadius: 21,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 6,
-        marginTop: 10,
-        paddingHorizontal: 13,
-        borderRadius: 11,
-        backgroundColor: '#2563EB',
-    },
-    nextMoveButtonText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '800',
     },
     discoveryGrid: {
         flexDirection: 'row',

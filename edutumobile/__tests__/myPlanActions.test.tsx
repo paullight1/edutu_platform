@@ -1,0 +1,64 @@
+import React from 'react';
+import { Alert, Linking } from 'react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import PlanJourneyScreen from '../app/(app)/my-plan/[id]';
+import PlanOpportunityActions from '../components/opportunity-path/PlanOpportunityActions';
+const mockPush = jest.fn();
+const mockToken = jest.fn().mockResolvedValue('token');
+const mockRead = jest.fn();
+const mockWrite = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }), useLocalSearchParams: () => ({ id: 'journey-one' }), useFocusEffect: (effect: () => void) => { require('react').useEffect(effect, [effect]); } }));
+jest.mock('@clerk/clerk-expo', () => ({ useAuth: () => ({ userId: 'member', getToken: mockToken }) }));
+jest.mock('../components/context/ThemeContext', () => ({ useTheme: () => ({ colors: { error: '#DC2626', warning: '#D97706', success: '#059669', primary: '#EA580C', accentLight: '#FB923C', muted: '#EEEEEE', background: '#FFF', foreground: '#111', textSecondary: '#555', card: '#FFF', border: '#DDD', accent: '#EA580C' } }) }));
+jest.mock('@edutu/core/src/services/opportunityJourney', () => ({ getOpportunityJourney: (...args: unknown[]) => mockRead(...args), mutateOpportunityJourney: (...args: unknown[]) => mockWrite(...args), createJourneyRequestKey: () => 'stable-request-key' }));
+const entry = (state = 'preparing', version = 1) => ({ journey: { id: 'journey-one', opportunityId: 'one', state, version }, opportunity: { title: 'Tracked fellowship', applyUrl: 'https://example.org/apply' }, tasks: [{ id: 'task-one', title: 'Review your essay', status: state === 'preparing' ? 'pending' : 'completed', required: true }], progress: { percent: 0, completedRequired: 0, totalRequired: 1 }, nextAction: { label: 'Review your essay' } });
+beforeEach(() => { jest.clearAllMocks(); mockRead.mockResolvedValue({ data: entry(), isStale: false }); mockWrite.mockResolvedValue(entry('ready_to_apply', 2)); });
+it('saves task completion with the server version and renders the returned next step', async () => {
+  const screen = render(<PlanJourneyScreen />);
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Review your essay' })).toBeTruthy());
+  fireEvent.press(screen.getByRole('checkbox', { name: 'Review your essay' }));
+  await waitFor(() => expect(mockWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'tasks/task-one', body: { status: 'completed', expectedVersion: 1, idempotencyKey: 'stable-request-key' } })));
+  await waitFor(() => expect(screen.getByText('Open application website')).toBeTruthy());
+});
+it('records browser opening separately and only confirms after an explicit choice', async () => {
+  mockRead.mockResolvedValue({ data: entry('ready_to_apply'), isStale: false });
+  mockWrite.mockResolvedValueOnce(entry('application_opened', 2)).mockResolvedValueOnce(entry('applied', 3));
+  jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  const alert = jest.spyOn(Alert, 'alert');
+  const screen = render(<PlanJourneyScreen />);
+  await waitFor(() => expect(screen.getByText('Open application website')).toBeTruthy());
+  fireEvent.press(screen.getByText('Open application website'));
+  await waitFor(() => expect(mockWrite).toHaveBeenCalledTimes(1));
+  expect(mockWrite.mock.calls[0][0].action).toBe('application-opened');
+  await waitFor(() => expect(screen.getByText('Confirm submission')).toBeTruthy());
+  fireEvent.press(screen.getByText('Confirm submission'));
+  expect(mockWrite).toHaveBeenCalledTimes(1);
+  const confirm = alert.mock.calls.at(-1)?.[2]?.find(button => button.text === 'Yes, I submitted');
+  expect(confirm).toBeTruthy();
+  await act(async () => { confirm?.onPress?.(); });
+  await waitFor(() => expect(mockWrite.mock.calls[1][0]).toEqual(expect.objectContaining({ action: 'application-confirmed', body: expect.objectContaining({ expectedVersion: 2 }) })));
+});
+it('preserves an unchecked task on failure and retries with the same request identity', async () => {
+  mockWrite.mockRejectedValueOnce(new Error('Connection lost'));
+  const screen = render(<PlanJourneyScreen />);
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Review your essay' })).toBeTruthy());
+  fireEvent.press(screen.getByRole('checkbox', { name: 'Review your essay' }));
+  await waitFor(() => expect(screen.getByText('Connection lost')).toBeTruthy());
+  expect(screen.getByRole('checkbox', { name: 'Review your essay' }).props.accessibilityState.checked).toBe(false);
+  fireEvent.press(screen.getByRole('checkbox', { name: 'Review your essay' }));
+  await waitFor(() => expect(mockWrite).toHaveBeenCalledTimes(2));
+  expect(mockWrite.mock.calls[0][0].body).toEqual(mockWrite.mock.calls[1][0].body);
+});
+it('keeps offline snapshots readable and disables writes', async () => {
+  mockRead.mockResolvedValue({ data: entry(), isStale: true });
+  const screen = render(<PlanJourneyScreen />);
+  await waitFor(() => expect(screen.getByText(/Offline copy/)).toBeTruthy());
+  fireEvent.press(screen.getByRole('checkbox', { name: 'Review your essay' }));
+  expect(mockWrite).not.toHaveBeenCalled();
+});
+it('creates a pursuit from opportunity details then opens its persisted journey', async () => {
+  const screen = render(<PlanOpportunityActions opportunityId="one" onSignIn={jest.fn()} />);
+  fireEvent.press(screen.getByText('Start pursuing'));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/my-plan/[id]', params: { id: 'journey-one' } }));
+  expect(mockWrite.mock.calls[0][0].body.action).toBe('pursue');
+});

@@ -31,7 +31,11 @@ export type MatchReasonKind =
   | 'remote'
   | 'experience'
   | 'goal'
-  | 'education';
+  | 'education'
+  | 'semantic'
+  | 'behavior'
+  | 'deadline'
+  | 'hidden_gem';
 
 export interface MatchReason {
   kind: MatchReasonKind;

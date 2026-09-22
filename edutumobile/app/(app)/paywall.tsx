@@ -22,6 +22,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { PremiumCelebration } from '../../components/ui/PremiumCelebration';
+import { createPurchaseFulfillmentCheck } from '@edutu/core/src/services/billingFulfillment';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
@@ -83,7 +84,6 @@ export default function PaywallScreen() {
     planTier,
     isLoading: proLoading,
     refreshStatus,
-    refreshServerStatus = async () => false,
   } = useProStatus(supabase, user?.id || null);
   // Narrowed locals so memoized callbacks depend on exactly these values —
   // reading `user.id` inside a callback makes the compiler infer a dependency
@@ -126,6 +126,12 @@ export default function PaywallScreen() {
   // Set true once we hand off to the browser, so the next foreground re-checks
   // Pro after the backend confirms the provider event.
   const awaitingReturnRef = useRef(false);
+  const purchaseConfirmationRef = useRef<(() => Promise<boolean>) | null>(null);
+
+  useEffect(() => {
+    purchaseConfirmationRef.current = null;
+    awaitingReturnRef.current = false;
+  }, [userId]);
   const checkoutIdempotencyKeyRef = useRef<string | null>(null);
   const retryProFulfillmentRef = useRef<(onFulfilled: () => void) => void>(() => {});
 
@@ -256,7 +262,9 @@ export default function PaywallScreen() {
   }, []);
 
   const waitForProFulfillment = useCallback(async (onFulfilled: () => void): Promise<boolean> => {
-    const fulfilled = await waitForServerFulfillment(refreshServerStatus);
+    const check = purchaseConfirmationRef.current;
+    const fulfilled = check ? await waitForServerFulfillment(check) : false;
+    if (purchaseConfirmationRef.current !== check) return false;
     if (fulfilled) {
       onFulfilled();
       return true;
@@ -278,7 +286,7 @@ export default function PaywallScreen() {
       ],
     );
     return false;
-  }, [refreshServerStatus, t]);
+  }, [t]);
 
   useEffect(() => {
     retryProFulfillmentRef.current = (onFulfilled) => {
@@ -321,6 +329,7 @@ export default function PaywallScreen() {
       if (!token) throw new Error('missing session');
       const idempotencyKey = checkoutIdempotencyKeyRef.current ?? createCheckoutIdempotencyKey();
       checkoutIdempotencyKeyRef.current = idempotencyKey;
+      purchaseConfirmationRef.current = await createPurchaseFulfillmentCheck(supabase, userId, selectedTier);
       const checkout = await requestBachsCheckout({
         accessToken: token,
         productKey: webProductKeyForPlan(selectedPlan, selectedTier),
@@ -372,6 +381,8 @@ export default function PaywallScreen() {
     }
     setPurchasing(true);
     try {
+      if (!userId) return;
+      purchaseConfirmationRef.current = await createPurchaseFulfillmentCheck(supabase, userId, selectedTier);
       const result = await purchasePackage(selectedPackage);
       if (result.success) {
         // RevenueCat returning success only means StoreKit/Play accepted the
@@ -385,7 +396,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [selectedPackage, waitForProFulfillment, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
+  }, [selectedPackage, userId, selectedTier, waitForProFulfillment, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
 
   // Season Pass purchase — native buys the RC product; web asks the authenticated
   // backend to create the Bachs checkout for its server-owned product key.
@@ -393,6 +404,8 @@ export default function PaywallScreen() {
     if (!seasonPackage) return;
     setPurchasing(true);
     try {
+      if (!userId) return;
+      purchaseConfirmationRef.current = await createPurchaseFulfillmentCheck(supabase, userId, 'pro');
       const result = await purchasePackage(seasonPackage);
       if (result.success) {
         await waitForProFulfillment(() => {
@@ -407,7 +420,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [seasonPackage, waitForProFulfillment, router, t]);
+  }, [seasonPackage, userId, waitForProFulfillment, router, t]);
 
   const redirectSeasonCheckout = useCallback(async () => {
     if (!userId) return;
@@ -417,6 +430,7 @@ export default function PaywallScreen() {
       if (!token) throw new Error('missing session');
       const idempotencyKey = checkoutIdempotencyKeyRef.current ?? createCheckoutIdempotencyKey();
       checkoutIdempotencyKeyRef.current = idempotencyKey;
+      purchaseConfirmationRef.current = await createPurchaseFulfillmentCheck(supabase, userId, 'pro');
       const checkout = await requestBachsCheckout({
         accessToken: token,
         productKey: webProductKeyForPlan('season'),

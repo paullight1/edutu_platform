@@ -54,12 +54,26 @@ jest.mock('../components/context/ThemeContext', () => ({
 }));
 
 jest.mock('../components/ui/ScreenHeader', () => ({
-  ScreenHeader: ({ title, subtitle, showBack }: { title: string; subtitle?: string; showBack?: boolean }) => {
+  ScreenHeader: ({
+    title,
+    subtitle,
+    showBack,
+    onBack,
+  }: {
+    title: string;
+    subtitle?: string;
+    showBack?: boolean;
+    onBack?: () => void;
+  }) => {
     const React = require('react');
-    const { Text, View } = require('react-native');
+    const { Text, TouchableOpacity, View } = require('react-native');
     return (
       <View>
-        {showBack ? <Text>Back</Text> : null}
+        {showBack ? (
+          <TouchableOpacity accessibilityLabel="Back" onPress={onBack}>
+            <Text>Back</Text>
+          </TouchableOpacity>
+        ) : null}
         <Text>{title}</Text>
         {subtitle ? <Text>{subtitle}</Text> : null}
       </View>
@@ -126,6 +140,43 @@ describe('mobile mentor apply flow', () => {
         primaryEmailAddress: { emailAddress: 'amina.mentor@example.com' },
       },
     };
+  });
+
+  it('labels wizard progress and uses the header back action to move between steps', async () => {
+    const { getByLabelText, getByText } = render(<MentorApplyScreen />);
+
+    expect(getByText('Introduction')).toBeTruthy();
+    expect(getByText('1 of 4')).toBeTruthy();
+
+    await pressNearestTouchTarget(getByText('Get Started'));
+
+    await waitFor(() => expect(getByText('Your motivation')).toBeTruthy());
+    expect(getByText('2 of 4')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText('Back'));
+    });
+
+    await waitFor(() => expect(getByText('Introduction')).toBeTruthy());
+    expect(getByText('1 of 4')).toBeTruthy();
+    expect(getByText('Get Started')).toBeTruthy();
+  });
+
+  it('exposes motivation choices as accessible selected controls', async () => {
+    const { getByLabelText, getByText } = render(<MentorApplyScreen />);
+
+    await pressNearestTouchTarget(getByText('Get Started'));
+    await waitFor(() => expect(getByText('What motivates you?')).toBeTruthy());
+
+    const motivation = getByLabelText('I enjoy mentoring and sharing knowledge');
+    expect(motivation.props.accessibilityState).toEqual(expect.objectContaining({ selected: false }));
+
+    await act(async () => {
+      fireEvent.press(motivation);
+    });
+
+    expect(getByLabelText('I enjoy mentoring and sharing knowledge').props.accessibilityState)
+      .toEqual(expect.objectContaining({ selected: true }));
   });
 
   it('keeps the continue and review buttons disabled until required fields are set', async () => {

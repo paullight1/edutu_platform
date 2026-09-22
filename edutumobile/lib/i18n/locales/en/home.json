@@ -17,7 +17,9 @@
     "editProfile": "Edit profile",
     "aiShort": "Edutu AI",
     "createShort": "Create",
-    "editShort": "Edit"
+    "editShort": "Edit",
+    "myPlan": "My Plan",
+    "goals": "Goals"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} credit · {{label}}",
@@ -366,5 +368,57 @@
       "primary": "Start exploring",
       "secondary": "Create free account"
     }
+  },
+  "myPlan": {
+    "title": "My Plan",
+    "subtitle": "Keep your opportunities, applications and next steps together.",
+    "applications": "Applications",
+    "deadlines": "Deadlines",
+    "goals": "Goals",
+    "loading": "Loading your plan…",
+    "loadError": "Unable to load your plan. Please try again.",
+    "retry": "Try again",
+    "stale": "Showing your last synced plan. Pull to refresh.",
+    "empty": "No opportunities in this stage",
+    "empty_pursuing": "Start preparing an application to track it here.",
+    "empty_discover": "Save opportunities while exploring to build your shortlist.",
+    "empty_applied": "Your submitted applications and interviews will appear here.",
+    "empty_outcome": "Track offers, decisions and closed applications here.",
+    "explore": "Explore opportunities",
+    "stages": {
+      "pursuing": "Pursuing",
+      "discover": "Shortlist",
+      "applied": "Applied",
+      "outcome": "Closed"
+    },
+    "status": {
+      "shortlisted": "Shortlisted",
+      "pursuing": "Pursuing",
+      "preparing": "Preparing",
+      "ready_to_apply": "Ready to apply",
+      "application_opened": "Confirm submission",
+      "applied": "Applied",
+      "interview": "Interview",
+      "offer": "Offer received",
+      "rejected": "Not selected",
+      "withdrawn": "Withdrawn",
+      "no_response": "No response",
+      "expired": "Expired",
+      "archived": "Archived"
+    },
+    "overview": "Overview",
+    "workspaceSubtitle": "Small steps. Bigger possibilities.",
+    "nextStep": "Next step",
+    "preparation": "Preparation",
+    "primaryFocus": "Primary focus",
+    "opportunity": "Opportunity",
+    "continueNamed": "Continue {{title}}",
+    "openHint": "Opens your preparation checklist and application progress",
+    "reconnectTitle": "Let’s get your plan back",
+    "roadmaps": "Roadmaps",
+    "updateStatus": "Update status for {{title}}",
+    "workspaceIntro": "Small steps. Bigger possibilities.",
+    "createGoal": "Create a goal",
+    "createRoadmap": "Create a roadmap"
   }
 }

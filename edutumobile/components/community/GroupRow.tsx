@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BriefcaseBusiness, ChevronRight, Lock } from 'lucide-react-native';
-import { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import type {
   CommunityGroup,
   MembershipStatus,
@@ -117,15 +117,8 @@ export function GroupRow({
     .join(', ');
 
   return (
-    <AnimatedPressable
-      testID={`group-row-${group.id}`}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityHint={t('actions.viewGroup')}
-      accessibilityState={{ disabled: inert, busy: loading }}
-      disabled={inert}
-      onPress={() => onPress?.(group)}
-      hapticFeedback="light"
+    <Animated.View
+      testID={`group-row-entry-${group.id}`}
       entering={
         reducedMotion
           ? undefined
@@ -133,141 +126,156 @@ export function GroupRow({
               .duration(350)
               .springify()
       }
-      style={[
-        styles.row,
-        variant === 'card' ? styles.cardRow : styles.listRow,
-        {
-          backgroundColor: variant === 'card' ? colors.card : 'transparent',
-          borderColor:
-            variant === 'card'
-              ? unread
-                ? colors.accent
-                : colors.border
-              : colors.border,
-          opacity: inert ? 0.55 : 1,
-        },
-        variant === 'list' && isLast && styles.lastListRow,
-      ]}
+      style={styles.entryWrapper}
     >
-      <View style={styles.inner}>
-        <GroupAvatar
-          testID={`group-row-avatar-${group.id}`}
-          resourceUrl={group.coverImageResourceUrl}
-          imageUrl={getCommunityGroupCoverUrl(group.slug)}
-          emoji={group.coverEmoji}
-          size={42}
-          radius={12}
-        />
+      <AnimatedPressable
+        testID={`group-row-${group.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={t('actions.viewGroup')}
+        accessibilityState={{ disabled: inert, busy: loading }}
+        disabled={inert}
+        onPress={() => onPress?.(group)}
+        hapticFeedback="light"
+        style={[
+          styles.row,
+          variant === 'card' ? styles.cardRow : styles.listRow,
+          {
+            backgroundColor: variant === 'card' ? colors.card : 'transparent',
+            borderColor:
+              variant === 'card'
+                ? unread
+                  ? colors.accent
+                  : colors.border
+                : colors.border,
+            opacity: inert ? 0.55 : 1,
+          },
+          variant === 'list' && isLast && styles.lastListRow,
+        ]}
+      >
+        <View style={styles.inner}>
+          <GroupAvatar
+            testID={`group-row-avatar-${group.id}`}
+            resourceUrl={group.coverImageResourceUrl}
+            imageUrl={getCommunityGroupCoverUrl(group.slug)}
+            emoji={group.coverEmoji}
+            size={42}
+            radius={12}
+          />
 
-        <View style={styles.body}>
-          <View style={styles.titleRow}>
-            {/* Decorative: the unread meaning is already in the row's label
-                order, and a second focusable node per row is noise. */}
-            {unread && (
-              <View
-                testID={`group-row-unread-${group.id}`}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={[styles.unreadDot, { backgroundColor: colors.accent }]}
-              />
-            )}
-            <Text
-              style={[
-                styles.name,
-                {
-                  color: colors.foreground,
-                  fontWeight: unread ? '700' : '600',
-                },
-              ]}
-              numberOfLines={2}
-            >
-              {group.name}
-            </Text>
-            {group.visibility === 'private' && (
-              <Lock
-                size={13}
-                color={colors.textSecondary}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              />
-            )}
-            {unreadCount > 0 && (
-              <View
-                testID={`group-row-unread-count-${group.id}`}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={[styles.unreadBadge, { backgroundColor: colors.accent }]}
-              >
-                <Text style={styles.unreadBadgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text
-              style={[styles.meta, { color: colors.textSecondary }]}
-              numberOfLines={1}
-            >
-              {meta}
-            </Text>
-            {!!linkedOpportunityLabel && (
-              <View
-                testID={`group-row-opportunity-${group.id}`}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={[
-                  styles.opportunityBadge,
-                  { backgroundColor: `${colors.accent}14` },
-                ]}
-              >
-                <BriefcaseBusiness
-                  size={11}
-                  color={colors.accent}
-                  strokeWidth={2.4}
+          <View style={styles.body}>
+            <View style={styles.titleRow}>
+              {/* Decorative: the unread meaning is already in the row's label
+                  order, and a second focusable node per row is noise. */}
+              {unread && (
+                <View
+                  testID={`group-row-unread-${group.id}`}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.unreadDot, { backgroundColor: colors.accent }]}
                 />
-                <Text
-                  style={[styles.opportunityLabel, { color: colors.accent }]}
-                  numberOfLines={1}
+              )}
+              <Text
+                style={[
+                  styles.name,
+                  {
+                    color: colors.foreground,
+                    fontWeight: unread ? '700' : '600',
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {group.name}
+              </Text>
+              {group.visibility === 'private' && (
+                <Lock
+                  size={13}
+                  color={colors.textSecondary}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
+              )}
+              {unreadCount > 0 && (
+                <View
+                  testID={`group-row-unread-count-${group.id}`}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.unreadBadge, { backgroundColor: colors.accent }]}
                 >
-                  {linkedOpportunityLabel}
-                </Text>
-              </View>
+                  <Text style={styles.unreadBadgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.metaRow}>
+              <Text
+                style={[styles.meta, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {meta}
+              </Text>
+              {!!linkedOpportunityLabel && (
+                <View
+                  testID={`group-row-opportunity-${group.id}`}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[
+                    styles.opportunityBadge,
+                    { backgroundColor: `${colors.accent}14` },
+                  ]}
+                >
+                  <BriefcaseBusiness
+                    size={11}
+                    color={colors.accent}
+                    strokeWidth={2.4}
+                  />
+                  <Text
+                    style={[styles.opportunityLabel, { color: colors.accent }]}
+                    numberOfLines={1}
+                  >
+                    {linkedOpportunityLabel}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {membership && (
+              <Text
+                testID={`group-row-membership-${group.id}`}
+                style={[styles.membership, { color: membershipColor }]}
+                numberOfLines={1}
+              >
+                {membershipLabel}
+              </Text>
             )}
           </View>
 
-          {membership && (
-            <Text
-              testID={`group-row-membership-${group.id}`}
-              style={[styles.membership, { color: membershipColor }]}
-              numberOfLines={1}
-            >
-              {membershipLabel}
-            </Text>
+          {loading ? (
+            <ActivityIndicator
+              testID={`group-row-loading-${group.id}`}
+              size="small"
+              color={colors.textSecondary}
+            />
+          ) : (
+            <ChevronRight
+              size={18}
+              color={colors.textSecondary}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
           )}
         </View>
-
-        {loading ? (
-          <ActivityIndicator
-            testID={`group-row-loading-${group.id}`}
-            size="small"
-            color={colors.textSecondary}
-          />
-        ) : (
-          <ChevronRight
-            size={18}
-            color={colors.textSecondary}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        )}
-      </View>
-    </AnimatedPressable>
+      </AnimatedPressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  entryWrapper: {
+    alignSelf: 'stretch',
+  },
   row: {
     overflow: 'hidden',
   },

@@ -1,3 +1,5 @@
+import { useLocalSearchParams as usePlanParams , useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { PlanWorkspaceHeader } from '../../components/opportunity-path/PlanWorkspaceHeader';
 import {
     View, Text, FlatList, TextInput,
     StyleSheet, Image, TouchableOpacity, ActivityIndicator, Modal, ScrollView, RefreshControl,
@@ -14,7 +16,6 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LinearGradient } from "expo-linear-gradient";
@@ -200,6 +201,7 @@ function deadlineUrgency(deadline?: string | null): UrgencyLevel {
 }
 
 export default function RoadmapsScreen() {
+    const { planNav } = usePlanParams<{ planNav?: string }>();
     const { t, i18n } = useTranslation('goals');
     const { isDark, colors } = useTheme();
     const router = useRouter();
@@ -796,7 +798,7 @@ export default function RoadmapsScreen() {
 
         return (
             <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBg, borderColor }]}
+                style={[styles.card, planNav === '1' && styles.planCard, { backgroundColor: cardBg, borderColor }]}
                 onPress={() => setSelectedItem(item)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
@@ -811,7 +813,7 @@ export default function RoadmapsScreen() {
                 }
                 accessibilityHint={t('roadmaps.a11y.cardHint')}
             >
-                <View style={styles.imageContainer}>
+                <View style={[styles.imageContainer, planNav === '1' && styles.planImage]}>
                     {item.cover_image ? (
                         <Image source={{ uri: item.cover_image }} style={styles.cardImage} resizeMode="cover" />
                     ) : (
@@ -832,8 +834,8 @@ export default function RoadmapsScreen() {
                         </View>
                     )}
                 </View>
-                <View style={styles.cardBody}>
-                    <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                <View style={[styles.cardBody, planNav === '1' && { flex: 1, padding: 16 }]}>
+                    <Text style={[styles.cardTitle, planNav === '1' && { fontSize: 18, lineHeight: 24 }, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
                     <Text style={[styles.cardSummary, { color: textSecondary }]} numberOfLines={2}>
                         {item.description || t('roadmaps.noDescription')}
                     </Text>
@@ -879,15 +881,15 @@ export default function RoadmapsScreen() {
                 </View>
             </TouchableOpacity>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, t, formatTargetDeadline, formatRelativeDueDay, enrollments, colors.primary]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, t, formatTargetDeadline, formatRelativeDueDay, enrollments, colors.primary, planNav]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top', 'left', 'right']}>
-            <ScreenHeader
+            {planNav === '1' ? <PlanWorkspaceHeader section="roadmaps" /> : (<ScreenHeader
                 title={t('roadmaps.title')}
                 subtitle={t('roadmaps.subtitle')}
                 showBack
-            />
+            />)}
 
             {/*
               The whole screen scrolls as one: the creator/template banners, search box,
@@ -898,8 +900,9 @@ export default function RoadmapsScreen() {
                 data={filteredRoadmaps}
                 keyExtractor={(item) => item.id}
                 renderItem={renderCard}
-                numColumns={2}
-                columnWrapperStyle={styles.row}
+                key={planNav === '1' ? 'plan-list' : 'catalogue-grid'}
+                numColumns={planNav === '1' ? 1 : 2}
+                columnWrapperStyle={planNav === '1' ? undefined : styles.row}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -919,7 +922,7 @@ export default function RoadmapsScreen() {
                         */}
                         <View style={styles.headerBleed}>
                             {/* Creator Banner → Creator Studio (anyone can build a roadmap now) */}
-                            <TouchableOpacity
+                            {planNav !== '1' && (<TouchableOpacity
                                 style={[styles.creatorBanner, { borderColor }]}
                                 onPress={() => router.push('/creator-dashboard')}
                                 activeOpacity={0.85}
@@ -946,10 +949,10 @@ export default function RoadmapsScreen() {
                                         <ChevronRight size={20} color="#FFFFFF" />
                                     </View>
                                 </View>
-                            </TouchableOpacity>
+                            </TouchableOpacity>)}
 
                             <TouchableOpacity
-                                style={[styles.templateBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '28' }]}
+                                style={[styles.templateBanner, { backgroundColor: colors.card, borderColor: colors.border }]}
                                 onPress={() => router.push('/roadmap-templates' as any)}
                                 activeOpacity={0.85}
                             >
@@ -981,13 +984,13 @@ export default function RoadmapsScreen() {
                                     {CATEGORY_FILTERS.map(cat => (
                                         <TouchableOpacity
                                             key={cat}
-                                            style={[styles.filterChip, { borderColor }, category === cat && styles.filterChipActive]}
+                                            style={[styles.filterChip, { borderColor }, category === cat && { backgroundColor: colors.muted, borderColor: colors.border }]}
                                             onPress={() => setCategory(cat)}
                                             accessibilityRole="button"
                                             accessibilityState={{ selected: category === cat }}
                                             accessibilityLabel={t(`roadmaps.categories.${cat.toLowerCase()}`)}
                                         >
-                                            <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && styles.filterChipTextActive]}>
+                                            <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && { color: colors.foreground }]}>
                                                 {t(`roadmaps.categories.${cat.toLowerCase()}`)}
                                             </Text>
                                         </TouchableOpacity>
@@ -1494,6 +1497,8 @@ function getCategoryColor(category: string): string {
 }
 
 const styles = StyleSheet.create({
+    planCard: { width: '100%', borderRadius: 24, borderCurve: 'continuous', marginBottom: 16 },
+    planImage: { height: 120 },
     creatorBanner: {
         marginHorizontal: 20,
         marginTop: 12,
@@ -1582,7 +1587,7 @@ const styles = StyleSheet.create({
     filterChipActive: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
     filterChipText: { fontSize: 13, fontWeight: '600' },
     filterChipTextActive: { color: 'white' },
-    listContent: { paddingHorizontal: 14, paddingBottom: 100, flexGrow: 1 },
+    listContent: { paddingHorizontal: 14, paddingBottom: 160, flexGrow: 1 },
     headerBleed: { marginHorizontal: -14 },
     row: { justifyContent: 'space-between', marginBottom: 16 },
     mySection: { marginBottom: 4 },

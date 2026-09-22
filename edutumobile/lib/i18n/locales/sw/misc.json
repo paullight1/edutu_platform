@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "Kuwa Mshauri",
+        "progressLabel": "Maendeleo ya ombi",
+        "progressCount": "{{current}} kati ya {{total}}",
+        "steps": {
+            "intro": "Utangulizi",
+            "motivation": "Motisha yako",
+            "details": "Uzoefu wako",
+            "review": "Kagua"
+        },
         "alerts": {
             "notSignedInTitle": "Hujaingia",
             "notSignedInMessage": "Tafadhali ingia ili kuwasilisha ombi la ushauri."

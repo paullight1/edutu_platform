@@ -117,14 +117,16 @@ describe('bottom nav styles', () => {
     },
   );
 
-  it('only the glass style collapses its tabs away from the non-home tabs', async () => {
-    // On Plan the glass pill compresses into the circle, so its tabs stop
-    // taking touches. The bar styles must keep every tab tappable.
+  it('keeps glass tabs reachable when the contextual action changes', async () => {
+    // Navigation remains available even when a caller changes its action.
     const glass = await renderNav('glass', {
       activeRoute: 'roadmaps',
       circleAction: { kind: 'create', target: '/goals/add' },
     });
     await waitFor(() => expect(glass.getByLabelText('Create goal or roadmap')).toBeTruthy());
+    expect(isTucked(glass.getByLabelText('Home'))).toBe(false);
+    fireEvent.press(glass.getByLabelText('Home'));
+    expect(glass.onTabPress).toHaveBeenCalledWith('home', '/');
 
     const bar = await renderNav('tabs', {
       activeRoute: 'roadmaps',

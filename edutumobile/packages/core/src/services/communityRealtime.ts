@@ -101,6 +101,15 @@ export function subscribeToGroupMessages(
   };
 }
 
+type CommunityGroupInboxListener = () => void;
+
+const communityGroupInboxListeners = new Set<CommunityGroupInboxListener>();
+let communityGroupInboxChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function notifyCommunityGroupInboxListeners(): void {
+  for (const listener of communityGroupInboxListeners) listener();
+}
+
 /**
  * One app-level group-message listener used by unread badges. It deliberately
  * does not open one channel per joined group; the callback only schedules a
@@ -108,24 +117,44 @@ export function subscribeToGroupMessages(
  * membership rules as the Groups screen.
  */
 export function subscribeToCommunityGroupInbox(onChange: () => void): () => void {
-  const channel = supabase
-    .channel('community:group-inbox')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'community_group_messages' },
-      onChange,
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'community_group_messages' },
-      onChange,
-    )
-    .subscribe();
+  communityGroupInboxListeners.add(onChange);
+
+  if (!communityGroupInboxChannel) {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase.channel('community:group-inbox');
+      channel
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'community_group_messages' },
+          notifyCommunityGroupInboxListeners,
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'community_group_messages' },
+          notifyCommunityGroupInboxListeners,
+        )
+        .subscribe();
+      communityGroupInboxChannel = channel;
+    } catch (error) {
+      communityGroupInboxListeners.delete(onChange);
+      if (channel) void supabase.removeChannel(channel);
+      if (__DEV__) {
+        console.warn('Community group inbox realtime unavailable; using polling fallback:', error);
+      }
+      return () => undefined;
+    }
+  }
 
   let removed = false;
   return () => {
     if (removed) return;
     removed = true;
+    communityGroupInboxListeners.delete(onChange);
+    if (communityGroupInboxListeners.size > 0 || !communityGroupInboxChannel) return;
+
+    const channel = communityGroupInboxChannel;
+    communityGroupInboxChannel = null;
     void supabase.removeChannel(channel);
   };
 }

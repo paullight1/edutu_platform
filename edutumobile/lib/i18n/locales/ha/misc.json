@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "Zama Jagora",
+        "progressLabel": "Ci gaban buƙata",
+        "progressCount": "{{current}} cikin {{total}}",
+        "steps": {
+            "intro": "Gabatarwa",
+            "motivation": "Dalilinka",
+            "details": "Ƙwarewarka",
+            "review": "Dubawa"
+        },
         "alerts": {
             "notSignedInTitle": "Ba ka shiga ba",
             "notSignedInMessage": "Da fatan za a shiga don mika buƙatar zama jagora."

@@ -10,7 +10,15 @@ import {
 import { toSafeUUID } from '../utils/auth';
 import { categorizeOpportunity } from './opportunityCategorization';
 
-let cachedOpportunities: Opportunity[] | null = null;
+const FEED_FRESH_MS = 30_000;
+const MAX_FEED_REQUESTS = 12;
+interface FeedRequest {
+  promise: Promise<Opportunity[]>;
+  expiresAt: number;
+}
+// Keep accounts, profile inputs and exclusions separate. Concurrent screens
+// share one request; quick navigation reuses its result for just 30 seconds.
+let feedRequests = new WeakMap<SupabaseClient, Map<string, FeedRequest>>();
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com';
 const OPPORTUNITIES_CACHE_KEY = 'edutu_opportunities_cache';
 const OPPORTUNITY_DETAIL_CACHE_PREFIX = 'edutu_opportunity_detail:';
@@ -614,46 +622,56 @@ async function resolveAuthToken(
 }
 
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
-  const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot, excludeOpportunityIds } = options;
-  const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;
-
-  if (!force && cachedOpportunities && !userId) {
-    return cachedOpportunities;
-  }
-
-  let profile: any = normaliseProfileInput(profileOverride);
-  if (userId) {
-    try {
-      const lookupIds = getUserLookupIds(userId);
-      const [profileResult, prefsResult] = await Promise.all([
-        supabase.from('profiles').select('*').in('user_id', lookupIds),
-        supabase.from('user_opportunity_preferences').select('*').in('user_id', lookupIds)
-      ]);
-
-      const profData = preferCurrentUserRow(profileResult.data, userId) || {};
-      const prefData = preferCurrentUserRow(prefsResult.data, userId) || {};
-      const storedPrefs = (profData as any).preferences || {};
-
-      profile = normaliseProfileInput({
-        ...profileOverride,
-        ...profData,
-        ...storedPrefs,
-        interests: [
-          ...(storedPrefs.interests || []),
-          ...(profData.interests || []),
-          ...(prefData.preferred_categories || [])
-        ],
-        ambitions: storedPrefs.ambitions || profData.ambitions || [],
-        skills: [...(storedPrefs.skills || []), ...(profData.skills || []), ...(prefData.preferred_skills || [])],
-        preferredRegions: prefData.preferred_regions || [],
-        remoteOnly: prefData.remote_only || false,
-      });
-    } catch (e) {
-      if (__DEV__) {
-        console.warn('Failed to fetch user profile/preferences for matching:', e);
+  let request: Promise<Opportunity[]>;
+  // A caller-owned AbortSignal must never cancel another screen's request.
+  if (options.signal) {
+    request = loadOpportunities(options);
+  } else {
+    let entries = feedRequests.get(options.supabase);
+    if (!entries) {
+      entries = new Map();
+      feedRequests.set(options.supabase, entries);
+    }
+    const key = JSON.stringify([
+      options.userId || 'guest',
+      Boolean(options.getAuthToken),
+      options.profileOverride ?? null,
+      [...new Set(options.excludeOpportunityIds ?? [])].sort(),
+    ]);
+    const now = Date.now();
+    for (const [entryKey, entry] of entries) {
+      if (entry.expiresAt <= now) entries.delete(entryKey);
+    }
+    const existing = entries.get(key);
+    if (!options.force && existing) {
+      request = existing.promise;
+    } else {
+      request = loadOpportunities(options);
+      // A stalled request must not trap every later screen on the same promise.
+      const entry: FeedRequest = { promise: request, expiresAt: now + FEED_FRESH_MS };
+      entries.set(key, entry);
+      if (entries.size > MAX_FEED_REQUESTS) {
+        entries.delete(entries.keys().next().value!);
       }
+      const currentEntries = entries;
+      void request.then((rows) => {
+        if (currentEntries.get(key) !== entry) return;
+        if (rows.length === 0) currentEntries.delete(key);
+        else entry.expiresAt = Date.now() + FEED_FRESH_MS;
+      }, () => {
+        if (currentEntries.get(key) === entry) currentEntries.delete(key);
+      });
     }
   }
+  const opportunities = await request;
+  // Each consumer still gets its own widget callback, including cache hits.
+  void syncExternalSnapshot(options.onSyncSnapshot, opportunities);
+  return opportunities;
+}
+
+async function loadOpportunities(options: FetchOptions): Promise<Opportunity[]> {
+  const { supabase, userId, getAuthToken, profileOverride, signal, excludeOpportunityIds } = options;
+  const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;
 
   // Prefer the authenticated backend. It can use server-side profile data,
   // preferences, goals, dismiss signals, and AI reranking consistently.
@@ -689,9 +707,7 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
           // an answer — fall through to the catalog instead of caching a
           // blank feed over whatever the user had.
           if (apiOpportunities.length > 0) {
-            cachedOpportunities = apiOpportunities;
             await persistOpportunitiesSnapshot(apiOpportunities, userId);
-            syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
             return apiOpportunities;
           }
         }
@@ -713,6 +729,42 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
     const cached = await getCachedOpportunitiesSnapshot(userId);
     if (cached.length > 0) {
       return cached;
+    }
+  }
+
+  // Only the fallback needs client-side profile reads. The authenticated
+  // endpoint above resolves the profile itself, so these must not delay it.
+  let profile: any = normaliseProfileInput(profileOverride);
+  if (userId) {
+    try {
+      const lookupIds = getUserLookupIds(userId);
+      const [profileResult, prefsResult] = await Promise.all([
+        supabase.from('profiles').select('*').in('user_id', lookupIds),
+        supabase.from('user_opportunity_preferences').select('*').in('user_id', lookupIds)
+      ]);
+
+      const profData = preferCurrentUserRow(profileResult.data, userId) || {};
+      const prefData = preferCurrentUserRow(prefsResult.data, userId) || {};
+      const storedPrefs = (profData as any).preferences || {};
+
+      profile = normaliseProfileInput({
+        ...profileOverride,
+        ...profData,
+        ...storedPrefs,
+        interests: [
+          ...(storedPrefs.interests || []),
+          ...(profData.interests || []),
+          ...(prefData.preferred_categories || [])
+        ],
+        ambitions: storedPrefs.ambitions || profData.ambitions || [],
+        skills: [...(storedPrefs.skills || []), ...(profData.skills || []), ...(prefData.preferred_skills || [])],
+        preferredRegions: prefData.preferred_regions || [],
+        remoteOnly: prefData.remote_only || false,
+      });
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('Failed to fetch user profile/preferences for matching:', e);
+      }
     }
   }
 
@@ -738,9 +790,7 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         const payload = await response.json();
         let apiOpportunities = (payload.opportunities || []).map((row: any) => normaliseOpportunity(row));
         if (apiOpportunities.length > 0) {
-          cachedOpportunities = apiOpportunities;
           await persistOpportunitiesSnapshot(apiOpportunities, userId);
-          syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
           return apiOpportunities;
         }
       }
@@ -796,9 +846,7 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
     normalised.sort((a, b) => (b.match || 0) - (a.match || 0));
   }
 
-  cachedOpportunities = normalised;
   await persistOpportunitiesSnapshot(normalised, userId);
-  syncExternalSnapshot(onSyncSnapshot, normalised);
 
   return normalised;
 }
@@ -1034,5 +1082,5 @@ export async function getOpportunityWithStatus(id: string, supabase?: SupabaseCl
 }
 
 export function clearOpportunitiesCache() {
-  cachedOpportunities = null;
+  feedRequests = new WeakMap();
 }

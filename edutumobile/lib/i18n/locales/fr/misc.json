@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "Devenir mentor",
+        "progressLabel": "Progression de la candidature",
+        "progressCount": "{{current}} sur {{total}}",
+        "steps": {
+            "intro": "Introduction",
+            "motivation": "Votre motivation",
+            "details": "Votre expérience",
+            "review": "Vérification"
+        },
         "alerts": {
             "notSignedInTitle": "Non connecté",
             "notSignedInMessage": "Veuillez vous connecter pour envoyer une candidature de mentor."

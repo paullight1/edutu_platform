@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -14,7 +15,10 @@ const mockDeleteGoal = jest.fn().mockResolvedValue(undefined);
 const mockInitRevenueCat = jest.fn().mockResolvedValue(false);
 const mockGetOfferings = jest.fn();
 const mockPurchasePackage = jest.fn();
+const mockCreatePurchaseFulfillmentCheck = jest.fn();
+const mockConfirmPurchase = jest.fn();
 const mockRestorePurchases = jest.fn();
+const mockFetchMarketplaceEntitlements = jest.fn().mockResolvedValue([]);
 
 let mockUserState: {
   user: {
@@ -264,6 +268,10 @@ jest.mock('../lib/notifications', () => ({
   },
 }));
 
+jest.mock('../lib/marketplaceEntitlements', () => ({
+  fetchMarketplaceEntitlements: (...args: unknown[]) => mockFetchMarketplaceEntitlements(...args),
+}));
+
 jest.mock('@edutu/core/src/hooks/useNotifications', () => ({
   useNotifications: () => ({
     notifications: mockNotifications,
@@ -304,7 +312,12 @@ jest.mock('@edutu/core/src/services/opportunities', () => ({
   getCachedOpportunitiesSnapshot: jest.fn(async () => []),
 }), { virtual: true });
 
+jest.mock('@edutu/core/src/services/billingFulfillment', () => ({
+  createPurchaseFulfillmentCheck: (...args: unknown[]) => mockCreatePurchaseFulfillmentCheck(...args),
+}));
+
 jest.mock('@edutu/core/src/services/payments', () => ({
+  waitForServerFulfillment: (check: () => Promise<boolean>) => check(),
   initRevenueCat: (...args: unknown[]) => mockInitRevenueCat(...args),
   getOfferings: (...args: unknown[]) => mockGetOfferings(...args),
   purchasePackage: (...args: unknown[]) => mockPurchasePackage(...args),
@@ -359,7 +372,11 @@ describe('mobile engagement routes', () => {
     mockInitRevenueCat.mockClear();
     mockGetOfferings.mockClear();
     mockPurchasePackage.mockClear();
+    mockCreatePurchaseFulfillmentCheck.mockReset().mockResolvedValue(mockConfirmPurchase);
+    mockConfirmPurchase.mockReset().mockResolvedValue(false);
     mockRestorePurchases.mockClear();
+    mockFetchMarketplaceEntitlements.mockReset();
+    mockFetchMarketplaceEntitlements.mockResolvedValue([]);
     mockSavedBookmarks = [];
     mockNotifications = [];
     mockUnreadCount = 0;
@@ -491,6 +508,7 @@ describe('mobile engagement routes', () => {
     expect(getByText('Referral bonus')).toBeTruthy();
     expect(getAllByText('Upgrade to Pro').length).toBeGreaterThan(0);
     expect(getAllByText('Buy Credits').length).toBeGreaterThan(0);
+    await waitFor(() => expect(getByText('No marketplace access yet')).toBeTruthy());
 
     fireEvent.press(getAllByText('Upgrade to Pro')[0]);
     expect(mockPush).toHaveBeenCalledWith('/paywall');
@@ -574,6 +592,27 @@ describe('mobile engagement routes', () => {
 
     fireEvent.press(getAllByText('View Details')[0]);
     expect(mockPush).toHaveBeenCalledWith('/opportunities/opp-urgent');
+  });
+
+  it('captures the selected tier before charging and keeps an unfulfilled upgrade pending', async () => {
+    mockInitRevenueCat.mockResolvedValue(true);
+    const pkg = { identifier: '$rc_monthly', product: { identifier: 'pro_monthly', priceString: '$5.00', price: 5 } };
+    mockGetOfferings.mockResolvedValue({ availablePackages: [pkg] });
+    mockPurchasePackage.mockResolvedValue({ success: true });
+    const alert = jest.spyOn(Alert, 'alert');
+    try {
+      const { getByText } = render(<PaywallScreen />);
+      await waitFor(() => expect(getByText(/^Start /)).toBeTruthy());
+      await waitFor(() => expect(mockGetOfferings).toHaveBeenCalled());
+      fireEvent.press(getByText(/^Start /));
+      await waitFor(() => expect(mockPurchasePackage).toHaveBeenCalledWith(pkg));
+      expect(mockCreatePurchaseFulfillmentCheck).toHaveBeenCalledWith(expect.anything(), 'user-1', 'pro');
+      expect(mockCreatePurchaseFulfillmentCheck.mock.invocationCallOrder[0]).toBeLessThan(mockPurchasePackage.mock.invocationCallOrder[0]);
+      await waitFor(() => expect(mockConfirmPurchase).toHaveBeenCalled());
+      await waitFor(() => expect(alert).toHaveBeenCalledWith(
+        'Payment is still processing', expect.any(String), expect.any(Array),
+      ));
+    } finally { alert.mockRestore(); }
   });
 
   it('renders the paywall, shows premium messaging, and surfaces subscribe handling', async () => {

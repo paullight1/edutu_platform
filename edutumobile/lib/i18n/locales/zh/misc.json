@@ -255,6 +255,14 @@
     },
     "mentorApply": {
         "title": "成为导师",
+        "progressLabel": "申请进度",
+        "progressCount": "第 {{current}} 步，共 {{total}} 步",
+        "steps": {
+            "intro": "介绍",
+            "motivation": "你的动机",
+            "details": "你的经验",
+            "review": "检查"
+        },
         "alerts": {
             "notSignedInTitle": "未登录",
             "notSignedInMessage": "请先登录再提交导师申请。"

@@ -1,11 +1,12 @@
-import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
+import { useLocalSearchParams as usePlanParams , useRouter } from 'expo-router';
+import { PlanWorkspaceHeader } from '../../components/opportunity-path/PlanWorkspaceHeader';
+import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Target, Check, Wand2 } from "lucide-react-native";
+import { Calendar, ChevronRight, Clock, ArrowRight, Heart, Target, Check, Wand2 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { haptics } from "../../lib/haptics";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
@@ -248,6 +249,7 @@ function RejectionSupportCard({
 }
 
 export default function AppliedPage() {
+    const { planNav } = usePlanParams<{ planNav?: string }>();
   const { t } = useTranslation('home');
   const { isDark, colors } = useTheme();
   const router = useRouter();
@@ -515,30 +517,22 @@ export default function AppliedPage() {
 
   const renderApplication = useCallback(({ item }: { item: AppliedOpportunity }) => (
     <View>
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: cardBg, borderColor }]}
-      activeOpacity={0.85}
-      onPress={() => router.push(`/opportunities/${item.opportunity_id}`)}
-    >
-      <View style={[styles.thumb, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.thumbImage} resizeMode="cover" />
-        ) : (
-          <Globe size={24} color={accentColor} />
-        )}
-      </View>
+    <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
       <View style={styles.cardBody}>
         <View style={styles.cardTop}>
           <Text style={[styles.category, { color: accentColor }]} numberOfLines={1}>{item.category}</Text>
           <TouchableOpacity
-            onPress={() => openStatusPicker(item)}
+            onPress={(event) => { event.stopPropagation(); openStatusPicker(item); }}
+            accessibilityRole="button" accessibilityLabel={t('myPlan.updateStatus', { title: item.title })}
             style={[styles.statusButton, { backgroundColor: `${getStatusColor(item.status)}1F` }]}
             activeOpacity={0.75}
           >
             <Text style={[styles.status, { color: getStatusColor(item.status) }]}>{formatStatus(item.status)}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/opportunities/${item.opportunity_id}`)} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={3}>{item.title}</Text>
+        </TouchableOpacity>
         <Text style={[styles.org, { color: textSecondary }]} numberOfLines={1}>{item.organization}</Text>
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
@@ -554,7 +548,8 @@ export default function AppliedPage() {
           <PipelineStepper status={item.status} inactiveColor={stepInactiveColor} />
           {getNextApplicationStage(item.status) ? (
             <TouchableOpacity
-              onPress={() => advanceStatus(item)}
+              onPress={(event) => { event.stopPropagation(); advanceStatus(item); }}
+              accessibilityRole="button"
               style={[styles.advanceButton, { backgroundColor: `${accentColor}1A`, borderColor: `${accentColor}40` }]}
               activeOpacity={0.75}
             >
@@ -581,7 +576,7 @@ export default function AppliedPage() {
         ) : null}
       </View>
       <ChevronRight size={18} color={textSecondary} />
-    </TouchableOpacity>
+    </View>
     {(item.status === 'rejected' || item.status === 'no_response') && rejectionCardId === item.id ? (
       <RejectionSupportCard
         variant={item.status === 'no_response' ? 'no_response' : 'rejected'}
@@ -598,7 +593,7 @@ export default function AppliedPage() {
       />
     ) : null}
     </View>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, kitOpportunityIds, answerBankCount]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, kitOpportunityIds, answerBankCount]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -639,11 +634,11 @@ export default function AppliedPage() {
               activeOpacity={0.8}
               style={[
                 styles.statTile,
-                { backgroundColor: cardBg, borderColor: active ? tile.color : borderColor },
-                active && { backgroundColor: `${tile.color}14` },
+                { backgroundColor: cardBg, borderColor: active ? accentColor : borderColor },
+                active && { backgroundColor: active ? colors.muted : 'transparent' },
               ]}
             >
-              <Text style={[styles.statCount, { color: tile.color }]}>{tile.count}</Text>
+              <Text style={[styles.statCount, { color: active ? accentColor : textSecondary }]}>{tile.count}</Text>
               <Text style={[styles.statLabel, { color: active ? tile.color : textSecondary }]} numberOfLines={1}>
                 {tile.label}
               </Text>
@@ -669,7 +664,7 @@ export default function AppliedPage() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-      <ScreenHeader title={t('applied.title')} showBack subtitle={headerSubtitle} />
+      {planNav === '1' ? <PlanWorkspaceHeader section="applications" /> : (<ScreenHeader title={t('applied.title')} showBack subtitle={headerSubtitle} />)}
 
       <FlatList
         data={filteredApplications}
@@ -708,13 +703,14 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 100,
+    paddingBottom: 160,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 18,
-    padding: 12,
+    borderRadius: 24,
+    borderCurve: 'continuous',
+    padding: 20,
     borderWidth: 1,
     marginBottom: 12,
     gap: 12,
@@ -722,7 +718,8 @@ const styles = StyleSheet.create({
   thumb: {
     width: 58,
     height: 58,
-    borderRadius: 16,
+    borderRadius: 24,
+    borderCurve: "continuous",
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -752,20 +749,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statusButton: {
+    minHeight: 44, justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: 'rgba(16,185,129,0.12)',
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 19,
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 27,
     marginBottom: 3,
   },
   org: {
-    fontSize: 11,
-    marginBottom: 8,
+    fontSize: 13,
+    marginBottom: 12,
   },
   metaRow: {
     flexDirection: 'row',
@@ -778,7 +776,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '500',
   },
   statBoard: {
@@ -825,6 +823,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   advanceButton: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

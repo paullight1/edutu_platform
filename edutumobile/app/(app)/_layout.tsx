@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { View, Text, TouchableOpacity, Pressable, StyleSheet, Platform, Animated, useAnimatedValue, Dimensions, Image, PanResponder } from "react-native";
+import { View, Text, TouchableOpacity, Pressable, StyleSheet, Platform, Animated, useAnimatedValue, Dimensions, useWindowDimensions, Image, PanResponder } from "react-native";
 import { Stack, Redirect, useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     Home,
     Compass,
-    ShoppingBag,
     Bell,
     BadgeCheck,
     Plus,
@@ -14,24 +13,20 @@ import {
     Target,
     Route,
     Menu,
-    Users,
+    ClipboardList,
 } from "lucide-react-native";
-import { BlurView } from "expo-blur";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { NativeGlassSurface } from "../../components/ui/NativeGlassSurface";
 import { BottomScrimView } from "../../components/ui/BottomScrim";
 import ReAnimated, {
     type SharedValue,
     useSharedValue,
     useAnimatedStyle,
-    withSpring,
     withTiming,
     withSequence,
     Easing,
-    interpolate,
-    Extrapolation,
 } from "react-native-reanimated";
 import { haptics } from "../../lib/haptics";
-import { useNavCompact, setNavCompact } from "../../lib/navScrollStore";
+import { setNavCompact } from "../../lib/navScrollStore";
 import { AiSparkGlyph } from "../../components/ui/AiSparkGlyph";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -51,7 +46,6 @@ import { WelcomeModal } from "../../components/ui/WelcomeModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
-import { useNavFabState } from "../../lib/navFabStore";
 import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
 import { setStatusBarStyle } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
@@ -69,21 +63,10 @@ import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { useTranslation } from "react-i18next";
 import { useGuestMode, isGuestAllowedPath } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
-import { CommunityHeader, CommunityNavigation } from "../../components/community/CommunityNavigation";
-import { useCommunityUnreadCounts } from "../../hooks/useCommunityUnreadCounts";
-import { registerNativeCallingTokenSync, resetNativeCallingTokenSync } from "../../features/community-calls/nativeCall";
 import { getCommunityCallRouteFromNotification } from "../../features/community-calls/notifications";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Expanded width of the nav pill: screen minus the navRow insets (14 + 14),
-// the detached circle (66) and the row gap (10). The pill's width is animated
-// between this and 0 when it compresses into the circle.
-const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
-// Height of the pill and the detached circle; also sizes the scrim behind them.
-const NAV_PILL_HEIGHT = 66;
-// Icons-only height while scroll-compacted (Instagram-style shrink).
-const NAV_PILL_COMPACT_HEIGHT = 48;
 const HEADER_GREETING_ROTATION_MS = 15 * 60 * 1000;
 
 function stableGreetingOffset(value: string) {
@@ -94,24 +77,8 @@ function stableGreetingOffset(value: string) {
     return Math.abs(hash);
 }
 
-// …and its width. Compacting only the height left the four icons stranded at
-// their expanded spacing, so the bar looked like it had merely lost its labels
-// rather than contracted. 52pt per tab keeps every touch target comfortably
-// above the 44pt minimum while pulling the five icons visibly together; navRow is
-// right-anchored, so the pill contracts toward the circle instead of drifting.
-const NAV_PILL_COMPACT_WIDTH = Math.min(NAV_PILL_WIDTH, 5 * 52 + 12);
-
 // Content height of the full-width bar styles, above the safe-area padding.
 const NAV_BAR_HEIGHT = 58;
-
-// Real Apple Liquid Glass (iOS 26+); elsewhere we use a blur fallback.
-const HAS_LIQUID_GLASS = (() => {
-    try {
-        return isLiquidGlassAvailable();
-    } catch {
-        return false;
-    }
-})();
 
 // Safe-area padding under the full-width bar. Android's gesture inset can be
 // 0, so keep a floor there; iOS's home-indicator inset is already generous.
@@ -159,7 +126,6 @@ function TabItem({
     badge,
     onPress,
     isDark,
-    compact,
 }: {
     icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
     label: string;
@@ -171,23 +137,15 @@ function TabItem({
     /** 0→1 pill-compaction progress (Instagram-style shrink); labels fade+collapse. */
     compact?: SharedValue<number>;
 }) {
-    // Label melts away as the pill compacts: fades first, then gives up its
-    // height so the icon re-centers in the shorter pill.
-    const labelStyle = useAnimatedStyle(() => {
-        const p = compact?.value ?? 0;
-        return {
-            opacity: interpolate(p, [0, 0.6], [1, 0], Extrapolation.CLAMP),
-            height: interpolate(p, [0, 1], [14, 0], Extrapolation.CLAMP),
-            marginTop: interpolate(p, [0, 1], [4, 0], Extrapolation.CLAMP),
-        };
-    });
+    const { fontScale } = useWindowDimensions();
+    const labelStyle = { marginTop: 4 };
 
     return (
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.6}
-            style={styles.tabItem}
-            accessibilityRole="button"
+            style={[styles.tabItem, { borderRadius: 999, backgroundColor: isActive ? `${color}18` : 'transparent' }]}
+            accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={label}
         >
@@ -199,7 +157,7 @@ function TabItem({
                 <ReAnimated.View style={labelStyle}>
                     <Text
                         style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
-                        numberOfLines={1}
+                        numberOfLines={fontScale > 1.3 ? 2 : 1}
                     >
                         {label}
                     </Text>
@@ -926,6 +884,8 @@ export function BottomNav({
     isDark,
     colors,
     reducedMotion = false,
+    alwaysExpanded: _alwaysExpanded = false,
+    highContrast = false,
 }: {
     tabs: Array<{
         key: string;
@@ -943,161 +903,26 @@ export function BottomNav({
     isDark: boolean;
     colors: any;
     reducedMotion?: boolean;
+    alwaysExpanded?: boolean;
+    highContrast?: boolean;
 }) {
     const insets = useSafeAreaInsets();
     const { style: navBarStyle } = useNavStyleSettings();
     const isBar = isBarStyle(navBarStyle);
-    // Brighter accent + higher-contrast inactive so labels stay legible on the
-    // translucent glass over dark content.
-    const accent = isDark ? "#A5B4FC" : (colors.accent || "#4F46E5");
-    const inactive = isDark ? "#C7CCD4" : "#5B6472";
-    const glassTint = isDark
-        ? (Platform.OS === "android" ? "rgba(22,24,34,0.94)" : "rgba(20,22,32,0.72)")
-        // Light: a faintly cool frost (not pure white) so the bar reads as a
-        // surface over white content instead of vanishing into it.
-        : (Platform.OS === "android" ? "rgba(255,255,255,0.96)" : "rgba(246,248,252,0.82)");
-    // A defined edge is what separates floating glass from bright content in
-    // light mode (Liquid Glass leans on the rim, not opacity). Stronger in light.
-    const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.14)";
-    // Specular top highlight — the edge-lit sheen that reads as "glass".
-    const specularCol = isDark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.9)";
-    // Shared glass background for the pill and the detached circle.
-    const glassBackground = (rounded: number) =>
-        HAS_LIQUID_GLASS ? (
-            <>
-                <GlassView
-                    style={StyleSheet.absoluteFill}
-                    glassEffectStyle="regular"
-                    isInteractive
-                    colorScheme={isDark ? "dark" : "light"}
-                />
-                <View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFillObject,
-                        {
-                            borderRadius: rounded,
-                            borderCurve: "continuous",
-                            borderWidth: 1,
-                            borderColor: borderCol,
-                        },
-                    ]}
-                />
-            </>
-        ) : (
-            <>
-                <BlurView
-                    intensity={isDark ? 40 : 72}
-                    tint={isDark ? "systemChromeMaterialDark" : "systemChromeMaterialLight"}
-                    experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
-                    style={StyleSheet.absoluteFill}
-                />
-                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
-                {/* Defined outer edge — the main separator from bright content. */}
-                <View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFillObject,
-                        { borderRadius: rounded, borderCurve: "continuous", borderWidth: 1, borderColor: borderCol },
-                    ]}
-                />
-                {/* Specular top rim — the edge-lit sheen that sells it as glass. */}
-                <View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFillObject,
-                        { borderRadius: rounded, borderCurve: "continuous", borderTopWidth: 1.5, borderColor: specularCol },
-                    ]}
-                />
-            </>
-        );
-
-    // ── Collapse choreography (iOS Safari-style minimize) ────────────────────
-    // Home shows the full tab pill. On Explore / Plan / More the pill
-    // compresses toward the right-hand corner: its width springs to zero while
-    // the tabs — anchored to the pill's shrinking left edge — slide right and
-    // are swallowed one by one by the circle, which swells as it "catches"
-    // them and lands on the contextual icon. The bar styles are static: no
-    // collapse, every tab always visible.
-    const isCollapsed = !isBar && circleAction.kind !== "ai";
-    const collapse = useSharedValue(isCollapsed ? 1 : 0);
-
-    useEffect(() => {
-        collapse.value = withSpring(isCollapsed ? 1 : 0, {
-            damping: 26,
-            stiffness: 230,
-            mass: 1,
-        });
-    }, [isCollapsed, collapse]);
-
-    // Instagram-style scroll compaction: scrolling down shrinks the pill to a
-    // slim icons-only bar (labels fade+collapse in TabItem); scrolling up or
-    // reaching the top restores it. Driven by whichever screen feeds
-    // navScrollStore; rides its own spring so it can overlap the collapse one.
-    const navCompact = useNavCompact();
-    const compactV = useSharedValue(0);
-    useEffect(() => {
-        compactV.value = withSpring(navCompact ? 1 : 0, {
-            damping: 20,
-            stiffness: 210,
-            mass: 0.9,
-        });
-    }, [navCompact, compactV]);
-
-    const pillStyle = useAnimatedStyle(() => {
-        // The compacted width is the pill's new "expanded" size, which the
-        // collapse spring then takes to 0 on a tab change. Composed rather than
-        // interpolated separately so the two springs can overlap without one
-        // snapping the width back mid-flight.
-        const openWidth = interpolate(
-            compactV.value,
-            [0, 1],
-            [NAV_PILL_WIDTH, NAV_PILL_COMPACT_WIDTH],
-            Extrapolation.CLAMP,
-        );
-        return {
-            width: interpolate(collapse.value, [0, 1], [openWidth, 0], Extrapolation.CLAMP),
-            opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
-            height: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT, NAV_PILL_COMPACT_HEIGHT], Extrapolation.CLAMP),
-            borderRadius: interpolate(compactV.value, [0, 1], [NAV_PILL_HEIGHT / 2, NAV_PILL_COMPACT_HEIGHT / 2], Extrapolation.CLAMP),
-        };
-    });
-
-    // The scrim exists to keep content from colliding with the tabs, so it
-    // scales back with them: once the pill has collapsed to just the circle
-    // there is far less chrome to separate, and a full-strength wash reads as
-    // a bug. Rides the same spring so it never pops.
-    const scrimStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(collapse.value, [0, 1], [1, 0.42], Extrapolation.CLAMP),
-    }));
-
-    const scrimHeight = Math.max(insets.bottom, 10) + NAV_PILL_HEIGHT + 20;
-
-    // Tabs fade ahead of the clip so nothing gets sliced mid-glyph. The row
-    // carries the same compacted width as the pill — without it the row keeps
-    // its expanded width inside an `overflow: hidden` pill and the outer tabs
-    // are clipped away instead of moving closer. tabItem is flex:1, so the
-    // icons redistribute across the narrower row on their own.
-    const pillContentStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(collapse.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
-        width: interpolate(
-            compactV.value,
-            [0, 1],
-            [NAV_PILL_WIDTH, NAV_PILL_COMPACT_WIDTH],
-            Extrapolation.CLAMP,
-        ),
-    }));
-
-    const circleSwellStyle = useAnimatedStyle(() => ({
-        transform: [
-            {
-                scale:
-                    interpolate(collapse.value, [0, 0.7, 1], [1, 1.08, 1], Extrapolation.CLAMP) *
-                    // Shrink alongside the compact pill so the pair reads as one bar.
-                    interpolate(compactV.value, [0, 1], [1, 0.86], Extrapolation.CLAMP),
-            },
-        ],
-    }));
+    const { width, fontScale } = useWindowDimensions();
+    const NAV_PILL_WIDTH = Math.max(0, width - 28 - 66 - 10);
+    const accent = colors.accent;
+    const inactive = colors.textSecondary || colors.foreground || (isDark ? '#FFFFFF' : '#111111');
+    const borderCol = colors.border;
+    const glassBackground = (rounded: number) => <NativeGlassSurface radius={rounded} isDark={isDark}
+        surface={colors.card} border={colors.border} highContrast={highContrast} />;
+    const isCollapsed = false;
+    const pillHeight = Math.max(66, 42 + (fontScale > 1.3 ? 28 : 18) * fontScale);
+    const pillStyle = { width: NAV_PILL_WIDTH, minHeight: pillHeight, borderRadius: 32 };
+    const pillContentStyle = { width: NAV_PILL_WIDTH };
+    const circleSwellStyle = {};
+    const scrimStyle = {};
+    const scrimHeight = Math.max(insets.bottom, 10) + 36;
 
     // ── Conventional full-width bar ('fab' / 'tabs' / 'center') ──────────────
     // Flush to the bottom edge, square corners, hairline on top. The three
@@ -1230,7 +1055,6 @@ export function BottomNav({
                                 badge={tab.badge}
                                 onPress={() => onTabPress(tab.key, tab.route)}
                                 isDark={isDark}
-                                compact={compactV}
                             />
                         );
                     })}
@@ -1262,6 +1086,7 @@ export function BottomNav({
 // Runs inside <ToastProvider> so it can surface the reward toast. Fires once
 // per mount (ref-guarded) when the user is signed in.
 function DailyLoginRewards() {
+    const router = useRouter();
     const { isSignedIn, userId } = useAuth();
     const { show } = useToast();
     const { t } = useTranslation('home');
@@ -1273,6 +1098,8 @@ function DailyLoginRewards() {
                 emoji: "🔥",
                 variant: "success",
                 message: t('rewards.creditsEarned', { count: amount, label }),
+                durationMs: 3000,
+                onPress: () => router.push('/wallet'),
             });
         },
     });
@@ -1340,16 +1167,14 @@ export default function AppLayout() {
     const { t } = useTranslation('home');
     const { isSignedIn, isLoaded, getToken, userId } = useAuth();
     const { user } = useUser();
-    const { isDark, colors, reducedMotion } = useTheme();
+    const { isDark, colors, reducedMotion, highContrast } = useTheme();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-    const params = useGlobalSearchParams<{ category?: string }>();
+    const params = useGlobalSearchParams<{ category?: string; planNav?: string }>();
+    const isPlanNav = pathname === '/my-plan' ||
+        (params.planNav === '1' && ['/applied', '/deadlines', '/roadmaps', '/goals'].includes(pathname));
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
-    const {
-        groupsUnreadCount,
-        chatsUnreadCount,
-    } = useCommunityUnreadCounts(user?.id ?? null, getToken);
     const registeredPushUserRef = React.useRef<string | null>(null);
     const [featureMenuOpen, setFeatureMenuOpen] = useState(false);
     const [featureMenuPath, setFeatureMenuPath] = useState(pathname);
@@ -1419,9 +1244,7 @@ export default function AppLayout() {
 
     useEffect(() => {
         if (!isSignedIn || !userId) {
-            const previousUserId = registeredPushUserRef.current;
             registeredPushUserRef.current = null;
-            if (previousUserId) void resetNativeCallingTokenSync(previousUserId);
             return;
         }
         if (registeredPushUserRef.current === userId) {
@@ -1447,9 +1270,6 @@ export default function AppLayout() {
                 // is misconfigured. Swallow it here so it cannot take the
                 // timezone sync below down with it.
             }
-            // Direct FCM and APNs VoIP tokens are separate from Expo tokens.
-            // Optional native loading keeps Expo Go and unsupported builds safe.
-            await registerNativeCallingTokenSync(userId, getToken);
             // Sync the device timezone so proactive alerts honor quiet hours in
             // the user's local time. Idempotent: a no-op after the first launch.
             await syncDeviceTimezone(getToken);
@@ -1505,7 +1325,7 @@ export default function AppLayout() {
 
             const callRoute = getCommunityCallRouteFromNotification(data);
             if (callRoute) {
-                router.push(callRoute.path as never);
+                router.replace("/my-plan" as never);
                 return;
             }
 
@@ -1533,17 +1353,10 @@ export default function AppLayout() {
     const getActiveRoute = (): string => {
         const path = pathname.toLowerCase();
         const normalizedPath = path.replace(/\/+$/, '') || '/';
-        const communityLandingRoutes = [
-            '/discussions',
-            '/discussions/explore',
-            '/discussions/profile',
-            '/discussions/chats',
-        ];
-
-        if (communityLandingRoutes.includes(normalizedPath)) return "groups";
-        if (normalizedPath.startsWith("/discussions/")) return "subpage";
+        if (normalizedPath === "/my-plan") return "my-plan";
 
         if (
+            normalizedPath.startsWith("/my-plan/") ||
             normalizedPath.includes("chat") ||
             normalizedPath.includes("onboarding") ||
             normalizedPath.includes("/cv") ||
@@ -1575,9 +1388,7 @@ export default function AppLayout() {
 
     const activeRoute = getActiveRoute();
     const isCommunityRoute = pathname.includes("/discussions");
-    const communityPath = pathname.replace(/\/$/, '');
-    const isCommunityLanding = ['/discussions', '/discussions/explore', '/discussions/profile', '/discussions/chats'].includes(communityPath);
-    const hideSharedHeader = isCommunityRoute || activeRoute === "subpage" ||
+    const hideSharedHeader = isPlanNav || activeRoute === "my-plan" || isCommunityRoute || activeRoute === "subpage" ||
         pathname.includes("chat") ||
         pathname.includes("onboarding") ||
         pathname.includes("referral") ||
@@ -1586,24 +1397,10 @@ export default function AppLayout() {
         activeRoute === "roadmaps" ||
         activeRoute === "menu";
 
-    // Contextual action for the detached nav circle. On the Plan tab the
-    // target depends on where the user is: /goals* creates a personal goal,
-    // /roadmaps opens Creator Studio to build a roadmap.
-    const { profileFabHidden } = useNavFabState();
+    // Global AI retains the same purpose across every workspace section.
     const { style: navBarStyle } = useNavStyleSettings();
-    const normalizedPathname = pathname.toLowerCase().replace(/\/+$/, '') || '/';
-    const circleAction: NavCircleAction =
-        activeRoute === "roadmaps"
-            ? {
-                kind: "create",
-                target: normalizedPathname.startsWith("/goals") ? "/goals/add" : "/creator-dashboard",
-            }
-            : activeRoute === "menu"
-                ? { kind: "edit", target: "/profile/edit" }
-                : activeRoute === "opportunities"
-                    ? { kind: "ai-discover", target: "/chat" }
-                    : { kind: "ai", target: "/chat" };
-    const circleHidden = circleAction.kind === "edit" && profileFabHidden;
+    const circleAction: NavCircleAction = { kind: 'ai', target: '/chat' };
+    const circleHidden = false;
 
     // Create speed-dial (Plan tab Plus). Closes on any navigation —
     // adjust-during-render reset keyed on pathname.
@@ -1616,8 +1413,8 @@ export default function AppLayout() {
 
     const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
     const hasOpportunityCategory = activeRoute === "opportunities" && typeof categoryParam === "string" && categoryParam.length > 0;
-    const topLevelRoutes = ["home", "groups", "opportunities", "roadmaps", "menu"];
-    const showBottomNav = topLevelRoutes.includes(activeRoute) &&
+    const topLevelRoutes = ["home", "opportunities", "roadmaps", "menu"];
+    const showBottomNav = (isPlanNav || topLevelRoutes.includes(activeRoute)) &&
         !isCommunityRoute &&
         !hasOpportunityCategory &&
         !pathname.includes("/cv") &&
@@ -1642,11 +1439,12 @@ export default function AppLayout() {
         return <Redirect href="/(app)" />;
     }
 
+    if (isCommunityRoute) return <Redirect href="/my-plan" />;
+
     const tabs = [
         { key: "home", route: "/", label: t('tabs.home'), icon: Home, badge: undefined },
-        { key: "groups", route: "/discussions", label: t('tabs.groups', { defaultValue: 'Groups' }), icon: Users, badge: groupsUnreadCount > 0 ? groupsUnreadCount : undefined },
+        { key: "my-plan", route: "/my-plan", label: t('tabs.myPlan', { defaultValue: 'My Plan' }), icon: ClipboardList, badge: undefined },
         { key: "opportunities", route: "/opportunities", label: t('tabs.explore'), icon: Compass, badge: undefined },
-        { key: "roadmaps", route: "/roadmaps", label: t('tabs.plan'), icon: ShoppingBag, badge: undefined },
         { key: "menu", route: "/profile", label: t('tabs.more'), icon: Menu, badge: undefined },
     ];
 
@@ -1678,7 +1476,7 @@ export default function AppLayout() {
                     },
                 ]}
             >
-            {isCommunityLanding ? <CommunityHeader /> : !hideSharedHeader && (
+            {!hideSharedHeader && (
                 <AppHeader
                     isDark={isDark}
                     colors={colors}
@@ -1742,8 +1540,10 @@ export default function AppLayout() {
                         }}
                     />
                     <BottomNav
+                        alwaysExpanded
+                        highContrast={highContrast}
                         tabs={tabs}
-                        activeRoute={activeRoute}
+                        activeRoute={isPlanNav ? 'my-plan' : activeRoute}
                         onTabPress={(key, route) => {
                             // Home stays open for guests; every other tab is walled.
                             if (isGuestBrowsing && key !== "home") {
@@ -1752,7 +1552,7 @@ export default function AppLayout() {
                             }
                             // A fresh tab starts with the full pill (labels back).
                             setNavCompact(false);
-                            router.push(route as never);
+                            if (key !== (isPlanNav ? 'my-plan' : activeRoute)) router.navigate(route as never);
                         }}
                         circleAction={circleAction}
                         circleHidden={circleHidden}
@@ -1773,16 +1573,6 @@ export default function AppLayout() {
                         reducedMotion={reducedMotion}
                     />
                 </>
-            )}
-
-            {/* The Groups tab enters the existing Community interface. Its
-                landing screens keep their dedicated bottom navigation, while
-                focused group and DM conversations keep their own back flow. */}
-            {isCommunityLanding && (
-                <CommunityNavigation
-                    groupsUnreadCount={groupsUnreadCount}
-                    chatsUnreadCount={chatsUnreadCount}
-                />
             )}
 
             {featureMenuOpen ? (
@@ -1903,7 +1693,7 @@ const styles = StyleSheet.create({
         width: 76,
     },
     navPill: {
-        // Width is animated (NAV_PILL_WIDTH ↔ 0) by the collapse spring.
+        // Native material stays mounted at full opacity during navigation.
         height: 66,
         borderRadius: 33,
         borderCurve: "continuous",

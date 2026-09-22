@@ -159,6 +159,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
       await recordOpportunitySignal(
         { opportunityId, signalType: 'dismiss', source: 'mobile', context: 'notification' },
         session.getToken,
+        session.userId,
       );
     } catch {
       // Swallow: a background task that throws is killed by the OS and may be

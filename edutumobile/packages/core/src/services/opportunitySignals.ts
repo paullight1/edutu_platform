@@ -50,6 +50,7 @@ const NON_ITEM_SIGNAL_TYPES: OpportunitySignalType[] = ['search', 'category_view
 export async function recordOpportunitySignal(
   input: OpportunitySignalInput,
   getAuthToken?: () => Promise<string | null | undefined>,
+  userId?: string,
 ): Promise<boolean> {
   const isNonItem = NON_ITEM_SIGNAL_TYPES.includes(input.signalType);
   if (!input.opportunityId && !isNonItem) {
@@ -62,6 +63,7 @@ export async function recordOpportunitySignal(
       ...input,
     },
     getAuthToken,
+    userId,
   );
 
   return true;

@@ -21,14 +21,6 @@ interface UseOpportunitiesState {
   error: string | null;
 }
 
-function hasSameOpportunitySnapshot(a: Opportunity[], b: Opportunity[]) {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  return a.every((item, index) => item.id === b[index]?.id);
-}
-
 function getProfileKey(profileOverride?: Record<string, unknown> | null) {
   try {
     return JSON.stringify(profileOverride ?? null);
@@ -51,6 +43,7 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     error: null
   });
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const handledRefreshIndexRef = useRef(0);
   /** Locally-dismissed opportunity ids, hydrated from storage per userId. */
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const getAuthTokenRef = useRef(getAuthToken);
@@ -91,14 +84,19 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     excludeOpportunityIdsRef.current = mergedExcludeOpportunityIds;
   }, [mergedExcludeOpportunityIds]);
 
-  // Clear stored dismissals the moment the user signs out —
+  // Clear account-specific content immediately when the session changes —
   // adjust-during-render (React's documented alternative to a state-resetting
   // effect).
   const [prevUserId, setPrevUserId] = useState(userId);
   if (prevUserId !== userId) {
     setPrevUserId(userId);
-    if (!userId) setDismissedIds([]);
+    setDismissedIds([]);
+    setState({ data: [], loading: true, error: null });
   }
+
+  useEffect(() => {
+    firstPaintAtRef.current = null;
+  }, [userId]);
 
   // Hydrate the user's stored dismissals so they actually shape the feed
   // (this state previously never left []).
@@ -133,38 +131,28 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   useEffect(() => {
     let isActive = true;
 
-    void getCachedOpportunitiesSnapshot(userId).then((cached) => {
-      if (!isActive || cached.length === 0) {
-        return;
-      }
+    let networkResolved = false;
+    // Only the new refresh gesture bypasses the service cache. A later profile
+    // or dismissal update must not turn every request into a forced refresh.
+    const isForceRefresh = refreshIndex !== handledRefreshIndexRef.current;
+    handledRefreshIndexRef.current = refreshIndex;
 
-      if (firstPaintAtRef.current === null) {
-        firstPaintAtRef.current = Date.now();
-      }
+    if (!isForceRefresh) {
+      void getCachedOpportunitiesSnapshot(userId).then((cached) => {
+        if (!isActive || networkResolved || cached.length === 0) return;
 
-      setState((prev) => {
-        if (hasSameOpportunitySnapshot(prev.data, cached) && prev.loading) {
-          return {
-            ...prev,
-            loading: false,
-          };
+        if (firstPaintAtRef.current === null) {
+          firstPaintAtRef.current = Date.now();
         }
 
-        return {
-          ...prev,
-          data: cached,
-          loading: false,
-        };
+        setState((prev) => {
+          // Existing on-screen data is newer than an asynchronously read disk
+          // snapshot. Hydrate only an empty feed, never replace a painted one.
+          if (prev.data.length > 0) return prev;
+          return { ...prev, data: cached, loading: false };
+        });
       });
-    });
-
-    // Loading starts true (initial state above), so the effect needs no
-    // synchronous setState; manual refresh() flips it back on in the handler.
-
-    // Pull-to-refresh drives refreshIndex, which is the same signal we forward
-    // to fetchOpportunities as `force`. Forced refreshes always adopt the
-    // server order verbatim; only background revalidates get anchored.
-    const isForceRefresh = refreshIndex > 0;
+    }
 
     fetchOpportunities({
       supabase,
@@ -181,6 +169,7 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
           return;
         }
 
+        networkResolved = true;
         setState((prev) => {
           const firstPaintAt = firstPaintAtRef.current;
           const cachedWasRendered = firstPaintAt !== null && prev.data.length > 0;
