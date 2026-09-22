@@ -453,16 +453,21 @@ export function OnboardingFlow({
                   }
                 }}
                 disabled={index > stepIndex}
-                className={`h-2.5 w-2.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                  current
-                    ? "bg-brand"
-                    : done
-                      ? "bg-brand/70"
-                      : "bg-surface-elevated"
-                }`}
+                className="group flex h-11 w-11 min-h-0 min-w-0 items-center justify-center rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                 aria-current={current ? "step" : undefined}
                 aria-label={entry.label}
-              />
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 rounded-full transition-all group-hover:scale-110 ${
+                    current
+                      ? "bg-brand ring-4 ring-brand/15"
+                      : done
+                        ? "bg-brand/70"
+                        : "bg-surface-elevated"
+                  }`}
+                />
+              </button>
             );
           })}
         </div>

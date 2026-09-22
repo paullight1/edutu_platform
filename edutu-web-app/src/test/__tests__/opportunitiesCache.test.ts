@@ -83,6 +83,16 @@ describe("opportunities snapshot cache", () => {
     expect(rows[0].title).toBe("Test Scholarship");
   });
 
+  it("does not paint an expired snapshot before the fresh catalog request completes", async () => {
+    window.localStorage.setItem(
+      SNAPSHOT_KEY,
+      JSON.stringify({ savedAt: Date.now() - 11 * 60 * 1000, rows: [backendRow] }),
+    );
+    const service = await importOpportunities();
+
+    expect(service.getCachedOpportunitiesSync()).toBeNull();
+  });
+
   it("keeps the last known catalog when a forced refresh returns an empty feed", async () => {
     mockFetchSuccess();
     const service = await importOpportunities();

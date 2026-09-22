@@ -14,11 +14,11 @@ describe("workspace navigation", () => {
     expect(routes).not.toContain("/app/wallet");
   });
 
-  it("keeps dates off the compact mobile navigation", () => {
+  it("keeps the learner plan in the compact mobile navigation", () => {
     expect(mobilePrimaryWorkspaceNavItems.map((item) => item.to)).toEqual([
       "/dashboard",
       "/app/opportunities",
-      "/app/community",
+      "/app/my-plan",
     ]);
   });
 });

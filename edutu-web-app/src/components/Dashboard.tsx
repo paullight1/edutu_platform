@@ -12,7 +12,6 @@ import {
   Share2,
   Shuffle,
   Sparkles,
-  Target,
   X,
   UserCheck,
   Users,
@@ -69,6 +68,7 @@ import {
   createOpportunityShuffleSeed,
   shuffleOpportunityFeed,
 } from "../lib/opportunityShuffle";
+import { useWorkspaceNotice } from "./workspaceNoticeContext";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
 // picks per visit, with "View all" as the way deeper into the catalogue.
@@ -246,6 +246,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         "edutu_dashboard_activity_strip_dismissed",
         false,
       );
+    const [dismissPersonalizationPrompt, setDismissPersonalizationPrompt] =
+      usePersistentState<boolean>(
+        "edutu_dashboard_personalization_dismissed",
+        false,
+      );
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
     const [homeShuffleSeed, setHomeShuffleSeed] = useState(() =>
       createOpportunityShuffleSeed(),
@@ -262,6 +267,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const prefersReducedMotion = useReducedMotion();
     const { t } = useTranslation();
     const { getToken, sessionId } = useClerkAuth();
+    const { setBlockingNotice } = useWorkspaceNotice();
     const toast = useToast();
     const routerNavigate = useNavigate();
     const {
@@ -391,6 +397,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         Boolean(profilePromptSessionId) &&
         dismissedProfilePromptSessionId === profilePromptSessionId,
     });
+
+    const profileNoticePending = Boolean(user?.id) && profileScore === null;
+
+    useEffect(() => {
+      setBlockingNotice({
+        pending: profileNoticePending,
+        open: showProfileCompletionPrompt,
+      });
+
+      return () => {
+        setBlockingNotice({ pending: false, open: false });
+      };
+    }, [
+      profileNoticePending,
+      setBlockingNotice,
+      showProfileCompletionPrompt,
+    ]);
 
     const dismissProfileCompletionPrompt = useCallback(() => {
       if (!profilePromptSessionId) return;
@@ -720,28 +743,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         };
 
     const mobilePersonalizedOpportunities = visibleHomeOpportunities;
-
-    // The "More opportunities" grid reaches past the six-card shortlist so it
-    // still has something new to show below the carousel.
-    const mobileExploreOpportunities = useMemo(
-      () => shuffledOpportunityFeed.slice(HOME_FEED_SIZE, HOME_FEED_SIZE + 6),
-      [shuffledOpportunityFeed],
-    );
-
-    const mobileMoreOpportunityItems = useMemo(() => {
-      const items: Array<{ key: string; opportunity: Opportunity }> = [];
-
-      mobileExploreOpportunities.slice(0, 10).forEach((opportunity: Opportunity, index: number) => {
-        items.push({
-          key: opportunity?.id
-            ? `mobile-feed-${opportunity.id}`
-            : `mobile-feed-${index}`,
-          opportunity,
-        });
-      });
-
-      return items;
-    }, [mobileExploreOpportunities]);
 
     const homeFeedItems = useMemo(() => {
       return visibleHomeOpportunities.map((opportunity: Opportunity, index) => ({
@@ -1233,7 +1234,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </button>
                 ) : null}
               </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3">
                 {DISCOVERY_CATEGORIES.map((category) => {
                   const Icon = category.icon;
                   const active = activeDiscoveryCategory === category.id;
@@ -1243,7 +1244,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       key={category.id}
                       type="button"
                       onClick={() => handleDiscoveryCategoryClick(category)}
-                      className={`group relative min-h-[88px] overflow-hidden rounded-[20px] border border-white/20 bg-slate-950 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-[112px] ${
+                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[20px] border border-white/15 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
                         active
                           ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-body"
                           : "hover:-translate-y-0.5"
@@ -1254,28 +1255,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <img
                         src={category.image}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        className="absolute inset-0 h-full w-full object-cover opacity-65 transition duration-500 group-hover:scale-105"
                         aria-hidden="true"
                         loading="lazy"
                         decoding="async"
                       />
                       <div
                         className={`absolute inset-0 transition ${
-                          active ? "bg-slate-950/0" : "bg-slate-950/10"
+                          active ? "bg-slate-950/25" : "bg-slate-950/45"
                         }`}
                       />
-                      <div className="relative flex min-h-[88px] items-center gap-1.5 px-3.5 py-3 md:min-h-[112px] md:flex-col md:items-start md:justify-end md:gap-3 md:p-4">
-                        <span
-                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white backdrop-blur-sm md:h-12 md:w-12 ${
+                      <span
+                          className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white backdrop-blur-sm ${
                             active ? "bg-white/24" : "bg-white/14"
                           }`}
                         >
-                          <Icon size={25} strokeWidth={1.7} />
+                          <Icon size={17} strokeWidth={1.8} />
                         </span>
-                        <span className="min-w-0 flex-1 text-sm font-semibold leading-4 text-white md:flex-none md:text-sm">
-                          {category.title}
-                        </span>
-                      </div>
+                      <span className="relative min-w-0 truncate text-sm font-semibold leading-5 text-white">
+                        {category.title}
+                      </span>
                     </button>
                   );
                 })}
@@ -1393,16 +1392,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               {user?.id &&
                 personalizationReady &&
                 !isPersonalized &&
+                !dismissPersonalizationPrompt &&
                 !(
                   profileScore &&
                   profileScore.score < 100 &&
                   !dismissBanner
                 ) && (
-                  <section className="lg:order-1 lg:col-span-5 lg:min-h-[190px]">
+                  <section className="relative lg:order-1 lg:col-span-5 lg:min-h-[190px]">
+                    <button
+                      type="button"
+                      onClick={() => setDismissPersonalizationPrompt(true)}
+                      aria-label="Dismiss personalization prompt"
+                      className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary"
+                    >
+                      <X size={16} />
+                    </button>
                     <button
                       type="button"
                       onClick={() => routerNavigate("/app/personalization")}
-                      className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
+                      className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 pr-12 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
                     >
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                         <Sparkles size={19} />
@@ -1486,77 +1494,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 <BannerCarousel banners={heroBanners} mobileHeight="150px" />
               </section>
 
-              {/* Your Best Shots — the winnable shortlist, always above the feed */}
-              {user?.id && personalizationReady && !opportunitiesLoading ? (
-                <motion.section
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  aria-labelledby="best-shots-heading"
-                  className={`py-1 ${
-                    bestShots.length === 0
-                      ? "lg:order-1 lg:col-span-4 lg:flex lg:min-h-[190px] lg:flex-col lg:rounded-[24px] lg:border lg:border-subtle lg:bg-surface-layer lg:p-5 lg:shadow-soft"
-                      : "lg:order-3 lg:col-span-12"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                      <Target size={19} />
-                    </span>
-                    <div className="min-w-0">
-                      <h2
-                        id="best-shots-heading"
-                        className="text-lg font-semibold tracking-tight text-text-primary"
-                      >
-                        Your Best Shots
-                      </h2>
-                      <p className="mt-0.5 text-xs font-medium leading-5 text-text-muted">
-                        Fewer, winnable — these are yours.
-                      </p>
-                    </div>
-                  </div>
-
-                  {bestShots.length > 0 ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {bestShots.map(({ opportunity }) => (
-                        <DashboardOpportunityCard
-                          key={opportunity.id}
-                          opportunity={opportunity}
-                          variant="grid"
-                          isBookmarked={isOppBookmarked(opportunity.id)}
-                          isDarkMode={isDarkMode}
-                          onOpen={handleOpenOpportunity}
-                          onToggleBookmark={handleToggleBookmark}
-                          onShare={handleShareOpportunity}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-4 flex flex-col gap-3 border-t border-subtle/70 pt-4 sm:flex-row sm:items-center sm:justify-between lg:mt-auto lg:flex-col lg:items-start lg:border-t-0 lg:pt-4">
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">
-                          No strong matches yet — and that&apos;s fixable.
-                        </p>
-                        <p className="mt-1 max-w-lg text-xs font-medium leading-5 text-text-muted">
-                          Add your field, goals and region to sharpen this
-                          shortlist.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={reopenProfileCompletionPrompt}
-                        className="group inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-xl px-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98] sm:self-auto lg:-ml-2 lg:mt-auto"
-                      >
-                        Refine profile
-                        <ChevronRight
-                          size={16}
-                          className="transition-transform group-hover:translate-x-0.5"
-                          aria-hidden="true"
-                        />
-                      </button>
-                    </div>
-                  )}
-                </motion.section>
-              ) : null}
             </section>
 
             {/* Content Layout — Recent Activity moved to the profile page,
@@ -1581,7 +1518,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <p className="truncate text-xs font-medium text-text-muted lg:mt-0.5">
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
-                              : `${visibleHomeOpportunities.length} selected for you`}
+                              : bestShots.length > 0
+                                ? `${bestShots.length} best matches from ${visibleHomeOpportunities.length}`
+                                : `${visibleHomeOpportunities.length} selected for you`}
                           </p>
                         </div>
                       </div>
@@ -1649,6 +1588,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                     </div>
                   </div>
+
+                  {user?.id && personalizationReady && isPersonalized && !opportunitiesLoading && bestShots.length === 0 ? (
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-subtle/70 pb-3">
+                      <p className="text-xs font-medium text-text-muted">
+                        Complete your profile to sharpen these recommendations.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={reopenProfileCompletionPrompt}
+                        className="inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+                      >
+                        Refine profile
+                        <ChevronRight size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-6 sm:hidden">
                     {opportunitiesLoading ? (
@@ -1722,44 +1677,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             </button>
                           </div>
 
-                          <div className="mb-3 min-w-0">
-                            <h3 className="text-lg font-semibold tracking-tight text-text-primary">
-                              {selectedDiscoveryCategory
-                                ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
-                                : t("dashboard.moreOpportunities")}
-                            </h3>
-                            <p className="text-xs font-medium text-text-muted">
-                              {selectedDiscoveryCategory
-                                ? t("dashboard.filteredBySelection")
-                                : t("dashboard.scrollDown")}
-                            </p>
-                          </div>
-                          <div className="mobile-more-opportunities-grid grid w-full grid-cols-2 items-stretch gap-3 overflow-hidden">
-                            {mobileMoreOpportunityItems.map((item) => {
-                              const { opportunity } = item;
-
-                              return (
-                                <DashboardOpportunityCard
-                                  key={item.key}
-                                  opportunity={opportunity}
-                                  variant="mobileGrid"
-                                  isBookmarked={isOppBookmarked(opportunity.id)}
-                                  isDarkMode={isDarkMode}
-                                  onOpen={handleOpenOpportunity}
-                                  onToggleBookmark={handleToggleBookmark}
-                                  onShare={handleShareOpportunity}
-                                />
-                              );
-                            })}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={onViewAllOpportunities}
-                            className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-subtle bg-white text-sm font-semibold text-text-secondary shadow-sm transition hover:border-strong hover:bg-surface-elevated active:scale-[0.99]"
-                          >
-                            {t("dashboard.viewMore")}
-                            <ChevronRight size={17} strokeWidth={2.4} />
-                          </button>
                         </div>
                       </>
                     )}
@@ -1934,8 +1851,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           </main>
         </div>
 
-        {/* Footer now comes from AppWorkspaceShell (AppFooter) so every
-            screen gets it, not just the dashboard. */}
       </div>
     );
   },

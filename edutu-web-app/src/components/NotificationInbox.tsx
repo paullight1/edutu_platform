@@ -115,16 +115,20 @@ function ToggleSwitch({
       aria-label={label}
       disabled={disabled}
       onClick={onToggle}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-60 ${
-        checked ? "bg-brand" : "border border-subtle bg-surface-elevated"
-      }`}
+      className="inline-flex h-11 w-12 shrink-0 items-center justify-center rounded-full bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span
-        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition-transform ${
-          checked ? "translate-x-5" : "translate-x-0"
+        className={`relative block h-6 w-11 rounded-full border transition-colors ${
+          checked ? "border-brand bg-brand" : "border-subtle bg-surface-layer"
         }`}
         aria-hidden="true"
-      />
+      >
+        <span
+          className={`absolute left-0.5 top-0.5 block h-[18px] w-[18px] rounded-full bg-white shadow-soft transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </span>
     </button>
   );
 }

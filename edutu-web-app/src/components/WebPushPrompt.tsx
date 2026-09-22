@@ -51,19 +51,19 @@ export default function WebPushPrompt({
 
   return (
     <section
-      className={`relative rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft ${className}`}
+      className={`relative rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft ${className}`}
     >
       <button
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss reminder prompt"
-        className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary"
+        className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-[20px] text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary"
       >
         <X size={15} />
       </button>
 
       <div className="flex items-start gap-3 pr-8">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[20px] bg-brand/10 text-brand">
           <Bell size={18} />
         </span>
         <div className="min-w-0 flex-1">
@@ -74,7 +74,7 @@ export default function WebPushPrompt({
             type="button"
             onClick={() => void enable()}
             disabled={busy}
-            className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+            className="mt-3 inline-flex h-9 items-center gap-2 rounded-[20px] bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
           >
             {busy ? (
               <Loader2 size={15} className="animate-spin" />

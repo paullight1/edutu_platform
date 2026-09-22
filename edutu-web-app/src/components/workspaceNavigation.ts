@@ -1,6 +1,7 @@
 export type WorkspaceNavIconKey =
   | "home"
   | "opportunities"
+  | "myPlan"
   | "community"
   | "deadlines"
   | "saved"
@@ -35,6 +36,7 @@ export const primaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
  * progress it, then manage identity and settings.
  */
 export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
+  { to: "/app/my-plan", label: "navigation.myPlan", icon: "myPlan" },
   { to: "/app/saved", label: "navigation.saved", icon: "saved" },
   {
     to: "/app/applications",
@@ -53,9 +55,9 @@ export const mobilePrimaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
     icon: "opportunities",
   },
   {
-    to: "/app/community",
-    label: "navigation.community",
-    icon: "community",
+    to: "/app/my-plan",
+    label: "navigation.myPlan",
+    icon: "myPlan",
   },
 ];
 

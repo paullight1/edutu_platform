@@ -6,6 +6,7 @@ import {
   Bookmark,
   Briefcase,
   Calendar,
+  ClipboardList,
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
@@ -24,8 +25,9 @@ import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { usePaywall } from "../hooks/usePaywall";
 import { cn } from "../lib/cn";
-import AppFooter from "./AppFooter";
+import CommunityAnnouncement from "./CommunityAnnouncement";
 import OfflineBanner from "./OfflineBanner";
+import { WorkspaceNoticeProvider } from "./workspaceNoticeContext";
 import {
   mobileMoreWorkspaceNavItems,
   mobilePrimaryWorkspaceNavItems,
@@ -34,6 +36,10 @@ import {
   type WorkspaceNavIconKey,
 } from "./workspaceNavigation";
 
+// Communities remain available in navigation, but the promotional announcement
+// is temporarily hidden while that area is being prepared.
+const SHOW_COMMUNITY_ANNOUNCEMENT = false;
+
 interface AppWorkspaceShellProps {
   children: ReactNode;
 }
@@ -41,6 +47,7 @@ interface AppWorkspaceShellProps {
 const workspaceNavIcons: Record<WorkspaceNavIconKey, LucideIcon> = {
   home: LayoutGrid,
   opportunities: Briefcase,
+  myPlan: ClipboardList,
   community: Users,
   deadlines: Calendar,
   saved: Bookmark,
@@ -101,6 +108,7 @@ function getWorkspaceTitleKey(pathname: string): string | null {
     return "navigation.opportunityDetail";
   if (pathname.startsWith("/app/opportunities"))
     return "navigation.opportunities";
+  if (pathname.startsWith("/app/my-plan")) return "navigation.myPlan";
   if (pathname.startsWith("/app/community")) return "navigation.community";
   if (pathname.startsWith("/app/deadlines") || pathname === "/deadlines")
     return "navigation.deadlines";
@@ -219,11 +227,14 @@ export default function AppWorkspaceShell({
     );
 
   return (
-    <div
-      className={cn("min-h-[100dvh] bg-surface-body text-text-primary")}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+    <WorkspaceNoticeProvider
+      initialBlockingNoticePending={isHomeRoute && Boolean(user?.id)}
     >
+      <div
+        className={cn("min-h-[100dvh] bg-surface-body text-text-primary")}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
       {!isCommunityRoute ? (
         <aside
           aria-hidden={isMobileMoreOpen}
@@ -562,7 +573,6 @@ export default function AppWorkspaceShell({
         <OfflineBanner />
 
         <div className="min-w-0">{children}</div>
-        {!isCommunityRoute ? <AppFooter /> : null}
       </div>
 
       {isMobileMoreOpen ? (
@@ -783,6 +793,11 @@ export default function AppWorkspaceShell({
           </nav>
         </div>
       ) : null}
-    </div>
+
+        {!isCommunityRoute && SHOW_COMMUNITY_ANNOUNCEMENT ? (
+          <CommunityAnnouncement />
+        ) : null}
+      </div>
+    </WorkspaceNoticeProvider>
   );
 }

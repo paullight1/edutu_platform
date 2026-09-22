@@ -22,7 +22,7 @@ export type RailPalette = {
 };
 
 /** Rail cards share the browse grid's plain white surface. */
-const RAIL_CARD_SURFACE = "border-subtle bg-white hover:border-strong";
+const RAIL_CARD_SURFACE = "opportunity-cinematic-card border-subtle hover:border-strong";
 
 export type OpportunityRail = {
   key: string;
@@ -53,14 +53,14 @@ function RailCard({
 
   return (
     <article
-      className={`group relative flex h-full shrink-0 snap-start flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated ${
+      className={`group relative flex h-full shrink-0 snap-start flex-col overflow-hidden border transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated ${
         featured
           ? "w-[min(86vw,360px)] sm:w-[360px]"
           : "w-[236px] sm:w-[252px]"
       } ${RAIL_CARD_SURFACE}`}
     >
       <div
-        className={`relative overflow-hidden bg-surface-elevated ${
+        className={`opportunity-cinematic-media relative overflow-hidden bg-surface-elevated ${
           featured ? "aspect-[16/8.5]" : "aspect-[16/9]"
         }`}
       >

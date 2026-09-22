@@ -79,9 +79,26 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
 
     return (
-        <footer className="border-t border-subtle px-4 py-10 sm:px-6 sm:py-16">
+        <footer className="border-t border-subtle px-4 py-7 sm:px-6 sm:py-16">
             <div className="mx-auto max-w-[1200px]">
-                <div className="mb-10 grid grid-cols-2 gap-x-8 gap-y-10 md:mb-16 md:grid-cols-4 md:gap-12">
+                <div className="mb-7 md:hidden">
+                    <div className="flex items-center justify-between gap-4">
+                        <Link to="/" className="inline-flex items-center gap-2 no-underline">
+                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                            <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
+                        </Link>
+                        <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
+                    </div>
+                    <nav aria-label="Footer" className="mt-5 flex flex-wrap gap-x-5 gap-y-3">
+                        <Link to="/opportunities" className="text-sm font-medium text-text-secondary no-underline">Opportunities</Link>
+                        <Link to="/about" className="text-sm font-medium text-text-secondary no-underline">About</Link>
+                        <Link to="/help" className="text-sm font-medium text-text-secondary no-underline">Help</Link>
+                        <Link to="/privacy" className="text-sm font-medium text-text-secondary no-underline">Privacy</Link>
+                        <Link to="/terms" className="text-sm font-medium text-text-secondary no-underline">Terms</Link>
+                    </nav>
+                </div>
+
+                <div className="mb-16 hidden grid-cols-4 gap-12 md:grid">
                     <div className="col-span-2 min-w-0 md:col-span-1">
                         <Link to="/" className="mb-3 inline-flex items-center gap-2 no-underline">
                             <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
@@ -116,7 +133,7 @@ const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
                     ))}
                 </div>
 
-                <div className="flex flex-col items-start justify-between gap-4 border-t border-subtle pt-6 sm:flex-row sm:items-center md:pt-8">
+                <div className="flex flex-col items-start justify-between gap-4 border-t border-subtle pt-5 sm:flex-row sm:items-center md:pt-8">
                     <span className="text-2xs leading-relaxed text-text-muted md:text-xs">
                         © {new Date().getFullYear()} Edutu Inc. All rights reserved. {version}
                     </span>

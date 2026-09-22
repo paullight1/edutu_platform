@@ -326,7 +326,7 @@ type CardPalette = {
  * Every opportunity card sits on the same plain surface — the colour lives in
  * the category chip only, so the grid reads as a clean board of white cards.
  */
-export const CARD_SURFACE = "border-subtle bg-white hover:border-strong";
+export const CARD_SURFACE = "opportunity-cinematic-card border-subtle hover:border-strong";
 
 const CARD_PALETTES: CardPalette[] = [
   {
@@ -524,7 +524,7 @@ function OpportunityCard({
   return (
     <>
       <article
-        className={`mobile-opportunity-result-card group relative flex min-h-[216px] min-w-0 flex-col overflow-hidden rounded-2xl border shadow-sm transition active:scale-[0.98] sm:hidden ${CARD_SURFACE}`}
+        className={`mobile-opportunity-result-card group relative flex min-h-[216px] min-w-0 flex-col overflow-hidden border transition active:scale-[0.98] sm:hidden ${CARD_SURFACE}`}
       >
         <Link
           to={detailPath}
@@ -535,7 +535,7 @@ function OpportunityCard({
           className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
           aria-label={`View ${opportunity.title}`}
         />
-        <div className="mobile-opportunity-result-media pointer-events-none relative z-0 h-20 w-full shrink-0 overflow-hidden bg-surface-elevated">
+        <div className="opportunity-cinematic-media mobile-opportunity-result-media pointer-events-none relative z-0 h-20 w-full shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             fallbackSrc={opportunity.imageFallback}
@@ -601,9 +601,9 @@ function OpportunityCard({
       </article>
 
       <article
-        className={`group relative hidden h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated sm:flex ${CARD_SURFACE}`}
+        className={`group relative hidden h-full flex-col overflow-hidden border transition duration-200 hover:-translate-y-1 hover:shadow-elevated sm:flex ${CARD_SURFACE}`}
       >
-        <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
+        <div className="opportunity-cinematic-media relative aspect-[16/9] overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             fallbackSrc={opportunity.imageFallback}

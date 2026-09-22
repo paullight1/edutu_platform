@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { useEffect } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppWorkspaceShell from "../../components/AppWorkspaceShell";
 import PublicEditorialShell from "../../components/PublicEditorialShell";
+import { useWorkspaceNotice } from "../../components/workspaceNoticeContext";
 import "../../i18n";
 
 const clerkMocks = vi.hoisted(() => ({
@@ -59,6 +61,7 @@ beforeEach(() => {
   clerkMocks.isSignedIn = false;
   clerkMocks.user = null;
   workspaceMocks.signOut.mockClear();
+  window.localStorage.clear();
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1440,
@@ -89,6 +92,62 @@ describe("PublicEditorialShell", () => {
 });
 
 describe("AppWorkspaceShell", () => {
+  function BlockingNoticeHarness({ open }: { open: boolean }) {
+    const { setBlockingNotice } = useWorkspaceNotice();
+
+    useEffect(() => {
+      setBlockingNotice({ pending: false, open });
+    }, [open, setBlockingNotice]);
+
+    return null;
+  }
+
+  it("keeps the community announcement hidden while Communities is paused", async () => {
+    vi.useFakeTimers();
+    const view = render(
+      <MemoryRouter initialEntries={["/app/settings"]}>
+        <AppWorkspaceShell>
+          <BlockingNoticeHarness open />
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(
+      screen.queryByRole("dialog", { name: "Meet Edutu Communities" }),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("dialog", { name: "Meet Edutu Communities" }),
+    ).not.toBeInTheDocument();
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it("does not introduce the paused Communities announcement", async () => {
+    vi.useFakeTimers();
+
+    const firstRender = render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AppWorkspaceShell>
+          <div>Dashboard content</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+
+    expect(
+      screen.queryByRole("dialog", { name: "Meet Edutu Communities" }),
+    ).not.toBeInTheDocument();
+    firstRender.unmount();
+    vi.useRealTimers();
+  });
+
   it("shows the compact mobile page title without a brand image", () => {
     render(
       <MemoryRouter initialEntries={["/app/opportunities"]}>

@@ -182,7 +182,7 @@ export default function SavedPage() {
                   key={bookmark.id}
                   type="button"
                   onClick={() => openOpportunity(bookmark.opportunity_id)}
-                  className={`flex w-full items-center gap-3 rounded-[20px] border p-4 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
+                  className={`opportunity-cinematic-card flex w-full items-center gap-3 border p-4 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                     <Bookmark size={20} />

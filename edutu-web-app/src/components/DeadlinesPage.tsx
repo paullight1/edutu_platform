@@ -28,6 +28,7 @@ import {
   type DeadlinesResponse,
 } from "../services/deadlines";
 import WebPushPrompt from "./WebPushPrompt";
+import PlanWorkspaceHeader from "./PlanWorkspaceHeader";
 
 type WorkItemKind = Deadline["type"] | "saved";
 
@@ -357,7 +358,6 @@ export default function DeadlinesPage() {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const surfaceClass = "border-subtle bg-surface-layer shadow-soft";
   const softSurfaceClass = "border-subtle bg-surface-elevated";
   const isSavedRoute = pathname === "/saved" || pathname.startsWith("/app/saved");
   const eyebrow = isSavedRoute ? "Saved workspace" : "Calendar";
@@ -423,7 +423,7 @@ export default function DeadlinesPage() {
               key={item.key}
               type="button"
               onClick={() => openOpportunity(item.sourceId)}
-              className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
+              className="opportunity-cinematic-card flex w-full items-center gap-3 border border-subtle px-3.5 py-3.5 text-left transition hover:-translate-y-0.5 hover:border-brand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               <span
                 className={`h-10 w-1 shrink-0 rounded-full ${urgencyAccentClass(item.daysUntil)}`}
@@ -472,7 +472,8 @@ export default function DeadlinesPage() {
         disabled={loading}
         className="min-h-[calc(100dvh-4rem)]"
       >
-        <main className="mx-auto max-w-3xl px-4 py-5 sm:px-6 lg:py-8">
+        <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:py-8">
+          <PlanWorkspaceHeader section="deadlines" hideIntroOnMobile />
           {error && showsContent(screenState) ? (
             // Content is already on screen, so recover in place rather than
             // replacing what the user was reading.
@@ -495,7 +496,7 @@ export default function DeadlinesPage() {
             />
           ) : null}
 
-          <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
+          <section className="rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 sm:rounded-[20px] sm:border sm:border-subtle sm:bg-surface-layer sm:p-5 sm:shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
@@ -520,7 +521,7 @@ export default function DeadlinesPage() {
               </button>
             </div>
 
-            <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="mt-4 flex gap-2 overflow-x-auto px-0 pb-1 sm:-mx-5 sm:px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {statChips.map((chip) => (
                 <button
                   key={chip.id}
@@ -543,7 +544,7 @@ export default function DeadlinesPage() {
 
             <div
               ref={weekStripRef}
-              className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="mt-4 flex gap-2 overflow-x-auto px-0 pb-1 sm:-mx-5 sm:px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {weekStripDays.map((date) => {
                 const dateKey = getDateKey(date);
@@ -731,7 +732,7 @@ export default function DeadlinesPage() {
                 ))}
               </div>
             ) : !showsContent(screenState) ? (
-              <div className={`mt-4 rounded-[20px] border ${surfaceClass}`}>
+              <div className="mt-4 rounded-none border-0 bg-transparent shadow-none sm:rounded-[20px] sm:border sm:border-subtle sm:bg-surface-layer sm:shadow-soft">
                 <StateView
                   state={screenState}
                   flow="applied"
@@ -777,7 +778,7 @@ export default function DeadlinesPage() {
             </div>
 
             {loading ? null : bookmarks.length === 0 ? (
-              <div className={`mt-4 rounded-[20px] border p-6 text-center ${surfaceClass}`}>
+              <div className="mt-4 rounded-none border-0 bg-transparent p-6 text-center shadow-none sm:rounded-[20px] sm:border sm:border-subtle sm:bg-surface-layer sm:shadow-soft">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-elevated text-text-muted">
                   <Briefcase size={22} />
                 </div>
@@ -808,7 +809,7 @@ export default function DeadlinesPage() {
                     key={bookmark.id}
                     type="button"
                     onClick={() => openOpportunity(bookmark.opportunity_id)}
-                    className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${softSurfaceClass}`}
+                    className={`flex w-full items-center gap-3 rounded-[20px] border px-3.5 py-3 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${softSurfaceClass}`}
                   >
                     <Bookmark size={16} className="shrink-0 text-text-muted" />
                     <div className="min-w-0 flex-1">

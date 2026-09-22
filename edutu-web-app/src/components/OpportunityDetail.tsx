@@ -2,21 +2,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
-  ArrowLeft,
+  ArrowRight,
   Banknote,
   CalendarDays,
-  Clock3,
+  Check,
   MapPin,
+  Plus,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import type { Opportunity } from "../types/opportunity";
+import { getProductApiToken } from "../lib/clerkToken";
 import { parseOpportunityDeadline } from "../services/opportunities";
+import { createOpportunityJourney } from "../services/opportunityJourneys";
 import { organizationLabel } from "../lib/organizationLabel";
 import { prepareOpportunityDescription } from "../lib/opportunityDetailPresentation";
 import ImageWithFallback from "./ImageWithFallback";
 import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
 import TrustSignal from "./opportunity/TrustSignal";
+import { useToast } from "./ui/ToastProvider";
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -33,12 +39,6 @@ interface FactItem {
 function formatDeadline(value?: string | null): string | null {
   const parsed = parseOpportunityDeadline(value);
   return parsed ? format(parsed, "d MMM yyyy") : null;
-}
-
-function formatUpdatedAt(value?: string | null): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : format(parsed, "d MMM yyyy");
 }
 
 function formatFunding(opportunity: Opportunity): string | null {
@@ -64,10 +64,14 @@ function formatFunding(opportunity: Opportunity): string | null {
 
 function OpportunityHero({
   opportunity,
-  onBack,
+  onAddToPlan,
+  planLoading,
+  planAdded,
 }: {
   opportunity: Opportunity;
-  onBack: () => void;
+  onAddToPlan: () => void;
+  planLoading: boolean;
+  planAdded: boolean;
 }) {
   const paragraphs = useMemo(
     () =>
@@ -82,7 +86,6 @@ function OpportunityHero({
     opportunity.title,
   );
   const deadline = formatDeadline(opportunity.deadline);
-  const updatedAt = formatUpdatedAt(opportunity.lastUpdated);
   const funding = formatFunding(opportunity);
 
   const facts = useMemo<FactItem[]>(() => {
@@ -96,11 +99,8 @@ function OpportunityHero({
     if (funding) {
       next.push({ label: "Funding", value: funding, icon: Banknote });
     }
-    if (updatedAt) {
-      next.push({ label: "Updated", value: updatedAt, icon: Clock3 });
-    }
     return next;
-  }, [deadline, funding, opportunity.location, updatedAt]);
+  }, [deadline, funding, opportunity.location]);
 
   return (
     <section className="opportunity-detail-hero relative mb-7 overflow-hidden rounded-[28px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-7 lg:p-8">
@@ -114,15 +114,6 @@ function OpportunityHero({
       />
 
       <div className="relative">
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-6 inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-elevated px-3.5 py-2 text-sm font-semibold text-text-secondary shadow-soft transition hover:border-brand/30 hover:text-brand"
-        >
-          <ArrowLeft size={15} aria-hidden="true" />
-          Back to opportunities
-        </button>
-
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(320px,.96fr)] lg:gap-8">
           <div className="min-w-0 py-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +160,7 @@ function OpportunityHero({
             ) : null}
           </div>
 
-          <div className="relative aspect-[16/9] overflow-hidden rounded-[22px] border border-subtle bg-surface-elevated sm:aspect-[16/8] lg:aspect-[4/3]">
+          <div className="relative aspect-square overflow-hidden rounded-[22px] border border-subtle bg-surface-elevated sm:aspect-[16/8] lg:aspect-[4/3]">
             <ImageWithFallback
               src={opportunity.image}
               fallbackSrc={opportunity.imageFallback}
@@ -186,7 +177,29 @@ function OpportunityHero({
         </div>
 
         <div className="mt-7 border-t border-subtle pt-6 sm:mt-8 sm:pt-7">
-          <div className="max-w-3xl">
+          <button
+            type="button"
+            onClick={onAddToPlan}
+            disabled={planLoading}
+            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-soft transition disabled:cursor-default disabled:opacity-90 ${
+              planAdded
+                ? "bg-success text-white"
+                : "bg-brand text-white hover:bg-brand-700"
+            }`}
+          >
+            {planAdded ? (
+              <Check size={17} aria-hidden="true" />
+            ) : (
+              <Plus size={17} aria-hidden="true" />
+            )}
+            {planLoading
+              ? "Adding to My Plan…"
+              : planAdded
+                ? "View My Plan"
+                : "Add to My Plan"}
+            {planAdded ? <ArrowRight size={16} aria-hidden="true" /> : null}
+          </button>
+          <div className="mt-6 max-w-3xl border-t border-subtle pt-6">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
               About this opportunity
             </p>
@@ -298,11 +311,50 @@ const DETAIL_POLISH_STYLES = `
 
 export default function OpportunityDetail({
   opportunity,
-  onBack,
   embedded = false,
 }: OpportunityDetailProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planAdded, setPlanAdded] = useState(false);
+  const { userId, getToken } = useAuth();
+  const navigate = useNavigate();
+  const { success, error: showError } = useToast();
+
+  const handleAddToPlan = async () => {
+    if (planAdded) {
+      navigate("/app/my-plan");
+      return;
+    }
+
+    if (!userId) {
+      navigate("/auth?mode=sign-in", {
+        state: {
+          from: `${embedded ? "/app" : ""}/opportunity/${opportunity.id}`,
+        },
+      });
+      return;
+    }
+
+    setPlanLoading(true);
+    try {
+      const token = await getProductApiToken(getToken, { forceRefresh: true });
+      if (!token) {
+        throw new Error("Sign in again to add this opportunity to My Plan.");
+      }
+      await createOpportunityJourney(opportunity.id, token);
+      setPlanAdded(true);
+      success("Added to My Plan — your next steps are ready.");
+    } catch (error) {
+      showError(
+        error instanceof Error
+          ? error.message
+          : "Could not add this opportunity to My Plan.",
+      );
+    } finally {
+      setPlanLoading(false);
+    }
+  };
 
   useEffect(() => {
     const nextTarget = rootRef.current?.querySelector<HTMLElement>("main") ?? null;
@@ -318,12 +370,16 @@ export default function OpportunityDetail({
       <style>{DETAIL_POLISH_STYLES}</style>
       <OpportunityDetailLegacy
         opportunity={opportunity}
-        onBack={onBack}
         embedded={embedded}
       />
       {mainTarget
         ? createPortal(
-            <OpportunityHero opportunity={opportunity} onBack={onBack} />,
+            <OpportunityHero
+              opportunity={opportunity}
+              onAddToPlan={() => void handleAddToPlan()}
+              planLoading={planLoading}
+              planAdded={planAdded}
+            />,
             mainTarget,
           )
         : null}

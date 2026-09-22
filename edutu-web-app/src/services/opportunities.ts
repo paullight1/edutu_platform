@@ -100,7 +100,7 @@ export function getCachedOpportunitiesSync(): Opportunity[] | null {
   }
 
   const snapshot = readSnapshot();
-  if (snapshot) {
+  if (snapshot && Date.now() - snapshot.savedAt <= SNAPSHOT_FRESH_MS) {
     cachedOpportunities = snapshot.rows;
     cachedOpportunitiesAt = snapshot.savedAt;
     return snapshot.rows;
@@ -937,7 +937,7 @@ export async function fetchOpportunities(
     }
 
     // Last resort: any stale local snapshot beats a blank feed.
-    const staleCache = getCachedOpportunitiesSync();
+    const staleCache = cachedOpportunities ?? readSnapshot()?.rows ?? null;
     if (staleCache) {
       return staleCache;
     }

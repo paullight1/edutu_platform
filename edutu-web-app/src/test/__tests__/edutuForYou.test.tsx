@@ -70,15 +70,15 @@ describe("EdutuForYouPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers distinct partner and learner hero actions", () => {
+  it("keeps the learner hero action focused", () => {
     renderPage();
 
     expect(
-      screen.getByRole("link", { name: /help open the next door/i }),
-    ).toHaveAttribute("href", expect.stringContaining(`mailto:${PARTNER_EMAIL}`));
-    expect(
       screen.getByRole("link", { name: /find my opportunities/i }),
     ).toHaveAttribute("href", "/signup");
+    expect(
+      screen.queryByRole("link", { name: /help open the next door/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens with locally hosted learner photography", () => {

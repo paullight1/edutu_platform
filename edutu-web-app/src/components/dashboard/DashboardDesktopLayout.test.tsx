@@ -138,7 +138,7 @@ describe("Dashboard desktop priority layout", () => {
     window.sessionStorage.clear();
   });
 
-  it("groups profile readiness, calendar, and empty best shots as dashboard priorities", async () => {
+  it("groups profile readiness and calendar while keeping recommendations unified", async () => {
     render(
       <MemoryRouter>
         <Dashboard
@@ -163,7 +163,7 @@ describe("Dashboard desktop priority layout", () => {
         name: /calendar and upcoming/i,
       }),
     ).toBeInTheDocument();
-    expect(within(priorities).getByText("Your Best Shots")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /recommended picks/i })).toBeInTheDocument();
   });
 
   it("places the desktop promotion after the recommended opportunity cards", async () => {

@@ -31,6 +31,7 @@ import {
 } from "../services/opportunities";
 import { buildPageHref, parsePageParam } from "../lib/seoPagination";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import ImageWithFallback from "./ImageWithFallback";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import Pagination from "./ui/Pagination";
@@ -272,40 +273,52 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
 
   return (
     <>
-      <article className="relative flex min-h-[112px] items-start border-b border-subtle bg-surface-layer py-4 sm:hidden">
-        <div className="min-w-0 flex-1 pe-3">
+      <article className="opportunity-cinematic-card group relative flex min-h-[132px] overflow-hidden border border-subtle sm:hidden">
+        <div className="opportunity-cinematic-media relative w-[34%] min-w-[108px] max-w-[132px] shrink-0 overflow-hidden bg-surface-elevated">
+          <ImageWithFallback
+            src={opportunity.image}
+            fallbackSrc={opportunity.imageFallback}
+            alt={`${opportunity.title} opportunity image`}
+            category={opportunity.category}
+            className="h-full w-full object-cover transition-transform duration-500 group-active:scale-[1.03]"
+            fallbackClassName="h-full w-full"
+          />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col px-3.5 py-3">
           <p className="truncate text-xs font-semibold text-brand">
             {opportunity.category || "Opportunity"}
           </p>
-          <h2 className="mt-1 line-clamp-2 font-display text-base font-semibold leading-5 tracking-[-0.015em] text-text-primary">
+          <h2 className="mt-1 line-clamp-3 pe-5 font-display text-[0.95rem] font-semibold leading-5 tracking-[-0.015em] text-text-primary">
             {opportunity.title}
           </h2>
           {opportunity.organization ? (
-            <p className="mt-1 truncate text-sm text-text-secondary">
+            <p className="mt-1 line-clamp-1 text-xs text-text-secondary">
               {opportunity.organization}
             </p>
           ) : null}
-          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-text-muted">
+          <p className="mt-auto flex items-center gap-1.5 pt-2 text-xs font-medium text-text-muted">
             <CalendarDays size={13} aria-hidden="true" />
-            {formatDeadline(opportunity.deadline)}
+            <span className="truncate">{formatDeadline(opportunity.deadline)}</span>
           </p>
         </div>
-        <ArrowRight size={17} aria-hidden="true" className="mt-7 shrink-0 text-text-muted" />
+        <ArrowRight size={16} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted transition-transform group-active:translate-x-0.5" />
         <Link
           to={`/opportunity/${opportunity.id}`}
           state={{ opportunity }}
-          className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/50"
+          className="absolute inset-0 rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/50"
           aria-label={`View ${opportunity.title}`}
         />
       </article>
 
-      <article className="group relative hidden h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:flex">
-      <div className="aspect-[16/9] overflow-hidden bg-surface-elevated">
-        <img
-          src={image}
-          alt=""
-          loading="lazy"
+      <article className="opportunity-cinematic-card group relative hidden h-full flex-col overflow-hidden border border-subtle transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:flex">
+      <div className="opportunity-cinematic-media relative aspect-[16/9] overflow-hidden bg-surface-elevated">
+        <ImageWithFallback
+          src={opportunity.image}
+          fallbackSrc={opportunity.imageFallback || image}
+          alt={`${opportunity.title} opportunity image`}
+          category={opportunity.category}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
+          fallbackClassName="h-full w-full"
         />
       </div>
       <div className="flex flex-1 flex-col p-5">
@@ -820,7 +833,7 @@ export default function PublicOpportunitiesArchivePage() {
 
           {!loading && visible.length > 0 ? (
             <>
-            <div className="sm:hidden">
+            <div className="grid gap-3 sm:hidden">
               {visible.map((opportunity) => (
                 <OpportunityCard
                   key={opportunity.id}
@@ -883,7 +896,7 @@ export default function PublicOpportunitiesArchivePage() {
           ) : null}
         </section>
 
-        <aside className="mt-16 grid gap-5 rounded-3xl border border-subtle bg-surface-layer p-6 shadow-soft lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
+        <aside className="mt-16 grid gap-5 rounded-[20px] border border-subtle bg-surface-layer p-6 shadow-soft lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
           <div>
             <h2 className="font-display text-2xl font-semibold text-text-primary">
               Confirm every opportunity at the source

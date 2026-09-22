@@ -265,7 +265,7 @@ export const lightTokens: DesignTokens = {
       950: '#082F49',
     },
     surface: {
-      body: '#F8FAFC',
+      body: '#F3F5F6',
       layer: '#FFFFFF',
       elevated: '#F1F5F9',
       overlay: 'rgba(15, 23, 42, 0.48)',

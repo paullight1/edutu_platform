@@ -23,7 +23,6 @@ import FaqAccordion from './edutu-for-you/FaqAccordion';
 import {
     GAP_STATS,
     GAP_THESIS,
-    HERO_PRIMARY_LABEL,
     HERO_SECONDARY_LABEL,
     JOIN_CTA_LABEL,
     JOIN_ELIGIBILITY,
@@ -177,7 +176,7 @@ const EdutuForYouPage: React.FC = () => {
                             </motion.h1>
                             <motion.p
                                 variants={fadeUp}
-                                className="mt-7 max-w-[48ch] text-pretty text-base leading-[1.7] text-white/72 sm:text-xl"
+                                className="mt-7 max-w-[48ch] text-pretty text-base leading-[1.7] text-white/90 sm:text-xl"
                             >
                                 {PROGRAM_SUBHEAD}
                             </motion.p>
@@ -192,13 +191,6 @@ const EdutuForYouPage: React.FC = () => {
                                     {HERO_SECONDARY_LABEL}
                                     <ArrowRight size={18} aria-hidden="true" />
                                 </Link>
-                                <a
-                                    href={PARTNER_MAILTO}
-                                    className="inline-flex min-h-11 items-center gap-2 border-b border-white/35 py-2 text-sm font-semibold text-white/88 no-underline transition hover:border-white hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8fb0ff]"
-                                >
-                                    <Mail size={17} aria-hidden="true" />
-                                    {HERO_PRIMARY_LABEL}
-                                </a>
                             </motion.div>
                         </div>
 
@@ -207,13 +199,13 @@ const EdutuForYouPage: React.FC = () => {
                             aria-label="Current reach"
                             className="hidden border-l border-white/20 pl-6 lg:block"
                         >
-                            <span className="font-mono text-xs uppercase tracking-[0.16em] text-white/55">
+                            <span className="font-mono text-xs uppercase tracking-[0.16em] text-white/70">
                                 Progress / 2030
                             </span>
                             <strong className="mt-3 block font-display text-4xl font-semibold tracking-[-0.04em]">
                                 67k
                             </strong>
-                            <span className="mt-1 block text-sm leading-6 text-white/62">
+                            <span className="mt-1 block text-sm leading-6 text-white/80">
                                 of one million young people reached
                             </span>
                         </motion.aside>
@@ -393,21 +385,26 @@ const EdutuForYouPage: React.FC = () => {
                                     </AnimatePresence>
                                 </div>
                                 <div className="flex items-center justify-between gap-4 border-t border-brand/15 pt-5">
-                                    <div className="flex items-center gap-2" role="tablist" aria-label="Choose story slide">
-                                        {slides.map((slide, index) => (
-                                            <button
-                                                key={slide.eyebrow}
-                                                type="button"
-                                                role="tab"
-                                                aria-selected={index === scholarshipSlide}
-                                                aria-label={`Show slide ${index + 1}: ${slide.eyebrow}`}
-                                                onClick={() => setScholarshipSlide(index)}
-                                                className={`h-2.5 w-2.5 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                                    <div className="flex items-center gap-1" role="tablist" aria-label="Choose story slide">
+                                    {slides.map((slide, index) => (
+                                        <button
+                                            key={slide.eyebrow}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={index === scholarshipSlide}
+                                            aria-label={`Show slide ${index + 1}: ${slide.eyebrow}`}
+                                            onClick={() => setScholarshipSlide(index)}
+                                            className="flex h-8 w-8 min-h-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                            >
+                                            <span
+                                                aria-hidden="true"
+                                                className={`h-2.5 w-2.5 rounded-full transition-colors ${
                                                     index === scholarshipSlide
                                                         ? 'bg-brand'
                                                         : 'bg-text-muted/40 hover:bg-text-muted'
                                                 }`}
                                             />
+                                        </button>
                                         ))}
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -432,7 +429,16 @@ const EdutuForYouPage: React.FC = () => {
                             </motion.div>
                         </div>
 
-                        <div className="mt-16 grid gap-x-10 gap-y-4 md:grid-cols-2">
+                        <div className="mt-16">
+                            <motion.h2 variants={fadeUp} className={`${TITLE} max-w-[16ch]`}>
+                                Practical support for the next step
+                            </motion.h2>
+                            <motion.p variants={fadeUp} className="mt-4 max-w-[42ch] text-base leading-7 text-text-secondary sm:text-lg">
+                                Edutu helps learners find a fit, strengthen their application, and keep their plan moving.
+                            </motion.p>
+                        </div>
+
+                        <div className="mt-10 grid gap-x-10 gap-y-4 md:grid-cols-2">
                             {PILLARS.map((pillar, index) => {
                                 const Icon = pillar.icon;
                                 return (
@@ -523,7 +529,7 @@ const EdutuForYouPage: React.FC = () => {
                                     Different lives. The same missing information.
                                 </motion.h2>
                             </div>
-                            <motion.p variants={fadeUp} className="max-w-[34ch] text-sm leading-6 text-white/62 sm:text-right">
+                            <motion.p variants={fadeUp} className="max-w-[34ch] text-sm leading-6 text-white/80 sm:text-right">
                                 Composite situations from user research, shown honestly until verified alumni stories can replace them.
                             </motion.p>
                         </div>
@@ -536,9 +542,9 @@ const EdutuForYouPage: React.FC = () => {
                             </AnimatePresence>
                         </div>
 
-                        <div className="mt-8 flex flex-col items-start justify-between gap-5 border-t border-white/12 pt-6 sm:flex-row sm:items-center">
+                        <div className="mt-8 flex flex-col items-start justify-between gap-5 border-t border-white/20 pt-6 sm:flex-row sm:items-center">
                             {hasComposites && (
-                                <motion.p variants={fadeUp} className="max-w-[70ch] text-xs leading-5 text-white/55">
+                                <motion.p variants={fadeUp} className="max-w-[70ch] text-xs leading-5 text-white/70">
                                     {STORY_ATTRIBUTION}
                                 </motion.p>
                             )}
@@ -618,18 +624,18 @@ const EdutuForYouPage: React.FC = () => {
                             >
                                 <div aria-hidden="true" className="absolute -right-20 -top-20 -z-10 h-72 w-72 rounded-full bg-[#8cdcf0]/28 blur-3xl" />
                                 <div className="relative z-10 max-w-[28rem]">
-                                    <span className="font-mono text-xs font-semibold uppercase tracking-[0.13em] text-white/68">
+                                    <span className="font-mono text-xs font-semibold uppercase tracking-[0.13em] text-white/70">
                                         I can help open opportunities
                                     </span>
                                     <h3 className="mt-4 max-w-[13ch] font-display text-[2rem] font-semibold leading-[1.04] tracking-[-0.04em] text-white sm:text-[2.8rem]">
                                         Bring reach, funding, or experience.
                                     </h3>
-                                    <p className="mt-5 max-w-[36ch] text-base leading-7 text-white/78">{PARTNER_PITCH}</p>
+                                    <p className="mt-5 max-w-[36ch] text-base leading-7 text-white/80">{PARTNER_PITCH}</p>
                                     <ul className="mt-7 grid list-none grid-cols-2 gap-x-4 gap-y-3 p-0">
                                         {PARTNER_LANES.map((lane) => {
                                             const Icon = lane.icon;
                                             return (
-                                                <li key={lane.title} className="flex items-center gap-2 text-sm font-medium text-white/82">
+                                                <li key={lane.title} className="flex items-center gap-2 text-sm font-medium text-white/80">
                                                     <Icon size={16} aria-hidden="true" />
                                                     {lane.title}
                                                 </li>
@@ -646,7 +652,7 @@ const EdutuForYouPage: React.FC = () => {
                                         </a>
                                         <a
                                             href={PARTNER_MAILTO}
-                                            className="text-sm font-semibold text-white/82 underline decoration-white/35 underline-offset-4 transition hover:text-white"
+                                            className="text-sm font-semibold text-white/80 underline decoration-white/40 underline-offset-4 transition hover:text-white"
                                         >
                                             Start a partnership conversation
                                         </a>

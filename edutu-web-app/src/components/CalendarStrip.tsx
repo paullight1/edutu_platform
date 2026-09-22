@@ -130,11 +130,7 @@ export default function CalendarStrip({
   const hasDeadlines = sorted.some((event) => event.isDeadline);
 
   return (
-    <div
-      className={`rounded-2xl border border-subtle bg-surface-layer shadow-soft ${
-        compact ? "p-3" : "p-4"
-      }`}
-    >
+    <div className={compact ? "" : "rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft"}>
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
           <Calendar size={compact ? 15 : 17} className="text-brand" />
@@ -173,7 +169,7 @@ export default function CalendarStrip({
                 }
                 onEventClick?.(event);
               }}
-              className={`group flex min-w-[164px] max-w-[210px] flex-col items-start gap-1.5 rounded-xl border border-subtle bg-surface-elevated text-left transition hover:border-brand/40 hover:bg-surface-layer ${
+              className={`opportunity-cinematic-card group flex min-w-[164px] max-w-[210px] flex-col items-start gap-1.5 border border-subtle text-left transition hover:border-brand/40 ${
                 compact ? "p-2.5" : "p-3"
               }`}
             >

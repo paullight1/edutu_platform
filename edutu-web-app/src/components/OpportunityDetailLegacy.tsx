@@ -60,7 +60,6 @@ const PUBLIC_TAG_BLOCKLIST = new Set([
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
-  onBack: () => void;
   embedded?: boolean;
 }
 
@@ -87,13 +86,6 @@ function formatCompactDeadline(deadline?: string | null): string {
   const parsed = parseOpportunityDeadline(deadline);
   if (!parsed) return "No deadline";
   return format(parsed, "d MMM yyyy");
-}
-
-function formatUpdatedAt(value?: string | null): string {
-  if (!value) return "Updated recently";
-  const parsed = parseOpportunityDeadline(value);
-  if (!parsed) return "Updated recently";
-  return `Updated ${format(parsed, "d MMM yyyy")}`;
 }
 
 function normaliseSeoText(value?: string | null): string {
@@ -295,7 +287,6 @@ function RelatedOpportunityCard({
 
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
-  onBack,
   embedded = false,
 }) => {
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
@@ -651,11 +642,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     };
   }, [getToken, opportunity.id, userId]);
 
-  const handleBack = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    onBack();
-  };
-
   const handleBookmark = async () => {
     if (!userId) {
       navigate("/auth?mode=sign-in", { state: authState });
@@ -866,26 +852,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </div>
       ) : null}
       <section>
-        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-text-muted">
-          {!embedded ? (
-            <button
-              type="button"
-              onClick={handleBack}
-              className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-text-secondary transition-colors hover:border-strong hover:text-brand"
-            >
-              Back to opportunities
-            </button>
-          ) : null}
-          {!embedded ? (
-            <>
-              <span aria-hidden="true">•</span>
-              <span>Public details</span>
-              <span aria-hidden="true">•</span>
-            </>
-          ) : null}
-          <span>{formatUpdatedAt(opportunity.lastUpdated)}</span>
-        </div>
-
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0 space-y-7">
             <header className="space-y-4 border-b border-subtle pb-6">
@@ -1154,7 +1120,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             </span>
           </div>
           <div
-            className="-mx-4 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+            className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-0 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
             role="region"
             tabIndex={0}
             aria-label="Related opportunities"

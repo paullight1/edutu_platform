@@ -35,6 +35,8 @@ import { scheduleAuthChunkPrefetch } from "./lib/authWarmup";
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
+const MyPlanPage = lazy(() => import("./components/MyPlanPage"));
+const MyPlanDetailPage = lazy(() => import("./components/MyPlanDetailPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
 const PersonalizationScreen = lazy(
   () => import("./components/PersonalizationScreen"),
@@ -705,6 +707,22 @@ function App() {
             element={
               <AppWorkspaceRoute>
                 <SavedPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/my-plan"
+            element={
+              <AppWorkspaceRoute>
+                <MyPlanPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/my-plan/:id"
+            element={
+              <AppWorkspaceRoute>
+                <MyPlanDetailPage />
               </AppWorkspaceRoute>
             }
           />
