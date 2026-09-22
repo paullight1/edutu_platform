@@ -10,7 +10,6 @@ import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
   Bookmark,
-  Briefcase,
   CheckCircle2,
   ChevronRight,
   Loader2,
@@ -22,7 +21,6 @@ import {
   Settings,
   ShieldAlert,
   Sparkles,
-  UserCheck,
 } from "lucide-react";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import {
@@ -227,6 +225,7 @@ export default function ProfilePage() {
   const [skillsText, setSkillsText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionBroken, setSessionBroken] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
@@ -460,6 +459,7 @@ export default function ProfilePage() {
       ).catch(() => {});
       setSessionBroken(false);
       showSaved("Profile saved — your matches will use the new details.");
+      setIsEditing(false);
     } catch (saveError) {
       if (isInvalidOrExpiredTokenError(saveError)) {
         setSessionBroken(true);
@@ -507,23 +507,9 @@ export default function ProfilePage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <section
-            className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-6"
-          >
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                  <UserCheck size={22} />
-                </div>
-                <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Your profile
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
-                  Your details power your matches and deadlines.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-subtle bg-surface-elevated p-4">
-                <div className="flex items-center gap-3">
+          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5">
+              <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                   {clerkUser?.imageUrl ? (
                     <img
                       src={clerkUser.imageUrl}
@@ -535,7 +521,7 @@ export default function ProfilePage() {
                       {displayName(profile, user?.name).charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
                       {displayName(profile, user?.name)}
                     </p>
@@ -544,7 +530,7 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5">
+                <div className="ml-auto hidden min-w-[180px] sm:block">
                   {completenessPercent < 100 ? (
                     <>
                       <div className="flex items-center justify-between text-sm font-semibold">
@@ -562,16 +548,23 @@ export default function ProfilePage() {
                     </>
                   ) : null}
                   <p
-                    className={`text-xs font-semibold text-text-muted ${
-                      completenessPercent < 100 ? "mt-3" : "mt-0"
-                    }`}
+                    className="mt-2 text-2xs font-semibold text-text-muted"
                   >
                     Last updated{" "}
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
                 </div>
               </div>
-            </div>
+              <div className="mt-4 sm:hidden">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span>Profile completeness</span>
+                  <span className="text-brand">{completenessPercent}%</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-body">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${completenessPercent}%` }} />
+                </div>
+                <p className="mt-2 text-2xs font-semibold text-text-muted">Updated {formatDate(profile?.updatedAt || profile?.updated_at)}</p>
+              </div>
           </section>
 
           <ProfileQuickStats stats={profileStats} />
@@ -711,15 +704,15 @@ export default function ProfilePage() {
                   <h2 className="font-display text-lg font-semibold tracking-tight">
                     Profile details
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-text-muted">
-                    Tap any field to edit what Edutu should know about you.
-                  </p>
+                  <p className="mt-1 text-sm leading-6 text-text-muted">Keep your details current to improve your matches.</p>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                  <PencilLine size={18} />
-                </span>
+                {!isEditing ? (
+                  <button type="button" onClick={() => setIsEditing(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[20px] bg-brand/10 px-3 text-xs font-semibold text-brand transition hover:bg-brand/15">
+                    <PencilLine size={14} /> Edit profile
+                  </button>
+                ) : null}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <fieldset disabled={!isEditing} className="grid gap-4 disabled:opacity-80 sm:grid-cols-2">
                 <div className="block">
                   <Label
                     htmlFor="profile-full-name"
@@ -975,9 +968,9 @@ export default function ProfilePage() {
                     />
                   </div>
                 </div>
-              </div>
+              </fieldset>
 
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className={`${isEditing ? "" : "hidden"} mt-5 flex flex-wrap items-center gap-3`}>
                 <Button
                   type="submit"
                   variant="primary"
@@ -997,10 +990,12 @@ export default function ProfilePage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate("/app/opportunities")}
+                  onClick={() => {
+                    void loadProfile();
+                    setIsEditing(false);
+                  }}
                 >
-                  <Briefcase size={17} />
-                  View matches
+                  Cancel
                 </Button>
                 {isDirty ? (
                   <span className="text-xs font-semibold text-text-muted">

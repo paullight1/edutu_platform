@@ -52,7 +52,7 @@ export default function ProfileQuickStats({
   const stats = sharedStats ?? ownStats;
 
   return (
-    <div className="mt-5 grid grid-cols-3 gap-3 sm:gap-4">
+    <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
       {TILES.map((tile) => {
         const Icon = tile.icon;
         const value = stats[tile.key];
@@ -60,15 +60,15 @@ export default function ProfileQuickStats({
           <Link
             key={tile.key}
             to={tile.to}
-            className="group flex flex-col justify-between rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft transition hover:border-brand/40 hover:shadow-elevated"
+            className="group flex min-w-0 items-center gap-2 rounded-[20px] border border-subtle bg-surface-layer px-2.5 py-3 shadow-soft transition hover:border-brand/40 hover:shadow-elevated sm:gap-3 sm:p-4"
           >
             <span
-              className={`flex h-9 w-9 items-center justify-center rounded-xl ${tile.tint} ${tile.accent}`}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tile.tint} ${tile.accent} sm:h-9 sm:w-9`}
             >
               <Icon size={18} />
             </span>
-            <div className="mt-3">
-              <span className="block font-display text-2xl font-bold tracking-tight text-text-primary">
+            <div className="min-w-0">
+              <span className="block font-display text-xl font-bold tracking-tight text-text-primary sm:text-2xl">
                 {stats.loading ? (
                   <span className="inline-block h-7 w-8 animate-pulse rounded bg-surface-elevated align-middle" />
                 ) : value === null ? (
@@ -77,7 +77,7 @@ export default function ProfileQuickStats({
                   value
                 )}
               </span>
-              <span className="mt-0.5 block text-xs font-semibold text-text-muted">
+              <span className="block truncate text-2xs font-semibold text-text-muted sm:text-xs">
                 {tile.label}
               </span>
             </div>

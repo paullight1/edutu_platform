@@ -273,7 +273,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
 
   return (
     <>
-      <article className="opportunity-cinematic-card group relative flex min-h-[132px] overflow-hidden border border-subtle sm:hidden">
+      <article className="group relative flex min-h-[132px] overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft sm:hidden">
         <div className="opportunity-cinematic-media relative w-[34%] min-w-[108px] max-w-[132px] shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
@@ -310,7 +310,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         />
       </article>
 
-      <article className="opportunity-cinematic-card group relative hidden h-full flex-col overflow-hidden border border-subtle transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:flex">
+      <article className="group relative hidden h-full flex-col overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:flex">
       <div className="opportunity-cinematic-media relative aspect-[16/9] overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
@@ -896,25 +896,6 @@ export default function PublicOpportunitiesArchivePage() {
           ) : null}
         </section>
 
-        <aside className="mt-16 grid gap-5 rounded-[20px] border border-subtle bg-surface-layer p-6 shadow-soft lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
-          <div>
-            <h2 className="font-display text-2xl font-semibold text-text-primary">
-              Confirm every opportunity at the source
-            </h2>
-            <p className="mt-2 max-w-3xl leading-7 text-text-secondary">
-              Edutu helps people discover and understand opportunities. The
-              named provider remains the final authority for eligibility,
-              funding, deadlines and selection decisions.
-            </p>
-          </div>
-          <Link
-            to="/blog"
-            className="inline-flex w-fit items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white no-underline"
-          >
-            Read application guides
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        </aside>
       </PublicEditorialShell>
     </div>
   );

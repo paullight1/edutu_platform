@@ -69,6 +69,7 @@ import {
   shuffleOpportunityFeed,
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
+import DashboardUpdatePopup from "./DashboardUpdatePopup";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
 // picks per visit, with "View all" as the way deeper into the catalogue.
@@ -1147,6 +1148,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       <div
         className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
+        <DashboardUpdatePopup />
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
           onComplete={completeProfileOnboarding}

@@ -1,13 +1,13 @@
-import { ClipboardList, Plus } from "lucide-react";
+import { CalendarDays, ClipboardList, FileCheck2, LayoutDashboard, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type PlanSection = "overview" | "applications" | "deadlines";
 
-const SECTIONS: Array<{ key: PlanSection; translationKey: string; route: string }> = [
-  { key: "overview", translationKey: "myPlan.overview", route: "/app/my-plan" },
-  { key: "applications", translationKey: "myPlan.applications", route: "/app/applications" },
-  { key: "deadlines", translationKey: "myPlan.calendar", route: "/app/deadlines" },
+const SECTIONS: Array<{ key: PlanSection; translationKey: string; route: string; Icon: typeof LayoutDashboard }> = [
+  { key: "overview", translationKey: "myPlan.overview", route: "/app/my-plan", Icon: LayoutDashboard },
+  { key: "applications", translationKey: "myPlan.applications", route: "/app/applications", Icon: FileCheck2 },
+  { key: "deadlines", translationKey: "myPlan.calendar", route: "/app/deadlines", Icon: CalendarDays },
 ];
 
 export default function PlanWorkspaceHeader({
@@ -53,9 +53,10 @@ export default function PlanWorkspaceHeader({
             type="button"
             onClick={() => navigate(item.route)}
             aria-current={activeSection === item.key ? "page" : undefined}
-            className={`min-h-11 shrink-0 border-b-2 px-1 text-sm font-semibold transition ${activeSection === item.key ? "border-brand text-text-primary" : "border-transparent text-text-secondary hover:border-brand/30 hover:text-brand"}`}
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-1 text-sm font-semibold transition ${activeSection === item.key ? "border-brand text-text-primary" : "border-transparent text-text-secondary hover:border-brand/30 hover:text-brand"}`}
           >
-                {t(item.translationKey)}
+            <item.Icon size={15} strokeWidth={activeSection === item.key ? 2.1 : 1.8} aria-hidden="true" />
+            {t(item.translationKey)}
           </button>
         ))}
       </nav>

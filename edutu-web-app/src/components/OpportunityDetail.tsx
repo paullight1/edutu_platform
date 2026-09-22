@@ -141,11 +141,11 @@ function OpportunityHero({
             <TrustSignal trust={opportunity.trust} className="mt-3" />
 
             {facts.length > 0 ? (
-              <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <dl className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
                 {facts.map(({ label, value, icon: Icon }) => (
                   <div
                     key={label}
-                    className="min-w-0 rounded-2xl border border-subtle bg-surface-elevated/75 px-3.5 py-3"
+                    className="min-w-0 rounded-[20px] border border-subtle bg-surface-elevated/75 px-3.5 py-3"
                   >
                     <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
                       <Icon size={13} aria-hidden="true" />

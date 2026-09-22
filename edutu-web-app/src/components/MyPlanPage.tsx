@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import { StateView, useScreenState } from "./state";
 import PlanWorkspaceHeader from "./PlanWorkspaceHeader";
+import PlanMascotWelcome from "./PlanMascotWelcome";
 import {
   listOpportunityJourneys,
   type OpportunityJourneyView,
@@ -191,6 +192,7 @@ export default function MyPlanPage() {
     <main className="min-h-[100dvh] bg-surface-body px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-10">
       <div className="mx-auto max-w-6xl">
         <PlanWorkspaceHeader section="overview" hideIntroOnMobile />
+        <PlanMascotWelcome />
         <button
           type="button"
           onClick={() => navigate("/app/opportunities")}

@@ -233,13 +233,10 @@ export default function NotificationInbox({
               <BellRing size={17} />
             </span>
             <div className="min-w-0">
-              <h2
-                id="notification-inbox-title"
-                className="text-base font-semibold text-text-primary"
-              >
+              <h2 id="notification-inbox-title" className="sr-only">
                 Notifications
               </h2>
-              <p className="text-sm text-text-muted">
+              <p className="text-sm font-semibold text-text-secondary">
                 {unreadCount > 0
                   ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}`
                   : "You are all caught up"}
