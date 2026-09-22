@@ -609,7 +609,7 @@ const Users = () => {
 
     return (
         <div className="users-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="page-header">
+            <div className="page-header users-page-header">
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <h1 className="page-title">User Management</h1>
@@ -621,7 +621,7 @@ const Users = () => {
                         Manage platform users, approval states, and Clerk invitations from one place.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div className="users-page-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     <button className="btn btn-secondary" onClick={handleExport}>
                         <Download size={18} />
                         Export
@@ -740,7 +740,7 @@ const Users = () => {
                 ))}
             </div>
 
-            <div className="card" style={{ padding: '16px 20px' }}>
+            <div className="card users-filter-card" style={{ padding: '16px 20px' }}>
                 <div className="users-toolbar-grid">
                     <div style={{ position: 'relative' }}>
                         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -805,7 +805,7 @@ const Users = () => {
                 </div>
             )}
 
-            <div className="card" style={{ overflow: 'hidden' }}>
+            <div className="card users-list-card" style={{ overflow: 'hidden' }}>
                 {loading ? (
                     <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
                         <Loader2 size={24} style={{ marginBottom: '12px', animation: 'spin 1s linear infinite' }} />

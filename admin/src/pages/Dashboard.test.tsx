@@ -114,4 +114,25 @@ describe("Dashboard health telemetry", () => {
     expect(screen.getByText("Not ready")).toBeInTheDocument();
     expect(screen.getByText("Degraded")).toBeInTheDocument();
   });
+
+  it("keeps the dashboard usable when a legacy health payload is returned", async () => {
+    healthResponse = {
+      status: "ok",
+      timestamp: "2026-08-24T16:27:53.501Z",
+      uptime: 36,
+      database: { status: "connected", responseTime: 174 },
+      ai: { gemini: "missing", openrouter: "configured" },
+      memory: { heapUsed: 12, heapTotal: 24, rss: 30 },
+    };
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
+    expect(screen.getByText("Live server telemetry unavailable")).toBeVisible();
+    expect(screen.getByText("Unavailable")).toBeVisible();
+  });
 });

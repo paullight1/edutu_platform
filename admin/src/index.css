@@ -112,6 +112,20 @@
   padding: 0;
 }
 
+/* Accessible labels that should remain available to assistive technology
+   without taking up visual space in compact controls. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
@@ -924,6 +938,105 @@ a:hover {
 @media (max-width: 640px) {
   .users-page {
     gap: 16px !important;
+  }
+
+  .users-page-header {
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .users-page-header > div:first-child {
+    width: 100%;
+  }
+
+  .users-page-header > div:first-child > div {
+    gap: 8px;
+  }
+
+  .users-page-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px !important;
+  }
+
+  .users-page-actions .btn {
+    min-width: 0;
+    min-height: 44px;
+    padding: 9px 10px;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .users-page-actions .btn-primary {
+    grid-column: 1 / -1;
+  }
+
+  .users-filter-card {
+    padding: 12px !important;
+  }
+
+  .users-toolbar-grid {
+    gap: 8px;
+  }
+
+  .users-toolbar-grid .input-field,
+  .users-toolbar-grid .btn {
+    min-height: 46px;
+  }
+
+  .users-list-card {
+    border-radius: 16px;
+  }
+
+  .users-list-card .users-table {
+    min-width: 0;
+  }
+
+  .users-list-card .users-table thead {
+    display: none;
+  }
+
+  .users-list-card .users-table,
+  .users-list-card .users-table tbody {
+    display: block;
+  }
+
+  .users-list-card .users-table tbody tr {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .users-list-card .users-table tbody tr:hover td {
+    background: transparent;
+  }
+
+  .users-list-card .users-table tbody td {
+    display: none;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .users-list-card .users-table tbody td:first-child,
+  .users-list-card .users-table tbody td:nth-child(2),
+  .users-list-card .users-table tbody td:last-child {
+    display: block;
+  }
+
+  .users-list-card .users-table tbody td:nth-child(2) > div {
+    min-width: 0;
+  }
+
+  .users-list-card .users-table tbody td:nth-child(2) > div > div:last-child {
+    margin-top: 2px !important;
+  }
+
+  .users-list-card .users-role-actions {
+    gap: 4px;
   }
 
   .users-role-actions .btn span {

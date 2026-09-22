@@ -47,6 +47,28 @@ interface HealthStatus {
   };
 }
 
+function isHealthStatus(value: unknown): value is HealthStatus {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<HealthStatus>;
+  const database = candidate.checks?.database;
+  const ai = candidate.checks?.ai;
+
+  return (
+    (candidate.status === "ready" || candidate.status === "not_ready") &&
+    typeof candidate.timestamp === "string" &&
+    typeof candidate.uptimeSeconds === "number" &&
+    typeof candidate.version === "string" &&
+    (database?.status === "up" || database?.status === "down") &&
+    typeof database.responseTimeMs === "number" &&
+    (ai?.status === "configured" || ai?.status === "degraded") &&
+    (ai.providers?.gemini === "configured" ||
+      ai.providers?.gemini === "missing") &&
+    (ai.providers?.openrouter === "configured" ||
+      ai.providers?.openrouter === "missing")
+  );
+}
+
 interface AiUsageDayPoint {
   day: string;
   totalTokens: number;
@@ -185,7 +207,7 @@ const Dashboard = () => {
       const [dashboardResult, healthResult, aiUsageResult] =
         await Promise.allSettled([
           backendFetchJson<AdminDashboardResponse>("/admin/dashboard"),
-          backendFetchJson<HealthStatus>("/health"),
+          backendFetchJson<unknown>("/health"),
           backendFetchJson<AiUsageSummaryResponse>(
             "/admin/ai-usage/summary?days=30",
           ),
@@ -235,7 +257,7 @@ const Dashboard = () => {
         setDataBanner({ type: "error", message });
       }
 
-      if (healthResponse) {
+      if (isHealthStatus(healthResponse)) {
         setHealth(healthResponse);
       } else {
         setHealth(null);
@@ -244,7 +266,9 @@ const Dashboard = () => {
             ? healthResult.reason instanceof Error
               ? healthResult.reason.message
               : "Health check failed"
-            : "Health check failed";
+            : healthResponse
+              ? "The health service returned an unsupported response."
+              : "Health check failed";
         setHealthError(message);
       }
     } catch (error) {
@@ -963,7 +987,7 @@ const Dashboard = () => {
           }
 
           .grid.grid-cols-4 {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
           .grid.grid-cols-2 {
