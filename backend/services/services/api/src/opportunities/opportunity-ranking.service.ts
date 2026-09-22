@@ -43,6 +43,7 @@ import {
   matchEducationLevel,
   matchedGoals,
   mergePreferencePatch,
+  normalizeRankingProfile,
 } from "./profile-fit.util";
 import { checkEligibility } from "./eligibility.util";
 import {
@@ -403,7 +404,7 @@ export class OpportunityRankingService {
     const minMatchScore = request.minMatchScore ?? 0;
     const excludeIds = request.excludeOpportunityIds || [];
 
-    const profile = request.profile || null;
+    const profile = normalizeRankingProfile(request.profile);
     const preferences = request.preferences || null;
     const goals = request.goals || [];
 
@@ -1119,7 +1120,7 @@ export class OpportunityRankingService {
       .where(matchProfileUserId(profiles.userId, userId))
       .execute();
 
-    return profile || null;
+    return normalizeRankingProfile(profile);
   }
 
   private async getUserGoals(userId: string) {
@@ -1511,7 +1512,21 @@ export class OpportunityRankingService {
       reasons.push(`Relevant to current country: ${profile.country}.`);
     }
 
-    const goalHits = matchedGoals(userGoals, opportunityText);
+    const allGoals: NonNullable<RecommendationQueryDto["goals"]> = [
+      ...(profile?.ambitions ?? []).map((title) => ({ title })),
+      ...(userGoals ?? []),
+    ];
+    // Preserve a saved goal's richer description when an onboarding ambition
+    // has the same title, and never award the same goal twice.
+    const uniqueGoals = [
+      ...new Map(
+        allGoals.map((goal) => [
+          (goal.title || goal.description || "").trim().toLowerCase(),
+          goal,
+        ]),
+      ).values(),
+    ];
+    const goalHits = matchedGoals(uniqueGoals, opportunityText);
     if (goalHits.length) {
       score += Math.min(12, goalHits.length * 6);
       const goalTitles = goalHits

@@ -1,4 +1,7 @@
-import type { OpportunityPreferenceDto } from "./dto/personalization.dto";
+import type {
+  OpportunityPreferenceDto,
+  RecommendationQueryDto,
+} from "./dto/personalization.dto";
 
 /**
  * Pure helpers for the rule-based profile-fit scorer and the preferences
@@ -147,4 +150,67 @@ export function mergePreferencePatch(
     Object.entries(patch).filter(([, value]) => value !== undefined),
   ) as OpportunityPreferenceDto;
   return { ...(current ?? {}), ...defined };
+}
+
+/** Read both synced columns and onboarding answers stored in preferences. */
+export function normalizeRankingProfile(
+  profile: Record<string, unknown> | null | undefined,
+): RecommendationQueryDto["profile"] {
+  if (!profile) return null;
+  const stored =
+    profile.preferences &&
+    typeof profile.preferences === "object" &&
+    !Array.isArray(profile.preferences)
+      ? (profile.preferences as Record<string, unknown>)
+      : {};
+  const text = (...values: unknown[]): string | undefined =>
+    values
+      .find(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      )
+      ?.trim();
+  const list = (...values: unknown[]): string[] => {
+    const unique = new Map<string, string>();
+    for (const value of values) {
+      if (!Array.isArray(value)) continue;
+      for (const item of value) {
+        if (typeof item === "string" && item.trim()) {
+          unique.set(item.trim().toLowerCase(), item.trim());
+        }
+      }
+    }
+    return [...unique.values()];
+  };
+  return {
+    ...profile,
+    country: text(profile.country, stored.country, stored.countryCode),
+    fieldOfStudy: text(
+      profile.fieldOfStudy,
+      profile.field_of_study,
+      profile.courseOfStudy,
+      profile.major,
+      profile.pursuit,
+      stored.fieldOfStudy,
+      stored.major,
+      stored.pursuit,
+    ),
+    degree: text(
+      profile.degree,
+      profile.educationLevel,
+      profile.education_level,
+      stored.degree,
+      stored.educationLevel,
+      stored.education_level,
+    ),
+    interests: list(profile.interests, stored.interests),
+    skills: list(profile.skills, stored.skills),
+    ambitions: list(profile.ambitions, stored.ambitions),
+    interestedCountries: list(
+      profile.interestedCountries,
+      profile.interested_countries,
+      stored.interestedCountries,
+      stored.interested_countries,
+    ),
+  };
 }

@@ -103,6 +103,7 @@ export const RecommendationQuerySchema = z.object({
       country: z.string().nullable().optional(),
       skills: z.array(z.string()).nullable().optional(),
       interests: z.array(z.string()).nullable().optional(),
+      ambitions: z.array(z.string()).max(20).nullable().optional(),
       fieldOfStudy: z.string().nullable().optional(),
       field_of_study: z.string().nullable().optional(),
       courseOfStudy: z.string().nullable().optional(),

@@ -2,6 +2,7 @@ import {
   matchEducationLevel,
   matchedGoals,
   mergePreferencePatch,
+  normalizeRankingProfile,
 } from "./profile-fit.util";
 
 describe("matchEducationLevel", () => {
@@ -110,5 +111,43 @@ describe("mergePreferencePatch", () => {
     expect(
       mergePreferencePatch(null, { preferredRegions: ["Canada"] }),
     ).toEqual({ preferredRegions: ["Canada"] });
+  });
+});
+
+describe("normalizeRankingProfile", () => {
+  it("preserves explicit profile values and combines distinct saved interests", () => {
+    expect(
+      normalizeRankingProfile({
+        country: "Ghana",
+        major: "Economics",
+        interests: ["Robotics"],
+        preferences: {
+          country: "Nigeria",
+          pursuit: "Law",
+          interests: ["robotics", "Python"],
+        },
+      }),
+    ).toMatchObject({
+      country: "Ghana",
+      fieldOfStudy: "Economics",
+      interests: ["robotics", "Python"],
+    });
+  });
+
+  it("ignores malformed stored arrays and blank terms instead of matching everything", () => {
+    expect(
+      normalizeRankingProfile({
+        preferences: {
+          interests: [" ", 23, "robotics"],
+          skills: "invalid",
+          ambitions: [null, "Get an internship"],
+        },
+      }),
+    ).toMatchObject({
+      interests: ["robotics"],
+      skills: [],
+      ambitions: ["Get an internship"],
+    });
+    expect(normalizeRankingProfile(null)).toBeNull();
   });
 });
