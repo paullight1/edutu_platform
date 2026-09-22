@@ -21,6 +21,38 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
 
+# Never cache the HTML shell or update metadata. Hashed JS/CSS assets remain
+# cacheable, but stale HTML/SW files can keep an installed PWA on an old UI.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    CDN-Cache-Control = "no-store"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    CDN-Cache-Control = "no-store"
+
+[[headers]]
+  for = "/registerSW.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    CDN-Cache-Control = "no-store"
+
+[[headers]]
+  for = "/workbox-*.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    CDN-Cache-Control = "no-store"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    CDN-Cache-Control = "no-store"
+
 # Proxy the dynamic sitemap/robots from the backend (edutu-platform), which
 # lists every opportunity URL. The previous host (edutu-api.onrender.com) 404s,
 # which silently starved Google of the opportunity sitemap.

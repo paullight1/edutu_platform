@@ -122,6 +122,32 @@
   ],
   "headers": [
     {
+      "source": "/(index.html|community/index.html|about/index.html|impact/index.html|edutuforyou/index.html|whats-new/index.html|events/index.html|download/index.html|what-we-believe/index.html|upgrade/index.html|mentor/index.html|scholarship-engine/index.html|scholarship-api/index.html|developers/index.html|developers/docs/index.html|help/index.html|careers/index.html|privacy/index.html|terms/index.html)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/(sw.js|registerSW.js|workbox-.*\\.js|manifest.webmanifest)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
