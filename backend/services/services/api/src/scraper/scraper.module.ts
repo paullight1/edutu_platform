@@ -13,10 +13,16 @@ import { ScraperEgressService } from "./scraper-egress.service";
 import { installScraperRuntimePolicy } from "./scraper-runtime-policy";
 import { ScraperService } from "./scraper.service";
 import { ScraperSourceAdminService } from "./scraper-source-admin.service";
+import { CrescivaEngineController } from "./cresciva-engine.controller";
+import { CrescivaEngineGuard } from "./cresciva-engine.guard";
 
 @Module({
   imports: [AiModule, OpportunitiesModule],
-  controllers: [ScraperController, ScraperEgressController],
+  controllers: [
+    ScraperController,
+    ScraperEgressController,
+    CrescivaEngineController,
+  ],
   providers: [
     { provide: "SCRAPER_EGRESS_CONFIG", useFactory: loadScraperEgressConfig },
     {
@@ -43,6 +49,7 @@ import { ScraperSourceAdminService } from "./scraper-source-admin.service";
     ScraperAlertsService,
     RobotsChecker,
     OpportunityDedupService,
+    CrescivaEngineGuard,
   ],
   exports: [
     ScraperService,

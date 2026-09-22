@@ -44,6 +44,7 @@ export class ScraperController {
       background?: boolean;
       /** Default true — pass false to force a full re-scrape. */
       incremental?: boolean;
+      opportunityScope?: "all" | "grants";
     },
   ) {
     const options = {
@@ -52,6 +53,7 @@ export class ScraperController {
       maxPages: body.maxPages || 3,
       incremental: body.incremental !== false,
       runType: "manual" as const,
+      opportunityScope: body.opportunityScope ?? "all",
     };
 
     // Non-blocking path for long crawls (e.g. allSources): return immediately
@@ -94,6 +96,7 @@ export class ScraperController {
       allSources?: string;
       maxPages?: string;
       incremental?: string;
+      opportunityScope?: string;
     },
   ): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
@@ -103,6 +106,10 @@ export class ScraperController {
       maxPages: query.maxPages ? Number(query.maxPages) : 3,
       incremental: query.incremental !== "false",
       runType: "manual" as const,
+      opportunityScope:
+        query.opportunityScope === "grants"
+          ? ("grants" as const)
+          : ("all" as const),
     };
     const emit = (data: unknown) => subject.next({ data } as MessageEvent);
 

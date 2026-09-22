@@ -47,6 +47,7 @@ export interface BulkSourceOutcome {
 export interface SourceRunOptions {
   maxPages: number;
   incremental: boolean;
+  opportunityScope?: "all" | "grants";
   signal?: AbortSignal;
 }
 
@@ -408,6 +409,7 @@ export function useEngineSources(): EngineSourcesState {
             sourceId: source.id,
             maxPages: options.maxPages,
             incremental: options.incremental,
+            opportunityScope: options.opportunityScope,
           },
           {},
           options.signal,
