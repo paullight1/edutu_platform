@@ -1,0 +1,1735 @@
+{
+  "version": "1.0.0",
+  "count": 96,
+  "format": "SVG master + PNG export",
+  "assets": [
+    {
+      "id": "edutu-student-reading-happy",
+      "category": "students",
+      "action": "reading",
+      "expression": "happy",
+      "svg": "characters/students/edutu-student-reading-happy.svg",
+      "png": "exports/transparent-png/edutu-student-reading-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "reading",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-studying-focused",
+      "category": "students",
+      "action": "studying",
+      "expression": "focused",
+      "svg": "characters/students/edutu-student-studying-focused.svg",
+      "png": "exports/transparent-png/edutu-student-studying-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "studying",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-notebook-curious",
+      "category": "students",
+      "action": "notebook",
+      "expression": "curious",
+      "svg": "characters/students/edutu-student-notebook-curious.svg",
+      "png": "exports/transparent-png/edutu-student-notebook-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "notebook",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-phone-excited",
+      "category": "students",
+      "action": "phone",
+      "expression": "excited",
+      "svg": "characters/students/edutu-student-phone-excited.svg",
+      "png": "exports/transparent-png/edutu-student-phone-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "phone",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-question-confused",
+      "category": "students",
+      "action": "question",
+      "expression": "confused",
+      "svg": "characters/students/edutu-student-question-confused.svg",
+      "png": "exports/transparent-png/edutu-student-question-confused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "question",
+        "confused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-idea-inspired",
+      "category": "students",
+      "action": "idea",
+      "expression": "inspired",
+      "svg": "characters/students/edutu-student-idea-inspired.svg",
+      "png": "exports/transparent-png/edutu-student-idea-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "idea",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-waving-friendly",
+      "category": "students",
+      "action": "waving",
+      "expression": "friendly",
+      "svg": "characters/students/edutu-student-waving-friendly.svg",
+      "png": "exports/transparent-png/edutu-student-waving-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "waving",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-student-celebrate-proud",
+      "category": "students",
+      "action": "celebrate",
+      "expression": "proud",
+      "svg": "characters/students/edutu-student-celebrate-proud.svg",
+      "png": "exports/transparent-png/edutu-student-celebrate-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "students",
+        "celebrate",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-certificate-proud",
+      "category": "graduates",
+      "action": "certificate",
+      "expression": "proud",
+      "svg": "characters/graduates/edutu-graduate-certificate-proud.svg",
+      "png": "exports/transparent-png/edutu-graduate-certificate-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "certificate",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-trophy-excited",
+      "category": "graduates",
+      "action": "trophy",
+      "expression": "excited",
+      "svg": "characters/graduates/edutu-graduate-trophy-excited.svg",
+      "png": "exports/transparent-png/edutu-graduate-trophy-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "trophy",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-cap-happy",
+      "category": "graduates",
+      "action": "cap",
+      "expression": "happy",
+      "svg": "characters/graduates/edutu-graduate-cap-happy.svg",
+      "png": "exports/transparent-png/edutu-graduate-cap-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "cap",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-waving-friendly",
+      "category": "graduates",
+      "action": "waving",
+      "expression": "friendly",
+      "svg": "characters/graduates/edutu-graduate-waving-friendly.svg",
+      "png": "exports/transparent-png/edutu-graduate-waving-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "waving",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-briefcase-confident",
+      "category": "graduates",
+      "action": "briefcase",
+      "expression": "confident",
+      "svg": "characters/graduates/edutu-graduate-briefcase-confident.svg",
+      "png": "exports/transparent-png/edutu-graduate-briefcase-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "briefcase",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-celebrate-joyful",
+      "category": "graduates",
+      "action": "celebrate",
+      "expression": "joyful",
+      "svg": "characters/graduates/edutu-graduate-celebrate-joyful.svg",
+      "png": "exports/transparent-png/edutu-graduate-celebrate-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "celebrate",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-star-grateful",
+      "category": "graduates",
+      "action": "star",
+      "expression": "grateful",
+      "svg": "characters/graduates/edutu-graduate-star-grateful.svg",
+      "png": "exports/transparent-png/edutu-graduate-star-grateful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "star",
+        "grateful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-graduate-pointing-confident",
+      "category": "graduates",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/graduates/edutu-graduate-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-graduate-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "graduates",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-laptop-focused",
+      "category": "developers",
+      "action": "laptop",
+      "expression": "focused",
+      "svg": "characters/developers/edutu-developer-laptop-focused.svg",
+      "png": "exports/transparent-png/edutu-developer-laptop-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "laptop",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-code-confident",
+      "category": "developers",
+      "action": "code",
+      "expression": "confident",
+      "svg": "characters/developers/edutu-developer-code-confident.svg",
+      "png": "exports/transparent-png/edutu-developer-code-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "code",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-bug-curious",
+      "category": "developers",
+      "action": "bug",
+      "expression": "curious",
+      "svg": "characters/developers/edutu-developer-bug-curious.svg",
+      "png": "exports/transparent-png/edutu-developer-bug-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "bug",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-idea-inspired",
+      "category": "developers",
+      "action": "idea",
+      "expression": "inspired",
+      "svg": "characters/developers/edutu-developer-idea-inspired.svg",
+      "png": "exports/transparent-png/edutu-developer-idea-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "idea",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-phone-happy",
+      "category": "developers",
+      "action": "phone",
+      "expression": "happy",
+      "svg": "characters/developers/edutu-developer-phone-happy.svg",
+      "png": "exports/transparent-png/edutu-developer-phone-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "phone",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-rocket-excited",
+      "category": "developers",
+      "action": "rocket",
+      "expression": "excited",
+      "svg": "characters/developers/edutu-developer-rocket-excited.svg",
+      "png": "exports/transparent-png/edutu-developer-rocket-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "rocket",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-coffee-focused",
+      "category": "developers",
+      "action": "coffee",
+      "expression": "focused",
+      "svg": "characters/developers/edutu-developer-coffee-focused.svg",
+      "png": "exports/transparent-png/edutu-developer-coffee-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "coffee",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-developer-celebrate-proud",
+      "category": "developers",
+      "action": "celebrate",
+      "expression": "proud",
+      "svg": "characters/developers/edutu-developer-celebrate-proud.svg",
+      "png": "exports/transparent-png/edutu-developer-celebrate-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "developers",
+        "celebrate",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-camera-happy",
+      "category": "creators",
+      "action": "camera",
+      "expression": "happy",
+      "svg": "characters/creators/edutu-creator-camera-happy.svg",
+      "png": "exports/transparent-png/edutu-creator-camera-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "camera",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-palette-inspired",
+      "category": "creators",
+      "action": "palette",
+      "expression": "inspired",
+      "svg": "characters/creators/edutu-creator-palette-inspired.svg",
+      "png": "exports/transparent-png/edutu-creator-palette-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "palette",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-phone-excited",
+      "category": "creators",
+      "action": "phone",
+      "expression": "excited",
+      "svg": "characters/creators/edutu-creator-phone-excited.svg",
+      "png": "exports/transparent-png/edutu-creator-phone-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "phone",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-idea-curious",
+      "category": "creators",
+      "action": "idea",
+      "expression": "curious",
+      "svg": "characters/creators/edutu-creator-idea-curious.svg",
+      "png": "exports/transparent-png/edutu-creator-idea-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "idea",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-megaphone-confident",
+      "category": "creators",
+      "action": "megaphone",
+      "expression": "confident",
+      "svg": "characters/creators/edutu-creator-megaphone-confident.svg",
+      "png": "exports/transparent-png/edutu-creator-megaphone-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "megaphone",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-star-proud",
+      "category": "creators",
+      "action": "star",
+      "expression": "proud",
+      "svg": "characters/creators/edutu-creator-star-proud.svg",
+      "png": "exports/transparent-png/edutu-creator-star-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "star",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-notebook-focused",
+      "category": "creators",
+      "action": "notebook",
+      "expression": "focused",
+      "svg": "characters/creators/edutu-creator-notebook-focused.svg",
+      "png": "exports/transparent-png/edutu-creator-notebook-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "notebook",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-creator-celebrate-joyful",
+      "category": "creators",
+      "action": "celebrate",
+      "expression": "joyful",
+      "svg": "characters/creators/edutu-creator-celebrate-joyful.svg",
+      "png": "exports/transparent-png/edutu-creator-celebrate-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "creators",
+        "celebrate",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-pitch-confident",
+      "category": "entrepreneurs",
+      "action": "pitch",
+      "expression": "confident",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-pitch-confident.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-pitch-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "pitch",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-chart-focused",
+      "category": "entrepreneurs",
+      "action": "chart",
+      "expression": "focused",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-chart-focused.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-chart-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "chart",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-briefcase-proud",
+      "category": "entrepreneurs",
+      "action": "briefcase",
+      "expression": "proud",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-briefcase-proud.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-briefcase-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "briefcase",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-phone-happy",
+      "category": "entrepreneurs",
+      "action": "phone",
+      "expression": "happy",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-phone-happy.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-phone-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "phone",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-target-determined",
+      "category": "entrepreneurs",
+      "action": "target",
+      "expression": "determined",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-target-determined.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-target-determined.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "target",
+        "determined",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-idea-inspired",
+      "category": "entrepreneurs",
+      "action": "idea",
+      "expression": "inspired",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-idea-inspired.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-idea-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "idea",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-rocket-excited",
+      "category": "entrepreneurs",
+      "action": "rocket",
+      "expression": "excited",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-rocket-excited.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-rocket-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "rocket",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-entrepreneur-handshake-friendly",
+      "category": "entrepreneurs",
+      "action": "handshake",
+      "expression": "friendly",
+      "svg": "characters/entrepreneurs/edutu-entrepreneur-handshake-friendly.svg",
+      "png": "exports/transparent-png/edutu-entrepreneur-handshake-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "entrepreneurs",
+        "handshake",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-pointing-confident",
+      "category": "mentors",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/mentors/edutu-mentor-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-mentor-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-book-friendly",
+      "category": "mentors",
+      "action": "book",
+      "expression": "friendly",
+      "svg": "characters/mentors/edutu-mentor-book-friendly.svg",
+      "png": "exports/transparent-png/edutu-mentor-book-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "book",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-idea-inspired",
+      "category": "mentors",
+      "action": "idea",
+      "expression": "inspired",
+      "svg": "characters/mentors/edutu-mentor-idea-inspired.svg",
+      "png": "exports/transparent-png/edutu-mentor-idea-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "idea",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-chat-happy",
+      "category": "mentors",
+      "action": "chat",
+      "expression": "happy",
+      "svg": "characters/mentors/edutu-mentor-chat-happy.svg",
+      "png": "exports/transparent-png/edutu-mentor-chat-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "chat",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-star-proud",
+      "category": "mentors",
+      "action": "star",
+      "expression": "proud",
+      "svg": "characters/mentors/edutu-mentor-star-proud.svg",
+      "png": "exports/transparent-png/edutu-mentor-star-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "star",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-notebook-focused",
+      "category": "mentors",
+      "action": "notebook",
+      "expression": "focused",
+      "svg": "characters/mentors/edutu-mentor-notebook-focused.svg",
+      "png": "exports/transparent-png/edutu-mentor-notebook-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "notebook",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-heart-warm",
+      "category": "mentors",
+      "action": "heart",
+      "expression": "warm",
+      "svg": "characters/mentors/edutu-mentor-heart-warm.svg",
+      "png": "exports/transparent-png/edutu-mentor-heart-warm.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "heart",
+        "warm",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-mentor-waving-friendly",
+      "category": "mentors",
+      "action": "waving",
+      "expression": "friendly",
+      "svg": "characters/mentors/edutu-mentor-waving-friendly.svg",
+      "png": "exports/transparent-png/edutu-mentor-waving-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "mentors",
+        "waving",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-search-curious",
+      "category": "researchers",
+      "action": "search",
+      "expression": "curious",
+      "svg": "characters/researchers/edutu-researcher-search-curious.svg",
+      "png": "exports/transparent-png/edutu-researcher-search-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "search",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-globe-inspired",
+      "category": "researchers",
+      "action": "globe",
+      "expression": "inspired",
+      "svg": "characters/researchers/edutu-researcher-globe-inspired.svg",
+      "png": "exports/transparent-png/edutu-researcher-globe-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "globe",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-notebook-focused",
+      "category": "researchers",
+      "action": "notebook",
+      "expression": "focused",
+      "svg": "characters/researchers/edutu-researcher-notebook-focused.svg",
+      "png": "exports/transparent-png/edutu-researcher-notebook-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "notebook",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-laptop-focused",
+      "category": "researchers",
+      "action": "laptop",
+      "expression": "focused",
+      "svg": "characters/researchers/edutu-researcher-laptop-focused.svg",
+      "png": "exports/transparent-png/edutu-researcher-laptop-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "laptop",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-idea-excited",
+      "category": "researchers",
+      "action": "idea",
+      "expression": "excited",
+      "svg": "characters/researchers/edutu-researcher-idea-excited.svg",
+      "png": "exports/transparent-png/edutu-researcher-idea-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "idea",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-chart-confident",
+      "category": "researchers",
+      "action": "chart",
+      "expression": "confident",
+      "svg": "characters/researchers/edutu-researcher-chart-confident.svg",
+      "png": "exports/transparent-png/edutu-researcher-chart-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "chart",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-book-happy",
+      "category": "researchers",
+      "action": "book",
+      "expression": "happy",
+      "svg": "characters/researchers/edutu-researcher-book-happy.svg",
+      "png": "exports/transparent-png/edutu-researcher-book-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "book",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-researcher-trophy-proud",
+      "category": "researchers",
+      "action": "trophy",
+      "expression": "proud",
+      "svg": "characters/researchers/edutu-researcher-trophy-proud.svg",
+      "png": "exports/transparent-png/edutu-researcher-trophy-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "researchers",
+        "trophy",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-search-curious",
+      "category": "opportunities",
+      "action": "search",
+      "expression": "curious",
+      "svg": "characters/opportunities/edutu-opportunity-search-curious.svg",
+      "png": "exports/transparent-png/edutu-opportunity-search-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "search",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-target-determined",
+      "category": "opportunities",
+      "action": "target",
+      "expression": "determined",
+      "svg": "characters/opportunities/edutu-opportunity-target-determined.svg",
+      "png": "exports/transparent-png/edutu-opportunity-target-determined.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "target",
+        "determined",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-calendar-focused",
+      "category": "opportunities",
+      "action": "calendar",
+      "expression": "focused",
+      "svg": "characters/opportunities/edutu-opportunity-calendar-focused.svg",
+      "png": "exports/transparent-png/edutu-opportunity-calendar-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "calendar",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-star-excited",
+      "category": "opportunities",
+      "action": "star",
+      "expression": "excited",
+      "svg": "characters/opportunities/edutu-opportunity-star-excited.svg",
+      "png": "exports/transparent-png/edutu-opportunity-star-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "star",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-globe-inspired",
+      "category": "opportunities",
+      "action": "globe",
+      "expression": "inspired",
+      "svg": "characters/opportunities/edutu-opportunity-globe-inspired.svg",
+      "png": "exports/transparent-png/edutu-opportunity-globe-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "globe",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-pointing-confident",
+      "category": "opportunities",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/opportunities/edutu-opportunity-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-opportunity-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-rocket-happy",
+      "category": "opportunities",
+      "action": "rocket",
+      "expression": "happy",
+      "svg": "characters/opportunities/edutu-opportunity-rocket-happy.svg",
+      "png": "exports/transparent-png/edutu-opportunity-rocket-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "rocket",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-celebrate-joyful",
+      "category": "opportunities",
+      "action": "celebrate",
+      "expression": "joyful",
+      "svg": "characters/opportunities/edutu-opportunity-celebrate-joyful.svg",
+      "png": "exports/transparent-png/edutu-opportunity-celebrate-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "opportunities",
+        "celebrate",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-certificate-proud",
+      "category": "scholarships",
+      "action": "certificate",
+      "expression": "proud",
+      "svg": "characters/scholarships/edutu-scholarship-certificate-proud.svg",
+      "png": "exports/transparent-png/edutu-scholarship-certificate-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "certificate",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-book-focused",
+      "category": "scholarships",
+      "action": "book",
+      "expression": "focused",
+      "svg": "characters/scholarships/edutu-scholarship-book-focused.svg",
+      "png": "exports/transparent-png/edutu-scholarship-book-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "book",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-globe-inspired",
+      "category": "scholarships",
+      "action": "globe",
+      "expression": "inspired",
+      "svg": "characters/scholarships/edutu-scholarship-globe-inspired.svg",
+      "png": "exports/transparent-png/edutu-scholarship-globe-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "globe",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-star-excited",
+      "category": "scholarships",
+      "action": "star",
+      "expression": "excited",
+      "svg": "characters/scholarships/edutu-scholarship-star-excited.svg",
+      "png": "exports/transparent-png/edutu-scholarship-star-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "star",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-calendar-curious",
+      "category": "scholarships",
+      "action": "calendar",
+      "expression": "curious",
+      "svg": "characters/scholarships/edutu-scholarship-calendar-curious.svg",
+      "png": "exports/transparent-png/edutu-scholarship-calendar-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "calendar",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-trophy-joyful",
+      "category": "scholarships",
+      "action": "trophy",
+      "expression": "joyful",
+      "svg": "characters/scholarships/edutu-scholarship-trophy-joyful.svg",
+      "png": "exports/transparent-png/edutu-scholarship-trophy-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "trophy",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-pointing-confident",
+      "category": "scholarships",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/scholarships/edutu-scholarship-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-scholarship-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-scholarship-celebrate-happy",
+      "category": "scholarships",
+      "action": "celebrate",
+      "expression": "happy",
+      "svg": "characters/scholarships/edutu-scholarship-celebrate-happy.svg",
+      "png": "exports/transparent-png/edutu-scholarship-celebrate-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "scholarships",
+        "celebrate",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-megaphone-confident",
+      "category": "community",
+      "action": "megaphone",
+      "expression": "confident",
+      "svg": "characters/community/edutu-community-megaphone-confident.svg",
+      "png": "exports/transparent-png/edutu-community-megaphone-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "megaphone",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-heart-warm",
+      "category": "community",
+      "action": "heart",
+      "expression": "warm",
+      "svg": "characters/community/edutu-community-heart-warm.svg",
+      "png": "exports/transparent-png/edutu-community-heart-warm.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "heart",
+        "warm",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-handshake-friendly",
+      "category": "community",
+      "action": "handshake",
+      "expression": "friendly",
+      "svg": "characters/community/edutu-community-handshake-friendly.svg",
+      "png": "exports/transparent-png/edutu-community-handshake-friendly.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "handshake",
+        "friendly",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-waving-happy",
+      "category": "community",
+      "action": "waving",
+      "expression": "happy",
+      "svg": "characters/community/edutu-community-waving-happy.svg",
+      "png": "exports/transparent-png/edutu-community-waving-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "waving",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-globe-inspired",
+      "category": "community",
+      "action": "globe",
+      "expression": "inspired",
+      "svg": "characters/community/edutu-community-globe-inspired.svg",
+      "png": "exports/transparent-png/edutu-community-globe-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "globe",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-phone-excited",
+      "category": "community",
+      "action": "phone",
+      "expression": "excited",
+      "svg": "characters/community/edutu-community-phone-excited.svg",
+      "png": "exports/transparent-png/edutu-community-phone-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "phone",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-star-proud",
+      "category": "community",
+      "action": "star",
+      "expression": "proud",
+      "svg": "characters/community/edutu-community-star-proud.svg",
+      "png": "exports/transparent-png/edutu-community-star-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "star",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-community-celebrate-joyful",
+      "category": "community",
+      "action": "celebrate",
+      "expression": "joyful",
+      "svg": "characters/community/edutu-community-celebrate-joyful.svg",
+      "png": "exports/transparent-png/edutu-community-celebrate-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "community",
+        "celebrate",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-briefcase-confident",
+      "category": "career",
+      "action": "briefcase",
+      "expression": "confident",
+      "svg": "characters/career/edutu-career-briefcase-confident.svg",
+      "png": "exports/transparent-png/edutu-career-briefcase-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "briefcase",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-target-determined",
+      "category": "career",
+      "action": "target",
+      "expression": "determined",
+      "svg": "characters/career/edutu-career-target-determined.svg",
+      "png": "exports/transparent-png/edutu-career-target-determined.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "target",
+        "determined",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-laptop-focused",
+      "category": "career",
+      "action": "laptop",
+      "expression": "focused",
+      "svg": "characters/career/edutu-career-laptop-focused.svg",
+      "png": "exports/transparent-png/edutu-career-laptop-focused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "laptop",
+        "focused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-chart-proud",
+      "category": "career",
+      "action": "chart",
+      "expression": "proud",
+      "svg": "characters/career/edutu-career-chart-proud.svg",
+      "png": "exports/transparent-png/edutu-career-chart-proud.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "chart",
+        "proud",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-certificate-happy",
+      "category": "career",
+      "action": "certificate",
+      "expression": "happy",
+      "svg": "characters/career/edutu-career-certificate-happy.svg",
+      "png": "exports/transparent-png/edutu-career-certificate-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "certificate",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-pointing-confident",
+      "category": "career",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/career/edutu-career-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-career-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-calendar-curious",
+      "category": "career",
+      "action": "calendar",
+      "expression": "curious",
+      "svg": "characters/career/edutu-career-calendar-curious.svg",
+      "png": "exports/transparent-png/edutu-career-calendar-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "calendar",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-career-rocket-excited",
+      "category": "career",
+      "action": "rocket",
+      "expression": "excited",
+      "svg": "characters/career/edutu-career-rocket-excited.svg",
+      "png": "exports/transparent-png/edutu-career-rocket-excited.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "career",
+        "rocket",
+        "excited",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-thumbsup-happy",
+      "category": "reactions",
+      "action": "thumbsup",
+      "expression": "happy",
+      "svg": "characters/reactions/edutu-reaction-thumbsup-happy.svg",
+      "png": "exports/transparent-png/edutu-reaction-thumbsup-happy.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "thumbsup",
+        "happy",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-question-confused",
+      "category": "reactions",
+      "action": "question",
+      "expression": "confused",
+      "svg": "characters/reactions/edutu-reaction-question-confused.svg",
+      "png": "exports/transparent-png/edutu-reaction-question-confused.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "question",
+        "confused",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-idea-inspired",
+      "category": "reactions",
+      "action": "idea",
+      "expression": "inspired",
+      "svg": "characters/reactions/edutu-reaction-idea-inspired.svg",
+      "png": "exports/transparent-png/edutu-reaction-idea-inspired.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "idea",
+        "inspired",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-wow-surprised",
+      "category": "reactions",
+      "action": "wow",
+      "expression": "surprised",
+      "svg": "characters/reactions/edutu-reaction-wow-surprised.svg",
+      "png": "exports/transparent-png/edutu-reaction-wow-surprised.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "wow",
+        "surprised",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-celebrate-joyful",
+      "category": "reactions",
+      "action": "celebrate",
+      "expression": "joyful",
+      "svg": "characters/reactions/edutu-reaction-celebrate-joyful.svg",
+      "png": "exports/transparent-png/edutu-reaction-celebrate-joyful.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "celebrate",
+        "joyful",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-heart-warm",
+      "category": "reactions",
+      "action": "heart",
+      "expression": "warm",
+      "svg": "characters/reactions/edutu-reaction-heart-warm.svg",
+      "png": "exports/transparent-png/edutu-reaction-heart-warm.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "heart",
+        "warm",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-thinking-curious",
+      "category": "reactions",
+      "action": "thinking",
+      "expression": "curious",
+      "svg": "characters/reactions/edutu-reaction-thinking-curious.svg",
+      "png": "exports/transparent-png/edutu-reaction-thinking-curious.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "thinking",
+        "curious",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    },
+    {
+      "id": "edutu-reaction-pointing-confident",
+      "category": "reactions",
+      "action": "pointing",
+      "expression": "confident",
+      "svg": "characters/reactions/edutu-reaction-pointing-confident.svg",
+      "png": "exports/transparent-png/edutu-reaction-pointing-confident.png",
+      "size": "1200x1200",
+      "background": "transparent",
+      "tags": [
+        "reactions",
+        "pointing",
+        "confident",
+        "edutu",
+        "social-media",
+        "mascot"
+      ]
+    }
+  ]
+}
