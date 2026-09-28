@@ -56,6 +56,65 @@ describe("OpportunityHomeService", () => {
     expect(shortlistService.getShortlist).toHaveBeenCalledWith(USER_ID, 3);
   });
 
+  it("selects the primary pursuit even when another pursuit sorts first by deadline", async () => {
+    const service = new OpportunityHomeService(
+      {
+        getCurrentIntent: jest.fn().mockResolvedValue({ source: "explicit" }),
+      } as never,
+      {
+        listJourneys: jest.fn().mockResolvedValue([
+          {
+            journey: { id: "secondary-journey", priority: "secondary" },
+            nextAction: {
+              key: "continue_task",
+              label: "Earlier deadline task",
+            },
+          },
+          {
+            journey: { id: "primary-journey", priority: "primary" },
+            nextAction: { key: "continue_task", label: "Primary task" },
+          },
+        ]),
+      } as never,
+      {
+        getShortlist: jest
+          .fn()
+          .mockResolvedValue({ recommendations: [], degraded: false }),
+      } as never,
+    );
+
+    await expect(service.getHome(USER_ID)).resolves.toMatchObject({
+      featuredPursuitId: "primary-journey",
+      nextAction: { label: "Primary task" },
+    });
+  });
+
+  it("falls back to the first active pursuit if there is no explicitly primary pursuit", async () => {
+    const service = new OpportunityHomeService(
+      {
+        getCurrentIntent: jest.fn().mockResolvedValue({ source: "inferred" }),
+      } as never,
+      {
+        listJourneys: jest.fn().mockResolvedValue([
+          {
+            journey: { id: "fallback-journey", priority: "secondary" },
+            nextAction: { key: "continue_task", label: "Next available task" },
+          },
+        ]),
+      } as never,
+      {
+        getShortlist: jest
+          .fn()
+          .mockResolvedValue({ recommendations: [], degraded: false }),
+      } as never,
+    );
+
+    await expect(service.getHome(USER_ID)).resolves.toMatchObject({
+      featuredPursuitId: "fallback-journey",
+      nextAction: { label: "Next available task" },
+    });
+  });
+
   it("clamps the home recommendation limit to five", async () => {
     const service = new OpportunityHomeService(
       { getCurrentIntent: jest.fn().mockResolvedValue({}) } as never,
