@@ -211,6 +211,12 @@ describe("NextStepCard", () => {
     );
     expect(onExplore).toHaveBeenCalledOnce();
     expect(
+      screen.getByRole("heading", { name: "Next step unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status").querySelector('img[aria-hidden="true"]'),
+    ).toHaveAttribute("src", "/illustrations/guidance-unavailable.svg");
+    expect(
       screen.getByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();
   });

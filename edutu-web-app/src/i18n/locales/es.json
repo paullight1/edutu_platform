@@ -286,8 +286,8 @@
     "guidanceHome": {
         "eyebrow": "Tu siguiente paso",
         "loading": "Cargando tu siguiente paso",
-        "unavailableTitle": "Tu siguiente paso no está disponible temporalmente",
-        "unavailableBody": "Mientras tanto, puedes explorar oportunidades.",
+        "unavailableTitle": "Siguiente paso no disponible",
+        "unavailableBody": "Explora oportunidades mientras nos reconectamos.",
         "retry": "Intentar de nuevo",
         "explore": "Explorar oportunidades",
         "forOpportunity": "Para {{title}}",

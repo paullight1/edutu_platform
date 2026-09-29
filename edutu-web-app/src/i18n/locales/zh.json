@@ -286,8 +286,8 @@
     "guidanceHome": {
         "eyebrow": "你的下一步",
         "loading": "正在加载你的下一步",
-        "unavailableTitle": "暂时无法显示你的下一步",
-        "unavailableBody": "你仍然可以先浏览机会。",
+        "unavailableTitle": "暂时无法显示下一步",
+        "unavailableBody": "重新连接时，你仍可浏览机会。",
         "retry": "重试",
         "explore": "浏览机会",
         "forOpportunity": "针对 {{title}}",

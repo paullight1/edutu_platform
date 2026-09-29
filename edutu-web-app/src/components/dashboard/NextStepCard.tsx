@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRight, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OpportunityHomeView } from "../../services/opportunityHome";
@@ -18,16 +18,18 @@ function ActionButton({
   children,
   onClick,
   secondary = false,
+  compact = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   secondary?: boolean;
+  compact?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${secondary ? "text-text-secondary hover:bg-surface-elevated hover:text-text-primary" : "bg-brand text-white shadow-sm hover:bg-brand-700 focus-visible:ring-offset-2"}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl ${compact ? "px-3 text-xs" : "px-4 text-sm"} font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${secondary ? "text-text-secondary hover:bg-surface-elevated hover:text-text-primary" : "bg-brand text-white shadow-sm hover:bg-brand-700 focus-visible:ring-offset-2"}`}
     >
       {children}
     </button>
@@ -111,6 +113,54 @@ export default function NextStepCard(props: NextStepCardProps) {
       </section>
     );
 
+  if (state === "error" || !home) {
+    return (
+      <section id={id} tabIndex={-1} className="space-y-1.5">
+        <div className="flex min-h-4 items-center px-1">
+          <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-brand">
+            {t("guidanceHome.eyebrow")}
+          </p>
+        </div>
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-[18px] border border-brand/15 bg-surface-brand p-3 dark:border-subtle dark:bg-surface-layer sm:p-4"
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img
+              src="/illustrations/guidance-unavailable.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-10 w-10 shrink-0 object-contain"
+              width="40"
+              height="40"
+            />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold leading-5 text-text-primary">
+                {t("guidanceHome.unavailableTitle")}
+              </h2>
+              <p className="mt-0.5 text-xs leading-4 text-text-secondary">
+                {t("guidanceHome.unavailableBody")}
+              </p>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            {onRetry ? (
+              <ActionButton onClick={onRetry} secondary compact>
+                <RefreshCw size={14} aria-hidden="true" />
+                {t("guidanceHome.retry")}
+              </ActionButton>
+            ) : null}
+            <ActionButton onClick={onExplore} compact>
+              {t("guidanceHome.explore")}
+              <ArrowRight size={14} aria-hidden="true" />
+            </ActionButton>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const featured = home?.activePursuits.find(
     (p) => p.journey.id === home.featuredPursuitId,
   );
@@ -160,28 +210,7 @@ export default function NextStepCard(props: NextStepCardProps) {
           </>
         ) : null}
         <div className="relative z-10 min-w-0 flex-1 pr-10 sm:pr-0">
-          {state === "error" || !home ? (
-            <>
-              <h2 className="mt-1 text-base font-semibold text-text-primary">
-                {t("guidanceHome.unavailableTitle")}
-              </h2>
-              <p className="mt-1 text-sm text-text-secondary">
-                {t("guidanceHome.unavailableBody")}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {onRetry ? (
-                  <ActionButton onClick={onRetry} secondary>
-                    <RefreshCw size={15} aria-hidden="true" />
-                    {t("guidanceHome.retry")}
-                  </ActionButton>
-                ) : null}
-                <ActionButton onClick={onExplore}>
-                  {t("guidanceHome.explore")}
-                  <ArrowRight size={15} aria-hidden="true" />
-                </ActionButton>
-              </div>
-            </>
-          ) : featured ? (
+          {featured ? (
             <>
               <h2 className="mt-1 truncate text-base font-semibold leading-6 text-text-primary sm:text-lg">
                 {home.nextAction?.label ?? featured.nextAction.label}
@@ -264,13 +293,6 @@ export default function NextStepCard(props: NextStepCardProps) {
           />
         ) : null}
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
-          {state === "error" ? (
-            <AlertCircle
-              size={16}
-              className="text-text-muted"
-              aria-hidden="true"
-            />
-          ) : null}
           <img
             src="/illustrations/guidance-next-step.svg"
             alt=""

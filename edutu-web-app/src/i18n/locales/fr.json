@@ -286,8 +286,8 @@
     "guidanceHome": {
         "eyebrow": "Votre prochaine étape",
         "loading": "Chargement de votre prochaine étape",
-        "unavailableTitle": "Votre prochaine étape est temporairement indisponible",
-        "unavailableBody": "Vous pouvez explorer les opportunités en attendant.",
+        "unavailableTitle": "Étape suivante indisponible",
+        "unavailableBody": "Explorez les opportunités pendant le rétablissement.",
         "retry": "Réessayer",
         "explore": "Explorer les opportunités",
         "forOpportunity": "Pour {{title}}",

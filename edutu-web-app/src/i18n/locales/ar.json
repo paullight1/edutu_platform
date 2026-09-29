@@ -286,8 +286,8 @@
     "guidanceHome": {
         "eyebrow": "خطوتك التالية",
         "loading": "جارٍ تحميل خطوتك التالية",
-        "unavailableTitle": "خطوتك التالية غير متاحة مؤقتًا",
-        "unavailableBody": "يمكنك استكشاف الفرص ريثما نعيد الاتصال.",
+        "unavailableTitle": "الخطوة التالية غير متاحة",
+        "unavailableBody": "استكشف الفرص بينما نعيد الاتصال.",
         "retry": "حاول مرة أخرى",
         "explore": "استكشف الفرص",
         "forOpportunity": "لـ {{title}}",

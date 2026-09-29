@@ -486,8 +486,8 @@
     "guidanceHome": {
         "eyebrow": "Your next step",
         "loading": "Loading your next step",
-        "unavailableTitle": "Your next step is temporarily unavailable",
-        "unavailableBody": "You can still explore opportunities while we reconnect.",
+        "unavailableTitle": "Next step unavailable",
+        "unavailableBody": "Explore opportunities while we reconnect.",
         "retry": "Try again",
         "explore": "Explore opportunities",
         "forOpportunity": "For {{title}}",
