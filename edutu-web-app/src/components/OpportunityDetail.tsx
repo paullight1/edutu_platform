@@ -317,13 +317,18 @@ export default function OpportunityDetail({
   const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planAdded, setPlanAdded] = useState(false);
+  const [planJourneyId, setPlanJourneyId] = useState<string | null>(null);
   const { userId, getToken } = useAuth();
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
 
   const handleAddToPlan = async () => {
     if (planAdded) {
-      navigate("/app/my-plan");
+      navigate(
+        planJourneyId
+          ? `/app/my-plan/${encodeURIComponent(planJourneyId)}`
+          : "/app/my-plan",
+      );
       return;
     }
 
@@ -342,7 +347,8 @@ export default function OpportunityDetail({
       if (!token) {
         throw new Error("Sign in again to add this opportunity to My Plan.");
       }
-      await createOpportunityJourney(opportunity.id, token);
+      const journey = await createOpportunityJourney(opportunity.id, token);
+      setPlanJourneyId(journey.journey.id);
       setPlanAdded(true);
       success("Added to My Plan — your next steps are ready.");
     } catch (error) {
