@@ -534,7 +534,7 @@ function OpportunityCard({
           className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
           aria-label={`View ${opportunity.title}`}
         />
-        <div className="opportunity-cinematic-media mobile-opportunity-result-media pointer-events-none relative z-0 h-20 w-full shrink-0 overflow-hidden bg-surface-elevated">
+        <div className="opportunity-cinematic-media mobile-opportunity-result-media pointer-events-none relative z-0 aspect-[2/1] w-full shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             fallbackSrc={opportunity.imageFallback}
@@ -736,7 +736,7 @@ function LoadingCard() {
   return (
     <>
       <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-sm sm:hidden">
-        <Skeleton variant="rectangular" className="mobile-opportunity-result-media h-20 w-full" />
+        <Skeleton variant="rectangular" className="mobile-opportunity-result-media aspect-[2/1] w-full" />
         <div className="p-2.5">
           <Skeleton variant="text" className="h-3 w-16" />
           <Skeleton variant="text" className="mt-2 h-4 w-full" />
