@@ -189,10 +189,19 @@ describe("persisted shared catalog visibility", () => {
       {} as any,
       {} as any,
     );
+    const apiService = new EdutuApiService({} as any);
     const rankingService = new OpportunityRankingService({} as any, {} as any);
 
     expect(await learnerService.findOne(PENDING_ID)).toBeNull();
-    expect(await learnerService.findOne(DUPLICATE_ID)).toBeNull();
+    await expect(learnerService.findOne(DUPLICATE_ID)).resolves.toMatchObject({
+      id: DUPLICATE_ID,
+      duplicateOf: APPROVED_ID,
+    });
+    await expect(
+      apiService.getOpportunity(DUPLICATE_ID, consumer),
+    ).resolves.toMatchObject({
+      id: DUPLICATE_ID,
+    });
     expect(await learnerService.ensureShareCard(REJECTED_ID)).toBeNull();
     expect(await learnerService.getSharePdf(UNVERIFIED_ID)).toBeNull();
 

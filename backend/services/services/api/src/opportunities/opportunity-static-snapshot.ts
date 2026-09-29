@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import * as path from "path";
-import { isPublicOpportunityRow } from "./opportunity-visibility";
+import { isDiscoverableOpportunityRow } from "./opportunity-visibility";
 
 const STATIC_OPPORTUNITY_SNAPSHOT_FILENAME = path.join(
   "edutu-web-app",
@@ -202,7 +202,7 @@ export function filterStaticOpportunityRows(
 
     if (
       normalizedStatus === "active" &&
-      !isPublicOpportunityRow(row, "snapshot")
+      !isDiscoverableOpportunityRow(row, "snapshot")
     ) {
       return false;
     }

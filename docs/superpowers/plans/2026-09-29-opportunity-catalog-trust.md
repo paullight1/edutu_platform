@@ -4,7 +4,7 @@
 
 **Goal:** Stop duplicate opportunities and stale display categories from misleading learners across the public catalog, recommendations, and web cards.
 
-**Architecture:** Extend Edutu's existing trust boundary. The NestJS API will exclude rows already marked with `duplicate_of` wherever public eligibility is decided, including static snapshots; the web adapter will prefer the canonical category already supplied by the API. The existing Postgres columns and API route shapes remain unchanged.
+**Architecture:** Extend Edutu's existing trust boundary. The NestJS API will exclude rows already marked with `duplicate_of` from browse, search, feeds, recommendations, and static lists while keeping existing direct details usable; the web adapter will prefer the canonical category already supplied by the API. The existing Postgres columns and API route shapes remain unchanged.
 
 **Tech Stack:** NestJS, TypeScript, Drizzle ORM, PostgreSQL/Supabase, React, Vitest, Jest, PGlite.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - All business data continues through the NestJS API; the browser does not gain direct Supabase access.
-- Only active, verified, non-expired, non-duplicate opportunities may appear in public discovery or recommendation surfaces.
+- Only active, verified, non-expired, non-duplicate opportunities may appear in browse, search, feeds, or recommendations; existing detail links remain usable for saved work and history.
 - A canonical category is the API-owned classification; source/display category is a compatibility fallback only.
 - Do not merge or delete existing opportunity records in this slice; existing duplicate annotations remain reviewable by admins.
 - No database migration, new dependency, new route, or navigation redesign is required.
@@ -36,11 +36,11 @@
 - Modify `backend/services/services/api/src/opportunities/opportunity-static-snapshot.spec.ts`
 - Modify other visibility contract tests only if a public call path is uncovered
 
-**Interface:** Preserve existing helper names and response shapes. Add `duplicateOf` to typed visibility inputs and make `publicOpportunitySql`, `shareableOpportunitySql`, `publicOpportunityConditions`, `shareableOpportunityConditions`, and `isPublicOpportunityRow` reject non-null duplicate references.
+**Interface:** Preserve existing detail-visibility helpers and response shapes. Add discoverability helpers that require `duplicateOf` to be null, and use them in browse, search, feeds, recommendations, sitemaps, and static snapshot lists. Direct detail lookups keep the existing active/verified rule so old saved items and journeys remain accessible.
 
-- [x] Add an active, verified row with `duplicate_of` set to the existing approved row in the PGlite fixture. Assert it is absent from learner catalog, `/v1` catalog, search/detail and recommendation lookups.
+- [x] Add an active, verified row with `duplicate_of` set to the existing approved row in the PGlite fixture. Assert it is absent from browse/search/recommendation results while its existing direct detail remains available.
 - [x] Run `npm test -- --runInBand src/opportunities/opportunity-catalog.visibility.spec.ts src/opportunities/opportunity-static-snapshot.spec.ts` in `backend/services/services/api/` and confirm the duplicate row makes the new assertions fail.
-- [x] Implement the null-duplicate predicate in raw SQL, Drizzle, and snapshot helpers without changing existing status, verification, or expiry rules.
+- [x] Implement the null-duplicate predicate in discovery SQL, Drizzle, and snapshot list helpers without changing detail access, status, verification, or expiry rules.
 - [x] Re-run the focused visibility suite and related opportunity catalog tests.
 - [x] Commit as `fix(api): hide annotated duplicate opportunities`.
 
@@ -56,7 +56,7 @@
 - [x] Run `npm run test -- src/test/__tests__/opportunitiesCache.test.ts` in `edutu-web-app/` and confirm the new case fails.
 - [x] Implement canonical-first selection while preserving generic-category omission and existing fallback behavior.
 - [x] Re-run the focused web test and `npm run typecheck`.
-- [ ] Commit as `fix(web): prefer canonical opportunity categories`.
+- [x] Commit as `fix(web): prefer canonical opportunity categories`.
 
 ### Task 3: Verify catalog presentation and release boundary
 

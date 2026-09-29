@@ -34,11 +34,13 @@ import {
   withOpportunityUrlAliases,
 } from "./opportunity-static-snapshot";
 import {
+  discoverableOpportunityConditions,
+  discoverableOpportunitySql,
+  isDiscoverableOpportunityRow,
   isPublicOpportunityRow,
   PUBLIC_OPPORTUNITY_STATUS,
   PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
   publicOpportunityConditions,
-  publicOpportunitySql,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
 
@@ -353,7 +355,9 @@ export class OpportunitiesService {
             .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
           if (excludeExpired) {
-            request = request.or(`close_date.gte.${today},close_date.is.null`);
+            request = request
+              .is("duplicate_of", null)
+              .or(`close_date.gte.${today},close_date.is.null`);
           }
 
           if (statusFilter === PUBLIC_OPPORTUNITY_STATUS) {
@@ -384,7 +388,7 @@ export class OpportunitiesService {
 
         const conditions = [
           statusFilter === PUBLIC_OPPORTUNITY_STATUS
-            ? publicOpportunityConditions(opportunities)
+            ? discoverableOpportunityConditions(opportunities)
             : eq(opportunities.status, statusFilter),
         ];
         if (category) {
@@ -464,6 +468,7 @@ export class OpportunitiesService {
             .eq("status", PUBLIC_OPPORTUNITY_STATUS)
             .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
             .eq("is_featured", true)
+            .is("duplicate_of", null)
             .or(`close_date.gte.${today},close_date.is.null`)
             // Soonest real deadline first; rolling (null) items sort last so a
             // spotlight the user can still act on leads the rail.
@@ -484,7 +489,7 @@ export class OpportunitiesService {
           .from(opportunities)
           .where(
             and(
-              publicOpportunityConditions(opportunities),
+              discoverableOpportunityConditions(opportunities),
               eq(opportunities.isFeatured, true),
               or(
                 isNull(opportunities.closeDate),
@@ -544,7 +549,7 @@ export class OpportunitiesService {
       : null;
 
     const activeFilter = sql`
-      ${publicOpportunitySql("o")}
+      ${discoverableOpportunitySql("o")}
       and (o.close_date is null or o.close_date >= current_date)
       ${category ? sql`and o.category = ${category}` : sql``}
     `;
@@ -657,7 +662,7 @@ export class OpportunitiesService {
       const result = await db.execute(sql`
         select o.*
         from opportunities o
-        where ${publicOpportunitySql("o")}
+        where ${discoverableOpportunitySql("o")}
           and (o.close_date is null or o.close_date >= current_date)
           ${category ? sql`and o.category = ${category}` : sql``}
           and (
@@ -739,6 +744,7 @@ export class OpportunitiesService {
             .select("id,updated_at,created_at")
             .eq("status", PUBLIC_OPPORTUNITY_STATUS)
             .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
+            .is("duplicate_of", null)
             .order("updated_at", { ascending: false, nullsFirst: false })
             .range(offset, to);
 
@@ -774,7 +780,7 @@ export class OpportunitiesService {
           createdAt: opportunities.createdAt,
         })
         .from(opportunities)
-        .where(publicOpportunityConditions(opportunities))
+        .where(discoverableOpportunityConditions(opportunities))
         .orderBy(desc(opportunities.updatedAt))
         .limit(cappedMax)
         .execute();
@@ -792,7 +798,7 @@ export class OpportunitiesService {
 
     const snapshotRows = await loadStaticOpportunitySnapshot();
     return snapshotRows
-      .filter((row) => isPublicOpportunityRow(row, "snapshot"))
+      .filter((row) => isDiscoverableOpportunityRow(row, "snapshot"))
       .map((row) => ({
         id: String(row.id),
         updatedAt:
