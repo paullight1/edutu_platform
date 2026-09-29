@@ -131,22 +131,22 @@ export default function NextStepCard(props: NextStepCardProps) {
           </p>
         ) : null}
       </div>
-      <div className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-[18px] border border-subtle bg-surface-elevated p-4 dark:bg-surface-layer sm:gap-5 sm:p-5">
+      <div className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-[18px] border border-brand/15 bg-surface-brand p-4 dark:border-subtle dark:bg-surface-layer sm:gap-5 sm:p-5">
         {recommendationArtwork ? (
           <>
             <img
               src={recommendationArtwork}
               alt=""
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.24] dark:opacity-[0.16]"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-105 object-cover object-[70%_center] opacity-[0.18] blur-[2px] dark:scale-100 dark:opacity-[0.16] dark:blur-none"
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface-elevated via-surface-elevated/90 to-surface-elevated/70 dark:from-surface-layer dark:via-surface-layer/90 dark:to-surface-layer/75"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface-brand via-surface-brand/95 to-surface-brand/82 dark:from-surface-layer dark:via-surface-layer/90 dark:to-surface-layer/75"
             />
           </>
         ) : null}
-        <div className="relative z-10 min-w-0 flex-1">
+        <div className="relative z-10 min-w-0 flex-1 pr-10 sm:pr-0">
           {state === "error" || !home ? (
             <>
               <h2 className="mt-1 text-base font-semibold text-text-primary">
@@ -224,6 +224,14 @@ export default function NextStepCard(props: NextStepCardProps) {
             </>
           )}
         </div>
+        {state === "ready" && home ? (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-brand/15 bg-surface-layer/80 text-brand sm:hidden"
+          >
+            <ArrowRight size={17} />
+          </span>
+        ) : null}
         {state === "ready" && home ? (
           <button
             type="button"
