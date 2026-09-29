@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edutu guidance home — concept</title>
+  <style>
+    :root{color-scheme:light;--ink:#0f172a;--muted:#58677e;--line:#dce6f0;--blue:#2563eb;--cyan:#0891b2;--wash:#f5f9fd;--paper:#fff}
+    *{box-sizing:border-box}body{margin:0;background:var(--wash);color:var(--ink);font-family:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}
+    button,a{font:inherit}a{color:inherit;text-decoration:none}button{cursor:pointer}
+    .demo{background:#e9f5ff;border-bottom:1px solid #c7e2f4;color:#184361;font-size:12px;font-weight:650;text-align:center;padding:8px 12px}
+    .shell{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:calc(100dvh - 35px)}
+    aside{background:#fff;border-right:1px solid var(--line);padding:27px 16px;display:flex;flex-direction:column;gap:32px}
+    .brand{display:flex;align-items:center;gap:10px;padding:0 14px;font-family:Outfit,ui-sans-serif,system-ui,sans-serif;font-size:25px;font-weight:750;letter-spacing:-.055em}
+    .mark{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:linear-gradient(145deg,#2c70f4,#05a8ca);color:white;font-size:17px;letter-spacing:0}
+    .nav{display:grid;gap:5px}.nav a{display:flex;align-items:center;gap:12px;border-radius:12px;padding:11px 14px;color:#55647a;font-size:14px;font-weight:620}.nav a.active{background:#eaf2ff;color:#174db0}.nav .glyph{width:21px;text-align:center;font-size:18px;font-weight:500}
+    .side-note{margin-top:auto;border-top:1px solid var(--line);padding:17px 13px 0;color:#6d7b90;font-size:12px;line-height:1.55}
+    main{min-width:0}.top{height:75px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.75);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,4vw,60px)}
+    .top small{color:var(--muted);font-size:13px}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#d9edff;color:#235394;font-weight:750}
+    .content{max-width:1150px;margin:0 auto;padding:43px clamp(20px,4vw,60px) 100px}
+    .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#57728d;font-weight:750}.heading{font-family:Outfit,ui-sans-serif,system-ui,sans-serif;letter-spacing:-.045em;font-size:clamp(30px,3vw,42px);line-height:1.1;margin:8px 0}.intro{color:var(--muted);font-size:15px;margin:0 0 28px}
+    .layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,.85fr);gap:20px;align-items:start}
+    .hero{border-radius:22px;background:#123879;color:#fff;padding:30px;position:relative;overflow:hidden;min-height:320px}
+    .hero:after{content:"";position:absolute;right:-90px;top:-130px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,#49b6d977,transparent 68%);pointer-events:none}
+    .hero>*{position:relative;z-index:1}.hero .eyebrow{color:#a5d9ff}.hero h2{font-family:Outfit,ui-sans-serif,system-ui,sans-serif;font-weight:650;letter-spacing:-.035em;line-height:1.13;font-size:clamp(25px,3vw,35px);max-width:590px;margin:20px 0 10px}.hero p{color:#cfe5ff;max-width:570px;font-size:14px;line-height:1.6;margin:0}
+    .context{display:flex;gap:16px;flex-wrap:wrap;margin:25px 0}.context span{font-size:12px;color:#d4e8ff}.context b{color:#fff;font-weight:700}
+    .action{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:46px;border-radius:11px;background:#fff;color:#123879;border:0;padding:0 17px;font-weight:750;font-size:14px}.action .arrow{font-size:18px}
+    .secondary{display:inline-flex;align-items:center;min-height:42px;color:#d9edff;margin-left:12px;font-size:13px;font-weight:650}
+    .panel{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px}
+    .panel h3,.section-title{font-family:Outfit,ui-sans-serif,system-ui,sans-serif;font-size:18px;letter-spacing:-.025em;margin:0 0 9px}.panel p{color:var(--muted);font-size:13px;line-height:1.6;margin:0}.progress{height:7px;background:#e6edf6;border-radius:99px;overflow:hidden;margin:17px 0 8px}.progress span{display:block;width:40%;height:100%;background:#1c76d2}.progress-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#677891}.progress-row b{color:#2563eb}
+    .step-list{margin:18px 0 0;padding:16px 0 0;border-top:1px solid var(--line);list-style:none;display:grid;gap:15px}.step-list li{display:flex;gap:10px;font-size:13px;color:#45556d}.step-list li::before{content:"";width:16px;height:16px;border:1.5px solid #bac9db;border-radius:50%;flex:none}.step-list li.done::before{content:"✓";display:grid;place-items:center;background:#e5f5ef;border-color:#32a67e;color:#16805e;font-size:11px;font-weight:800}
+    .below{margin-top:34px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:13px}.text-link{color:#1c61ba;font-size:13px;font-weight:720;white-space:nowrap}
+    .recs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.rec{background:#fff;border:1px solid var(--line);border-radius:17px;padding:18px;min-width:0}.rec .kind{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.07em;color:#5980ad}.rec h4{font-family:Outfit,ui-sans-serif,system-ui,sans-serif;letter-spacing:-.02em;font-size:17px;line-height:1.25;margin:11px 0 7px}.rec .org{font-size:12px;color:var(--muted);margin:0}.rec .reason{font-size:13px;color:#30445e;margin:17px 0 12px;line-height:1.45}.rec .meta{font-size:11px;color:#718099;border-top:1px solid var(--line);padding-top:11px}.rec a{display:inline-block;margin-top:15px;color:#1d5db6;font-weight:750;font-size:13px}
+    .footer-note{margin-top:25px;color:#77869a;font-size:12px}.mobile-nav{display:none}
+    :focus-visible{outline:3px solid #45a7eb;outline-offset:3px}
+    @media(max-width:980px){.shell{grid-template-columns:80px 1fr}.brand{font-size:0;justify-content:center;padding:0}.nav a{justify-content:center;padding:11px}.nav a span:last-child,.side-note{display:none}.layout{grid-template-columns:1fr}.recs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:650px){.shell{display:block}aside{display:none}.top{height:56px;padding:0 18px}.content{padding:25px 16px 95px}.heading{font-size:31px}.intro{font-size:14px;margin-bottom:20px}.layout{gap:12px}.hero{padding:23px 20px;min-height:0;border-radius:18px}.hero h2{font-size:26px;margin:17px 0 9px}.context{margin:20px 0;gap:9px 16px}.secondary{margin-left:0;display:block;margin-top:10px}.panel{padding:19px;border-radius:17px}.recs{grid-template-columns:1fr}.section-head{align-items:start}.mobile-nav{display:flex;position:fixed;z-index:5;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom));justify-content:space-around}.mobile-nav a{display:grid;gap:2px;text-align:center;font-size:11px;color:#65758b;min-width:54px}.mobile-nav a b{font-size:19px;font-weight:500}.mobile-nav a.active{color:var(--blue)}}
+  </style>
+</head>
+<body>
+  <div class="demo">CONCEPT ONLY · Sample person and opportunity data · No live account or backend connection</div>
+  <div class="shell">
+    <aside aria-label="Main navigation">
+      <div class="brand"><span class="mark">e</span>edutu</div>
+      <nav class="nav">
+        <a class="active" href="#home"><span class="glyph">⌂</span><span>Home</span></a>
+        <a href="#path"><span class="glyph">◎</span><span>My Path</span></a>
+        <a href="#explore"><span class="glyph">◇</span><span>Explore</span></a>
+        <a href="#community"><span class="glyph">♧</span><span>Community</span></a>
+        <a href="#account"><span class="glyph">○</span><span>Account</span></a>
+      </nav>
+      <div class="side-note">Your plan is yours to change.<br>Advice should explain its reasons.</div>
+    </aside>
+    <main id="home">
+      <header class="top"><small>Monday, 28 September</small><div class="avatar" aria-label="Sample profile, Ada">A</div></header>
+      <div class="content">
+        <div class="eyebrow">Your direction</div>
+        <h1 class="heading">Good morning, Ada.</h1>
+        <p class="intro">You’re working toward a funded master’s in data science. Here’s the useful next step.</p>
+        <div class="layout">
+          <section class="hero" aria-labelledby="next-step-title">
+            <div class="eyebrow">Your next step</div>
+            <h2 id="next-step-title">Request your academic transcript</h2>
+            <p>It is required for the scholarship you’re preparing, and it can take time to obtain. Starting now keeps the application path open.</p>
+            <div class="context"><span><b>For</b> Graduate scholarship pursuit</span><span><b>Target</b> This week</span></div>
+            <a class="action" href="#path">Continue my plan <span class="arrow" aria-hidden="true">→</span></a>
+            <a class="secondary" href="#why">Why this step?</a>
+          </section>
+          <section class="panel" id="path" aria-labelledby="progress-title">
+            <h3 id="progress-title">Your active path</h3>
+            <p>One primary pursuit. The next required task is ready when you are.</p>
+            <div class="progress" role="progressbar" aria-label="Required steps completed" aria-valuenow="2" aria-valuemin="0" aria-valuemax="5"><span></span></div>
+            <div class="progress-row"><span>2 of 5 required steps done</span><b>40%</b></div>
+            <ul class="step-list">
+              <li class="done">Confirm the official eligibility rules</li>
+              <li class="done">Choose the target program</li>
+              <li>Request your transcript</li>
+              <li>Contact two referees</li>
+            </ul>
+          </section>
+        </div>
+        <section class="below" id="explore" aria-labelledby="explore-title">
+          <div class="section-head"><div><h3 class="section-title" id="explore-title">Worth considering next</h3><p>Three options related to your goal. Check official details before applying.</p></div><a class="text-link" href="#explore">Explore all →</a></div>
+          <div class="recs">
+            <article class="rec"><div class="kind">Scholarship · likely eligible</div><h4>Data Science Graduate Award</h4><p class="org">Sample University</p><p class="reason">Matches your study goal. Your nationality requirement still needs confirmation.</p><div class="meta">Deadline: 16 Nov · Source checked: sample</div><a href="#why">Review fit and requirements →</a></article>
+            <article class="rec"><div class="kind">Fellowship · eligibility unclear</div><h4>Applied AI Research Fellowship</h4><p class="org">Example Institute</p><p class="reason">Relevant to your field. We need your graduation year to assess eligibility.</p><div class="meta">Deadline: 4 Dec · Source checked: sample</div><a href="#why">Check missing fact →</a></article>
+            <article class="rec"><div class="kind">Preparation · no deadline</div><h4>Build a data project</h4><p class="org">Goal preparation</p><p class="reason">One portfolio example could strengthen later applications and interviews.</p><div class="meta">Estimated time: 6–8 hours · Example step</div><a href="#path">Add to my path →</a></article>
+          </div>
+        </section>
+        <p class="footer-note" id="why">Illustrative copy and sample items. Production advice must use verified sources, real user facts, and editable goals.</p>
+      </div>
+    </main>
+  </div>
+  <nav class="mobile-nav" aria-label="Mobile navigation"><a class="active" href="#home"><b>⌂</b>Home</a><a href="#path"><b>◎</b>Plan</a><a href="#explore"><b>◇</b>Explore</a><a href="#community"><b>☷</b>More</a></nav>
+</body>
+</html>

@@ -417,7 +417,19 @@
         "required": "Required",
         "optional": "Optional",
         "completed": "Completed",
-        "markComplete": "Mark complete"
+        "markComplete": "Mark complete",
+        "openApplication": "Open application",
+        "confirmSubmitted": "I submitted this application",
+        "recordOutcome": "Record an application outcome",
+        "updatedElsewhere": "This plan changed in another session. We refreshed it; review the current step and try again.",
+        "updateFailed": "We could not save that update. Your plan has been refreshed; try again.",
+        "outcomes": {
+            "offer": "Offer",
+            "rejected": "Not selected",
+            "withdrawn": "Withdrawn",
+            "no_response": "No response",
+            "expired": "Expired"
+        }
     },
     "saved": {
         "title": "Saved Opportunities",

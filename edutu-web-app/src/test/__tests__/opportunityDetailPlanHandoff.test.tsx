@@ -24,6 +24,10 @@ vi.mock("../../components/ui/ToastProvider", () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
+vi.mock("../../hooks/useAnalytics", () => ({
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
+}));
+
 function LocationProbe() {
   const location = useLocation();
   return <output data-testid="pathname">{location.pathname}</output>;

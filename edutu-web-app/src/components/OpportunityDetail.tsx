@@ -23,6 +23,7 @@ import ImageWithFallback from "./ImageWithFallback";
 import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
 import TrustSignal from "./opportunity/TrustSignal";
 import { useToast } from "./ui/ToastProvider";
+import { useAnalytics } from "../hooks/useAnalytics";
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -321,6 +322,7 @@ export default function OpportunityDetail({
   const { userId, getToken } = useAuth();
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
+  const { trackEvent } = useAnalytics();
 
   const handleAddToPlan = async () => {
     if (planAdded) {
@@ -350,6 +352,7 @@ export default function OpportunityDetail({
       const journey = await createOpportunityJourney(opportunity.id, token);
       setPlanJourneyId(journey.journey.id);
       setPlanAdded(true);
+      trackEvent("journey_started", { journeyId: journey.journey.id, opportunityId: opportunity.id });
       success("Added to My Plan — your next steps are ready.");
     } catch (error) {
       showError(

@@ -728,7 +728,7 @@ export default function PersonalizationScreen() {
   return (
     <OnboardingFlow
       presentation="page"
-      onComplete={() => navigate("/dashboard", { replace: true })}
+      onComplete={() => navigate("/dashboard?focus=next-step", { replace: true })}
       onDismiss={() => navigate("/dashboard", { replace: true })}
     />
   );

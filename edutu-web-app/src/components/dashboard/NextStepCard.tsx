@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { OpportunityHomeView } from "../../services/opportunityHome";
 
 export interface NextStepCardProps {
+  id?: string;
   home: OpportunityHomeView | null;
   state: "loading" | "ready" | "error";
   onContinuePlan: (journeyId: string) => void;
@@ -76,11 +77,14 @@ export default function NextStepCard(props: NextStepCardProps) {
     onExplore,
     onEditPreferences,
     onRetry,
+    id,
   } = props;
 
   if (state === "loading")
     return (
       <section
+        id={id}
+        tabIndex={-1}
         aria-label={t("guidanceHome.loading")}
         aria-busy="true"
         className="flex min-h-[112px] items-center gap-4 rounded-2xl border border-subtle bg-surface-layer p-4 sm:min-h-[124px] sm:p-5"
@@ -117,7 +121,7 @@ export default function NextStepCard(props: NextStepCardProps) {
   ) : null;
 
   return (
-    <section className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-2xl border border-subtle bg-surface-layer p-4 sm:gap-5 sm:p-5">
+    <section id={id} tabIndex={-1} className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-2xl border border-subtle bg-surface-layer p-4 sm:gap-5 sm:p-5">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">
           {t("guidanceHome.eyebrow")}

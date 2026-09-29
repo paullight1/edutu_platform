@@ -37,12 +37,50 @@ export interface OpportunityJourneyView {
     status: "pending" | "in_progress" | "completed" | "skipped";
     required: boolean;
   }>;
-  nextAction: { label: string; dueAt: string | null };
+  nextAction: {
+    key: "activate" | "continue_task" | "open_application" | "confirm_application" | "update_outcome" | "review_learning";
+    label: string;
+    taskId: string | null;
+    dueAt: string | null;
+  };
   progress: {
     completedRequired: number;
     totalRequired: number;
     percent: number;
   };
+}
+
+export type OpportunityOutcome = "offer" | "rejected" | "withdrawn" | "no_response" | "expired";
+
+function mutationIdentity(expectedVersion: number) {
+  return { expectedVersion, idempotencyKey: `web-plan-${crypto.randomUUID()}` };
+}
+
+async function postJourneyMutation(
+  journeyId: string,
+  route: "application-opened" | "application-confirmed" | "outcome",
+  expectedVersion: number,
+  token: string,
+  extra: Record<string, string> = {},
+): Promise<OpportunityJourneyView> {
+  const body = { ...mutationIdentity(expectedVersion), ...extra };
+  return productApiRequest<OpportunityJourneyView>(
+    `/me/opportunity-journeys/${encodeURIComponent(journeyId)}/${route}`,
+    token,
+    { method: "POST", headers: { "Idempotency-Key": body.idempotencyKey }, body: JSON.stringify(body) },
+  );
+}
+
+export function markApplicationOpened(journeyId: string, expectedVersion: number, token: string) {
+  return postJourneyMutation(journeyId, "application-opened", expectedVersion, token);
+}
+
+export function confirmApplication(journeyId: string, expectedVersion: number, token: string) {
+  return postJourneyMutation(journeyId, "application-confirmed", expectedVersion, token);
+}
+
+export function recordJourneyOutcome(journeyId: string, expectedVersion: number, outcome: OpportunityOutcome, token: string) {
+  return postJourneyMutation(journeyId, "outcome", expectedVersion, token, { outcome });
 }
 
 export async function listOpportunityJourneys(

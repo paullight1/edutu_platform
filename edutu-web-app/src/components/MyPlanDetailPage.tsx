@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, Check, Circle, Loader2 } from "lucide-react";
+import { CalendarDays, Check, Circle, ExternalLink, Loader2 } from "lucide-react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
+import { useAnalytics } from "../hooks/useAnalytics";
 import ImageWithFallback from "./ImageWithFallback";
 import { StateView, useScreenState } from "./state";
 import {
   getOpportunityJourney,
+  confirmApplication,
+  markApplicationOpened,
+  recordJourneyOutcome,
   updateJourneyTask,
+  type OpportunityOutcome,
   type OpportunityJourneyView,
 } from "../services/opportunityJourneys";
 
@@ -33,6 +38,9 @@ export default function MyPlanDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [savingTask, setSavingTask] = useState<string | null>(null);
+  const [savingLifecycle, setSavingLifecycle] = useState(false);
+  const [mutationMessage, setMutationMessage] = useState<string | null>(null);
+  const { trackEvent } = useAnalytics();
 
   const loadJourney = useCallback(async () => {
     if (!user?.id || !id) return;
@@ -61,14 +69,44 @@ export default function MyPlanDetailPage() {
     try {
       const token = await getToken();
       if (!token) throw new Error(t("myPlan.signInToUpdate"));
-      setItem(await updateJourneyTask(item.journey.id, taskId, {
+      const task = item.tasks.find((candidate) => candidate.id === taskId);
+      const updated = await updateJourneyTask(item.journey.id, taskId, {
         expectedVersion: item.journey.version,
         status: completed ? "pending" : "completed",
-      }, token));
+      }, token);
+      setItem(updated);
+      if (task?.required && !completed) trackEvent("required_task_completed", { journeyId: item.journey.id, taskId });
     } catch (caught) {
-      setError(caught);
+      setMutationMessage(caught instanceof Error && /conflict|version|changed/i.test(caught.message)
+        ? t("myPlan.updatedElsewhere")
+        : t("myPlan.updateFailed"));
+      void loadJourney();
     } finally {
       setSavingTask(null);
+    }
+  };
+
+  const mutateLifecycle = async (action: "opened" | "confirmed" | OpportunityOutcome) => {
+    if (!item || savingLifecycle) return;
+    setSavingLifecycle(true);
+    setMutationMessage(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error(t("myPlan.signInToUpdate"));
+      const updated = action === "opened"
+        ? await markApplicationOpened(item.journey.id, item.journey.version, token)
+        : action === "confirmed"
+          ? await confirmApplication(item.journey.id, item.journey.version, token)
+          : await recordJourneyOutcome(item.journey.id, item.journey.version, action, token);
+      setItem(updated);
+      if (action === "opened") trackEvent("application_opened", { journeyId: item.journey.id, opportunityId: item.journey.opportunityId });
+      if (action === "confirmed") trackEvent("application_submitted_self_reported", { journeyId: item.journey.id, opportunityId: item.journey.opportunityId });
+      if (action !== "opened" && action !== "confirmed") trackEvent("outcome_recorded", { journeyId: item.journey.id, outcome: action });
+    } catch (caught) {
+      setMutationMessage(caught instanceof Error && /conflict|version|changed/i.test(caught.message) ? t("myPlan.updatedElsewhere") : t("myPlan.updateFailed"));
+      void loadJourney();
+    } finally {
+      setSavingLifecycle(false);
     }
   };
 
@@ -89,6 +127,12 @@ export default function MyPlanDetailPage() {
   );
   const imageFallback = stringValue(item.opportunity.imageFallback, "");
   const category = stringValue(item.opportunity.category, "Opportunity");
+  const rawApplicationUrl = stringValue(item.opportunity.applyUrl, stringValue(item.opportunity.apply_url, ""));
+  let applicationUrl: string | null = null;
+  try {
+    const parsed = new URL(rawApplicationUrl);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") applicationUrl = parsed.href;
+  } catch { /* An absent or malformed URL does not block the preparation plan. */ }
 
   return (
     <main className="min-h-[100dvh] bg-surface-body px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-10">
@@ -129,6 +173,23 @@ export default function MyPlanDetailPage() {
             })}
           </div>
         </section>
+
+        {mutationMessage ? <p role="status" className="mt-4 rounded-xl bg-surface-layer px-4 py-3 text-sm text-text-secondary">{mutationMessage}</p> : null}
+        {item.nextAction.key === "open_application" && applicationUrl ? (
+          <a href={applicationUrl} target="_blank" rel="noopener noreferrer" onClick={() => void mutateLifecycle("opened")} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+            {t("myPlan.openApplication")} <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        ) : null}
+        {item.nextAction.key === "confirm_application" ? (
+          <button type="button" disabled={savingLifecycle} onClick={() => void mutateLifecycle("confirmed")} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60">
+            {savingLifecycle ? <Loader2 size={16} className="animate-spin" /> : null}{t("myPlan.confirmSubmitted")}
+          </button>
+        ) : null}
+        {item.nextAction.key === "update_outcome" ? (
+          <div className="mt-5 flex flex-wrap gap-2" aria-label={t("myPlan.recordOutcome")}>
+            {(["offer", "rejected", "withdrawn", "no_response", "expired"] as OpportunityOutcome[]).map((outcome) => <button key={outcome} type="button" disabled={savingLifecycle} onClick={() => void mutateLifecycle(outcome)} className="min-h-10 rounded-xl border border-subtle bg-surface-layer px-3 text-sm font-medium text-text-primary disabled:opacity-60">{t(`myPlan.outcomes.${outcome}`)}</button>)}
+          </div>
+        ) : null}
       </div>
     </main>
   );

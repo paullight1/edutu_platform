@@ -27,9 +27,10 @@ import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
 import { usePersonalization } from "../hooks/usePersonalization";
+import { useAnalytics } from "../hooks/useAnalytics";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { usePWA } from "../hooks/usePWA";
 import { useToast } from "./ui/ToastProvider";
@@ -274,6 +275,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const { setBlockingNotice } = useWorkspaceNotice();
     const toast = useToast();
     const routerNavigate = useNavigate();
+    const location = useLocation();
+    const { trackEvent } = useAnalytics();
     const {
       preferences: personalizationPreferences,
       personalizeFeed,
@@ -321,6 +324,60 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         active = false;
       };
     }, [getToken, guidanceHomeEnabled, opportunityHomeRefresh, user?.id]);
+
+    useEffect(() => {
+      if (guidanceHomeEnabled && user?.id && opportunityHomeState !== "loading") {
+        trackEvent("guidance_home_viewed", {
+          state: opportunityHomeState,
+          hasActivePursuit: Boolean(opportunityHome?.featuredPursuitId),
+          hasRecommendation: Boolean(opportunityHome?.recommendations.length),
+        });
+      }
+    }, [
+      guidanceHomeEnabled,
+      opportunityHome?.featuredPursuitId,
+      opportunityHome?.recommendations.length,
+      opportunityHomeState,
+      trackEvent,
+      user?.id,
+    ]);
+
+    useEffect(() => {
+      const params = new URLSearchParams(location.search);
+      if (params.get("focus") !== "next-step") return;
+      if (
+        guidanceHomeEnabled &&
+        user?.id &&
+        opportunityHomeState === "loading"
+      ) {
+        return;
+      }
+
+      const target = document.getElementById("guidance-next-step");
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView?.({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "center",
+        });
+      }
+
+      params.delete("focus");
+      const remaining = params.toString();
+      routerNavigate(
+        `${location.pathname}${remaining ? `?${remaining}` : ""}${location.hash}`,
+        { replace: true },
+      );
+    }, [
+      guidanceHomeEnabled,
+      location.hash,
+      location.pathname,
+      location.search,
+      opportunityHomeState,
+      prefersReducedMotion,
+      routerNavigate,
+      user?.id,
+    ]);
 
     const isOppBookmarked = useCallback(
       (opportunityId: string) =>
@@ -1258,16 +1315,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           <main className="min-w-0 px-0 py-5 space-y-6">
             {guidanceHomeEnabled && user?.id ? (
               <NextStepCard
+                id="guidance-next-step"
                 home={opportunityHome}
                 state={opportunityHomeState}
-                onContinuePlan={(journeyId) =>
-                  routerNavigate(`/app/my-plan/${encodeURIComponent(journeyId)}`)
-                }
-                onViewOpportunity={(opportunityId) =>
-                  onOpportunityClick({ id: opportunityId })
-                }
-                onExplore={onViewAllOpportunities}
-                onEditPreferences={() => routerNavigate("/app/personalization")}
+                onContinuePlan={(journeyId) => {
+                  trackEvent("guidance_continue_plan", { journeyId });
+                  routerNavigate(`/app/my-plan/${encodeURIComponent(journeyId)}`);
+                }}
+                onViewOpportunity={(opportunityId) => {
+                  trackEvent("guidance_view_recommendation", { opportunityId });
+                  onOpportunityClick({ id: opportunityId });
+                }}
+                onExplore={() => {
+                  trackEvent("guidance_explore_clicked");
+                  onViewAllOpportunities();
+                }}
+                onEditPreferences={() => {
+                  trackEvent("guidance_edit_preferences");
+                  routerNavigate("/app/personalization");
+                }}
                 onRetry={() => setOpportunityHomeRefresh((value) => value + 1)}
               />
             ) : null}
