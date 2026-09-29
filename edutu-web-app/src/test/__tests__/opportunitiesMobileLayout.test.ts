@@ -18,12 +18,12 @@ describe("mobile opportunity layout", () => {
     expect(archive).toContain("sticky top-[calc(4rem+env(safe-area-inset-top))]");
   });
 
-  it("uses compact two-column cards for mobile opportunity results", () => {
+  it("uses a single-column opportunity feed on mobile and a grid at larger widths", () => {
     const archive = componentSource("OpportunitiesPageLegacy.tsx");
 
     expect(archive).toContain("mobile-opportunity-results-grid");
     expect(archive).toContain("mobile-opportunity-result-card");
-    expect(archive).toContain("grid-cols-2 gap-3");
+    expect(archive).toContain("grid-cols-1 gap-3 sm:grid-cols-2");
     expect(archive).toContain("mobile-opportunity-result-media");
   });
 

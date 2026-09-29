@@ -1293,7 +1293,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     return (
       <div
-        className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
+        className={`dashboard-screen min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
@@ -1307,7 +1307,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         />
 
         {/* Background Mesh Gradient */}
-        <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
+        <div className="fixed inset-0 pointer-events-none opacity-10 dark:opacity-20 mesh-gradient" />
 
         <AnimatePresence>
           {activePanel && (

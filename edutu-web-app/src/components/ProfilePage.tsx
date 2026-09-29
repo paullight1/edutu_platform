@@ -509,7 +509,7 @@ export default function ProfilePage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5">
+          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-5">
               <div className="flex items-center gap-3">
                   <div className="flex items-center gap-3">
                   {clerkUser?.imageUrl ? (
@@ -546,7 +546,7 @@ export default function ProfilePage() {
           <ProfileQuickStats stats={profileStats} />
 
           {recentActivity.length > 0 && (
-            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft">
+            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="rounded-xl bg-warning/10 p-2 text-warning">
@@ -673,7 +673,7 @@ export default function ProfilePage() {
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
               onSubmit={saveProfile}
-              className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-6"
+              className="rounded-[20px] border border-subtle bg-surface-layer p-5 sm:p-6"
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
@@ -1022,7 +1022,7 @@ export default function ProfilePage() {
             </form>
 
             <aside className="space-y-5">
-              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3 shadow-soft">
+              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3">
                 <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
                   Account
                 </p>
@@ -1078,7 +1078,7 @@ export default function ProfilePage() {
               </div>
 
               <div
-                className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
+                className="rounded-[20px] border border-subtle bg-surface-layer p-5"
               >
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles size={17} />
@@ -1105,7 +1105,7 @@ export default function ProfilePage() {
 
               {skills.length > 0 ? (
                 <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
+                  className="rounded-[20px] border border-subtle bg-surface-layer p-5"
                 >
                   <p className="text-sm font-semibold">Skill tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">

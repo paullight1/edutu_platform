@@ -94,7 +94,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
 
   return (
     <div
-      className="group relative w-full overflow-hidden rounded-[18px] bg-[#06152f] shadow-[0_18px_45px_-28px_rgba(6,21,47,0.9)]"
+      className="group relative w-full overflow-hidden rounded-[18px] bg-[#06152f]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -164,7 +164,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
             setCurrent((index) => (index + 1) % banners.length);
             setIsPaused(false);
           }}
-          className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-[#06152f]/55 text-white shadow-[0_8px_24px_rgba(6,21,47,0.28)] backdrop-blur-md transition hover:translate-x-0.5 hover:bg-[#06152f]/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 sm:right-4 sm:h-11 sm:w-11"
+          className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-[#06152f]/65 text-white backdrop-blur-md transition hover:translate-x-0.5 hover:bg-[#06152f]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 sm:right-4 sm:h-11 sm:w-11"
           aria-label="Next promotion"
         >
           <ChevronRight size={20} strokeWidth={2.25} aria-hidden="true" />

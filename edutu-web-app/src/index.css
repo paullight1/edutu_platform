@@ -661,6 +661,13 @@ button:focus-visible {
       );
   }
 
+  /* The dashboard already has clear borders and color cues. Keep light-mode
+     surfaces flat so nested cards do not stack heavy shadows; preserve dark
+     mode elevation and keyboard focus rings. */
+  :root:not(.dark) .dashboard-screen [class*="shadow-"]:not(:focus-visible) {
+    box-shadow: none !important;
+  }
+
   /* Landing hero in dark mode: near-solid deep navy — drop the colored mesh
      blobs so only the faint top brand glow remains (leaves Dashboard/Bento mesh untouched). */
   .dark .landing-hero .mesh-gradient {

@@ -131,18 +131,18 @@ export default function NextStepCard(props: NextStepCardProps) {
           </p>
         ) : null}
       </div>
-      <div className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-[18px] border border-subtle bg-surface-layer p-4 sm:gap-5 sm:p-5">
+      <div className="relative flex min-h-[124px] items-center gap-3 overflow-hidden rounded-[18px] border border-subtle bg-surface-elevated p-4 dark:bg-surface-layer sm:gap-5 sm:p-5">
         {recommendationArtwork ? (
           <>
             <img
               src={recommendationArtwork}
               alt=""
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.16]"
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.24] dark:opacity-[0.16]"
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface-layer via-surface-layer/90 to-surface-layer/75"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface-elevated via-surface-elevated/90 to-surface-elevated/70 dark:from-surface-layer dark:via-surface-layer/90 dark:to-surface-layer/75"
             />
           </>
         ) : null}
