@@ -18,8 +18,8 @@
 
 ## Tasks
 
-1. Add focused tests for a dismiss control on carousel cards and no dismiss control on other card variants.
-2. Wire a per-user dismissed set into the dashboard's home opportunity projection, loaded from existing local storage.
-3. Add an accessible dismiss affordance to carousel cards and open the existing reason picker.
-4. On reason selection, persist the dismissal, queue the existing backend signal, update the home feed immediately, and show a brief confirmation.
-5. Verify focused UI tests, web typecheck, lint, production build, and `git diff --check`; commit and push as `feat(web): collect feedback on home recommendations`.
+1. [x] Add focused tests for a dismiss control on carousel cards and no dismiss control on other card variants.
+2. [x] Wire a per-user dismissed set into the dashboard's home opportunity projection, loaded from existing local storage.
+3. [x] Add an accessible dismiss affordance to carousel cards and open the existing reason picker.
+4. [x] On reason selection, persist the dismissal, queue the existing backend signal, update the home feed immediately, and show a brief confirmation.
+5. [x] Verify focused UI tests, web typecheck, lint, production build, and `git diff --check`; commit and push as `feat(web): collect feedback on home recommendations`.

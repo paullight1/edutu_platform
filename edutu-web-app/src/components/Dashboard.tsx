@@ -56,6 +56,11 @@ import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
+import {
+  dismissOpportunity,
+  getDismissedOpportunityIds,
+} from "../services/dismissedOpportunities";
+import type { DismissReason } from "../services/opportunitySignals";
 import DashboardOpportunityCard from "./dashboard/DashboardOpportunityCard";
 import BannerCarousel, {
   DEFAULT_BANNERS,
@@ -73,6 +78,7 @@ import {
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
 import NextStepCard from "./dashboard/NextStepCard";
+import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
 // picks per visit, with "View all" as the way deeper into the catalogue.
@@ -292,6 +298,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
+    const [dismissedOpportunityIds, setDismissedOpportunityIds] = useState<
+      string[]
+    >([]);
+    const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
     const [opportunityHome, setOpportunityHome] =
       useState<OpportunityHomeView | null>(null);
     const [opportunityHomeState, setOpportunityHomeState] = useState<
@@ -300,6 +310,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [opportunityHomeRefresh, setOpportunityHomeRefresh] = useState(0);
     const guidanceHomeEnabled =
       import.meta.env.VITE_GUIDANCE_HOME_ENABLED !== "false";
+
+    useEffect(() => {
+      setDismissedOpportunityIds(getDismissedOpportunityIds(user?.id));
+    }, [user?.id]);
 
     useEffect(() => {
       if (!guidanceHomeEnabled || !user?.id) {
@@ -389,6 +403,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           (b) => b.opportunity_id === opportunityId,
         ),
       [bookmarks],
+    );
+
+    const handleDismissRecommendation = useCallback(
+      (reason: DismissReason) => {
+        const target = dismissTarget;
+        setDismissTarget(null);
+        if (!target || !user?.id) return;
+
+        dismissOpportunity(user.id, target.id, getToken, "web_home", reason);
+        setDismissedOpportunityIds((previous) =>
+          previous.includes(target.id) ? previous : [...previous, target.id],
+        );
+        trackEvent("opportunity_recommendation_dismissed", {
+          opportunityId: target.id,
+          reason,
+          surface: "web_home",
+        });
+        toast.success("Recommendation removed", "Thanks. We’ll adjust your matches.");
+      },
+      [dismissTarget, getToken, toast, trackEvent, user?.id],
     );
 
     const handleToggleBookmark = useCallback(
@@ -770,21 +804,34 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .filter(Boolean);
     }, [opportunityFeed]);
 
+    const dismissedOpportunitySet = useMemo(
+      () => new Set(dismissedOpportunityIds),
+      [dismissedOpportunityIds],
+    );
+    const availableOpportunityFeed = useMemo(
+      () =>
+        normalizedOpportunityFeed.filter(
+          (opportunity: Opportunity) =>
+            opportunity?.id && !dismissedOpportunitySet.has(opportunity.id),
+        ),
+      [dismissedOpportunitySet, normalizedOpportunityFeed],
+    );
+
     const selectedDiscoveryCategory =
       DISCOVERY_CATEGORIES.find(
         (category) => category.id === activeDiscoveryCategory,
       ) ?? null;
 
     const filteredOpportunityFeed = useMemo(() => {
-      if (!selectedDiscoveryCategory) return normalizedOpportunityFeed;
+      if (!selectedDiscoveryCategory) return availableOpportunityFeed;
 
-      return normalizedOpportunityFeed.filter((opportunity: Opportunity) =>
+      return availableOpportunityFeed.filter((opportunity: Opportunity) =>
         opportunityMatchesDiscoveryCategory(
           opportunity,
           selectedDiscoveryCategory,
         ),
       );
-    }, [normalizedOpportunityFeed, selectedDiscoveryCategory]);
+    }, [availableOpportunityFeed, selectedDiscoveryCategory]);
 
     // Rank by personalization score; only same-score tiers rotate between
     // visits so relevance survives while the feed still feels fresh.
@@ -800,7 +847,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     // Deliberately tiny: the product promise is narrowing, not more scrolling.
     const bestShots = useMemo(() => {
       if (!user?.id || !isPersonalized) return [];
-      return normalizedOpportunityFeed
+      return availableOpportunityFeed
         .filter((opportunity: Opportunity) => !isOpportunityExpired(opportunity))
         .map((opportunity: Opportunity) => ({
           opportunity,
@@ -809,7 +856,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .filter((item) => item.match.score >= 60)
         .sort((a, b) => b.match.score - a.match.score)
         .slice(0, 3);
-    }, [explainOpportunity, isPersonalized, normalizedOpportunityFeed, user?.id]);
+    }, [availableOpportunityFeed, explainOpportunity, isPersonalized, user?.id]);
 
     const visibleHomeOpportunities = useMemo(
       () => shuffledOpportunityFeed.slice(0, HOME_FEED_SIZE),
@@ -821,7 +868,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     // a filtered empty rather than "you have no recommendations" — a
     // distinction the primitive this replaces could not express.
     const feedState = useScreenState({
-      data: normalizedOpportunityFeed,
+      data: availableOpportunityFeed,
       error: opportunityFeedError,
       filtersActive: Boolean(selectedDiscoveryCategory),
     });
@@ -1252,6 +1299,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           open={showProfileCompletionPrompt}
           onComplete={completeProfileOnboarding}
           onDismiss={dismissProfileCompletionPrompt}
+        />
+        <DismissReasonDialog
+          open={dismissTarget !== null}
+          onSelect={handleDismissRecommendation}
+          onClose={() => setDismissTarget(null)}
         />
 
         {/* Background Mesh Gradient */}
@@ -1783,6 +1835,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   isBookmarked={isOppBookmarked(opportunity.id)}
                                   isDarkMode={isDarkMode}
                                   onOpen={handleOpenOpportunity}
+                                  onDismiss={
+                                    user?.id && isPersonalized
+                                      ? (target) => setDismissTarget(target)
+                                      : undefined
+                                  }
                                   onToggleBookmark={handleToggleBookmark}
                                   onShare={handleShareOpportunity}
                                 />
