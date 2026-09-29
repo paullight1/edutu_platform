@@ -14,5 +14,7 @@ describe("PlanWorkspaceHeader", () => {
 
     expect(screen.getByRole("navigation", { name: "Plan workspace" })).toBeInTheDocument();
     expect(screen.getByText("Intentional workspace")).toHaveClass("hidden", "sm:inline-flex");
+    expect(screen.getByRole("button", { name: "Calendar" })).toHaveClass("text-brand");
+    expect(screen.getByRole("button", { name: "My Plan" })).toHaveClass("text-text-secondary");
   });
 });

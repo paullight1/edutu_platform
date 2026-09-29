@@ -53,7 +53,7 @@ export default function PlanWorkspaceHeader({
             type="button"
             onClick={() => navigate(item.route)}
             aria-current={activeSection === item.key ? "page" : undefined}
-            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-1 text-sm font-semibold transition ${activeSection === item.key ? "border-brand text-text-primary" : "border-transparent text-text-secondary hover:border-brand/30 hover:text-brand"}`}
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-1 text-sm font-semibold transition ${activeSection === item.key ? "border-brand text-brand" : "border-transparent text-text-secondary hover:border-brand/30 hover:text-brand"}`}
           >
             <item.Icon size={15} strokeWidth={activeSection === item.key ? 2.1 : 1.8} aria-hidden="true" />
             {t(item.translationKey)}
