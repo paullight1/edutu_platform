@@ -28,19 +28,19 @@ export default function TrustSignal({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${className}`}
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] leading-4 ${className}`}
     >
       {verified ? (
         <span
           className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400"
           title="Edutu re-checks this opportunity's live page and deadline."
         >
-          <BadgeCheck size={14} /> Verified
+          <BadgeCheck size={11} /> Verified
         </span>
       ) : null}
       {checkedAgo ? (
         <span className="inline-flex items-center gap-1 text-text-muted">
-          <Clock size={12} /> Checked {checkedAgo}
+          <Clock size={10} /> Checked {checkedAgo}
         </span>
       ) : null}
       {confidenceNote ? (
@@ -48,7 +48,7 @@ export default function TrustSignal({
           className="inline-flex items-center gap-1 text-text-muted"
           title={confidenceNote.title}
         >
-          <Info size={12} /> {confidenceNote.label}
+          <Info size={10} /> {confidenceNote.label}
         </span>
       ) : null}
     </div>
