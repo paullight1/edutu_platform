@@ -470,5 +470,24 @@
         "completeness": {
             "banner": "Complete your profile to unlock personalized recommendations and better opportunities."
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "Your next step",
+        "loading": "Loading your next step",
+        "unavailableTitle": "Your next step is temporarily unavailable",
+        "unavailableBody": "You can still explore opportunities while we reconnect.",
+        "retry": "Try again",
+        "explore": "Explore opportunities",
+        "forOpportunity": "For {{title}}",
+        "dueDate": "Due {{date}}",
+        "continuePlan": "Continue plan",
+        "editPreferences": "Edit preferences",
+        "viewOpportunity": "View opportunity",
+        "noRecommendationTitle": "Find an opportunity to work toward",
+        "noRecommendationBody": "Your matches will appear here when we find a useful next step.",
+        "limitedBody": "Recommendations are limited right now. Browse current opportunities instead.",
+        "checkEligibility": "Check the requirements before you decide.",
+        "yourOpportunity": "your opportunity",
+        "basedOnProfile": "Based on your profile"
     }
 }

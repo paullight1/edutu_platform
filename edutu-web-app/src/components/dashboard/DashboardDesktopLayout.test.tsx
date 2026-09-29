@@ -96,6 +96,18 @@ vi.mock("../../services/webConfig", () => ({
   fetchHeroBanners: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("../../services/opportunityHome", () => ({
+  getOpportunityHome: vi.fn().mockResolvedValue({
+    intent: null,
+    featuredPursuitId: null,
+    nextAction: null,
+    activePursuits: [],
+    recommendations: [],
+    degraded: false,
+    degradedReasons: [],
+  }),
+}));
+
 vi.mock("../../services/bookmarks", () => ({
   addBookmark: vi.fn(),
   getBookmarks: vi.fn().mockResolvedValue([]),

@@ -282,5 +282,24 @@
         "completeness": {
             "banner": "Vervollständige dein Profil, um personalisierte Empfehlungen und bessere Möglichkeiten freizuschalten."
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "Dein nächster Schritt",
+        "loading": "Dein nächster Schritt wird geladen",
+        "unavailableTitle": "Dein nächster Schritt ist vorübergehend nicht verfügbar",
+        "unavailableBody": "Du kannst in der Zwischenzeit Angebote entdecken.",
+        "retry": "Erneut versuchen",
+        "explore": "Angebote entdecken",
+        "forOpportunity": "Für {{title}}",
+        "dueDate": "Fällig am {{date}}",
+        "continuePlan": "Plan fortsetzen",
+        "editPreferences": "Einstellungen bearbeiten",
+        "viewOpportunity": "Angebot ansehen",
+        "noRecommendationTitle": "Finde ein passendes Angebot",
+        "noRecommendationBody": "Hier erscheinen passende Angebote, sobald wir einen hilfreichen nächsten Schritt finden.",
+        "limitedBody": "Empfehlungen sind derzeit eingeschränkt. Entdecke stattdessen aktuelle Angebote.",
+        "checkEligibility": "Prüfe die Voraussetzungen, bevor du dich entscheidest.",
+        "yourOpportunity": "dein Angebot",
+        "basedOnProfile": "Basierend auf deinem Profil"
     }
 }

@@ -46,6 +46,8 @@ import { getApplications, type ApplicationRecord } from "../services/application
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import { fetchHeroBanners } from "../services/webConfig";
+import { getOpportunityHome, type OpportunityHomeView } from "../services/opportunityHome";
+import { getProductApiToken } from "../lib/clerkToken";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import type { Opportunity } from "../types/opportunity";
 import { isOpportunityExpired } from "../services/opportunities";
@@ -70,6 +72,7 @@ import {
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
 import DashboardUpdatePopup from "./DashboardUpdatePopup";
+import NextStepCard from "./dashboard/NextStepCard";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
 // picks per visit, with "View all" as the way deeper into the catalogue.
@@ -282,6 +285,42 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
+    const [opportunityHome, setOpportunityHome] =
+      useState<OpportunityHomeView | null>(null);
+    const [opportunityHomeState, setOpportunityHomeState] = useState<
+      "loading" | "ready" | "error"
+    >("loading");
+    const [opportunityHomeRefresh, setOpportunityHomeRefresh] = useState(0);
+    const guidanceHomeEnabled =
+      import.meta.env.VITE_GUIDANCE_HOME_ENABLED !== "false";
+
+    useEffect(() => {
+      if (!guidanceHomeEnabled || !user?.id) {
+        setOpportunityHome(null);
+        return;
+      }
+
+      let active = true;
+      setOpportunityHomeState("loading");
+      void (async () => {
+        try {
+          const token = await getProductApiToken(getToken);
+          if (!token) throw new Error("Sign in to load your next step.");
+          const result = await getOpportunityHome(token);
+          if (!active) return;
+          setOpportunityHome(result);
+          setOpportunityHomeState("ready");
+        } catch {
+          if (!active) return;
+          setOpportunityHome(null);
+          setOpportunityHomeState("error");
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [getToken, guidanceHomeEnabled, opportunityHomeRefresh, user?.id]);
 
     const isOppBookmarked = useCallback(
       (opportunityId: string) =>
@@ -1217,6 +1256,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
         >
           <main className="min-w-0 px-0 py-5 space-y-6">
+            {guidanceHomeEnabled && user?.id ? (
+              <NextStepCard
+                home={opportunityHome}
+                state={opportunityHomeState}
+                onContinuePlan={(journeyId) =>
+                  routerNavigate(`/app/my-plan/${encodeURIComponent(journeyId)}`)
+                }
+                onViewOpportunity={(opportunityId) =>
+                  onOpportunityClick({ id: opportunityId })
+                }
+                onExplore={onViewAllOpportunities}
+                onEditPreferences={() => routerNavigate("/app/personalization")}
+                onRetry={() => setOpportunityHomeRefresh((value) => value + 1)}
+              />
+            ) : null}
             <motion.section
               initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}

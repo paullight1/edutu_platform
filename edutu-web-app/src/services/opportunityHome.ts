@@ -64,7 +64,8 @@ const opportunityHomeSchema = z.object({
 });
 
 export type OpportunityHomeView = z.infer<typeof opportunityHomeSchema>;
-export type OpportunityHomePursuit = OpportunityHomeView["activePursuits"][number];
+export type OpportunityHomePursuit =
+  OpportunityHomeView["activePursuits"][number];
 export type OpportunityHomeRecommendation =
   OpportunityHomeView["recommendations"][number];
 

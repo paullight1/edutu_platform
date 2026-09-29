@@ -282,5 +282,24 @@
         "completeness": {
             "banner": "Completa tu perfil para desbloquear recomendaciones personalizadas y mejores oportunidades."
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "Tu siguiente paso",
+        "loading": "Cargando tu siguiente paso",
+        "unavailableTitle": "Tu siguiente paso no está disponible temporalmente",
+        "unavailableBody": "Mientras tanto, puedes explorar oportunidades.",
+        "retry": "Intentar de nuevo",
+        "explore": "Explorar oportunidades",
+        "forOpportunity": "Para {{title}}",
+        "dueDate": "Fecha límite: {{date}}",
+        "continuePlan": "Continuar plan",
+        "editPreferences": "Editar preferencias",
+        "viewOpportunity": "Ver oportunidad",
+        "noRecommendationTitle": "Encuentra una oportunidad que perseguir",
+        "noRecommendationBody": "Tus coincidencias aparecerán aquí cuando encontremos un siguiente paso útil.",
+        "limitedBody": "Las recomendaciones están limitadas ahora. Explora las oportunidades actuales.",
+        "checkEligibility": "Revisa los requisitos antes de decidir.",
+        "yourOpportunity": "tu oportunidad",
+        "basedOnProfile": "Según tu perfil"
     }
 }
