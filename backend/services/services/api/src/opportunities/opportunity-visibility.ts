@@ -3,6 +3,7 @@ import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
 type OpportunityVisibilityColumns = {
   status: unknown;
   verificationStatus: unknown;
+  duplicateOf: unknown;
 };
 
 type ShareableOpportunityColumns = OpportunityVisibilityColumns & {
@@ -23,7 +24,7 @@ function assertSqlAlias(alias: string): string {
 export function publicOpportunitySql(alias = "o") {
   assertSqlAlias(alias);
   return sql.raw(
-    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}'`,
+    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}' and ${alias}.duplicate_of is null`,
   );
 }
 
@@ -31,7 +32,7 @@ export function publicOpportunitySql(alias = "o") {
 export function shareableOpportunitySql(alias = "o") {
   assertSqlAlias(alias);
   return sql.raw(
-    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}' and (${alias}.close_date is null or ${alias}.close_date >= current_date)`,
+    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}' and ${alias}.duplicate_of is null and (${alias}.close_date is null or ${alias}.close_date >= current_date)`,
   );
 }
 
@@ -45,6 +46,7 @@ export function publicOpportunityConditions(
       columns.verificationStatus as any,
       PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
     ),
+    isNull(columns.duplicateOf as any),
   )!;
 }
 
@@ -78,6 +80,9 @@ export function isPublicOpportunityRow(
   if (status !== PUBLIC_OPPORTUNITY_STATUS) return false;
 
   const verification = row.verification_status ?? row.verificationStatus;
+  const duplicateOf = row.duplicate_of ?? row.duplicateOf;
+  if (duplicateOf != null) return false;
+
   return (
     String(verification ?? "")
       .trim()

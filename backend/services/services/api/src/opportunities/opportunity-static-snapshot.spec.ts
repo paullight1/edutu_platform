@@ -151,4 +151,28 @@ describe("opportunity static snapshot helpers", () => {
       },
     ]);
   });
+
+  it("does not restore a verified row annotated as a duplicate from a snapshot", () => {
+    const rows = filterStaticOpportunityRows(
+      [
+        {
+          id: "primary",
+          status: "active",
+          verification_status: "verified",
+          duplicate_of: null,
+        },
+        {
+          id: "duplicate",
+          status: "active",
+          verification_status: "verified",
+          duplicate_of: "primary",
+        },
+      ],
+      10,
+      0,
+      "active",
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["primary"]);
+  });
 });

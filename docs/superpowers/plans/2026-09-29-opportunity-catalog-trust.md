@@ -38,10 +38,10 @@
 
 **Interface:** Preserve existing helper names and response shapes. Add `duplicateOf` to typed visibility inputs and make `publicOpportunitySql`, `shareableOpportunitySql`, `publicOpportunityConditions`, `shareableOpportunityConditions`, and `isPublicOpportunityRow` reject non-null duplicate references.
 
-- [ ] Add an active, verified row with `duplicate_of` set to the existing approved row in the PGlite fixture. Assert it is absent from learner catalog, `/v1` catalog, search/detail and recommendation lookups.
-- [ ] Run `npm test -- --runInBand src/opportunities/opportunity-catalog.visibility.spec.ts src/opportunities/opportunity-static-snapshot.spec.ts` in `backend/services/services/api/` and confirm the duplicate row makes the new assertions fail.
-- [ ] Implement the null-duplicate predicate in raw SQL, Drizzle, and snapshot helpers without changing existing status, verification, or expiry rules.
-- [ ] Re-run the focused visibility suite and related opportunity catalog tests.
+- [x] Add an active, verified row with `duplicate_of` set to the existing approved row in the PGlite fixture. Assert it is absent from learner catalog, `/v1` catalog, search/detail and recommendation lookups.
+- [x] Run `npm test -- --runInBand src/opportunities/opportunity-catalog.visibility.spec.ts src/opportunities/opportunity-static-snapshot.spec.ts` in `backend/services/services/api/` and confirm the duplicate row makes the new assertions fail.
+- [x] Implement the null-duplicate predicate in raw SQL, Drizzle, and snapshot helpers without changing existing status, verification, or expiry rules.
+- [x] Re-run the focused visibility suite and related opportunity catalog tests.
 - [ ] Commit as `fix(api): hide annotated duplicate opportunities`.
 
 ### Task 2: Prefer the canonical opportunity category in web cards
