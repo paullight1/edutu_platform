@@ -759,12 +759,14 @@ export class OpportunityJourneysService {
       | "outcome_rejected"
       | "outcome_withdrawn"
       | "outcome_ghosted";
-    await this.opportunitiesService.recordUserOpportunitySignal(userId, {
-      opportunityId: result.journey.opportunityId,
-      signalType,
-      source: "opportunity_pipeline",
-      details: { journeyId, outcome: input.outcome },
-    });
+    await this.opportunitiesService
+      .recordUserOpportunitySignal(userId, {
+        opportunityId: result.journey.opportunityId,
+        signalType,
+        source: "opportunity_pipeline",
+        details: { journeyId, outcome: input.outcome },
+      })
+      .catch(() => undefined);
     return result;
   }
 

@@ -400,6 +400,24 @@ describe("OpportunityJourneysService", () => {
       closedAt: expect.any(Date),
     });
   });
+
+  it("keeps a saved outcome successful when its recommendation signal fails", async () => {
+    const existing = journey({ state: "interview", version: 5 });
+    const { service, opportunitiesService } = createHarness({ existing });
+    opportunitiesService.recordUserOpportunitySignal.mockRejectedValue(
+      new Error("signal store unavailable"),
+    );
+
+    await expect(
+      service.recordOutcome(USER_ID, existing.id, {
+        outcome: "offer",
+        expectedVersion: 5,
+        idempotencyKey: "offer-outcome-signal-failure",
+      }),
+    ).resolves.toMatchObject({
+      journey: { state: "offer", outcome: "offer" },
+    });
+  });
 });
 
 describe("My Plan lifecycle safeguards", () => {
