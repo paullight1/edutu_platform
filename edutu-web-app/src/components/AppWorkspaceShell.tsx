@@ -636,40 +636,6 @@ export default function AppWorkspaceShell({
 
             <section>
               <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                {t("navigation.explore")}
-              </p>
-              <div className="grid gap-2.5">
-                {primaryWorkspaceNavItems.map((item) => {
-                  const Icon = workspaceNavIcons[item.icon];
-                  const active = isRouteActive(pathname, item.to, item.exact);
-                  const itemLabel = t(item.label);
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsMobileMoreOpen(false)}
-                      className={cn(
-                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-subtle bg-surface-layer p-3.5 text-left text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]",
-                      )}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600">
-                          <Icon size={19} />
-                        </span>
-                        <span className="truncate text-base font-semibold">
-                          {itemLabel}
-                        </span>
-                      </span>
-                      <ChevronRight size={16} className="text-text-muted" />
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="mt-5">
-              <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("workspace.section")}
               </p>
               <div className="grid gap-2.5">

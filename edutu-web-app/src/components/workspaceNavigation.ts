@@ -61,6 +61,9 @@ export const mobilePrimaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
   },
 ];
 
-export const mobileMoreWorkspaceNavItems = personalWorkspaceNavItems.filter(
-  (item) => item.to !== "/app/profile",
-);
+export const mobileMoreWorkspaceNavItems: WorkspaceNavItemConfig[] = [
+  { to: "/app/deadlines", label: "navigation.deadlines", icon: "deadlines" },
+  ...personalWorkspaceNavItems.filter(
+    (item) => item.to !== "/app/profile" && item.to !== "/app/my-plan",
+  ),
+];
