@@ -6,6 +6,7 @@ interface PaginationProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   className?: string;
+  compactMobile?: boolean;
   /**
    * When supplied, pagination is rendered as real anchors so crawlers and
    * no-JavaScript readers can reach every archive page. The callback still
@@ -65,6 +66,7 @@ const Pagination: React.FC<PaginationProps> = ({
   totalPages,
   onPageChange,
   className = "",
+  compactMobile = false,
   getPageHref,
 }) => {
   if (totalPages <= 1) return null;
@@ -72,6 +74,16 @@ const Pagination: React.FC<PaginationProps> = ({
   const items = getPageItems(page, totalPages);
   const previousPage = Math.max(1, page - 1);
   const nextPage = Math.min(totalPages, page + 1);
+
+  const compactPageControlClass = compactMobile
+    ? "h-10 w-10 text-xs sm:text-sm"
+    : "";
+  const compactPreviousClass = compactMobile
+    ? "h-10 w-10 justify-center gap-0 !px-0 text-xs sm:w-auto sm:gap-1 sm:!pl-3 sm:!pr-4 sm:text-sm"
+    : "";
+  const compactNextClass = compactMobile
+    ? "h-10 w-10 justify-center gap-0 !px-0 text-xs sm:w-auto sm:gap-1 sm:!pl-4 sm:!pr-3 sm:text-sm"
+    : "";
 
   const handleLinkClick = (
     event: MouseEvent<HTMLAnchorElement>,
@@ -85,18 +97,18 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <nav
       aria-label="Pagination"
-      className={`flex flex-wrap items-center justify-center gap-2 ${className}`}
+      className={`flex flex-wrap items-center justify-center ${compactMobile ? "gap-1 sm:gap-2" : "gap-2"} ${className}`}
     >
       {getPageHref && page > 1 ? (
         <a
           href={getPageHref(previousPage)}
           rel="prev"
           aria-label="Previous page"
-          className={previousClass}
+          className={`${previousClass} ${compactPreviousClass}`}
           onClick={(event) => handleLinkClick(event, previousPage)}
         >
           <ChevronLeft size={16} aria-hidden="true" />
-          Prev
+          <span className={compactMobile ? "hidden sm:inline" : undefined}>Prev</span>
         </a>
       ) : (
         <button
@@ -104,10 +116,10 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(previousPage)}
           disabled={page === 1}
           aria-label="Previous page"
-          className={previousClass}
+          className={`${previousClass} ${compactPreviousClass}`}
         >
           <ChevronLeft size={16} aria-hidden="true" />
-          Prev
+          <span className={compactMobile ? "hidden sm:inline" : undefined}>Prev</span>
         </button>
       )}
 
@@ -116,7 +128,7 @@ const Pagination: React.FC<PaginationProps> = ({
           <span
             key={`ellipsis-${index}`}
             aria-hidden="true"
-            className="flex h-10 w-10 items-center justify-center text-sm font-semibold text-text-muted"
+            className={`flex ${compactMobile ? "h-10 w-10 text-xs sm:text-sm" : "h-10 w-10 text-sm"} items-center justify-center font-semibold text-text-muted`}
           >
             …
           </span>
@@ -126,7 +138,7 @@ const Pagination: React.FC<PaginationProps> = ({
             href={getPageHref(item)}
             aria-label={`Page ${item}`}
             aria-current={item === page ? "page" : undefined}
-            className={item === page ? activePageClass : pageControlClass}
+            className={`${item === page ? activePageClass : pageControlClass} ${compactPageControlClass}`}
             onClick={(event) => handleLinkClick(event, item)}
           >
             {item}
@@ -138,7 +150,7 @@ const Pagination: React.FC<PaginationProps> = ({
             onClick={() => onPageChange(item)}
             aria-label={`Page ${item}`}
             aria-current={item === page ? "page" : undefined}
-            className={item === page ? activePageClass : pageControlClass}
+            className={`${item === page ? activePageClass : pageControlClass} ${compactPageControlClass}`}
           >
             {item}
           </button>
@@ -150,10 +162,10 @@ const Pagination: React.FC<PaginationProps> = ({
           href={getPageHref(nextPage)}
           rel="next"
           aria-label="Next page"
-          className={nextClass}
+          className={`${nextClass} ${compactNextClass}`}
           onClick={(event) => handleLinkClick(event, nextPage)}
         >
-          Next
+          <span className={compactMobile ? "hidden sm:inline" : undefined}>Next</span>
           <ChevronRight size={16} aria-hidden="true" />
         </a>
       ) : (
@@ -162,9 +174,9 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(nextPage)}
           disabled={page === totalPages}
           aria-label="Next page"
-          className={nextClass}
+          className={`${nextClass} ${compactNextClass}`}
         >
-          Next
+          <span className={compactMobile ? "hidden sm:inline" : undefined}>Next</span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       )}

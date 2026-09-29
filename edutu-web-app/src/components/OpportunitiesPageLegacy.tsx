@@ -1635,17 +1635,9 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           </section>
         ) : sortedOpportunities.length > 0 ? (
           <>
-            <div className="mt-5">
-              <p className="text-sm text-text-muted">
-                {t("opportunities.resultCount", {
-                  defaultValue: "{{count}} opportunities",
-                  count: sortedOpportunities.length,
-                })}
-              </p>
-            </div>
             <section
               ref={resultsRef}
-              className="mobile-opportunity-results-grid mt-3 grid scroll-mt-40 grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+              className="mobile-opportunity-results-grid mt-5 grid scroll-mt-40 grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
             >
               {visibleOpportunities.map((opportunity, index) => (
                 <ImpressionTracker
@@ -1676,8 +1668,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </ImpressionTracker>
               ))}
             </section>
-            <div className="mt-8 flex flex-col-reverse items-center gap-4 sm:flex-row sm:justify-between">
-              <label className="flex items-center gap-2 text-sm text-text-muted">
+            <div className="mt-4 flex flex-col-reverse items-center gap-2 sm:mt-8 sm:flex-row sm:justify-between sm:gap-4">
+              <label className="flex items-center gap-2 text-xs text-text-muted sm:text-sm">
                 <span className="shrink-0">
                   {t("opportunities.perPageLabel", { defaultValue: "Show" })}
                 </span>
@@ -1688,7 +1680,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                     aria-label={t("opportunities.perPage", {
                       defaultValue: "Results per page",
                     })}
-                    className="h-9 w-auto min-w-[7rem] pr-9 text-sm"
+                    className="h-8 w-auto min-w-[6.5rem] pr-8 text-xs sm:h-9 sm:min-w-[7rem] sm:pr-9 sm:text-sm"
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
                       <option key={size} value={size}>
@@ -1709,6 +1701,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 page={page}
                 totalPages={totalPages}
                 onPageChange={goToPage}
+                compactMobile
+                className="w-full sm:w-auto"
               />
             </div>
           </>
