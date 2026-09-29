@@ -204,7 +204,7 @@ describe("OpportunityJourneysRepository", () => {
     }
   });
 
-  it("orders stage rows by next action, then opportunity deadline", async () => {
+  it("orders the primary pursuit before secondary pursuits", async () => {
     const { client, repository } = await createRepository();
     try {
       const first = await repository.createOrReadJourney({
@@ -239,11 +239,45 @@ describe("OpportunityJourneysRepository", () => {
 
       const rows = await repository.listJourneysByStage(RAW_USER, "pursuing");
       expect(rows.map((row) => row.id)).toEqual([
-        second.id,
         first.id,
+        second.id,
         third.id,
       ]);
       expect(await repository.countActivePursuits(RAW_USER)).toBe(3);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("keeps next-action and deadline order when no pursuit is primary", async () => {
+    const { client, repository } = await createRepository();
+    try {
+      const laterAction = await repository.createOrReadJourney({
+        userId: RAW_USER,
+        opportunityId: OPPORTUNITY_ONE,
+        state: "pursuing",
+        priority: "secondary",
+        nextActionAt: new Date("2026-09-20T00:00:00Z"),
+        idempotencyKey: "secondary-order-1",
+        eventType: "journey_activated",
+        source: "backend",
+      });
+      const earlierAction = await repository.createOrReadJourney({
+        userId: RAW_USER,
+        opportunityId: OPPORTUNITY_TWO,
+        state: "preparing",
+        priority: "secondary",
+        nextActionAt: new Date("2026-09-10T00:00:00Z"),
+        idempotencyKey: "secondary-order-2",
+        eventType: "journey_activated",
+        source: "backend",
+      });
+
+      const rows = await repository.listJourneysByStage(RAW_USER, "pursuing");
+      expect(rows.map((row) => row.id)).toEqual([
+        earlierAction.id,
+        laterAction.id,
+      ]);
     } finally {
       await client.close();
     }

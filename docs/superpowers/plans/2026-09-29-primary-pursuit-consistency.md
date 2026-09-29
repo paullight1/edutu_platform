@@ -34,8 +34,8 @@
 
 **Interface:** Keep `listJourneysByStage(userId, stage)` unchanged. For `stage === "pursuing"`, order by priority (`primary` first), then retain the existing next-action/deadline/update tie-breakers. Other stages retain their existing ordering.
 
-- [ ] Update the repository test so a later-due primary pursuit is expected before an earlier-due secondary pursuit; keep secondary and no-primary ordering assertions.
-- [ ] Run `npm test -- --runInBand src/opportunity-journeys/opportunity-journeys.repository.spec.ts` and confirm it fails because the secondary currently sorts first.
-- [ ] Add the priority ordering only for the pursuing stage.
-- [ ] Re-run the focused repository test and opportunity-home service test; run API lint/build.
+- [x] Update the repository test so a later-due primary pursuit is expected before an earlier-due secondary pursuit; keep secondary and no-primary ordering assertions.
+- [x] Run `npm test -- --runInBand src/opportunity-journeys/opportunity-journeys.repository.spec.ts` and confirm it fails because the secondary currently sorts first.
+- [x] Add the priority ordering only for the pursuing stage.
+- [x] Re-run the focused repository test and opportunity-home service test; run API lint/build.
 - [ ] Commit as `fix(api): keep primary pursuit first in plan`.

@@ -608,6 +608,13 @@ export class OpportunityJourneysRepository {
         ),
       )
       .orderBy(
+        ...(stage === "pursuing"
+          ? [
+              asc(
+                sql`case when ${userOpportunityJourneys.priority} = 'primary' then 0 else 1 end`,
+              ),
+            ]
+          : []),
         asc(
           sql`coalesce(${userOpportunityJourneys.nextActionAt}, ${opportunities.deadline}, ${userOpportunityJourneys.updatedAt})`,
         ),
