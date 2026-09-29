@@ -38,4 +38,4 @@
 - [x] Run `npm test -- --runInBand src/opportunity-journeys/opportunity-journeys.repository.spec.ts` and confirm it fails because the secondary currently sorts first.
 - [x] Add the priority ordering only for the pursuing stage.
 - [x] Re-run the focused repository test and opportunity-home service test; run API lint/build.
-- [ ] Commit as `fix(api): keep primary pursuit first in plan`.
+- [x] Commit as `fix(api): keep primary pursuit first in plan`.
