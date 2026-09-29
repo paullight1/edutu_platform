@@ -32,6 +32,9 @@ const pursuitSchema = z.object({
 const recommendationSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
+  image: z.string().nullable().optional().catch(null),
+  imageUrl: z.string().nullable().optional().catch(null),
+  image_url: z.string().nullable().optional().catch(null),
   matchReasons: z.array(z.string()).catch([]),
   matchRisks: z.array(z.string()).catch([]),
   eligibilityStatus: z

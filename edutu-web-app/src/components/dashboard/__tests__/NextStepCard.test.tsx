@@ -39,6 +39,7 @@ const home = {
     {
       id: "opportunity-valid",
       title: "Future Leaders Award",
+      imageUrl: "https://cdn.example.test/future-leaders.jpg",
       matchReasons: ["Fits your study goal"],
       matchRisks: [],
       eligibilityStatus: "unclear",
@@ -80,6 +81,12 @@ describe("NextStepCard", () => {
     expect(screen.getByText("Request your transcript")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue plan" }));
     expect(onContinuePlan).toHaveBeenCalledWith("journey-primary");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Continue plan: North Star Scholarship",
+      }),
+    );
+    expect(onContinuePlan).toHaveBeenCalledTimes(2);
   });
 
   it("promotes a live recommendation and opens its existing opportunity detail", () => {
@@ -104,6 +111,12 @@ describe("NextStepCard", () => {
     expect(screen.queryByText("Expired Award")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View opportunity" }));
     expect(onViewOpportunity).toHaveBeenCalledWith("opportunity-valid");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "View opportunity: Future Leaders Award",
+      }),
+    );
+    expect(onViewOpportunity).toHaveBeenCalledTimes(2);
   });
 
   it("keeps an opportunity with a same-day deadline available", () => {
@@ -154,9 +167,10 @@ describe("NextStepCard", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Explore opportunities" }),
-    );
+    const exploreActions = screen.getAllByRole("button", {
+      name: "Explore opportunities",
+    });
+    fireEvent.click(exploreActions[exploreActions.length - 1]);
     expect(onExplore).toHaveBeenCalledOnce();
   });
 
@@ -185,9 +199,15 @@ describe("NextStepCard", () => {
 
   it("labels inferred intent and offers a preference correction", () => {
     const onEditPreferences = vi.fn();
-    renderCard(
+    const { container } = renderCard(
       <NextStepCard
-        home={{ ...home, intent: { source: "inferred" } }}
+        home={{
+          ...home,
+          intent: { source: "inferred" },
+          featuredPursuitId: null,
+          nextAction: null,
+          activePursuits: [],
+        }}
         state="ready"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
@@ -197,6 +217,11 @@ describe("NextStepCard", () => {
     );
 
     expect(screen.getByText("Based on your profile")).toBeInTheDocument();
+    expect(screen.queryByText("Fits your study goal")).not.toBeInTheDocument();
+    expect(container.querySelector('img[aria-hidden="true"]')).toHaveAttribute(
+      "src",
+      "https://cdn.example.test/future-leaders.jpg",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Edit preferences" }));
     expect(onEditPreferences).toHaveBeenCalledOnce();
   });

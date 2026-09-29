@@ -154,6 +154,21 @@ describe("Dashboard desktop priority layout", () => {
     window.sessionStorage.clear();
   });
 
+  it("does not repeat the My Plan announcement above the next-step card", async () => {
+    render(
+      <MemoryRouter>
+        <Dashboard
+          user={{ id: "user-1", name: "Ada Student" } as never}
+          onOpportunityClick={vi.fn()}
+          onViewAllOpportunities={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("region", { name: /recommended picks/i });
+    expect(screen.queryByRole("region", { name: /edutu update/i })).toBeNull();
+  });
+
   it("groups profile readiness and calendar while keeping recommendations unified", async () => {
     render(
       <MemoryRouter>

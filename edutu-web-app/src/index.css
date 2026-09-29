@@ -810,7 +810,7 @@ button:focus-visible {
      cards legible in both themes while giving image-led content one visual
      language across dashboard, discovery, saved, deadlines and My Plan. */
   .opportunity-cinematic-card {
-    border-radius: 20px;
+    border-radius: 18px;
     background-color: rgb(var(--surface-layer));
     background-image:
       radial-gradient(circle at 88% -8%, rgb(var(--color-brand-500) / 0.2), transparent 44%),

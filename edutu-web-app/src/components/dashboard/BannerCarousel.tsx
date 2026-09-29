@@ -94,7 +94,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
 
   return (
     <div
-      className="group relative w-full overflow-hidden rounded-[20px] bg-[#06152f] shadow-[0_18px_45px_-28px_rgba(6,21,47,0.9)]"
+      className="group relative w-full overflow-hidden rounded-[18px] bg-[#06152f] shadow-[0_18px_45px_-28px_rgba(6,21,47,0.9)]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}

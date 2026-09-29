@@ -130,7 +130,7 @@ export default function CalendarStrip({
   const hasDeadlines = sorted.some((event) => event.isDeadline);
 
   return (
-    <div className={compact ? "" : "rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft"}>
+    <div className={compact ? "" : "rounded-[18px] border border-subtle bg-surface-layer p-4 shadow-soft"}>
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
           <Calendar size={compact ? 15 : 17} className="text-brand" />

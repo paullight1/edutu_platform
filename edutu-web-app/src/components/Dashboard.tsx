@@ -72,7 +72,6 @@ import {
   shuffleOpportunityFeed,
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
-import DashboardUpdatePopup from "./DashboardUpdatePopup";
 import NextStepCard from "./dashboard/NextStepCard";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
@@ -93,6 +92,7 @@ type DiscoveryCategory = {
   title: string;
   image: string;
   icon: LucideIcon;
+  tint: string;
   keywords: string[];
 };
 
@@ -102,6 +102,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Scholarships",
     image: "/discovery/scholarships.png",
     icon: GraduationCap,
+    tint: "from-rose-600/45 via-red-700/30 to-amber-600/38",
     keywords: ["scholarship", "scholarships", "scholar", "scholars"],
   },
   {
@@ -109,6 +110,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Internships",
     image: "/discovery/internships.png",
     icon: Briefcase,
+    tint: "from-sky-600/45 via-blue-700/30 to-indigo-700/38",
     keywords: ["internship", "internships", "intern", "trainee"],
   },
   {
@@ -116,6 +118,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Programs",
     image: "/discovery/grants.png",
     icon: BadgeDollarSign,
+    tint: "from-emerald-600/45 via-teal-700/30 to-lime-600/38",
     keywords: [
       "program",
       "programs",
@@ -135,6 +138,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Fellowships",
     image: "/discovery/fellowships.png",
     icon: Users,
+    tint: "from-amber-600/45 via-orange-700/30 to-rose-700/38",
     keywords: ["fellowship", "fellowships", "fellow", "residency"],
   },
 ];
@@ -1244,7 +1248,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       <div
         className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
-        <DashboardUpdatePopup />
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
           onComplete={completeProfileOnboarding}
@@ -1366,7 +1369,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       key={category.id}
                       type="button"
                       onClick={() => handleDiscoveryCategoryClick(category)}
-                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[20px] border border-white/15 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
+                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/20 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
                         active
                           ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-body"
                           : "hover:-translate-y-0.5"
@@ -1377,14 +1380,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <img
                         src={category.image}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover opacity-65 transition duration-500 group-hover:scale-105"
+                        className="absolute inset-0 h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105"
                         aria-hidden="true"
                         loading="lazy"
                         decoding="async"
                       />
                       <div
-                        className={`absolute inset-0 transition ${
-                          active ? "bg-slate-950/25" : "bg-slate-950/45"
+                        className={`absolute inset-0 bg-gradient-to-r ${category.tint} transition ${
+                          active ? "brightness-110" : ""
                         }`}
                       />
                       <span
@@ -1416,7 +1419,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: 100 }}
                     transition={{ duration: 0.3 }}
-                    className="profile-completion-card relative overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px] lg:rounded-[24px]"
+                    className="profile-completion-card relative overflow-hidden rounded-[18px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px]"
                   >
                     <button
                       type="button"
@@ -1532,7 +1535,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     <button
                       type="button"
                       onClick={() => routerNavigate("/app/personalization")}
-                      className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 pr-12 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
+                      className="group flex w-full items-center gap-4 rounded-[18px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 pr-12 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
                     >
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                         <Sparkles size={19} />
@@ -1557,7 +1560,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               {showHomeScreenPrompt ? (
                 <section className="sm:hidden">
                   <div
-                    className={`relative overflow-hidden rounded-[24px] border border-subtle bg-white p-4 shadow-sm`}
+                    className={`relative overflow-hidden rounded-[18px] border border-subtle bg-white p-4 shadow-sm`}
                   >
                     <button
                       type="button"
@@ -1733,13 +1736,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl bg-surface-elevated`}
+                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-[18px] bg-surface-elevated`}
                           />
                         ))}
                       </div>
                     ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-subtle bg-white`}
+                        className={`rounded-[18px] border border-subtle bg-white`}
                       >
                         <StateView
                           state={feedState}
@@ -1749,7 +1752,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                     ) : mobilePersonalizedOpportunities.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-subtle bg-white`}
+                        className={`rounded-[18px] border border-subtle bg-white`}
                       >
                         <StateView
                           state={feedEmptyState}
@@ -1792,7 +1795,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   ? () => setActiveDiscoveryCategory(null)
                                   : onViewAllOpportunities
                               }
-                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
+                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[18px] border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
                             >
                               {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />
@@ -1810,7 +1813,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         Array.from({ length: 6 }).map((_, i) => (
                           <div
                             key={i}
-                            className="min-h-[244px] overflow-hidden rounded-[20px] animate-pulse"
+                            className="min-h-[244px] overflow-hidden rounded-[18px] animate-pulse"
                           >
                             <div
                               className={`h-32 bg-surface-elevated`}
@@ -1827,7 +1830,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
+                          className={`col-span-full rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedState}
@@ -1837,7 +1840,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
+                          className={`col-span-full rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedEmptyState}
@@ -1885,7 +1888,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   ) : (
                     <div
-                      className={`hidden overflow-hidden rounded-2xl border border-subtle bg-white sm:block`}
+                      className={`hidden overflow-hidden rounded-[18px] border border-subtle bg-white sm:block`}
                     >
                       {opportunitiesLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
@@ -1896,7 +1899,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-subtle bg-white`}
+                          className={`rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedState}
@@ -1906,7 +1909,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-subtle bg-white`}
+                          className={`rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedEmptyState}

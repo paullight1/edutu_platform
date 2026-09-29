@@ -542,10 +542,10 @@ export default function AppWorkspaceShell({
                   }
                   className={({ isActive }) =>
                     cn(
-                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-sm transition",
+                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
                       isActive
-                        ? "border-brand/40 bg-brand/10 text-brand"
-                        : "border-subtle bg-surface-layer text-text-secondary hover:bg-surface-elevated",
+                        ? "bg-brand/10 text-brand"
+                        : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
                     )
                   }
                 >
