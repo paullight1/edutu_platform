@@ -484,29 +484,24 @@ function pickCategory(
   row: BackendOpportunityRow,
   metadata: Record<string, unknown>,
 ): string {
-  // Returns "" when no real category exists so the UI can omit the chip
-  // instead of rendering a generic "General" label. Generic values like
-  // "general"/"other" are treated as unknown and replaced by the canonical
-  // classification when one exists.
-  const rawCategory = pickStringValue(
+  // Prefer the backend's canonical classification because legacy source
+  // display labels can be stale. Generic canonical values fall back to a
+  // useful legacy label, or omit the chip rather than showing "General".
+  const canonicalCategory = pickStringValue(
     "",
-    row.category,
     row.canonical_category,
+    row.canonicalCategory,
     metadata.canonical_category,
   );
 
-  if (/^(general|other)$/i.test(rawCategory)) {
-    const canonical = pickStringValue(
-      "",
-      row.canonical_category,
-      metadata.canonical_category,
-    );
-    return /^(general|other)$/i.test(canonical)
-      ? ""
-      : formatCategoryLabel(canonical);
+  if (canonicalCategory && !/^(general|other)$/i.test(canonicalCategory)) {
+    return formatCategoryLabel(canonicalCategory);
   }
 
-  return formatCategoryLabel(rawCategory);
+  const fallbackCategory = pickStringValue("", row.category);
+  return /^(general|other)$/i.test(fallbackCategory)
+    ? ""
+    : formatCategoryLabel(fallbackCategory);
 }
 
 function normaliseDifficulty(value: unknown): OpportunityDifficulty {

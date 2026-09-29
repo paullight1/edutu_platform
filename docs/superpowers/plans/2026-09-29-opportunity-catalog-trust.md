@@ -42,7 +42,7 @@
 - [x] Run `npm test -- --runInBand src/opportunities/opportunity-catalog.visibility.spec.ts src/opportunities/opportunity-static-snapshot.spec.ts` in `backend/services/services/api/` and confirm the duplicate row makes the new assertions fail.
 - [x] Implement the null-duplicate predicate in raw SQL, Drizzle, and snapshot helpers without changing existing status, verification, or expiry rules.
 - [x] Re-run the focused visibility suite and related opportunity catalog tests.
-- [ ] Commit as `fix(api): hide annotated duplicate opportunities`.
+- [x] Commit as `fix(api): hide annotated duplicate opportunities`.
 
 ### Task 2: Prefer the canonical opportunity category in web cards
 
@@ -52,16 +52,16 @@
 
 **Interface:** Keep `Opportunity.category` as the same display string. In `pickCategory`, use a non-generic `canonical_category` or metadata classification before legacy `category`; when canonical data is missing or `other`, retain the current useful fallback behavior.
 
-- [ ] Add a normalization case with stale `category: "Scholarships"` and `canonical_category: "internships"`; assert the normalized card says `Internships`.
-- [ ] Run `npm run test -- src/test/__tests__/opportunitiesCache.test.ts` in `edutu-web-app/` and confirm the new case fails.
-- [ ] Implement canonical-first selection while preserving generic-category omission and existing fallback behavior.
-- [ ] Re-run the focused web test and `npm run typecheck`.
+- [x] Add a normalization case with stale `category: "Scholarships"` and `canonical_category: "internships"`; assert the normalized card says `Internships`.
+- [x] Run `npm run test -- src/test/__tests__/opportunitiesCache.test.ts` in `edutu-web-app/` and confirm the new case fails.
+- [x] Implement canonical-first selection while preserving generic-category omission and existing fallback behavior.
+- [x] Re-run the focused web test and `npm run typecheck`.
 - [ ] Commit as `fix(web): prefer canonical opportunity categories`.
 
 ### Task 3: Verify catalog presentation and release boundary
 
 **Files:** No additional product files unless verification finds a concrete regression.
 
-- [ ] Run the focused backend visibility tests and web category tests together with web typecheck.
-- [ ] Verify `git diff --check`, inspect each commit, and confirm no generated sitemap or unrelated workspace files changed.
-- [ ] Do not run a production database cleanup or change existing records in this slice; report any live data repair as a separate, reviewable operation.
+- [x] Run the focused backend visibility tests and web category tests together with web typecheck.
+- [x] Verify `git diff --check`, inspect each commit, and confirm no generated sitemap or unrelated workspace files changed.
+- [x] Do not run a production database cleanup or change existing records in this slice; report any live data repair as a separate, reviewable operation.
