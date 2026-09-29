@@ -29,11 +29,18 @@ export class OpportunityHomeService {
       this.journeysService.listJourneys(userId, "pursuing"),
       this.shortlistService.getShortlist(userId, recommendationLimit),
     ]);
+    const featuredPursuit =
+      activePursuits.find(
+        (pursuit) => pursuit.journey.priority === "primary",
+      ) ??
+      activePursuits[0] ??
+      null;
 
     return {
       generatedAt: new Date().toISOString(),
       intent,
-      nextAction: activePursuits[0]?.nextAction ?? null,
+      featuredPursuitId: featuredPursuit?.journey.id ?? null,
+      nextAction: featuredPursuit?.nextAction ?? null,
       activePursuits: activePursuits.slice(0, 3),
       recommendations: shortlist.recommendations,
       recommendationBatchId: shortlist.batchId ?? null,

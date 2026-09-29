@@ -51,6 +51,10 @@ vi.mock("../../hooks/useDarkMode", () => ({
   useDarkMode: () => ({ isDarkMode: true }),
 }));
 
+vi.mock("../../hooks/useAnalytics", () => ({
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
+}));
+
 vi.mock("../../hooks/useOpportunities", () => ({
   useOpportunities: () => ({
     data: [opportunity],
@@ -96,6 +100,18 @@ vi.mock("../../services/webConfig", () => ({
   fetchHeroBanners: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("../../services/opportunityHome", () => ({
+  getOpportunityHome: vi.fn().mockResolvedValue({
+    intent: null,
+    featuredPursuitId: null,
+    nextAction: null,
+    activePursuits: [],
+    recommendations: [],
+    degraded: false,
+    degradedReasons: [],
+  }),
+}));
+
 vi.mock("../../services/bookmarks", () => ({
   addBookmark: vi.fn(),
   getBookmarks: vi.fn().mockResolvedValue([]),
@@ -138,6 +154,21 @@ describe("Dashboard desktop priority layout", () => {
     window.sessionStorage.clear();
   });
 
+  it("does not repeat the My Plan announcement above the next-step card", async () => {
+    render(
+      <MemoryRouter>
+        <Dashboard
+          user={{ id: "user-1", name: "Ada Student" } as never}
+          onOpportunityClick={vi.fn()}
+          onViewAllOpportunities={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("region", { name: /recommended picks/i });
+    expect(screen.queryByRole("region", { name: /edutu update/i })).toBeNull();
+  });
+
   it("groups profile readiness and calendar while keeping recommendations unified", async () => {
     render(
       <MemoryRouter>
@@ -163,7 +194,9 @@ describe("Dashboard desktop priority layout", () => {
         name: /calendar and upcoming/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /recommended picks/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /recommended picks/i }),
+    ).toBeInTheDocument();
   });
 
   it("places the desktop promotion after the recommended opportunity cards", async () => {
@@ -215,5 +248,42 @@ describe("Dashboard desktop priority layout", () => {
         name: /view and organize recommendations/i,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("focuses the next-step card when onboarding returns with the focus marker", async () => {
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={["/dashboard?focus=next-step"]}>
+          <Dashboard
+            user={{ id: "user-1", name: "Ada Student" } as never}
+            onOpportunityClick={vi.fn()}
+            onViewAllOpportunities={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        const card = document.getElementById("guidance-next-step");
+        expect(card).not.toBeNull();
+        expect(document.activeElement).toBe(card);
+      });
+      expect(scrollIntoView).toHaveBeenCalledOnce();
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+      }
+    }
   });
 });

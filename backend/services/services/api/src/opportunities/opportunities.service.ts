@@ -11,7 +11,18 @@ import { opportunities } from "../db/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { eq, or, and, sql, lt, gte, isNull, desc, inArray } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
@@ -34,11 +45,13 @@ import {
   withOpportunityUrlAliases,
 } from "./opportunity-static-snapshot";
 import {
+  discoverableOpportunityConditions,
+  discoverableOpportunitySql,
+  isDiscoverableOpportunityRow,
   isPublicOpportunityRow,
   PUBLIC_OPPORTUNITY_STATUS,
   PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
   publicOpportunityConditions,
-  publicOpportunitySql,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
 
@@ -50,6 +63,7 @@ import {
 import {
   categorizeOpportunity,
   classifyOpportunity,
+  normalizeCategory,
   type OpportunityCanonicalCategory,
 } from "./opportunity-categorization";
 // Note: Apify scraper disabled - using crawl4ai instead
@@ -333,6 +347,7 @@ export class OpportunitiesService {
     category?: string,
   ) {
     const statusFilter = status || "active";
+    const canonicalCategory = category ? normalizeCategory(category) : null;
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
     const cacheKey = `${OPPS_CACHE_PREFIX}list:${statusFilter}:${category || ""}:${cappedLimit}:${normalizedOffset}`;
@@ -344,7 +359,10 @@ export class OpportunitiesService {
 
     const run = async () => {
       try {
-        if (this.supabase) {
+        // Canonical category matching needs an OR over legacy fields. Keep
+        // that parameterized in Drizzle rather than interpolating user input
+        // into PostgREST's raw OR syntax.
+        if (this.supabase && !canonicalCategory) {
           let request = this.supabase
             .from("opportunities")
             .select("*")
@@ -353,7 +371,9 @@ export class OpportunitiesService {
             .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
           if (excludeExpired) {
-            request = request.or(`close_date.gte.${today},close_date.is.null`);
+            request = request
+              .is("duplicate_of", null)
+              .or(`close_date.gte.${today},close_date.is.null`);
           }
 
           if (statusFilter === PUBLIC_OPPORTUNITY_STATUS) {
@@ -384,11 +404,31 @@ export class OpportunitiesService {
 
         const conditions = [
           statusFilter === PUBLIC_OPPORTUNITY_STATUS
-            ? publicOpportunityConditions(opportunities)
+            ? discoverableOpportunityConditions(opportunities)
             : eq(opportunities.status, statusFilter),
         ];
         if (category) {
-          conditions.push(eq(opportunities.category, category));
+          if (canonicalCategory) {
+            const legacyCategoryLabel = canonicalCategory.replaceAll("_", " ");
+            const canonicalMatches = ilike(
+              opportunities.canonicalCategory,
+              canonicalCategory,
+            );
+            const legacyCategoryMatches = and(
+              or(
+                isNull(opportunities.canonicalCategory),
+                ilike(opportunities.canonicalCategory, "other"),
+                ilike(opportunities.canonicalCategory, "general"),
+              ),
+              or(
+                ilike(opportunities.category, legacyCategoryLabel),
+                ilike(opportunities.category, category),
+              ),
+            );
+            conditions.push(or(canonicalMatches, legacyCategoryMatches)!);
+          } else {
+            conditions.push(eq(opportunities.category, category));
+          }
         }
         if (excludeExpired) {
           conditions.push(
@@ -464,6 +504,7 @@ export class OpportunitiesService {
             .eq("status", PUBLIC_OPPORTUNITY_STATUS)
             .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
             .eq("is_featured", true)
+            .is("duplicate_of", null)
             .or(`close_date.gte.${today},close_date.is.null`)
             // Soonest real deadline first; rolling (null) items sort last so a
             // spotlight the user can still act on leads the rail.
@@ -484,7 +525,7 @@ export class OpportunitiesService {
           .from(opportunities)
           .where(
             and(
-              publicOpportunityConditions(opportunities),
+              discoverableOpportunityConditions(opportunities),
               eq(opportunities.isFeatured, true),
               or(
                 isNull(opportunities.closeDate),
@@ -544,7 +585,7 @@ export class OpportunitiesService {
       : null;
 
     const activeFilter = sql`
-      ${publicOpportunitySql("o")}
+      ${discoverableOpportunitySql("o")}
       and (o.close_date is null or o.close_date >= current_date)
       ${category ? sql`and o.category = ${category}` : sql``}
     `;
@@ -657,7 +698,7 @@ export class OpportunitiesService {
       const result = await db.execute(sql`
         select o.*
         from opportunities o
-        where ${publicOpportunitySql("o")}
+        where ${discoverableOpportunitySql("o")}
           and (o.close_date is null or o.close_date >= current_date)
           ${category ? sql`and o.category = ${category}` : sql``}
           and (
@@ -739,6 +780,7 @@ export class OpportunitiesService {
             .select("id,updated_at,created_at")
             .eq("status", PUBLIC_OPPORTUNITY_STATUS)
             .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
+            .is("duplicate_of", null)
             .order("updated_at", { ascending: false, nullsFirst: false })
             .range(offset, to);
 
@@ -774,7 +816,7 @@ export class OpportunitiesService {
           createdAt: opportunities.createdAt,
         })
         .from(opportunities)
-        .where(publicOpportunityConditions(opportunities))
+        .where(discoverableOpportunityConditions(opportunities))
         .orderBy(desc(opportunities.updatedAt))
         .limit(cappedMax)
         .execute();
@@ -792,7 +834,7 @@ export class OpportunitiesService {
 
     const snapshotRows = await loadStaticOpportunitySnapshot();
     return snapshotRows
-      .filter((row) => isPublicOpportunityRow(row, "snapshot"))
+      .filter((row) => isDiscoverableOpportunityRow(row, "snapshot"))
       .map((row) => ({
         id: String(row.id),
         updatedAt:

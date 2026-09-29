@@ -62,7 +62,7 @@ export default function EventsHomeSection({
       {events.map((event) => (
         <article
           key={event.id}
-          className="group overflow-hidden rounded-[22px] border border-subtle bg-surface-layer transition-colors hover:border-brand/40"
+          className="group overflow-hidden rounded-[18px] border border-subtle bg-surface-layer transition-colors hover:border-brand/40"
         >
           <Link
             to={`/events/${event.slug}`}
@@ -111,7 +111,7 @@ export default function EventsHomeSection({
         <Link
           to="/app/deadlines"
           aria-label="Calendar and upcoming dates"
-          className={`group relative flex min-h-[82px] items-center gap-3 rounded-[22px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+          className={`group relative flex min-h-[82px] items-center gap-3 rounded-[18px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
             desktopPriority
               ? "lg:order-1 lg:col-span-3 lg:min-h-[190px] lg:flex-col lg:items-start lg:p-5"
               : ""

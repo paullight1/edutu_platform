@@ -542,10 +542,10 @@ export default function AppWorkspaceShell({
                   }
                   className={({ isActive }) =>
                     cn(
-                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-sm transition",
+                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
                       isActive
-                        ? "border-brand/40 bg-brand/10 text-brand"
-                        : "border-subtle bg-surface-layer text-text-secondary hover:bg-surface-elevated",
+                        ? "bg-brand/10 text-brand"
+                        : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
                     )
                   }
                 >
@@ -636,40 +636,6 @@ export default function AppWorkspaceShell({
 
             <section>
               <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                {t("navigation.explore")}
-              </p>
-              <div className="grid gap-2.5">
-                {primaryWorkspaceNavItems.map((item) => {
-                  const Icon = workspaceNavIcons[item.icon];
-                  const active = isRouteActive(pathname, item.to, item.exact);
-                  const itemLabel = t(item.label);
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsMobileMoreOpen(false)}
-                      className={cn(
-                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-subtle bg-surface-layer p-3.5 text-left text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]",
-                      )}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600">
-                          <Icon size={19} />
-                        </span>
-                        <span className="truncate text-base font-semibold">
-                          {itemLabel}
-                        </span>
-                      </span>
-                      <ChevronRight size={16} className="text-text-muted" />
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="mt-5">
-              <p className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("workspace.section")}
               </p>
               <div className="grid gap-2.5">
@@ -732,15 +698,15 @@ export default function AppWorkspaceShell({
           data-keyboard-hide
           className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden"
         >
-          {/* Scrim: fade scrolling content (incl. dark cover images) into the
-              bar so the labels stay legible no matter what's behind them. */}
+          {/* Keep the content fade in dark mode, where it protects nav-label
+              contrast over dark opportunity imagery. */}
           <div
-            className="pointer-events-none h-8 bg-gradient-to-t from-surface-body to-transparent"
+            className="pointer-events-none hidden h-8 bg-gradient-to-t from-surface-body to-transparent dark:block"
             aria-hidden="true"
           />
           <nav
             className={cn(
-              "pointer-events-auto border-t border-subtle bg-surface-layer px-3 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_-14px_rgba(2,6,23,0.35)]",
+              "pointer-events-auto border-t border-subtle bg-surface-layer px-3 pb-[env(safe-area-inset-bottom)]",
             )}
             aria-label="Mobile app navigation"
           >

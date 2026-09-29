@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  mobileMoreWorkspaceNavItems,
   mobilePrimaryWorkspaceNavItems,
   personalWorkspaceNavItems,
 } from "./workspaceNavigation";
@@ -20,5 +21,17 @@ describe("workspace navigation", () => {
       "/app/opportunities",
       "/app/my-plan",
     ]);
+  });
+
+  it("keeps the More menu focused on destinations not already in mobile tabs", () => {
+    const moreRoutes = mobileMoreWorkspaceNavItems.map((item) => item.to);
+
+    expect(moreRoutes).toContain("/app/deadlines");
+    expect(moreRoutes).toContain("/app/saved");
+    expect(moreRoutes).toContain("/app/applications");
+    expect(moreRoutes).not.toContain("/dashboard");
+    expect(moreRoutes).not.toContain("/app/opportunities");
+    expect(moreRoutes).not.toContain("/app/community");
+    expect(moreRoutes).not.toContain("/app/my-plan");
   });
 });

@@ -44,6 +44,8 @@ import {
   type BackendProfile,
   type ProfileUpdateInput,
 } from "../services/profile";
+import { ProfileDetailsSummary } from "./profile/ProfileDetailsSummary";
+import { ProfileCompleteness } from "./profile/ProfileCompleteness";
 
 function displayName(profile: BackendProfile | null, fallback?: string | null) {
   return (
@@ -507,7 +509,7 @@ export default function ProfilePage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5">
+          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-5">
               <div className="flex items-center gap-3">
                   <div className="flex items-center gap-3">
                   {clerkUser?.imageUrl ? (
@@ -530,47 +532,21 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 </div>
-                <div className="ml-auto hidden min-w-[180px] sm:block">
-                  {completenessPercent < 100 ? (
-                    <>
-                      <div className="flex items-center justify-between text-sm font-semibold">
-                        <span>Profile completeness</span>
-                        <span className="text-brand">
-                          {completenessPercent}%
-                        </span>
-                      </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full border border-subtle bg-surface-body">
-                        <div
-                          className="h-full rounded-full bg-brand transition-all"
-                          style={{ width: `${completenessPercent}%` }}
-                        />
-                      </div>
-                    </>
-                  ) : null}
-                  <p
-                    className="mt-2 text-2xs font-semibold text-text-muted"
-                  >
-                    Last updated{" "}
-                    {formatDate(profile?.updatedAt || profile?.updated_at)}
-                  </p>
-                </div>
               </div>
-              <div className="mt-4 sm:hidden">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span>Profile completeness</span>
-                  <span className="text-brand">{completenessPercent}%</span>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-body">
-                  <div className="h-full rounded-full bg-brand" style={{ width: `${completenessPercent}%` }} />
-                </div>
-                <p className="mt-2 text-2xs font-semibold text-text-muted">Updated {formatDate(profile?.updatedAt || profile?.updated_at)}</p>
-              </div>
+              <ProfileCompleteness
+                percent={completenessPercent}
+                updatedAt={
+                  profile?.updatedAt || profile?.updated_at
+                    ? formatDate(profile.updatedAt || profile.updated_at)
+                    : undefined
+                }
+              />
           </section>
 
           <ProfileQuickStats stats={profileStats} />
 
           {recentActivity.length > 0 && (
-            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft">
+            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="rounded-xl bg-warning/10 p-2 text-warning">
@@ -697,22 +673,30 @@ export default function ProfilePage() {
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
               onSubmit={saveProfile}
-              className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-6"
+              className="rounded-[20px] border border-subtle bg-surface-layer p-5 sm:p-6"
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-display text-lg font-semibold tracking-tight">
                     Profile details
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-text-muted">Keep your details current to improve your matches.</p>
+                  <p className="mt-1 max-w-prose text-sm leading-6 text-text-muted">
+                    Used to tailor your opportunity matches.
+                  </p>
                 </div>
                 {!isEditing ? (
-                  <button type="button" onClick={() => setIsEditing(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[20px] bg-brand/10 px-3 text-xs font-semibold text-brand transition hover:bg-brand/15">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    disabled={loading}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[18px] bg-brand/10 px-3 text-xs font-semibold text-brand transition hover:bg-brand/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:cursor-wait disabled:opacity-60"
+                  >
                     <PencilLine size={14} /> Edit profile
                   </button>
                 ) : null}
               </div>
-              <fieldset disabled={!isEditing} className="grid gap-4 disabled:opacity-80 sm:grid-cols-2">
+              {isEditing ? (
+              <fieldset className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <div className="block">
                   <Label
                     htmlFor="profile-full-name"
@@ -969,44 +953,76 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </fieldset>
+              ) : loading && !profile ? (
+                <p className="text-sm text-text-muted" role="status">
+                  Loading profile details…
+                </p>
+              ) : (
+                <ProfileDetailsSummary
+                  fullName={
+                    profile?.fullName ||
+                    profile?.full_name ||
+                    profile?.name ||
+                    user?.name
+                  }
+                  country={
+                    typeof profile?.country === "string"
+                      ? profile.country
+                      : null
+                  }
+                  school={profile?.school}
+                  courseOfStudy={profile?.courseOfStudy || profile?.major}
+                  degree={profile?.degree}
+                  cgpa={profile?.cgpa}
+                  gradYear={profile?.gradYear}
+                  dateOfBirth={
+                    profile?.dateOfBirth ? formatDate(profile.dateOfBirth) : null
+                  }
+                  interestedCountries={profile?.interestedCountries}
+                  interests={profile?.interests}
+                  skills={profile?.skills}
+                />
+              )}
 
-              <div className={`${isEditing ? "" : "hidden"} mt-5 flex flex-wrap items-center gap-3`}>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={saving || loading || !isDirty}
-                >
-                  {saving ? (
-                    <Loader2 size={17} className="animate-spin" />
-                  ) : (
-                    <Save size={17} />
-                  )}
-                  {saving
-                    ? "Saving…"
-                    : isDirty
-                      ? "Save changes"
-                      : "Saved"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    void loadProfile();
-                    setIsEditing(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                {isDirty ? (
-                  <span className="text-xs font-semibold text-text-muted">
-                    Unsaved changes
-                  </span>
-                ) : null}
-              </div>
+              {isEditing ? (
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={saving || loading || !isDirty}
+                  >
+                    {saving ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <Save size={17} />
+                    )}
+                    {saving
+                      ? "Saving…"
+                      : isDirty
+                        ? "Save changes"
+                        : "Saved"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      void loadProfile();
+                      setIsEditing(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  {isDirty ? (
+                    <span className="text-xs font-semibold text-text-muted">
+                      Unsaved changes
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </form>
 
             <aside className="space-y-5">
-              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3 shadow-soft">
+              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3">
                 <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
                   Account
                 </p>
@@ -1062,7 +1078,7 @@ export default function ProfilePage() {
               </div>
 
               <div
-                className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
+                className="rounded-[20px] border border-subtle bg-surface-layer p-5"
               >
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles size={17} />
@@ -1089,7 +1105,7 @@ export default function ProfilePage() {
 
               {skills.length > 0 ? (
                 <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
+                  className="rounded-[20px] border border-subtle bg-surface-layer p-5"
                 >
                   <p className="text-sm font-semibold">Skill tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">

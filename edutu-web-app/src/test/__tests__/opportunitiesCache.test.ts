@@ -159,6 +159,31 @@ describe("opportunities snapshot cache", () => {
     expect(row.description).toContain("- Current students\n- Recent graduates");
   });
 
+  it("uses the canonical category when the stored display category is stale", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              ...backendRow,
+              title: "MedixDeck Internship Program",
+              category: "Scholarships",
+              canonical_category: "internships",
+            },
+          ],
+        }),
+      }),
+    );
+
+    const service = await importOpportunities();
+    const [row] = await service.fetchOpportunities();
+
+    expect(row.category).toBe("Internships");
+  });
+
   it("notifies subscribers when the cache updates", async () => {
     mockFetchSuccess();
     const service = await importOpportunities();

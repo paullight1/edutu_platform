@@ -36,4 +36,16 @@ describe("prepareOpportunityDescription", () => {
       "Apply before the deadline.",
     ]);
   });
+
+  it("breaks a long single block into paragraphs without changing its copy", () => {
+    const description =
+      "The scholarship supports young leaders working on social impact. It provides access to an international summit. Recipients meet peers and experienced leaders. They build skills to strengthen their initiatives. The program encourages lasting change in their communities.";
+    const result = prepareOpportunityDescription({ description });
+
+    expect(result).toEqual([
+      "The scholarship supports young leaders working on social impact. It provides access to an international summit. Recipients meet peers and experienced leaders.",
+      "They build skills to strengthen their initiatives. The program encourages lasting change in their communities.",
+    ]);
+    expect(result.join(" ")).toBe(description);
+  });
 });

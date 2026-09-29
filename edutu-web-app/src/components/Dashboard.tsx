@@ -27,9 +27,10 @@ import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
 import { usePersonalization } from "../hooks/usePersonalization";
+import { useAnalytics } from "../hooks/useAnalytics";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { usePWA } from "../hooks/usePWA";
 import { useToast } from "./ui/ToastProvider";
@@ -46,6 +47,8 @@ import { getApplications, type ApplicationRecord } from "../services/application
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import { fetchHeroBanners } from "../services/webConfig";
+import { getOpportunityHome, type OpportunityHomeView } from "../services/opportunityHome";
+import { getProductApiToken } from "../lib/clerkToken";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import type { Opportunity } from "../types/opportunity";
 import { isOpportunityExpired } from "../services/opportunities";
@@ -53,6 +56,11 @@ import {
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
+import {
+  dismissOpportunity,
+  getDismissedOpportunityIds,
+} from "../services/dismissedOpportunities";
+import type { DismissReason } from "../services/opportunitySignals";
 import DashboardOpportunityCard from "./dashboard/DashboardOpportunityCard";
 import BannerCarousel, {
   DEFAULT_BANNERS,
@@ -69,7 +77,8 @@ import {
   shuffleOpportunityFeed,
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
-import DashboardUpdatePopup from "./DashboardUpdatePopup";
+import NextStepCard from "./dashboard/NextStepCard";
+import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
 
 // The home feed is a fixed shortlist, not an endless scroll: six randomized
 // picks per visit, with "View all" as the way deeper into the catalogue.
@@ -89,6 +98,7 @@ type DiscoveryCategory = {
   title: string;
   image: string;
   icon: LucideIcon;
+  tint: string;
   keywords: string[];
 };
 
@@ -98,6 +108,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Scholarships",
     image: "/discovery/scholarships.png",
     icon: GraduationCap,
+    tint: "from-rose-600/45 via-red-700/30 to-amber-600/38",
     keywords: ["scholarship", "scholarships", "scholar", "scholars"],
   },
   {
@@ -105,6 +116,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Internships",
     image: "/discovery/internships.png",
     icon: Briefcase,
+    tint: "from-sky-600/45 via-blue-700/30 to-indigo-700/38",
     keywords: ["internship", "internships", "intern", "trainee"],
   },
   {
@@ -112,6 +124,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Programs",
     image: "/discovery/grants.png",
     icon: BadgeDollarSign,
+    tint: "from-emerald-600/45 via-teal-700/30 to-lime-600/38",
     keywords: [
       "program",
       "programs",
@@ -131,6 +144,7 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
     title: "Fellowships",
     image: "/discovery/fellowships.png",
     icon: Users,
+    tint: "from-amber-600/45 via-orange-700/30 to-rose-700/38",
     keywords: ["fellowship", "fellowships", "fellow", "residency"],
   },
 ];
@@ -271,6 +285,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const { setBlockingNotice } = useWorkspaceNotice();
     const toast = useToast();
     const routerNavigate = useNavigate();
+    const location = useLocation();
+    const { trackEvent } = useAnalytics();
     const {
       preferences: personalizationPreferences,
       personalizeFeed,
@@ -282,6 +298,104 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
+    const [dismissedOpportunityIds, setDismissedOpportunityIds] = useState<
+      string[]
+    >([]);
+    const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
+    const [opportunityHome, setOpportunityHome] =
+      useState<OpportunityHomeView | null>(null);
+    const [opportunityHomeState, setOpportunityHomeState] = useState<
+      "loading" | "ready" | "error"
+    >("loading");
+    const [opportunityHomeRefresh, setOpportunityHomeRefresh] = useState(0);
+    const guidanceHomeEnabled =
+      import.meta.env.VITE_GUIDANCE_HOME_ENABLED !== "false";
+
+    useEffect(() => {
+      setDismissedOpportunityIds(getDismissedOpportunityIds(user?.id));
+    }, [user?.id]);
+
+    useEffect(() => {
+      if (!guidanceHomeEnabled || !user?.id) {
+        setOpportunityHome(null);
+        return;
+      }
+
+      let active = true;
+      setOpportunityHomeState("loading");
+      void (async () => {
+        try {
+          const token = await getProductApiToken(getToken);
+          if (!token) throw new Error("Sign in to load your next step.");
+          const result = await getOpportunityHome(token);
+          if (!active) return;
+          setOpportunityHome(result);
+          setOpportunityHomeState("ready");
+        } catch {
+          if (!active) return;
+          setOpportunityHome(null);
+          setOpportunityHomeState("error");
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [getToken, guidanceHomeEnabled, opportunityHomeRefresh, user?.id]);
+
+    useEffect(() => {
+      if (guidanceHomeEnabled && user?.id && opportunityHomeState !== "loading") {
+        trackEvent("guidance_home_viewed", {
+          state: opportunityHomeState,
+          hasActivePursuit: Boolean(opportunityHome?.featuredPursuitId),
+          hasRecommendation: Boolean(opportunityHome?.recommendations.length),
+        });
+      }
+    }, [
+      guidanceHomeEnabled,
+      opportunityHome?.featuredPursuitId,
+      opportunityHome?.recommendations.length,
+      opportunityHomeState,
+      trackEvent,
+      user?.id,
+    ]);
+
+    useEffect(() => {
+      const params = new URLSearchParams(location.search);
+      if (params.get("focus") !== "next-step") return;
+      if (
+        guidanceHomeEnabled &&
+        user?.id &&
+        opportunityHomeState === "loading"
+      ) {
+        return;
+      }
+
+      const target = document.getElementById("guidance-next-step");
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView?.({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "center",
+        });
+      }
+
+      params.delete("focus");
+      const remaining = params.toString();
+      routerNavigate(
+        `${location.pathname}${remaining ? `?${remaining}` : ""}${location.hash}`,
+        { replace: true },
+      );
+    }, [
+      guidanceHomeEnabled,
+      location.hash,
+      location.pathname,
+      location.search,
+      opportunityHomeState,
+      prefersReducedMotion,
+      routerNavigate,
+      user?.id,
+    ]);
 
     const isOppBookmarked = useCallback(
       (opportunityId: string) =>
@@ -289,6 +403,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           (b) => b.opportunity_id === opportunityId,
         ),
       [bookmarks],
+    );
+
+    const handleDismissRecommendation = useCallback(
+      (reason: DismissReason) => {
+        const target = dismissTarget;
+        setDismissTarget(null);
+        if (!target || !user?.id) return;
+
+        dismissOpportunity(user.id, target.id, getToken, "web_home", reason);
+        setDismissedOpportunityIds((previous) =>
+          previous.includes(target.id) ? previous : [...previous, target.id],
+        );
+        trackEvent("opportunity_recommendation_dismissed", {
+          opportunityId: target.id,
+          reason,
+          surface: "web_home",
+        });
+        toast.success("Recommendation removed", "Thanks. We’ll adjust your matches.");
+      },
+      [dismissTarget, getToken, toast, trackEvent, user?.id],
     );
 
     const handleToggleBookmark = useCallback(
@@ -670,21 +804,34 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .filter(Boolean);
     }, [opportunityFeed]);
 
+    const dismissedOpportunitySet = useMemo(
+      () => new Set(dismissedOpportunityIds),
+      [dismissedOpportunityIds],
+    );
+    const availableOpportunityFeed = useMemo(
+      () =>
+        normalizedOpportunityFeed.filter(
+          (opportunity: Opportunity) =>
+            opportunity?.id && !dismissedOpportunitySet.has(opportunity.id),
+        ),
+      [dismissedOpportunitySet, normalizedOpportunityFeed],
+    );
+
     const selectedDiscoveryCategory =
       DISCOVERY_CATEGORIES.find(
         (category) => category.id === activeDiscoveryCategory,
       ) ?? null;
 
     const filteredOpportunityFeed = useMemo(() => {
-      if (!selectedDiscoveryCategory) return normalizedOpportunityFeed;
+      if (!selectedDiscoveryCategory) return availableOpportunityFeed;
 
-      return normalizedOpportunityFeed.filter((opportunity: Opportunity) =>
+      return availableOpportunityFeed.filter((opportunity: Opportunity) =>
         opportunityMatchesDiscoveryCategory(
           opportunity,
           selectedDiscoveryCategory,
         ),
       );
-    }, [normalizedOpportunityFeed, selectedDiscoveryCategory]);
+    }, [availableOpportunityFeed, selectedDiscoveryCategory]);
 
     // Rank by personalization score; only same-score tiers rotate between
     // visits so relevance survives while the feed still feels fresh.
@@ -700,7 +847,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     // Deliberately tiny: the product promise is narrowing, not more scrolling.
     const bestShots = useMemo(() => {
       if (!user?.id || !isPersonalized) return [];
-      return normalizedOpportunityFeed
+      return availableOpportunityFeed
         .filter((opportunity: Opportunity) => !isOpportunityExpired(opportunity))
         .map((opportunity: Opportunity) => ({
           opportunity,
@@ -709,7 +856,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .filter((item) => item.match.score >= 60)
         .sort((a, b) => b.match.score - a.match.score)
         .slice(0, 3);
-    }, [explainOpportunity, isPersonalized, normalizedOpportunityFeed, user?.id]);
+    }, [availableOpportunityFeed, explainOpportunity, isPersonalized, user?.id]);
 
     const visibleHomeOpportunities = useMemo(
       () => shuffledOpportunityFeed.slice(0, HOME_FEED_SIZE),
@@ -721,7 +868,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     // a filtered empty rather than "you have no recommendations" — a
     // distinction the primitive this replaces could not express.
     const feedState = useScreenState({
-      data: normalizedOpportunityFeed,
+      data: availableOpportunityFeed,
       error: opportunityFeedError,
       filtersActive: Boolean(selectedDiscoveryCategory),
     });
@@ -1146,17 +1293,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     return (
       <div
-        className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
+        className={`dashboard-screen min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
-        <DashboardUpdatePopup />
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
           onComplete={completeProfileOnboarding}
           onDismiss={dismissProfileCompletionPrompt}
         />
+        <DismissReasonDialog
+          open={dismissTarget !== null}
+          onSelect={handleDismissRecommendation}
+          onClose={() => setDismissTarget(null)}
+        />
 
         {/* Background Mesh Gradient */}
-        <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
+        <div className="fixed inset-0 pointer-events-none opacity-10 dark:opacity-20 mesh-gradient" />
 
         <AnimatePresence>
           {activePanel && (
@@ -1217,6 +1368,30 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
         >
           <main className="min-w-0 px-0 py-5 space-y-6">
+            {guidanceHomeEnabled && user?.id ? (
+              <NextStepCard
+                id="guidance-next-step"
+                home={opportunityHome}
+                state={opportunityHomeState}
+                onContinuePlan={(journeyId) => {
+                  trackEvent("guidance_continue_plan", { journeyId });
+                  routerNavigate(`/app/my-plan/${encodeURIComponent(journeyId)}`);
+                }}
+                onViewOpportunity={(opportunityId) => {
+                  trackEvent("guidance_view_recommendation", { opportunityId });
+                  onOpportunityClick({ id: opportunityId });
+                }}
+                onExplore={() => {
+                  trackEvent("guidance_explore_clicked");
+                  onViewAllOpportunities();
+                }}
+                onEditPreferences={() => {
+                  trackEvent("guidance_edit_preferences");
+                  routerNavigate("/app/personalization");
+                }}
+                onRetry={() => setOpportunityHomeRefresh((value) => value + 1)}
+              />
+            ) : null}
             <motion.section
               initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1246,7 +1421,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       key={category.id}
                       type="button"
                       onClick={() => handleDiscoveryCategoryClick(category)}
-                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[20px] border border-white/15 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
+                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/20 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
                         active
                           ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-body"
                           : "hover:-translate-y-0.5"
@@ -1257,14 +1432,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <img
                         src={category.image}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover opacity-65 transition duration-500 group-hover:scale-105"
+                        className="absolute inset-0 h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105"
                         aria-hidden="true"
                         loading="lazy"
                         decoding="async"
                       />
                       <div
-                        className={`absolute inset-0 transition ${
-                          active ? "bg-slate-950/25" : "bg-slate-950/45"
+                        className={`absolute inset-0 bg-gradient-to-r ${category.tint} transition ${
+                          active ? "brightness-110" : ""
                         }`}
                       />
                       <span
@@ -1296,7 +1471,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: 100 }}
                     transition={{ duration: 0.3 }}
-                    className="profile-completion-card relative overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px] lg:rounded-[24px]"
+                    className="profile-completion-card relative overflow-hidden rounded-[18px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px]"
                   >
                     <button
                       type="button"
@@ -1412,7 +1587,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     <button
                       type="button"
                       onClick={() => routerNavigate("/app/personalization")}
-                      className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 pr-12 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
+                      className="group flex w-full items-center gap-4 rounded-[18px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 pr-12 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
                     >
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                         <Sparkles size={19} />
@@ -1437,7 +1612,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               {showHomeScreenPrompt ? (
                 <section className="sm:hidden">
                   <div
-                    className={`relative overflow-hidden rounded-[24px] border border-subtle bg-white p-4 shadow-sm`}
+                    className={`relative overflow-hidden rounded-[18px] border border-subtle bg-white p-4 shadow-sm`}
                   >
                     <button
                       type="button"
@@ -1613,13 +1788,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl bg-surface-elevated`}
+                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-[18px] bg-surface-elevated`}
                           />
                         ))}
                       </div>
                     ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-subtle bg-white`}
+                        className={`rounded-[18px] border border-subtle bg-white`}
                       >
                         <StateView
                           state={feedState}
@@ -1629,7 +1804,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                     ) : mobilePersonalizedOpportunities.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-subtle bg-white`}
+                        className={`rounded-[18px] border border-subtle bg-white`}
                       >
                         <StateView
                           state={feedEmptyState}
@@ -1660,6 +1835,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   isBookmarked={isOppBookmarked(opportunity.id)}
                                   isDarkMode={isDarkMode}
                                   onOpen={handleOpenOpportunity}
+                                  onDismiss={
+                                    user?.id && isPersonalized
+                                      ? (target) => setDismissTarget(target)
+                                      : undefined
+                                  }
                                   onToggleBookmark={handleToggleBookmark}
                                   onShare={handleShareOpportunity}
                                 />
@@ -1672,7 +1852,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   ? () => setActiveDiscoveryCategory(null)
                                   : onViewAllOpportunities
                               }
-                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
+                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[18px] border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
                             >
                               {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />
@@ -1690,7 +1870,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         Array.from({ length: 6 }).map((_, i) => (
                           <div
                             key={i}
-                            className="min-h-[244px] overflow-hidden rounded-[20px] animate-pulse"
+                            className="min-h-[244px] overflow-hidden rounded-[18px] animate-pulse"
                           >
                             <div
                               className={`h-32 bg-surface-elevated`}
@@ -1707,7 +1887,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
+                          className={`col-span-full rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedState}
@@ -1717,7 +1897,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
+                          className={`col-span-full rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedEmptyState}
@@ -1765,7 +1945,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   ) : (
                     <div
-                      className={`hidden overflow-hidden rounded-2xl border border-subtle bg-white sm:block`}
+                      className={`hidden overflow-hidden rounded-[18px] border border-subtle bg-white sm:block`}
                     >
                       {opportunitiesLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
@@ -1776,7 +1956,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-subtle bg-white`}
+                          className={`rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedState}
@@ -1786,7 +1966,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-subtle bg-white`}
+                          className={`rounded-[18px] border border-subtle bg-white`}
                         >
                           <StateView
                             state={feedEmptyState}

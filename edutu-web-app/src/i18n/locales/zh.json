@@ -282,5 +282,24 @@
         "completeness": {
             "banner": "完善你的个人资料以解锁个性化推荐和更多机会。"
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "你的下一步",
+        "loading": "正在加载你的下一步",
+        "unavailableTitle": "暂时无法显示你的下一步",
+        "unavailableBody": "你仍然可以先浏览机会。",
+        "retry": "重试",
+        "explore": "浏览机会",
+        "forOpportunity": "针对 {{title}}",
+        "dueDate": "截止日期：{{date}}",
+        "continuePlan": "继续计划",
+        "editPreferences": "编辑偏好",
+        "viewOpportunity": "查看机会",
+        "noRecommendationTitle": "找到一个可以努力的机会",
+        "noRecommendationBody": "找到合适的下一步后，相关匹配会显示在这里。",
+        "limitedBody": "目前推荐功能受限。你可以先浏览当前机会。",
+        "checkEligibility": "决定之前请先查看申请条件。",
+        "yourOpportunity": "你的机会",
+        "basedOnProfile": "根据你的个人资料"
     }
 }

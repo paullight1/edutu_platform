@@ -17,8 +17,9 @@ import { db } from "../db";
 import { apiPartnerEvents, opportunities } from "../db/schema";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
 import {
+  discoverableOpportunityConditions,
+  discoverableOpportunitySql,
   publicOpportunityConditions,
-  publicOpportunitySql,
 } from "../opportunities/opportunity-visibility";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 import type {
@@ -117,7 +118,7 @@ export class EdutuApiService {
         count(*) filter (where verification_status = 'broken_link')::int as broken_link_count,
         max(updated_at) as last_updated_at
       from opportunities
-      where ${publicOpportunitySql("opportunities")}
+      where ${discoverableOpportunitySql("opportunities")}
     `);
 
     const row =
@@ -163,7 +164,7 @@ export class EdutuApiService {
         coalesce(nullif(canonical_category, ''), 'other') as slug,
         count(*)::int as count
       from opportunities
-      where ${publicOpportunitySql("opportunities")}
+      where ${discoverableOpportunitySql("opportunities")}
       group by 1
       order by count(*) desc, slug asc
     `);
@@ -285,7 +286,7 @@ export class EdutuApiService {
   }
 
   private buildOpportunityFilters(query: ListOpportunitiesQuery) {
-    const filters = [publicOpportunityConditions(opportunities)];
+    const filters = [discoverableOpportunityConditions(opportunities)];
 
     if (query.canonicalCategory) {
       filters.push(

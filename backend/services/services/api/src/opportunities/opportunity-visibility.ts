@@ -5,7 +5,11 @@ type OpportunityVisibilityColumns = {
   verificationStatus: unknown;
 };
 
-type ShareableOpportunityColumns = OpportunityVisibilityColumns & {
+type DiscoverableOpportunityColumns = OpportunityVisibilityColumns & {
+  duplicateOf: unknown;
+};
+
+type ShareableOpportunityColumns = DiscoverableOpportunityColumns & {
   closeDate: unknown;
 };
 
@@ -19,7 +23,7 @@ function assertSqlAlias(alias: string): string {
   return alias;
 }
 
-/** The only database predicate that makes a catalog opportunity public. */
+/** Base visibility rule used by direct detail lookups and historical links. */
 export function publicOpportunitySql(alias = "o") {
   assertSqlAlias(alias);
   return sql.raw(
@@ -27,11 +31,17 @@ export function publicOpportunitySql(alias = "o") {
   );
 }
 
-/** Public catalogue/share predicate, including the product's expiry rule. */
+/** Discovery rule shared by public lists, search and recommendation queries. */
+export function discoverableOpportunitySql(alias = "o") {
+  assertSqlAlias(alias);
+  return sql`(${publicOpportunitySql(alias)}) and ${sql.raw(`${alias}.duplicate_of is null`)}`;
+}
+
+/** Public catalog/share predicate, including expiry and duplicate rules. */
 export function shareableOpportunitySql(alias = "o") {
   assertSqlAlias(alias);
   return sql.raw(
-    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}' and (${alias}.close_date is null or ${alias}.close_date >= current_date)`,
+    `${alias}.status = '${PUBLIC_OPPORTUNITY_STATUS}' and ${alias}.verification_status = '${PUBLIC_OPPORTUNITY_VERIFICATION_STATUS}' and ${alias}.duplicate_of is null and (${alias}.close_date is null or ${alias}.close_date >= current_date)`,
   );
 }
 
@@ -48,12 +58,22 @@ export function publicOpportunityConditions(
   )!;
 }
 
+/** Drizzle equivalent of discoverableOpportunitySql for browse and recs. */
+export function discoverableOpportunityConditions(
+  columns: DiscoverableOpportunityColumns,
+) {
+  return and(
+    publicOpportunityConditions(columns),
+    isNull(columns.duplicateOf as any),
+  )!;
+}
+
 /** Drizzle equivalent of shareableOpportunitySql for cards and selectors. */
 export function shareableOpportunityConditions(
   columns: ShareableOpportunityColumns,
 ) {
   return and(
-    publicOpportunityConditions(columns),
+    discoverableOpportunityConditions(columns),
     or(
       isNull(columns.closeDate as any),
       gte(columns.closeDate as any, sql`current_date`),
@@ -62,10 +82,8 @@ export function shareableOpportunityConditions(
 }
 
 /**
- * Runtime catalogs and degraded static snapshots share one trust contract:
- * an opportunity is public only when it is active and explicitly verified.
- * The source argument remains for call-site compatibility, but no source may
- * weaken the verification requirement.
+ * Runtime direct-detail lookups allow an existing duplicate link to remain
+ * usable. Discovery lists use isDiscoverableOpportunityRow below.
  */
 export function isPublicOpportunityRow(
   row: Record<string, unknown>,
@@ -82,5 +100,16 @@ export function isPublicOpportunityRow(
     String(verification ?? "")
       .trim()
       .toLowerCase() === PUBLIC_OPPORTUNITY_VERIFICATION_STATUS
+  );
+}
+
+/** Discovery and static catalog rows must never promote annotated duplicates. */
+export function isDiscoverableOpportunityRow(
+  row: Record<string, unknown>,
+  source: "database" | "snapshot" = "database",
+): boolean {
+  return (
+    isPublicOpportunityRow(row, source) &&
+    (row.duplicate_of ?? row.duplicateOf) == null
   );
 }

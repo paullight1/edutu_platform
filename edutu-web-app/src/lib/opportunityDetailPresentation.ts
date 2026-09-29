@@ -4,6 +4,7 @@ interface OpportunityDescriptionInput {
 }
 
 const SOURCE_NAVIGATION_RE = /\bskip\s+to\s+content\b/i;
+const ABBREVIATION_ENDING_RE = /\b(?:e\.g|i\.e|mr|mrs|ms|dr|prof|u\.s|u\.k|etc)\.$/i;
 
 function normaliseLongForm(value?: string | null): string {
   if (typeof value !== "string") return "";
@@ -39,6 +40,29 @@ function looksLikeNavigationDump(value?: string | null): boolean {
   return false;
 }
 
+function readableParagraphs(paragraph: string): string[] {
+  if (paragraph.includes("\n")) return [paragraph];
+
+  const segments = paragraph.split(/(?<=[.!?])\s+(?=[A-Z0-9])/);
+  const sentences: string[] = [];
+  for (const segment of segments) {
+    const previous = sentences[sentences.length - 1];
+    if (previous && ABBREVIATION_ENDING_RE.test(previous)) {
+      sentences[sentences.length - 1] = `${previous} ${segment}`;
+    } else {
+      sentences.push(segment);
+    }
+  }
+
+  if (sentences.length < 4) return [paragraph];
+
+  const formatted: string[] = [];
+  for (let index = 0; index < sentences.length; index += 3) {
+    formatted.push(sentences.slice(index, index + 3).join(" "));
+  }
+  return formatted;
+}
+
 /**
  * Formats only source-provided copy. It never invents missing details: when a
  * long scraped body looks like navigation noise, a real summary is preferred;
@@ -61,5 +85,6 @@ export function prepareOpportunityDescription({
   return selected
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .flatMap(readableParagraphs);
 }

@@ -60,7 +60,7 @@ export default function ProfileQuickStats({
           <Link
             key={tile.key}
             to={tile.to}
-            className="group flex min-w-0 items-center gap-2 rounded-[20px] border border-subtle bg-surface-layer px-2.5 py-3 shadow-soft transition hover:border-brand/40 hover:shadow-elevated sm:gap-3 sm:p-4"
+            className="group flex min-w-0 items-center gap-2 rounded-[20px] border border-subtle bg-surface-layer px-2.5 py-3 transition hover:border-brand/40 sm:gap-3 sm:p-4"
           >
             <span
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tile.tint} ${tile.accent} sm:h-9 sm:w-9`}

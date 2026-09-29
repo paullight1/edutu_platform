@@ -221,6 +221,28 @@ describe("AppWorkspaceShell", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the More menu focused on destinations outside the primary tabs", () => {
+    render(
+      <MemoryRouter initialEntries={["/app/my-plan"]}>
+        <AppWorkspaceShell>
+          <div>My Plan content</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /open more workspace pages/i }),
+    );
+    const menu = screen.getByRole("dialog", { name: "Menu" });
+    expect(within(menu).getByRole("link", { name: "Deadlines" })).toBeInTheDocument();
+    expect(within(menu).getByRole("link", { name: "Saved" })).toBeInTheDocument();
+    expect(within(menu).getByRole("link", { name: "Applications" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("link", { name: "Opportunities" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("link", { name: "Community" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("link", { name: "My Plan" })).not.toBeInTheDocument();
+  });
+
   it("removes the universal mobile chrome inside the community workspace", () => {
     render(
       <MemoryRouter initialEntries={["/app/community/explore"]}>

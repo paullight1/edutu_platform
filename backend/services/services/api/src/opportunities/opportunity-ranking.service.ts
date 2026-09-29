@@ -53,10 +53,10 @@ import {
   resolveHiddenGemOptions,
 } from "./hidden-gems";
 import {
+  discoverableOpportunityConditions,
+  discoverableOpportunitySql,
   PUBLIC_OPPORTUNITY_STATUS,
   PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
-  publicOpportunityConditions,
-  publicOpportunitySql,
 } from "./opportunity-visibility";
 import { deadlineSlaPenalty } from "./deadline-sla";
 
@@ -681,7 +681,7 @@ export class OpportunityRankingService {
         (
           select o.*, 1 - (o.embedding <=> ${vectorLiteral}::vector) as semantic_similarity
           from opportunities o
-          where ${publicOpportunitySql("o")}
+          where ${discoverableOpportunitySql("o")}
             and (o.close_date is null or o.close_date >= current_date)
             and o.embedding is not null
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
@@ -692,7 +692,7 @@ export class OpportunityRankingService {
         (
           select o.*, null as semantic_similarity
           from opportunities o
-          where ${publicOpportunitySql("o")}
+          where ${discoverableOpportunitySql("o")}
             and (o.close_date is null or o.close_date >= current_date)
             and o.embedding is null
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
@@ -727,7 +727,7 @@ export class OpportunityRankingService {
       const result = await db.execute(sql`
         select o.*, ${similarity} as semantic_similarity
         from opportunities o
-        where ${publicOpportunitySql("o")}
+        where ${discoverableOpportunitySql("o")}
           and o.id = any(${ids}::uuid[])
       `);
       return ((result as { rows?: Record<string, unknown>[] }).rows ?? []).map(
@@ -895,7 +895,7 @@ export class OpportunityRankingService {
     }
 
     const filters = [
-      publicOpportunityConditions(opportunities),
+      discoverableOpportunityConditions(opportunities),
       or(
         gte(opportunities.deadline, new Date()),
         sql`${opportunities.deadline} is null`,

@@ -21,7 +21,6 @@ import {
   MapPin,
   Lock,
   Plus,
-  RefreshCw,
   Rocket,
   Search,
   Share2,
@@ -535,7 +534,7 @@ function OpportunityCard({
           className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
           aria-label={`View ${opportunity.title}`}
         />
-        <div className="opportunity-cinematic-media mobile-opportunity-result-media pointer-events-none relative z-0 h-20 w-full shrink-0 overflow-hidden bg-surface-elevated">
+        <div className="opportunity-cinematic-media mobile-opportunity-result-media pointer-events-none relative z-0 aspect-[2/1] w-full shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             fallbackSrc={opportunity.imageFallback}
@@ -736,8 +735,8 @@ function LoadingCard() {
   // title lines, meta row — so the grid doesn't jump when real cards land.
   return (
     <>
-      <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-sm sm:hidden">
-        <Skeleton variant="rectangular" className="mobile-opportunity-result-media h-20 w-full" />
+      <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer sm:hidden">
+        <Skeleton variant="rectangular" className="mobile-opportunity-result-media aspect-[2/1] w-full" />
         <div className="p-2.5">
           <Skeleton variant="text" className="h-3 w-16" />
           <Skeleton variant="text" className="mt-2 h-4 w-full" />
@@ -745,7 +744,7 @@ function LoadingCard() {
           <Skeleton variant="text" className="mt-5 h-3 w-24" />
         </div>
       </div>
-      <div className="hidden h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft sm:flex">
+      <div className="hidden h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer sm:flex">
         <Skeleton
           variant="rectangular"
           className="w-full"
@@ -795,33 +794,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [refreshing, setRefreshing] = useState(false);
   const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
   // Fresh seed each visit so the default "Recommended" order rotates between
   // sessions but stays put while the user paginates through this one.
-  const [browseShuffleSeed, setBrowseShuffleSeed] = useState(() =>
-    createOpportunityShuffleSeed(),
-  );
+  const [browseShuffleSeed] = useState(createOpportunityShuffleSeed);
 
   useEffect(() => {
     setDismissedIds(getDismissedOpportunityIds(userId));
   }, [userId]);
-
-  // Manual refresh: force a fresh fetch and show a spinner until it lands.
-  // Re-seeding makes the reshuffle visible even when the data didn't change.
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setBrowseShuffleSeed(createOpportunityShuffleSeed());
-    refresh();
-  }, [refresh]);
-
-  // Clear the refresh spinner once new data arrives.
-  useEffect(() => {
-    setRefreshing(false);
-  }, [opportunities]);
 
   // Always pull the freshest opportunities when the user opens this screen or
   // returns to the tab, rather than lingering on whatever was cached earlier.
@@ -1647,36 +1630,24 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         ) : null}
 
         {loading ? (
-          <section className="mobile-opportunity-results-grid mt-5 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          <section className="mobile-opportunity-results-grid mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {Array.from({ length: Math.min(pageSize, 12) }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
           </section>
         ) : sortedOpportunities.length > 0 ? (
           <>
-            <div className="mt-5 flex items-center justify-between gap-3">
+            <div className="mt-5">
               <p className="text-sm text-text-muted">
                 {t("opportunities.resultCount", {
                   defaultValue: "{{count}} opportunities",
                   count: sortedOpportunities.length,
                 })}
               </p>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={loading || refreshing}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-subtle bg-surface-layer px-3 text-sm font-medium text-text-secondary shadow-soft transition hover:bg-surface-elevated hover:text-text-primary disabled:opacity-60"
-              >
-                <RefreshCw
-                  size={14}
-                  className={loading || refreshing ? "animate-spin" : ""}
-                />
-                {t("common.refresh", { defaultValue: "Refresh" })}
-              </button>
             </div>
             <section
               ref={resultsRef}
-              className="mobile-opportunity-results-grid mt-3 grid scroll-mt-40 grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+              className="mobile-opportunity-results-grid mt-3 grid scroll-mt-40 grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
             >
               {visibleOpportunities.map((opportunity, index) => (
                 <ImpressionTracker
@@ -1802,7 +1773,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         jsonLd={seoJsonLd}
       />
       {embedded ? (
-        <main className="mx-auto w-full max-w-7xl px-4 pb-5 pt-3 min-[412px]:px-5 sm:px-6 sm:py-6 lg:px-8">
+        <main className="opportunities-page mx-auto w-full max-w-7xl px-4 pb-5 pt-3 min-[412px]:px-5 sm:px-6 sm:py-6 lg:px-8">
           {content}
         </main>
       ) : (

@@ -282,5 +282,24 @@
         "completeness": {
             "banner": "أكمل ملفك الشخصي لفتح توصيات مخصصة وفرص أفضل."
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "خطوتك التالية",
+        "loading": "جارٍ تحميل خطوتك التالية",
+        "unavailableTitle": "خطوتك التالية غير متاحة مؤقتًا",
+        "unavailableBody": "يمكنك استكشاف الفرص ريثما نعيد الاتصال.",
+        "retry": "حاول مرة أخرى",
+        "explore": "استكشف الفرص",
+        "forOpportunity": "لـ {{title}}",
+        "dueDate": "الموعد النهائي {{date}}",
+        "continuePlan": "تابع الخطة",
+        "editPreferences": "تعديل التفضيلات",
+        "viewOpportunity": "عرض الفرصة",
+        "noRecommendationTitle": "ابحث عن فرصة تسعى إليها",
+        "noRecommendationBody": "ستظهر الخيارات المناسبة هنا عندما نجد خطوة تالية مفيدة.",
+        "limitedBody": "التوصيات محدودة حاليًا. استكشف الفرص المتاحة بدلًا من ذلك.",
+        "checkEligibility": "تحقق من الشروط قبل اتخاذ القرار.",
+        "yourOpportunity": "فرصتك",
+        "basedOnProfile": "استنادًا إلى ملفك الشخصي"
     }
 }

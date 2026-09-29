@@ -28,6 +28,8 @@ const OPERATION_ID = "66666666-6666-4666-8666-666666666666";
 const OLD_LEASE_TOKEN = "77777777-7777-4777-8777-777777777777";
 const NEW_LEASE_TOKEN = "88888888-8888-4888-8888-888888888888";
 const RECOMMENDATION_USER_ID = "99999999-9999-4999-8999-999999999999";
+const DUPLICATE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const MISCLASSIFIED_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const consumer = {
   id: "consumer-1",
@@ -130,7 +132,18 @@ async function createCatalogTable(database: PGlite) {
       ('${UNVERIFIED_ID}', 'Unverified scholarship', 'scholarships', 'scholarships',
        'scholarship', 'Unverified', 'https://example.com/unverified',
        'https://example.com/unverified', true, '{}'::jsonb, '{}'::text[], '{}'::text[],
-       'active', 'unverified', 0, 0, now(), now());
+       'active', 'unverified', 0, 0, now(), now()),
+      ('${DUPLICATE_ID}', 'Duplicate approved scholarship', 'scholarships', 'scholarships',
+       'scholarship', 'Annotated duplicate of approved listing', 'https://example.com/duplicate',
+       'https://example.com/duplicate', true, '{}'::jsonb, '{}'::text[], '{}'::text[],
+       'active', 'verified', 1, 0, now(), now()),
+      ('${MISCLASSIFIED_ID}', 'MedixDeck Internship Program', 'Scholarships', 'internships',
+       'internship', 'Verified internship with a stale display category', 'https://example.com/medixdeck',
+       'https://example.com/medixdeck', true, '{}'::jsonb, '{}'::text[], '{}'::text[],
+       'active', 'verified', 1, 0, now(), now());
+  `);
+  await database.exec(`
+    update opportunities set duplicate_of = '${APPROVED_ID}' where id = '${DUPLICATE_ID}';
   `);
 }
 
@@ -162,6 +175,8 @@ describe("persisted shared catalog visibility", () => {
 
     expect(learnerRows.map((row: any) => row.id)).toContain(APPROVED_ID);
     expect(apiRows.data.map((row: any) => row.id)).toContain(APPROVED_ID);
+    expect(learnerRows.map((row: any) => row.id)).not.toContain(DUPLICATE_ID);
+    expect(apiRows.data.map((row: any) => row.id)).not.toContain(DUPLICATE_ID);
     expect(learnerRows.map((row: any) => row.id)).not.toEqual(
       expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
     );
@@ -169,6 +184,24 @@ describe("persisted shared catalog visibility", () => {
       expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
     );
     expect(await apiService.getOpportunity(PENDING_ID, consumer)).toBeNull();
+  });
+
+  it("filters learner catalog results by canonical category before stale labels", async () => {
+    const service = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const internships = await service.findAll(20, 0, "active", "internships");
+    const scholarships = await service.findAll(20, 0, "active", "scholarships");
+
+    expect(internships.map((row: any) => row.id)).toContain(MISCLASSIFIED_ID);
+    expect(scholarships.map((row: any) => row.id)).not.toContain(
+      MISCLASSIFIED_ID,
+    );
   });
 
   it("keeps public detail, search, share, and recommendation ID lookups fail-closed", async () => {
@@ -179,9 +212,19 @@ describe("persisted shared catalog visibility", () => {
       {} as any,
       {} as any,
     );
+    const apiService = new EdutuApiService({} as any);
     const rankingService = new OpportunityRankingService({} as any, {} as any);
 
     expect(await learnerService.findOne(PENDING_ID)).toBeNull();
+    await expect(learnerService.findOne(DUPLICATE_ID)).resolves.toMatchObject({
+      id: DUPLICATE_ID,
+      duplicateOf: APPROVED_ID,
+    });
+    await expect(
+      apiService.getOpportunity(DUPLICATE_ID, consumer),
+    ).resolves.toMatchObject({
+      id: DUPLICATE_ID,
+    });
     expect(await learnerService.ensureShareCard(REJECTED_ID)).toBeNull();
     expect(await learnerService.getSharePdf(UNVERIFIED_ID)).toBeNull();
 
@@ -196,6 +239,7 @@ describe("persisted shared catalog visibility", () => {
     expect(candidates.map((row: any) => row.id)).not.toEqual(
       expect.arrayContaining([PENDING_ID, REJECTED_ID, UNVERIFIED_ID]),
     );
+    expect(candidates.map((row: any) => row.id)).not.toContain(DUPLICATE_ID);
   });
 
   it("lets editorial workflows load a pending row without exposing it publicly", async () => {

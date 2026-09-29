@@ -417,7 +417,19 @@
         "required": "Required",
         "optional": "Optional",
         "completed": "Completed",
-        "markComplete": "Mark complete"
+        "markComplete": "Mark complete",
+        "openApplication": "Open application",
+        "confirmSubmitted": "I submitted this application",
+        "recordOutcome": "Record an application outcome",
+        "updatedElsewhere": "This plan changed in another session. We refreshed it; review the current step and try again.",
+        "updateFailed": "We could not save that update. Your plan has been refreshed; try again.",
+        "outcomes": {
+            "offer": "Offer",
+            "rejected": "Not selected",
+            "withdrawn": "Withdrawn",
+            "no_response": "No response",
+            "expired": "Expired"
+        }
     },
     "saved": {
         "title": "Saved Opportunities",
@@ -470,5 +482,24 @@
         "completeness": {
             "banner": "Complete your profile to unlock personalized recommendations and better opportunities."
         }
+    },
+    "guidanceHome": {
+        "eyebrow": "Your next step",
+        "loading": "Loading your next step",
+        "unavailableTitle": "Your next step is temporarily unavailable",
+        "unavailableBody": "You can still explore opportunities while we reconnect.",
+        "retry": "Try again",
+        "explore": "Explore opportunities",
+        "forOpportunity": "For {{title}}",
+        "dueDate": "Due {{date}}",
+        "continuePlan": "Continue plan",
+        "editPreferences": "Edit preferences",
+        "viewOpportunity": "View opportunity",
+        "noRecommendationTitle": "Find an opportunity to work toward",
+        "noRecommendationBody": "Your matches will appear here when we find a useful next step.",
+        "limitedBody": "Recommendations are limited right now. Browse current opportunities instead.",
+        "checkEligibility": "Check the requirements before you decide.",
+        "yourOpportunity": "your opportunity",
+        "basedOnProfile": "Based on your profile"
     }
 }

@@ -661,6 +661,13 @@ button:focus-visible {
       );
   }
 
+  /* The dashboard already has clear borders and color cues. Keep light-mode
+     surfaces flat so nested cards do not stack heavy shadows; preserve dark
+     mode elevation and keyboard focus rings. */
+  :root:not(.dark) .dashboard-screen [class*="shadow-"]:not(:focus-visible) {
+    box-shadow: none !important;
+  }
+
   /* Landing hero in dark mode: near-solid deep navy — drop the colored mesh
      blobs so only the faint top brand glow remains (leaves Dashboard/Bento mesh untouched). */
   .dark .landing-hero .mesh-gradient {
@@ -810,7 +817,7 @@ button:focus-visible {
      cards legible in both themes while giving image-led content one visual
      language across dashboard, discovery, saved, deadlines and My Plan. */
   .opportunity-cinematic-card {
-    border-radius: 20px;
+    border-radius: 18px;
     background-color: rgb(var(--surface-layer));
     background-image:
       radial-gradient(circle at 88% -8%, rgb(var(--color-brand-500) / 0.2), transparent 44%),
@@ -822,6 +829,13 @@ button:focus-visible {
     background-image:
       radial-gradient(circle at 88% -8%, rgb(var(--color-brand-500) / 0.24), transparent 46%),
       linear-gradient(145deg, rgb(var(--surface-layer)) 0%, rgb(var(--surface-brand)) 55%, rgb(var(--surface-elevated)) 100%);
+  }
+
+  /* Keep opportunity results flat; their borders and image blocks already
+     separate cards from the page. */
+  .opportunities-page .opportunity-cinematic-card,
+  .opportunities-page .opportunity-cinematic-card:hover {
+    box-shadow: none;
   }
 
   .opportunity-cinematic-media::after {

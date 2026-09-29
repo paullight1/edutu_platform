@@ -20,6 +20,51 @@ const opportunity = {
 } as Opportunity;
 
 describe("DashboardOpportunityCard", () => {
+  it("exposes an accessible dismiss action on carousel recommendations", () => {
+    const onDismiss = vi.fn();
+    const onOpen = vi.fn();
+    render(
+      <DashboardOpportunityCard
+        opportunity={opportunity}
+        variant="carousel"
+        isBookmarked={false}
+        isDarkMode={false}
+        onOpen={onOpen}
+        onDismiss={onDismiss}
+        onToggleBookmark={() => undefined}
+        onShare={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Not interested in Women in Technology Scholarship 2027",
+      }),
+    );
+
+    expect(onDismiss).toHaveBeenCalledWith(opportunity);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("does not add a dismiss action to non-carousel cards", () => {
+    render(
+      <DashboardOpportunityCard
+        opportunity={opportunity}
+        variant="grid"
+        isBookmarked={false}
+        isDarkMode={false}
+        onOpen={() => undefined}
+        onDismiss={() => undefined}
+        onToggleBookmark={() => undefined}
+        onShare={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /not interested in/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each(["grid", "carousel", "mobileGrid"] as const)(
     "keeps essential opportunity information in the compact %s layout",
     (variant) => {

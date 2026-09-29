@@ -151,4 +151,48 @@ describe("opportunity static snapshot helpers", () => {
       },
     ]);
   });
+
+  it("does not restore a verified row annotated as a duplicate from a snapshot", () => {
+    const rows = filterStaticOpportunityRows(
+      [
+        {
+          id: "primary",
+          status: "active",
+          verification_status: "verified",
+          duplicate_of: null,
+        },
+        {
+          id: "duplicate",
+          status: "active",
+          verification_status: "verified",
+          duplicate_of: "primary",
+        },
+      ],
+      10,
+      0,
+      "active",
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["primary"]);
+  });
+
+  it("filters static rows using canonical category when display text is stale", () => {
+    const rows = filterStaticOpportunityRows(
+      [
+        {
+          id: "misclassified",
+          status: "active",
+          verification_status: "verified",
+          category: "Scholarships",
+          canonical_category: "internships",
+        },
+      ],
+      10,
+      0,
+      "active",
+      "internships",
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["misclassified"]);
+  });
 });

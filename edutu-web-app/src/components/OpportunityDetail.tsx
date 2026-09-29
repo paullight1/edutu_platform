@@ -23,6 +23,7 @@ import ImageWithFallback from "./ImageWithFallback";
 import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
 import TrustSignal from "./opportunity/TrustSignal";
 import { useToast } from "./ui/ToastProvider";
+import { useAnalytics } from "../hooks/useAnalytics";
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -103,17 +104,8 @@ function OpportunityHero({
   }, [deadline, funding, opportunity.location]);
 
   return (
-    <section className="opportunity-detail-hero relative mb-7 overflow-hidden rounded-[28px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-7 lg:p-8">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{
-          background:
-            "radial-gradient(circle at 88% 4%, rgb(var(--color-brand-500) / 0.14), transparent 30%)",
-        }}
-      />
-
-      <div className="relative">
+    <section className="opportunity-detail-hero mb-7">
+      <div>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(320px,.96fr)] lg:gap-8">
           <div className="min-w-0 py-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -141,17 +133,17 @@ function OpportunityHero({
             <TrustSignal trust={opportunity.trust} className="mt-3" />
 
             {facts.length > 0 ? (
-              <dl className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+              <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
                 {facts.map(({ label, value, icon: Icon }) => (
                   <div
                     key={label}
-                    className="min-w-0 rounded-[20px] border border-subtle bg-surface-elevated/75 px-3.5 py-3"
+                    className="flex min-w-0 items-center justify-between gap-3 border-b border-subtle py-2.5 last:border-b-0 sm:mr-5"
                   >
-                    <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
-                      <Icon size={13} aria-hidden="true" />
+                    <dt className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted">
+                      <Icon size={12} aria-hidden="true" />
                       {label}
                     </dt>
-                    <dd className="mt-1.5 break-words text-sm font-semibold leading-5 text-text-primary">
+                    <dd className="ml-auto min-w-0 break-words text-right text-sm font-semibold leading-5 text-text-primary">
                       {value}
                     </dd>
                   </div>
@@ -160,7 +152,7 @@ function OpportunityHero({
             ) : null}
           </div>
 
-          <div className="relative aspect-square overflow-hidden rounded-[22px] border border-subtle bg-surface-elevated sm:aspect-[16/8] lg:aspect-[4/3]">
+          <div className="relative aspect-[3/2] overflow-hidden rounded-[22px] border border-subtle bg-surface-elevated sm:aspect-[16/8] lg:aspect-[4/3]">
             <ImageWithFallback
               src={opportunity.image}
               fallbackSrc={opportunity.imageFallback}
@@ -299,8 +291,6 @@ const DETAIL_POLISH_STYLES = `
 
     .opportunity-detail-experience .opportunity-detail-hero {
       margin-bottom: 1.15rem;
-      border-radius: 1.45rem;
-      padding: 1.1rem;
     }
 
     .opportunity-detail-experience main > section article > section:not(.grid) {
@@ -317,13 +307,19 @@ export default function OpportunityDetail({
   const [mainTarget, setMainTarget] = useState<HTMLElement | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planAdded, setPlanAdded] = useState(false);
+  const [planJourneyId, setPlanJourneyId] = useState<string | null>(null);
   const { userId, getToken } = useAuth();
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
+  const { trackEvent } = useAnalytics();
 
   const handleAddToPlan = async () => {
     if (planAdded) {
-      navigate("/app/my-plan");
+      navigate(
+        planJourneyId
+          ? `/app/my-plan/${encodeURIComponent(planJourneyId)}`
+          : "/app/my-plan",
+      );
       return;
     }
 
@@ -342,8 +338,10 @@ export default function OpportunityDetail({
       if (!token) {
         throw new Error("Sign in again to add this opportunity to My Plan.");
       }
-      await createOpportunityJourney(opportunity.id, token);
+      const journey = await createOpportunityJourney(opportunity.id, token);
+      setPlanJourneyId(journey.journey.id);
       setPlanAdded(true);
+      trackEvent("journey_started", { journeyId: journey.journey.id, opportunityId: opportunity.id });
       success("Added to My Plan — your next steps are ready.");
     } catch (error) {
       showError(
