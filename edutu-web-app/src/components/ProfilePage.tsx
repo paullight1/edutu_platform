@@ -696,263 +696,263 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               {isEditing ? (
-                <fieldset className="grid min-w-0 gap-4 sm:grid-cols-2">
-                  <div className="block">
-                    <Label
-                      htmlFor="profile-full-name"
-                      className={FIELD_LABEL_CLASS_NAME}
-                    >
-                      Full name
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-full-name"
-                        value={fullName}
-                        onChange={(event) => setFullName(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="Your name"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
+              <fieldset className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div className="block">
+                  <Label
+                    htmlFor="profile-full-name"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Full name
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-full-name"
+                      value={fullName}
+                      onChange={(event) => setFullName(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="Your name"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
                   </div>
+                </div>
 
-                  <div className="block">
-                    <Label htmlFor="profile-email" className={FIELD_LABEL_CLASS_NAME}>
-                      Email
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-email"
-                        type="email"
-                        value={email}
-                        readOnly
-                        disabled
-                        className={`${FIELD_INPUT_CLASS_NAME} cursor-not-allowed opacity-70`}
-                        placeholder="you@example.com"
-                      />
-                    </div>
+                <div className="block">
+                  <Label htmlFor="profile-email" className={FIELD_LABEL_CLASS_NAME}>
+                    Email
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-email"
+                      type="email"
+                      value={email}
+                      readOnly
+                      disabled
+                      className={`${FIELD_INPUT_CLASS_NAME} cursor-not-allowed opacity-70`}
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  <span className="mt-1 block text-xs font-medium text-text-muted">
+                    Linked to your sign-in — it can't be edited here.
+                  </span>
+                </div>
+
+                <div className="block">
+                  <Label htmlFor="profile-country" className={FIELD_LABEL_CLASS_NAME}>
+                    Country
+                  </Label>
+                  <div className="relative mt-2">
+                    <select
+                      id="profile-country"
+                      value={country}
+                      onChange={(event) => setCountry(event.target.value)}
+                      className="h-11 w-full rounded-xl border border-subtle bg-surface-layer px-3 font-semibold text-text-secondary outline-none focus:border-brand-500/50"
+                    >
+                      <option value="">Select your country…</option>
+                      {/* Keep an unlisted saved value selectable instead of silently clearing it. */}
+                      {country &&
+                      !COUNTRIES.some((entry) => entry.name === country) ? (
+                        <option value={country}>{country}</option>
+                      ) : null}
+                      {COUNTRIES.map((entry) => (
+                        <option key={entry.name} value={entry.name}>
+                          {entry.flag} {entry.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label htmlFor="profile-school" className={FIELD_LABEL_CLASS_NAME}>
+                    School
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-school"
+                      value={school}
+                      onChange={(event) => setSchool(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="University or school"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label
+                    htmlFor="profile-course-of-study"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Course of study
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-course-of-study"
+                      value={courseOfStudy}
+                      onChange={(event) => setCourseOfStudy(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="Computer science, medicine, law"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label htmlFor="profile-degree" className={FIELD_LABEL_CLASS_NAME}>
+                    Degree level
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-degree"
+                      value={degree}
+                      onChange={(event) => setDegree(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="Undergraduate, masters, PhD"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label htmlFor="profile-cgpa" className={FIELD_LABEL_CLASS_NAME}>
+                    CGPA
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-cgpa"
+                      inputMode="decimal"
+                      value={cgpa}
+                      onChange={(event) => setCgpa(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="4.5"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label
+                    htmlFor="profile-grad-year"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Graduation year
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-grad-year"
+                      inputMode="numeric"
+                      value={gradYear}
+                      onChange={(event) => setGradYear(event.target.value)}
+                      className={FIELD_INPUT_CLASS_NAME}
+                      placeholder="2027"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    />
+                  </div>
+                </div>
+
+                <div className="block">
+                  <Label
+                    htmlFor="profile-date-of-birth"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Date of birth
+                  </Label>
+                  <div className="relative mt-2">
+                    <Input
+                      id="profile-date-of-birth"
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(event) => setDateOfBirth(event.target.value)}
+                      className={DATE_INPUT_CLASS_NAME}
+                    />
+                  </div>
+                  {calculatedAge !== null ? (
                     <span className="mt-1 block text-xs font-medium text-text-muted">
-                      Linked to your sign-in — it can't be edited here.
+                      Age {calculatedAge}
                     </span>
-                  </div>
+                  ) : null}
+                </div>
 
-                  <div className="block">
-                    <Label htmlFor="profile-country" className={FIELD_LABEL_CLASS_NAME}>
-                      Country
-                    </Label>
-                    <div className="relative mt-2">
-                      <select
-                        id="profile-country"
-                        value={country}
-                        onChange={(event) => setCountry(event.target.value)}
-                        className="h-11 w-full rounded-xl border border-subtle bg-surface-layer px-3 font-semibold text-text-secondary outline-none focus:border-brand-500/50"
-                      >
-                        <option value="">Select your country…</option>
-                        {/* Keep an unlisted saved value selectable instead of silently clearing it. */}
-                        {country &&
-                        !COUNTRIES.some((entry) => entry.name === country) ? (
-                          <option value={country}>{country}</option>
-                        ) : null}
-                        {COUNTRIES.map((entry) => (
-                          <option key={entry.name} value={entry.name}>
-                            {entry.flag} {entry.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                <div className="block sm:col-span-2">
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
+                    Interested countries
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Pick the countries you'd study or work in.
+                  </p>
+                  <MultiSelectDropdown
+                    label="Interested countries"
+                    options={ALL_COUNTRY_NAMES}
+                    selected={interestedCountries}
+                    onToggle={(value) =>
+                      setInterestedCountries((current) =>
+                        toggleTag(current, value),
+                      )
+                    }
+                    placeholder="Select countries…"
+                    searchPlaceholder="Search countries…"
+                    optionPrefix={countryFlag}
+                  />
+                </div>
 
-                  <div className="block">
-                    <Label htmlFor="profile-school" className={FIELD_LABEL_CLASS_NAME}>
-                      School
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-school"
-                        value={school}
-                        onChange={(event) => setSchool(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="University or school"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
-                  </div>
+                <div className="block sm:col-span-2">
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
+                    Opportunity interests
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Pick everything you want Edutu to hunt for.
+                  </p>
+                  <MultiSelectDropdown
+                    label="Opportunity interests"
+                    options={INTEREST_OPTIONS}
+                    selected={interests}
+                    onToggle={(value) =>
+                      setInterests((current) => toggleTag(current, value))
+                    }
+                    placeholder="Select interests…"
+                    searchPlaceholder="Search or add your own…"
+                    allowCustom
+                  />
+                </div>
 
-                  <div className="block">
-                    <Label
-                      htmlFor="profile-course-of-study"
-                      className={FIELD_LABEL_CLASS_NAME}
-                    >
-                      Course of study
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-course-of-study"
-                        value={courseOfStudy}
-                        onChange={(event) => setCourseOfStudy(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="Computer science, medicine, law"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="block">
-                    <Label htmlFor="profile-degree" className={FIELD_LABEL_CLASS_NAME}>
-                      Degree level
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-degree"
-                        value={degree}
-                        onChange={(event) => setDegree(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="Undergraduate, masters, PhD"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="block">
-                    <Label htmlFor="profile-cgpa" className={FIELD_LABEL_CLASS_NAME}>
-                      CGPA
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-cgpa"
-                        inputMode="decimal"
-                        value={cgpa}
-                        onChange={(event) => setCgpa(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="4.5"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="block">
-                    <Label
-                      htmlFor="profile-grad-year"
-                      className={FIELD_LABEL_CLASS_NAME}
-                    >
-                      Graduation year
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-grad-year"
-                        inputMode="numeric"
-                        value={gradYear}
-                        onChange={(event) => setGradYear(event.target.value)}
-                        className={FIELD_INPUT_CLASS_NAME}
-                        placeholder="2027"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="block">
-                    <Label
-                      htmlFor="profile-date-of-birth"
-                      className={FIELD_LABEL_CLASS_NAME}
-                    >
-                      Date of birth
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="profile-date-of-birth"
-                        type="date"
-                        value={dateOfBirth}
-                        onChange={(event) => setDateOfBirth(event.target.value)}
-                        className={DATE_INPUT_CLASS_NAME}
-                      />
-                    </div>
-                    {calculatedAge !== null ? (
-                      <span className="mt-1 block text-xs font-medium text-text-muted">
-                        Age {calculatedAge}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="block sm:col-span-2">
-                    <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
-                      Interested countries
-                    </span>
-                    <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
-                      Pick the countries you'd study or work in.
-                    </p>
-                    <MultiSelectDropdown
-                      label="Interested countries"
-                      options={ALL_COUNTRY_NAMES}
-                      selected={interestedCountries}
-                      onToggle={(value) =>
-                        setInterestedCountries((current) =>
-                          toggleTag(current, value),
-                        )
-                      }
-                      placeholder="Select countries…"
-                      searchPlaceholder="Search countries…"
-                      optionPrefix={countryFlag}
+                <div className="block sm:col-span-2">
+                  <Label htmlFor="profile-skills" className={FIELD_LABEL_CLASS_NAME}>
+                    Skills
+                  </Label>
+                  <div className="relative mt-2">
+                    <Textarea
+                      id="profile-skills"
+                      value={skillsText}
+                      onChange={(event) => setSkillsText(event.target.value)}
+                      rows={5}
+                      className={SKILLS_TEXTAREA_CLASS_NAME}
+                      placeholder="Scholarship essays, data analysis, community leadership"
+                    />
+                    <PencilLine
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-4 text-text-muted"
                     />
                   </div>
-
-                  <div className="block sm:col-span-2">
-                    <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
-                      Opportunity interests
-                    </span>
-                    <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
-                      Pick everything you want Edutu to hunt for.
-                    </p>
-                    <MultiSelectDropdown
-                      label="Opportunity interests"
-                      options={INTEREST_OPTIONS}
-                      selected={interests}
-                      onToggle={(value) =>
-                        setInterests((current) => toggleTag(current, value))
-                      }
-                      placeholder="Select interests…"
-                      searchPlaceholder="Search or add your own…"
-                      allowCustom
-                    />
-                  </div>
-
-                  <div className="block sm:col-span-2">
-                    <Label htmlFor="profile-skills" className={FIELD_LABEL_CLASS_NAME}>
-                      Skills
-                    </Label>
-                    <div className="relative mt-2">
-                      <Textarea
-                        id="profile-skills"
-                        value={skillsText}
-                        onChange={(event) => setSkillsText(event.target.value)}
-                        rows={5}
-                        className={SKILLS_TEXTAREA_CLASS_NAME}
-                        placeholder="Scholarship essays, data analysis, community leadership"
-                      />
-                      <PencilLine
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-4 text-text-muted"
-                      />
-                    </div>
-                  </div>
-                </fieldset>
+                </div>
+              </fieldset>
               ) : loading && !profile ? (
                 <p className="text-sm text-text-muted" role="status">
                   Loading profile details…
