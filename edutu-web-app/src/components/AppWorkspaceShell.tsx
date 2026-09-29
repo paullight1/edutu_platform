@@ -698,15 +698,15 @@ export default function AppWorkspaceShell({
           data-keyboard-hide
           className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden"
         >
-          {/* Scrim: fade scrolling content (incl. dark cover images) into the
-              bar so the labels stay legible no matter what's behind them. */}
+          {/* Keep the content fade in dark mode, where it protects nav-label
+              contrast over dark opportunity imagery. */}
           <div
-            className="pointer-events-none h-8 bg-gradient-to-t from-surface-body to-transparent"
+            className="pointer-events-none hidden h-8 bg-gradient-to-t from-surface-body to-transparent dark:block"
             aria-hidden="true"
           />
           <nav
             className={cn(
-              "pointer-events-auto border-t border-subtle bg-surface-layer px-3 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_-14px_rgba(2,6,23,0.35)]",
+              "pointer-events-auto border-t border-subtle bg-surface-layer px-3 pb-[env(safe-area-inset-bottom)]",
             )}
             aria-label="Mobile app navigation"
           >
