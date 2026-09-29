@@ -202,13 +202,10 @@ describe("NextStepCard", () => {
         onViewOpportunity={vi.fn()}
         onExplore={onExplore}
         onEditPreferences={vi.fn()}
-        onRetry={vi.fn()}
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Explore opportunities" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Explore opportunities" }));
     expect(onExplore).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("heading", { name: "Next step unavailable" }),
@@ -216,9 +213,8 @@ describe("NextStepCard", () => {
     expect(
       screen.getByRole("status").querySelector('img[aria-hidden="true"]'),
     ).toHaveAttribute("src", "/illustrations/guidance-unavailable.svg");
-    expect(
-      screen.getByRole("button", { name: "Try again" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Explore opportunities")).not.toBeInTheDocument();
   });
 
   it("labels inferred intent and offers a preference correction", () => {

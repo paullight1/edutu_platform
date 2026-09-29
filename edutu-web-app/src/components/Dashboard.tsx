@@ -307,7 +307,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [opportunityHomeState, setOpportunityHomeState] = useState<
       "loading" | "ready" | "error"
     >("loading");
-    const [opportunityHomeRefresh, setOpportunityHomeRefresh] = useState(0);
     const guidanceHomeEnabled =
       import.meta.env.VITE_GUIDANCE_HOME_ENABLED !== "false";
 
@@ -341,7 +340,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       return () => {
         active = false;
       };
-    }, [getToken, guidanceHomeEnabled, opportunityHomeRefresh, user?.id]);
+    }, [getToken, guidanceHomeEnabled, user?.id]);
 
     useEffect(() => {
       if (guidanceHomeEnabled && user?.id && opportunityHomeState !== "loading") {
@@ -1389,7 +1388,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   trackEvent("guidance_edit_preferences");
                   routerNavigate("/app/personalization");
                 }}
-                onRetry={() => setOpportunityHomeRefresh((value) => value + 1)}
               />
             ) : null}
             <motion.section

@@ -1,4 +1,4 @@
-import { ArrowRight, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OpportunityHomeView } from "../../services/opportunityHome";
@@ -11,25 +11,22 @@ export interface NextStepCardProps {
   onViewOpportunity: (opportunityId: string) => void;
   onExplore: () => void;
   onEditPreferences: () => void;
-  onRetry?: () => void;
 }
 
 function ActionButton({
   children,
   onClick,
   secondary = false,
-  compact = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   secondary?: boolean;
-  compact?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl ${compact ? "px-3 text-xs" : "px-4 text-sm"} font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${secondary ? "text-text-secondary hover:bg-surface-elevated hover:text-text-primary" : "bg-brand text-white shadow-sm hover:bg-brand-700 focus-visible:ring-offset-2"}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${secondary ? "text-text-secondary hover:bg-surface-elevated hover:text-text-primary" : "bg-brand text-white shadow-sm hover:bg-brand-700 focus-visible:ring-offset-2"}`}
     >
       {children}
     </button>
@@ -78,7 +75,6 @@ export default function NextStepCard(props: NextStepCardProps) {
     onViewOpportunity,
     onExplore,
     onEditPreferences,
-    onRetry,
     id,
   } = props;
 
@@ -126,36 +122,35 @@ export default function NextStepCard(props: NextStepCardProps) {
           aria-live="polite"
           className="rounded-[18px] border border-brand/15 bg-surface-brand p-3 dark:border-subtle dark:bg-surface-layer sm:p-4"
         >
-          <div className="flex min-w-0 items-center gap-2.5">
-            <img
-              src="/illustrations/guidance-unavailable.svg"
-              alt=""
-              aria-hidden="true"
-              className="h-10 w-10 shrink-0 object-contain"
-              width="40"
-              height="40"
-            />
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold leading-5 text-text-primary">
-                {t("guidanceHome.unavailableTitle")}
-              </h2>
-              <p className="mt-0.5 text-xs leading-4 text-text-secondary">
-                {t("guidanceHome.unavailableBody")}
-              </p>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap justify-end gap-2">
-            {onRetry ? (
-              <ActionButton onClick={onRetry} secondary compact>
-                <RefreshCw size={14} aria-hidden="true" />
-                {t("guidanceHome.retry")}
-              </ActionButton>
-            ) : null}
-            <ActionButton onClick={onExplore} compact>
-              {t("guidanceHome.explore")}
-              <ArrowRight size={14} aria-hidden="true" />
-            </ActionButton>
-          </div>
+          <button
+            type="button"
+            onClick={onExplore}
+            aria-label={t("guidanceHome.explore")}
+            className="block w-full rounded-xl text-left transition hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.99]"
+          >
+            <span className="flex min-w-0 items-center gap-2.5">
+              <img
+                src="/illustrations/guidance-unavailable.svg"
+                alt=""
+                aria-hidden="true"
+                className="h-10 w-10 shrink-0 object-contain"
+                width="40"
+                height="40"
+              />
+              <span className="min-w-0 flex-1">
+                <span
+                  role="heading"
+                  aria-level={2}
+                  className="block text-sm font-semibold leading-5 text-text-primary"
+                >
+                  {t("guidanceHome.unavailableTitle")}
+                </span>
+                <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
+                  {t("guidanceHome.unavailableBody")}
+                </span>
+              </span>
+            </span>
+          </button>
         </div>
       </section>
     );
