@@ -65,6 +65,24 @@ const home = {
 } satisfies OpportunityHomeView;
 
 describe("NextStepCard", () => {
+  it("shows a clear live loading status while the next step is fetched", () => {
+    renderCard(
+      <NextStepCard
+        home={null}
+        state="loading"
+        onContinuePlan={vi.fn()}
+        onViewOpportunity={vi.fn()}
+        onExplore={vi.fn()}
+        onEditPreferences={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading your next step",
+    );
+    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "true");
+  });
+
   it("sends an active user to the plan for the featured primary pursuit", () => {
     const onContinuePlan = vi.fn();
     renderCard(

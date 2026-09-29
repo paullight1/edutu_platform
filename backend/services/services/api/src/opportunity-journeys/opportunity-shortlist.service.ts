@@ -237,8 +237,10 @@ export class OpportunityShortlistService {
     try {
       const response = record(
         await this.opportunitiesService.getPersonalizedRecommendations(userId, {
-          limit: 30,
-          excludeOpportunityIds,
+          // Match the dashboard's feed key so both surfaces share the same
+          // cached/in-flight ranking work. Journeys are removed below.
+          limit: 48,
+          minMatchScore: 0,
           aiRerank: false,
         }),
       );

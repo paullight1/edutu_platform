@@ -167,6 +167,12 @@ export class OpportunityRankingService {
     })(),
     300,
   );
+  private readonly inFlightResponseCache = new Map<
+    string,
+    Promise<
+      Awaited<ReturnType<OpportunityRankingService["queryRecommendations"]>>
+    >
+  >();
   private readonly responseCacheKeysByUser = new Map<string, Set<string>>();
   // Cross-user per-opportunity engagement aggregate (30-day window), cached for
   // GLOBAL_ENGAGEMENT_TTL_MS. Single shared key — the map is not user-specific.
@@ -352,34 +358,51 @@ export class OpportunityRankingService {
     if (cacheKey) {
       const cached = this.responseCache.get(cacheKey);
       if (cached) return cached;
+
+      const inFlight = this.inFlightResponseCache.get(cacheKey);
+      if (inFlight) return inFlight;
     }
 
-    const [profile, preference, userGoals] = await Promise.all([
-      this.getUserProfile(userId),
-      this.getUserPreferences(userId),
-      this.getUserGoals(userId),
-    ]);
+    const loadResponse = async () => {
+      const [profile, preference, userGoals] = await Promise.all([
+        this.getUserProfile(userId),
+        this.getUserPreferences(userId),
+        this.getUserGoals(userId),
+      ]);
 
-    const response = await this.queryRecommendations({
-      profile,
-      preferences: this.toPreferenceDto(preference),
-      goals: userGoals,
-      message: request.message,
-      limit: request.limit,
-      minMatchScore: request.minMatchScore,
-      excludeOpportunityIds: request.excludeOpportunityIds,
-      aiRerank: request.aiRerank,
-      userId,
-    });
+      const response = await this.queryRecommendations({
+        profile,
+        preferences: this.toPreferenceDto(preference),
+        goals: userGoals,
+        message: request.message,
+        limit: request.limit,
+        minMatchScore: request.minMatchScore,
+        excludeOpportunityIds: request.excludeOpportunityIds,
+        aiRerank: request.aiRerank,
+        userId,
+      });
 
-    if (cacheKey) {
-      this.responseCache.set(cacheKey, response);
-      const keys = this.responseCacheKeysByUser.get(userId) ?? new Set();
-      keys.add(cacheKey);
-      this.responseCacheKeysByUser.set(userId, keys);
+      if (cacheKey) {
+        this.responseCache.set(cacheKey, response);
+        const keys = this.responseCacheKeysByUser.get(userId) ?? new Set();
+        keys.add(cacheKey);
+        this.responseCacheKeysByUser.set(userId, keys);
+      }
+
+      return response;
+    };
+
+    if (!cacheKey) return loadResponse();
+
+    const inFlight = loadResponse();
+    this.inFlightResponseCache.set(cacheKey, inFlight);
+    try {
+      return await inFlight;
+    } finally {
+      if (this.inFlightResponseCache.get(cacheKey) === inFlight) {
+        this.inFlightResponseCache.delete(cacheKey);
+      }
     }
-
-    return response;
   }
 
   /** Drops every cached feed for a user (called on feed-shaping signals). */

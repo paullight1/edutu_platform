@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRight, RefreshCw, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OpportunityHomeView } from "../../services/opportunityHome";
@@ -87,13 +87,26 @@ export default function NextStepCard(props: NextStepCardProps) {
         tabIndex={-1}
         aria-label={t("guidanceHome.loading")}
         aria-busy="true"
-        className="flex min-h-[112px] items-center gap-4 rounded-[18px] border border-subtle bg-surface-layer p-4 sm:min-h-[124px] sm:p-5"
+        className="space-y-1.5"
       >
-        <div className="h-14 w-14 shrink-0 animate-pulse rounded-2xl bg-surface-elevated" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="h-3 w-28 animate-pulse rounded bg-surface-elevated" />
-          <div className="h-5 w-3/5 animate-pulse rounded bg-surface-elevated" />
-          <div className="h-3 w-2/5 animate-pulse rounded bg-surface-elevated" />
+        <div className="flex min-h-4 items-center justify-between gap-2 px-1">
+          <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-brand">
+            {t("guidanceHome.eyebrow")}
+          </p>
+          <span
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 text-[10px] leading-4 text-text-muted"
+          >
+            <Loader2 size={12} className="animate-spin text-brand" aria-hidden="true" />
+            {t("guidanceHome.loading")}
+          </span>
+        </div>
+        <div className="flex min-h-[112px] items-center gap-4 rounded-[18px] border border-brand/15 bg-surface-brand p-4 sm:min-h-[124px] sm:p-5">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-5 w-3/5 animate-pulse rounded bg-surface-elevated" />
+            <div className="h-3 w-2/5 animate-pulse rounded bg-surface-elevated" />
+          </div>
         </div>
       </section>
     );

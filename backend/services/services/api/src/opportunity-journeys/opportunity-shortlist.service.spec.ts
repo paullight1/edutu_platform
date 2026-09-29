@@ -102,7 +102,7 @@ describe("OpportunityShortlistService", () => {
       opportunitiesService.getPersonalizedRecommendations,
     ).toHaveBeenCalledWith(
       USER_ID,
-      expect.objectContaining({ limit: 30, aiRerank: false }),
+      expect.objectContaining({ limit: 48, minMatchScore: 0, aiRerank: false }),
     );
   });
 
@@ -131,7 +131,7 @@ describe("OpportunityShortlistService", () => {
       opportunitiesService.getPersonalizedRecommendations,
     ).toHaveBeenCalledWith(
       USER_ID,
-      expect.objectContaining({ excludeOpportunityIds: [excludedId] }),
+      expect.objectContaining({ limit: 48, minMatchScore: 0 }),
     );
   });
 
