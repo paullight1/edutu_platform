@@ -838,6 +838,11 @@ button:focus-visible {
     box-shadow: none;
   }
 
+  /* Opportunity result photos stay true to their source image. */
+  .opportunities-page .opportunity-cinematic-media::after {
+    content: none;
+  }
+
   .opportunity-cinematic-media::after {
     content: "";
     position: absolute;

@@ -543,7 +543,6 @@ function OpportunityCard({
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             fallbackClassName="flex h-full w-full items-center justify-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
           {expired ? (
             <span className="absolute left-2 top-2 rounded-md bg-surface-elevated/95 px-2 py-1 text-2xs font-semibold text-text-secondary shadow-sm backdrop-blur">
               Expired
@@ -611,7 +610,6 @@ function OpportunityCard({
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             fallbackClassName="flex h-full w-full items-center justify-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
           {expired ? (
             <span className="absolute left-3 top-3 inline-flex items-center rounded-md bg-surface-elevated px-2.5 py-1 text-xs font-semibold text-text-secondary shadow-soft backdrop-blur">
               Expired
