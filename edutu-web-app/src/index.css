@@ -831,6 +831,13 @@ button:focus-visible {
       linear-gradient(145deg, rgb(var(--surface-layer)) 0%, rgb(var(--surface-brand)) 55%, rgb(var(--surface-elevated)) 100%);
   }
 
+  /* Keep opportunity results flat; their borders and image blocks already
+     separate cards from the page. */
+  .opportunities-page .opportunity-cinematic-card,
+  .opportunities-page .opportunity-cinematic-card:hover {
+    box-shadow: none;
+  }
+
   .opportunity-cinematic-media::after {
     content: "";
     position: absolute;

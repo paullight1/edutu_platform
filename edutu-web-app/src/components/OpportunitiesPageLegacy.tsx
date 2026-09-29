@@ -735,7 +735,7 @@ function LoadingCard() {
   // title lines, meta row — so the grid doesn't jump when real cards land.
   return (
     <>
-      <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-sm sm:hidden">
+      <div className="mobile-opportunity-result-card min-h-[216px] min-w-0 overflow-hidden rounded-2xl border border-subtle bg-surface-layer sm:hidden">
         <Skeleton variant="rectangular" className="mobile-opportunity-result-media aspect-[2/1] w-full" />
         <div className="p-2.5">
           <Skeleton variant="text" className="h-3 w-16" />
@@ -744,7 +744,7 @@ function LoadingCard() {
           <Skeleton variant="text" className="mt-5 h-3 w-24" />
         </div>
       </div>
-      <div className="hidden h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft sm:flex">
+      <div className="hidden h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer sm:flex">
         <Skeleton
           variant="rectangular"
           className="w-full"
@@ -1773,7 +1773,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         jsonLd={seoJsonLd}
       />
       {embedded ? (
-        <main className="mx-auto w-full max-w-7xl px-4 pb-5 pt-3 min-[412px]:px-5 sm:px-6 sm:py-6 lg:px-8">
+        <main className="opportunities-page mx-auto w-full max-w-7xl px-4 pb-5 pt-3 min-[412px]:px-5 sm:px-6 sm:py-6 lg:px-8">
           {content}
         </main>
       ) : (
