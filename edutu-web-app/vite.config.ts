@@ -165,6 +165,15 @@ export default defineConfig(({ mode, command }) => {
       fs: {
         allow: [resolve(__dirname, '.'), resolve(__dirname, '../packages/ux-state')],
       },
+      proxy: env.VITE_LOCAL_API_PROXY_TARGET
+        ? {
+            '/__api': {
+              target: env.VITE_LOCAL_API_PROXY_TARGET,
+              changeOrigin: true,
+              rewrite: (path) => path.replace(/^\/__api/, ''),
+            },
+          }
+        : undefined,
     },
     build: {
       rollupOptions: {
