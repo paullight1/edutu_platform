@@ -36,9 +36,9 @@
 
 **Interface:** Keep `findAll(limit, offset, status, category)` and `filterStaticOpportunityRows(...)` unchanged. Normalize supported category aliases with `normalizeCategory`; match canonical category plus the compatible legacy category label in Supabase, Drizzle, and static snapshot paths.
 
-- [ ] Add a verified listing whose display `category` is `Scholarships` and `canonical_category` is `internships`. Assert an `internships` query includes it and a `scholarships` query excludes it.
-- [ ] Add the same case to static snapshot category filtering.
-- [ ] Run the catalog and snapshot tests and confirm the new cases fail against display-category-only filtering.
-- [ ] Implement canonical-first category query predicates without changing other public visibility filters.
-- [ ] Re-run catalog and snapshot tests, API lint, and API build.
+- [x] Add a verified listing whose display `category` is `Scholarships` and `canonical_category` is `internships`. Assert an `internships` query includes it and a `scholarships` query excludes it.
+- [x] Add the same case to static snapshot category filtering.
+- [x] Run the catalog and snapshot tests and confirm the new cases fail against display-category-only filtering.
+- [x] Implement canonical-first category query predicates without changing other public visibility filters.
+- [x] Re-run catalog and snapshot tests, API lint, and API build.
 - [ ] Commit as `fix(api): filter opportunities by canonical category`.

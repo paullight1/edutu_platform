@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import * as path from "path";
 import { isDiscoverableOpportunityRow } from "./opportunity-visibility";
+import { normalizeCategory } from "./opportunity-categorization";
 
 const STATIC_OPPORTUNITY_SNAPSHOT_FILENAME = path.join(
   "edutu-web-app",
@@ -182,16 +183,23 @@ export function filterStaticOpportunityRows(
   category?: string,
 ): StaticOpportunityRow[] {
   const normalizedStatus = (status || "active").trim().toLowerCase();
-  const normalizedCategory = category?.trim().toLowerCase();
+  const normalizedCategory = category
+    ? (normalizeCategory(category) ?? category.trim().toLowerCase())
+    : null;
 
   if (normalizedStatus !== "active" && normalizedStatus !== "all") {
     return [];
   }
 
   const filtered = rows.filter((row) => {
-    const rowCategory = String(row.category ?? row.canonical_category ?? "")
-      .trim()
-      .toLowerCase();
+    const canonicalCategory = normalizeCategory(row.canonical_category);
+    const rowCategory =
+      (canonicalCategory && canonicalCategory !== "other"
+        ? canonicalCategory
+        : normalizeCategory(row.category)) ??
+      String(row.category ?? row.canonical_category ?? "")
+        .trim()
+        .toLowerCase();
     const rowStatus = String(row.status ?? "active")
       .trim()
       .toLowerCase();

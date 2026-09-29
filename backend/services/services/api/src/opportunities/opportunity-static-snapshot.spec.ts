@@ -175,4 +175,24 @@ describe("opportunity static snapshot helpers", () => {
 
     expect(rows.map((row) => row.id)).toEqual(["primary"]);
   });
+
+  it("filters static rows using canonical category when display text is stale", () => {
+    const rows = filterStaticOpportunityRows(
+      [
+        {
+          id: "misclassified",
+          status: "active",
+          verification_status: "verified",
+          category: "Scholarships",
+          canonical_category: "internships",
+        },
+      ],
+      10,
+      0,
+      "active",
+      "internships",
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["misclassified"]);
+  });
 });

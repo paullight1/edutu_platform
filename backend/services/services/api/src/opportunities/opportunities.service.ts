@@ -11,7 +11,18 @@ import { opportunities } from "../db/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { eq, or, and, sql, lt, gte, isNull, desc, inArray } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
@@ -52,6 +63,7 @@ import {
 import {
   categorizeOpportunity,
   classifyOpportunity,
+  normalizeCategory,
   type OpportunityCanonicalCategory,
 } from "./opportunity-categorization";
 // Note: Apify scraper disabled - using crawl4ai instead
@@ -335,6 +347,7 @@ export class OpportunitiesService {
     category?: string,
   ) {
     const statusFilter = status || "active";
+    const canonicalCategory = category ? normalizeCategory(category) : null;
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
     const cacheKey = `${OPPS_CACHE_PREFIX}list:${statusFilter}:${category || ""}:${cappedLimit}:${normalizedOffset}`;
@@ -346,7 +359,10 @@ export class OpportunitiesService {
 
     const run = async () => {
       try {
-        if (this.supabase) {
+        // Canonical category matching needs an OR over legacy fields. Keep
+        // that parameterized in Drizzle rather than interpolating user input
+        // into PostgREST's raw OR syntax.
+        if (this.supabase && !canonicalCategory) {
           let request = this.supabase
             .from("opportunities")
             .select("*")
@@ -392,7 +408,27 @@ export class OpportunitiesService {
             : eq(opportunities.status, statusFilter),
         ];
         if (category) {
-          conditions.push(eq(opportunities.category, category));
+          if (canonicalCategory) {
+            const legacyCategoryLabel = canonicalCategory.replaceAll("_", " ");
+            const canonicalMatches = ilike(
+              opportunities.canonicalCategory,
+              canonicalCategory,
+            );
+            const legacyCategoryMatches = and(
+              or(
+                isNull(opportunities.canonicalCategory),
+                ilike(opportunities.canonicalCategory, "other"),
+                ilike(opportunities.canonicalCategory, "general"),
+              ),
+              or(
+                ilike(opportunities.category, legacyCategoryLabel),
+                ilike(opportunities.category, category),
+              ),
+            );
+            conditions.push(or(canonicalMatches, legacyCategoryMatches)!);
+          } else {
+            conditions.push(eq(opportunities.category, category));
+          }
         }
         if (excludeExpired) {
           conditions.push(
