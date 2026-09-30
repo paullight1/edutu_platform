@@ -5,6 +5,10 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = Deno.env.get("OPENROUTER_MODEL") ?? "openrouter/auto";
 const RATE_LIMIT_WINDOW_MINUTES = Number(Deno.env.get("CHAT_RATE_WINDOW_MINUTES") ?? "60");
 const RATE_LIMIT_MAX_REQUESTS = Number(Deno.env.get("CHAT_RATE_MAX_REQUESTS") ?? "20");
+const MAX_REQUEST_BYTES = 32 * 1024;
+const MAX_BODY_CHUNKS = 4096;
+const MAX_MESSAGE_CHARS = 4_000;
+const MAX_CONTEXT_CHARS = 24_000;
 
 const SYSTEM_PROMPT =
   Deno.env.get("CHAT_SYSTEM_PROMPT") ??
@@ -63,6 +67,43 @@ async function getAuthenticatedClient(authHeader: string) {
   }
 
   return { supabase, user };
+}
+
+async function readBoundedJson(req: Request): Promise<ChatProxyRequest> {
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+  if (declaredLength > MAX_REQUEST_BYTES) {
+    throw new Response(JSON.stringify({ error: "Request body is too large." }), { status: 413 });
+  }
+  if (!req.body) {
+    throw new Response(JSON.stringify({ error: "Request body is required." }), { status: 400 });
+  }
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_REQUEST_BYTES) {
+      await reader.cancel();
+      throw new Response(JSON.stringify({ error: "Request body is too large." }), { status: 413 });
+    }
+    if (chunks.length >= MAX_BODY_CHUNKS) {
+      await reader.cancel();
+      throw new Response(JSON.stringify({ error: "Request body is too fragmented." }), { status: 413 });
+    }
+    chunks.push(value);
+  }
+  try {
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const parsed = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid body");
+    return parsed as ChatProxyRequest;
+  } catch {
+    throw new Response(JSON.stringify({ error: "Invalid JSON request body." }), { status: 400 });
+  }
 }
 
 async function ensureThread(
@@ -154,12 +195,17 @@ const buildOpenRouterMessages = (
       .filter((message) => message.role === "assistant" || message.role === "user")
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: message.content.slice(0, MAX_MESSAGE_CHARS)
       })),
     { role: "user" as const, content: userMessage }
   ];
 
-  return messages;
+  let remaining = MAX_CONTEXT_CHARS;
+  return messages.map((message) => {
+    const content = message.content.slice(0, remaining);
+    remaining = Math.max(0, remaining - content.length);
+    return { ...message, content };
+  });
 };
 
 const upsertChatUsage = async (
@@ -236,9 +282,11 @@ serve(async (req: Request) => {
     }
 
     const { supabase, user } = await getAuthenticatedClient(authHeader);
-    const payload = (await req.json()) as ChatProxyRequest;
+    const payload = await readBoundedJson(req);
 
-    const userMessage = payload.message?.trim();
+    const userMessage = typeof payload.message === "string"
+      ? payload.message.trim().slice(0, MAX_MESSAGE_CHARS)
+      : "";
     if (!userMessage) {
       return new Response(JSON.stringify({ error: "Message cannot be empty." }), { status: 400 });
     }
@@ -268,11 +316,13 @@ serve(async (req: Request) => {
     const completionRequest = {
       model: MODEL,
       messages: buildOpenRouterMessages(conversation, userMessage),
-      stream: false
+      stream: false,
+      max_tokens: 1200
     };
 
     const openRouterResponse = await fetch(OPENROUTER_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${openRouterApiKey}`,

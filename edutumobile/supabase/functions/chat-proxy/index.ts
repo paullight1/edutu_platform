@@ -10,6 +10,9 @@ import {
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 9 * 1024 * 1024;
+const MAX_BODY_CHUNKS = 8192;
+const MAX_MESSAGE_CHARS = 4_000;
 const MAX_AUDIO_SECONDS = 120;
 const SUPPORTED_M4A_MIME_TYPES = new Set(["audio/m4a", "audio/mp4", "audio/x-m4a"]);
 
@@ -41,6 +44,52 @@ const SECURITY_HEADERS = {
   "X-Frame-Options": "DENY",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
+
+async function readBoundedJson(req: Request): Promise<Record<string, any>> {
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+  if (declaredLength > MAX_REQUEST_BYTES || !req.body) {
+    throw new Response(JSON.stringify({ error: "Request body is missing or too large." }), {
+      status: declaredLength > MAX_REQUEST_BYTES ? 413 : 400,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+  }
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_REQUEST_BYTES) {
+      await reader.cancel();
+      throw new Response(JSON.stringify({ error: "Request body is too large." }), {
+        status: 413,
+        headers: { ...corsHeaders, ...SECURITY_HEADERS },
+      });
+    }
+    if (chunks.length >= MAX_BODY_CHUNKS) {
+      await reader.cancel();
+      throw new Response(JSON.stringify({ error: "Request body is too fragmented." }), {
+        status: 413,
+        headers: { ...corsHeaders, ...SECURITY_HEADERS },
+      });
+    }
+    chunks.push(value);
+  }
+  try {
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const parsed = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid body");
+    return parsed as Record<string, any>;
+  } catch {
+    throw new Response(JSON.stringify({ error: "Invalid JSON request body." }), {
+      status: 400,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+  }
+}
 
 /**
  * Charge one metered AI action against the backend BEFORE doing paid work, so
@@ -894,7 +943,22 @@ serve(async (req: Request) => {
 
   try {
     const claims = await verifyClerkRequest(req);
-    const { message, threadId, userId, mode, audio, language, text, voice, channel, locale } = await req.json();
+    const payload = await readBoundedJson(req);
+    const {
+      message: rawMessage,
+      threadId,
+      userId,
+      mode,
+      audio,
+      language,
+      text,
+      voice,
+      channel,
+      locale,
+    } = payload;
+    const message = typeof rawMessage === "string"
+      ? rawMessage.trim().slice(0, MAX_MESSAGE_CHARS)
+      : "";
     const authenticatedUserId = claims.sub;
 
     if (userId && userId !== authenticatedUserId) {
@@ -1215,7 +1279,7 @@ serve(async (req: Request) => {
       activeThreadId = thread.id;
     }
 
-    const userMessage = String(message || "").trim();
+    const userMessage = message;
     const isVoice = channel === "voice";
     // Multi-turn memory: prior messages of this thread ground the reply so
     // follow-ups ("tell me more", "what about the second one") make sense.
@@ -1227,7 +1291,13 @@ serve(async (req: Request) => {
         .eq("thread_id", activeThreadId)
         .order("created_at", { ascending: false })
         .limit(8);
-      history = (priorMessages || []).reverse();
+      history = (priorMessages || [])
+        .reverse()
+        .slice(-8)
+        .map((prior) => ({
+          ...prior,
+          content: String(prior.content ?? "").slice(0, 2_000),
+        }));
     }
     // Moderate before any intent detection or LLM/ranking work: a flagged
     // message gets a canned response and must not pull opportunity context.
@@ -1434,6 +1504,7 @@ ${JSON.stringify(opportunities, null, 2)}`);
       headers: { ...corsHeaders, ...SECURITY_HEADERS },
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error in chat-proxy:", error);
     // The chatMessage charge (if any) already succeeded before this throw —
     // e.g. thread creation or message-save failing after enforceMeter — so
