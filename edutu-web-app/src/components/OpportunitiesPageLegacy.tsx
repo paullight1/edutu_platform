@@ -1029,8 +1029,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const sortedOpportunities = useMemo(() => {
     if (sortOption === "recommended") {
-      // Rotate listings from the same posting day, while keeping newer posts
-      // ahead of older listings regardless of their deadlines or match score.
+      // Rotate the newest listings within seven-day windows, then move through
+      // older windows in order. Deadlines do not determine listing freshness.
       return shuffleLatestOpportunityFeed(
         filteredOpportunities,
         browseShuffleSeed,

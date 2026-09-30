@@ -63,30 +63,32 @@ describe("shuffleOpportunityFeed", () => {
 });
 
 describe("shuffleLatestOpportunityFeed", () => {
-  it("keeps newer posting days first and puts undated items last", () => {
+  it("shuffles recent listings, then progresses to older and undated items", () => {
     const items = [
       { id: "undated", timestamp: null },
-      { id: "older", timestamp: Date.parse("2026-09-28T09:00:00Z") },
+      { id: "older", timestamp: Date.parse("2026-09-18T09:00:00Z") },
       { id: "today-a", timestamp: Date.parse("2026-09-30T08:00:00Z") },
       { id: "today-b", timestamp: Date.parse("2026-09-30T16:00:00Z") },
+      { id: "this-week", timestamp: Date.parse("2026-09-25T12:00:00Z") },
     ];
 
     const result = shuffleLatestOpportunityFeed(items, 29, (item) => item.timestamp);
 
-    expect(result.slice(0, 2).map((item) => item.id).sort()).toEqual([
+    expect(result.slice(0, 3).map((item) => item.id).sort()).toEqual([
       "today-a",
       "today-b",
+      "this-week",
     ]);
-    expect(result[2].id).toBe("older");
-    expect(result[3].id).toBe("undated");
+    expect(result[3].id).toBe("older");
+    expect(result[4].id).toBe("undated");
     expect(items[0].id).toBe("undated");
   });
 
-  it("rotates opportunities posted on the same day between visits", () => {
+  it("rotates opportunities posted within the same recent week between visits", () => {
     const day = Date.parse("2026-09-30T12:00:00Z");
     const items = Array.from({ length: 8 }, (_, index) => ({
       id: `item-${index}`,
-      timestamp: day + index * 60_000,
+      timestamp: day - index * 12 * 60 * 60 * 1000,
     }));
     const getTimestamp = (item: (typeof items)[number]) => item.timestamp;
 

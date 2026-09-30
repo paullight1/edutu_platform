@@ -38,16 +38,19 @@ export function shuffleOpportunityFeed<T>(items: T[], seed: number): T[] {
   return nextItems;
 }
 
+const RECENCY_SHUFFLE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Keep the newest posting dates first while rotating items published on the
- * same day. Opportunities without a reliable date remain available at the end.
+ * Shuffle recent listings within rolling seven-day bands. The newest band is
+ * always first, older bands follow in order, and undated records stay at the
+ * end. A stable seed keeps pagination consistent for the current visit.
  */
 export function shuffleLatestOpportunityFeed<T>(
   items: T[],
   seed: number,
   getTimestamp: (item: T) => number | null | undefined,
 ): T[] {
-  const dayGroups = new Map<number, T[]>();
+  const dated: Array<{ item: T; timestamp: number }> = [];
   const undated: T[] = [];
 
   for (const item of items) {
@@ -56,17 +59,27 @@ export function shuffleLatestOpportunityFeed<T>(
       undated.push(item);
       continue;
     }
-
-    const day = Math.floor(timestamp / 86_400_000);
-    const group = dayGroups.get(day);
-    if (group) group.push(item);
-    else dayGroups.set(day, [item]);
+    dated.push({ item, timestamp });
   }
 
-  const latestDays = [...dayGroups.keys()].sort((a, b) => b - a);
+  dated.sort((a, b) => b.timestamp - a.timestamp);
+
+  const latestTimestamp = dated[0]?.timestamp;
+  if (latestTimestamp === undefined) return undated;
+
+  const bands = new Map<number, T[]>();
+  for (const { item, timestamp } of dated) {
+    const band = Math.floor(
+      (latestTimestamp - timestamp) / RECENCY_SHUFFLE_WINDOW_MS,
+    );
+    const group = bands.get(band);
+    if (group) group.push(item);
+    else bands.set(band, [item]);
+  }
+
   return [
-    ...latestDays.flatMap((day) =>
-      shuffleOpportunityFeed(dayGroups.get(day) ?? [], seed ^ day),
+    ...[...bands.keys()].sort((a, b) => a - b).flatMap((band) =>
+      shuffleOpportunityFeed(bands.get(band) ?? [], seed ^ band),
     ),
     ...undated,
   ];
