@@ -24,7 +24,18 @@ export default function DashboardUpdatePopup() {
       role="region"
       aria-label="Edutu update"
       initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
-      animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      animate={
+        reduceMotion ? undefined : { opacity: 1, y: [8, 0, -4, 0], scale: 1 }
+      }
+      transition={
+        reduceMotion
+          ? undefined
+          : {
+              opacity: { duration: 0.25 },
+              y: { duration: 0.65, ease: "easeOut" },
+              scale: { duration: 0.2 },
+            }
+      }
       className="relative mx-4 mb-4 max-w-[430px] overflow-hidden rounded-2xl border border-brand/20 bg-surface-elevated/95 shadow-soft sm:fixed sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:mx-0 sm:w-[410px] sm:rounded-[20px] sm:shadow-[0_24px_70px_-24px_rgba(15,23,42,0.55)] sm:backdrop-blur-xl"
     >
       <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-5">
