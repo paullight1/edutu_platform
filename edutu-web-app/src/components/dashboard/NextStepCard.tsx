@@ -1,4 +1,4 @@
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OpportunityHomeView } from "../../services/opportunityHome";
@@ -9,7 +9,6 @@ export interface NextStepCardProps {
   state: "loading" | "ready" | "error";
   onContinuePlan: (journeyId: string) => void;
   onViewOpportunity: (opportunityId: string) => void;
-  onExplore: () => void;
   onEditPreferences: () => void;
 }
 
@@ -73,99 +72,24 @@ export default function NextStepCard(props: NextStepCardProps) {
     state,
     onContinuePlan,
     onViewOpportunity,
-    onExplore,
     onEditPreferences,
     id,
   } = props;
 
-  if (state === "loading")
-    return (
-      <section
-        id={id}
-        tabIndex={-1}
-        aria-label={t("guidanceHome.loading")}
-        aria-busy="true"
-        className="space-y-1.5"
-      >
-        <div className="flex min-h-4 items-center justify-between gap-2 px-1">
-          <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-brand">
-            {t("guidanceHome.eyebrow")}
-          </p>
-          <span
-            role="status"
-            aria-live="polite"
-            className="inline-flex items-center gap-1.5 text-[10px] leading-4 text-text-muted"
-          >
-            <Loader2 size={12} className="animate-spin text-brand" aria-hidden="true" />
-            {t("guidanceHome.loading")}
-          </span>
-        </div>
-        <div className="flex min-h-[112px] items-center gap-4 rounded-[18px] border border-brand/15 bg-surface-brand p-4 sm:min-h-[124px] sm:p-5">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-5 w-3/5 animate-pulse rounded bg-surface-elevated" />
-            <div className="h-3 w-2/5 animate-pulse rounded bg-surface-elevated" />
-          </div>
-        </div>
-      </section>
-    );
+  if (state !== "ready" || !home) return null;
 
-  if (state === "error" || !home) {
-    return (
-      <section id={id} tabIndex={-1} className="space-y-1.5">
-        <div className="flex min-h-4 items-center px-1">
-          <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-brand">
-            {t("guidanceHome.eyebrow")}
-          </p>
-        </div>
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-[18px] border border-brand/15 bg-surface-brand p-3 dark:border-subtle dark:bg-surface-layer sm:p-4"
-        >
-          <button
-            type="button"
-            onClick={onExplore}
-            aria-label={t("guidanceHome.explore")}
-            className="block w-full rounded-xl text-left transition hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.99]"
-          >
-            <span className="flex min-w-0 items-center gap-2.5">
-              <img
-                src="/illustrations/guidance-unavailable.svg"
-                alt=""
-                aria-hidden="true"
-                className="h-10 w-10 shrink-0 object-contain"
-                width="40"
-                height="40"
-              />
-              <span className="min-w-0 flex-1">
-                <span
-                  role="heading"
-                  aria-level={2}
-                  className="block text-sm font-semibold leading-5 text-text-primary"
-                >
-                  {t("guidanceHome.unavailableTitle")}
-                </span>
-                <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
-                  {t("guidanceHome.unavailableBody")}
-                </span>
-              </span>
-            </span>
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  const featured = home?.activePursuits.find(
+  const featured = home.activePursuits.find(
     (p) => p.journey.id === home.featuredPursuitId,
   );
-  const recommendation = home?.recommendations.find(isCurrent);
+  const recommendation = home.recommendations.find(isCurrent);
+  if (!featured && !recommendation) return null;
+
   const recommendationArtwork =
-    recommendation?.imageUrl ?? recommendation?.image_url ?? recommendation?.image;
-  const inferred = home?.intent?.source === "inferred";
-  const dueAt = displayDate(
-    home?.nextAction?.dueAt ?? featured?.nextAction.dueAt,
-  );
+    recommendation?.imageUrl ??
+    recommendation?.image_url ??
+    recommendation?.image;
+  const inferred = home.intent?.source === "inferred";
+  const dueAt = displayDate(home.nextAction?.dueAt ?? featured?.nextAction.dueAt);
   const opportunityTitle =
     typeof featured?.opportunity.title === "string"
       ? featured.opportunity.title
@@ -241,52 +165,27 @@ export default function NextStepCard(props: NextStepCardProps) {
                 {intentLink}
               </div>
             </>
-          ) : (
-            <>
-              <h2 className="mt-1 text-base font-semibold leading-6 text-text-primary sm:text-lg">
-                {t("guidanceHome.noRecommendationTitle")}
-              </h2>
-              <p className="mt-1 text-sm leading-5 text-text-secondary">
-                {home?.degraded
-                  ? t("guidanceHome.limitedBody")
-                  : t("guidanceHome.noRecommendationBody")}
-              </p>
-              <div className="mt-3 hidden flex-wrap gap-2 sm:flex">
-                <ActionButton onClick={onExplore}>
-                  {t("guidanceHome.explore")}
-                  <ArrowRight size={15} aria-hidden="true" />
-                </ActionButton>
-                {intentLink}
-              </div>
-            </>
-          )}
+          ) : null}
         </div>
-        {state === "ready" && home ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-brand/15 bg-surface-layer/80 text-brand sm:hidden"
-          >
-            <ArrowRight size={17} />
-          </span>
-        ) : null}
-        {state === "ready" && home ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (featured) onContinuePlan(featured.journey.id);
-              else if (recommendation) onViewOpportunity(recommendation.id);
-              else onExplore();
-            }}
-            className="absolute inset-0 z-20 block rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand sm:hidden"
-            aria-label={
-              featured
-                ? `${t("guidanceHome.continuePlan")}: ${opportunityTitle}`
-                : recommendation
-                  ? `${t("guidanceHome.viewOpportunity")}: ${recommendation.title}`
-                  : t("guidanceHome.explore")
-            }
-          />
-        ) : null}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-brand/15 bg-surface-layer/80 text-brand sm:hidden"
+        >
+          <ArrowRight size={17} />
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (featured) onContinuePlan(featured.journey.id);
+            else if (recommendation) onViewOpportunity(recommendation.id);
+          }}
+          className="absolute inset-0 z-20 block rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand sm:hidden"
+          aria-label={
+            featured
+              ? `${t("guidanceHome.continuePlan")}: ${opportunityTitle}`
+              : `${t("guidanceHome.viewOpportunity")}: ${recommendation?.title}`
+          }
+        />
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
           <img
             src="/illustrations/guidance-next-step.svg"

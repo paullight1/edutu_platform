@@ -106,7 +106,14 @@ vi.mock("../../services/opportunityHome", () => ({
     featuredPursuitId: null,
     nextAction: null,
     activePursuits: [],
-    recommendations: [],
+    recommendations: [
+      {
+        id: "opp-1",
+        title: "Global Scholars Fellowship",
+        eligibilityStatus: "eligible",
+        daysUntilDeadline: 30,
+      },
+    ],
     degraded: false,
     degradedReasons: [],
   }),

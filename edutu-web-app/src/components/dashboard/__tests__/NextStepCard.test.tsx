@@ -65,22 +65,18 @@ const home = {
 } satisfies OpportunityHomeView;
 
 describe("NextStepCard", () => {
-  it("shows a clear live loading status while the next step is fetched", () => {
-    renderCard(
+  it("hides the section while the next step is loading", () => {
+    const { container } = renderCard(
       <NextStepCard
         home={null}
         state="loading"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
-        onExplore={vi.fn()}
         onEditPreferences={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading your next step",
-    );
-    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "true");
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("sends an active user to the plan for the featured primary pursuit", () => {
@@ -91,7 +87,6 @@ describe("NextStepCard", () => {
         state="ready"
         onContinuePlan={onContinuePlan}
         onViewOpportunity={vi.fn()}
-        onExplore={vi.fn()}
         onEditPreferences={vi.fn()}
       />,
     );
@@ -120,7 +115,6 @@ describe("NextStepCard", () => {
         state="ready"
         onContinuePlan={vi.fn()}
         onViewOpportunity={onViewOpportunity}
-        onExplore={vi.fn()}
         onEditPreferences={vi.fn()}
       />,
     );
@@ -158,7 +152,6 @@ describe("NextStepCard", () => {
         state="ready"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
-        onExplore={vi.fn()}
         onEditPreferences={vi.fn()}
       />,
     );
@@ -166,9 +159,8 @@ describe("NextStepCard", () => {
     expect(screen.getByText("Closes today")).toBeInTheDocument();
   });
 
-  it("shows a browse action when there is no active pursuit or safe recommendation", () => {
-    const onExplore = vi.fn();
-    renderCard(
+  it("hides the section when there is no active pursuit or safe recommendation", () => {
+    const { container } = renderCard(
       <NextStepCard
         home={{
           ...home,
@@ -180,41 +172,25 @@ describe("NextStepCard", () => {
         state="ready"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
-        onExplore={onExplore}
         onEditPreferences={vi.fn()}
       />,
     );
 
-    const exploreActions = screen.getAllByRole("button", {
-      name: "Explore opportunities",
-    });
-    fireEvent.click(exploreActions[exploreActions.length - 1]);
-    expect(onExplore).toHaveBeenCalledOnce();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it("offers a browse route for an unavailable or empty response", () => {
-    const onExplore = vi.fn();
-    renderCard(
+  it("hides the section when guidance is unavailable", () => {
+    const { container } = renderCard(
       <NextStepCard
         home={null}
         state="error"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
-        onExplore={onExplore}
         onEditPreferences={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Explore opportunities" }));
-    expect(onExplore).toHaveBeenCalledOnce();
-    expect(
-      screen.getByRole("heading", { name: "Next step unavailable" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("status").querySelector('img[aria-hidden="true"]'),
-    ).toHaveAttribute("src", "/illustrations/guidance-unavailable.svg");
-    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Explore opportunities")).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("labels inferred intent and offers a preference correction", () => {
@@ -231,7 +207,6 @@ describe("NextStepCard", () => {
         state="ready"
         onContinuePlan={vi.fn()}
         onViewOpportunity={vi.fn()}
-        onExplore={vi.fn()}
         onEditPreferences={onEditPreferences}
       />,
     );

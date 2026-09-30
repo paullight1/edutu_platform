@@ -9,7 +9,6 @@ This first web slice uses the existing `useAnalytics().trackEvent` activity aggr
 | `guidance_home_viewed` | Signed-in dashboard home response has resolved (including error state); metadata contains response state and whether an active pursuit/recommendation exists. | Signed-in dashboard sessions with the feature enabled. |
 | `guidance_continue_plan` | User selects Continue plan from the card. | Guidance home views with an active pursuit. |
 | `guidance_view_recommendation` | User selects the recommendation CTA. | Guidance home views with a current recommendation. |
-| `guidance_explore_clicked` | User uses the browse fallback. | Empty, degraded, or unavailable guidance views. |
 | `guidance_edit_preferences` | User opens personalization from inferred-intent guidance. | Guidance views whose intent source is inferred. |
 | `journey_started` | The API confirms `createOpportunityJourney`. | Opportunity details with an Add to My Plan action. |
 | `required_task_completed` | Task update response confirms the required task is completed. | Required tasks shown in active plans. |

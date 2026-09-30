@@ -1380,10 +1380,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   trackEvent("guidance_view_recommendation", { opportunityId });
                   onOpportunityClick({ id: opportunityId });
                 }}
-                onExplore={() => {
-                  trackEvent("guidance_explore_clicked");
-                  onViewAllOpportunities();
-                }}
                 onEditPreferences={() => {
                   trackEvent("guidance_edit_preferences");
                   routerNavigate("/app/personalization");
