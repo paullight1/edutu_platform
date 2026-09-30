@@ -42,9 +42,39 @@ export default function RunLauncher({
     try {
       const result = await onStart(source, { maxPages, incremental });
       const found = result.opportunities?.length ?? result.totalResults ?? 0;
+      const failedSources = (result.sourceResults ?? []).filter(
+        (sourceResult) => sourceResult.status === "failed",
+      );
+      const firstSourceFailure = failedSources.find(
+        (sourceResult) => sourceResult.error || sourceResult.warnings?.length,
+      );
+      const failureDetail =
+        firstSourceFailure?.error || firstSourceFailure?.warnings?.[0];
+
+      if (!result.success) {
+        const message =
+          result.error ||
+          failureDetail ||
+          "No selected source completed successfully. Inspect Live Runs for details.";
+        setError(message);
+        onNotice(message, "error");
+        return;
+      }
+
+      if (found === 0 && failedSources.length > 0) {
+        const message = failureDetail
+          ? `${failedSources.length} source${failedSources.length === 1 ? "" : "s"} could not be scraped. ${failureDetail}`
+          : `${failedSources.length} source${failedSources.length === 1 ? "" : "s"} could not be scraped. Inspect Live Runs for details.`;
+        onNotice(message, "warning");
+        onClose();
+        return;
+      }
+
       onNotice(
-        `Run complete · ${found.toLocaleString()} opportunities found.`,
-        result.success ? "success" : "warning",
+        found > 0
+          ? `Run complete · ${found.toLocaleString()} opportunities found.`
+          : "Run complete · No new opportunities found.",
+        found > 0 ? "success" : "warning",
       );
       onClose();
     } catch (caught) {

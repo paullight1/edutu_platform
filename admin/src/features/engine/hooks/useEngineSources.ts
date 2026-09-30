@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { engineApi } from "../api/engineApi";
+import { useEngineRun } from "../state/engine-run-context";
 import {
   errorResource,
   idleResource,
@@ -173,6 +174,7 @@ function settle<T>(
 }
 
 export function useEngineSources(): EngineSourcesState {
+  const engineRun = useEngineRun();
   const [resources, setResources] = useState(initialResources);
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(
     () => new Set(),
@@ -402,19 +404,36 @@ export function useEngineSources(): EngineSourcesState {
         );
       }
 
-      return withPending(`run:${source.id}`, () =>
-        engineApi.openRunStream(
+      return withPending(`run:${source.id}`, async () => {
+        let result: ScrapeResult | null = null;
+        let failure: Error | null = null;
+        const started = await engineRun.start(
           {
             sourceId: source.id,
             maxPages: options.maxPages,
             incremental: options.incremental,
           },
-          {},
-          options.signal,
-        ),
-      );
+          {
+            onResult: (completed) => {
+              result = completed;
+            },
+            onError: (error) => {
+              failure = error;
+            },
+            signal: options.signal,
+          },
+        );
+
+        if (failure) throw failure;
+        if (!started || !result) {
+          throw new Error(
+            "An Engine run is already active. Check Live Runs for its status.",
+          );
+        }
+        return result;
+      });
     },
-    [resources.sources.data, withPending],
+    [engineRun, resources.sources.data, withPending],
   );
 
   return {

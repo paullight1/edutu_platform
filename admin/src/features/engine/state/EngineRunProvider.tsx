@@ -18,6 +18,7 @@ import {
 } from "./engineRunReducer";
 import {
   EngineRunContext,
+  type EngineRunStartHandlers,
   type EngineRunContextValue,
 } from "./engine-run-context";
 
@@ -126,7 +127,10 @@ export function EngineRunProvider({
   }, [applyServerStatus, clearPolling, probeOnMount, startPolling]);
 
   const start = useCallback(
-    async (options: OpenRunStreamOptions): Promise<boolean> => {
+    async (
+      options: OpenRunStreamOptions,
+      handlers?: EngineRunStartHandlers,
+    ): Promise<boolean> => {
       if (activeRef.current || isActiveRunPhase(stateRef.current.phase)) {
         return false;
       }
@@ -134,10 +138,19 @@ export function EngineRunProvider({
       activeRef.current = true;
       clearPolling();
       const controller = new AbortController();
+      const abortFromCaller = () =>
+        controller.abort(handlers?.signal?.reason);
+      if (handlers?.signal?.aborted) abortFromCaller();
+      else handlers?.signal?.addEventListener("abort", abortFromCaller, { once: true });
       streamControllerRef.current = controller;
       dispatch({ type: "begin", options, startedAt: Date.now() });
 
       try {
+        if (controller.signal.aborted) {
+          dispatch({ type: "reset" });
+          return false;
+        }
+
         try {
           const serverStatus = await engineApi.getRunStatus();
           if (serverStatus.running) {
@@ -157,6 +170,7 @@ export function EngineRunProvider({
           controller.signal,
         );
 
+        handlers?.onResult?.(result);
         dispatch({ type: "complete", result, completedAt: Date.now() });
         return true;
       } catch (error) {
@@ -165,13 +179,15 @@ export function EngineRunProvider({
           return false;
         }
 
-        dispatch({
-          type: "fail",
-          error: normalizeEngineError(error, "The Engine run failed."),
-          completedAt: Date.now(),
-        });
+        const normalizedError = normalizeEngineError(
+          error,
+          "The Engine run failed.",
+        );
+        handlers?.onError?.(normalizedError);
+        dispatch({ type: "fail", error: normalizedError, completedAt: Date.now() });
         return false;
       } finally {
+        handlers?.signal?.removeEventListener("abort", abortFromCaller);
         if (streamControllerRef.current === controller) {
           streamControllerRef.current = null;
         }

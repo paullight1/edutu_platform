@@ -715,12 +715,26 @@ export class ScraperService implements OnModuleInit {
         (sum, source) => sum + (source.itemsSkipped || 0),
         0,
       );
+      const successfulSources = sourceResults.filter(
+        (source) => source.status === "success",
+      );
+      const failedSources = sourceResults.filter(
+        (source) => source.status === "failed",
+      );
+      const runSucceeded = successfulSources.length > 0;
+      const runError = runSucceeded
+        ? undefined
+        : failedSources[0]?.error ||
+          failedSources[0]?.warnings?.[0] ||
+          sourceResults[0]?.error ||
+          "No selected sources completed successfully.";
 
-      await this.finishJobLog(jobLogId, "completed", {
+      await this.finishJobLog(jobLogId, runSucceeded ? "completed" : "failed", {
         itemsFound: results.length,
         itemsSkipped,
         duration,
         sourceResults,
+        errorMessage: runError,
         outcome,
       });
 
@@ -735,13 +749,14 @@ export class ScraperService implements OnModuleInit {
       });
 
       return {
-        success: true,
+        success: runSucceeded,
         sourcesScraped: sources.length,
         totalResults: results.length,
         itemsSkipped,
         duration,
         jobId: jobLogId ?? undefined,
         sources: sources.map((s) => s.name),
+        ...(runError && { error: runError }),
         sourceResults,
         opportunities: results,
         outcome,
@@ -1539,6 +1554,7 @@ export class ScraperService implements OnModuleInit {
           name: source.name,
           itemsFound,
           itemsSkipped,
+          ...(sourceFailed && { error: sourceWarnings[0] }),
         });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);

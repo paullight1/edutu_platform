@@ -146,7 +146,7 @@ export function engineRunReducer(
     case "complete":
       return {
         ...state,
-        phase: "completed",
+        phase: action.result.success ? "completed" : "failed",
         paused: false,
         completedAt: action.completedAt,
         result: action.result,

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScrapeSource } from "../model/types";
+import { EngineRunProvider } from "../state/EngineRunProvider";
 import {
   canRunSource,
   parseBulkSourceLines,
@@ -19,6 +21,10 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/engineApi", () => ({ engineApi: api }));
+
+function wrapper({ children }: { children: ReactNode }) {
+  return <EngineRunProvider probeOnMount={false}>{children}</EngineRunProvider>;
+}
 
 function source(overrides: Partial<ScrapeSource> = {}): ScrapeSource {
   return {
@@ -96,7 +102,7 @@ describe("useEngineSources", () => {
   it("keeps a failed sources request distinct from a successful empty inventory", async () => {
     api.listSources.mockRejectedValue(new Error("sources unavailable"));
 
-    const { result } = renderHook(() => useEngineSources());
+    const { result } = renderHook(() => useEngineSources(), { wrapper });
 
     await waitFor(() => expect(result.current.sources.status).toBe("error"));
 
@@ -115,7 +121,7 @@ describe("useEngineSources", () => {
       }),
     ]);
 
-    const { result } = renderHook(() => useEngineSources());
+    const { result } = renderHook(() => useEngineSources(), { wrapper });
     await waitFor(() => expect(result.current.sources.status).toBe("success"));
 
     await act(async () => {
@@ -152,7 +158,7 @@ describe("useEngineSources", () => {
     const disabled = source({ enabled: false });
     api.listSources.mockResolvedValue([disabled]);
 
-    const { result } = renderHook(() => useEngineSources());
+    const { result } = renderHook(() => useEngineSources(), { wrapper });
     await waitFor(() => expect(result.current.sources.status).toBe("success"));
 
     await expect(

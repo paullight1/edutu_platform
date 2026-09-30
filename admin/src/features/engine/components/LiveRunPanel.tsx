@@ -114,12 +114,12 @@ export default function LiveRunPanel({ run }: LiveRunPanelProps) {
         </div>
       </header>
 
-      {state.error ? (
+      {state.error || state.result?.error ? (
         <div className="engine-live-run-error" role="alert">
           <TriangleAlert size={16} aria-hidden="true" />
           <span>
-            <strong>{state.error.message}</strong>
-            {state.error.requestId ? (
+            <strong>{state.error?.message || state.result?.error}</strong>
+            {state.error?.requestId ? (
               <small>Reference {state.error.requestId}</small>
             ) : null}
           </span>

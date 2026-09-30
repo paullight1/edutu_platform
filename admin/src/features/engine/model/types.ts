@@ -120,6 +120,7 @@ export interface SourceResult {
   itemsSaved: number;
   itemsSkipped?: number;
   error?: string;
+  warnings?: string[];
   duration?: number;
 }
 

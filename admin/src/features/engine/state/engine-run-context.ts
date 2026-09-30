@@ -1,10 +1,19 @@
 import { createContext, useContext } from "react";
-import type { OpenRunStreamOptions } from "../model/types";
+import type { OpenRunStreamOptions, ScrapeResult } from "../model/types";
 import type { EngineRunState } from "../model/run";
+
+export interface EngineRunStartHandlers {
+  onResult?(result: ScrapeResult): void;
+  onError?(error: Error): void;
+  signal?: AbortSignal;
+}
 
 export interface EngineRunContextValue {
   state: EngineRunState;
-  start(options: OpenRunStreamOptions): Promise<boolean>;
+  start(
+    options: OpenRunStreamOptions,
+    handlers?: EngineRunStartHandlers,
+  ): Promise<boolean>;
   pause(): Promise<boolean>;
   resume(): Promise<boolean>;
   stop(): Promise<boolean>;
