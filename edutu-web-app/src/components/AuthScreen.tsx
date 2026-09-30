@@ -8,7 +8,6 @@ import {
   Loader2,
   LockKeyhole,
   Mail,
-  ShieldCheck,
   Star,
   User,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import { useClerk, useSignIn, useSignUp } from "@clerk/clerk-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { rememberPostAuthRedirect } from "../lib/auth";
+import PublicHeader from "./PublicHeader";
 
 /** What the sign-in/sign-up flows hand back. Every field is optional: the
  *  email-only paths fire before Clerk has created the user. */
@@ -814,7 +814,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             : t("auth.subtitles.signUp");
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-surface-body text-text-primary lg:grid lg:grid-cols-[1.05fr_1fr]">
+    <>
+      <PublicHeader onPrimaryAction={() => setMode("sign-up")} />
+      <div className="relative min-h-[100dvh] w-full bg-surface-body text-text-primary lg:grid lg:grid-cols-[1.05fr_1fr]">
       {/* ── Left promo panel (desktop only) ───────────────────────── */}
       <aside className="relative hidden overflow-hidden lg:block">
         {/* soft gradient field */}
@@ -827,15 +829,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         <div className="absolute -right-8 top-44 h-[320px] w-[320px] rounded-full border border-white/20" />
 
         <div className="relative z-10 flex h-full flex-col justify-between p-10 xl:p-14">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/edutu-logo.png"
-              alt="Edutu"
-              className="h-9 w-9 rounded-xl bg-white/90 p-1.5"
-            />
-            <span className="text-lg font-semibold text-white">Edutu</span>
-          </div>
-
           <div className="rounded-[28px] border border-white/25 bg-white/10 p-8 backdrop-blur-sm xl:p-10">
             <h2 className="font-display text-4xl font-semibold text-white xl:text-5xl">
               <span className="mr-2 text-2xl align-middle">▶</span>Your gateway
@@ -938,21 +931,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             <div className="flex items-center justify-center">
               <div className="w-full">
                 <div className="mb-8">
-                  <div className="mb-6 flex items-center gap-2.5">
-                    <img
-                      src="/edutu-logo.png"
-                      alt="Edutu"
-                      className="h-10 w-10 rounded-xl"
-                    />
-                    {mode === "verify" ||
-                    mode === "verify-sign-in" ||
-                    mode === "verify-second-factor" ||
-                    mode === "reset-password" ? (
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10">
-                        <ShieldCheck className="text-brand" size={17} />
-                      </span>
-                    ) : null}
-                  </div>
                   <h1 className="text-2xl font-display font-semibold tracking-tight text-text-primary">
                     {title}
                   </h1>
@@ -1446,7 +1424,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         </section>
       </section>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 
