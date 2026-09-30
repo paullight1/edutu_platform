@@ -1436,6 +1436,25 @@ body {
   min-height: -webkit-fill-available;
 }
 
+/* Keep light mode flat across utility classes, component styles, and inline
+   shadows. The theme class lives on <html>, so dark mode stays unchanged. */
+html:not(.dark) *,
+html:not(.dark) *::before,
+html:not(.dark) *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html:not(.dark) [class*="drop-shadow"] {
+  filter: none !important;
+}
+
+/* Shadow based focus rings are removed above; retain a keyboard indicator. */
+html:not(.dark) :focus-visible {
+  outline: 2px solid rgb(var(--color-brand-600)) !important;
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
