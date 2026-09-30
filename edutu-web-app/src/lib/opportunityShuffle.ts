@@ -37,3 +37,37 @@ export function shuffleOpportunityFeed<T>(items: T[], seed: number): T[] {
 
   return nextItems;
 }
+
+/**
+ * Keep the newest posting dates first while rotating items published on the
+ * same day. Opportunities without a reliable date remain available at the end.
+ */
+export function shuffleLatestOpportunityFeed<T>(
+  items: T[],
+  seed: number,
+  getTimestamp: (item: T) => number | null | undefined,
+): T[] {
+  const dayGroups = new Map<number, T[]>();
+  const undated: T[] = [];
+
+  for (const item of items) {
+    const timestamp = getTimestamp(item);
+    if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+      undated.push(item);
+      continue;
+    }
+
+    const day = Math.floor(timestamp / 86_400_000);
+    const group = dayGroups.get(day);
+    if (group) group.push(item);
+    else dayGroups.set(day, [item]);
+  }
+
+  const latestDays = [...dayGroups.keys()].sort((a, b) => b - a);
+  return [
+    ...latestDays.flatMap((day) =>
+      shuffleOpportunityFeed(dayGroups.get(day) ?? [], seed ^ day),
+    ),
+    ...undated,
+  ];
+}

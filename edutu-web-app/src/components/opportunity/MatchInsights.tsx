@@ -134,17 +134,17 @@ export function WhyThisMatches({
 
   return (
     <section
-      className={`rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft ${className}`}
+      className={`rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5 ${className}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Sparkles size={18} className="text-success" />
-          <h2 className="text-base font-display font-semibold tracking-tight text-text-primary">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <Sparkles size={18} className="mt-0.5 shrink-0 text-success" />
+          <h2 className="min-w-0 text-[15px] font-display font-semibold leading-5 tracking-tight text-text-primary sm:text-base">
             Why this matches you
           </h2>
         </div>
         <span
-          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${tierClasses[tier]}`}
+          className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${tierClasses[tier]}`}
         >
           {getMatchLabel(score)}
         </span>

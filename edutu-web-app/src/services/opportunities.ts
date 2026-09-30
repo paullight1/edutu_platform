@@ -601,6 +601,9 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.shareImageUrl,
     shareCard?.url,
   );
+  const createdAt = pickOptionalString(row.created_at, row.createdAt);
+  const lastUpdated =
+    pickOptionalString(row.updated_at, row.updatedAt, row.updated) ?? createdAt;
 
   return {
     id: String(
@@ -652,9 +655,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       metadata.canonicalUrl,
       metadata.url,
     ),
-    lastUpdated:
-      pickOptionalString(row.updated_at, row.updatedAt, row.updated) ??
-      new Date().toISOString(),
+    lastUpdated,
     source: isOpportunitySource(row.source) ? row.source : undefined,
     externalId: pickOptionalString(row.external_id),
     tags: cleanPublicTags(
@@ -672,7 +673,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     ),
     eligibility: pickRecord(row.eligibility, metadata.eligibility),
     openDate: pickNullableString(row.open_date, row.openDate),
-    createdAt: pickOptionalString(row.created_at, row.createdAt),
+    createdAt,
     createdBy: pickOptionalString(row.created_by, row.createdBy),
     viewCount: pickOptionalNumber(row.view_count, row.viewCount),
     applyCount: pickOptionalNumber(row.apply_count, row.applyCount),

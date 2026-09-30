@@ -195,6 +195,7 @@
         "featured": "Featured",
         "sort": {
             "recommended": "Recommended",
+            "latest": "Latest",
             "deadline": "Deadline (soonest)",
             "newest": "Newest",
             "funding": "Funding (highest)"

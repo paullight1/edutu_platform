@@ -82,7 +82,7 @@ import OpportunityRails, {
 } from "./opportunity/OpportunityRails";
 import {
   createOpportunityShuffleSeed,
-  shuffleOpportunityFeed,
+  shuffleLatestOpportunityFeed,
 } from "../lib/opportunityShuffle";
 import { organizationLabel } from "../lib/organizationLabel";
 
@@ -413,8 +413,8 @@ function getOpportunityDeadlineTime(opportunity: Opportunity): number | null {
   return parsed ? parsed.getTime() : null;
 }
 
-function getOpportunityUpdatedTime(opportunity: Opportunity): number | null {
-  const date = new Date(opportunity.lastUpdated || opportunity.createdAt || "");
+function getOpportunityAddedTime(opportunity: Opportunity): number | null {
+  const date = new Date(opportunity.createdAt || opportunity.lastUpdated || "");
   const time = date.getTime();
   return Number.isNaN(time) ? null : time;
 }
@@ -430,7 +430,7 @@ function getSortKey(
     const stipend = getOpportunityStipend(opportunity);
     return stipend > 0 ? stipend : null;
   }
-  return getOpportunityUpdatedTime(opportunity);
+  return getOpportunityAddedTime(opportunity);
 }
 
 function sortOpportunities(
@@ -1029,22 +1029,18 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const sortedOpportunities = useMemo(() => {
     if (sortOption === "recommended") {
-      // Every visit reshuffles so the catalogue never looks stale: tier
-      // shuffle for personalized users (strong matches stay on top, ties
-      // rotate), full seeded shuffle otherwise.
-      if (isPersonalized) {
-        return personalizeFeed(filteredOpportunities, {
-          seed: browseShuffleSeed,
-        });
-      }
-      return shuffleOpportunityFeed(filteredOpportunities, browseShuffleSeed);
+      // Rotate listings from the same posting day, while keeping newer posts
+      // ahead of older listings regardless of their deadlines or match score.
+      return shuffleLatestOpportunityFeed(
+        filteredOpportunities,
+        browseShuffleSeed,
+        getOpportunityAddedTime,
+      );
     }
     return sortOpportunities(filteredOpportunities, sortOption);
   }, [
     filteredOpportunities,
     sortOption,
-    isPersonalized,
-    personalizeFeed,
     browseShuffleSeed,
   ]);
 
@@ -1058,8 +1054,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     const latest = [...filteredOpportunities]
       .sort(
         (a, b) =>
-          (getOpportunityUpdatedTime(b) ?? 0) -
-          (getOpportunityUpdatedTime(a) ?? 0),
+          (getOpportunityAddedTime(b) ?? 0) -
+          (getOpportunityAddedTime(a) ?? 0),
       )
       .slice(0, 12);
 
@@ -1291,7 +1287,10 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const hasCustomFilters = showClosed || sortOption !== "recommended";
 
   const sortChoices: Array<{ value: SortOption; label: string }> = [
-    { value: "recommended", label: "Recommended" },
+    {
+      value: "recommended",
+      label: t("opportunities.sort.latest", { defaultValue: "Latest" }),
+    },
     { value: "deadline", label: "Deadline soonest" },
     { value: "newest", label: "Newest first" },
     { value: "funding", label: "Highest funding" },
