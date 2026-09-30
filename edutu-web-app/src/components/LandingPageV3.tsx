@@ -169,18 +169,15 @@ const initialsOf = (name: string) =>
         .slice(0, 2)
         .toUpperCase();
 
-/**
- * Placeholder that matches the real card's geometry in BOTH layouts — compact
- * row on mobile, stacked card from sm — so the switch to real data doesn't
- * shift the section's height.
- */
+/** Matches the image-led opportunity card while the catalogue loads. */
 const OpportunityCardSkeleton: React.FC = () => (
-    <li className={`${CARD} flex items-center gap-4 overflow-hidden p-3 sm:block sm:p-0`}>
-        <div className="h-20 w-20 shrink-0 animate-pulse rounded-xl bg-surface-elevated sm:h-auto sm:w-full sm:rounded-none sm:pb-[62.5%]" />
-        <div className="min-w-0 flex-1 sm:p-5">
+    <li className={`${CARD} w-[82%] max-w-[320px] flex-none snap-start overflow-hidden sm:w-auto sm:max-w-none`} aria-hidden="true">
+        <div className="aspect-[4/3] w-full animate-pulse bg-surface-elevated sm:aspect-[16/10]" />
+        <div className="p-4 sm:p-5">
             <div className="h-3 w-24 animate-pulse rounded bg-surface-elevated" />
             <div className="mt-2.5 h-4 w-full animate-pulse rounded bg-surface-elevated" />
             <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-surface-elevated" />
+            <div className="mt-3 h-3 w-1/2 animate-pulse rounded bg-surface-elevated" />
         </div>
     </li>
 );
@@ -432,13 +429,12 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     84dvh so this heading is the thing peeking above the fold. */}
                 <section className="border-t border-subtle px-4 pt-10 pb-20 sm:px-6 sm:pt-20 sm:pb-28">
                     <div className="mx-auto max-w-[1000px]">
-                        <div className="mb-10 max-w-2xl">
+                        <div className="mb-6 max-w-2xl sm:mb-10">
                             <h2 className={SECTION_TITLE}>
-                                Fresh opportunities worth exploring
+                                Worth exploring
                             </h2>
                             <p className={SECTION_COPY}>
-                                A fresh mix of open scholarships, fellowships, internships, and
-                                programs — selected again each time you visit.
+                                Open opportunities, refreshed each visit.
                             </p>
                         </div>
 
@@ -457,12 +453,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 </Link>
                             </div>
                         ) : (
-                            /* One card, two layouts. Below sm it stays a compact
-                               row so six records don't turn into six screens of
-                               scrolling; from sm it becomes a stacked tile in a
-                               2-up / 3-up grid, where the artwork finally has
-                               room to do the persuading. */
-                            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+                            <ul
+                                aria-label="Open opportunities"
+                                className="-mr-4 flex gap-3 overflow-x-auto overscroll-x-contain pb-3 pr-4 snap-x snap-mandatory scroll-px-4 sm:mr-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0 sm:pr-0 lg:grid-cols-3"
+                            >
                                 {showOpportunitySkeletons
                                     ? Array.from({ length: 6 }).map((_, i) => (
                                           <OpportunityCardSkeleton key={`skeleton-${i}`} />
@@ -478,20 +472,17 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                               key={opportunity.id}
                                               {...fadeUp}
                                               transition={{ duration: 0.4, delay: Math.min(index, 4) * 0.06 }}
-                                              className="flex"
+                                              className="w-[82%] max-w-[320px] flex-none snap-start sm:w-auto sm:max-w-none"
                                           >
                                               <Link
                                                   to={`/share/opportunity/${encodeURIComponent(opportunity.id)}`}
-                                                  className={`${CARD} group flex w-full items-center gap-4 overflow-hidden p-3 no-underline transition-all duration-200 hover:border-brand/40 hover:shadow-elevated sm:block sm:p-0 sm:hover:-translate-y-1`}
+                                                  className={`${CARD} group flex h-full w-full flex-col overflow-hidden no-underline transition-colors duration-200 hover:border-brand/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand`}
                                               >
-                                                  {/* The wrapper owns the geometry, not the image — an
-                                                      <img> sized by its own intrinsic ratio makes every
-                                                      card in the row a different height. */}
-                                                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-elevated sm:h-auto sm:w-full sm:rounded-none sm:aspect-[16/10]">
+                                                  <div className="aspect-[4/3] w-full overflow-hidden bg-surface-elevated sm:aspect-[16/10]">
                                                       <img
                                                           src={opportunity.image || fallbackImages[index % fallbackImages.length]}
                                                           alt=""
-                                                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                                          className="h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.04]"
                                                           loading="lazy"
                                                           decoding="async"
                                                           onError={(event) => {
@@ -504,21 +495,15 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                                           }}
                                                       />
                                                   </div>
-                                                  <div className="min-w-0 flex-1 sm:p-5">
-                                                      {/* Category leads the card the way an eyebrow does —
-                                                          it's the fastest way to tell whether this row is
-                                                          even the kind of thing you're looking for. */}
-                                                      {/* Reserves its line even when a record has no
-                                                          category, so titles stay aligned across a row
-                                                          rather than inventing a category to fill it. */}
+                                                  <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
                                                       <span className="block min-h-[1.125rem] text-xs font-semibold uppercase tracking-[0.08em] text-brand">
                                                           {opportunity.category}
                                                       </span>
-                                                      <h3 className="mt-1.5 line-clamp-2 font-display text-base font-semibold leading-snug text-text-primary transition-colors group-hover:text-brand sm:text-lg">
+                                                      <h3 className="mt-2 line-clamp-2 font-display text-base font-semibold leading-snug text-text-primary transition-colors group-hover:text-brand sm:text-lg">
                                                           {opportunity.title}
                                                       </h3>
                                                       {meta.length > 0 ? (
-                                                          <p className="mt-2 truncate text-xs text-text-secondary sm:text-sm">
+                                                          <p className="mt-auto truncate pt-3 text-xs text-text-secondary sm:text-sm">
                                                               {meta.join(' · ')}
                                                           </p>
                                                       ) : null}
