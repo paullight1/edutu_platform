@@ -223,6 +223,25 @@ export class CalendarSyncService {
   }
 
   // --- Apple CalDAV connect (app-specific password) ---
+  isAllowedCaldavUrl(value: string): boolean {
+    if (typeof value !== "string" || value.length > 2048) return false;
+    try {
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      return (
+        url.protocol === "https:" &&
+        !url.username &&
+        !url.password &&
+        !url.port &&
+        !url.search &&
+        !url.hash &&
+        (host === "icloud.com" || host.endsWith(".icloud.com"))
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async connectCaldav(
     userId: string,
     username: string,
@@ -233,6 +252,9 @@ export class CalendarSyncService {
       calendarUrl ||
       process.env.CALDAV_DEFAULT_CALENDAR_URL ||
       "https://caldav.icloud.com";
+    if (!this.isAllowedCaldavUrl(url)) {
+      throw new Error("Calendar URL must be an HTTPS iCloud CalDAV URL");
+    }
     const dbUserId = toDatabaseUserId(userId);
 
     await db
@@ -595,21 +617,68 @@ export class CalendarSyncService {
       "END:VCALENDAR",
     ].join("\r\n");
     const href = this.caldavHref(conn, fields.goalId);
-    await axios.put(href, ics, {
-      auth: { username: conn.caldavUsername, password: conn.caldavPassword },
-      headers: { "Content-Type": "text/calendar; charset=utf-8" },
-      timeout: 10_000,
-    });
-    return href;
+    if (
+      !this.isAllowedCaldavUrl(String(conn.caldavUrl || "")) ||
+      !this.isAllowedCaldavUrl(href)
+    ) {
+      throw new Error(
+        "Stored calendar URL is not an allowed iCloud CalDAV URL",
+      );
+    }
+    let currentUrl = href;
+    for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+      const response = await axios.put(currentUrl, ics, {
+        auth: {
+          username: conn.caldavUsername,
+          password: conn.caldavPassword,
+        },
+        headers: { "Content-Type": "text/calendar; charset=utf-8" },
+        timeout: 10_000,
+        maxRedirects: 0,
+        proxy: false,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      if (response.status < 300) return currentUrl;
+      const location = response.headers.location;
+      if (!location || redirectCount === 3) {
+        throw new Error("iCloud CalDAV redirect could not be followed safely");
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+      if (!this.isAllowedCaldavUrl(currentUrl)) {
+        throw new Error("iCloud CalDAV redirect left the allowed host set");
+      }
+    }
+    throw new Error("iCloud CalDAV redirect limit exceeded");
   }
 
   private async caldavDelete(conn: any, externalId: string): Promise<void> {
-    await axios
-      .delete(externalId, {
-        auth: { username: conn.caldavUsername, password: conn.caldavPassword },
-        timeout: 10_000,
-      })
-      .catch(() => {});
+    if (
+      !this.isAllowedCaldavUrl(String(conn.caldavUrl || "")) ||
+      !this.isAllowedCaldavUrl(externalId)
+    )
+      return;
+    try {
+      let currentUrl = externalId;
+      for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+        const response = await axios.delete(currentUrl, {
+          auth: {
+            username: conn.caldavUsername,
+            password: conn.caldavPassword,
+          },
+          timeout: 10_000,
+          maxRedirects: 0,
+          proxy: false,
+          validateStatus: (status) => status >= 200 && status < 400,
+        });
+        if (response.status < 300) return;
+        const location = response.headers.location;
+        if (!location || redirectCount === 3) return;
+        currentUrl = new URL(location, currentUrl).toString();
+        if (!this.isAllowedCaldavUrl(currentUrl)) return;
+      }
+    } catch {
+      // Deletion is best effort when a calendar provider is unavailable.
+    }
   }
 
   // --- OAuth access token (refresh if expired) ---

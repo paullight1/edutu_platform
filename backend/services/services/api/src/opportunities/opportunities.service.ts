@@ -9,6 +9,10 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { db } from "../db";
 import { opportunities } from "../db/schema";
 import axios from "axios";
+import { lookup as dnsLookup } from "node:dns/promises";
+import * as http from "node:http";
+import { isIP } from "node:net";
+import * as https from "node:https";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -38,6 +42,7 @@ import { OpportunityShareCardService } from "./opportunity-share-card.service";
 import { OpportunityShareEnrichService } from "./opportunity-share-enrich.service";
 import { CacheService } from "../common/cache/cache.service";
 import { SavedSearchesService } from "../saved-searches/saved-searches.service";
+import { isGlobalUnicastAddress } from "../scraper/scraper-egress.service";
 import {
   filterStaticOpportunityRows,
   loadStaticOpportunitySnapshot,
@@ -2873,19 +2878,74 @@ ${sourceText || "No source page text was available. Still write a complete summa
 
   private async fetchSourceUrlText(url: string): Promise<string> {
     try {
-      const response = await axios.get(url, {
-        timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://www.edutu.org)",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
-        },
-        maxContentLength: 1_500_000,
-        maxRedirects: 4,
-        validateStatus: (status) => status >= 200 && status < 400,
-      });
-      return this.extractSourceTextFromHtml(String(response.data || ""));
+      let current = new URL(url);
+      for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+        if (
+          !["http:", "https:"].includes(current.protocol) ||
+          current.username ||
+          current.password ||
+          current.port ||
+          current.href.length > 2048
+        )
+          return "";
+        const addresses = await dnsLookup(current.hostname, {
+          all: true,
+          verbatim: true,
+        });
+        if (
+          !addresses.length ||
+          addresses.some(
+            (entry) =>
+              isIP(entry.address) !== entry.family ||
+              !isGlobalUnicastAddress(entry.address),
+          )
+        )
+          return "";
+        const pinned = addresses[0];
+        const lookup = ((
+          _hostname: string,
+          _options: unknown,
+          callback: (
+            error: NodeJS.ErrnoException | null,
+            address: string,
+            family: number,
+          ) => void,
+        ) => callback(null, pinned.address, pinned.family)) as any;
+        const agent =
+          current.protocol === "https:"
+            ? new https.Agent({ lookup, keepAlive: false })
+            : undefined;
+        const response = await axios.get(current.toString(), {
+          timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://www.edutu.org)",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+          },
+          responseType: "arraybuffer",
+          maxContentLength: 1_500_000,
+          maxBodyLength: 1_500_000,
+          maxRedirects: 0,
+          proxy: false,
+          ...(current.protocol === "https:"
+            ? { httpsAgent: agent }
+            : {
+                httpAgent: new http.Agent({ lookup, keepAlive: false }),
+              }),
+          validateStatus: (status) => status >= 200 && status < 400,
+        });
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          const location = response.headers.location;
+          if (!location || redirectCount === 3) return "";
+          current = new URL(location, current);
+          continue;
+        }
+        return this.extractSourceTextFromHtml(
+          Buffer.from(response.data).toString("utf8"),
+        );
+      }
+      return "";
     } catch (error) {
       this.logger.warn(
         `Could not fetch source text for AI enrichment (${url}): ${

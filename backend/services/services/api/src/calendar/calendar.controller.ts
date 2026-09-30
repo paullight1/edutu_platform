@@ -72,9 +72,22 @@ export class CalendarController {
     @Body()
     body: { username?: string; appPassword?: string; calendarUrl?: string },
   ) {
-    if (!body?.username || !body?.appPassword) {
+    if (
+      !body?.username ||
+      !body?.appPassword ||
+      body.username.length > 320 ||
+      body.appPassword.length > 256
+    ) {
       throw new BadRequestException(
         "Apple ID and app-specific password required",
+      );
+    }
+    if (
+      body.calendarUrl &&
+      !this.service.isAllowedCaldavUrl(body.calendarUrl)
+    ) {
+      throw new BadRequestException(
+        "Calendar URL must be an HTTPS iCloud CalDAV URL",
       );
     }
     const ok = await this.service.connectCaldav(

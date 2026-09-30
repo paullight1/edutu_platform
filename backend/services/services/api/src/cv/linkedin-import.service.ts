@@ -53,6 +53,13 @@ const BROWSER_HEADERS = {
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
 };
 
+const MAX_EXPORT_BYTES = 10 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 256;
+const MAX_CSV_BYTES = 3 * 1024 * 1024;
+const MAX_CSV_ROWS = 10_000;
+const MAX_PDF_PAGES = 40;
+const MAX_PDF_TEXT_CHARS = 200_000;
+
 type PCDate =
   | { day?: number; month?: number; year?: number }
   | null
@@ -132,7 +139,8 @@ export class LinkedInImportService {
    * profile export (best-effort). 100% first-party: it's the user's own data.
    */
   async fromExport(file: ExportUploadFile): Promise<LinkedInProfile | null> {
-    if (!file?.buffer?.length) return null;
+    if (!file?.buffer?.length || file.buffer.length > MAX_EXPORT_BYTES)
+      return null;
     const name = (file.originalname || "").toLowerCase();
     const type = (file.mimetype || "").toLowerCase();
     const buf = file.buffer;
@@ -164,6 +172,16 @@ export class LinkedInImportService {
   private fromZip(buffer: Buffer): LinkedInProfile | null {
     const zip = new AdmZip(buffer);
     const entries = zip.getEntries();
+    if (entries.length > MAX_ZIP_ENTRIES) return null;
+    const csvEntries = entries.filter(
+      (entry) => !entry.isDirectory && /\.csv$/i.test(entry.entryName),
+    );
+    if (
+      csvEntries.some((entry) => entry.header.size > MAX_CSV_BYTES) ||
+      csvEntries.reduce((total, entry) => total + entry.header.size, 0) >
+        MAX_EXPORT_BYTES
+    )
+      return null;
     const readCsv = (keyword: string): Record<string, string>[] => {
       const entry = entries.find(
         (e) =>
@@ -173,7 +191,9 @@ export class LinkedInImportService {
       );
       if (!entry) return [];
       try {
-        return this.parseCsv(entry.getData().toString("utf8"));
+        const data = entry.getData();
+        if (data.byteLength > MAX_CSV_BYTES) return [];
+        return this.parseCsv(data.toString("utf8"));
       } catch {
         return [];
       }
@@ -244,8 +264,16 @@ export class LinkedInImportService {
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     let text = "";
     try {
-      const result = await parser.getText();
-      text = result?.text || "";
+      const info = await parser.getInfo();
+      if (
+        !Number.isFinite(info.total) ||
+        info.total < 1 ||
+        info.total > MAX_PDF_PAGES
+      ) {
+        return null;
+      }
+      const result = await parser.getText({ first: MAX_PDF_PAGES });
+      text = (result?.text || "").slice(0, MAX_PDF_TEXT_CHARS);
     } finally {
       await parser.destroy().catch(() => undefined);
     }
@@ -395,14 +423,18 @@ export class LinkedInImportService {
         inQuotes = true;
       } else if (c === ",") {
         row.push(field);
+        if (row.length > 200) return [];
         field = "";
       } else if (c === "\n") {
         row.push(field);
+        if (row.length > 200) return [];
         rows.push(row);
+        if (rows.length > MAX_CSV_ROWS + 1) return [];
         row = [];
         field = "";
       } else if (c !== "\r") {
         field += c;
+        if (field.length > 100_000) return [];
       }
     }
     if (field.length || row.length) {
@@ -414,6 +446,7 @@ export class LinkedInImportService {
     const headers = rows[0].map((h) => h.trim());
     return rows
       .slice(1)
+      .slice(0, MAX_CSV_ROWS)
       .filter((r) => r.some((v) => v.trim()))
       .map((r) => {
         const obj: Record<string, string> = {};

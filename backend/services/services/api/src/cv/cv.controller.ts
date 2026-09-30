@@ -85,7 +85,7 @@ export class CvController {
   @UseInterceptors(
     FileInterceptor("file", {
       storage: createMemoryStorage(),
-      limits: { fileSize: 25 * 1024 * 1024 },
+      limits: { fileSize: 10 * 1024 * 1024, files: 1 },
     }),
   )
   importLinkedInFile(
