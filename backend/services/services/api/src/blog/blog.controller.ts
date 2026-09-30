@@ -54,12 +54,27 @@ export class BlogController {
     @Query("offset") offset?: string,
   ) {
     return this.blogService.findAll({
-      status,
+      // Public callers must never select drafts or archived posts.
+      status: "published",
       category,
       tag,
       featured: featured === "true",
       limit: limit ? Math.min(parseInt(limit, 10), 100) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get("admin")
+  @UseGuards(AdminGuard)
+  async findAllForAdmin(
+    @Query("status") status?: "draft" | "published" | "archived" | "all",
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+  ) {
+    return this.blogService.findAll({
+      status: status || "all",
+      limit: limit ? Math.min(parseInt(limit, 10), 100) : 100,
+      offset: offset ? parseInt(offset, 10) : 0,
     });
   }
 

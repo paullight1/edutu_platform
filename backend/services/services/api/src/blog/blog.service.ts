@@ -21,8 +21,63 @@ import {
   CreateCommentDto,
 } from "./blog.dto";
 import { detectBlogImageType } from "./blog-upload.util";
+import sanitizeHtml from "sanitize-html";
 
 const BLOG_IMAGES_BUCKET = process.env.BLOG_IMAGES_BUCKET || "blog-images";
+
+function sanitizeBlogContent(content: string): string {
+  return sanitizeHtml(content, {
+    allowedTags: [
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "blockquote",
+      "p",
+      "a",
+      "ul",
+      "ol",
+      "li",
+      "b",
+      "i",
+      "strong",
+      "em",
+      "strike",
+      "s",
+      "u",
+      "hr",
+      "br",
+      "div",
+      "span",
+      "img",
+      "figure",
+      "figcaption",
+      "pre",
+      "code",
+    ],
+    allowedAttributes: {
+      a: ["href", "name", "target", "rel"],
+      img: ["src", "alt", "title", "width", "height"],
+      "*": ["class"],
+    },
+    allowedSchemes: ["https", "mailto", "tel"],
+    allowedSchemesByTag: { img: ["https"] },
+    allowProtocolRelative: false,
+    transformTags: {
+      a: sanitizeHtml.simpleTransform(
+        "a",
+        { rel: "noopener noreferrer" },
+        true,
+      ),
+    },
+  });
+}
+
+function sanitizeBlogPost(post: BlogPost): BlogPost {
+  return { ...post, content: sanitizeBlogContent(post.content || "") };
+}
 
 interface BlogUploadFile {
   buffer: Buffer;
@@ -136,7 +191,7 @@ export class BlogService {
         .limit(limit)
         .offset(offset);
 
-      return posts;
+      return posts.map(sanitizeBlogPost);
     } catch (error) {
       this.logger.error(
         "Blog list query failed",
@@ -176,7 +231,7 @@ export class BlogService {
     const posts = await db
       .select()
       .from(blogPosts)
-      .where(eq(blogPosts.id, id))
+      .where(and(eq(blogPosts.id, id), eq(blogPosts.status, "published")))
       .limit(1);
 
     if (posts.length === 0) {
@@ -187,14 +242,11 @@ export class BlogService {
     await db
       .update(blogPosts)
       .set({ views: (posts[0].views || 0) + 1 })
-      .where(eq(blogPosts.id, id));
-
-    const updated = await db
-      .select()
-      .from(blogPosts)
-      .where(eq(blogPosts.id, id))
-      .limit(1);
-    return updated[0];
+      .where(and(eq(blogPosts.id, id), eq(blogPosts.status, "published")));
+    return sanitizeBlogPost({
+      ...posts[0],
+      views: (posts[0].views || 0) + 1,
+    });
   }
 
   /**
@@ -209,17 +261,17 @@ export class BlogService {
     const posts = await db
       .select()
       .from(blogPosts)
-      .where(eq(blogPosts.slug, slug))
+      .where(and(eq(blogPosts.slug, slug), eq(blogPosts.status, "published")))
       .limit(1);
 
-    return posts[0] ?? null;
+    return posts[0] ? sanitizeBlogPost(posts[0]) : null;
   }
 
   async findOneBySlug(slug: string): Promise<BlogPost> {
     const posts = await db
       .select()
       .from(blogPosts)
-      .where(eq(blogPosts.slug, slug))
+      .where(and(eq(blogPosts.slug, slug), eq(blogPosts.status, "published")))
       .limit(1);
 
     if (posts.length === 0) {
@@ -230,14 +282,11 @@ export class BlogService {
     await db
       .update(blogPosts)
       .set({ views: (posts[0].views || 0) + 1 })
-      .where(eq(blogPosts.slug, slug));
-
-    const updated = await db
-      .select()
-      .from(blogPosts)
-      .where(eq(blogPosts.slug, slug))
-      .limit(1);
-    return updated[0];
+      .where(and(eq(blogPosts.slug, slug), eq(blogPosts.status, "published")));
+    return sanitizeBlogPost({
+      ...posts[0],
+      views: (posts[0].views || 0) + 1,
+    });
   }
 
   async create(data: CreateBlogPostDto): Promise<BlogPost> {
@@ -245,6 +294,7 @@ export class BlogService {
       .insert(blogPosts)
       .values({
         ...data,
+        content: sanitizeBlogContent(data.content),
         publishedAt: data.publishedAt ? new Date(data.publishedAt) : null,
         tags: data.tags || [],
       })
@@ -258,6 +308,9 @@ export class BlogService {
       .update(blogPosts)
       .set({
         ...data,
+        ...(data.content !== undefined
+          ? { content: sanitizeBlogContent(data.content) }
+          : {}),
         updatedAt: new Date(),
         publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
       })

@@ -32,7 +32,7 @@ const Blog = () => {
     const fetchPosts = useCallback(async () => {
         setLoading(true);
         try {
-            const postsData = await backendFetchJson<BlogPost[]>('/blog?status=all&limit=100');
+            const postsData = await backendFetchJson<BlogPost[]>('/blog/admin?status=all&limit=100');
             setPosts(postsData);
             setStats({
                 total: postsData.length,
