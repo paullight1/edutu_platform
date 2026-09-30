@@ -67,10 +67,10 @@ These are the five highest-risk conditions to test within the tasks below:
 
 **Interface:** `getHome(userId, requestedLimit)` returns one `featuredPursuitId: string | null` alongside `nextAction`; `nextAction` comes from that featured pursuit. Prefer `journey.priority === "primary"`; fall back to the first active pursuit only if no primary exists. Retain existing response fields for compatibility.
 
-- [x] Add a failing service test with primary and secondary journeys in deadline order and assert the primary ID and its task are selected. Add a no-primary fallback case.
-- [x] Implement the selection without changing list ordering or existing journey limits.
-- [x] Run the focused API test and backend type/lint check. Confirm the route still returns a useful action when recommendations are degraded.
-- [x] Commit the API change separately.
+- [ ] Add a failing service test with primary and secondary journeys in deadline order and assert the primary ID and its task are selected. Add a no-primary fallback case.
+- [ ] Implement the selection without changing list ordering or existing journey limits.
+- [ ] Run the focused API test and backend type/lint check. Confirm the route still returns a useful action when recommendations are degraded.
+- [ ] Commit the API change separately.
 
 ### Task 2 — Add a safe typed web home adapter
 
@@ -78,10 +78,10 @@ These are the five highest-risk conditions to test within the tasks below:
 
 **Interface:** `getOpportunityHome(token: string): Promise<OpportunityHomeView>`. Parse the API response with Zod; expose intent source, featured pursuit ID, action label, recommendation ID/title/reasons/eligibility/deadline, and degraded state. Invalid or missing optional recommendations must not discard a valid active action. Do not assemble eligibility or ranking in the client.
 
-- [x] Test active, no-pursuit, empty, degraded, malformed, and request-error responses; assert a malformed response fails safely without hiding the old dashboard.
-- [x] Implement the adapter and explicit error classification. Keep the existing `opportunityJourneys.ts` mutation functions as the source for writes.
-- [x] Run `npm run test -- src/test/__tests__/opportunityHome.test.ts` and `npm run typecheck` in `edutu-web-app/`.
-- [x] Commit the adapter and tests.
+- [ ] Test active, no-pursuit, empty, degraded, malformed, and request-error responses; assert a malformed response fails safely without hiding the old dashboard.
+- [ ] Implement the adapter and explicit error classification. Keep the existing `opportunityJourneys.ts` mutation functions as the source for writes.
+- [ ] Run `npm run test -- src/test/__tests__/opportunityHome.test.ts` and `npm run typecheck` in `edutu-web-app/`.
+- [ ] Commit the adapter and tests.
 
 ### Task 3 — Insert one next-step card in the existing dashboard
 
@@ -89,12 +89,11 @@ These are the five highest-risk conditions to test within the tasks below:
 
 **Interface:** `NextStepCard` takes a parsed home view, load state, and navigation callbacks. Active: show task label, pursuit title, deadline if known, and **Continue plan** → `/app/my-plan/:journeyId`. No pursuit: show one explanation from a safe recommendation and **View opportunity** → existing detail route. Missing facts or empty: **Explore opportunities** → `/app/opportunities`. Inferred intent is labeled “Based on your profile” and gets **Edit preferences** → `/app/personalization` as a secondary action. Degraded or failed fetch never blocks the rest of the dashboard.
 
-- [x] Test card states and CTA destinations; test keyboard focus and screen-reader labels.
-- [x] Implement compact desktop and phone variants with current Tailwind tokens. Do not duplicate recommendation rails or introduce another modal.
-- [x] Fetch only for signed-in users; cancel/ignore stale responses after auth changes; render the existing dashboard immediately while this data loads.
-- [x] Run focused tests, `npm run typecheck`, and `npm run build`.
-- [x] Commit the dashboard slice after reconciling current uncommitted changes.
-- [ ] Review desktop and 390 px phone screenshots for layout shift, clipping, and hierarchy.
+- [ ] Test every card state and the exact CTA destination; test keyboard focus and screen-reader labels.
+- [ ] Implement compact desktop and phone variants with current Tailwind tokens. Do not duplicate recommendation rails or introduce another modal.
+- [ ] Fetch only for signed-in users; cancel/ignore stale responses after auth changes; render the existing dashboard immediately while this data loads.
+- [ ] Run focused tests, `npm run typecheck`, and `npm run build`. Review desktop and 390 px phone screenshots for layout shift, clipping, and hierarchy.
+- [ ] Commit the dashboard slice after reconciling current uncommitted changes.
 
 **Ship gate A:** In a staff account, an active journey opens its own detail from the card; a new account reaches an existing opportunity detail; the page remains fully usable when `opportunity-home` fails. This is the **minimum useful release**.
 
@@ -105,9 +104,9 @@ These are the five highest-risk conditions to test within the tasks below:
 **Interface:** Use the existing match/eligibility/deadline fields to show up to two reasons, one meaningful risk or missing fact, and a link to the official source. After `createOpportunityJourney` succeeds, use the returned `journey.id` to offer **Continue in My Plan**. Keep the user on the detail page if creation fails. Avoid duplicating the existing match panel if it already presents these facts clearly; improve its copy and placement instead.
 
 - [ ] Test `eligible`, `unclear`, `ineligible`, expired, and missing-source states, including no implied admission probability.
-- [x] Test that the plan link appears only after a confirmed creation and uses the returned ID.
-- [x] Reuse the existing eligibility/match rationale panel rather than duplicating it; implement the handoff change and run focused tests, typecheck, and build.
-- [x] Commit this decision-support slice.
+- [ ] Test that the plan link appears only after a confirmed creation and uses the returned ID.
+- [ ] Implement the small copy/handoff changes and run focused tests, typecheck, and build.
+- [ ] Commit this decision-support slice.
 
 ### Task 5 — Make the first saved answer useful, within current onboarding
 
@@ -116,10 +115,9 @@ These are the five highest-risk conditions to test within the tasks below:
 **Interface:** Preserve all four steps and questions. After profile save, navigate to dashboard and focus/highlight the next-step card; no blocking AI call or extra signup step. The home API can infer intent from profile data, but its `source` must remain visible. A separate explicit-intent editor is deferred because `PUT /me/opportunity-intent` requires `goalKey`, `actionHorizonDays`, `weeklyHours`, and `readinessMode`, which the present onboarding does not collect. The browser must not invent these values.
 
 - [ ] Write tests for saved profile → dashboard answer, save failure, and inferred-intent wording.
-- [x] Keep existing profile persistence. Let the backend infer opportunity intent until a separate explicit-intent form collects all required fields. Do not silently assign weekly hours or readiness.
-- [x] Add the dashboard focus marker and inferred-intent label; focused tests and typecheck pass.
-- [ ] Manually check the four-step flow with keyboard and a narrow viewport.
-- [x] Commit this onboarding slice.
+- [ ] Keep existing profile persistence. Let the backend infer opportunity intent until a separate explicit-intent form collects all required fields. Do not silently assign weekly hours or readiness.
+- [ ] Run focused tests and typecheck; manually check the four-step flow with keyboard and a narrow viewport.
+- [ ] Commit this onboarding slice.
 
 ### Task 6 — Complete the pursuit and application loop in My Plan
 
@@ -127,11 +125,11 @@ These are the five highest-risk conditions to test within the tasks below:
 
 **Interface:** Add typed wrappers for `POST /me/opportunity-journeys/:id/application-opened`, `/application-confirmed`, and `/outcome` using a stable `idempotencyKey` per attempted action and the current `expectedVersion`. Keep the task list and stage tabs. Show **Open application** only when the official URL is available and the backend says it is appropriate; show **I submitted** as an explicit separate confirmation; show supported outcome choices only after the relevant state. On 409/version conflict, reload the journey and ask the user to review the updated state.
 
-- [x] Test that opening an external URL never changes the UI to “applied” without an explicit confirmation response.
-- [ ] Add a dedicated test for retry and version-conflict behavior, including no duplicate success event or optimistic task completion.
-- [x] Implement versioned API wrappers and compact actions inside the existing detail page; retain the primary focus treatment on the overview without changing stage tabs.
-- [x] Run focused tests, full web typecheck/build, and the relevant backend journey tests.
-- [x] Commit the application-loop slice.
+- [ ] Test that opening an external URL never changes the UI to “applied” without an explicit confirmation response.
+- [ ] Test mutation retry and version-conflict behavior, including no duplicate success event or optimistic completion.
+- [ ] Implement API wrappers and compact actions inside the existing detail page; expose primary pursuit ordering on the overview without changing stage tabs.
+- [ ] Run focused tests, full web typecheck/build, and the relevant backend journey tests.
+- [ ] Commit the application-loop slice.
 
 ### Task 7 — Measure and release the web loop
 
@@ -141,10 +139,9 @@ These are the five highest-risk conditions to test within the tasks below:
 
 - [ ] Record baseline for current landing → signup → bookmark/application flow before exposing new copy.
 - [ ] Add one supporting line and a concrete next-step example near the existing landing hero; keep its layout and CTAs. Test the copy against the baseline only when stable cohort assignment exists.
-- [x] Document event boundaries and release denominators; code emits confirmation events only after API responses.
-- [x] Add the reversible build flag; API failure preserves the existing dashboard. (Environment-level release only; staff/new-user cohorts require deployment support.)
-- [x] Run `npm run test`, `npm run typecheck`, `npm run lint`, and `npm run build` in `edutu-web-app/`; run focused backend tests/lint.
-- [ ] Run a desktop and phone keyboard/screen-reader smoke path in staging.
+- [ ] Test event boundaries, especially no completion event on request failure, timeout, or external click.
+- [ ] Release behind a reversible web flag to staff, then a small new-user cohort if assignment and dashboards are ready. Keep the old dashboard experience available on flag-off or API failure.
+- [ ] Run `npm run test`, `npm run typecheck`, `npm run lint`, and `npm run build` in `edutu-web-app/`; run focused backend tests/lint. Run a desktop and phone keyboard/screen-reader smoke path in staging.
 - [ ] Compare first-answer rate, first required-task completion within seven days, API failures, relevance feedback, and D7 return against the baseline. Do not call a raw signup lift a success if action quality falls.
 
 ## Effort, staffing, and dependencies
