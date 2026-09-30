@@ -64,7 +64,7 @@ describe("EdutuForYouPage", () => {
     renderPage();
     expect(
       screen.getByRole("heading", {
-        name: /door should not be harder/i,
+        name: /one million young people/i,
         level: 1,
       }),
     ).toBeInTheDocument();
@@ -99,59 +99,16 @@ describe("EdutuForYouPage", () => {
     ).toHaveAttribute("src", "/mascot/edutu-profile-guide.png");
   });
 
-  it("presents the scholarship journey as an interactive text slideshow", async () => {
+  it("shows illustrated support with direct actions", () => {
     renderPage();
 
-    expect(
-      screen.getByRole("region", { name: "Scholarship journey" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Mastercard Foundation Scholars Program"),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Next scholarship slide" }),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByText(/application asked for a story/i),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByRole("tab", { name: /show slide 4/i }),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Chevening became a next step/i),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("renders the learner journey with feature actions and a timeline", () => {
-    renderPage();
-
-    for (const label of [
-      "Find my matches",
-      "Build my application",
-      "Meet the community",
-      "Browse opportunities",
-    ]) {
-      expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
+    for (const label of ["Find my matches", "Build my application", "Meet the community"]) {
+      expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
-
-    expect(
-      screen.getByRole("heading", { name: /a year in the program/i }),
-    ).toBeInTheDocument();
-    for (const stage of [
-      "Month 1",
-      "Months 2–3",
-      "Months 4–6",
-      "Months 7–9",
-      "Months 10–12",
-    ]) {
-      expect(screen.getByText(stage)).toBeInTheDocument();
-    }
+    expect(screen.getByRole("img", { name: /illustrated compass/i })).toHaveAttribute(
+      "src",
+      "/illustrations/feature-opportunity-matching.png",
+    );
   });
 
   it("renders the first three stories and reveals the rest on request", async () => {
@@ -181,7 +138,7 @@ describe("EdutuForYouPage", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /see more situations/i }),
+      screen.getByRole("button", { name: /see more stories/i }),
     );
     expect(
       screen.getByRole("link", {
@@ -205,7 +162,7 @@ describe("EdutuForYouPage", () => {
 
     for (const story of STORIES.slice(0, 3)) {
       expect(
-        screen.getByText(story.quote, { exact: false }),
+        screen.getByText(story.teaser, { exact: false }),
       ).toBeInTheDocument();
     }
   });
@@ -240,10 +197,10 @@ describe("EdutuForYouPage", () => {
     }
   });
 
-  it("adds a prominent partnership CTA below the partner lanes", () => {
+  it("makes the partnership path direct", () => {
     renderPage();
     expect(
-      screen.getByRole("link", { name: /start a partnership conversation/i }),
+      screen.getByRole("link", { name: /partner with us/i }),
     ).toHaveAttribute("href", expect.stringContaining(`mailto:${PARTNER_EMAIL}`));
   });
 

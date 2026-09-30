@@ -16,36 +16,31 @@ interface StoryCardProps {
 const StoryCard: React.FC<StoryCardProps> = ({ story }) => (
     <Link
         to={`/edutuforyou/stories/${story.slug}`}
-        className="group flex flex-col overflow-hidden rounded-3xl border border-subtle bg-surface no-underline shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="group flex flex-col overflow-hidden rounded-[22px] bg-surface no-underline transition-transform duration-300 hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#9bb7ff]"
     >
-        <div className="relative h-52 w-full overflow-hidden min-[420px]:h-56 sm:h-72">
+        <div className="relative aspect-[4/3] w-full overflow-hidden">
             <ImageWithFallback
                 src={story.portrait}
                 alt={story.portraitAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
             />
-            <span className="absolute bottom-3 left-3 rounded-pill bg-[#0B0F19]/90 px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-[#F8FAFC] backdrop-blur">
+            <span className="absolute bottom-3 left-3 rounded-full bg-[#0B0F19]/90 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-white">
                 {story.isComposite ? "Illustrative composite" : story.outcome}
             </span>
         </div>
 
-        <div className="flex flex-1 flex-col p-5 sm:p-6">
+        <div className="flex flex-1 flex-col p-4 sm:p-5">
             <h3 className="font-display text-lg font-semibold text-text-primary sm:text-xl">
                 {story.name}, {story.age}
             </h3>
-            <p className="mt-1 text-sm text-text-muted">{story.place}</p>
-
-            <blockquote className="mt-4 text-base font-medium leading-[1.5] text-text-primary sm:text-[1.0625rem]">
-                “{story.quote}”
-            </blockquote>
-
-            <p className="mt-3 flex-1 text-[0.9375rem] leading-[1.6] text-text-secondary">
+            <p className="mt-0.5 text-xs text-text-muted">{story.place}</p>
+            <p className="mt-3 line-clamp-2 flex-1 text-sm leading-6 text-text-secondary">
                 {story.teaser}
             </p>
 
             <span
                 aria-hidden="true"
-                className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
             >
                 Read the full story
                 <ArrowRight
