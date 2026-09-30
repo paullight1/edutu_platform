@@ -53,10 +53,10 @@ import {
   discoverableOpportunityConditions,
   discoverableOpportunitySql,
   isDiscoverableOpportunityRow,
-  isPublicOpportunityRow,
+  isPublicOpportunityDetailRow,
   PUBLIC_OPPORTUNITY_STATUS,
   PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
-  publicOpportunityConditions,
+  publicOpportunityDetailConditions,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
 
@@ -863,12 +863,11 @@ export class OpportunitiesService {
             .from("opportunities")
             .select("*")
             .eq("id", id)
-            .eq("status", PUBLIC_OPPORTUNITY_STATUS)
-            .eq("verification_status", PUBLIC_OPPORTUNITY_VERIFICATION_STATUS)
+            .in("status", [PUBLIC_OPPORTUNITY_STATUS, "closed"])
             .maybeSingle();
 
           if (!error) {
-            if (data) {
+            if (data && isPublicOpportunityDetailRow(data)) {
               return withOpportunityUrlAliases(data as Record<string, any>);
             }
           } else {
@@ -884,7 +883,7 @@ export class OpportunitiesService {
           .where(
             and(
               eq(opportunities.id, id),
-              publicOpportunityConditions(opportunities),
+              publicOpportunityDetailConditions(opportunities),
             ),
           )
           .execute();
@@ -901,7 +900,7 @@ export class OpportunitiesService {
       const row = snapshotRows.find(
         (item) =>
           String(item.id) === String(id) &&
-          isPublicOpportunityRow(item, "snapshot"),
+          isPublicOpportunityDetailRow(item),
       );
       return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
     };

@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 
 type OpportunityVisibilityColumns = {
   status: unknown;
@@ -23,7 +23,7 @@ function assertSqlAlias(alias: string): string {
   return alias;
 }
 
-/** Base visibility rule used by direct detail lookups and historical links. */
+/** Current public visibility rule used by discovery lists. */
 export function publicOpportunitySql(alias = "o") {
   assertSqlAlias(alias);
   return sql.raw(
@@ -58,6 +58,28 @@ export function publicOpportunityConditions(
   )!;
 }
 
+/** Detail pages retain links to verified opportunities after they close. */
+export function publicOpportunityDetailConditions(
+  columns: OpportunityVisibilityColumns,
+) {
+  return or(
+    and(
+      eq(columns.status as any, PUBLIC_OPPORTUNITY_STATUS),
+      eq(
+        columns.verificationStatus as any,
+        PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
+      ),
+    ),
+    and(
+      eq(columns.status as any, "closed"),
+      inArray(columns.verificationStatus as any, [
+        PUBLIC_OPPORTUNITY_VERIFICATION_STATUS,
+        "expired",
+      ]),
+    ),
+  )!;
+}
+
 /** Drizzle equivalent of discoverableOpportunitySql for browse and recs. */
 export function discoverableOpportunityConditions(
   columns: DiscoverableOpportunityColumns,
@@ -81,10 +103,7 @@ export function shareableOpportunityConditions(
   )!;
 }
 
-/**
- * Runtime direct-detail lookups allow an existing duplicate link to remain
- * usable. Discovery lists use isDiscoverableOpportunityRow below.
- */
+/** Active, verified records remain valid even when annotated as duplicates. */
 export function isPublicOpportunityRow(
   row: Record<string, unknown>,
   source: "database" | "snapshot" = "database",
@@ -100,6 +119,28 @@ export function isPublicOpportunityRow(
     String(verification ?? "")
       .trim()
       .toLowerCase() === PUBLIC_OPPORTUNITY_VERIFICATION_STATUS
+  );
+}
+
+/** Direct links stay available for verified or deadline-expired closed rows. */
+export function isPublicOpportunityDetailRow(
+  row: Record<string, unknown>,
+): boolean {
+  const status = String(row.status ?? "")
+    .trim()
+    .toLowerCase();
+  const verification = row.verification_status ?? row.verificationStatus;
+
+  const verificationStatus = String(verification ?? "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    (status === PUBLIC_OPPORTUNITY_STATUS &&
+      verificationStatus === PUBLIC_OPPORTUNITY_VERIFICATION_STATUS) ||
+    (status === "closed" &&
+      (verificationStatus === PUBLIC_OPPORTUNITY_VERIFICATION_STATUS ||
+        verificationStatus === "expired"))
   );
 }
 
