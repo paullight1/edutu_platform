@@ -57,10 +57,8 @@ import {
   shareOutcomeMessage,
 } from "../services/opportunityShare";
 import {
-  dismissOpportunity,
   getDismissedOpportunityIds,
 } from "../services/dismissedOpportunities";
-import type { DismissReason } from "../services/opportunitySignals";
 import DashboardOpportunityCard from "./dashboard/DashboardOpportunityCard";
 import BannerCarousel, {
   DEFAULT_BANNERS,
@@ -78,12 +76,28 @@ import {
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
 import NextStepCard from "./dashboard/NextStepCard";
-import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
 
-// The home feed is a fixed shortlist, not an endless scroll: six randomized
-// picks per visit, with "View all" as the way deeper into the catalogue.
+// The home feed is a fixed shortlist, not an endless scroll: six picks at a
+// time, with opened items advancing to the next unseen opportunity this session.
 const HOME_FEED_SIZE = 6;
 const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
+const HOME_VIEWED_OPPORTUNITIES_KEY = "edutu_home_viewed_opportunities:v1";
+
+function readViewedOpportunityIds(userId: string | null | undefined): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const scope = userId || "anonymous";
+    const raw = window.sessionStorage.getItem(`${HOME_VIEWED_OPPORTUNITIES_KEY}:${scope}`);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((id): id is string => typeof id === "string")
+          .slice(-200)
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 
 
@@ -301,7 +315,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [dismissedOpportunityIds, setDismissedOpportunityIds] = useState<
       string[]
     >([]);
-    const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
+    const [viewedOpportunityIds, setViewedOpportunityIds] = useState<string[]>(
+      [],
+    );
     const [opportunityHome, setOpportunityHome] =
       useState<OpportunityHomeView | null>(null);
     const [opportunityHomeState, setOpportunityHomeState] = useState<
@@ -312,6 +328,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     useEffect(() => {
       setDismissedOpportunityIds(getDismissedOpportunityIds(user?.id));
+      setViewedOpportunityIds(readViewedOpportunityIds(user?.id));
     }, [user?.id]);
 
     useEffect(() => {
@@ -404,24 +421,28 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       [bookmarks],
     );
 
-    const handleDismissRecommendation = useCallback(
-      (reason: DismissReason) => {
-        const target = dismissTarget;
-        setDismissTarget(null);
-        if (!target || !user?.id) return;
-
-        dismissOpportunity(user.id, target.id, getToken, "web_home", reason);
-        setDismissedOpportunityIds((previous) =>
-          previous.includes(target.id) ? previous : [...previous, target.id],
+    const markOpportunityAsViewed = useCallback(
+      (opportunityId: string) => {
+        setViewedOpportunityIds((previous) =>
+          previous.includes(opportunityId)
+            ? previous
+            : [...previous, opportunityId].slice(-200),
         );
-        trackEvent("opportunity_recommendation_dismissed", {
-          opportunityId: target.id,
-          reason,
-          surface: "web_home",
-        });
-        toast.success("Recommendation removed", "Thanks. We’ll adjust your matches.");
+        try {
+          if (typeof window === "undefined") return;
+          const key = `${HOME_VIEWED_OPPORTUNITIES_KEY}:${user?.id || "anonymous"}`;
+          const viewed = readViewedOpportunityIds(user?.id);
+          if (!viewed.includes(opportunityId)) {
+            window.sessionStorage.setItem(
+              key,
+              JSON.stringify([...viewed, opportunityId].slice(-200)),
+            );
+          }
+        } catch {
+          // The feed still updates for this render if session storage is unavailable.
+        }
       },
-      [dismissTarget, getToken, toast, trackEvent, user?.id],
+      [user?.id],
     );
 
     const handleToggleBookmark = useCallback(
@@ -496,10 +517,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       (opportunity: Opportunity) => {
         if (opportunity?.id) {
           trackInteraction(opportunity, "view", { context: "card_open" });
+          markOpportunityAsViewed(opportunity.id);
         }
         onOpportunityClick(opportunity);
       },
-      [onOpportunityClick, trackInteraction],
+      [markOpportunityAsViewed, onOpportunityClick, trackInteraction],
     );
     const [applications, setApplications] = useState<ApplicationRecord[]>([]);
     const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
@@ -807,13 +829,19 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       () => new Set(dismissedOpportunityIds),
       [dismissedOpportunityIds],
     );
+    const viewedOpportunitySet = useMemo(
+      () => new Set(viewedOpportunityIds),
+      [viewedOpportunityIds],
+    );
     const availableOpportunityFeed = useMemo(
       () =>
         normalizedOpportunityFeed.filter(
           (opportunity: Opportunity) =>
-            opportunity?.id && !dismissedOpportunitySet.has(opportunity.id),
+            opportunity?.id &&
+            !dismissedOpportunitySet.has(opportunity.id) &&
+            !viewedOpportunitySet.has(opportunity.id),
         ),
-      [dismissedOpportunitySet, normalizedOpportunityFeed],
+      [dismissedOpportunitySet, normalizedOpportunityFeed, viewedOpportunitySet],
     );
 
     const selectedDiscoveryCategory =
@@ -1299,12 +1327,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           onComplete={completeProfileOnboarding}
           onDismiss={dismissProfileCompletionPrompt}
         />
-        <DismissReasonDialog
-          open={dismissTarget !== null}
-          onSelect={handleDismissRecommendation}
-          onClose={() => setDismissTarget(null)}
-        />
-
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-10 dark:opacity-20 mesh-gradient" />
 
@@ -1829,11 +1851,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   isBookmarked={isOppBookmarked(opportunity.id)}
                                   isDarkMode={isDarkMode}
                                   onOpen={handleOpenOpportunity}
-                                  onDismiss={
-                                    user?.id && isPersonalized
-                                      ? (target) => setDismissTarget(target)
-                                      : undefined
-                                  }
                                   onToggleBookmark={handleToggleBookmark}
                                   onShare={handleShareOpportunity}
                                 />

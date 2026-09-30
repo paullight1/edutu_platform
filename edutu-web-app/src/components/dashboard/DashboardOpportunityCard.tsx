@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { usePersonalization } from "../../hooks/usePersonalization";
 import type { Opportunity } from "../../types/opportunity";
 import {
@@ -24,7 +24,6 @@ interface DashboardOpportunityCardProps {
   onOpen: (opportunity: Opportunity) => void;
   onToggleBookmark: (opportunity: Opportunity, event: React.MouseEvent) => void;
   onShare: (opportunity: Opportunity, event: React.MouseEvent) => void;
-  onDismiss?: (opportunity: Opportunity) => void;
 }
 
 function formatOpportunityDeadline(deadline?: string | null) {
@@ -45,7 +44,6 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   opportunity,
   variant,
   onOpen,
-  onDismiss,
 }: DashboardOpportunityCardProps) {
   const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
 
@@ -151,22 +149,8 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           <UrgencyPill
             badge={deadlineBadge}
             compact
-            className={`absolute ${onDismiss ? "right-10" : "right-2"} top-2 !px-1.5 !py-0.5 shadow-sm backdrop-blur`}
+            className="absolute right-2 top-2 !px-1.5 !py-0.5 shadow-sm backdrop-blur"
           />
-          {onDismiss ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onDismiss(opportunity);
-              }}
-              className="absolute right-2 top-2 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              aria-label={`Not interested in ${opportunity.title}`}
-              title="Not interested"
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
-          ) : null}
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-2.5">
           <h4 className="text-sm font-semibold leading-snug text-text-primary line-clamp-3">
