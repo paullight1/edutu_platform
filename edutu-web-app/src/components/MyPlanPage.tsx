@@ -196,11 +196,12 @@ export default function MyPlanPage() {
         <button
           type="button"
           onClick={() => navigate("/app/opportunities")}
-          className="fixed bottom-24 right-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-lg shadow-brand/25 transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:hidden"
+          className="fixed bottom-24 right-4 z-20 inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand/20 bg-brand px-4 text-sm font-semibold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-body sm:hidden"
           aria-label={t("myPlan.exploreOpportunities")}
           title={t("myPlan.exploreOpportunities")}
         >
-          <Plus size={22} aria-hidden="true" />
+          <Plus size={18} aria-hidden="true" />
+          <span>{t("myPlan.exploreOpportunities")}</span>
         </button>
         <header className="hidden flex-col gap-5 border-b border-subtle pb-6 sm:flex sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -223,14 +224,14 @@ export default function MyPlanPage() {
         </header>
 
         <section className="mt-4" aria-label={t("myPlan.stagesLabel")}>
-          <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {STAGES.map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => setStage(item)}
                 aria-pressed={stage === item}
-                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold transition ${stage === item ? "border-subtle bg-surface-elevated text-text-primary" : "border-transparent bg-transparent text-text-secondary hover:border-subtle hover:bg-surface-elevated"}`}
+                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors active:scale-[0.98] ${stage === item ? "border-brand/25 bg-brand/10 text-brand" : "border-transparent bg-surface-layer text-text-secondary hover:border-brand/15 hover:bg-brand/5 hover:text-brand"}`}
               >
                 {t(`myPlan.stages.${item}`)}
               </button>
