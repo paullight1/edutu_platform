@@ -15,7 +15,6 @@ import {
   Bookmark,
   Briefcase,
   Calendar,
-  ChevronDown,
   EyeOff,
   GraduationCap,
   MapPin,
@@ -70,7 +69,6 @@ import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
 import { Skeleton } from "./ui/Skeleton";
 import Pagination from "./ui/Pagination";
-import Select from "./ui/Select";
 import { InlineError, StateView, showsContent, useScreenState } from "./state";
 import {
   shareOpportunity,
@@ -305,7 +303,6 @@ function formatFunding(opportunity: Opportunity): string | null {
 type SortOption = "recommended" | "deadline" | "newest" | "funding";
 
 const DEFAULT_PAGE_SIZE = 12;
-const PAGE_SIZE_OPTIONS = [12, 20, 50, 100];
 
 // Warm the detail-route chunk while the user is still deciding, so tapping a
 // card never waits on a JS download.
@@ -791,7 +788,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const pageSize = DEFAULT_PAGE_SIZE;
   const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -1139,7 +1136,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   // otherwise snap the user off the page they're reading.
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedCategoryId, showClosed, sortOption, pageSize]);
+  }, [searchTerm, selectedCategoryId, showClosed, sortOption]);
 
   const totalPages = Math.max(
     1,
@@ -1667,41 +1664,13 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </ImpressionTracker>
               ))}
             </section>
-            <div className="mt-4 flex flex-col-reverse items-center gap-2 sm:mt-8 sm:flex-row sm:justify-between sm:gap-4">
-              <label className="flex items-center gap-2 text-xs text-text-muted sm:text-sm">
-                <span className="shrink-0">
-                  {t("opportunities.perPageLabel", { defaultValue: "Show" })}
-                </span>
-                <span className="relative">
-                  <Select
-                    value={pageSize}
-                    onChange={(event) => setPageSize(Number(event.target.value))}
-                    aria-label={t("opportunities.perPage", {
-                      defaultValue: "Results per page",
-                    })}
-                    className="h-8 w-auto min-w-[6.5rem] pr-8 text-xs sm:h-9 sm:min-w-[7rem] sm:pr-9 sm:text-sm"
-                  >
-                    {PAGE_SIZE_OPTIONS.map((size) => (
-                      <option key={size} value={size}>
-                        {t("opportunities.perPageOption", {
-                          defaultValue: "{{count}} per page",
-                          count: size,
-                        })}
-                      </option>
-                    ))}
-                  </Select>
-                  <ChevronDown
-                    size={14}
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                  />
-                </span>
-              </label>
+            <div className="mt-4 flex justify-center sm:mt-8">
               <Pagination
                 page={page}
                 totalPages={totalPages}
                 onPageChange={goToPage}
-                compactMobile
-                className="w-full sm:w-auto"
+                arrowsOnly
+                className="gap-3"
               />
             </div>
           </>

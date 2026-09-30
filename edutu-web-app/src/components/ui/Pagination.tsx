@@ -7,6 +7,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   className?: string;
   compactMobile?: boolean;
+  arrowsOnly?: boolean;
   /**
    * When supplied, pagination is rendered as real anchors so crawlers and
    * no-JavaScript readers can reach every archive page. The callback still
@@ -67,6 +68,7 @@ const Pagination: React.FC<PaginationProps> = ({
   onPageChange,
   className = "",
   compactMobile = false,
+  arrowsOnly = false,
   getPageHref,
 }) => {
   if (totalPages <= 1) return null;
@@ -123,7 +125,7 @@ const Pagination: React.FC<PaginationProps> = ({
         </button>
       )}
 
-      {items.map((item, index) =>
+      {!arrowsOnly ? items.map((item, index) =>
         item === "ellipsis" ? (
           <span
             key={`ellipsis-${index}`}
@@ -155,7 +157,7 @@ const Pagination: React.FC<PaginationProps> = ({
             {item}
           </button>
         ),
-      )}
+      ) : null}
 
       {getPageHref && page < totalPages ? (
         <a
