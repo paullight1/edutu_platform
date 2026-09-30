@@ -30,6 +30,7 @@ import {
 import {
     DEFAULT_WEB_ANNOUNCEMENT,
     fetchWebAnnouncement,
+    normalizeWebLink,
     type WebAnnouncement,
 } from '../services/webConfig';
 import type { Opportunity } from '../types/opportunity';
@@ -263,8 +264,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const showOpportunitySkeletons = opportunitiesLoading && selectedOpportunities.length === 0;
     const opportunitiesUnavailable = !opportunitiesLoading && selectedOpportunities.length === 0;
     const showBlogSection = blogLoading || blogArticles.length > 0;
-    const announcementUrl = announcement.linkUrl.trim() || '/edutuforyou';
-    const announcementIsExternal = /^https?:\/\//i.test(announcementUrl);
+    const announcementUrl = normalizeWebLink(announcement.linkUrl, '/edutuforyou');
+    const announcementIsExternal = announcementUrl.startsWith('https://');
 
     const aboutFeatures: AboutFeature[] = [
         { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', illustration: '/illustrations/feature-opportunity-matching.png', illustrationAlt: 'Hand-drawn compass finding an opportunity on a map', cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', titleColor: '#132a5c', descColor: '#42568c' },

@@ -90,7 +90,20 @@ export const BannerCarousel = React.memo(function BannerCarousel({
   if (banners.length === 0) return null;
 
   const activeBanner = banners[current];
-  const isExternal = activeBanner.url?.startsWith("http");
+  const safeUrl = (() => {
+    const value = activeBanner.url?.trim();
+    if (!value || value.startsWith("//") || value.includes("\\")) return "";
+    if (value.startsWith("/") && !value.startsWith("/\\")) return value;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "https:" && !parsed.username && !parsed.password
+        ? value
+        : "";
+    } catch {
+      return "";
+    }
+  })();
+  const isExternal = safeUrl.startsWith("https://");
 
   return (
     <div
@@ -108,12 +121,12 @@ export const BannerCarousel = React.memo(function BannerCarousel({
       <AnimatePresence initial={false} mode="wait">
         <motion.a
           key={`${activeBanner.image}-${current}`}
-          href={activeBanner.url || undefined}
+          href={safeUrl || undefined}
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
           aria-label={activeBanner.title}
           className={`relative block w-full overflow-hidden ${
-            activeBanner.url ? "cursor-pointer" : "pointer-events-none"
+            safeUrl ? "cursor-pointer" : "pointer-events-none"
           }`}
           style={
             mobileHeight

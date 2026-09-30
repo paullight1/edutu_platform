@@ -221,6 +221,33 @@ const PaywallSettingsSchema = z.object({
 // every field defaulted/lenient: admin_settings writes must stay within this
 // schema or mergeAdminSettings parse throws and ALL settings fall back to
 // defaults. No secrets here — this group is public.
+function isSafeWebLink(value: string): boolean {
+  if (!value) return true;
+  if (
+    value.includes("\\") ||
+    Array.from(value).some((character) => character.charCodeAt(0) <= 0x20)
+  ) {
+    return false;
+  }
+  if (value.startsWith("/")) return !value.startsWith("//");
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.port
+    );
+  } catch {
+    return false;
+  }
+}
+
+const SafeWebLinkSchema = z.string().trim().max(1000).refine(isSafeWebLink, {
+  message: "Link must be a root-relative path or an HTTPS URL",
+});
+
 const WebHeroBannerSchema = z.object({
   id: z.string().trim().min(1).max(80),
   title: z.string().trim().min(1).max(160),
@@ -228,7 +255,7 @@ const WebHeroBannerSchema = z.object({
   // Deliberately not z.url(): a malformed stored URL must degrade to a broken
   // image on the web client, not blow up the entire settings merge.
   imageUrl: z.string().trim().min(1).max(1000),
-  linkUrl: z.string().trim().max(1000).default(""),
+  linkUrl: SafeWebLinkSchema.default(""),
   enabled: z.boolean().default(true),
 });
 
@@ -241,7 +268,7 @@ const WebAnnouncementSchema = z.object({
     .default(
       "Help Edutu For You reach 1 million young people with access to global opportunities.",
     ),
-  linkUrl: z.string().trim().max(1000).default("/edutuforyou"),
+  linkUrl: SafeWebLinkSchema.default("/edutuforyou"),
   linkLabel: z.string().trim().max(60).default("See Edutu For You"),
 });
 
@@ -660,10 +687,22 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       announcement: {
         ...DEFAULT_ADMIN_SETTINGS.webContent.announcement,
         ...(partial.webContent?.announcement ?? {}),
+        linkUrl: isSafeWebLink(
+          String(partial.webContent?.announcement?.linkUrl ?? ""),
+        )
+          ? (partial.webContent?.announcement?.linkUrl ??
+            DEFAULT_ADMIN_SETTINGS.webContent.announcement.linkUrl)
+          : "",
       },
-      heroBanners:
+      heroBanners: (
         partial.webContent?.heroBanners ??
-        DEFAULT_ADMIN_SETTINGS.webContent.heroBanners,
+        DEFAULT_ADMIN_SETTINGS.webContent.heroBanners
+      ).map((banner) => ({
+        ...banner,
+        linkUrl: isSafeWebLink(String(banner.linkUrl ?? ""))
+          ? banner.linkUrl
+          : "",
+      })),
     },
     userContent: {
       ...DEFAULT_ADMIN_SETTINGS.userContent,

@@ -28,6 +28,23 @@ export const DEFAULT_WEB_ANNOUNCEMENT: WebAnnouncement = {
   linkLabel: "See Edutu For You",
 };
 
+export function normalizeWebLink(value: unknown, fallback = ""): string {
+  if (typeof value !== "string") return fallback;
+  const link = value.trim();
+  if (!link || /[\u0000-\u0020\\]/.test(link) || link.startsWith("//")) {
+    return fallback;
+  }
+  if (link.startsWith("/")) return link;
+  try {
+    const url = new URL(link);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      ? link
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Admin-controlled policy for user opportunity submissions (Settings →
  * Content → User submissions). Display-only on the client — the backend
@@ -70,9 +87,7 @@ export async function fetchWebAnnouncement(): Promise<WebAnnouncement> {
       enabled: announcement.enabled !== false,
       text: announcement.text.trim(),
       linkUrl:
-        typeof announcement.linkUrl === "string"
-          ? announcement.linkUrl.trim()
-          : DEFAULT_WEB_ANNOUNCEMENT.linkUrl,
+        normalizeWebLink(announcement.linkUrl, DEFAULT_WEB_ANNOUNCEMENT.linkUrl),
       linkLabel:
         typeof announcement.linkLabel === "string" && announcement.linkLabel.trim()
           ? announcement.linkLabel.trim()
@@ -144,6 +159,10 @@ export async function fetchHeroBanners(): Promise<HeroBanner[]> {
             banner.imageUrl.length > 0 &&
             typeof banner.title === "string",
         )
+      .map((banner) => ({
+        ...banner,
+        linkUrl: normalizeWebLink(banner.linkUrl),
+      }))
       : [];
 
     cachedBanners = banners;
