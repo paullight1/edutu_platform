@@ -6,6 +6,7 @@ export interface ScrapeOptions {
   maxPages?: number;
   incremental?: boolean;
   runType?: "manual" | "scheduled";
+  opportunityScope?: "all" | "grants";
 }
 
 export type ScrapeStreamEvent =

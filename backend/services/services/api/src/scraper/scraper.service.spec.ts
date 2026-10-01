@@ -203,6 +203,32 @@ describe("ScraperService", () => {
     });
   });
 
+  describe("grant-only runs", () => {
+    it("keeps grants and rejects unrelated opportunities", () => {
+      const internal = service as any;
+      expect(
+        internal.matchesOpportunityScope(
+          { title: "Africa Climate Innovation Grant", source: "test" },
+          "grants",
+        ),
+      ).toBe(true);
+      expect(
+        internal.matchesOpportunityScope(
+          { title: "Graduate Internship Programme", source: "test" },
+          "grants",
+        ),
+      ).toBe(false);
+    });
+
+    it("adds the exact grants tag to classified grant records", () => {
+      const tags = (service as any).buildPublicTags(
+        { title: "Business Grant", source: "test" },
+        "grants",
+      );
+      expect(tags).toContain("grants");
+    });
+  });
+
   describe("crawl persistence", () => {
     it("persists each completed source before crawling the next source", async () => {
       const internal = service as any;
@@ -281,6 +307,47 @@ describe("ScraperService", () => {
       const result = (service as any).parseAmount(null);
       expect(result.stipend).toBeNull();
       expect(result.currency).toBe("USD");
+    });
+  });
+
+  describe("grant-only scope", () => {
+    it("keeps grant opportunities and rejects unrelated categories", () => {
+      const internal = service as any;
+      expect(
+        internal.matchesOpportunityScope(
+          {
+            title: "African climate innovation grant 2027",
+            apply_url: "https://example.com/grant",
+            source: "Example",
+            source_url: "https://example.com",
+          },
+          "grants",
+        ),
+      ).toBe(true);
+      expect(
+        internal.matchesOpportunityScope(
+          {
+            title: "Graduate software engineering internship",
+            apply_url: "https://example.com/internship",
+            source: "Example",
+            source_url: "https://example.com",
+          },
+          "grants",
+        ),
+      ).toBe(false);
+    });
+
+    it("adds the exact grants tag to classified grant records", () => {
+      const tags = (service as any).buildPublicTags(
+        {
+          title: "Startup grant",
+          source: "Example",
+          source_url: "https://example.com",
+          apply_url: "https://example.com/grant",
+        },
+        "grants",
+      );
+      expect(tags).toContain("grants");
     });
   });
 

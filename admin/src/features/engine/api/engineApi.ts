@@ -97,6 +97,9 @@ function streamQuery(options: OpenRunStreamOptions): string {
   }
 
   params.set("incremental", options.incremental ? "true" : "false");
+  if (options.opportunityScope) {
+    params.set("opportunityScope", options.opportunityScope);
+  }
   return params.toString();
 }
 

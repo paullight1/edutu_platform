@@ -323,6 +323,7 @@ export interface OpenRunStreamOptions {
   allSources?: boolean;
   maxPages: number;
   incremental: boolean;
+  opportunityScope?: "all" | "grants";
 }
 
 export interface EngineStreamHandlers {
