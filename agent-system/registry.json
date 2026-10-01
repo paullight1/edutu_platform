@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "max_concurrent_agents": 3,
+  "defaults": {
+    "inspect": [
+      "edutu-repository-evidence"
+    ],
+    "change": [
+      "edutu-repository-evidence",
+      "edutu-change-delivery",
+      "edutu-verification-release",
+      "edutu-code-review"
+    ],
+    "review": [
+      "edutu-repository-evidence",
+      "edutu-verification-release",
+      "edutu-code-review"
+    ],
+    "curate": [
+      "edutu-repository-evidence",
+      "edutu-project-skill-architect",
+      "edutu-skill-maintenance"
+    ]
+  },
+  "components": [
+    {
+      "id": "api",
+      "manifest": "backend/services/services/api/package.json"
+    },
+    {
+      "id": "web",
+      "manifest": "edutu-web-app/package.json"
+    },
+    {
+      "id": "mobile",
+      "manifest": "edutumobile/package.json"
+    },
+    {
+      "id": "admin",
+      "manifest": "admin/package.json"
+    }
+  ],
+  "agents": [
+    {
+      "id": "edutu-coordinator",
+      "path": ".codex/agents/edutu-coordinator.toml"
+    },
+    {
+      "id": "edutu-repository-analyst",
+      "path": ".codex/agents/edutu-repository-analyst.toml"
+    },
+    {
+      "id": "edutu-architecture-reviewer",
+      "path": ".codex/agents/edutu-architecture-reviewer.toml"
+    },
+    {
+      "id": "edutu-implementer",
+      "path": ".codex/agents/edutu-implementer.toml"
+    },
+    {
+      "id": "edutu-verifier",
+      "path": ".codex/agents/edutu-verifier.toml"
+    },
+    {
+      "id": "edutu-security-reviewer",
+      "path": ".codex/agents/edutu-security-reviewer.toml"
+    },
+    {
+      "id": "edutu-release-reviewer",
+      "path": ".codex/agents/edutu-release-reviewer.toml"
+    },
+    {
+      "id": "edutu-skill-curator",
+      "path": ".codex/agents/edutu-skill-curator.toml"
+    }
+  ],
+  "skills": [
+    {
+      "id": "edutu-project-skill-architect",
+      "path": ".agents/skills/edutu-project-skill-architect/SKILL.md",
+      "agent": "edutu-coordinator",
+      "managed": true,
+      "globs": [
+        "agent-system/*",
+        ".agents/*",
+        ".codex/*"
+      ],
+      "keywords": [
+        "recommend skills",
+        "create skills",
+        "skill creator",
+        "agent architecture"
+      ]
+    },
+    {
+      "id": "edutu-repository-evidence",
+      "path": ".agents/skills/edutu-repository-evidence/SKILL.md",
+      "agent": "edutu-repository-analyst",
+      "managed": true,
+      "globs": [],
+      "keywords": [
+        "repository map",
+        "trace code",
+        "stale context"
+      ]
+    },
+    {
+      "id": "edutu-change-delivery",
+      "path": ".agents/skills/edutu-change-delivery/SKILL.md",
+      "agent": "edutu-implementer",
+      "managed": true,
+      "globs": [],
+      "keywords": [
+        "implement feature",
+        "fix bug"
+      ]
+    },
+    {
+      "id": "edutu-api-data-safety",
+      "path": ".agents/skills/edutu-api-data-safety/SKILL.md",
+      "agent": "edutu-security-reviewer",
+      "managed": true,
+      "globs": [
+        "backend/services/services/api/*",
+        "supabase/*",
+        "edutumobile/supabase/*"
+      ],
+      "keywords": [
+        "authorization",
+        "migration",
+        "RLS",
+        "tenant",
+        "database",
+        "Clerk"
+      ]
+    },
+    {
+      "id": "edutu-opportunity-integrity",
+      "path": ".agents/skills/edutu-opportunity-integrity/SKILL.md",
+      "agent": "edutu-architecture-reviewer",
+      "managed": true,
+      "globs": [
+        "backend/services/services/api/src/opportunit*",
+        "backend/services/services/api/src/scraper/*",
+        "crawl4ai-scraper/*",
+        "*opportunit*",
+        "*application*"
+      ],
+      "keywords": [
+        "eligibility",
+        "opportunity",
+        "scholarship",
+        "deadline",
+        "application progress"
+      ]
+    },
+    {
+      "id": "edutu-ai-evaluation",
+      "path": ".agents/skills/edutu-ai-evaluation/SKILL.md",
+      "agent": "edutu-verifier",
+      "managed": true,
+      "globs": [
+        "backend/services/services/api/src/ai/*",
+        "backend/services/services/api/src/copilot/*",
+        "*recommendation*",
+        "*embedding*"
+      ],
+      "keywords": [
+        "AI",
+        "prompt",
+        "hallucination",
+        "recommendation",
+        "model provider",
+        "coaching"
+      ]
+    },
+    {
+      "id": "edutu-cross-platform-parity",
+      "path": ".agents/skills/edutu-cross-platform-parity/SKILL.md",
+      "agent": "edutu-architecture-reviewer",
+      "managed": true,
+      "globs": [
+        "edutu-web-app/*",
+        "edutumobile/*",
+        "admin/*",
+        "packages/*"
+      ],
+      "keywords": [
+        "cross-platform",
+        "offline",
+        "deep link",
+        "mobile parity"
+      ]
+    },
+    {
+      "id": "edutu-verification-release",
+      "path": ".agents/skills/edutu-verification-release/SKILL.md",
+      "agent": "edutu-release-reviewer",
+      "managed": true,
+      "globs": [
+        ".github/*"
+      ],
+      "keywords": [
+        "release",
+        "CI",
+        "verify completion",
+        "deployment"
+      ]
+    },
+    {
+      "id": "edutu-skill-maintenance",
+      "path": ".agents/skills/edutu-skill-maintenance/SKILL.md",
+      "agent": "edutu-skill-curator",
+      "managed": true,
+      "globs": [
+        "agent-system/*",
+        ".agents/*",
+        ".codex/*",
+        "code-review-agents/*",
+        "AGENTS.md"
+      ],
+      "keywords": [
+        "skill evaluation",
+        "skill drift",
+        "retire skill",
+        "agent permissions"
+      ]
+    },
+    {
+      "id": "edutu-code-review",
+      "path": "code-review-agents/edutu-code-review/SKILL.md",
+      "agent": "edutu-architecture-reviewer",
+      "managed": false,
+      "globs": [],
+      "keywords": []
+    },
+    {
+      "id": "edutu-mobile-review",
+      "path": "code-review-agents/edutu-mobile-review/SKILL.md",
+      "agent": "edutu-architecture-reviewer",
+      "managed": false,
+      "globs": [
+        "edutumobile/*"
+      ],
+      "keywords": [
+        "Expo",
+        "React Native"
+      ]
+    },
+    {
+      "id": "edutu-web-review",
+      "path": "code-review-agents/edutu-web-review/SKILL.md",
+      "agent": "edutu-architecture-reviewer",
+      "managed": false,
+      "globs": [
+        "edutu-web-app/*"
+      ],
+      "keywords": [
+        "Capacitor",
+        "PWA"
+      ]
+    },
+    {
+      "id": "edutu-payments-review",
+      "path": "code-review-agents/edutu-payments-review/SKILL.md",
+      "agent": "edutu-security-reviewer",
+      "managed": false,
+      "globs": [
+        "*billing*",
+        "*payment*",
+        "*revenuecat*",
+        "*monetization*",
+        "*credit*",
+        "*webhook*"
+      ],
+      "keywords": [
+        "payment",
+        "Paystack",
+        "RevenueCat",
+        "credits",
+        "entitlement",
+        "checkout",
+        "webhook"
+      ]
+    }
+  ]
+}

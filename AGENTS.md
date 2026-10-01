@@ -170,3 +170,31 @@ Project-tailored review skills live in `code-review-agents/`:
 - `edutu-payments-review` — Paystack, RevenueCat, webhooks, entitlements, credits, and billing migration review.
 
 For a code review, inspect the diff first, use the shared reviewer, and add the specialist whenever its path or concern is touched. Findings must be evidence-based, severity-ranked (`P0`–`P3`), and include a concrete fix and verification gap. These are review-only agents unless the user explicitly asks for implementation.
+
+## Repository-grounded project intelligence
+
+For engineering task intake or resumption, read `agent-system/README.md` and use
+`edutu-repository-evidence`. For workflow selection or gaps, use
+`edutu-project-skill-architect`. New repo skills live in `.agents/skills/` and
+native Codex roles in `.codex/agents/`; the registry reuses existing reviewers.
+Read a selected review skill by path when the runtime does not discover it.
+
+Current corrections take precedence over older examples above: the mobile app
+is `edutumobile/`, not `edutu_mobile/`. Verify commands, ports, dependencies, and
+entry points in the current checkout. All `VITE_*` and `EXPO_PUBLIC_*` values are
+public; never put provider secrets in them. The old OpenRouter example is not
+a safe secret-storage pattern. Database push, migrations, deployment, and live
+provider calls are not routine verification commands and need explicit scope.
+
+Keep approved requirements separate from observed behavior. New privileged
+business/journey writes go through the NestJS API; existing direct-Supabase
+exceptions require an explicit reason and correct RLS, not an automatic rewrite.
+Preserve current UI, legacy behavior, and rollout flags unless the task changes
+them. Opening an external application link is not confirmation of submission.
+
+Record source references and actual check results; missing evidence is Unknown
+or NOT_RUN, never a pass. Run the relevant app checks and the agent-system tests
+when applicable. `python agent-system/scripts/edutu_agents.py drift --strict`
+detects changes to named anchors only. Never refresh fingerprints merely to
+hide failures. Publish scoped feature PRs to `develop`; do not merge, deploy,
+weaken checks, or expand permissions without authorization.
