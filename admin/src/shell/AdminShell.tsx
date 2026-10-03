@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { useAdminAuth } from "../auth/admin-auth-context";
 import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
+import EngineRunDock from "../features/engine/components/EngineRunDock";
 import AdminTopbar from "./AdminTopbar";
 import MobileNavigation from "./MobileNavigation";
 import PrimaryRail from "./PrimaryRail";
@@ -76,6 +77,7 @@ function AdminShellFrame() {
         isSigningOut={isSigningOut}
         onSignOut={() => void handleSignOut()}
       />
+      <EngineRunDock />
     </div>
   );
 }

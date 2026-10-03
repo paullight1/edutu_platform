@@ -52,6 +52,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface Opportunity {
@@ -275,52 +276,6 @@ function normalizeText(value: unknown, fallback = "") {
 function truncateText(value: string, maxLength: number) {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1).trim()}...`;
-}
-
-/**
- * Turns a verification outcome into something an admin can act on. A bare
- * "Verified" would be misleading: the check can succeed and still find no date,
- * which is the likeliest result on the missing-deadline cohort.
- */
-function describeVerification(
-  result?: {
-    status?: string;
-    newCloseDate?: string | null;
-    newDeadlineConfidence?: string;
-  } | null,
-) {
-  if (!result) return "Deadline check finished.";
-
-  if (result.newCloseDate) {
-    const date = new Date(result.newCloseDate);
-    const readable = Number.isNaN(date.getTime())
-      ? result.newCloseDate
-      : date.toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        });
-    return `Deadline found: ${readable}${
-      result.newDeadlineConfidence === "inferred" ? " (inferred)" : ""
-    }.`;
-  }
-
-  if (result.newDeadlineConfidence === "rolling") {
-    return "Source says applications are rolling — no fixed deadline.";
-  }
-
-  switch (result.status) {
-    case "expired":
-      return "Source confirms this has closed.";
-    case "broken_link":
-      return "Source link is broken — no deadline could be read.";
-    case "stale":
-      return "Source could not be reached; it will retry automatically.";
-    case "needs_review":
-      return "Needs review — the source was ambiguous.";
-    default:
-      return "Checked, but the source states no deadline.";
-  }
 }
 
 function getPublicAppBaseUrl() {
@@ -1056,6 +1011,9 @@ export default function Opportunities() {
   const [totalPages, setTotalPages] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [enhancingIds, setEnhancingIds] = useState<Set<string>>(new Set());
+  const [generatingImageIds, setGeneratingImageIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
   // Share image chooser: lets the admin visually pick between the generated
   // branded card and the opportunity's original (meta) image before sharing.
@@ -1509,6 +1467,7 @@ export default function Opportunities() {
 
   async function handleEnhanceOpportunity(id: string) {
     setEnhancingIds((prev) => new Set(prev).add(id));
+    setVerifyingIds((prev) => new Set(prev).add(id));
     try {
       const response = await fetch(
         `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
@@ -1521,15 +1480,104 @@ export default function Opportunities() {
       if (!response.ok || !result.success) {
         throw new Error(result.error || "AI enhancement failed");
       }
+
+      // AI generated copy can mistake an article's publication date for an
+      // application deadline. Re-read the source with the deadline verifier
+      // after enrichment; it updates only dates supported by deadline context.
+      let deadlineResult: any = null;
+      let deadlineError = "";
+      try {
+        const deadlineResponse = await fetch(
+          `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
+          {
+            method: "POST",
+            headers: await getAdminHeaders(),
+          },
+        );
+        deadlineResult = await deadlineResponse.json().catch(() => ({}));
+        if (!deadlineResponse.ok || !deadlineResult.success) {
+          deadlineError =
+            deadlineResult.error || "The source deadline could not be checked.";
+        }
+      } catch (error: unknown) {
+        deadlineError = getErrorMessage(
+          error,
+          "The source deadline could not be checked.",
+        );
+      }
+
       await fetchOpportunities();
-      showPageNotice(
-        "success",
-        `AI enhancement complete: ${result.completeness?.score ?? "updated"}%.`,
-      );
+      const score = result.completeness?.score ?? "updated";
+      if (deadlineError) {
+        showPageNotice(
+          "warning",
+          `AI enhancement complete (${score}%), but the deadline check failed: ${deadlineError}`,
+        );
+      } else if (deadlineResult.result?.updated) {
+        const deadline = deadlineResult.result.deadline;
+        const readable = deadline
+          ? new Date(`${deadline}T12:00:00`).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "";
+        showPageNotice(
+          "success",
+          deadlineResult.result.clearedAsPublicationDate
+            ? `AI enhancement complete (${score}%). Removed ${readable}, which matches the source's publication date.`
+            : `AI enhancement complete (${score}%). Source-verified deadline updated to ${readable}.`,
+        );
+      } else {
+        showPageNotice(
+          "success",
+          `AI enhancement complete (${score}%). Deadline unchanged: ${deadlineResult.result?.reason || "no application deadline was verified on the source."}`,
+        );
+      }
     } catch (error: unknown) {
       showPageNotice("error", getErrorMessage(error, "AI enhancement failed"));
     } finally {
+      setVerifyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       setEnhancingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function handleGenerateOpportunityImage(id: string) {
+    setGeneratingImageIds((prev) => new Set(prev).add(id));
+    try {
+      const response = await fetch(
+        `${NEST_API_URL}/opportunities/admin/${encodeURIComponent(id)}/generate-image`,
+        {
+          method: "POST",
+          headers: await getAdminHeaders(),
+        },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || result.error || "Image generation failed");
+      }
+      setBrokenImageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      await fetchOpportunities();
+      showPageNotice("success", "AI opportunity image generated and saved.");
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "AI image generation failed"),
+      );
+    } finally {
+      setGeneratingImageIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
@@ -1544,23 +1592,40 @@ export default function Opportunities() {
     setVerifyingIds((prev) => new Set(prev).add(id));
     try {
       const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/verification/${id}`,
+        `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
         {
           method: "POST",
-          headers: {
-            ...(await getAdminHeaders()),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ dryRun: false }),
+          headers: await getAdminHeaders(),
         },
       );
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) {
-        throw new Error(result.error || "Deadline check failed");
+        throw new Error(
+          result.error || result.result?.reason || "Deadline check failed",
+        );
       }
 
-      await fetchOpportunities();
-      showPageNotice("success", describeVerification(result.result));
+      const outcome = result.result;
+      if (outcome?.updated) {
+        await fetchOpportunities();
+        if (outcome.deadline) {
+          const readable = new Date(`${outcome.deadline}T00:00:00`).toLocaleDateString(
+            undefined,
+            { month: "short", day: "numeric", year: "numeric" },
+          );
+          showPageNotice("success", `Source deadline updated to ${readable}.`);
+        } else {
+          showPageNotice(
+            "warning",
+            "The saved date matched the article’s publication date, so it was cleared. No application deadline was found.",
+          );
+        }
+      } else {
+        showPageNotice(
+          "warning",
+          outcome?.reason || "The source did not provide a usable application deadline.",
+        );
+      }
     } catch (error: unknown) {
       showPageNotice("error", getErrorMessage(error, "Deadline check failed"));
     } finally {
@@ -1582,62 +1647,61 @@ export default function Opportunities() {
       ids.forEach((id) => next.add(id));
       return next;
     });
-    let found = 0;
-    let rolling = 0;
+    let updated = 0;
     let checked = 0;
+    let unchanged = 0;
     let failed = 0;
     let done = 0;
     try {
-      // Batches of 10 against the server-side bulk endpoint, which runs the
-      // page fetches and LLM fallbacks concurrently. The old one-request-per-
-      // row loop took 15-30s × N sequentially — a 100-row selection sat
-      // spinning for upwards of half an hour with no sign of life.
+      // Use the source-only endpoint in small concurrent batches. The generic
+      // bulk verification endpoint can infer dates from non-deadline page data.
       for (const chunk of chunkArray(ids, 10)) {
-        try {
-          const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/verification/bulk`,
-            {
-              method: "POST",
-              headers: await getAdminHeaders(),
-              body: JSON.stringify({ ids: chunk, dryRun: false }),
-            },
-          );
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.success) {
-            throw new Error(
-              result.error || result.message || "Deadline check failed",
+        const results = await Promise.allSettled(
+          chunk.map(async (id) => {
+            const response = await fetch(
+              `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
+              {
+                method: "POST",
+                headers: await getAdminHeaders(),
+              },
             );
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Deadline check failed");
+            }
+            return result.result;
+          }),
+        );
+        for (const result of results) {
+          checked += 1;
+          if (result.status === "rejected") {
+            failed += 1;
+          } else if (result.value?.updated) {
+            updated += 1;
+          } else {
+            unchanged += 1;
           }
-          checked += Number(result.checked) || 0;
-          found += Number(result.found) || 0;
-          rolling += Number(result.rolling) || 0;
-          failed += Number(result.failed) || 0;
-        } catch {
-          failed += chunk.length;
-        } finally {
-          done += chunk.length;
-          setBulkProgress({
-            done,
-            total: ids.length,
-            note: `${found} deadline${found === 1 ? "" : "s"} found`,
-          });
-          setVerifyingIds((prev) => {
-            const next = new Set(prev);
-            chunk.forEach((id) => next.delete(id));
-            return next;
-          });
         }
+        done += chunk.length;
+        setBulkProgress({
+          done,
+          total: ids.length,
+          note: `${updated} source date${updated === 1 ? "" : "s"} updated`,
+        });
+        setVerifyingIds((prev) => {
+          const next = new Set(prev);
+          chunk.forEach((id) => next.delete(id));
+          return next;
+        });
         // Refresh between batches so recovered dates appear as they land
         // instead of only after the whole run.
         void fetchOpportunities({ silent: true });
       }
 
-      // Report found separately from checked: "20 checked" reads like success
-      // when it may well have recovered zero dates.
       showPageNotice(
         failed ? "warning" : "success",
-        `Checked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, found ${found} deadline${found === 1 ? "" : "s"}${
-          rolling ? `, ${rolling} rolling` : ""
+        `Rechecked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, updated ${updated} source date${updated === 1 ? "" : "s"}${
+          unchanged ? `, ${unchanged} unchanged` : ""
         }${failed ? `, ${failed} failed` : ""}.`,
       );
       await fetchOpportunities();
@@ -2987,29 +3051,31 @@ export default function Opportunities() {
                             <CheckCircle2 size={15} />
                           </button>
                         )}
-                        {deadlineUnknown && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary opportunity-icon-button"
-                            title="Find deadline: re-scrape the source and read the date with AI"
-                            aria-label={`Find deadline for ${opp.title || "opportunity"}`}
-                            disabled={isVerifying}
-                            onClick={() => void handleFindDeadline(opp.id)}
-                            style={{ color: "#f59e0b" }}
-                          >
-                            {isVerifying ? (
-                              <Loader2 size={15} className="animate-spin" />
-                            ) : (
-                              <CalendarClock size={15} />
-                            )}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className="btn btn-secondary opportunity-icon-button"
+                          title={
+                            deadlineUnknown
+                              ? "Get deadline from the source page"
+                              : "Recheck saved deadline against the source page"
+                          }
+                          aria-label={`Recheck deadline from source for ${opp.title || "opportunity"}`}
+                          disabled={isVerifying}
+                          onClick={() => void handleFindDeadline(opp.id)}
+                          style={{ color: "#f59e0b" }}
+                        >
+                          {isVerifying ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <CalendarClock size={15} />
+                          )}
+                        </button>
                         <button
                           type="button"
                           className="btn btn-secondary opportunity-icon-button"
                           title="Improve details with AI"
                           aria-label={`Improve ${opp.title || "opportunity"} with AI`}
-                          disabled={isEnhancing}
+                          disabled={isEnhancing || isVerifying}
                           onClick={() => handleEnhanceOpportunity(opp.id)}
                           style={{ color: "#60a5fa" }}
                         >
@@ -3491,6 +3557,8 @@ export default function Opportunities() {
             <div className="opportunities-grid">
               {filteredOpps.map((opp) => {
                 const isEnhancing = enhancingIds.has(opp.id);
+                const isVerifying = verifyingIds.has(opp.id);
+                const isGeneratingImage = generatingImageIds.has(opp.id);
                 const isSharing = sharingIds.has(opp.id);
                 const isExpanded = expandedRows.has(opp.id);
                 // Status is the source of truth; the metadata needs_review flag
@@ -3672,7 +3740,7 @@ export default function Opportunities() {
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            disabled={isEnhancing}
+                            disabled={isEnhancing || isVerifying}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEnhanceOpportunity(opp.id);
@@ -3684,6 +3752,38 @@ export default function Opportunities() {
                               <Sparkles size={14} />
                             )}
                             AI improve
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={isVerifying}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleFindDeadline(opp.id);
+                            }}
+                          >
+                            {isVerifying ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <CalendarClock size={14} />
+                            )}
+                            Recheck deadline
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={isGeneratingImage}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleGenerateOpportunityImage(opp.id);
+                            }}
+                          >
+                            {isGeneratingImage ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <ImageIcon size={14} />
+                            )}
+                            {isGeneratingImage ? "Generating image" : "Generate image"}
                           </button>
                           {opp.status === "pending_review" && (
                             <>
