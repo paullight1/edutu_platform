@@ -13,6 +13,7 @@ import type {
   MobileCampaign,
   MobileControlConfig,
   MobileFeatureFlag,
+  ModuleAccess,
   PaywallContentConfig,
   PricingConfig,
   WidgetFeed,
@@ -100,6 +101,15 @@ export class MobileControlService {
       paywall: adminGroups.paywall,
       aiCosts: adminGroups.aiCosts,
       serverTime: new Date().toISOString(),
+    };
+  }
+
+  async getModuleLocks(): Promise<{
+    moduleLocks: Record<string, ModuleAccess>;
+  }> {
+    const { settings, success } = await this.settingsService.getSettings();
+    return {
+      moduleLocks: success ? (settings.mobileApp?.moduleLocks ?? {}) : {},
     };
   }
 

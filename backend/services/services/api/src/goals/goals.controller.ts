@@ -1,3 +1,5 @@
+import { UseGuards } from "@nestjs/common";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import {
   Controller,
   Get,
@@ -13,7 +15,8 @@ import { UpdateGoalSchema, type UpdateGoalDto } from "./dto/update-goal.dto";
 import { CurrentUser } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
-@Controller("goals")
+@Controller(["goals", "web-tools/goals"])
+@UseGuards(WebPaidToolsGuard)
 export class GoalsController {
   constructor(private readonly goalsService: GoalsService) {}
 

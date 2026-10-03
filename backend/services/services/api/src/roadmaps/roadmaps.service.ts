@@ -46,6 +46,7 @@ import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { isApprovedMentor } from "../common/mentor-access";
 import { CacheService } from "../common/cache/cache.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { OpportunitiesService } from "../opportunities/opportunities.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
 
 const ROADMAPS_CACHE_PREFIX = "roadmaps:";
@@ -83,6 +84,7 @@ export class RoadmapsService {
     @Optional() private readonly goalsService?: GoalsService,
     @Optional() private readonly cache?: CacheService,
     @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional() private readonly opportunitiesService?: OpportunitiesService,
   ) {}
 
   private async invalidateRoadmapCache(): Promise<void> {
@@ -869,9 +871,7 @@ export class RoadmapsService {
     stepId: string,
     completed: boolean,
   ) {
-    const roadmap = await this.findPublishedById(roadmapId);
-    const steps = roadmap.steps as Array<{ id: string }>;
-    const stepIndex = steps.findIndex((s) => s.id === stepId);
+    await this.findAdoptableRoadmap(userId, roadmapId);
 
     // Read-modify-write on the completedSteps array under a row lock, so two
     // concurrent step toggles serialize instead of clobbering each other
@@ -890,6 +890,13 @@ export class RoadmapsService {
 
       if (!enrollment) throw new NotFoundException("Enrollment not found");
 
+      const adoptedSteps = (enrollment.adoptedPlan as { steps?: Array<{ id: string }> } | null)?.steps;
+      if (!Array.isArray(adoptedSteps)) {
+        throw new BadRequestException("Adopt this roadmap before tracking progress");
+      }
+      const stepIndex = adoptedSteps.findIndex((step) => step.id === stepId);
+      if (stepIndex < 0) throw new BadRequestException("Unknown roadmap step");
+
       let completedSteps = (enrollment.completedSteps as string[]) || [];
 
       if (completed) {
@@ -901,8 +908,8 @@ export class RoadmapsService {
       }
 
       const progress =
-        steps.length > 0
-          ? Math.round((completedSteps.length / steps.length) * 100)
+        adoptedSteps.length > 0
+          ? Math.round((completedSteps.length / adoptedSteps.length) * 100)
           : 0;
 
       const [row] = await tx
@@ -1258,42 +1265,39 @@ Ground every claim in the details given above. Never invent requirements, eligib
     dto: OpportunityPlanDto,
   ): Promise<OpportunityPlanDto> {
     try {
-      const result = await db.execute(sql`
-        select
-          title,
-          organization,
-          category,
-          description,
-          coalesce(close_date, deadline) as deadline,
-          metadata->'requirements' as requirements
-        from public.opportunities
-        where id = ${dto.opportunityId}::uuid
-        limit 1
-      `);
-      const rows = Array.isArray(result)
-        ? (result as any[])
-        : ((result as { rows?: any[] }).rows ?? []);
-      const row = rows[0];
-      if (!row?.title) return dto;
+      if (!dto.opportunityId) throw new NotFoundException("Opportunity not found");
+      const row = await this.opportunitiesService?.findOne(dto.opportunityId);
+      const record = row as Record<string, unknown> | null | undefined;
+      const title = typeof record?.title === "string" ? record.title : null;
+      if (!title) throw new NotFoundException("Opportunity not found");
+      const metadata = record?.metadata && typeof record.metadata === "object"
+        ? record.metadata as Record<string, unknown>
+        : {};
+      const rawDeadline = record?.close_date ?? record?.closeDate ?? record?.deadline;
+      const rowDeadline = typeof rawDeadline === "string" ? rawDeadline : null;
+      const organization = typeof record?.organization === "string" ? record.organization : dto.organization;
+      const category = typeof record?.category === "string" ? record.category : dto.category;
+      const description = typeof record?.description === "string" ? record.description : undefined;
 
-      const requirements = Array.isArray(row.requirements)
-        ? row.requirements.filter((r: unknown) => typeof r === "string")
+      const requirements = Array.isArray(metadata.requirements)
+        ? metadata.requirements.filter((r: unknown) => typeof r === "string")
         : undefined;
 
       return {
         ...dto,
-        title: row.title,
-        organization: row.organization ?? dto.organization,
-        category: row.category ?? dto.category,
-        description: row.description
-          ? String(row.description).slice(0, 4000)
+        title,
+        organization,
+        category,
+        description: description
+          ? description.slice(0, 4000)
           : dto.description,
-        deadline: row.deadline
-          ? new Date(row.deadline).toISOString().split("T")[0]
+        deadline: rowDeadline
+          ? new Date(rowDeadline).toISOString().split("T")[0]
           : dto.deadline,
         requirements: requirements?.length ? requirements : dto.requirements,
       };
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       this.logger.warn(
         `Could not ground opportunity plan on ${dto.opportunityId}: ${
           error instanceof Error ? error.message : String(error)

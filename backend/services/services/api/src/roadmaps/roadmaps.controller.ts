@@ -1,3 +1,4 @@
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import {
   Controller,
   Get,
@@ -43,7 +44,8 @@ import { AdminGuard } from "../auth/admin.guard";
 import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
-@Controller("roadmaps")
+@Controller(["roadmaps", "web-tools/roadmaps"])
+@UseGuards(WebPaidToolsGuard)
 export class RoadmapsController {
   constructor(private readonly roadmapsService: RoadmapsService) {}
 

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -25,6 +26,13 @@ export class MobileControlController {
   @Get("config")
   getConfig() {
     return this.mobileControlService.getConfig();
+  }
+
+  @Public()
+  @Get("module-access")
+  @Header("Cache-Control", "no-store")
+  getModuleLocks() {
+    return this.mobileControlService.getModuleLocks();
   }
 
   @Post("events")

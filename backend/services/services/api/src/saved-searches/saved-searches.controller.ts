@@ -1,3 +1,5 @@
+import { UseGuards } from "@nestjs/common";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import {
   Body,
   Controller,
@@ -17,7 +19,8 @@ import {
 } from "./dto/saved-search.dto";
 import { SavedSearchesService } from "./saved-searches.service";
 
-@Controller("saved-searches")
+@Controller(["saved-searches", "web-tools/saved-searches"])
+@UseGuards(WebPaidToolsGuard)
 export class SavedSearchesController {
   constructor(private readonly savedSearchesService: SavedSearchesService) {}
 
