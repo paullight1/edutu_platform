@@ -68,6 +68,7 @@ import BannerCarousel, {
   type BannerAd,
 } from "./dashboard/BannerCarousel";
 import { ProfileCompletionPrompt } from "./dashboard/ProfileCompletionPrompt";
+import { PaidToolGate } from "../features/feature-access/PaidToolGate";
 import {
   dismissProfilePromptForSession,
   readDismissedProfilePromptSession,
@@ -1726,7 +1727,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <div className="pb-8 lg:col-span-12 lg:col-start-1 lg:row-start-4">
               <div className="lg:col-span-12 space-y-10">
                 {/* Recommended Opportunities */}
-                <section aria-labelledby="recommended-picks-heading">
+                <PaidToolGate
+                  feature="Personalized opportunity recommendations"
+                  paidByDefault
+                >
+                  <section aria-labelledby="recommended-picks-heading">
                   <div className="mb-5">
                     <div className="flex items-center justify-between gap-3 lg:items-end">
                       <div className="flex min-w-0 items-center gap-3">
@@ -2056,7 +2061,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       )}
                     </div>
                   )}
-                </section>
+                  </section>
+                </PaidToolGate>
 
               </div>
 

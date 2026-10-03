@@ -8,6 +8,7 @@ import type {
 } from '../types/community';
 import { getApiBaseUrl } from '../lib/apiBaseUrl';
 import { productApiRequest } from './productApi';
+import { paidToolPath } from '../features/workspace/paidRoutes';
 
 type BackendDifficulty = 'beginner' | 'intermediate' | 'advanced';
 type BackendCategory =
@@ -426,9 +427,8 @@ export async function fetchRoadmapCalendarExport(enrollmentId: string, token?: s
 }
 
 // --- Roadmap AI endpoints ---
-// These now require Clerk auth and can return 402 insufficient_credits;
-// productApiRequest always sends the bearer token and surfaces
-// UpgradeRequiredError so callers can open the UpgradeModal.
+// Web calls route through /web-tools and require an active paid plan before
+// the normal AI usage meter checks credits and plan allowances.
 
 export interface RoadmapAiAssistInput {
   goal?: string;
@@ -442,17 +442,23 @@ export interface RoadmapOpportunityPlanInput {
   profile?: Record<string, unknown>;
 }
 
-export async function requestRoadmapAiAssist(input: RoadmapAiAssistInput, token: string) {
+export async function requestRoadmapAiAssist(
+  input: RoadmapAiAssistInput,
+  token: string,
+) {
   return productApiRequest<{ steps?: BackendRoadmapStep[]; [key: string]: unknown }>(
-    '/roadmaps/ai/assist',
+    paidToolPath('/roadmaps/ai/assist'),
     token,
     { method: 'POST', body: JSON.stringify(input) },
   );
 }
 
-export async function requestOpportunityPlan(input: RoadmapOpportunityPlanInput, token: string) {
+export async function requestOpportunityPlan(
+  input: RoadmapOpportunityPlanInput,
+  token: string,
+) {
   return productApiRequest<{ steps?: BackendRoadmapStep[]; [key: string]: unknown }>(
-    '/roadmaps/ai/opportunity-plan',
+    paidToolPath('/roadmaps/ai/opportunity-plan'),
     token,
     { method: 'POST', body: JSON.stringify(input) },
   );

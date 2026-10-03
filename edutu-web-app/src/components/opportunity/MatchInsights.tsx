@@ -10,11 +10,13 @@ import {
   Target,
   TrendingUp,
   AlertTriangle,
+  LockKeyhole,
 } from "lucide-react";
 import type {
   MatchReason,
   MatchReasonKind,
 } from "../../services/personalizedRecommendations";
+import { useOptionalPaywall } from "../../hooks/usePaywall";
 
 /**
  * Shared visual language for AI match scoring across the feed cards and the
@@ -80,6 +82,8 @@ export function MatchScoreBadge({
   showLabel?: boolean;
   className?: string;
 }) {
+  const paywall = useOptionalPaywall();
+  if (paywall && (paywall.billingLoading || !paywall.isPro)) return null;
   if (typeof score !== "number" || Number.isNaN(score) || score < minScore) {
     return null;
   }
@@ -104,6 +108,8 @@ export function MatchScoreBadge({
  * without opening the detail page.
  */
 export function TopMatchReason({ reason }: { reason: MatchReason | undefined }) {
+  const paywall = useOptionalPaywall();
+  if (paywall && (paywall.billingLoading || !paywall.isPro)) return null;
   if (!reason) return null;
   const Icon = reasonIcon[reason.kind] ?? Sparkles;
   return (
@@ -129,6 +135,37 @@ export function WhyThisMatches({
   risks?: string[];
   className?: string;
 }) {
+  const paywall = useOptionalPaywall();
+  if (paywall && (paywall.billingLoading || !paywall.isPro)) {
+    return (
+      <section className={`rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5 ${className}`}>
+        <div className="flex items-start gap-2">
+          <LockKeyhole size={18} className="mt-0.5 shrink-0 text-brand" />
+          <div>
+            <h2 className="text-[15px] font-display font-semibold text-text-primary sm:text-base">
+              Personalized fit insights
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Unlock profile-based match scores, reasons and eligibility gaps with a paid plan.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="feature-button mt-4"
+          disabled={paywall.billingLoading}
+          onClick={() =>
+            paywall.openPaywall({
+              feature: "AI match insights",
+              reason: "Personalized fit scores and reasons are included with an Edutu paid plan.",
+            })
+          }
+        >
+          Unlock fit insights
+        </button>
+      </section>
+    );
+  }
   if (reasons.length === 0 && (!risks || risks.length === 0)) return null;
   const tier = getMatchTier(score);
 

@@ -53,7 +53,7 @@ export default function OpportunityAssist({
       <PaidToolGate
         feature="AI opportunity preparation"
         moduleKey="chat"
-        paidByDefault={false}
+        paidByDefault
       >
         <OpportunityActions
           key={`${userId}:${opportunity.id}`}

@@ -1,4 +1,5 @@
 import { productApiRequest } from './productApi';
+import { paidToolPath } from '../features/workspace/paidRoutes';
 
 export interface CvStats {
   wordCount: number;
@@ -286,10 +287,14 @@ export async function deleteCvRecord(id: string, token: string) {
 }
 
 export async function generateCvDraft(input: GenerateCVDraftInput, token: string) {
-  return productApiRequest<GenerateCVDraftResponse>('/cv/ai/draft', token, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
+  return productApiRequest<GenerateCVDraftResponse>(
+    paidToolPath('/cv/ai/draft'),
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export interface TailorCvInput {
@@ -300,8 +305,12 @@ export interface TailorCvInput {
 }
 
 export async function tailorCv(input: TailorCvInput, token: string) {
-  return productApiRequest<GenerateCVDraftResponse>('/cv/ai/tailor', token, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
+  return productApiRequest<GenerateCVDraftResponse>(
+    paidToolPath('/cv/ai/tailor'),
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
 }

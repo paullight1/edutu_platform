@@ -6,11 +6,14 @@ import {
   Get,
   Param,
   Post,
+  UseGuards,
 } from "@nestjs/common";
 import { CurrentUser } from "../auth";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import { DocumentsService } from "./documents.service";
 
-@Controller("documents")
+@Controller(["documents", "web-tools/documents"])
+@UseGuards(WebPaidToolsGuard)
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 

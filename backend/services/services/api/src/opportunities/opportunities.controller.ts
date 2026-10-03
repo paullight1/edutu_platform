@@ -60,6 +60,7 @@ import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projection";
 import { OpportunityImageGenerationService } from "./opportunity-image-generation.service";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 
 // Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
 // and returns the full normalized DTO; this surface only powers browse UI.
@@ -68,7 +69,7 @@ const PUBLIC_FEED_MAX_LIMIT = 60;
 // + one page ~= 2100 rows) while still bounding anonymous harvesting depth.
 const PUBLIC_FEED_MAX_OFFSET = 2040;
 
-@Controller("opportunities")
+@Controller(["opportunities", "web-tools/opportunities"])
 export class OpportunitiesController {
   constructor(
     private readonly opportunitiesService: OpportunitiesService,
@@ -175,6 +176,7 @@ export class OpportunitiesController {
   }
 
   @Post("recommendations")
+  @UseGuards(WebPaidToolsGuard)
   getRecommendations(
     @CurrentUser("id") userId: string,
     @Body(new ZodValidationPipe(UserRecommendationRequestSchema))
@@ -187,6 +189,7 @@ export class OpportunitiesController {
   }
 
   @Post("match-scores")
+  @UseGuards(WebPaidToolsGuard)
   // Batch scoring for client badge hydration: same pipeline as the feed,
   // applied to specific ids (browse page, detail deep links). Capped at 50.
   getMatchScores(

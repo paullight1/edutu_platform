@@ -75,7 +75,7 @@ export default function CoachSheet({ returnTo }: { returnTo: string }) {
           <PaidToolGate
             feature="AI Coach"
             moduleKey="chat"
-            paidByDefault={false}
+            paidByDefault
           >
             <CoachPage key={userId || "signed-out"} />
           </PaidToolGate>

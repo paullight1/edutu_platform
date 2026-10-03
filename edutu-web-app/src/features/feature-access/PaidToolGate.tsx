@@ -52,6 +52,20 @@ const previews: Record<
     action: "Unlock AI Coach",
     Icon: Sparkles,
   },
+  "AI opportunity preparation": {
+    title: "Prepare with AI",
+    description:
+      "Check your fit, choose a next step, review documents and build a preparation plan.",
+    action: "Unlock AI preparation",
+    Icon: Sparkles,
+  },
+  "Personalized opportunity recommendations": {
+    title: "Your next best matches",
+    description:
+      "Unlock profile-based opportunity rankings, fit insights and reasons behind each match.",
+    action: "Unlock personalized matches",
+    Icon: Target,
+  },
   "CV Builder": {
     title: "Build a CV that shows your strengths",
     description: "Create and manage your CV, with premium designs available on a paid plan.",

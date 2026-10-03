@@ -374,15 +374,18 @@ export default function CvPage() {
     }
   }
   async function ai(kind: "draft" | "tailor" | "letter") {
-    if (kind === "tailor" || kind === "letter") {
-      const feature = kind === "tailor" ? "CV tailoring" : "CV cover letters";
-      if (
-        !requestPremiumCvAccess(
-          `${feature} is included with an Edutu paid plan. Your CV and instructions are preserved.`,
-        )
-      ) {
-        return;
-      }
+    const feature =
+      kind === "draft"
+        ? "AI CV writing"
+        : kind === "tailor"
+          ? "AI CV tailoring"
+          : "AI cover letters";
+    if (
+      !requestPremiumCvAccess(
+        `${feature} is included with an Edutu paid plan. Your CV and instructions are preserved.`,
+      )
+    ) {
+      return;
     }
     setCopyOnApply(kind === "tailor");
     setProposal(null); setLetter("");
@@ -457,6 +460,13 @@ export default function CvPage() {
     }
   }
   async function importFile(file: File) {
+    if (
+      !requestPremiumCvAccess(
+        "Importing a LinkedIn export uses AI to prepare your CV and requires an Edutu paid plan.",
+      )
+    ) {
+      return;
+    }
     const form = new FormData();
     form.append("file", file);
     setBusy(true);
@@ -500,7 +510,7 @@ export default function CvPage() {
     {loading ? <Loading/> : <>
       {dirty && <button className="feature-button secondary mb-4" onClick={() => setView("edit")}>Resume draft · {name}</button>}
       <div className="cv-quick-actions">
-        <button onClick={() => { if(navigateCv(null)) fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn</strong><small>LinkedIn PDF or ZIP</small></span><ChevronRight size={17}/></button>
+        <button onClick={() => { if (!requestPremiumCvAccess("Importing a LinkedIn export uses AI and requires an Edutu paid plan.")) return; if(navigateCv(null)) fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn <span className="cv-ai-pro-badge">Paid</span></strong><small>LinkedIn PDF or ZIP</small></span><ChevronRight size={17}/></button>
         <button onClick={() => { setProposal(null); setLetter(""); setReturnView(null); setView("ai"); }} disabled={busy}><Sparkles size={20}/><span><strong>AI tools</strong><small>Draft, tailor & write cover letters</small></span><ChevronRight size={17}/></button>
       </div>
       {!view && <CvTemplatePicker
@@ -723,19 +733,19 @@ export default function CvPage() {
         {!proposal && !letter && <>
           <label className="feature-label">CV to use<select className="feature-field" value={record?.id || ""} disabled={busy} onChange={e=>{const row=cvs.find(item=>item.id===e.target.value); if(row) choose(row); else navigateCv(null);}}><option value="">New CV</option>{cvs.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
           {!String(header.full_name || "").trim() && <p className="feature-muted mb-4">Add your details to a CV first. <button className="cv-save-link" onClick={() => {setView("edit");setSection("basics");}}>Create or edit CV</button></p>}
-          <div className="cv-ai-options">{([["draft","Improve writing","Make your experience clearer"],["tailor","Tailor to opportunity","Create a version for an application"],["letter","Cover letter","Draft from your CV"]] as const).map(([kind,title,subtitle])=><button key={kind} aria-pressed={aiKind===kind} disabled={busy} onClick={()=>{setAiKind(kind);setError(null);}}><strong>{title}{kind !== "draft" && <span className="cv-ai-pro-badge">Pro</span>}</strong><small>{subtitle}</small></button>)}</div>
+          <div className="cv-ai-options">{([["draft","Improve writing","Make your experience clearer"],["tailor","Tailor to opportunity","Create a version for an application"],["letter","Cover letter","Draft from your CV"]] as const).map(([kind,title,subtitle])=><button key={kind} aria-pressed={aiKind===kind} disabled={busy} onClick={()=>{setAiKind(kind);setError(null);}}><strong>{title}<span className="cv-ai-pro-badge">Paid</span></strong><small>{subtitle}</small></button>)}</div>
           {aiKind !== "draft" && <><label className="feature-label">Find an opportunity<input className="feature-field" value={search} disabled={busy} onChange={e=>setSearch(e.target.value)} placeholder="Search by title or organisation"/></label>{searching && <p role="status">Searching…</p>}{searchError && <p role="alert">{searchError}</p>}<div className="cv-search-results">{matches.map(item=><button key={item.id} disabled={busy} aria-pressed={opportunity===item.id} onClick={()=>{setOpportunity(item.id);setOpportunityLabel(item.title);setSearch("");setMatches([]);}}>{item.title}{opportunity===item.id && " ✓"}</button>)}</div>{opportunity && <p className="feature-muted">Selected: {opportunityLabel || "Opportunity from your application"} <button className="cv-save-link" disabled={busy} onClick={() => {setOpportunity("");setOpportunityLabel("");}}>Change</button></p>}</>}
           <label className="feature-label">Instructions <span className="feature-muted">(optional)</span><textarea className="feature-field" rows={3} value={notes} disabled={busy} onChange={e=>setNotes(e.target.value)} placeholder="What would you like to improve?"/></label>
-          {aiKind === "draft" || isPro ? (
+          {isPro ? (
             <AccessSummary action="cvAi" />
           ) : (
             <p className="feature-muted mb-4" role="status">
               {billingLoading
                 ? "Checking your CV plan access…"
-                : "Tailoring and cover letters are included with a paid plan. Credit top-ups do not unlock these actions."}
+                : "AI CV writing, tailoring, cover letters and LinkedIn import require a paid plan. Credit top-ups do not unlock these actions."}
             </p>
           )}
-          <button className="feature-button cv-ai-generate" disabled={busy || (billingLoading && !isPro && aiKind !== "draft") || !String(header.full_name || "").trim() || (aiKind!=="draft"&&!opportunity)} onClick={()=>{if(aiKind!=="draft"&&!isPro){requestPremiumCvAccess(aiKind==="tailor"?"Tailor your CV to an opportunity with an Edutu paid plan.":"Create opportunity-specific cover letters with an Edutu paid plan.");return;}void ai(aiKind);}}><Sparkles size={16}/>{busy ? "Preparing your draft…" : aiKind !== "draft" && !isPro ? "Unlock with Pro" : "Generate draft"}</button>
+          <button className="feature-button cv-ai-generate" disabled={busy || (billingLoading && !isPro) || !String(header.full_name || "").trim() || (aiKind!=="draft"&&!opportunity)} onClick={()=>{if(!isPro){requestPremiumCvAccess("AI CV features require an Edutu paid plan.");return;}void ai(aiKind);}}><Sparkles size={16}/>{busy ? "Preparing your draft…" : !isPro ? "Unlock with a paid plan" : "Generate draft"}</button>
         </>}
             {busy && <p role="status">Preparing your draft…</p>}
             {proposal && (

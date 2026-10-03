@@ -37,15 +37,17 @@ const ROUTE_ROOTS = new Set([
   "copilot",
   "goals",
   "roadmaps",
+  "opportunities",
   "saved-searches",
   "uploads",
+  "documents",
 ]);
 
 /**
- * Keeps the mobile compatibility paths, but applies web plan rules to the
- * equivalent `/web-tools` requests and applies configured module locks to
- * both aliases. Metered Coach and roadmap generation remain free to reach the
- * canonical AI meter, which decides whether the user has allowance or credits.
+ * Keeps mobile compatibility paths, while requiring an active paid plan for
+ * web AI and preparation tools before their normal usage meter is evaluated.
+ * Canonical mobile aliases continue to follow configured module locks and AI
+ * metering rules.
  */
 @Injectable()
 export class WebPaidToolsGuard implements CanActivate {
@@ -62,10 +64,7 @@ export class WebPaidToolsGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<GuardRequest>();
-    const route = this.resolveRoute(
-      request.originalUrl || request.url || "",
-      request.method || "GET",
-    );
+    const route = this.resolveRoute(request.originalUrl || request.url || "");
     if (!route.moduleKey && !route.requiresPaidWebPlan) return true;
 
     const locks = await this.getModuleLocks();
@@ -99,7 +98,7 @@ export class WebPaidToolsGuard implements CanActivate {
     return true;
   }
 
-  private resolveRoute(rawUrl: string, method: string): ToolRoute {
+  private resolveRoute(rawUrl: string): ToolRoute {
     const segments = rawUrl.split(/[?#]/, 1)[0].split("/").filter(Boolean);
     const webToolsIndex = segments.indexOf("web-tools");
     const rootIndex =
@@ -116,15 +115,13 @@ export class WebPaidToolsGuard implements CanActivate {
     const root = segments[rootIndex];
     const rest = segments.slice(rootIndex + 1);
     const isWebToolRoute = webToolsIndex >= 0;
-    const verb = method.toUpperCase();
-
     if (root === "chat") {
-      return { moduleKey: "chat", requiresPaidWebPlan: false };
+      return { moduleKey: "chat", requiresPaidWebPlan: isWebToolRoute };
     }
     if (root === "cv") {
-      const paidAiAction =
-        rest[0] === "ai" &&
-        (rest[1] === "tailor" || rest[1] === "cover-letter");
+      // Every CV AI action (draft, tailoring, cover letter and LinkedIn import)
+      // requires a paid web plan. Manual CV editing stays available.
+      const paidAiAction = rest[0] === "ai";
       return {
         moduleKey: "cv",
         requiresPaidWebPlan: isWebToolRoute && paidAiAction,
@@ -143,14 +140,11 @@ export class WebPaidToolsGuard implements CanActivate {
       };
     }
     if (root === "uploads") {
-      const isIngest = rest.length === 2 && rest[1] === "ingest";
-      const isRead = verb === "GET";
       return {
         moduleKey: null,
-        // Listing/reading owned files and parsing them support free metered AI.
-        // Creating a new upload from the paid Documents workspace is gated.
-        requiresPaidWebPlan:
-          isWebToolRoute && !isRead && !isIngest,
+        // The Documents workspace is a paid web tool, including listing,
+        // parsing, and downloading files. Mobile keeps its canonical alias.
+        requiresPaidWebPlan: isWebToolRoute,
       };
     }
     if (root !== "roadmaps") {
@@ -174,7 +168,7 @@ export class WebPaidToolsGuard implements CanActivate {
     return {
       moduleKey: "roadmaps",
       requiresPaidWebPlan:
-        isWebToolRoute && isPrivateRoadmapRoute && !isMeteredRoadmapAi,
+        isWebToolRoute && (isMeteredRoadmapAi || isPrivateRoadmapRoute),
     };
   }
 

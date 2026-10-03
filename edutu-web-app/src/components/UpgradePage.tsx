@@ -6,10 +6,11 @@ import Seo from "./Seo";
 import PlanPicker from "../features/feature-access/PlanPicker";
 import { usePaywall } from "../hooks/usePaywall";
 const benefits = [
-  "Check your fit and choose your next move on each opportunity",
-  "Prepare application materials with Copilot",
-  "Talk through applications with AI Coach and voice",
-  "Save preparation plans, organize documents and follow goals",
+  "Get profile-based opportunity matches and fit insights",
+  "Use AI Coach chat and voice, with application-specific Copilot guidance",
+  "Draft, improve and tailor your CV; create cover letters",
+  "Generate preparation plans and analyze application documents",
+  "Save preparation goals and track progress",
   "Keep up with saved searches and alerts",
 ];
 export default function UpgradePage() {

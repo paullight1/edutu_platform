@@ -124,3 +124,8 @@ export function usePaywall(): PaywallContextValue {
   }
   return ctx;
 }
+
+/** Optional form for shared UI that also renders in isolated/public contexts. */
+export function useOptionalPaywall(): PaywallContextValue | null {
+  return useContext(PaywallContext);
+}

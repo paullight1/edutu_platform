@@ -17,6 +17,7 @@ import { normalizeExternalUrl } from "../lib/externalUrl";
 import { syncOpportunityInventorySnapshot } from "./analyticsAggregator";
 import { updateOpportunitiesInN8n } from "./n8nIntegration";
 import { productApiRequest, isProductApiUnavailableError } from "./productApi";
+import { paidToolPath } from "../features/workspace/paidRoutes";
 import { toMatchReasons } from "./serverMatchStore";
 import type { MatchReason } from "./personalizedRecommendations";
 
@@ -1008,7 +1009,7 @@ export async function fetchOpportunityRecommendations(
   }
 
   const payload = await productApiRequest<unknown>(
-    "/opportunities/recommendations",
+    paidToolPath("/opportunities/recommendations"),
     token,
     {
       method: "POST",
@@ -1086,7 +1087,7 @@ export async function fetchOpportunityMatchScores(
     let payload: unknown;
     try {
       payload = await productApiRequest<unknown>(
-        "/opportunities/match-scores",
+        paidToolPath("/opportunities/match-scores"),
         token,
         {
           method: "POST",

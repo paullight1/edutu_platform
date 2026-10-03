@@ -133,7 +133,7 @@ const workspaceAccessPolicies: Partial<
     { title: string; moduleKey?: string; paidByDefault: boolean }
   >
 > = {
-  coach: { title: "AI Coach", moduleKey: "chat", paidByDefault: false },
+  coach: { title: "AI Coach", moduleKey: "chat", paidByDefault: true },
   cv: { title: "CV Builder", moduleKey: "cv", paidByDefault: false },
   copilot: {
     title: "Application Copilot",
