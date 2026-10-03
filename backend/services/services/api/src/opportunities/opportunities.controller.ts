@@ -59,6 +59,7 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
 import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projection";
+import { OpportunityImageGenerationService } from "./opportunity-image-generation.service";
 
 // Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
 // and returns the full normalized DTO; this surface only powers browse UI.
@@ -73,6 +74,7 @@ export class OpportunitiesController {
     private readonly opportunitiesService: OpportunitiesService,
     private readonly opportunityVerificationService: OpportunityVerificationService,
     private readonly opportunityEmbeddingService: OpportunityEmbeddingService,
+    private readonly opportunityImageGenerationService: OpportunityImageGenerationService,
   ) {}
 
   @Public()
@@ -87,7 +89,11 @@ export class OpportunitiesController {
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
     @Query("category") category?: string,
+    @Query("status") status?: string,
   ) {
+    if (status !== undefined && status !== "active" && status !== "closed") {
+      throw new BadRequestException("status must be active or closed");
+    }
     // The catalog is near-static (changes on admin writes + the daily sync).
     // Let browsers/CDN absorb repeat reads; Express adds a matching ETag and
     // answers If-None-Match with 304 automatically.
@@ -95,7 +101,8 @@ export class OpportunitiesController {
       "Cache-Control",
       "public, max-age=60, stale-while-revalidate=300",
     );
-    // Public learner feed: active records only, capped page size and depth,
+    // Public learner feed: active records by default; closed records are
+    // equally public and free to browse, with the same bounded pagination.
     // and internal/paid-trust fields stripped so the catalog can't be
     // harvested for free at parity with the paid API.
     const cappedLimit = Math.min(
@@ -110,7 +117,7 @@ export class OpportunitiesController {
     const rows = await this.opportunitiesService.findAll(
       cappedLimit,
       cappedOffset,
-      "active",
+      status || "active",
       category,
     );
     return stripInternalOpportunityFieldsBatch(rows);
@@ -313,6 +320,13 @@ export class OpportunitiesController {
     return result;
   }
 
+  @Post("admin/:id/generate-image")
+  @UseGuards(AdminGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  generateOpportunityImage(@Param("id") id: string) {
+    return this.opportunityImageGenerationService.generateForOpportunity(id);
+  }
+
   @Post("admin/bulk-enhance")
   @UseGuards(AdminGuard)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
@@ -449,6 +463,16 @@ export class OpportunitiesController {
       return { success: false, error: "Opportunity not found" };
     }
 
+    return { success: true, result };
+  }
+
+  @Post("admin/verification/:id/deadline")
+  @UseGuards(AdminGuard)
+  async refreshOpportunityDeadline(@Param("id") id: string) {
+    const result = await this.opportunityVerificationService.refreshDeadlineFromSource(id);
+    if (!result) {
+      return { success: false, error: "Opportunity not found" };
+    }
     return { success: true, result };
   }
 

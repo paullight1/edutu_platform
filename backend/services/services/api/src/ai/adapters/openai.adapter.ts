@@ -14,6 +14,59 @@ const OPENAI_CHAT_COMPLETIONS_URL =
 export class OpenAiAdapter implements AiProviderAdapter {
   readonly provider = "openai";
 
+  async generateImage(
+    config: AiRouteConfig,
+    options: { prompt: string; signal?: AbortSignal },
+  ): Promise<{ data: Buffer; mimeType: string; model: string }> {
+    if (!config.apiKey) {
+      throw new Error("OpenAI API key is not configured");
+    }
+
+    const model = config.model || "gpt-image-2.5-sunburst";
+    const response = await aiFetch(
+      "https://api.openai.com/v1/images/generations",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          prompt: options.prompt,
+          size: "1024x1024",
+          quality: "medium",
+          output_format: "png",
+          n: 1,
+        }),
+      },
+      { label: "OpenAI image generation", signal: options.signal },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `OpenAI image generation failed: ${response.status} ${await response.text()}`,
+      );
+    }
+
+    const payload = await response.json();
+    const encoded = payload?.data?.[0]?.b64_json;
+    if (typeof encoded !== "string" || !encoded) {
+      throw new Error("OpenAI returned no image data");
+    }
+
+    return {
+      data: Buffer.from(encoded, "base64"),
+      mimeType:
+        payload?.output_format === "jpeg"
+          ? "image/jpeg"
+          : payload?.output_format === "webp"
+            ? "image/webp"
+            : "image/png",
+      model,
+    };
+  }
+
   async generateText(
     config: AiRouteConfig,
     options: AiGenerateOptions,

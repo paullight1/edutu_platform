@@ -30,7 +30,6 @@ import {
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
-import { parseDeadlineDetailed } from "./deadline.util";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -360,6 +359,7 @@ export class OpportunitiesService {
     // Public "active" listings must not surface opportunities whose deadline
     // has already passed (mirrors opportunity-ranking fetchCandidateOpportunities).
     const excludeExpired = statusFilter === PUBLIC_OPPORTUNITY_STATUS;
+    const includeClosed = statusFilter === "closed";
     const today = new Date().toISOString().slice(0, 10);
 
     const run = async () => {
@@ -370,8 +370,9 @@ export class OpportunitiesService {
         if (this.supabase && !canonicalCategory) {
           let request = this.supabase
             .from("opportunities")
-            .select("*")
-            .eq("status", statusFilter)
+            .select("*");
+          if (!includeClosed) request = request.eq("status", statusFilter);
+          request = request
             .order("created_at", { ascending: false })
             .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
@@ -379,6 +380,12 @@ export class OpportunitiesService {
             request = request
               .is("duplicate_of", null)
               .or(`close_date.gte.${today},close_date.is.null`);
+          }
+
+          if (includeClosed) {
+            request = request
+              .is("duplicate_of", null)
+              .or(`and(status.eq.closed,verification_status.in.(verified,expired)),and(status.eq.active,verification_status.eq.verified,close_date.lt.${today})`);
           }
 
           if (statusFilter === PUBLIC_OPPORTUNITY_STATUS) {
@@ -410,7 +417,22 @@ export class OpportunitiesService {
         const conditions = [
           statusFilter === PUBLIC_OPPORTUNITY_STATUS
             ? discoverableOpportunityConditions(opportunities)
-            : eq(opportunities.status, statusFilter),
+            : includeClosed
+              ? and(
+                  isNull(opportunities.duplicateOf),
+                  or(
+                    and(
+                      eq(opportunities.status, "closed"),
+                      inArray(opportunities.verificationStatus, ["verified", "expired"]),
+                    ),
+                    and(
+                      eq(opportunities.status, "active"),
+                      eq(opportunities.verificationStatus, PUBLIC_OPPORTUNITY_VERIFICATION_STATUS),
+                      lt(opportunities.closeDate, today),
+                    ),
+                  ),
+                )!
+              : eq(opportunities.status, statusFilter),
         ];
         if (category) {
           if (canonicalCategory) {
@@ -1803,6 +1825,50 @@ export class OpportunitiesService {
     return this.findOne(id);
   }
 
+  /** Save a generated cover image without replacing unrelated opportunity metadata. */
+  async updateGeneratedImage(
+    id: string,
+    imageUrl: string,
+    imageMetadata: Record<string, unknown>,
+  ) {
+    this.invalidateReadCaches();
+    if (this.supabase) {
+      const { data: current, error: readError } = await this.supabase
+        .from("opportunities")
+        .select("metadata")
+        .eq("id", id)
+        .maybeSingle();
+      if (readError) throw readError;
+      if (!current) throw new NotFoundException("Opportunity not found");
+      const metadata =
+        current.metadata && typeof current.metadata === "object"
+          ? current.metadata
+          : {};
+      const { error } = await this.supabase
+        .from("opportunities")
+        .update({
+          image_url: imageUrl,
+          metadata: { ...metadata, ai_generated_image: imageMetadata },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+      return this.findOne(id);
+    }
+
+    const [updated] = await db
+      .update(opportunities)
+      .set({
+        imageUrl,
+        metadata: sql`coalesce(${opportunities.metadata}, '{}'::jsonb) || ${JSON.stringify({ ai_generated_image: imageMetadata })}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(opportunities.id, id))
+      .returning({ id: opportunities.id });
+    if (!updated) throw new NotFoundException("Opportunity not found");
+    return this.findOne(id);
+  }
+
   // Postgres unique-violation detector (SQLSTATE 23505), tolerant of both the
   // supabase-js error shape and Drizzle's wrapped driver error.
   private isUniqueViolation(error: any): boolean {
@@ -2144,17 +2210,10 @@ export class OpportunitiesService {
     const description = this.normalizeDescription(descriptionText);
     const titleText = this.cleanOptionalText(opportunity.title, 220) || "";
     const summary = this.normalizeSummary(summaryText, description, titleText);
-    // The enhancement prompt explicitly permits a readable deadline ("March 5"),
-    // but close_date is a `date` column — writing the raw string makes Postgres
-    // reject the entire update with 22007, which surfaces only as a logged warn
-    // and success:false. So the AI date has to be parsed, not passed through.
-    const titleYear = titleText.match(/\b(20\d{2})\b/)?.[1];
-    const aiDeadline = parseDeadlineDetailed(
-      aiData?.deadline ?? null,
-      titleYear ? Number(titleYear) : null,
-    );
-    const closeDate =
-      aiDeadline.date || opportunity.close_date || opportunity.deadline;
+    // Deadline ownership stays with the source verifier. Generated prose can
+    // confuse a publication date with an application deadline, so AI
+    // enrichment is never allowed to set or replace close_date.
+    const closeDate = opportunity.close_date || opportunity.deadline;
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -2197,11 +2256,6 @@ export class OpportunitiesService {
         organization: organization || metadata.organization || null,
         funding_type: aiData?.fundingType || metadata.funding_type || null,
         target_region: aiData?.targetRegion || metadata.target_region || null,
-        // Only claim a confidence when the AI actually produced a usable date;
-        // otherwise leave whatever the verification job already established.
-        ...(aiDeadline.date
-          ? { deadline_confidence: aiDeadline.confidence }
-          : {}),
         ai_improved_at: new Date().toISOString(),
         ai_improvement_confidence: Number(aiData?.confidence ?? 0),
         ai_improvement_notes: aiData?.notes || [],

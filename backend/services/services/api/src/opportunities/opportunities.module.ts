@@ -14,6 +14,7 @@ import { installOpportunityRankingRuntimePolicy } from "./opportunity-ranking-ru
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
 import { OpportunityShareEnrichService } from "./opportunity-share-enrich.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
+import { OpportunityImageGenerationService } from "./opportunity-image-generation.service";
 
 @Module({
   imports: [AiModule, SavedSearchesModule],
@@ -29,6 +30,7 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
     OpportunityVerificationService,
     OpportunityShareCardService,
     OpportunityShareEnrichService,
+    OpportunityImageGenerationService,
     OpportunityEmbeddingService,
     OpportunityContentRefinementService,
   ],
@@ -40,6 +42,7 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
     OpportunityShareCardService,
     OpportunityEmbeddingService,
     OpportunityContentRefinementService,
+    OpportunityImageGenerationService,
   ],
 })
 export class OpportunitiesModule implements OnModuleDestroy {

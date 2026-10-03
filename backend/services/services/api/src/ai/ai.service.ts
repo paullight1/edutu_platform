@@ -153,6 +153,11 @@ const DEFAULT_ROUTES: Record<
   string,
   Omit<AiRouteConfig, "feature" | "apiKey">
 > = {
+  "opportunities.image": {
+    provider: "openai",
+    model: "gpt-image-2.5-sunburst",
+    isEnabled: true,
+  },
   "chat.coach": {
     provider: "deepseek",
     fallbackProvider: CHAT_FALLBACK_PROVIDER,
@@ -443,6 +448,72 @@ export class AiService {
         }
       }
 
+      throw error;
+    }
+  }
+
+  async generateImage(options: {
+    feature: AiGenerateOptions["feature"];
+    prompt: string;
+    userId?: string | null;
+    signal?: AbortSignal;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ data: Buffer; mimeType: string; provider: "openai"; model: string }> {
+    const startedAt = Date.now();
+    const routeOptions: AiGenerateOptions = {
+      feature: options.feature,
+      prompt: options.prompt,
+      userId: options.userId,
+      signal: options.signal,
+      metadata: options.metadata,
+    };
+    const configuredRoute = await this.resolveRoute(routeOptions);
+    if (!configuredRoute.isEnabled) {
+      throw new Error(`AI feature ${options.feature} is disabled`);
+    }
+
+    // Image generation is pinned to OpenAI even if an older ai_routes row
+    // still points this feature at Gemini. Resolve the OpenAI key separately
+    // so the feature consistently uses the configured OpenAI project.
+    let openAiApiKey =
+      configuredRoute.provider === "openai" ? configuredRoute.apiKey : null;
+    if (!openAiApiKey) {
+      try {
+        openAiApiKey = await this.getLatestKey("openai");
+      } catch {
+        openAiApiKey = null;
+      }
+    }
+    openAiApiKey ||= this.getEnvKey("openai");
+    if (!openAiApiKey) throw new Error("OpenAI API key is not configured");
+
+    const route: AiRouteConfig = {
+      ...configuredRoute,
+      provider: "openai",
+      model:
+        configuredRoute.provider === "openai" &&
+        /^gpt-image-/i.test(configuredRoute.model)
+          ? configuredRoute.model
+          : "gpt-image-2.5-sunburst",
+      apiKey: openAiApiKey,
+    };
+    const adapter = this.adapters.get("openai") as OpenAiAdapter | undefined;
+    if (!adapter) throw new Error("OpenAI image generation is unavailable");
+
+    try {
+      const result = await adapter.generateImage(route, {
+        prompt: options.prompt,
+        signal: options.signal,
+      });
+      void this.logUsage(
+        routeOptions,
+        route,
+        { text: "", provider: "openai", model: result.model },
+        Date.now() - startedAt,
+      );
+      return { ...result, provider: "openai" };
+    } catch (error) {
+      void this.logUsage(routeOptions, route, null, Date.now() - startedAt, error);
       throw error;
     }
   }

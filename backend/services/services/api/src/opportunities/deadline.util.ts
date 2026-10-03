@@ -175,21 +175,31 @@ export function parseDeadlineDetailed(
 /** Pull the most likely deadline fragment out of free page text. */
 export function extractDeadlineText(text: string): string | null {
   if (!text) return null;
+
+  // A page usually contains several dates (publication, opening, update,
+  // deadline). Only accept a date attached to deadline/closing language; a
+  // bare first date silently turns article publication dates into deadlines.
+  const date =
+    "(?:20\\d{2}[-/.]\\d{1,2}[-/.]\\d{1,2}" +
+    "|\\d{1,2}[/.]\\d{1,2}[/.]20\\d{2}" +
+    "|(?:" + MONTH_PATTERN + ")\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d{2})?" +
+    "|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:" + MONTH_PATTERN + ")(?:\\.?\\s*,?\\s+20\\d{2})?)";
   const patterns = [
-    // Prefer complete dates before label-based fragments. The generic
-    // deadline matcher stops at commas, so "deadline is November 1, 2026"
-    // would otherwise lose the explicit year and incorrectly inherit the
-    // edition year from a title such as "Scholarship 2027".
-    new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, "i"),
-    new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, "i"),
-    /(?:application\s+)?deadline[:\s]*([^\n,]{5,40})/i,
-    /(?:applications?\s+)?closes?\s+(?:on\s+)?([^\n,]{5,40})/i,
-    /closing\s+date[:\s]*([^\n,]{5,40})/i,
-    /apply\s+(?:before|by)\s+([^\n,]{5,40})/i,
+    new RegExp(
+      "\\b(?:(?:application|submission)\\s+)?deadline\\b\\s*(?:(?:is|of)\\s+|[:|–—-]\\s*)?(" + date + ")",
+      "i",
+    ),
+    new RegExp(
+      "\\b(?:applications?\\s+(?:close|closes|closing)|closing\\s+date|last\\s+date(?:\\s+to\\s+apply)?)\\b\\s*(?:(?:is|on|by)\\s+|[:|–—-]\\s*)?(" + date + ")",
+      "i",
+    ),
+    new RegExp("\\bapply\\s+(?:before|by)\\s+(" + date + ")", "i"),
+    new RegExp("\\bsubmit\\s+(?:before|by)\\s+(" + date + ")", "i"),
   ];
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m) return m[0].trim().substring(0, 60);
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim().substring(0, 60);
   }
   return null;
 }
