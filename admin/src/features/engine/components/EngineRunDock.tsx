@@ -12,6 +12,7 @@ export default function EngineRunDock() {
   const completedSources = state.sourceProgress.filter(
     (entry) => entry.status === "completed",
   ).length;
+  const statusOnly = state.reconnected && state.sourceProgress.length === 0;
 
   if (state.phase === "idle" || (!state.minimized && !active)) return null;
   if (!state.minimized && location.pathname.startsWith("/engine/runs")) {
@@ -34,22 +35,33 @@ export default function EngineRunDock() {
       <button
         type="button"
         className="engine-run-dock-summary"
-        aria-label="Open Engine run"
+        aria-label="Open Engine run details"
         onClick={openRun}
       >
         <span className="engine-run-dock-icon" aria-hidden="true">
           <Radio size={18} />
         </span>
         <span className="engine-run-dock-copy">
-          <strong>{state.paused ? "Engine run paused" : "Engine run active"}</strong>
+          <strong>
+            {state.paused
+              ? "Engine run paused"
+              : statusOnly
+                ? "Scrape run active"
+                : state.phase === "starting"
+                  ? "Starting Engine run"
+                  : "Engine run active"}
+          </strong>
           <span>
-            {state.opportunities.length} found · {state.skippedCount} skipped ·{" "}
-            {completedSources}/{state.sourceProgress.length} sources
+            {statusOnly
+              ? "Detected on the server · details unavailable in this view"
+              : state.phase === "starting"
+                ? "Connecting to the scraper · preparing the run"
+                : `${state.opportunities.length} found · ${state.skippedCount} skipped · ${completedSources}/${state.sourceProgress.length} sources`}
           </span>
         </span>
       </button>
       <div className="engine-run-dock-actions">
-        {active ? (
+        {active && !statusOnly ? (
           state.paused ? (
             <button
               type="button"
@@ -68,7 +80,7 @@ export default function EngineRunDock() {
             </button>
           )
         ) : null}
-        {active ? (
+        {active && !statusOnly ? (
           <button
             type="button"
             aria-label="Stop background run"

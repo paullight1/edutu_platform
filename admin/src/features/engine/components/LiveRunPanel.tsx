@@ -37,6 +37,7 @@ export default function LiveRunPanel({ run }: LiveRunPanelProps) {
   const completedSources = state.sourceProgress.filter(
     (source) => source.status === "completed",
   ).length;
+  const statusOnly = state.reconnected && state.sourceProgress.length === 0;
 
   return (
     <section className="engine-card engine-live-run" aria-labelledby="live-run-title">
@@ -61,11 +62,15 @@ export default function LiveRunPanel({ run }: LiveRunPanelProps) {
             {state.skippedCount
               ? ` · ${state.skippedCount.toLocaleString()} skipped`
               : ""}
-            {state.reconnected ? " · reattached after refresh" : ""}
+            {statusOnly
+              ? " · detected on the server; live details are unavailable"
+              : state.reconnected
+                ? " · reattached after refresh"
+                : ""}
           </p>
         </div>
         <div className="engine-live-run-actions">
-          {active ? (
+          {active && !statusOnly ? (
             <>
               <button
                 type="button"
@@ -90,15 +95,17 @@ export default function LiveRunPanel({ run }: LiveRunPanelProps) {
                 <CircleStop size={15} aria-hidden="true" />
                 Stop
               </button>
-              <button
-                type="button"
-                className="engine-source-action"
-                aria-label="Minimize run"
-                onClick={run.minimize}
-              >
-                <Minimize2 size={15} aria-hidden="true" />
-                Minimize
-              </button>
+              {!statusOnly ? (
+                <button
+                  type="button"
+                  className="engine-source-action"
+                  aria-label="Minimize run"
+                  onClick={run.minimize}
+                >
+                  <Minimize2 size={15} aria-hidden="true" />
+                  Minimize
+                </button>
+              ) : null}
             </>
           ) : (
             <button
@@ -122,6 +129,31 @@ export default function LiveRunPanel({ run }: LiveRunPanelProps) {
             {state.error?.requestId ? (
               <small>Reference {state.error.requestId}</small>
             ) : null}
+          </span>
+        </div>
+      ) : null}
+
+      {statusOnly ? (
+        <p className="engine-live-run-status-note" role="status">
+          This run was started outside this page session. Its current source and opportunity counts are not available here.
+        </p>
+      ) : null}
+
+      {active ? (
+        <div className="engine-live-run-overall-progress">
+          {state.sourceProgress.length > 0 ? (
+            <progress
+              aria-label="Engine run progress"
+              max={state.sourceProgress.length}
+              value={completedSources + failedSources}
+            />
+          ) : (
+            <progress aria-label="Engine run progress" />
+          )}
+          <span>
+            {state.sourceProgress.length > 0
+              ? `${completedSources + failedSources} of ${state.sourceProgress.length} sources finished`
+              : "Connecting to the scraper and preparing sources"}
           </span>
         </div>
       ) : null}

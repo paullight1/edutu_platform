@@ -1,5 +1,5 @@
 import { History } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ScrapeJob } from "../model/types";
 import RunGroup from "./RunGroup";
 
@@ -9,6 +9,8 @@ interface RunHistoryProps {
   onInspect(job: ScrapeJob): void;
   onDelete(job: ScrapeJob): void;
 }
+
+const INITIAL_VISIBLE_RUNS = 9;
 
 function dateKey(value: string): string {
   const date = new Date(value);
@@ -33,6 +35,7 @@ export default function RunHistory({
   onInspect,
   onDelete,
 }: RunHistoryProps) {
+  const [showAllRuns, setShowAllRuns] = useState(false);
   const groups = useMemo(() => {
     const map = new Map<string, ScrapeJob[]>();
     const sorted = [...jobs].sort(
@@ -41,7 +44,11 @@ export default function RunHistory({
         new Date(left.started_at).getTime(),
     );
 
-    for (const job of sorted) {
+    const visibleJobs = showAllRuns
+      ? sorted
+      : sorted.slice(0, INITIAL_VISIBLE_RUNS);
+
+    for (const job of visibleJobs) {
       const key = dateKey(job.started_at);
       const group = map.get(key) ?? [];
       group.push(job);
@@ -49,7 +56,7 @@ export default function RunHistory({
     }
 
     return [...map.entries()];
-  }, [jobs]);
+  }, [jobs, showAllRuns]);
 
   return (
     <section className="engine-card engine-run-history" aria-labelledby="engine-run-history-title">
@@ -63,7 +70,7 @@ export default function RunHistory({
           <p>{jobs.length.toLocaleString()} recorded Engine runs</p>
         </div>
       </header>
-      <div className="engine-run-history-groups">
+      <div id="engine-run-history-groups" className="engine-run-history-groups">
         {groups.map(([label, groupedJobs]) => (
           <RunGroup
             key={label}
@@ -75,6 +82,21 @@ export default function RunHistory({
           />
         ))}
       </div>
+      {jobs.length > INITIAL_VISIBLE_RUNS ? (
+        <div className="engine-run-history-footer">
+          <button
+            type="button"
+            className="engine-secondary-button"
+            aria-expanded={showAllRuns}
+            aria-controls="engine-run-history-groups"
+            onClick={() => setShowAllRuns((current) => !current)}
+          >
+            {showAllRuns
+              ? "Show fewer runs"
+              : `View all ${jobs.length.toLocaleString()} runs`}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

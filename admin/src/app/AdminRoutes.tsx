@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { lazy, Suspense } from "react";
+import { RefreshCw } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "../components/Layout";
-import BackgroundRunIndicator from "../features/engine/components/BackgroundRunIndicator";
-import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
 import AdminNotFound from "./AdminNotFound";
 import {
   ADMIN_REDIRECTS,
@@ -60,11 +59,30 @@ function childRedirectPath(from: string): string {
 }
 
 function EngineAwareLayout() {
+  return <Layout />;
+}
+
+function EngineRunsLoading() {
   return (
-    <EngineRunProvider>
-      <BackgroundRunIndicator />
-      <Layout />
-    </EngineRunProvider>
+    <main style={{ padding: "28px 32px" }}>
+      <section
+        role="status"
+        style={{
+          display: "flex",
+          minHeight: 112,
+          alignItems: "center",
+          gap: 12,
+          padding: 20,
+          border: "1px solid var(--border-light)",
+          borderRadius: 16,
+          background: "var(--bg-secondary)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        <RefreshCw size={19} className="is-spinning" aria-hidden="true" />
+        <span>Opening the Engine run monitor…</span>
+      </section>
+    </main>
   );
 }
 
@@ -120,7 +138,11 @@ export default function AdminRoutes({ fallback }: AdminRoutesProps) {
           />
           <Route
             path={childPath("engine-runs")}
-            element={<EngineRunsPage />}
+            element={
+              <Suspense fallback={<EngineRunsLoading />}>
+                <EngineRunsPage />
+              </Suspense>
+            }
           />
           <Route
             path={childPath("engine-status")}

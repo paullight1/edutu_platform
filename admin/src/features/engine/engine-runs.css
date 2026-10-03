@@ -1,3 +1,106 @@
+.engine-run-dock {
+  position: fixed;
+  z-index: 9000;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  width: min(440px, calc(100vw - 36px));
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--apple-blue) 28%, var(--border-light));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  box-shadow: var(--shadow-large);
+  backdrop-filter: blur(18px);
+}
+
+.engine-run-dock-summary {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.engine-run-dock-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--apple-blue) 12%, transparent);
+  color: var(--apple-blue);
+}
+
+.engine-run-dock-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.engine-run-dock-copy strong,
+.engine-run-dock-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-run-dock-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.engine-run-dock-copy span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.engine-run-dock-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.engine-run-dock-actions button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: 11px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.engine-run-dock-actions button:hover,
+.engine-run-dock-summary:focus-visible,
+.engine-run-dock-actions button:focus-visible {
+  outline: 2px solid var(--apple-blue);
+  outline-offset: 2px;
+}
+
+.engine-live-run-status-note {
+  margin: 0 17px 17px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--apple-blue) 25%, var(--border-light));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--apple-blue) 7%, var(--bg-primary));
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .engine-background-run {
   position: fixed;
   z-index: 9000;
@@ -149,6 +252,44 @@
   font-size: 11px;
 }
 
+.engine-live-run-overall-progress {
+  display: grid;
+  gap: 7px;
+  padding: 0 17px 15px;
+}
+
+.engine-live-run-overall-progress progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--apple-blue);
+}
+
+.engine-live-run-overall-progress progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+}
+
+.engine-live-run-overall-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--apple-blue);
+  transition: width 180ms ease;
+}
+
+.engine-live-run-overall-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--apple-blue);
+}
+
+.engine-live-run-overall-progress span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
 .engine-live-run-progress {
   padding: 0 17px 17px;
   border-top: 1px solid var(--border-light);
@@ -221,8 +362,8 @@
 .engine-run-history-groups {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 16px;
+  gap: 14px;
+  padding: 14px;
 }
 
 .engine-run-group > h3 {
@@ -235,26 +376,28 @@
 }
 
 .engine-run-group-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  align-items: start;
+  gap: 9px;
 }
 
 .engine-run-history-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
-  align-items: center;
-  gap: 11px;
-  padding: 12px;
+  align-items: start;
+  gap: 8px 9px;
+  padding: 10px;
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: 11px;
   background: var(--bg-primary);
 }
 
 .engine-run-history-status {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 27px;
+  height: 27px;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 10px;
@@ -284,7 +427,7 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .engine-run-history-copy strong {
@@ -300,15 +443,35 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--text-tertiary);
   font-size: 10px;
+  line-height: 1.35;
 }
 
 .engine-run-history-actions {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
+}
+
+.engine-run-history-actions > button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.engine-run-history-row .engine-status-chip {
+  min-height: 22px;
+  padding: 3px 7px;
+  font-size: 10px;
+}
+
+.engine-run-history-footer {
+  display: flex;
+  justify-content: center;
+  padding: 0 14px 14px;
 }
 
 .engine-job-dialog {
@@ -615,6 +778,12 @@
 
   .engine-job-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engine-run-dock {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
   }
 
   .engine-background-run {

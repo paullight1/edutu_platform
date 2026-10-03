@@ -10,7 +10,12 @@ interface RunLauncherProps {
   pending: boolean;
   onClose(): void;
   onStart(source: ScrapeSource, options: SourceRunOptions): Promise<ScrapeResult>;
-  onNotice(message: string, tone: "success" | "warning" | "error"): void;
+  onNotice(
+    message: string,
+    tone: "success" | "warning" | "error",
+    action?: { label: string; to: string },
+  ): void;
+  monitorPath: string;
 }
 
 export default function RunLauncher({
@@ -20,6 +25,7 @@ export default function RunLauncher({
   onClose,
   onStart,
   onNotice,
+  monitorPath,
 }: RunLauncherProps) {
   const [maxPagesInput, setMaxPagesInput] = useState("3");
   const [incremental, setIncremental] = useState(true);
@@ -27,7 +33,7 @@ export default function RunLauncher({
 
   if (!source) return null;
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
@@ -39,8 +45,7 @@ export default function RunLauncher({
       return;
     }
 
-    try {
-      const result = await onStart(source, { maxPages, incremental });
+    const handleResult = (result: ScrapeResult) => {
       const found = result.opportunities?.length ?? result.totalResults ?? 0;
       const failedSources = (result.sourceResults ?? []).filter(
         (sourceResult) => sourceResult.status === "failed",
@@ -56,7 +61,13 @@ export default function RunLauncher({
           result.error ||
           failureDetail ||
           "No selected source completed successfully. Inspect Live Runs for details.";
-        setError(message);
+        if (/already in progress|already active/i.test(message)) {
+          onNotice(
+            "An Engine run is already in progress. Its status is available in the run monitor.",
+            "warning",
+          );
+          return;
+        }
         onNotice(message, "error");
         return;
       }
@@ -66,24 +77,53 @@ export default function RunLauncher({
           ? `${failedSources.length} source${failedSources.length === 1 ? "" : "s"} could not be scraped. ${failureDetail}`
           : `${failedSources.length} source${failedSources.length === 1 ? "" : "s"} could not be scraped. Inspect Live Runs for details.`;
         onNotice(message, "warning");
-        onClose();
         return;
       }
 
+      const skipped = result.itemsSkipped ?? 0;
+      const noNewItemsMessage =
+        skipped > 0
+          ? `Run complete · No new opportunities. ${skipped.toLocaleString()} already verified and skipped.`
+          : "Run complete · No new opportunities found.";
       onNotice(
         found > 0
           ? `Run complete · ${found.toLocaleString()} opportunities found.`
-          : "Run complete · No new opportunities found.",
-        found > 0 ? "success" : "warning",
+          : noNewItemsMessage,
+        "success",
+      );
+    };
+
+    const handleFailure = (caught: unknown) => {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "The source run could not start.";
+      if (/already in progress|already active/i.test(message)) {
+        onNotice(
+          "An Engine run is already in progress. Its status is available in the run monitor.",
+          "warning",
+        );
+        return;
+      }
+      onNotice(message, "error");
+    };
+
+    try {
+      const run = onStart(source, { maxPages, incremental });
+      onNotice(
+        `Starting ${source.is_group ? "group" : "source"} run. Progress will appear in the bottom-right run monitor.`,
+        "success",
+        { label: "View", to: monitorPath },
       );
       onClose();
+      void run.then(handleResult).catch(handleFailure);
     } catch (caught) {
       const message =
         caught instanceof Error
           ? caught.message
           : "The source run could not start.";
       setError(message);
-      onNotice(message, "error");
+      handleFailure(caught);
     }
   };
 

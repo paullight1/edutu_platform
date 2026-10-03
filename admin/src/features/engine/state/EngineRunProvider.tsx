@@ -170,6 +170,18 @@ export function EngineRunProvider({
           controller.signal,
         );
 
+        if (
+          !result.success &&
+          /already in progress|already active/i.test(result.error || "")
+        ) {
+          applyServerStatus({ running: true, paused: false, stopping: false });
+          startPolling();
+          handlers?.onError?.(
+            new Error("Another Engine scrape is already in progress."),
+          );
+          return false;
+        }
+
         handlers?.onResult?.(result);
         dispatch({ type: "complete", result, completedAt: Date.now() });
         return true;
