@@ -175,6 +175,11 @@ export const DEFAULT_TEMPLATE_DESIGN = TEMPLATE_DESIGNS['minimal-ats'];
 
 /** Legacy ids from the original three mock templates, plus name-based guesses. */
 const LEGACY_SLUG_ALIASES: Record<string, string> = {
+  professional: "minimal-ats",
+  modern: "modern-professional",
+  academic: "academic-research",
+  "tech-executive": "executive",
+  "investment-banking": "executive",
   't-1': 'modern-professional',
   't-2': 'academic-research',
   't-3': 'creative-portfolio',
@@ -204,6 +209,7 @@ export function resolveTemplateDesign(
     template.id,
     template.id ? LEGACY_SLUG_ALIASES[template.id] : undefined,
     template.name ? slugify(template.name) : undefined,
+    template.name ? LEGACY_SLUG_ALIASES[slugify(template.name)] : undefined,
   ];
 
   for (const candidate of candidates) {

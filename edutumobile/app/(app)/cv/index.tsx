@@ -35,7 +35,7 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
 import { supabase } from '../../../lib/supabase';
 import { useTheme } from '../../../components/context/ThemeContext';
-import { CVTemplate, UserCV } from '@edutu/core/src/types/cv';
+import { CVData, CVTemplate, UserCV } from '@edutu/core/src/types/cv';
 import * as cvService from '@edutu/core/src/services/cv';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { isAiBillingError } from '@edutu/core/src/services/productApi';
@@ -277,9 +277,12 @@ export default function CVBuilderScreen() {
     const activeTemplate = useMemo(
         () =>
             selectedTemplate ||
+            ((currentCV.data_json as CVData & { _edutuTemplateSlug?: string })._edutuTemplateSlug
+                ? ({ slug: (currentCV.data_json as CVData & { _edutuTemplateSlug?: string })._edutuTemplateSlug } as CVTemplate)
+                : null) ||
             templates.find((item) => item.id === currentCV.template_id) ||
             (currentCV.template_id ? ({ id: currentCV.template_id } as CVTemplate) : null),
-        [selectedTemplate, templates, currentCV.template_id],
+        [selectedTemplate, templates, currentCV.template_id, currentCV.data_json],
     );
 
     /**
@@ -628,7 +631,7 @@ export default function CVBuilderScreen() {
         setCurrentCV((prev: Partial<UserCV>) => ({
             ...prev,
             template_id: template.id,
-            data_json: { ...prev.data_json },
+            data_json: { ...prev.data_json, _edutuTemplateSlug: resolveTemplateDesign(template).slug } as CVData,
         }));
         setActiveSection('editor');
     };

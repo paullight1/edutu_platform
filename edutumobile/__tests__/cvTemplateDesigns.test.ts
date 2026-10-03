@@ -68,6 +68,14 @@ describe('template design registry', () => {
         expect(resolveTemplateDesign({ id: 'db-uuid', name: 'Bold Impact' }).slug).toBe('bold-impact');
     });
 
+    it.each([
+        ['Professional', 'minimal-ats'], ['Modern', 'modern-professional'],
+        ['Academic', 'academic-research'], ['Tech Executive', 'executive'],
+        ['Investment Banking', 'executive'],
+    ])('maps seeded UUID template name %s', (name, slug) => {
+        expect(resolveTemplateDesign({ id: 'database-uuid', name }).slug).toBe(slug);
+    });
+
     it('falls back to the ATS-plain default for unknown rows', () => {
         expect(resolveTemplateDesign({ id: 'who-knows' })).toBe(DEFAULT_TEMPLATE_DESIGN);
         expect(resolveTemplateDesign(null)).toBe(DEFAULT_TEMPLATE_DESIGN);
@@ -101,6 +109,16 @@ describe('buildCVHtml', () => {
         const fromId = buildCVHtml({ ...SAMPLE, template_id: 'executive' });
         const fromDesign = buildCVHtml(SAMPLE, TEMPLATE_DESIGNS.executive);
         expect(fromId).toBe(fromDesign);
+    });
+
+    it('honours a template slug saved by the web editor without replacing its UUID FK', () => {
+        const cv = {
+            ...SAMPLE,
+            template_id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+            data_json: { ...SAMPLE.data_json, _edutuTemplateSlug: 'executive' },
+        };
+        expect(buildCVHtml(cv)).toBe(buildCVHtml(SAMPLE, TEMPLATE_DESIGNS.executive));
+        expect(cv.template_id).toBe('3f2504e0-4f89-41d3-9a0c-0305e82c3301');
     });
 
     it('emits Research, Publications and References only for Academic', () => {

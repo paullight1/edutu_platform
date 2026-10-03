@@ -1448,7 +1448,8 @@ function renderSkills(design: CVTemplateDesign, skills: string[]): string {
  * derived from `cv.template_id`.
  */
 export function buildCVHtml(cv: Partial<UserCV>, design?: CVTemplateDesign | null): string {
-  const spec = design || resolveTemplateDesignById(cv.template_id);
+  const storedSlug = (cv.data_json as (CVData & { _edutuTemplateSlug?: string }) | undefined)?._edutuTemplateSlug;
+  const spec = design || resolveTemplateDesignById(storedSlug || cv.template_id);
   const metrics = getDensityMetrics(spec.density);
   const data = cv.data_json || emptyCVData();
   const header: NonNullable<CVData['header']> = data.header || emptyCVData().header!;
