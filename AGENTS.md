@@ -170,3 +170,24 @@ Project-tailored review skills live in `code-review-agents/`:
 - `edutu-payments-review` — Paystack, RevenueCat, webhooks, entitlements, credits, and billing migration review.
 
 For a code review, inspect the diff first, use the shared reviewer, and add the specialist whenever its path or concern is touched. Findings must be evidence-based, severity-ranked (`P0`–`P3`), and include a concrete fix and verification gap. These are review-only agents unless the user explicitly asks for implementation.
+
+## Codex Role Skills
+
+Project-scoped Codex skills live in `.agents/skills/edutu-*` and can be invoked with `$skill-name`. Use the skill that matches the requested workflow; skills provide reusable instructions and do not create or hire people.
+
+| Work area | Skill |
+|---|---|
+| Product discovery, requirements, UX, product analytics | `$edutu-product-discovery` |
+| NestJS API and platform services | `$edutu-backend-engineering` |
+| React/Vite web app and admin | `$edutu-web-engineering` |
+| Expo / React Native mobile app | `$edutu-mobile-engineering` and the official Expo plugin |
+| Test strategy and release verification | `$edutu-quality-engineering` |
+| Deployments, observability, incident readiness | `$edutu-devops-sre` |
+| Security/privacy review | `$edutu-security-privacy` |
+| Scholarship scraping and opportunity quality | `$edutu-opportunity-operations` |
+| Learner support, community, moderation | `$edutu-community-support` |
+| Creators, roadmaps, marketplace, partners | `$edutu-creator-partner-operations` |
+| Growth, content, SEO, retention | `$edutu-growth-analytics` plus the relevant existing marketing skill |
+| Billing reconciliation and business operations | `$edutu-business-operations` |
+
+Read `docs/agent-skills-workflow.md` for the handoff sequence and skill map. Mobile code is under `edutumobile/`; it is maintained as a separate repository boundary from the platform API/web/admin surfaces. Treat current package manifests and architecture docs as more authoritative than stale path or version examples in older guidance.
