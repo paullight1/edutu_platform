@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { AiService } from "../ai";
 import { MonetizationService } from "../monetization/monetization.service";
 import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
@@ -426,6 +427,15 @@ export class CopilotService {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
+    if (
+      dto.expectedUpdatedAt &&
+      kitRow.updatedAt?.toISOString() !== dto.expectedUpdatedAt
+    )
+      throw new ConflictException({
+        code: "revision_conflict",
+        message:
+          "This application changed elsewhere. Reload before requesting guidance.",
+      });
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
 
     // Metered here (was @AiMetered) so the heuristic fallback can be refunded.
@@ -473,15 +483,21 @@ export class CopilotService {
       void this.monetizationService.refund(charge);
     }
 
-    await this.upsertEssayEntry(
-      dbUserId,
-      opportunityId,
-      dto.promptId,
-      promptText,
-      {
-        outline,
-      },
-    );
+    try {
+      await this.upsertEssayEntry(
+        dbUserId,
+        opportunityId,
+        dto.promptId,
+        promptText,
+        {
+          outline,
+        },
+        dto.expectedUpdatedAt ?? kitRow.updatedAt?.toISOString(),
+      );
+    } catch (error) {
+      if (source === "ai") await this.monetizationService.refund(charge);
+      throw error;
+    }
 
     return { outline, source };
   }
@@ -498,6 +514,15 @@ export class CopilotService {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
+    if (
+      dto.expectedUpdatedAt &&
+      kitRow.updatedAt?.toISOString() !== dto.expectedUpdatedAt
+    )
+      throw new ConflictException({
+        code: "revision_conflict",
+        message:
+          "This application changed elsewhere. Reload before requesting guidance.",
+      });
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
 
     // Metered here (was @AiMetered) so the heuristic fallback can be refunded.
@@ -538,16 +563,22 @@ export class CopilotService {
       void this.monetizationService.refund(charge);
     }
 
-    await this.upsertEssayEntry(
-      dbUserId,
-      opportunityId,
-      dto.promptId,
-      promptText,
-      {
-        draft: dto.draft,
-        feedback,
-      },
-    );
+    try {
+      await this.upsertEssayEntry(
+        dbUserId,
+        opportunityId,
+        dto.promptId,
+        promptText,
+        {
+          draft: dto.draft,
+          feedback,
+        },
+        dto.expectedUpdatedAt ?? kitRow.updatedAt?.toISOString(),
+      );
+    } catch (error) {
+      if (source === "ai") await this.monetizationService.refund(charge);
+      throw error;
+    }
 
     return { feedback, source };
   }
@@ -564,6 +595,15 @@ export class CopilotService {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
+    if (
+      dto.expectedUpdatedAt &&
+      kitRow.updatedAt?.toISOString() !== dto.expectedUpdatedAt
+    )
+      throw new ConflictException({
+        code: "revision_conflict",
+        message:
+          "This application changed elsewhere. Reload before requesting guidance.",
+      });
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
     await this.upsertEssayEntry(
       dbUserId,
@@ -573,6 +613,7 @@ export class CopilotService {
       {
         draft: dto.draft,
       },
+      dto.expectedUpdatedAt,
     );
     return { success: true };
   }
@@ -585,16 +626,23 @@ export class CopilotService {
     this.assertUuid(opportunityId, "opportunity id");
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
-    const state = { ...(kitRow.checklistState || {}) };
-    if (dto.done) state[dto.itemId] = true;
-    else delete state[dto.itemId];
-
-    await db
+    // PostgreSQL applies each key change against the current JSONB value, so
+    // two devices ticking different items cannot overwrite one another.
+    const state = dto.done
+      ? sql`coalesce(${applicationKits.checklistState}, '{}'::jsonb) || jsonb_build_object(${dto.itemId}::text, true)`
+      : sql`coalesce(${applicationKits.checklistState}, '{}'::jsonb) - ${dto.itemId}::text`;
+    const [updated] = await db
       .update(applicationKits)
       .set({ checklistState: state, updatedAt: new Date() })
-      .where(eq(applicationKits.id, kitRow.id));
-
-    return { success: true, checklistState: state };
+      .where(
+        and(
+          eq(applicationKits.id, kitRow.id),
+          eq(applicationKits.userId, dbUserId),
+        ),
+      )
+      .returning({ checklistState: applicationKits.checklistState });
+    if (!updated) throw new NotFoundException("Application kit not found");
+    return { success: true, checklistState: updated.checklistState };
   }
 
   // -------------------------------------------------------------------------
@@ -1152,8 +1200,20 @@ export class CopilotService {
     promptId: string,
     promptText: string,
     patch: Partial<Pick<EssayWorkspaceEntry, "outline" | "draft" | "feedback">>,
+    expectedUpdatedAt?: string,
   ) {
     const kitRow = await this.requireKit(dbUserId, opportunityId);
+    if (
+      expectedUpdatedAt &&
+      (!kitRow.updatedAt ||
+        new Date(kitRow.updatedAt).toISOString() !== expectedUpdatedAt)
+    ) {
+      throw new ConflictException({
+        code: "revision_conflict",
+        message:
+          "This application changed elsewhere. Copy your draft, then reload before saving.",
+      });
+    }
     const essays = [...((kitRow.essays ?? []) as EssayWorkspaceEntry[])];
     const index = essays.findIndex((entry) => entry.promptId === promptId);
     const base: EssayWorkspaceEntry =
@@ -1170,10 +1230,29 @@ export class CopilotService {
     if (index >= 0) essays[index] = next;
     else essays.push(next);
 
-    await db
+    expectedUpdatedAt ??= kitRow.updatedAt?.toISOString();
+    const update = db
       .update(applicationKits)
-      .set({ essays, updatedAt: new Date() })
-      .where(eq(applicationKits.id, kitRow.id));
+      .set({ essays, updatedAt: new Date() });
+    if (expectedUpdatedAt) {
+      const rows = await update
+        .where(
+          and(
+            eq(applicationKits.id, kitRow.id),
+            eq(applicationKits.userId, dbUserId),
+            eq(applicationKits.updatedAt, new Date(expectedUpdatedAt)),
+          ),
+        )
+        .returning({ id: applicationKits.id });
+      if (!rows.length)
+        throw new ConflictException({
+          code: "revision_conflict",
+          message:
+            "This application changed elsewhere. Your draft has not been overwritten.",
+        });
+    } else {
+      await update.where(eq(applicationKits.id, kitRow.id));
+    }
   }
 
   /** Fallback ids for AI output that omitted them; keeps checklist state stable. */

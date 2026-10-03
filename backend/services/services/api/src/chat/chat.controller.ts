@@ -1,3 +1,5 @@
+import { UseGuards } from "@nestjs/common";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import {
   Body,
   Controller,
@@ -14,9 +16,23 @@ import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ChatService } from "./chat.service";
 import type { ScreenContext, WinCoachIntent } from "./chat.service";
 
-@Controller("chat")
+@Controller(["chat", "web-tools/chat"])
+@UseGuards(WebPaidToolsGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
+
+  @Post("reports")
+  reportAIContent(
+    @CurrentUser("id") userId: string,
+    @Body()
+    body: {
+      reason?: unknown;
+      content?: unknown;
+      context?: unknown;
+    },
+  ) {
+    return this.chatService.reportAIContent(userId, body);
+  }
 
   @Get("threads")
   listThreads(@CurrentUser("id") userId: string) {

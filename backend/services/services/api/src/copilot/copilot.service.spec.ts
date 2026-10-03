@@ -96,7 +96,13 @@ jest.mock("../db", () => {
         state.updates.push({ tableName, set: v });
         return builder;
       },
-      where: async () => [],
+      where: (where: any) =>
+        Object.assign(Promise.resolve([]), {
+          returning: async () =>
+            state.updateReturning
+              ? state.updateReturning(state.updates.at(-1).set, where)
+              : [{ id: "kit" }],
+        }),
     };
     return builder;
   };
@@ -186,6 +192,7 @@ describe("CopilotService.generateKit", () => {
     state.selectLog.length = 0;
     state.inserts.length = 0;
     state.updates.length = 0;
+    state.updateReturning = null;
     state.selectRows = () => [];
     state.insertReturning = (_t: string, values: any) => [
       { id: "kit-1", createdAt: new Date(), updatedAt: new Date(), ...values },
@@ -439,4 +446,65 @@ describe("CopilotService.generateKit", () => {
       dbState().inserts.some((row: any) => row.tableName === APP_KITS),
     ).toBe(false);
   });
+});
+
+describe("Copilot revision-safe essay drafts", () => {
+  it("rejects a stale device revision before overwriting a saved draft", async () => {
+    const { service } = makeService();
+    routeSelects({
+      [APP_KITS]: () => [
+        {
+          id: randomUUID(),
+          userId: DB_USER_ID,
+          opportunityId: OPP_ID,
+          kit: {
+            essayPrompts: [{ id: "prompt1", prompt: "Why this scholarship?" }],
+          },
+          essays: [{ promptId: "prompt1", draft: "Newer draft" }],
+          updatedAt: new Date("2026-10-01T00:00:00Z"),
+        },
+      ],
+    });
+    await expect(
+      service.saveEssayDraft(RAW_USER_ID, OPP_ID, {
+        promptId: "prompt1",
+        draft: "Stale draft",
+        expectedUpdatedAt: "2025-01-01T00:00:00Z",
+      } as any),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+it("atomically merges concurrent checklist keys instead of writing stale snapshots", async () => {
+  const { PgDialect } = require("drizzle-orm/pg-core");
+  const dialect = new PgDialect();
+  const state = dbState();
+  const current: Record<string, boolean> = { existing: true };
+  state.selectRows = () => [{ id: "kit", checklistState: { existing: true } }];
+  state.updateReturning = (patch: any, where: any) => {
+    const change = dialect.sqlToQuery(patch.checklistState);
+    const scope = dialect.sqlToQuery(where);
+    expect(scope.params).toContain(DB_USER_ID);
+    const key = change.params[0];
+    if (change.sql.includes("jsonb_build_object")) current[key] = true;
+    else {
+      expect(change.sql).toContain(" - ");
+      delete current[key];
+    }
+    return [{ checklistState: { ...current } }];
+  };
+  const { service } = makeService();
+  await Promise.all([
+    service.updateChecklist(RAW_USER_ID, OPP_ID, { itemId: "cv", done: true }),
+    service.updateChecklist(RAW_USER_ID, OPP_ID, {
+      itemId: "essay",
+      done: true,
+    }),
+  ]);
+  expect(current).toEqual({ existing: true, cv: true, essay: true });
+  await service.updateChecklist(RAW_USER_ID, OPP_ID, {
+    itemId: "cv",
+    done: false,
+  });
+  expect(current).toEqual({ existing: true, essay: true });
 });

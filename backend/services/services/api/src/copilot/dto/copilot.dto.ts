@@ -11,6 +11,7 @@ export type GenerateKitDto = z.infer<typeof GenerateKitDtoSchema>;
 
 export const GenerateOutlineDtoSchema = z.object({
   promptId: z.string().min(1),
+  expectedUpdatedAt: z.string().datetime().optional(),
   prompt: z.string().max(2000).optional(),
   angle: z.string().max(500).optional(),
 });
@@ -18,6 +19,7 @@ export type GenerateOutlineDto = z.infer<typeof GenerateOutlineDtoSchema>;
 
 export const EssayFeedbackDtoSchema = z.object({
   promptId: z.string().min(1),
+  expectedUpdatedAt: z.string().datetime().optional(),
   prompt: z.string().max(2000).optional(),
   draft: z
     .string()
@@ -28,6 +30,7 @@ export type EssayFeedbackDto = z.infer<typeof EssayFeedbackDtoSchema>;
 
 export const SaveEssayDraftDtoSchema = z.object({
   promptId: z.string().min(1),
+  expectedUpdatedAt: z.string().datetime().optional(),
   prompt: z.string().max(2000).optional(),
   draft: z.string().max(20000),
 });

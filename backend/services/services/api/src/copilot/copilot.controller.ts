@@ -1,3 +1,5 @@
+import { UseGuards } from "@nestjs/common";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 import {
   Body,
   Controller,
@@ -23,7 +25,8 @@ import {
   type UpdateChecklistDto,
 } from "./dto/copilot.dto";
 
-@Controller("copilot")
+@Controller(["copilot", "web-tools/copilot"])
+@UseGuards(WebPaidToolsGuard)
 export class CopilotController {
   constructor(private readonly copilotService: CopilotService) {}
 

@@ -4,6 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { userAiMemories } from "../../db/schema";
 import { OpportunityRankingService } from "../../opportunities/opportunity-ranking.service";
+import { OpportunitiesService } from "../../opportunities/opportunities.service";
 import { ProfileService } from "../../profile/profile.service";
 import { GoalsService } from "../../goals/goals.service";
 import { RoadmapsService } from "../../roadmaps/roadmaps.service";
@@ -85,6 +86,7 @@ export class CoachToolsService {
     private readonly applicationDocs: ApplicationDocumentsService,
     private readonly uploads: UploadsService,
     private readonly aiService: AiService,
+    private readonly opportunitiesService?: OpportunitiesService,
   ) {
     this.tools = [
       this.recommendOpportunities(),
@@ -666,14 +668,14 @@ export class CoachToolsService {
             ctx.userId,
           );
 
-          const { data: opportunity } = await ctx.supabase
-            .from("opportunities")
-            .select("id, title, organization, category, close_date, deadline")
-            .eq("id", args.opportunity_id)
-            .maybeSingle();
-          const title = opportunity?.title || "Opportunity";
-          const deadline =
-            opportunity?.close_date || opportunity?.deadline || null;
+          const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
+          if (!opportunity) {
+            await this.monetizationService.refund(charge);
+            return { error: "Opportunity not found" };
+          }
+          const title = opportunity.title || "Opportunity";
+          const rawDeadline = opportunity.close_date || opportunity.closeDate || opportunity.deadline;
+          const deadline = typeof rawDeadline === "string" ? rawDeadline : null;
           const datedMilestones = this.scheduleMilestones(
             plan.milestones,
             deadline,
@@ -1081,11 +1083,7 @@ export class CoachToolsService {
       },
       schema: z.object({ opportunity_id: z.string().uuid() }),
       execute: async (ctx, args) => {
-        const { data: opportunity } = await ctx.supabase
-          .from("opportunities")
-          .select("*")
-          .eq("id", args.opportunity_id)
-          .maybeSingle();
+        const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
         if (!opportunity) return { error: "Opportunity not found" };
         const card = await this.shareCardService.ensureShareCardForOpportunity(
           opportunity as Record<string, any>,
@@ -1389,23 +1387,16 @@ export class CoachToolsService {
           "copilotAssist",
         );
         try {
-          const { data: opportunity } = await ctx.supabase
-            .from("opportunities")
-            .select(
-              "title, organization, category, requirements, eligibility, skills, deadline, close_date",
-            )
-            .eq("id", args.opportunity_id)
-            .maybeSingle();
-          if (!opportunity) return { error: "Opportunity not found" };
-
+          const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
+          if (!opportunity) {
+            await this.monetizationService.refund(charge);
+            return { error: "Opportunity not found" };
+          }
           // How much runway is left. Without this the model returned a generic
           // to-do list — "retake IELTS", "get two references" — with no sense
           // of whether there were three weeks or three days to do it in, which
           // is the difference between a plan and a wish.
-          const deadlineRaw =
-            (opportunity as Record<string, unknown>).deadline ??
-            (opportunity as Record<string, unknown>).close_date ??
-            null;
+          const deadlineRaw = opportunity.deadline ?? opportunity.close_date ?? opportunity.closeDate ?? null;
           const deadlineMs =
             typeof deadlineRaw === "string" ? Date.parse(deadlineRaw) : NaN;
           const daysLeft = Number.isFinite(deadlineMs)

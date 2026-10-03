@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
@@ -12,6 +13,7 @@ import type { AiChatMessage, AiChatStreamResult } from "../ai/ai.types";
 import { db } from "../db";
 import { aiPrompts } from "../db/schema";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
+import { OpportunitiesService } from "../opportunities/opportunities.service";
 import {
   DEFAULT_CRISIS_CONTACT,
   detectSelfHarmIntent,
@@ -280,6 +282,7 @@ export class ChatService {
     // Optional so unit tests can construct the service without a settings stub;
     // the crisis path degrades to the baked-in default when it is absent.
     private readonly settingsService?: SettingsService,
+    private readonly opportunitiesService?: OpportunitiesService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -300,6 +303,54 @@ export class ChatService {
 
     if (error) throw new BadRequestException(error.message);
     return { threads: (data ?? []) as ChatThread[] };
+  }
+
+  async reportAIContent(
+    userId: string,
+    input: {
+      reason?: unknown;
+      content?: unknown;
+      context?: unknown;
+    },
+  ): Promise<{ success: true }> {
+    const reasons = new Set(["inaccurate", "offensive", "other"]);
+    const reason = typeof input.reason === "string" ? input.reason : "";
+    const content =
+      typeof input.content === "string" ? input.content.trim() : "";
+    if (!reasons.has(reason) || !content || content.length > 8000) {
+      throw new BadRequestException(
+        "A valid report reason and AI response are required",
+      );
+    }
+
+    const rawContext =
+      input.context &&
+      typeof input.context === "object" &&
+      !Array.isArray(input.context)
+        ? (input.context as Record<string, unknown>)
+        : {};
+    const context: Record<string, string> = {};
+    for (const key of ["messageId", "threadId"] as const) {
+      const value = rawContext[key];
+      if (typeof value === "string" && value.length <= 200) {
+        context[key] = value;
+      }
+    }
+
+    const supabase = this.requireSupabase();
+    const { error } = await supabase.from("ai_content_reports").insert({
+      user_id: userId,
+      source: "chat",
+      reason,
+      content: content.slice(0, 8000),
+      context,
+    });
+    if (error) {
+      throw new ServiceUnavailableException(
+        "Unable to submit this report right now",
+      );
+    }
+    return { success: true };
   }
 
   async listMessages(
@@ -1547,11 +1598,7 @@ ${input.message}`;
 
     if (context.opportunityId) {
       try {
-        const { data } = await supabase
-          .from("opportunities")
-          .select("id, title, organization, category, close_date, deadline")
-          .eq("id", context.opportunityId)
-          .maybeSingle();
+        const data = await this.opportunitiesService?.findOne(context.opportunityId);
         if (data) {
           lines.push(
             `- Viewing OPPORTUNITY "${data.title}" (${data.organization ?? "org unknown"}), id ${data.id}, deadline ${data.close_date ?? data.deadline ?? "unknown"}. Use this id directly in tools like analyze_fit or create_roadmap — don't ask which opportunity.`,
