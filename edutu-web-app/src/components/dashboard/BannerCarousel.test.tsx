@@ -37,4 +37,14 @@ describe("BannerCarousel", () => {
       await screen.findByRole("link", { name: /track every deadline/i }),
     ).toBeInTheDocument();
   });
+
+  it("fills its dashboard row when paired with a desktop priority card", () => {
+    render(<BannerCarousel banners={banners} fillDesktopHeight />);
+
+    const promotion = screen.getByRole("link", {
+      name: /find your next open door/i,
+    });
+    expect(promotion).toHaveStyle({ height: "100%" });
+    expect(promotion.parentElement).toHaveClass("h-full");
+  });
 });

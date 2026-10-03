@@ -3,13 +3,16 @@ import {
   BadgeDollarSign,
   Briefcase,
   Calendar,
+  Bookmark,
   ChevronRight,
   Clock,
   Download,
+  FolderOpen,
   GraduationCap,
   LayoutGrid,
   List,
   Share2,
+  Send,
   Shuffle,
   Sparkles,
   X,
@@ -27,7 +30,7 @@ import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
 import { usePersonalization } from "../hooks/usePersonalization";
 import { useAnalytics } from "../hooks/useAnalytics";
@@ -76,10 +79,11 @@ import {
 } from "../lib/opportunityShuffle";
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
 import NextStepCard from "./dashboard/NextStepCard";
+import { isInternalDestination } from "../lib/googleSignupWelcome";
 
 // The home feed is a fixed shortlist, not an endless scroll: six picks at a
 // time, with opened items advancing to the next unseen opportunity this session.
-const HOME_FEED_SIZE = 6;
+const HOME_FEED_SIZE = 9;
 const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 const HOME_VIEWED_OPPORTUNITIES_KEY = "edutu_home_viewed_opportunities:v1";
 
@@ -163,6 +167,37 @@ const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
   },
 ];
 
+const HOME_SHORTCUTS = [
+  {
+    title: "Applications",
+    href: "/app/applications",
+    image: "/discovery/internships.png",
+    tint: "from-sky-950/85 via-blue-950/70 to-indigo-950/65",
+    icon: Send,
+  },
+  {
+    title: "Documents",
+    href: "/app/documents",
+    image: "/discovery/grants.png",
+    tint: "from-emerald-950/85 via-teal-950/70 to-slate-950/65",
+    icon: FolderOpen,
+  },
+  {
+    title: "Saved",
+    href: "/app/saved",
+    image: "/discovery/scholarships.png",
+    tint: "from-blue-500/80 via-indigo-500/70 to-cyan-400/65",
+    icon: Bookmark,
+  },
+  {
+    title: "Deadlines",
+    href: "/app/deadlines",
+    image: "/discovery/fellowships.png",
+    tint: "from-amber-950/85 via-orange-950/70 to-rose-950/65",
+    icon: Calendar,
+  },
+] as const;
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -190,10 +225,6 @@ function opportunityMatchesDiscoveryCategory(
   return category.keywords.some((keyword) =>
     new RegExp(`\\b${escapeRegExp(keyword.toLowerCase())}\\b`, "i").test(text),
   );
-}
-
-function getDiscoveryCategoryRoute(category: DiscoveryCategory) {
-  return `opportunities?category=${encodeURIComponent(category.id)}`;
 }
 
 interface DashboardProps {
@@ -546,7 +577,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     const profilePromptSessionId =
       sessionId ?? (user?.id ? `user:${user.id}` : null);
-    const showProfileCompletionPrompt = shouldShowProfileCompletionPrompt({
+    const googleSignupWelcome =
+      Boolean(user?.id) &&
+      new URLSearchParams(location.search).get("welcome") === "google";
+    const showProfileCompletionPrompt = googleSignupWelcome || shouldShowProfileCompletionPrompt({
       isSignedIn: Boolean(user?.id),
       profileScore: profileScore?.score ?? null,
       dismissed:
@@ -578,7 +612,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         typeof window === "undefined" ? null : window.sessionStorage,
         profilePromptSessionId,
       );
-    }, [profilePromptSessionId]);
+      if (googleSignupWelcome) {
+        const params = new URLSearchParams(location.search);
+        const returnTo = params.get("returnTo");
+        params.delete("welcome");
+        params.delete("returnTo");
+        const remaining = params.toString();
+        routerNavigate(
+          isInternalDestination(returnTo)
+            ? returnTo
+            : `${location.pathname}${remaining ? `?${remaining}` : ""}${location.hash}`,
+          { replace: true },
+        );
+      }
+    }, [googleSignupWelcome, location.hash, location.pathname, location.search, profilePromptSessionId, routerNavigate]);
 
     const reopenProfileCompletionPrompt = useCallback(() => {
       setDismissedProfilePromptSessionId(null);
@@ -917,7 +964,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           onClick: onViewAllOpportunities,
         };
 
-    const mobilePersonalizedOpportunities = visibleHomeOpportunities;
+    const mobilePersonalizedOpportunities = visibleHomeOpportunities.slice(0, 6);
 
     const homeFeedItems = useMemo(() => {
       return visibleHomeOpportunities.map((opportunity: Opportunity, index) => ({
@@ -950,10 +997,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         closeHomeScreenPrompt();
       }
     };
-
-    function handleDiscoveryCategoryClick(category: DiscoveryCategory) {
-      onNavigate?.(getDiscoveryCategoryRoute(category));
-    }
 
     const handleCalendarEventClick = (event: CalendarEvent) => {
       if (event.type === "goal") {
@@ -1388,9 +1431,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         <div
           className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
         >
-          <main className="min-w-0 px-0 py-5 space-y-6">
-            {guidanceHomeEnabled && user?.id ? (
-              <NextStepCard
+          <main className="min-w-0 space-y-4 px-0 pt-2 pb-5 lg:grid lg:grid-cols-12 lg:items-start lg:gap-x-8 lg:gap-y-8 lg:space-y-0 lg:py-5">
+            <div className="space-y-4 lg:col-span-12 lg:col-start-1 lg:row-start-1">
+              <header className="hidden lg:block">
+                <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-text-primary xl:text-4xl">
+                  {t("workspace.greeting", {
+                    name: user?.name?.trim().split(/\s+/)[0] || t("workspace.there"),
+                  })}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary xl:text-base">
+                  Find your next opportunity and keep your applications moving.
+                </p>
+              </header>
+              {guidanceHomeEnabled && user?.id ? (
+                <NextStepCard
                 id="guidance-next-step"
                 home={opportunityHome}
                 state={opportunityHomeState}
@@ -1406,69 +1460,43 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   trackEvent("guidance_edit_preferences");
                   routerNavigate("/app/personalization");
                 }}
-              />
-            ) : null}
+                />
+              ) : null}
+            </div>
             <motion.section
               initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-3"
+              className="space-y-3 lg:col-span-12 lg:col-start-1 lg:row-start-3"
             >
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-semibold tracking-tight text-text-primary">
-                  {t("dashboard.sections.exploreOpportunities")}
-                </h2>
-                {selectedDiscoveryCategory ? (
-                  <button
-                    type="button"
-                    onClick={() => setActiveDiscoveryCategory(null)}
-                    className={`h-8 shrink-0 rounded-full border border-subtle bg-white px-3 text-xs font-semibold text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]`}
-                  >
-                    {t("common.all")}
-                  </button>
-                ) : null}
-              </div>
+              <h2 className="text-base font-semibold tracking-tight text-text-primary">
+                Your next steps
+              </h2>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3">
-                {DISCOVERY_CATEGORIES.map((category) => {
-                  const Icon = category.icon;
-                  const active = activeDiscoveryCategory === category.id;
-
+                {HOME_SHORTCUTS.map((shortcut) => {
+                  const Icon = shortcut.icon;
                   return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => handleDiscoveryCategoryClick(category)}
-                      className={`group relative flex min-h-14 w-full items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/20 bg-slate-950 px-3 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-16 md:px-4 ${
-                        active
-                          ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-body"
-                          : "hover:-translate-y-0.5"
-                      }`}
-                      aria-pressed={active}
-                      aria-label={`Explore ${category.title}`}
+                    <Link
+                      key={shortcut.href}
+                      to={shortcut.href}
+                      className="group relative flex min-h-16 items-center gap-2.5 overflow-hidden rounded-[18px] border border-white/20 bg-slate-950 px-3 text-white shadow-sm transition hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:min-h-20 md:px-4"
                     >
                       <img
-                        src={category.image}
+                        src={shortcut.image}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105"
                         aria-hidden="true"
+                        className="absolute inset-0 h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105"
                         loading="lazy"
                         decoding="async"
                       />
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-r ${category.tint} transition ${
-                          active ? "brightness-110" : ""
-                        }`}
-                      />
-                      <span
-                          className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white backdrop-blur-sm ${
-                            active ? "bg-white/24" : "bg-white/14"
-                          }`}
-                        >
-                          <Icon size={17} strokeWidth={1.8} />
-                        </span>
-                      <span className="relative min-w-0 truncate text-sm font-semibold leading-5 text-white">
-                        {category.title}
+                      <span className={`absolute inset-0 bg-gradient-to-r ${shortcut.tint}`} />
+                      <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white backdrop-blur-sm">
+                        <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
                       </span>
-                    </button>
+                      <span className="relative min-w-0 flex-1 truncate text-sm font-semibold text-white md:text-base">
+                        {shortcut.title}
+                      </span>
+                      <ChevronRight size={17} className="relative shrink-0 text-white/85" aria-hidden="true" />
+                    </Link>
                   );
                 })}
               </div>
@@ -1476,7 +1504,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             <section
               aria-label="Dashboard priorities"
-              className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-4"
+              className="flex flex-col gap-4 lg:col-span-4 lg:col-start-1 lg:row-start-2 lg:grid lg:grid-cols-1 lg:content-start lg:items-stretch"
             >
               <AnimatePresence>
                 {profileScore && profileScore.score < 100 && !dismissBanner && (
@@ -1487,7 +1515,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: 100 }}
                     transition={{ duration: 0.3 }}
-                    className="profile-completion-card relative overflow-hidden rounded-[18px] border border-subtle bg-surface-layer shadow-soft lg:order-1 lg:col-span-5 lg:min-h-[190px]"
+                    className="profile-completion-card relative overflow-hidden rounded-[18px] border border-subtle bg-surface-layer shadow-soft lg:col-span-1 lg:min-h-[150px]"
                   >
                     <button
                       type="button"
@@ -1568,7 +1596,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 applications.length > 0 ||
                 dashboardDeadlines.length > 0) &&
                 !dismissActivityStrip && (
-                  <section className="lg:order-2 lg:col-span-12">
+                  <section className="lg:col-span-1">
                     <CalendarStrip
                       bookmarks={bookmarks}
                       applications={applications}
@@ -1591,7 +1619,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   profileScore.score < 100 &&
                   !dismissBanner
                 ) && (
-                  <section className="relative lg:order-1 lg:col-span-5 lg:min-h-[190px]">
+                  <section className="relative lg:col-span-1">
                     <button
                       type="button"
                       onClick={() => setDismissPersonalizationPrompt(true)}
@@ -1689,9 +1717,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             </section>
 
+            <div className="hidden lg:col-span-8 lg:col-start-5 lg:row-start-2 lg:block lg:self-stretch">
+              <BannerCarousel banners={heroBanners} fillDesktopHeight />
+            </div>
+
             {/* Content Layout — Recent Activity moved to the profile page,
                 so the feed always gets the full width. */}
-            <div className="grid lg:grid-cols-12 gap-8 pb-8">
+            <div className="pb-8 lg:col-span-12 lg:col-start-1 lg:row-start-4">
               <div className="lg:col-span-12 space-y-10">
                 {/* Recommended Opportunities */}
                 <section aria-labelledby="recommended-picks-heading">
@@ -1876,7 +1908,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </div>
 
                   {viewMode === "grid" ? (
-                    <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                    <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:auto-rows-fr lg:grid-cols-3 2xl:grid-cols-4">
                       {opportunitiesLoading ? (
                         Array.from({ length: 6 }).map((_, i) => (
                           <div
@@ -2024,18 +2056,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       )}
                     </div>
                   )}
-                  <div className="mt-8 hidden sm:block">
-                    <div className="mb-3 flex items-center gap-3">
-                      <span className="text-2xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                        From Edutu
-                      </span>
-                      <span
-                        className="h-px flex-1 bg-border-subtle"
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <BannerCarousel banners={heroBanners} />
-                  </div>
                 </section>
 
               </div>

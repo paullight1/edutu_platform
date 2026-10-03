@@ -60,9 +60,12 @@ export const DEFAULT_BANNERS: BannerAd[] = [
 export const BannerCarousel = React.memo(function BannerCarousel({
   banners,
   mobileHeight,
+  fillDesktopHeight = false,
 }: {
   banners: BannerAd[];
   mobileHeight?: string;
+  /** Stretch the dashboard promo to the paired priority card's row height. */
+  fillDesktopHeight?: boolean;
 }) {
   const [current, setCurrent] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -107,7 +110,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
 
   return (
     <div
-      className="group relative w-full overflow-hidden rounded-[18px] bg-[#06152f]"
+      className={`group relative w-full overflow-hidden rounded-[18px] bg-[#06152f] ${fillDesktopHeight ? "h-full" : ""}`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -131,7 +134,9 @@ export const BannerCarousel = React.memo(function BannerCarousel({
           style={
             mobileHeight
               ? { height: mobileHeight }
-              : { aspectRatio: "1200 / 300" }
+              : fillDesktopHeight
+                ? { height: "100%" }
+                : { aspectRatio: "1200 / 300" }
           }
           initial={reduceMotion ? false : { opacity: 0, scale: 1.015 }}
           animate={{ opacity: 1, scale: 1 }}

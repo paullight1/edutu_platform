@@ -236,9 +236,9 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   }
 
   return (
-    <article
-      data-density="compact"
-      className="opportunity-cinematic-card group relative flex min-h-[216px] flex-col overflow-hidden border border-subtle text-left transition-all hover:-translate-y-0.5 hover:border-strong hover:shadow-elevated"
+      <article
+        data-density="compact"
+      className="opportunity-cinematic-card group relative flex min-h-[216px] flex-col overflow-hidden border border-subtle text-left transition-all hover:-translate-y-0.5 hover:border-strong hover:shadow-elevated lg:h-full lg:min-h-[320px]"
     >
       <button
         type="button"
@@ -248,7 +248,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
       >
         <span className="sr-only">{openLabel}</span>
       </button>
-      <div className="opportunity-cinematic-media pointer-events-none relative z-10 h-[104px] shrink-0 overflow-hidden bg-surface-elevated">
+      <div className="opportunity-cinematic-media pointer-events-none relative z-10 h-[104px] shrink-0 overflow-hidden bg-surface-elevated lg:h-[132px]">
         <ImageWithFallback
           src={opportunity.image}
           fallbackSrc={opportunity.imageFallback}
