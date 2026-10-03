@@ -24,7 +24,9 @@ let cachedOpportunities: Opportunity[] | null = null;
 let cachedOpportunitiesAt = 0;
 let revalidatePromise: Promise<void> | null = null;
 
-const SNAPSHOT_STORAGE_KEY = "edutu:opportunities:snapshot:v1";
+// v2 drops legacy snapshots that may contain client-generated, non-resolvable
+// IDs from rows that did not include a canonical database ID.
+const SNAPSHOT_STORAGE_KEY = "edutu:opportunities:snapshot:v2";
 const SNAPSHOT_FRESH_MS = 10 * 60 * 1000;
 
 type OpportunitiesListener = (opportunities: Opportunity[]) => void;
@@ -606,9 +608,11 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     pickOptionalString(row.updated_at, row.updatedAt, row.updated) ?? createdAt;
 
   return {
-    id: String(
-      row.id ?? row.opportunity_id ?? row.external_id ?? crypto.randomUUID(),
-    ),
+    // Detail routes resolve canonical database IDs. A generated or external
+    // ID can make a card look usable while guaranteeing that its detail URL
+    // returns not-found after a refresh, so keep missing IDs empty and filter
+    // those rows out at feed boundaries below.
+    id: String(row.id ?? row.opportunity_id ?? ""),
     title,
     organization,
     category,
@@ -682,6 +686,19 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
   };
 }
 
+function normaliseOpportunityRows(
+  rows: BackendOpportunityRow[],
+): Opportunity[] {
+  return rows
+    .filter(hasCanonicalOpportunityId)
+    .map(normaliseOpportunity)
+    .filter((opportunity) => Boolean(opportunity.id));
+}
+
+function hasCanonicalOpportunityId(row: BackendOpportunityRow): boolean {
+  return Boolean(String(row.id ?? row.opportunity_id ?? "").trim());
+}
+
 function buildBackendUrl(path: string, params?: URLSearchParams): string {
   const apiBaseUrl = getApiBaseUrl("Opportunities API");
   const query = params && params.toString() ? `?${params.toString()}` : "";
@@ -708,7 +725,7 @@ async function requestStaticOpportunitySnapshot(
   const payload = await response.json().catch(() => null);
   const rows = extractOpportunityRows(payload);
 
-  return rows.map(normaliseOpportunity);
+  return normaliseOpportunityRows(rows);
 }
 
 // The backend public feed caps each page (PUBLIC_FEED_PAGE_SIZE = 60) and caps
@@ -763,7 +780,7 @@ async function requestOpportunityPage(
   const payload = await response.json().catch(() => null);
   const rows = extractOpportunityRows(payload);
 
-  return rows.map(normaliseOpportunity);
+  return normaliseOpportunityRows(rows);
 }
 
 async function requestOpportunityList(
@@ -942,6 +959,11 @@ export async function fetchOpportunities(
   }
 }
 
+/** Fetch closed opportunities through the same free, bounded public feed. */
+export async function fetchClosedOpportunities(): Promise<Opportunity[]> {
+  return requestOpportunityList({ status: "closed" });
+}
+
 /** Search the complete public catalogue for bounded selector surfaces. */
 export async function searchOpportunityCatalog(
   query: string,
@@ -961,7 +983,7 @@ export async function searchOpportunityCatalog(
     items?: BackendOpportunityRow[];
   };
   return Array.isArray(payload.items)
-    ? payload.items.map(normaliseOpportunity)
+    ? normaliseOpportunityRows(payload.items)
     : [];
 }
 
@@ -995,36 +1017,40 @@ export async function fetchOpportunityRecommendations(
   );
   const rows = extractOpportunityRows(payload);
 
-  return rows.map((row) => {
-    const rowMetadata = pickRecord(row.metadata) ?? {};
-    const rawMatch =
-      row.match ??
-      row.match_score ??
-      row.matchScore ??
-      rowMetadata.match_score ??
-      rowMetadata.matchScore ??
-      0;
-    const matchScore = Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0;
-    const opportunity = normaliseOpportunity({
-      ...row,
-      match: matchScore,
-    });
+  return rows
+    .filter(hasCanonicalOpportunityId)
+    .map((row) => {
+      const rowMetadata = pickRecord(row.metadata) ?? {};
+      const rawMatch =
+        row.match ??
+        row.match_score ??
+        row.matchScore ??
+        rowMetadata.match_score ??
+        rowMetadata.matchScore ??
+        0;
+      const matchScore = Number.isFinite(Number(rawMatch))
+        ? Number(rawMatch)
+        : 0;
+      const opportunity = normaliseOpportunity({
+        ...row,
+        match: matchScore,
+      });
 
-    return {
-      opportunity,
-      matchScore: opportunity.match,
-      matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
-      matchReasonDetails: toMatchReasons(row),
-      matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
-      aiSummary:
-        typeof row.ai_summary === "string"
-          ? row.ai_summary
-          : typeof row.aiSummary === "string"
-            ? row.aiSummary
-            : null,
-      aiTags: cleanPublicTags(row.ai_tags, row.aiTags),
-    };
-  });
+      return {
+        opportunity,
+        matchScore: opportunity.match,
+        matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
+        matchReasonDetails: toMatchReasons(row),
+        matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
+        aiSummary:
+          typeof row.ai_summary === "string"
+            ? row.ai_summary
+            : typeof row.aiSummary === "string"
+              ? row.aiSummary
+              : null,
+        aiTags: cleanPublicTags(row.ai_tags, row.aiTags),
+      };
+    });
 }
 
 export interface OpportunityMatchScore {
@@ -1147,6 +1173,10 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
   }
 
   const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
+  if (!opportunity.id || opportunity.id !== id) {
+    return null;
+  }
+
   const existing = getCachedOpportunitiesSync();
   const merged = existing
     ? existing.some((item) => item.id === opportunity.id)

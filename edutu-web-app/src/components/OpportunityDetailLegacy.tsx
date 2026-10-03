@@ -1,3 +1,5 @@
+import OpportunityAssist from "../features/opportunity-assist/OpportunityAssist";
+import { ApplicationPreparationActions } from "../features/opportunity-assist/ApplicationPreparationActions";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -1040,6 +1042,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             ) : null}
           </article>
 
+          <OpportunityAssist opportunity={opportunity} />
+          <ApplicationPreparationActions opportunityId={opportunity.id} />
           <aside className="space-y-5">
             <section
               className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft`}

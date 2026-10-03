@@ -303,7 +303,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         </div>
         <ArrowRight size={16} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted transition-transform group-active:translate-x-0.5" />
         <Link
-          to={`/opportunity/${opportunity.id}`}
+          to={`/opportunity/${encodeURIComponent(opportunity.id)}`}
           state={{ opportunity }}
           className="absolute inset-0 rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/50"
           aria-label={`View ${opportunity.title}`}
@@ -362,7 +362,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         </div>
       </div>
       <Link
-        to={`/opportunity/${opportunity.id}`}
+        to={`/opportunity/${encodeURIComponent(opportunity.id)}`}
         state={{ opportunity }}
         className="absolute inset-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2"
         aria-label={`View ${opportunity.title}`}

@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { OPEN_OPPORTUNITY_FILTERS_EVENT } from "./opportunitySearchEvents";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
   AlarmClock,
@@ -18,7 +19,6 @@ import {
   EyeOff,
   GraduationCap,
   MapPin,
-  Lock,
   Plus,
   Rocket,
   Search,
@@ -29,7 +29,6 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useProFeature } from "./ProGate";
 import { ImpressionTracker } from "./opportunity/ImpressionTracker";
 import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
 import {
@@ -54,6 +53,7 @@ import {
   urgencyTextClasses,
 } from "../services/deadlineUrgency";
 import {
+  fetchClosedOpportunities,
   isOpportunityExpired,
   parseOpportunityDeadline,
 } from "../services/opportunities";
@@ -774,17 +774,18 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     usePersonalization();
   const { success, error: showError } = useToast();
   const { isSignedIn, userId, getToken } = useClerkAuth();
-  // Browsing, search and sorting stay free; only revealing *closed* (expired)
-  // opportunities is a Pro feature — turning it ON requires Pro, turning it
-  // back OFF is always free.
-  const closedFilter = useProFeature("closed opportunities");
+  // Browsing all opportunities, including archived ones, is free.
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") || "",
+  );
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [bookmarkingId, setBookmarkingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
+  const [closedOpportunities, setClosedOpportunities] = useState<Opportunity[]>([]);
+  const [closedLoadError, setClosedLoadError] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -796,6 +797,16 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   // Fresh seed each visit so the default "Recommended" order rotates between
   // sessions but stays put while the user paginates through this one.
   const [browseShuffleSeed] = useState(createOpportunityShuffleSeed);
+
+  useEffect(() => {
+    setSearchTerm(searchParams.get("search") || "");
+  }, [searchParams]);
+
+  useEffect(() => {
+    const openFilters = () => setFiltersOpen(true);
+    window.addEventListener(OPEN_OPPORTUNITY_FILTERS_EVENT, openFilters);
+    return () => window.removeEventListener(OPEN_OPPORTUNITY_FILTERS_EVENT, openFilters);
+  }, []);
 
   useEffect(() => {
     setDismissedIds(getDismissedOpportunityIds(userId));
@@ -817,6 +828,18 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
       window.removeEventListener("focus", onVisible);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!showClosed || closedOpportunities.length > 0) return;
+    let active = true;
+    setClosedLoadError(false);
+    void fetchClosedOpportunities().then((rows) => {
+      if (active) setClosedOpportunities(rows);
+    }).catch(() => {
+      if (active) setClosedLoadError(true);
+    });
+    return () => { active = false; };
+  }, [showClosed, closedOpportunities.length]);
 
   const handleDismissReason = useCallback(
     (reason: DismissReason) => {
@@ -947,8 +970,11 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const filteredOpportunities = useMemo(() => {
     const term = deferredSearchTerm.trim();
     const dismissed = new Set(dismissedIds);
+    const rows = showClosed
+      ? [...opportunities, ...closedOpportunities.filter((closed) => !opportunities.some((row) => row.id === closed.id))]
+      : opportunities;
 
-    return opportunities.filter((opportunity) => {
+    return rows.filter((opportunity) => {
       if (dismissed.has(opportunity.id)) {
         return false;
       }
@@ -968,6 +994,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     });
   }, [
     opportunities,
+    closedOpportunities,
     deferredSearchTerm,
     selectedCategoryId,
     showClosed,
@@ -1122,7 +1149,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const railDetailPathFor = useCallback(
     (opportunity: Opportunity) =>
-      `${embedded ? "/app" : ""}/opportunity/${opportunity.id}`,
+      `${embedded ? "/app" : ""}/opportunity/${encodeURIComponent(opportunity.id)}`,
     [embedded],
   );
   const handleRailOpen = useCallback(
@@ -1242,6 +1269,11 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const clearSearch = () => {
     setSearchTerm("");
+    if (searchParams.has("search")) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("search");
+      setSearchParams(nextParams);
+    }
   };
 
   // Return to the browse landing (the colourful collection cards) by dropping
@@ -1293,199 +1325,125 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     { value: "funding", label: "Highest funding" },
   ];
 
-  // Single, prominent search bar shown just below the page title, with the
-  // filter/sort controls tucked into a popover behind the trailing icon.
-  const searchBar = (
-    <div className="relative">
-      <Search
-        size={18}
-        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-      />
-      <input
-        type="text"
-        aria-label="Search opportunities"
-        value={searchTerm}
-        onChange={(event) => setSearchTerm(event.target.value)}
-        placeholder="Search opportunities"
-        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-[5.25rem] text-sm text-text-primary shadow-sm placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
-      />
-      {searchTerm ? (
+  // Desktop keeps its inline search. On mobile, search lives in the bottom glass action.
+  const desktopSearchBar = (
+    <div className="hidden sm:block">
+      <Link className="mb-1 inline-flex text-sm font-semibold text-brand" to={`/app/saved-searches?${new URLSearchParams({ query: searchTerm, category: selectedCategoryId }).toString()}`}>
+        Save this search &amp; set matching alerts →
+      </Link>
+      <div className="relative">
+        <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+        <input
+          id="opportunities-search-input"
+          type="text"
+          aria-label="Search opportunities"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search opportunities"
+          className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-[5.25rem] text-sm text-text-primary shadow-sm placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+        />
+        {searchTerm ? (
+          <button type="button" onClick={clearSearch} className="absolute right-11 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary" aria-label="Clear search">
+            <X size={16} />
+          </button>
+        ) : null}
         <button
           type="button"
-          onClick={clearSearch}
-          className="absolute right-11 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
-          aria-label="Clear search"
+          onClick={() => setFiltersOpen((open) => !open)}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 transition ${filtersOpen || hasCustomFilters ? "bg-brand/10 text-brand" : "text-text-muted hover:text-text-primary"}`}
+          aria-label="More opportunity filters"
+          aria-expanded={filtersOpen}
         >
-          <X size={16} />
+          <SlidersHorizontal size={17} />
+          {hasCustomFilters ? <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand" /> : null}
         </button>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => setFiltersOpen((open) => !open)}
-        className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 transition ${
-          filtersOpen || hasCustomFilters
-            ? "bg-brand/10 text-brand"
-            : "text-text-muted hover:text-text-primary"
-        }`}
-        aria-label="More opportunity filters"
-        aria-expanded={filtersOpen}
-      >
-        <SlidersHorizontal size={17} />
-        {hasCustomFilters ? (
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
-        ) : null}
-      </button>
-      {filtersOpen ? (
-        <>
-          <button
-            type="button"
-            aria-label="Close filters"
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={() => setFiltersOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-label="Opportunity filters"
-            className="fixed inset-x-0 bottom-0 z-40 grid max-h-[78dvh] grid-rows-[auto_minmax(0,1fr)_auto] rounded-t-[28px] border border-subtle bg-surface-layer shadow-elevated sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-[calc(100%+8px)] sm:block sm:w-64 sm:rounded-2xl sm:bg-surface-elevated sm:p-3"
-          >
-            <div className="sticky top-0 flex items-center justify-between border-b border-subtle bg-surface-layer px-4 py-3 sm:hidden">
-              <div>
-                <h2 className="font-display text-xl font-semibold text-text-primary">
-                  Filters
-                </h2>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  Categories and sorting
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-elevated"
-                aria-label="Close opportunity filters"
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <div className="overflow-y-auto px-4 py-3 sm:overflow-visible sm:p-0">
-              <div className="mb-3 sm:hidden">
-                <p className="mb-1 px-1 text-xs font-semibold text-text-muted">
-                  More categories
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    chooseCategory("programs");
-                    setFiltersOpen(false);
-                  }}
-                  className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold ${
-                    selectedCategoryId === "programs"
-                      ? "bg-brand/10 text-brand"
-                      : "text-text-primary"
-                  }`}
-                >
-                  Programs and bootcamps
-                </button>
-              </div>
-            <p className="px-1 pb-1 text-2xs font-semibold uppercase tracking-[0.14em] text-text-muted">
-              Sort by
-            </p>
-            <div className="space-y-0.5">
-              {sortChoices.map((choice) => (
-                <button
-                  key={choice.value}
-                  type="button"
-                  onClick={() => setSortOption(choice.value)}
-                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                    sortOption === choice.value
-                      ? "bg-brand/10 font-semibold text-brand"
-                      : "text-text-primary hover:bg-surface-layer"
-                  }`}
-                >
-                  {choice.label}
-                  {sortOption === choice.value ? (
-                    <span className="h-2 w-2 rounded-full bg-brand" />
-                  ) : null}
-                </button>
-              ))}
-            </div>
-            <div className="my-2 border-t border-subtle" />
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showClosed}
-              onClick={() => {
-                // Turning OFF is always free; turning ON is Pro-gated.
-                if (showClosed) {
-                  setShowClosed(false);
-                } else if (closedFilter.requirePro()) {
-                  setShowClosed(true);
-                }
-              }}
-              className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-sm text-text-primary transition hover:bg-surface-layer"
-            >
-              <span className="flex items-center gap-1.5">
-                Show closed
-                {closedFilter.locked ? (
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-500/15 px-1.5 py-0.5 text-2xs font-semibold uppercase leading-none tracking-wide text-brand-700">
-                    <Lock size={8} aria-hidden="true" />
-                    Pro
-                  </span>
-                ) : null}
-              </span>
-              <span
-                className={`relative h-6 w-10 shrink-0 rounded-full transition ${
-                  showClosed
-                    ? "bg-brand"
-                    : "border border-subtle bg-surface-layer"
-                }`}
-              >
-                <span
-                  className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-soft transition-all ${
-                    showClosed ? "left-[calc(100%-20px)]" : "left-1"
-                  }`}
-                />
-              </span>
-            </button>
-            {hasCustomFilters ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSortOption("recommended");
-                  setShowClosed(false);
-                }}
-                className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-sm font-medium text-text-secondary transition hover:bg-surface-layer hover:text-text-primary"
-              >
-                Reset to defaults
-              </button>
-            ) : null}
-            </div>
-            <div className="border-t border-subtle bg-surface-layer p-3 sm:hidden">
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="flex h-11 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white"
-              >
-                Show results
-              </button>
-            </div>
-          </div>
-        </>
-      ) : null}
+      </div>
     </div>
   );
 
+  const filterSheet = filtersOpen ? (
+    <>
+      <button type="button" aria-label="Close filters" className="fixed inset-0 z-[60] cursor-default" onClick={() => setFiltersOpen(false)} />
+      <div
+        role="dialog"
+        aria-label="Opportunity filters"
+        className="fixed inset-x-0 bottom-0 z-[61] grid max-h-[78dvh] grid-rows-[auto_minmax(0,1fr)_auto] rounded-t-[28px] border border-subtle bg-surface-layer shadow-elevated"
+      >
+        <div className="sticky top-0 flex items-center justify-between border-b border-subtle bg-surface-layer px-4 py-3">
+          <div>
+            <h2 className="font-display text-xl font-semibold text-text-primary">Filters</h2>
+            <p className="mt-0.5 text-xs text-text-muted">Categories and sorting</p>
+          </div>
+          <button type="button" onClick={() => setFiltersOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-elevated" aria-label="Close opportunity filters">
+            <X size={19} />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-4 py-3">
+          <div className="mb-3 sm:hidden">
+            <p className="mb-1 px-1 text-xs font-semibold text-text-muted">More categories</p>
+            <button
+              type="button"
+              onClick={() => { chooseCategory("programs"); setFiltersOpen(false); }}
+              className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold ${selectedCategoryId === "programs" ? "bg-brand/10 text-brand" : "text-text-primary"}`}
+            >
+              Programs and bootcamps
+            </button>
+          </div>
+          <p className="px-1 pb-1 text-2xs font-semibold uppercase tracking-[0.14em] text-text-muted">Sort by</p>
+          <div className="space-y-0.5">
+            {sortChoices.map((choice) => (
+              <button
+                key={choice.value}
+                type="button"
+                onClick={() => setSortOption(choice.value)}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${sortOption === choice.value ? "bg-brand/10 font-semibold text-brand" : "text-text-primary hover:bg-surface-layer"}`}
+              >
+                {choice.label}
+                {sortOption === choice.value ? <span className="h-2 w-2 rounded-full bg-brand" /> : null}
+              </button>
+            ))}
+          </div>
+          <div className="my-2 border-t border-subtle" />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showClosed}
+            onClick={() => setShowClosed((value) => !value)}
+            className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-sm text-text-primary transition hover:bg-surface-layer"
+          >
+            <span>Show closed (free)</span>
+            <span className={`relative h-6 w-10 shrink-0 rounded-full transition ${showClosed ? "bg-brand" : "border border-subtle bg-surface-layer"}`}>
+              <span className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-soft transition-all ${showClosed ? "left-[calc(100%-20px)]" : "left-1"}`} />
+            </span>
+          </button>
+          {showClosed && closedLoadError ? <p className="px-2.5 text-xs text-text-secondary" role="status">Closed opportunities could not be loaded. Try again shortly.</p> : null}
+          {hasCustomFilters ? (
+            <button type="button" onClick={() => { setSortOption("recommended"); setShowClosed(false); }} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-sm font-medium text-text-secondary transition hover:bg-surface-layer hover:text-text-primary">
+              Reset to defaults
+            </button>
+          ) : null}
+        </div>
+        <div className="border-t border-subtle bg-surface-layer p-3">
+          <button type="button" onClick={() => setFiltersOpen(false)} className="flex h-11 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white">
+            Show results
+          </button>
+        </div>
+      </div>
+    </>
+  ) : null;
+
   const content = (
     <>
-        <section className="mb-3 sm:hidden">
+      {filterSheet}
+        <section className="mb-2 sm:hidden">
           {!embedded ? (
             <h1 className="font-display text-[30px] font-semibold leading-9 tracking-[-0.035em] text-text-primary">
               Opportunities
             </h1>
           ) : null}
-          <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-4 mt-3 border-y border-subtle bg-surface-body/95 px-4 py-2 backdrop-blur min-[412px]:-mx-5 min-[412px]:px-5">
-            {searchBar}
+          <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-4 border-y border-subtle bg-surface-body/95 px-4 py-1 backdrop-blur min-[412px]:-mx-5 min-[412px]:px-5">
             <div
-              className="mt-2 flex h-11 items-stretch justify-between"
+              className="mt-1 flex h-10 items-stretch justify-between"
               role="tablist"
               aria-label="Opportunity categories"
             >
@@ -1514,18 +1472,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   </button>
                 );
               })}
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(true)}
-                aria-expanded={filtersOpen}
-                className={`relative px-1 text-[10px] font-semibold min-[360px]:text-[11px] ${
-                  selectedCategoryId === "programs" || hasCustomFilters
-                    ? "text-brand"
-                    : "text-text-muted"
-                }`}
-              >
-                More
-              </button>
             </div>
           </div>
         </section>
@@ -1554,7 +1500,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 <X size={14} />
               </button>
             </div>
-            <div className="mt-4">{searchBar}</div>
+            <div className="mt-4">{desktopSearchBar}</div>
           </section>
         ) : (
           <section className="mb-6">
@@ -1581,7 +1527,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </button>
               )}
             </div>
-            <div className="mb-5">{searchBar}</div>
+            <div className="mb-5">{desktopSearchBar}</div>
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
               {COLLECTIONS.map((collection) => (
                 <CollectionCard
@@ -1651,7 +1597,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                     onToggleBookmark={handleToggleBookmark}
                     isBookmarked={bookmarkedIds.has(opportunity.id)}
                     isBookmarking={bookmarkingId === opportunity.id}
-                    detailPath={`${embedded ? "/app" : ""}/opportunity/${opportunity.id}`}
+                    detailPath={`${embedded ? "/app" : ""}/opportunity/${encodeURIComponent(opportunity.id)}`}
                     expired={isOpportunityExpired(opportunity)}
                     match={matchInsights?.get(opportunity.id) ?? null}
                     onOpen={(item) =>
@@ -1687,14 +1633,11 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 <button
                   type="button"
                   onClick={() => {
-                    // Same Pro gate as the filter-panel toggle.
-                    if (closedFilter.requirePro()) setShowClosed(true);
+                    // Archived search is available to every user.
+                    setShowClosed(true);
                   }}
                   className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary"
                 >
-                  {closedFilter.locked ? (
-                    <Lock size={14} aria-hidden="true" />
-                  ) : null}
                   {t("opportunities.showClosed")}
                 </button>
               ) : null}
