@@ -9,7 +9,10 @@ export function ProfileCompleteness({ percent, updatedAt }: ProfileCompletenessP
   const safePercent = Math.max(0, Math.min(Math.round(percent), 100));
 
   return (
-    <aside className="mt-4 max-w-sm" aria-label="Profile completeness">
+    <aside
+      className="mt-4 max-w-sm lg:mt-0 lg:max-w-none"
+      aria-label="Profile completeness"
+    >
       <div className="flex items-center justify-between gap-3 text-xs font-semibold">
         <span className="text-text-secondary">Profile completeness</span>
         <span className="shrink-0 text-brand">{safePercent}%</span>

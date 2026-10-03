@@ -15,7 +15,7 @@ export interface ProfileDetailsSummaryProps {
 }
 
 export function ProfileDetailsSummary(props: ProfileDetailsSummaryProps) {
-  const rows: Array<{ label: string; value: ReactNode }> = [
+  const rows: Array<{ label: string; value: ReactNode; wide?: boolean }> = [
     { label: "Full name", value: props.fullName },
     { label: "Country", value: props.country },
     { label: "School", value: props.school },
@@ -27,9 +27,10 @@ export function ProfileDetailsSummary(props: ProfileDetailsSummaryProps) {
     {
       label: "Interested countries",
       value: formatList(props.interestedCountries),
+      wide: true,
     },
-    { label: "Opportunity interests", value: formatList(props.interests) },
-    { label: "Skills", value: formatList(props.skills) },
+    { label: "Opportunity interests", value: formatList(props.interests), wide: true },
+    { label: "Skills", value: formatList(props.skills), wide: true },
   ].filter(({ value }) => hasValue(value));
 
   if (rows.length === 0) {
@@ -41,9 +42,9 @@ export function ProfileDetailsSummary(props: ProfileDetailsSummaryProps) {
   }
 
   return (
-    <dl className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-      {rows.map(({ label, value }) => (
-        <div key={label} className="min-w-0">
+    <dl className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-6 sm:gap-y-4">
+      {rows.map(({ label, value, wide }) => (
+        <div key={label} className={`min-w-0 ${wide ? "col-span-2" : ""}`}>
           <dt className="text-xs font-medium text-text-muted">{label}</dt>
           <dd className="mt-1 break-words text-sm font-medium text-text-primary">
             {value}

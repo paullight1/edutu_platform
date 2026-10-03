@@ -41,7 +41,7 @@ describe("OnboardingFlow", () => {
     vi.clearAllMocks();
   });
 
-  it("welcomes a first-time member with the mascot before asking questions", () => {
+  it("welcomes a first-time member with an illustration before asking questions", () => {
     render(
       <OnboardingFlow
         presentation="modal"
@@ -52,7 +52,7 @@ describe("OnboardingFlow", () => {
     );
 
     expect(screen.getByText(/welcome to edutu, ada/i)).toBeInTheDocument();
-    expect(screen.getByAltText(/edutu mascot/i)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /profile connected to new opportunities/i })).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: /personalize my feed/i }),

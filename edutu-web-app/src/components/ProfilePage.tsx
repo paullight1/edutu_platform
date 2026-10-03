@@ -508,53 +508,65 @@ export default function ProfilePage() {
         disabled={loading || saving}
         className="min-h-[calc(100dvh-4rem)]"
       >
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <section className="rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-5">
-              <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-3">
-                  {clerkUser?.imageUrl ? (
-                    <img
-                      src={clerkUser.imageUrl}
-                      alt=""
-                      className="h-12 w-12 shrink-0 rounded-2xl object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
-                      {displayName(profile, user?.name).charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {displayName(profile, user?.name)}
-                    </p>
-                    <p className="truncate text-xs font-semibold text-text-muted">
-                      {profile?.email || user?.email || "Signed in member"}
-                    </p>
-                  </div>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <header className="mb-5 hidden items-end justify-between lg:flex">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
+                Account
+              </p>
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
+                Your profile
+              </h1>
+              <p className="mt-1 text-sm text-text-muted">
+                Keep your details current to get more relevant opportunities.
+              </p>
+            </div>
+          </header>
+
+          <section className="grid gap-4 rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)] lg:items-center lg:px-6 lg:py-5">
+            <div className="flex min-w-0 items-center gap-4">
+              {clerkUser?.imageUrl ? (
+                <img
+                  src={clerkUser.imageUrl}
+                  alt=""
+                  className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-semibold text-white">
+                  {displayName(profile, user?.name).charAt(0).toUpperCase()}
                 </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold lg:text-lg">
+                  {displayName(profile, user?.name)}
+                </p>
+                <p className="mt-0.5 truncate text-sm text-text-muted">
+                  {profile?.email || user?.email || "Signed in member"}
+                </p>
               </div>
-              <ProfileCompleteness
-                percent={completenessPercent}
-                updatedAt={
-                  profile?.updatedAt || profile?.updated_at
-                    ? formatDate(profile.updatedAt || profile.updated_at)
-                    : undefined
-                }
-              />
+            </div>
+            <ProfileCompleteness
+              percent={completenessPercent}
+              updatedAt={
+                profile?.updatedAt || profile?.updated_at
+                  ? formatDate(profile.updatedAt || profile.updated_at)
+                  : undefined
+              }
+            />
           </section>
 
           <ProfileQuickStats stats={profileStats} />
 
           {recentActivity.length > 0 && (
-            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5">
-              <div className="mb-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+            <section className="mt-5 min-w-0 overflow-hidden rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-5 lg:p-6">
+              <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 sm:mb-5">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <div className="rounded-xl bg-warning/10 p-2 text-warning">
                     <Sparkles size={18} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h2 className="text-base font-semibold">Recent Activity</h2>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs leading-5 text-text-muted">
                       Latest saved and tracked opportunities
                     </p>
                   </div>
@@ -581,17 +593,17 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="grid min-w-0 gap-1 lg:grid-cols-2 lg:gap-2">
                 {recentActivity.map((item) => (
                   <div
                     key={item.id}
-                    className="group flex items-center gap-3 rounded-2xl p-3 transition-all hover:bg-surface-elevated"
+                    className="group flex min-w-0 items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-surface-elevated sm:items-center sm:p-3"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success">
                       {item.icon}
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium transition-colors group-hover:text-brand">
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 break-words text-xs font-medium leading-5 transition-colors group-hover:text-brand">
                         {item.title}
                       </p>
                       <p className="text-2xs font-medium text-text-muted">
@@ -602,7 +614,7 @@ export default function ProfilePage() {
                 ))}
               </div>
 
-              <div className="mt-5 flex items-center justify-between border-t border-subtle pt-4 text-2xs font-medium tracking-widest text-text-muted">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-subtle pt-3 text-xs font-medium text-text-muted sm:mt-5 sm:pt-4">
                 <span>Saved {profileStats.saved ?? 0}</span>
                 <span>Applications {profileStats.applications ?? 0}</span>
               </div>
@@ -673,14 +685,14 @@ export default function ProfilePage() {
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
               onSubmit={saveProfile}
-              className="rounded-[20px] border border-subtle bg-surface-layer p-5 sm:p-6"
+              className="min-w-0 rounded-[20px] border border-subtle bg-surface-layer p-4 sm:p-6"
             >
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
+              <div className="mb-4 flex items-start justify-between gap-3 sm:mb-5 sm:gap-4">
+                <div className="min-w-0">
                   <h2 className="font-display text-lg font-semibold tracking-tight">
                     Profile details
                   </h2>
-                  <p className="mt-1 max-w-prose text-sm leading-6 text-text-muted">
+                  <p className="mt-1 max-w-prose text-sm leading-5 text-text-muted sm:leading-6">
                     Used to tailor your opportunity matches.
                   </p>
                 </div>

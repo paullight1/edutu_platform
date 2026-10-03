@@ -25,6 +25,7 @@ import {
 import { COUNTRIES } from "../data/countries";
 import { syncOpportunityPreferences } from "../services/opportunityPreferences";
 import MultiSelectDropdown from "./ui/MultiSelectDropdown";
+import WelcomeIllustration from "./onboarding/WelcomeIllustration";
 
 const INTEREST_OPTIONS = [
   "Technology",
@@ -344,16 +345,8 @@ export function OnboardingFlow({
 
     return (
       <div className="grid min-h-0 overflow-hidden md:grid-cols-[0.9fr_1.1fr]">
-        <div className="relative flex min-h-[210px] items-end justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_35%,rgba(45,212,191,0.24),transparent_40%),linear-gradient(145deg,#eaf3ff_0%,#f7fbff_56%,#e8fbf7_100%)] px-6 pt-8 md:min-h-[500px] md:items-center dark:bg-[radial-gradient(circle_at_50%_35%,rgba(45,212,191,0.18),transparent_40%),linear-gradient(145deg,#10213f_0%,#0c1830_56%,#0b292a_100%)]">
-          <span className="absolute left-[14%] top-[16%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_0_7px_rgba(251,191,36,0.12)]" />
-          <span className="absolute bottom-[18%] right-[12%] h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_0_8px_rgba(34,211,238,0.1)]" />
-          <div className="absolute inset-x-[18%] bottom-3 h-12 rounded-[50%] bg-blue-900/10 blur-xl" />
-          <img
-            src="/mascot/edutu-profile-guide.png"
-            alt="Edutu mascot welcoming you"
-            className="relative z-10 w-[180px] select-none object-contain drop-shadow-[0_22px_24px_rgba(16,63,126,0.18)] md:w-[310px]"
-            draggable={false}
-          />
+        <div className="relative flex items-center justify-center overflow-hidden bg-brand/5 px-8 py-3 md:min-h-[390px] md:px-4 md:py-8">
+          <WelcomeIllustration />
         </div>
 
         <div className="flex flex-col justify-center px-6 pb-7 pt-6 sm:px-9 md:px-11 md:py-12">
@@ -365,8 +358,8 @@ export function OnboardingFlow({
             Welcome to Edutu{firstName ? `, ${firstName}` : ""}
           </h1>
           <p className="mt-3 max-w-md text-pretty text-sm font-medium leading-6 text-text-muted">
-            Let&apos;s tune your feed around what you study, where you are, and
-            the opportunities you want next.
+            A few details about your studies, interests, and goals will help us
+            personalize your experience.
           </p>
           <div className="mt-6 flex flex-col gap-2.5">
             <button

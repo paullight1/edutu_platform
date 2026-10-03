@@ -48,6 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: clerkUser.id,
         name: fullName,
         email: email ?? undefined,
+        avatarUrl: clerkUser.imageUrl || undefined,
         ...(Number.isFinite(parsedAge) && parsedAge !== null ? { age: parsedAge as number } : {}),
       });
     } else {

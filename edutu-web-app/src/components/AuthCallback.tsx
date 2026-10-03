@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useClerk } from "@clerk/clerk-react";
 import { Loader2 } from "lucide-react";
 import { consumePostAuthRedirect } from "../lib/auth";
+import { googleSignupWelcomeRedirect } from "../lib/googleSignupWelcome";
 import PublicEditorialShell from "./PublicEditorialShell";
 
 const AuthCallback: React.FC = () => {
@@ -16,17 +17,9 @@ const AuthCallback: React.FC = () => {
     setAttempted(true);
 
     const redirectTarget = consumePostAuthRedirect("/dashboard");
-    const signUpRedirect =
-      redirectTarget === "/opportunities"
-        ? "/opportunities?signup=true"
-        : redirectTarget.startsWith("/opportunities?") &&
-            !redirectTarget.includes("signup=true")
-          ? `${redirectTarget}&signup=true`
-          : redirectTarget;
-
     handleRedirectCallback({
       signInForceRedirectUrl: redirectTarget,
-      signUpForceRedirectUrl: signUpRedirect,
+      signUpForceRedirectUrl: googleSignupWelcomeRedirect(redirectTarget),
     }).catch((err: unknown) => {
       console.error("Auth callback error:", err);
       setError("Authentication failed. Please try signing in again.");

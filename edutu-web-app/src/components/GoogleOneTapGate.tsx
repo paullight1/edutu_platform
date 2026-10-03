@@ -1,5 +1,6 @@
 import { GoogleOneTap, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useLocation } from "react-router-dom";
+import { googleSignupWelcomeRedirect } from "../lib/googleSignupWelcome";
 
 /**
  * Renders Clerk's *native* Google One Tap prompt for unauthenticated visitors.
@@ -25,7 +26,7 @@ export default function GoogleOneTapGate() {
       itpSupport
       fedCmSupport
       signInForceRedirectUrl="/dashboard"
-      signUpForceRedirectUrl="/dashboard"
+      signUpForceRedirectUrl={googleSignupWelcomeRedirect()}
     />
   );
 }
