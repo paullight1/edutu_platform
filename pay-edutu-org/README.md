@@ -1,55 +1,81 @@
 # pay.edutu.org
 
-This Next.js app is the Edutu payment shell. It does not collect payments,
-write money records, grant entitlements, call Paystack, or host an admin
-console. The canonical Nest billing API owns all of those operations.
+This Next.js shell opens Bachs hosted checkout, reads canonical purchase status,
+and offers account management. The Nest API owns catalog pricing, identity,
+fulfillment, and the credit ledger.
 
-## Required server-only environment
+## Required server configuration
 
-Copy `.env.example` for local development and use deployment secrets/config
-instead of committing a local env file.
+- `EDUTU_BILLING_API_URL`: canonical HTTPS Nest API origin without a path.
+- `PAY_SHELL_ORIGIN=https://pay.edutu.org`: exact Origin used for browser POST checks.
+- `BILLING_PAY_SHELL_API_KEY`: a dedicated server secret of at least 32 characters,
+  identical to the canonical API setting. Never use a `NEXT_PUBLIC` name.
+- `BACHS_CHECKOUT_ENABLED`: shell availability copy only; off by default. The
+  canonical API separately controls whether a checkout can be created.
 
-- `EDUTU_BILLING_API_URL`: canonical HTTPS Nest API origin, with no path.
-- `PAY_SHELL_ORIGIN`: this exact public HTTPS origin for same-origin POST checks.
-- `BACHS_CHECKOUT_ENABLED=false`: remains false by default. The shell only
-  displays a controlled availability message; checkout creation remains on the
-  canonical API.
+The canonical API requires its existing validated Bachs configuration, signed
+webhook ingress, `BILLING_PAY_SHELL_ENABLED=true`, and the additive migration
+`supabase/migrations/20261002090000_billing_pay_shell_sessions.sql`. Its catalog
+reports checkout disabled until the protocol schema can be read. Configure
+sandbox first; implementing the protocol does not enable a deployment.
 
-No Bachs key, provider secret, Supabase service-role value, admin token, user
-identifier, email, amount, currency, or Clerk token belongs in this app's URLs
-or client bundle.
+## Checkout and authentication
 
-## Authentication boundary
+The Clerk-authenticated Edutu client posts a server-owned product key and
+`returnSurface` to `/billing/consumer-checkout`, with a stable `Idempotency-Key`.
+The response includes `checkoutUrl=https://pay.edutu.org/start#code=...`,
+`intentId`, provider `expiresAt`, short `handoffExpiresAt`, `renewalMode`, and
+`validityDays`. Developer clients keep using `/billing/checkout` and receive the
+same shell handoff format. Only fulfillable one-time catalog rows are released.
 
-Clerk is not installed in this package. The Edutu authenticated client must
-request a short-lived, single-use code from the canonical API and submit that
-code by POST to `/api/auth/exchange`; it must never be put in a URL. The API
-must atomically consume the code and return an opaque, short-lived pay-shell
-session for the same authenticated subject. This app stores it only in a
-secure, httpOnly, same-site cookie and passes it server-to-server to:
+The code expires after two minutes and can be exchanged once. `/start` reads
+its fragment, removes it from browser history immediately, and posts it to
+`/api/auth/exchange`. The fragment is not sent in the page request or referrer.
+The client must never persist or log this URL. If exchange fails, Edutu can
+repeat checkout with the same idempotency key to receive a fresh handoff for
+the same open provider intent.
 
-- `GET /billing/intent-status` for `/result` polling;
-- `GET /billing/account` for account display;
-- `POST /billing/portal-session` for a fresh Bachs hosted portal URL.
+The shell server exchanges the code over `/billing/pay-shell/exchange` using
+both a bearer code and `X-Edutu-Pay-Shell-Key`. The API atomically consumes the
+hashed code and inserts a hashed 15-minute opaque session in PostgreSQL. The
+server places the session only in a Secure, HTTP-only, SameSite=Lax cookie.
+Neither the session nor a Clerk token is placed in any URL or browser storage.
 
-The API must reject the opaque session when expired/revoked, resolve the user
-server-side, and return no raw provider payloads. `/result` does not grant
-access; it only displays the backend's confirmed status. `/return` always
-redirects to `/result` without a write.
+After the cookie is established, the browser opens the checked Bachs checkout
+URL. Bachs returns to `/result`; redirect parameters never establish payment
+success. The shell uses cookie authority and its server secret for:
 
-## Bachs portal response contract
+- `GET /billing/intent-status`: the intent bound to this session; `active` only
+  after canonical `fulfilled`. Provider `paid` remains `processing`.
+- `GET /billing/account`: owner-scoped recurring purchases, one-time grants,
+  and fulfilled credit purchases. Native stores retain native management.
+- `POST /billing/pay-shell/portal-session`: a fresh Bachs portal URL for this
+  owner's existing Bachs provider-customer mapping. Missing mappings return 404.
 
-`POST /billing/portal-session` returns only `{ "url": "https://portal.bachs.io/..." }`
-for the authenticated Bachs customer in the active environment. The shell
-rejects every other origin and never persists portal URLs.
+The Clerk route `POST /billing/pay-shell/handoff` accepts
+`{destination:'account'}` or `{destination:'result',intentId}` and returns
+`{url,expiresAt}` for fresh access or an expired shell cookie. Another owner's
+intent returns 404. It accepts no caller-provided destination URL.
 
-## Legacy cutover dependency
+Expired/revoked sessions and sessions from another provider environment cannot
+be used. `/return` redirects to `/result` without a billing write. Result and
+error pages link to `https://app.edutu.org/app/wallet`, where the authenticated
+app rechecks the stored owner intent and canonical entitlements.
 
-The legacy Paystack webhook route is intentionally removed from this shell.
-During cutover, the canonical Nest billing API must keep its legacy Paystack
-webhook/reconciliation route live until all previously created transactions are
-settled and reconciled. Removing that backend route is a separate operational
-decision and is not part of this shell release.
+## Operational prerequisites
+
+Enable only configured server catalog products and verified provider mappings;
+no prices or quantities are introduced by this protocol. Recurring Bachs and
+season-pass products remain excluded from new hosted collection until their
+canonical webhook lifecycle is supported. Native RevenueCat semantics are
+unchanged. Existing legacy Paystack webhook and reconciliation routes must
+remain available for already-created transactions.
+
+The existing canonical billing migrations, including RevenueCat's
+`provider_store` column, are prerequisites for account display. Database code
+and session rows have expiry indexes; deployment maintenance should delete
+expired rows after its chosen audit retention. No migration, deployment,
+provider request, or transaction was executed for this change.
 
 ## Commands
 

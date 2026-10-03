@@ -321,7 +321,7 @@ export class BachsWebhookService {
       !["open", "processing", "paid"].includes(String(intent.status));
     const validApiCredit =
       isApiCredit &&
-      snapshot.fulfillmentKind === "credits" &&
+      ["credits", "credit_pack"].includes(String(snapshot.fulfillmentKind)) &&
       snapshot.renewalMode === "one_time" &&
       snapshotQuantity ===
         API_CREDIT_PRODUCT_QUANTITIES[
@@ -331,12 +331,26 @@ export class BachsWebhookService {
     const validOneTimeSubscription =
       isOneTimeSubscription &&
       Boolean(subscriptionTier) &&
-      snapshot.fulfillmentKind === "pro" &&
+      ["pro", "one_time_pass", "subscription"].includes(
+        String(snapshot.fulfillmentKind),
+      ) &&
       snapshot.renewalMode === "one_time" &&
       Number.isInteger(snapshotValidity) &&
       Number(snapshotValidity) > 0;
 
-    if (commonIntentValid || (!validApiCredit && !validOneTimeSubscription)) {
+    const validConsumerCredit =
+      !isApiCredit &&
+      Boolean(snapshotProductKey) &&
+      ["credits", "credit_pack"].includes(String(snapshot.fulfillmentKind)) &&
+      snapshot.renewalMode === "one_time" &&
+      Number.isSafeInteger(snapshotQuantity) &&
+      snapshotQuantity > 0 &&
+      snapshotValidity === null;
+
+    if (
+      commonIntentValid ||
+      (!validApiCredit && !validOneTimeSubscription && !validConsumerCredit)
+    ) {
       await this.markReview(
         tx,
         eventRowId,
@@ -388,6 +402,17 @@ export class BachsWebhookService {
         eventType: event.type,
         payload: redactProviderPayload(event),
         intentId,
+        ...(validConsumerCredit
+          ? {
+              verifiedConsumerProduct: {
+                productKey: snapshotProductKey,
+                creditQuantity: snapshotQuantity,
+                amountMinor: Number(actualAmount),
+                currency,
+                environment: this.config.environment,
+              },
+            }
+          : {}),
       },
     );
     return fulfillment.status === "review" ? "review" : "fulfilled";

@@ -134,6 +134,27 @@ export class MonetizationService {
     return pricing;
   }
 
+  async getActionPolicy(userId: string) {
+    const [pricing, billing] = await Promise.all([this.getPricing(), this.loadBilling(userId)]);
+    if (!billing.available) throw new HttpException({code:"billing_unavailable",message:"AI access is temporarily unavailable."},503);
+    const result = await db.execute(sql`
+      select coalesce(u.chat_messages,0) as chat_messages, coalesce(u.action_credits,0) as action_credits,
+             coalesce(u.voice_minutes,0) as voice_minutes,
+             date_trunc('day', now()) + interval '1 day' as resets_at
+      from (select 1) seed left join user_ai_usage_daily u on u.user_id = ${userId} and u.day = current_date
+    `);
+    const row = (result as unknown as {rows: Array<Record<string,unknown>>}).rows?.[0] ?? {};
+    const tier = billing.planTier;
+    const fairUse = tier === "scholar" ? pricing.scholarFairUse : tier === "pro" ? pricing.proFairUse : tier === "lite" ? pricing.liteFairUse : null;
+    return {
+      planTier: tier, costs: pricing.aiCosts, chatGraceActive: tier === "none" && this.withinChatGrace(billing.createdAt),
+      chatRemaining: Math.max(0,(fairUse?.dailyChatMessages ?? pricing.freeTier.dailyChatMessages) - Number(row.chat_messages ?? 0)),
+      actionCreditsRemaining: fairUse ? Math.max(0,fairUse.dailyActionCredits - Number(row.action_credits ?? 0)) : null,
+      voiceEligible: tier !== "none", voiceMinutesRemaining: tier === "none" ? 0 : Math.max(0,this.dailyVoiceMinuteLimit(pricing,tier) - Number(row.voice_minutes ?? 0)),
+      resetsAt: row.resets_at ? new Date(row.resets_at as string).toISOString() : null,
+    };
+  }
+
   /** Active Pro is derived only from a current canonical billing entitlement. */
   async isPro(userId: string): Promise<boolean> {
     return (await this.loadBilling(userId)).isPro;

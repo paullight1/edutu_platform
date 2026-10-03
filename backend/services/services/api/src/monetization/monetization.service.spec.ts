@@ -429,3 +429,16 @@ describe("MonetizationService voice metering and premium authorization", () => {
     );
   });
 });
+
+
+describe("read-only AI action policy",()=>{
+  it("reports plan-specific remaining usage without metering or credit writes",async()=>{
+    const service=setup({billing:{is_pro:false,is_lite:true,created_at:daysAgoIso(30)},chatMessages:2,voiceMinutes:1});
+    const policy=await service.getActionPolicy("user_test");
+    expect(policy.planTier).toBe("lite");expect(policy.voiceEligible).toBe(true);
+    expect(policy.chatRemaining).toBe(DEFAULT_ADMIN_SETTINGS.pricing.liteFairUse.dailyChatMessages-2);
+    expect(debitCalls).toBe(0);
+    const statements=mockedDb.execute.mock.calls.map(c=>collectSqlText(c[0]));
+    expect(statements.every(s=>!s.includes("insert into")&&!s.includes("update profiles"))).toBe(true);
+  });
+});

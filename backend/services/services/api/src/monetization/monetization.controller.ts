@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Post,
   Res,
 } from "@nestjs/common";
@@ -24,6 +25,9 @@ const METERED_ACTIONS: readonly AiMeteredAction[] = [
 @Controller("monetization")
 export class MonetizationController {
   constructor(private readonly monetization: MonetizationService) {}
+
+  @Get("access")
+  access(@CurrentUser("id") userId: string) { return this.monetization.getActionPolicy(userId); }
 
   /**
    * Enforce + charge one AI action for the authenticated user, mirroring the

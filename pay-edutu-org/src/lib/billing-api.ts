@@ -11,6 +11,7 @@ export async function billingApiRequest(path: string, session: string, init?: Re
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${session}`,
+      'x-edutu-pay-shell-key': config.payShellApiKey(),
       ...(init?.headers ?? {}),
     },
   });

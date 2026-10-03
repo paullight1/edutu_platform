@@ -1,3 +1,9 @@
+import { BillingPayShellController } from "./billing-pay-shell.controller";
+import { BillingPayShellService } from "./billing-pay-shell.service";
+import {
+  BillingPayShellPersistence,
+  BILLING_PAY_SHELL_DATABASE,
+} from "./billing-pay-shell.persistence";
 import { Module } from "@nestjs/common";
 import { SettingsModule } from "../settings/settings.module";
 import { db } from "../db";
@@ -70,7 +76,7 @@ import {
 
 @Module({
   imports: [SettingsModule],
-  controllers: [BillingController],
+  controllers: [BillingController, BillingPayShellController],
   providers: [
     BillingService,
     BillingReconciliationScheduler,
@@ -176,6 +182,9 @@ import {
       provide: CREDIT_PURCHASE_DATABASE,
       useValue: db,
     },
+    { provide: BILLING_PAY_SHELL_DATABASE, useValue: db },
+    BillingPayShellPersistence,
+    BillingPayShellService,
     BillingRepository,
     BillingCheckoutService,
     BillingPortalService,
@@ -183,7 +192,21 @@ import {
     CachedBillingCheckoutRateLimiter,
     {
       provide: BACHS_CHECKOUT_CONFIG,
-      useFactory: () => loadBachsConfig(),
+      useFactory: () => {
+        const config = loadBachsConfig();
+        return {
+          ...config,
+          // The current Bachs adapter fulfills settled collections only. Keep
+          // this shell sandbox-only until signed refund/chargeback events can
+          // reverse an already fulfilled entitlement or credit grant.
+          hostedCompletionEnabled:
+            config.environment === "sandbox" &&
+            process.env.BILLING_PAY_SHELL_ENABLED === "true" &&
+            config.checkoutEnabled &&
+            config.webhookEnabled &&
+            (process.env.BILLING_PAY_SHELL_API_KEY?.trim().length ?? 0) >= 32,
+        };
+      },
     },
     {
       provide: BACHS_CHECKOUT_PROVIDER,

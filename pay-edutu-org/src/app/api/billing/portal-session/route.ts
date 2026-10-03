@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   let response: Response;
   try {
-    response = await billingApiRequest('/billing/portal-session', session, { method: 'POST' });
+    response = await billingApiRequest('/billing/pay-shell/portal-session', session, { method: 'POST' });
   } catch {
     return NextResponse.json({ error: 'payments_not_ready' }, { status: 503 });
   }

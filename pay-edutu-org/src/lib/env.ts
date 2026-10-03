@@ -36,4 +36,9 @@ export const config = {
   payShellOrigin: () => canonicalApiOrigin(getEnv('PAY_SHELL_ORIGIN')),
   bachsCheckoutEnabled: () => optionalEnv('BACHS_CHECKOUT_ENABLED').toLowerCase() === 'true',
   sessionCookieName: () => 'edutu_pay_billing_session',
+  payShellApiKey: () => {
+    const value = getEnv('BILLING_PAY_SHELL_API_KEY').trim();
+    if (value.length < 32) throw new Error('BILLING_PAY_SHELL_API_KEY must contain at least 32 characters');
+    return value;
+  },
 };

@@ -32,7 +32,11 @@ export function AccountStatus() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await fetch('/api/billing/account', { cache: 'no-store', credentials: 'same-origin' });
+    setItems(null);
+    setMessage(null);
+    let response: Response;
+    try { response = await fetch('/api/billing/account', { cache: 'no-store', credentials: 'same-origin' }); }
+    catch { setMessage('Your billing account is not available right now. Please try again later.'); return; }
     if (response.status === 401) {
       setNeedsSignIn(true);
       return;
@@ -100,7 +104,7 @@ export function AccountStatus() {
       <div className="card center">
         <div className="eyebrow">Account access</div>
         <h1>Sign in from Edutu</h1>
-        <p>Request a one-time account code in Edutu, then enter it here. The code is exchanged by this site over a secure POST request and is never placed in a link.</p>
+        <p>Open account management from Edutu to continue securely. If Edutu supplied a one-time account code, you can enter it here.</p>
         <form onSubmit={exchangeCode}>
           <label htmlFor="one-time-code">One-time code</label>
           <input id="one-time-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required />

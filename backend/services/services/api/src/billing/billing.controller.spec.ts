@@ -53,16 +53,14 @@ describe("BillingController Bachs routes", () => {
     jest.clearAllMocks();
   });
 
-  it("returns only the public Bachs checkout fields for the authenticated raw subject", async () => {
-    checkout.createCheckout.mockResolvedValue({
-      checkoutUrl: "https://checkout.bachs.io/s/session-1",
-      intentId: "intent-1",
-      expiresAt: "2026-08-11T11:00:00.000Z",
-      status: "open",
-      renewalMode: "one_time",
-      productSnapshot: { productKey: "pro_monthly_pass" },
-    });
+  it("rejects learner checkout before provider calls while the hosted completion contract is absent", () => {
+    expect(() => createController().createConsumerCheckout()).toThrow(
+      "Hosted payment completion is not ready yet",
+    );
+    expect(checkout.createCheckout).not.toHaveBeenCalled();
+  });
 
+  it("holds legacy hosted checkout too, before invoking its provider", async () => {
     await expect(
       createController().createBachsCheckout(
         "user_123",
@@ -72,17 +70,8 @@ describe("BillingController Bachs routes", () => {
         "idem-1",
         { productKey: "pro_monthly_pass", returnSurface: "web" },
       ),
-    ).resolves.toEqual({
-      checkoutUrl: "https://checkout.bachs.io/s/session-1",
-      intentId: "intent-1",
-      expiresAt: "2026-08-11T11:00:00.000Z",
-    });
-    expect(checkout.createCheckout).toHaveBeenCalledWith(
-      "user_123",
-      "idem-1",
-      { productKey: "pro_monthly_pass", returnSurface: "web" },
-      { status: "resolved", email: "student@example.com", name: "Student" },
-    );
+    ).rejects.toMatchObject({ status: 503 });
+    expect(checkout.createCheckout).not.toHaveBeenCalled();
   });
 
   it("creates a fresh authenticated Bachs portal session", async () => {

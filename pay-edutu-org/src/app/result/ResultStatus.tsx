@@ -52,6 +52,7 @@ export function ResultStatus() {
       <div className="btn-row">
         <button className="btn" type="button" onClick={() => void refresh()}>Check status</button>
         <a className="btn secondary" href="/account">Manage account</a>
+        <a className="btn secondary" href="https://app.edutu.org/app/wallet">Return to Edutu wallet</a>
       </div>
       <p className="muted" style={{ marginBottom: 0 }}>Need help? Contact <strong>support@edutu.org</strong>.</p>
     </div>

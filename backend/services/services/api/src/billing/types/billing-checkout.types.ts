@@ -46,6 +46,8 @@ export const BACHS_PORTAL_ORIGIN = "https://portal.bachs.io";
 
 export interface CheckoutServiceConfig {
   checkoutEnabled: boolean;
+  /** Explicit release gate after hosted protocol, webhook and server secret configuration. */
+  hostedCompletionEnabled?: boolean;
   environment: BillingEnvironment;
   /** Maps Edutu catalog keys to the Bachs product in this environment. */
   productMappings: Readonly<Record<string, string>>;
@@ -165,6 +167,7 @@ export interface BillingCheckoutIntentRecord {
   currency: string;
   environment?: BillingEnvironment;
   productSnapshot?: Partial<BillingProductSnapshot> | null;
+  accessUntil?: string | null;
 }
 
 export interface CreateCheckoutRequest {
@@ -186,6 +189,13 @@ export interface BillingCheckoutRepositoryPort {
     productKey: string,
     environment: BillingEnvironment,
   ): Promise<BillingCheckoutProduct | null>;
+  listEnabledUserProducts?(
+    environment: BillingEnvironment,
+  ): Promise<BillingCheckoutProduct[]>;
+  getOwnedIntent?(
+    userId: string,
+    intentId: string,
+  ): Promise<BillingCheckoutIntentRecord | null>;
   listEnabledApiCreditProducts?(
     environment: BillingEnvironment,
   ): Promise<BillingCheckoutProduct[]>;

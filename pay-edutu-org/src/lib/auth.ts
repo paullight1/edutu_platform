@@ -24,8 +24,16 @@ export function bachsPortalUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'portal.bachs.io' ? url.toString() : null;
+    return url.origin === 'https://portal.bachs.io' && !url.username && !url.password ? url.toString() : null;
   } catch {
     return null;
   }
+}
+
+export function bachsCheckoutUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    return url.origin === 'https://checkout.bachs.io' && !url.username && !url.password ? url.toString() : null;
+  } catch { return null; }
 }

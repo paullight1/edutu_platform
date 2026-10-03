@@ -1,3 +1,4 @@
+import { WebPaidToolsGuard } from "./web-paid-tools.guard";
 import { Global, Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { SettingsModule } from "../settings/settings.module";
@@ -13,8 +14,11 @@ import { MonetizationService } from "./monetization.service";
   controllers: [MonetizationController],
   providers: [
     MonetizationService,
+    WebPaidToolsGuard,
     { provide: APP_INTERCEPTOR, useClass: AiMeteringInterceptor },
   ],
-  exports: [MonetizationService],
+  // Consumers of WebPaidToolsGuard resolve its SettingsService dependency
+  // through their module scope, so re-export the imported settings module.
+  exports: [MonetizationService, WebPaidToolsGuard, SettingsModule],
 })
 export class MonetizationModule {}

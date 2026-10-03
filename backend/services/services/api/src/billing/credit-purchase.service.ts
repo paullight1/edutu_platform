@@ -44,6 +44,14 @@ export type CreditPurchaseContext = {
   payloadHash?: string;
   intentId?: string;
   allowLegacyPaystackProduct?: boolean;
+  /** Passed only by signed Bachs ingress after matching the owned DB snapshot. */
+  verifiedConsumerProduct?: {
+    productKey: string;
+    creditQuantity: number;
+    amountMinor: number;
+    currency: string;
+    environment: string;
+  };
   legacyAudit?: {
     providerReference: string;
     userId: string;
@@ -157,7 +165,7 @@ export class CreditPurchaseService {
         user_id, amount, type, description, related_id, related_type, metadata
       ) values (
         ${input.userId}, ${input.creditQuantity}, 'purchase',
-        ${`API credit purchase: +${input.creditQuantity}`},
+        ${`${Object.prototype.hasOwnProperty.call(API_CREDIT_PRODUCT_QUANTITIES, input.productKey) ? "API credit" : "Credit"} purchase: +${input.creditQuantity}`},
         ${input.providerReference}, 'api_credit_purchase',
         ${JSON.stringify({
           provider: input.provider,
@@ -217,10 +225,17 @@ export class CreditPurchaseService {
       throw new Error("credit purchase ledger insert was inconclusive");
     }
 
+    const existingMetadata = this.recordValue(existingRow.metadata);
     if (
       String(existingRow.user_id) !== input.userId ||
       Number(existingRow.amount) !== input.creditQuantity ||
-      String(existingRow.related_type) !== "api_credit_purchase"
+      String(existingRow.related_type) !== "api_credit_purchase" ||
+      existingMetadata?.provider !== input.provider ||
+      existingMetadata?.environment !== input.environment ||
+      existingMetadata?.productKey !== input.productKey ||
+      Number(existingMetadata?.amountMinor) !== input.amountMinor ||
+      String(existingMetadata?.currency).toUpperCase() !== input.currency.toUpperCase() ||
+      (context.intentId ?? null) !== (existingMetadata?.intentId ?? null)
     ) {
       await this.markReview(
         transaction,
@@ -314,15 +329,26 @@ export class CreditPurchaseService {
       input.creditQuantity <= 0
     )
       return "invalid_credit_quantity";
-    if (
-      input.provider === "bachs" &&
-      (!Object.prototype.hasOwnProperty.call(
+    const apiQuantity =
+      API_CREDIT_PRODUCT_QUANTITIES[
+        input.productKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES
+      ];
+    const consumer = context.verifiedConsumerProduct;
+    const verifiedConsumer =
+      consumer &&
+      !Object.prototype.hasOwnProperty.call(
         API_CREDIT_PRODUCT_QUANTITIES,
         input.productKey,
-      ) ||
-        API_CREDIT_PRODUCT_QUANTITIES[
-          input.productKey as keyof typeof API_CREDIT_PRODUCT_QUANTITIES
-        ] !== input.creditQuantity)
+      ) &&
+      consumer.productKey === input.productKey &&
+      consumer.creditQuantity === input.creditQuantity &&
+      consumer.amountMinor === input.amountMinor &&
+      consumer.currency === input.currency &&
+      consumer.environment === input.environment;
+    if (
+      input.provider === "bachs" &&
+      apiQuantity !== input.creditQuantity &&
+      !verifiedConsumer
     ) {
       return "api_product_quantity_mismatch";
     }
@@ -400,6 +426,11 @@ export class CreditPurchaseService {
     return row && typeof row === "object" && !Array.isArray(row)
       ? (row as Row)
       : null;
+  }
+
+  private recordValue(value: unknown): Row | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    return value as Row;
   }
 }
 

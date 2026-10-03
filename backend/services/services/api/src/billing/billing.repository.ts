@@ -26,6 +26,8 @@ export type CheckoutIntent = {
   renewalMode: BillingRenewalMode;
   expectedAmountMinor: number;
   currency: string;
+  accessUntil?: string | null;
+  environment?: BillingEnvironment;
 };
 
 export type PublicCheckoutStatus =
@@ -101,8 +103,6 @@ export class BillingRepository {
   static toPublicStatus(status: string): PublicCheckoutStatus {
     switch (status.toLowerCase()) {
       case "fulfilled":
-      case "active":
-      case "paid":
         return "active";
       case "cancelled":
       case "canceled":
@@ -172,6 +172,38 @@ export class BillingRepository {
     assertBillingCheckoutProductContract(product);
     assertApiCreditProductContract(product);
     return product;
+  }
+
+  async listEnabledUserProducts(
+    environment: BillingEnvironment,
+  ): Promise<BillingProduct[]> {
+    this.assertEnvironment(environment);
+    const result = await db.execute(sql`
+      select product.product_key from billing_products product
+      inner join billing_product_provider_mappings mapping
+        on mapping.product_key = product.product_key
+       and mapping.provider = 'bachs' and mapping.environment = ${environment}
+      where product.enabled = true
+        and product.product_key not in ('api_credits_100', 'api_credits_250', 'api_credits_700')
+      order by product.expected_amount_minor asc limit 100
+    `);
+    const products = await Promise.all(
+      ((result as RowResult<Record<string, unknown>>).rows ?? []).map(
+        async (row) => {
+          try {
+            return await this.findEnabledProduct(
+              String(row.product_key),
+              environment,
+            );
+          } catch {
+            return null;
+          }
+        },
+      ),
+    );
+    return products.filter(
+      (product): product is BillingProduct => product !== null,
+    );
   }
 
   async hasActiveApiConsumer(userId: string): Promise<boolean> {
@@ -263,7 +295,9 @@ export class BillingRepository {
         product.product_key,
         jsonb_build_object(
           'productKey', product.product_key,
-          'fulfillmentKind', product.fulfillment_kind,
+          'fulfillmentKind', case when product.fulfillment_kind = 'credit_pack' then 'credits'
+                                  when product.fulfillment_kind in ('one_time_pass', 'subscription') then 'pro'
+                                  else product.fulfillment_kind end,
           'renewalMode', product.renewal_mode,
           'providerProductId', mapping.provider_product_id,
           'amountMinor', product.expected_amount_minor,
@@ -291,7 +325,7 @@ export class BillingRepository {
         and product.expected_amount_minor = ${input.product.expectedAmountMinor}
         and product.currency = upper(${input.product.currency})::char(3)
         and product.renewal_mode = ${input.product.renewalMode}
-        and product.credit_quantity = ${input.product.creditQuantity}
+        and product.credit_quantity is not distinct from ${input.product.creditQuantity}
         and extract(epoch from product.entitlement_duration) / 86400 is not distinct from ${input.product.validityDays}
         and product.catalog_version = ${input.product.catalogVersion}
       on conflict (provider, environment, user_id, idempotency_key)
@@ -357,10 +391,21 @@ export class BillingRepository {
     intentId: string,
   ): Promise<CheckoutIntent | null> {
     const result = await db.execute(sql`
-      select id, user_id, product_key, provider_checkout_id,
+      select id, user_id, environment, product_key, provider_checkout_id,
              provider_reference, status, expires_at,
              product_snapshot->>'renewalMode' as renewal_mode,
-             expected_amount_minor, currency
+             expected_amount_minor, currency,
+             (select max(grant_row.valid_until)
+                from billing_payment_ledger ledger
+                join billing_entitlement_grants grant_row
+                  on grant_row.provider = ledger.provider
+                 and grant_row.environment = ledger.environment
+                 and grant_row.source_resource_id = ledger.provider_resource_id
+                 and grant_row.user_id = ledger.user_id
+               where ledger.checkout_intent_id = billing_checkout_intents.id
+                 and ledger.user_id = ${userId}
+                 and grant_row.status = 'active' and grant_row.revoked_at is null
+                 and billing_checkout_intents.status = 'fulfilled') as access_until
       from billing_checkout_intents
       where id = ${intentId}::uuid and user_id = ${userId}
       limit 1
@@ -389,6 +434,9 @@ export class BillingRepository {
     return {
       id: String(row.id),
       userId: String(row.user_id),
+      ...(row.environment
+        ? { environment: String(row.environment) as BillingEnvironment }
+        : {}),
       productKey: String(row.product_key),
       providerCheckoutId: row.provider_checkout_id
         ? String(row.provider_checkout_id)
@@ -403,6 +451,13 @@ export class BillingRepository {
       renewalMode: String(row.renewal_mode) as BillingRenewalMode,
       expectedAmountMinor: Number(row.expected_amount_minor),
       currency: String(row.currency),
+      ...(row.access_until !== undefined
+        ? {
+            accessUntil: row.access_until
+              ? new Date(row.access_until as string | Date).toISOString()
+              : null,
+          }
+        : {}),
     };
   }
 }

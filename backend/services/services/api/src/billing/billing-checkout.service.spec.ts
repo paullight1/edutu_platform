@@ -531,3 +531,47 @@ describe("BillingCheckoutService", () => {
     expect(fixture.provider.calls).toHaveLength(0);
   });
 });
+
+describe("learner wallet contracts", () => {
+  it("keeps API credit products out of the learner catalog", async () => {
+    const { service, repository } = createFixture();
+    Object.assign(repository, {
+      listEnabledUserProducts: async () => [product, apiCreditProduct],
+    });
+    const catalog = await service.getUserCatalog();
+    expect(catalog.checkoutEnabled).toBe(false);
+    expect(catalog.products.map((p) => p.productKey)).toEqual([
+      product.productKey,
+    ]);
+    expect(catalog.products[0]).toMatchObject({
+      amountMinor: product.expectedAmountMinor,
+      currency: product.currency,
+      renewalMode: product.renewalMode,
+    });
+  });
+  it("does not report paid-but-unfulfilled checkout as completed", async () => {
+    const { service, repository } = createFixture();
+    const id = "f1458648-4ee2-4f45-bf0a-cc0a6c82dc9d";
+    const getOwnedIntent = jest.fn(async () => ({
+      id,
+      status: "paid",
+      productKey: product.productKey,
+    }));
+    Object.assign(repository, { getOwnedIntent });
+    expect(await service.getOwnedCheckoutStatus("owner", id)).toMatchObject({
+      fulfilled: false,
+      status: "paid",
+    });
+    expect(getOwnedIntent).toHaveBeenCalledWith("owner", id);
+  });
+  it("returns not found for a checkout not owned by the caller", async () => {
+    const { service, repository } = createFixture();
+    Object.assign(repository, { getOwnedIntent: async () => null });
+    await expect(
+      service.getOwnedCheckoutStatus(
+        "other",
+        "f1458648-4ee2-4f45-bf0a-cc0a6c82dc9d",
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -10,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { createHash } from "crypto";
 import { sql } from "drizzle-orm";
+import { isSubscriptionProductKey } from "./plan-tiers";
 import { CacheService } from "../common/cache/cache.service";
 import { db } from "../db";
 import {
@@ -143,6 +145,71 @@ export class BillingCheckoutService {
     private readonly config: CheckoutServiceConfig,
   ) {}
 
+  async getUserCatalog() {
+    const products =
+      (await this.repository.listEnabledUserProducts?.(
+        this.config.environment,
+      )) ?? [];
+    return {
+      // The controller additionally probes persistent protocol storage before
+      // advertising checkout. Provider configuration alone cannot release it.
+      checkoutEnabled: Boolean(
+        this.config.checkoutEnabled && this.config.hostedCompletionEnabled,
+      ),
+      checkoutUnavailableReason: this.config.hostedCompletionEnabled
+        ? null
+        : "Hosted payment completion is not ready yet",
+      products: products
+        .filter(
+          (product) =>
+            !isApiCreditProductKey(product.productKey) &&
+            this.isHostedFulfillableProduct(product),
+        )
+        .filter(
+          (product) =>
+            this.config.productMappings?.[product.productKey] ===
+            product.providerProductId,
+        )
+        .map((product) => ({
+          productKey: product.productKey,
+          amountMinor: product.expectedAmountMinor,
+          currency: product.currency,
+          creditQuantity: product.creditQuantity,
+          renewalMode: product.renewalMode,
+          cadence: product.cadence,
+          validityDays: product.validityDays,
+          fulfillmentKind: product.fulfillmentKind,
+        })),
+    };
+  }
+
+  async getOwnedCheckoutStatus(userId: string, intentId: string) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        intentId,
+      )
+    )
+      throw new BadRequestException("Invalid checkout id");
+    const intent = await this.repository.getOwnedIntent?.(userId, intentId);
+    if (
+      !intent ||
+      (intent.environment && intent.environment !== this.config.environment)
+    )
+      throw new NotFoundException("Checkout not found");
+    // Payment acceptance is not fulfillment. Only the canonical webhook/reconciler
+    // can write fulfilled; redirects and query strings have no authority here.
+    return {
+      intentId: intent.id,
+      productKey: intent.productKey,
+      status: intent.status,
+      fulfilled: intent.status === "fulfilled",
+      renewalMode: intent.renewalMode,
+      accessUntil:
+        intent.status === "fulfilled" ? (intent.accessUntil ?? null) : null,
+      expiresAt: intent.expiresAt,
+    };
+  }
+
   async getPublicApiCreditCatalog(userId: string): Promise<
     Array<{
       productKey: string;
@@ -267,7 +334,12 @@ export class BillingCheckoutService {
         successUrl: BACHS_CHECKOUT_SUCCESS_URL,
         cancelUrl: BACHS_CHECKOUT_CANCEL_URL,
         reference: intent.id,
-        metadata: { edutu_intent_id: intent.id },
+        metadata: {
+          edutu_intent_id: intent.id,
+          ...(this.config.hostedCompletionEnabled
+            ? { edutu_user_id: rawAuthSubject }
+            : {}),
+        },
         idempotencyKey: this.providerCheckoutIdempotencyKey(intent.id),
       });
       this.assertHostedUrl(session.checkoutUrl, BACHS_CHECKOUT_ORIGIN);
@@ -303,6 +375,14 @@ export class BillingCheckoutService {
     intent: BillingCheckoutIntentRecord,
     product: BillingCheckoutProduct,
   ): Promise<BillingCheckoutResult> {
+    if (
+      intent.expiresAt &&
+      new Date(intent.expiresAt).getTime() <= this.clock.now().getTime()
+    ) {
+      throw new ConflictException(
+        "The existing checkout has expired. Start a new checkout.",
+      );
+    }
     if (intent.providerCheckoutUrl && intent.expiresAt) {
       this.assertHostedUrl(intent.providerCheckoutUrl, BACHS_CHECKOUT_ORIGIN);
       return this.result(
@@ -410,6 +490,15 @@ export class BillingCheckoutService {
       );
     }
 
+    if (
+      this.config.hostedCompletionEnabled &&
+      !this.isHostedFulfillableProduct(product)
+    ) {
+      throw new BadRequestException(
+        "This product does not support verified hosted fulfillment yet.",
+      );
+    }
+
     if (isApiCreditProductKey(product.productKey)) {
       try {
         assertApiCreditProductContract(product);
@@ -432,6 +521,23 @@ export class BillingCheckoutService {
         );
       }
     }
+  }
+
+  private isHostedFulfillableProduct(product: BillingCheckoutProduct): boolean {
+    if (product.renewalMode !== "one_time") return false;
+    if (product.fulfillmentKind === "credits") {
+      return (
+        Number.isSafeInteger(product.creditQuantity) &&
+        (product.creditQuantity ?? 0) > 0 &&
+        product.validityDays === null
+      );
+    }
+    return (
+      product.fulfillmentKind === "pro" &&
+      isSubscriptionProductKey(product.productKey) &&
+      Number.isInteger(product.validityDays) &&
+      (product.validityDays ?? 0) > 0
+    );
   }
 
   private assertIntentOwner(
@@ -500,7 +606,8 @@ export class BillingCheckoutService {
 
   private assertHostedUrl(value: string, expectedOrigin: string): void {
     try {
-      if (new URL(value).origin !== expectedOrigin)
+      const url = new URL(value);
+      if (url.origin !== expectedOrigin || url.username || url.password)
         throw new Error("invalid origin");
     } catch {
       throw new Error("Bachs returned an untrusted hosted URL.");

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Headers,
+  Header,
   HttpCode,
   HttpStatus,
   Inject,
@@ -20,6 +21,8 @@ import { randomUUID } from "crypto";
 import { Public, CurrentUser } from "../auth";
 import { AdminGuard } from "../auth/admin.guard";
 import { BillingCheckoutService } from "./billing-checkout.service";
+import { BillingPayShellService } from "./billing-pay-shell.service";
+import { isApiCreditProductKey } from "./types/billing-checkout.types";
 import { BillingPortalService } from "./billing-portal.service";
 import { BillingService } from "./billing.service";
 import { BachsWebhookService } from "./bachs-webhook.service";
@@ -42,6 +45,7 @@ export class BillingController {
     @Optional()
     @Inject(REVENUECAT_WEBHOOK_SERVICES)
     private readonly revenueCatWebhookServices?: RevenueCatWebhookServices,
+    @Optional() private readonly payShell?: BillingPayShellService,
   ) {}
 
   @Get("status")
@@ -49,12 +53,68 @@ export class BillingController {
     return this.billingService.getStatus(userId);
   }
 
+  @Get("user-catalog")
+  async getUserCatalog() {
+    const catalog = await this.billingCheckoutService.getUserCatalog();
+    const checkoutEnabled = (await this.payShell?.isReady()) ?? false;
+    return {
+      ...catalog,
+      checkoutEnabled,
+      checkoutUnavailableReason: checkoutEnabled
+        ? null
+        : "Hosted payment completion is not ready yet",
+    };
+  }
+
+  @Get("intents/:id")
+  getCheckoutStatus(
+    @CurrentUser("authId") userId: string,
+    @Param("id") id: string,
+  ) {
+    return this.billingCheckoutService.getOwnedCheckoutStatus(userId, id);
+  }
+
   @Get("catalog")
   getCatalog(@CurrentUser("authId") userId: string) {
     return this.billingCheckoutService.getPublicApiCreditCatalog(userId);
   }
 
+  @Post("consumer-checkout")
+  @Header("Cache-Control", "no-store")
+  async createConsumerCheckout(
+    @CurrentUser("authId") rawAuthSubject: string,
+    @CurrentUser("email") email: string | undefined,
+    @CurrentUser("firstName") firstName: string | undefined,
+    @CurrentUser("lastName") lastName: string | undefined,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() dto: CreateBachsCheckoutDto,
+  ) {
+    await this.assertHostedCheckoutReady();
+    if (isApiCreditProductKey(dto?.productKey)) {
+      throw new BadRequestException(
+        "API credit products require a developer checkout",
+      );
+    }
+    return this.createBachsCheckout(
+      rawAuthSubject,
+      email,
+      firstName,
+      lastName,
+      idempotencyKey,
+      dto,
+    );
+  }
+
+  private async assertHostedCheckoutReady(): Promise<void> {
+    if (!this.payShell)
+      throw new ServiceUnavailableException(
+        "Hosted payment completion is not ready yet",
+      );
+    await this.payShell.assertReady();
+  }
+
   @Post("checkout")
+  @Header("Cache-Control", "no-store")
   async createBachsCheckout(
     @CurrentUser("authId") rawAuthSubject: string,
     @CurrentUser("email") email: string | undefined,
@@ -63,6 +123,8 @@ export class BillingController {
     @Headers("idempotency-key") idempotencyKey: string | undefined,
     @Body() dto: CreateBachsCheckoutDto,
   ) {
+    await this.assertHostedCheckoutReady();
+
     const result = await this.billingCheckoutService.createCheckout(
       rawAuthSubject,
       idempotencyKey ?? "",
@@ -81,10 +143,18 @@ export class BillingController {
           }
         : undefined,
     );
-    return {
+    const handoff = await this.payShell!.issueHandoff(rawAuthSubject, {
+      destination: "checkout",
+      intentId: result.intentId,
       checkoutUrl: result.checkoutUrl,
+    });
+    return {
+      checkoutUrl: handoff.url,
       intentId: result.intentId,
       expiresAt: result.expiresAt,
+      handoffExpiresAt: handoff.expiresAt,
+      renewalMode: result.renewalMode,
+      validityDays: result.productSnapshot.validityDays,
     };
   }
 
