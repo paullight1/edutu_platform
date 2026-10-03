@@ -164,7 +164,7 @@ describe("AppWorkspaceShell", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the workspace nav and signs out from the current route", () => {
+  it("keeps notifications above the account menu and exposes profile actions there", () => {
     render(
       <MemoryRouter initialEntries={["/app/settings"]}>
         <AppWorkspaceShell>
@@ -175,50 +175,99 @@ describe("AppWorkspaceShell", () => {
 
     expect(screen.getByText("Nia Okafor")).toBeInTheDocument();
     expect(screen.getByText("nia@example.com")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      screen.getByRole("link", { name: "Edutu dashboard" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Primary workspace pages" }),
     ).toBeInTheDocument();
 
+    const sidebar = screen.getByRole("complementary", {
+      name: "Workspace navigation",
+    });
+    const notifications = within(sidebar).getByRole("link", {
+      name: "Notifications",
+    });
+    const accountButton = within(sidebar).getByRole("button", {
+      name: "Account options for Nia Okafor",
+    });
+    expect(
+      notifications.compareDocumentPosition(accountButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(accountButton);
+    const accountMenu = screen.getByRole("menu", { name: "Account options" });
+    expect(
+      within(accountMenu).getByRole("menuitem", { name: "Profile" }),
+    ).toHaveAttribute("href", "/app/profile");
+    expect(
+      within(accountMenu).getByRole("menuitem", { name: "Settings" }),
+    ).toHaveAttribute("aria-current", "page");
     fireEvent.click(
-      screen.getByRole("button", { name: /open more workspace pages/i }),
+      within(accountMenu).getByRole("menuitem", { name: "Log out" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /log out/i }));
     expect(workspaceMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("uses color alone to emphasize active mobile navigation items", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
+  it("uses compact visible labels while preserving full accessible names", () => {
+    const primary = render(
+      <MemoryRouter initialEntries={["/app/coach"]}>
         <AppWorkspaceShell>
-          <div>Dashboard content</div>
+          <div>Coach content</div>
         </AppWorkspaceShell>
       </MemoryRouter>,
     );
-
-    const mobileNavigation = screen.getByRole("navigation", {
+    const nav = screen.getByRole("navigation", {
       name: "Mobile app navigation",
     });
-    const homeLink = within(mobileNavigation).getByRole("link", {
-      name: "Home",
-    });
-    const moreButton = within(mobileNavigation).getByRole("button", {
-      name: "Open more workspace pages",
-    });
+    const links = within(nav).getAllByRole("link");
+    const coach = within(nav).getByRole("link", { name: "AI Coach" });
+    expect(coach).toHaveAttribute("href", "/app/coach");
+    expect(coach).toHaveAttribute("aria-current", "page");
+    expect(coach.textContent).toBe("Coach");
+    const plan = within(nav).queryByRole("link", { name: "My Plan" });
+    if (plan) expect(plan.textContent).toBe("Plan");
+    expect(links.some((link) => link.textContent?.trim() === "Home")).toBe(
+      true,
+    );
+    expect(links.some((link) => link.textContent?.trim() === "Explore")).toBe(
+      true,
+    );
+    primary.unmount();
 
-    expect(homeLink).toHaveClass("text-brand-600");
+    render(
+      <MemoryRouter initialEntries={["/app/cv"]}>
+        <AppWorkspaceShell>
+          <div>CV content</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
     expect(
-      homeLink.querySelector(":scope > span[aria-hidden='true']"),
-    ).not.toBeInTheDocument();
+      screen.getByRole("navigation", { name: "Mobile app navigation" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("banner")).getByText("CV & AI tools"),
+    ).toBeInTheDocument();
+  });
 
-    fireEvent.click(moreButton);
-    expect(moreButton).toHaveClass("text-brand-600");
+  it("opens the More sheet and returns keyboard focus when dismissed", () => {
+    render(
+      <MemoryRouter initialEntries={["/app/goals"]}>
+        <AppWorkspaceShell>
+          <div>Goals content</div>
+        </AppWorkspaceShell>
+      </MemoryRouter>,
+    );
+    const trigger = screen.getByRole("button", { name: "More" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "More" });
     expect(
-      moreButton.querySelector(":scope > span[aria-hidden='true']"),
-    ).not.toBeInTheDocument();
+      within(dialog).getByRole("button", { name: "Close menu" }),
+    ).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("keeps the More menu focused on destinations outside the primary tabs", () => {
@@ -231,16 +280,30 @@ describe("AppWorkspaceShell", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /open more workspace pages/i }),
+      screen.getByRole("button", { name: "More" }),
     );
-    const menu = screen.getByRole("dialog", { name: "Menu" });
-    expect(within(menu).getByRole("link", { name: "Deadlines" })).toBeInTheDocument();
-    expect(within(menu).getByRole("link", { name: "Saved" })).toBeInTheDocument();
-    expect(within(menu).getByRole("link", { name: "Applications" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("link", { name: "Opportunities" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("link", { name: "Community" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("link", { name: "My Plan" })).not.toBeInTheDocument();
+    const menu = screen.getByRole("dialog", { name: "More" });
+    expect(
+      within(menu).getByRole("link", { name: "Deadlines" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("link", { name: "Saved" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("link", { name: "Applications" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("link", { name: "Home" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("link", { name: "Opportunities" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("link", { name: "Community" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("link", { name: "My Plan" }),
+    ).not.toBeInTheDocument();
   });
 
   it("removes the universal mobile chrome inside the community workspace", () => {

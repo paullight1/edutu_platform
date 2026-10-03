@@ -1,0 +1,27 @@
+.workspace-nav-glass {
+  --glass-paper: rgb(var(--surface-layer));
+  --glass-ink: rgb(var(--text-primary));
+  --glass-frost-bg: rgb(var(--surface-layer) / 0.58);
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.18);
+}
+
+.dark .workspace-nav-glass {
+  --glass-frost-bg: rgb(var(--surface-layer) / 0.68);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.4);
+}
+
+.workspace-nav-glass.workspace-nav-glass--action {
+  --glass-paper: rgb(var(--color-brand-700));
+  --glass-ink: #fff;
+  --glass-frost-bg: rgb(var(--color-brand-700) / 0.72);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .workspace-nav-glass {
+    --glass-frost-bg: rgb(var(--surface-layer));
+  }
+
+  .workspace-nav-glass.workspace-nav-glass--action {
+    --glass-frost-bg: rgb(var(--color-brand-700));
+  }
+}

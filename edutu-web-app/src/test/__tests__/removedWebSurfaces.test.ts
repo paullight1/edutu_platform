@@ -30,8 +30,6 @@ const retiredModules = [
 ] as const;
 
 const removedRoutes = [
-  "/goals",
-  "/app/goals",
   "/roadmaps",
   "/roadmaps/:id",
   "/app/roadmaps",
@@ -42,8 +40,6 @@ const removedRoutes = [
   "/app/marketplace",
   "/app/marketplace/new",
   "/app/marketplace/:id",
-  "/wallet",
-  "/app/wallet",
 ] as const;
 
 describe("retired web product surfaces", () => {

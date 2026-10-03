@@ -1,3 +1,8 @@
+import { PaidToolGate } from "./features/feature-access/PaidToolGate";
+import {
+  isWorkspaceFeatureEnabled,
+  type WorkspaceFeature,
+} from "./features/workspace/release";
 import {
   type ReactNode,
   Suspense,
@@ -101,6 +106,73 @@ const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
+
+const CoachPage = lazy(() => import("./features/ai-coach/CoachPage"));
+const CoachSheet = lazy(() => import("./features/ai-coach/CoachSheet"));
+const CvPage = lazy(() => import("./features/cv/CvPage"));
+const DocumentsPage = lazy(() => import("./features/documents/DocumentsPage"));
+const SavedSearchesPage = lazy(() => import("./features/saved-searches/SavedSearchesPage"));
+const GoalsPage = lazy(() => import("./features/goals/GoalsPage"));
+const CopilotPage = lazy(() => import("./features/copilot/CopilotPage"));
+const WalletPage = lazy(() => import("./features/wallet/WalletPage"));
+
+function CopilotEntryRedirect() {
+  const location = useLocation();
+  const opportunityId = new URLSearchParams(location.search).get("opportunityId");
+  return <Navigate replace to={opportunityId ? `/app/copilot/${encodeURIComponent(opportunityId)}` : "/app/my-plan"} state={location.state}/>;
+}
+
+function LegacyWorkspaceRedirect() {
+  const {pathname,search,hash}=useLocation();
+  return <Navigate to={`/app${pathname}${search}${hash}`} replace />;
+}
+
+const workspaceAccessPolicies: Partial<
+  Record<
+    WorkspaceFeature,
+    { title: string; moduleKey?: string; paidByDefault: boolean }
+  >
+> = {
+  coach: { title: "AI Coach", moduleKey: "chat", paidByDefault: false },
+  cv: { title: "CV Builder", moduleKey: "cv", paidByDefault: false },
+  copilot: {
+    title: "Application Copilot",
+    moduleKey: "copilot",
+    paidByDefault: true,
+  },
+  documents: { title: "Document analysis", paidByDefault: true },
+  goals: {
+    title: "Goals and preparation plans",
+    moduleKey: "roadmaps",
+    paidByDefault: true,
+  },
+  "saved-searches": {
+    title: "Saved searches and alerts",
+    moduleKey: "savedSearches",
+    paidByDefault: true,
+  },
+};
+
+// Remount private feature state when the authenticated account changes.
+function FeatureWorkspaceRoute({ children }: { children: ReactNode }) {
+  const {pathname} = useLocation();
+  const feature = pathname.split("/")[2] as WorkspaceFeature;
+  const enabled = isWorkspaceFeatureEnabled(feature);
+  const policy = workspaceAccessPolicies[feature];
+  const content = policy ? (
+    <PaidToolGate
+      feature={policy.title}
+      moduleKey={policy.moduleKey}
+      paidByDefault={policy.paidByDefault}
+    >
+      {children}
+    </PaidToolGate>
+  ) : (
+    children
+  );
+  const {userId} = useClerkAuth();
+  return <AppWorkspaceRoute key={`${userId || "signed-out"}:${pathname}`}>{enabled ? content : <div className="p-8">This feature is currently unavailable.</div>}</AppWorkspaceRoute>;
+}
 
 const ADMIN_PORTAL_URL =
   import.meta.env.VITE_ADMIN_URL || "https://admin.edutu.org";
@@ -469,6 +541,12 @@ function AppWorkspaceRoute({ children }: { children: ReactNode }) {
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const coachOpen = location.pathname === "/app/coach";
+  const savedBackground = location.state?.coachBackground;
+  const coachBackground = savedBackground && savedBackground.pathname !== "/app/coach"
+    ? savedBackground
+    : { ...location, pathname: "/dashboard", search: "", hash: "", state: null, key: "coach-home" };
   const { isSignedIn } = useClerkAuth();
   const { signOut } = useAppAuth();
 
@@ -534,7 +612,7 @@ function App() {
       <GoogleOneTapGate />
       {isSignedIn ? <DeadlineReminders /> : null}
       <Suspense fallback={<PageSuspense />}>
-        <Routes>
+        <Routes location={coachOpen ? coachBackground : location}>
           <Route
             path="/"
             element={<LandingPageV3 onGetStarted={handleGetStarted} />}
@@ -674,22 +752,22 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* AI Coach removed — send legacy coach/chat deep links to the dashboard. */}
-          <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
-          <Route
-            path="/app/coach"
-            element={<Navigate to="/dashboard" replace />}
-          />
-          <Route path="/chat" element={<Navigate to="/dashboard" replace />} />
-          <Route
-            path="/app/chat"
-            element={<Navigate to="/dashboard" replace />}
-          />
-          <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
-          <Route
-            path="/app/cv"
-            element={<Navigate to="/dashboard" replace />}
-          />
+          {["coach", "cv", "documents", "saved-searches", "goals", "copilot", "wallet"].map(path => <Route key={path} path={`/${path}`} element={<LegacyWorkspaceRedirect />} />)}
+          <Route path="/chat" element={<Navigate to="/app/coach" replace />} />
+          <Route path="/app/chat" element={<Navigate to="/app/coach" replace />} />
+          <Route path="/goals/:id" element={<LegacyWorkspaceRedirect />} />
+          <Route path="/copilot/:id" element={<LegacyWorkspaceRedirect />} />
+          <Route path="/app/coach" element={<FeatureWorkspaceRoute><CoachPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/cv" element={<FeatureWorkspaceRoute><CvPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/ai-tools" element={<Navigate to="/app/cv?tools=1" replace />} />
+          <Route path="/app/documents" element={<FeatureWorkspaceRoute><DocumentsPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/saved-searches" element={<FeatureWorkspaceRoute><SavedSearchesPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/goals" element={<FeatureWorkspaceRoute><GoalsPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/goals/:id" element={<FeatureWorkspaceRoute><GoalsPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/copilot" element={<CopilotEntryRedirect />} />
+          <Route path="/app/copilot/:id" element={<FeatureWorkspaceRoute><CopilotPage /></FeatureWorkspaceRoute>} />
+          <Route path="/app/wallet" element={<FeatureWorkspaceRoute><WalletPage /></FeatureWorkspaceRoute>} />
+          <Route path="/opportunities/:id" element={<OpportunityDetailFetcher onBack={() => navigate("/app/opportunities")} />} />
           <Route
             path="/templates"
             element={<Navigate to="/dashboard" replace />}
@@ -712,6 +790,14 @@ function App() {
           />
           <Route
             path="/app/my-plan"
+            element={
+              <AppWorkspaceRoute>
+                <MyPlanPage />
+              </AppWorkspaceRoute>
+            }
+          />
+          <Route
+            path="/app/my-plan/stage/:stage"
             element={
               <AppWorkspaceRoute>
                 <MyPlanPage />
@@ -867,6 +953,7 @@ function App() {
           <Route path="/admin/*" element={<AdminPortalGate />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        {coachOpen ? <ProtectedRoute><CoachSheet returnTo={`${coachBackground.pathname}${coachBackground.search}${coachBackground.hash}`} /></ProtectedRoute> : null}
       </Suspense>
       <InstallAppPrompt />
       <CookieConsent />
