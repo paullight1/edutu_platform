@@ -5,6 +5,8 @@ import {
   Get,
   Param,
   Post,
+  Patch,
+  UseGuards,
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
@@ -12,6 +14,8 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AiMetered } from "../monetization/ai-metered.decorator";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
+import { CvEditorService, type EditorInput } from "./cv-editor.service";
 import { CvService } from "./cv.service";
 import type {
   GenerateCVDraftDto,
@@ -24,9 +28,43 @@ import type { ExportUploadFile } from "./linkedin-import.service";
 const createMemoryStorage =
   memoryStorage as unknown as () => import("multer").StorageEngine;
 
-@Controller("cv")
+@Controller(["cv", "web-tools/cv"])
+@UseGuards(WebPaidToolsGuard)
 export class CvController {
-  constructor(private readonly cvService: CvService) {}
+  constructor(
+    private readonly cvService: CvService,
+    private readonly editor: CvEditorService,
+  ) {}
+
+  @Get("editor")
+  listEditor(@CurrentUser("authId") authId: string) {
+    return this.editor.list(authId);
+  }
+  @Post("editor")
+  createEditor(
+    @CurrentUser("authId") authId: string,
+    @CurrentUser("id") userId: string,
+    @Body() input: EditorInput,
+  ) {
+    return this.editor.create(authId, input, userId);
+  }
+  @Get("editor/:id")
+  getEditor(@CurrentUser("authId") authId: string, @Param("id") id: string) {
+    return this.editor.get(authId, id);
+  }
+  @Patch("editor/:id")
+  updateEditor(
+    @CurrentUser("authId") authId: string,
+    @CurrentUser("id") userId: string,
+    @Param("id") id: string,
+    @Body() input: EditorInput,
+  ) {
+    return this.editor.update(authId, id, input, userId);
+  }
+  @Delete("editor/:id")
+  deleteEditor(@CurrentUser("authId") authId: string, @Param("id") id: string) {
+    return this.editor.remove(authId, id);
+  }
 
   @Get()
   list(@CurrentUser("id") userId: string) {
@@ -70,7 +108,7 @@ export class CvController {
   @Post("ai/cover-letter")
   @AiMetered("cvAi")
   coverLetter(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Body() dto: GenerateCoverLetterDto,
   ) {
     return this.cvService.generateCoverLetter(userId, dto);

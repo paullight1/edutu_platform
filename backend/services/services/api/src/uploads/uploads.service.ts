@@ -61,6 +61,21 @@ export class UploadsService {
     return this.cachedClient;
   }
 
+  async uploadFile(userId: string, file: { originalname: string; mimetype: string; buffer: Buffer }, kind = 'other') {
+    if (!file?.buffer || file.buffer.length === 0 || file.buffer.length > MAX_UPLOAD_BYTES) throw new BadRequestException('Select a document up to 10 MB.');
+    if (!SUPPORTED_UPLOAD_MIME_TYPES.includes(file.mimetype as never)) throw new UnsupportedMediaTypeException('Unsupported document type');
+    if (!['cv','essay','transcript','other'].includes(kind)) throw new BadRequestException('Unsupported document kind');
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0,120);
+    if (!safeName) throw new BadRequestException('A file name is required');
+    const storagePath = `${userId}/${randomUUID()}-${safeName}`;
+    const storage = this.supabase.storage.from(BUCKET);
+    const uploaded = await storage.upload(storagePath,file.buffer,{contentType:file.mimetype,upsert:false});
+    if (uploaded.error) throw new BadRequestException('Document transfer failed');
+    const { data, error } = await this.supabase.from('user_uploads').insert({user_id:userId,kind,file_name:safeName,storage_path:storagePath,mime_type:file.mimetype,parse_status:'pending'}).select('id').single();
+    if (error || !data) { await storage.remove([storagePath]); throw new BadRequestException('Could not record the document'); }
+    return { uploadId: String(data.id), parseStatus: 'pending' };
+  }
+
   /**
    * Reserve an upload: validate the mime type, create the pending row, and hand
    * back a signed URL the client PUTs the file to (direct-to-storage, so large

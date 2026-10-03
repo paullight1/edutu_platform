@@ -276,3 +276,29 @@ describe("CvService.generateCoverLetter", () => {
     ).rejects.toThrow("Opportunity not found");
   });
 });
+
+it("does not send another owner's saved CV to cover-letter AI", async () => {
+  const generateJson = jest.fn();
+  const service = createService(generateJson);
+  const filters: Array<[string, unknown]> = [];
+  const q: any = {
+    select: () => q,
+    eq: (key: string, value: unknown) => {
+      filters.push([key, value]);
+      return q;
+    },
+    limit: () => q,
+    then: (resolve: any) => resolve({ data: [], error: null }),
+    maybeSingle: async () => ({ data: null, error: null }),
+  };
+  Object.defineProperty(service, "supabase", { value: { from: () => q } });
+  mockOpportunityRow(jobOpportunity);
+  await expect(
+    service.generateCoverLetter("user_owner", {
+      opportunityId: OPPORTUNITY_ID,
+      cvId: OPPORTUNITY_ID,
+    }),
+  ).rejects.toMatchObject({ status: 400 });
+  expect(filters).toContainEqual(["user_id", "user_owner"]);
+  expect(generateJson).not.toHaveBeenCalled();
+});

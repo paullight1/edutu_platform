@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { UseGuards } from "@nestjs/common";
+import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { CurrentUser } from "../auth";
 import { UploadsService } from "./uploads.service";
 
-@Controller("uploads")
+@Controller(["uploads", "web-tools/uploads"])
+@UseGuards(WebPaidToolsGuard)
 export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
+
+  @Post('file')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }))
+  uploadFile(@CurrentUser('id') userId: string, @UploadedFile() file: { originalname: string; mimetype: string; buffer: Buffer }, @Body('kind') kind: string) {
+    return this.uploadsService.uploadFile(userId,file,kind);
+  }
 
   @Get()
   list(@CurrentUser("id") userId: string) {

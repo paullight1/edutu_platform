@@ -9,6 +9,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { AiService } from "../ai";
+import { CvEditorService } from "./cv-editor.service";
 import { toDatabaseUserId } from "../common/user-id";
 import { db } from "../db";
 import { goals as goalsTable, opportunities, profiles } from "../db/schema";
@@ -676,11 +677,13 @@ export class CvService {
       return dto.currentCV;
     }
     if (dto.cvId && UUID_PATTERN.test(dto.cvId) && this.supabase) {
-      const { data: userCv } = await this.supabase
-        .from("user_cvs")
-        .select("data_json,user_id")
-        .eq("id", dto.cvId)
-        .maybeSingle();
+      let userCv: { data_json: Record<string, unknown> } | null = null;
+      try {
+        const owned = await new CvEditorService(this.supabase).get(userId, dto.cvId);
+        userCv = { data_json: owned.data };
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) throw error;
+      }
       const parsedUserCv = userCv?.data_json
         ? CVDataSchema.safeParse(stripNulls(userCv.data_json))
         : null;

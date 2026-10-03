@@ -186,3 +186,16 @@ describe("UploadsService.ingest", () => {
     expect(patches[0]).toMatchObject({ parse_status: "failed" });
   });
 });
+
+describe('backend mediated binary uploads',()=>{
+ it('checks actual byte size before writing storage',async()=>{
+  const service=new UploadsService({} as never);
+  await expect(service.uploadFile('owner',{originalname:'cv.pdf',mimetype:'application/pdf',buffer:Buffer.alloc(10*1024*1024+1)},'cv')).rejects.toMatchObject({status:400});
+ });
+ it('stores the binary under the authenticated owner and creates a pending record',async()=>{
+  let storedPath='';let row:any;
+  const service=new UploadsService({storage:{from:()=>({upload:async(path:string)=>{storedPath=path;return {error:null};},remove:async()=>({error:null})})},from:()=>({insert:(value:any)=>{row=value;return {select:()=>({single:async()=>({data:{id:'upload1'},error:null})})};}})} as never);
+  const result=await service.uploadFile('owner',{originalname:'notes.txt',mimetype:'text/plain',buffer:Buffer.from('essay')},'essay');
+  expect(storedPath.startsWith('owner/')).toBe(true);expect(row.user_id).toBe('owner');expect(result.uploadId).toBe('upload1');
+ });
+});
