@@ -39,8 +39,11 @@ export function normalizeEngineError(
 ): AdminApiError {
   if (error instanceof AdminApiError) return error;
 
+  const usefulMessage =
+    error instanceof Error && error.message.trim() ? error.message : message;
+
   return new AdminApiError({
-    message,
+    message: usefulMessage,
     category: "network",
     requestId: createFallbackRequestId(),
     targetOrigin: "unknown",

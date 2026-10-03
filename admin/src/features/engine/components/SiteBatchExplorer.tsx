@@ -15,6 +15,8 @@ type DeleteTarget =
   | { kind: "site"; site: OpportunitySite }
   | { kind: "batch"; site: OpportunitySite; batch: OpportunityBatch };
 
+const INITIAL_SITE_COUNT = 6;
+
 function batchLabel(batch: OpportunityBatch): string {
   if (batch.startedAt) {
     return new Date(batch.startedAt).toLocaleString();
@@ -34,6 +36,7 @@ export default function SiteBatchExplorer({
 }: SiteBatchExplorerProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [showAllSites, setShowAllSites] = useState(false);
 
   const toggle = (host: string) => {
     setExpanded((current) => {
@@ -43,6 +46,10 @@ export default function SiteBatchExplorer({
       return next;
     });
   };
+
+  const visibleSites = showAllSites
+    ? sites
+    : sites.slice(0, INITIAL_SITE_COUNT);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -86,8 +93,9 @@ export default function SiteBatchExplorer({
           <p>Completed Engine runs will appear here with their persisted batches.</p>
         </div>
       ) : (
-        <div className="engine-site-list">
-          {sites.map((site) => {
+        <>
+          <div id="engine-site-list" className="engine-site-list">
+          {visibleSites.map((site) => {
             const isExpanded = expanded.has(site.host);
             const sitePending = pendingOperations.has(`site:${site.host}`);
             return (
@@ -166,7 +174,23 @@ export default function SiteBatchExplorer({
               </article>
             );
           })}
-        </div>
+          </div>
+          {sites.length > INITIAL_SITE_COUNT ? (
+            <div className="engine-site-list-footer">
+              <button
+                type="button"
+                className="engine-secondary-button"
+                aria-expanded={showAllSites}
+                aria-controls="engine-site-list"
+                onClick={() => setShowAllSites((current) => !current)}
+              >
+                {showAllSites
+                  ? "Show fewer sites"
+                  : `View all ${sites.length.toLocaleString()} sites`}
+              </button>
+            </div>
+          ) : null}
+        </>
       )}
 
       <ConfirmDialog

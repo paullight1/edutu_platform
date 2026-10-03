@@ -10,6 +10,8 @@ interface SourceInventoryProps {
   pendingOperations: ReadonlySet<string>;
   onToggle(source: ScrapeSource, enabled: boolean): void;
   onDelete(source: ScrapeSource): void;
+  onMove(source: ScrapeSource, parentId: number | null): void;
+  onAddGroup(): void;
   onReviewRun(source: ScrapeSource): void;
 }
 
@@ -32,14 +34,16 @@ export default function SourceInventory({
   pendingOperations,
   onToggle,
   onDelete,
+  onMove,
+  onAddGroup,
   onReviewRun,
 }: SourceInventoryProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SourceFilter>("all");
   const normalizedQuery = query.trim().toLowerCase();
+  const groups = sources.filter((source) => source.is_group);
 
   const inventory = useMemo(() => {
-    const groups = sources.filter((source) => source.is_group);
     const groupIds = new Set(groups.map((group) => group.id));
     const childrenByGroup = new Map<number, ScrapeSource[]>();
 
@@ -80,7 +84,7 @@ export default function SourceInventory({
     );
 
     return { groups: visibleGroups, ungrouped };
-  }, [filter, normalizedQuery, sources]);
+  }, [filter, groups, normalizedQuery, sources]);
 
   const visibleCount =
     inventory.ungrouped.length +
@@ -136,30 +140,56 @@ export default function SourceInventory({
           <p>Change the search or status filter to see more sources.</p>
         </div>
       ) : (
-        <div className="engine-source-list">
-          {inventory.groups.map(({ group, children }) => (
-            <SourceGroupCard
-              key={group.id}
-              group={group}
-              children={children}
-              allSources={sources}
-              pendingOperations={pendingOperations}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onReviewRun={onReviewRun}
-            />
-          ))}
-          {inventory.ungrouped.map((source) => (
-            <SourceRow
-              key={source.id}
-              source={source}
-              pending={pendingOperations.has(`source:${source.id}`)}
-              runnable={isSourceRunnable(source, sources)}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onReviewRun={onReviewRun}
-            />
-          ))}
+        <div className="engine-source-inventory-sections">
+          {inventory.groups.length > 0 ? (
+            <section className="engine-source-inventory-section" aria-labelledby="engine-source-groups-title">
+              <header className="engine-source-section-heading">
+                <h3 id="engine-source-groups-title">Groups</h3>
+                <span>{inventory.groups.length}</span>
+              </header>
+              <div className="engine-source-groups-grid">
+                {inventory.groups.map(({ group, children }) => (
+                  <SourceGroupCard
+                    key={group.id}
+                    group={group}
+                    children={children}
+                    allSources={sources}
+                    pendingOperations={pendingOperations}
+                    onToggle={onToggle}
+                    onDelete={onDelete}
+                    onMove={onMove}
+                    onAddGroup={onAddGroup}
+                    onReviewRun={onReviewRun}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {inventory.ungrouped.length > 0 ? (
+            <section className="engine-source-inventory-section" aria-labelledby="engine-standalone-sources-title">
+              <header className="engine-source-section-heading">
+                <h3 id="engine-standalone-sources-title">Individual sources</h3>
+                <span>{inventory.ungrouped.length}</span>
+              </header>
+              <div className="engine-source-list engine-source-list--standalone">
+                {inventory.ungrouped.map((source) => (
+                  <SourceRow
+                    key={source.id}
+                    source={source}
+                    groups={groups}
+                    pending={pendingOperations.has(`source:${source.id}`)}
+                    runnable={isSourceRunnable(source, sources)}
+                    displayMode="card"
+                    onToggle={onToggle}
+                    onDelete={onDelete}
+                    onMove={onMove}
+                    onAddGroup={onAddGroup}
+                    onReviewRun={onReviewRun}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       )}
     </section>

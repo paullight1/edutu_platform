@@ -11,6 +11,8 @@ interface SourceGroupCardProps {
   pendingOperations: ReadonlySet<string>;
   onToggle(source: ScrapeSource, enabled: boolean): void;
   onDelete(source: ScrapeSource): void;
+  onMove(source: ScrapeSource, parentId: number | null): void;
+  onAddGroup(): void;
   onReviewRun(source: ScrapeSource): void;
 }
 
@@ -21,10 +23,13 @@ export default function SourceGroupCard({
   pendingOperations,
   onToggle,
   onDelete,
+  onMove,
+  onAddGroup,
   onReviewRun,
 }: SourceGroupCardProps) {
   const [expanded, setExpanded] = useState(true);
   const enabledChildren = children.filter((source) => source.enabled).length;
+  const groups = allSources.filter((source) => source.is_group);
 
   return (
     <section
@@ -54,37 +59,42 @@ export default function SourceGroupCard({
 
       <SourceRow
         source={group}
+        groups={groups}
         pending={pendingOperations.has(`source:${group.id}`)}
         runnable={isSourceRunnable(group, allSources)}
         onToggle={onToggle}
         onDelete={onDelete}
+        onMove={onMove}
+        onAddGroup={onAddGroup}
         onReviewRun={onReviewRun}
       />
 
-      {expanded ? (
-        <div
-          id={`source-group-children-${group.id}`}
-          className="engine-source-group-children"
-        >
-          {children.length > 0 ? (
-            children.map((source) => (
-              <SourceRow
-                key={source.id}
-                source={source}
-                pending={pendingOperations.has(`source:${source.id}`)}
-                runnable={isSourceRunnable(source, allSources)}
-                onToggle={onToggle}
-                onDelete={onDelete}
-                onReviewRun={onReviewRun}
-              />
-            ))
-          ) : (
-            <p className="engine-source-group-empty">
-              This group has no sources yet.
-            </p>
-          )}
-        </div>
-      ) : null}
+      <div
+        id={`source-group-children-${group.id}`}
+        className="engine-source-group-children"
+        hidden={!expanded}
+      >
+        {children.length > 0 ? (
+          children.map((source) => (
+            <SourceRow
+              key={source.id}
+              source={source}
+              groups={groups}
+              pending={pendingOperations.has(`source:${source.id}`)}
+              runnable={isSourceRunnable(source, allSources)}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onMove={onMove}
+              onAddGroup={onAddGroup}
+              onReviewRun={onReviewRun}
+            />
+          ))
+        ) : (
+          <p className="engine-source-group-empty">
+            This group has no sources yet.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

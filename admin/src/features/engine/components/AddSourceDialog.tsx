@@ -1,6 +1,7 @@
 import { FolderPlus, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { normalizeSourceUrl } from "../hooks/useEngineSources";
 import type {
   BulkSourceDefaults,
   BulkSourceOutcome,
@@ -13,6 +14,7 @@ import type {
 
 interface AddSourceDialogProps {
   isOpen: boolean;
+  initialMode?: SourceMode;
   sources: readonly ScrapeSource[];
   pending: boolean;
   onClose(): void;
@@ -31,8 +33,15 @@ function outcomeMessage(outcome: BulkSourceOutcome): string {
   return parts.join(" · ");
 }
 
+function urlFromSourceLine(line: string): string | null {
+  const separator = line.indexOf("|");
+  const rawUrl = separator >= 0 ? line.slice(separator + 1).trim() : line.trim();
+  return normalizeSourceUrl(rawUrl);
+}
+
 export default function AddSourceDialog({
   isOpen,
+  initialMode = "single",
   sources,
   pending,
   onClose,
@@ -56,7 +65,7 @@ export default function AddSourceDialog({
 
   useEffect(() => {
     if (!isOpen) return;
-    setMode("single");
+    setMode(initialMode);
     setName("");
     setUrl("");
     setCategory("scholarship");
@@ -64,7 +73,7 @@ export default function AddSourceDialog({
     setParentId("");
     setBulkText("");
     setError(null);
-  }, [isOpen]);
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -124,29 +133,49 @@ export default function AddSourceDialog({
       }
 
       let singleAdded = 0;
+      let singleSkipped = 0;
+      const primaryUrl = normalizeSourceUrl(trimmedUrl);
       if (trimmedUrl) {
-        await onCreate({
-          name: trimmedName,
-          url: trimmedUrl,
-          category,
-          tier,
-          enabled: true,
-          parent_id: defaults.parentId,
-        });
-        singleAdded = 1;
+        const existingSource = sources.find(
+          (source) =>
+            !source.is_group && normalizeSourceUrl(source.url) === primaryUrl,
+        );
+        if (existingSource) {
+          singleSkipped = 1;
+        } else {
+          await onCreate({
+            name: trimmedName,
+            url: trimmedUrl,
+            category,
+            tier,
+            enabled: true,
+            parent_id: defaults.parentId,
+          });
+          singleAdded = 1;
+        }
       }
 
-      const bulkOutcome = bulkText.trim()
-        ? await onBulk(bulkText, defaults)
+      const filteredBulkText = bulkText
+        .split(/\r?\n/u)
+        .filter(
+          (line) =>
+            !line.trim() ||
+            !primaryUrl ||
+            urlFromSourceLine(line) !== primaryUrl,
+        )
+        .join("\n");
+      const bulkOutcome = filteredBulkText.trim()
+        ? await onBulk(filteredBulkText, defaults)
         : { added: 0, skipped: 0, failed: 0, invalid: 0 };
       const outcome = {
         ...bulkOutcome,
         added: bulkOutcome.added + singleAdded,
+        skipped: bulkOutcome.skipped + singleSkipped,
       };
 
       onNotice(
-        `Sources updated · ${outcomeMessage(outcome)}`,
-        outcome.failed || outcome.invalid ? "warning" : "success",
+        `${singleSkipped ? "Source already exists · " : "Sources updated · "}${outcomeMessage(outcome)}`,
+        outcome.failed || outcome.invalid || singleSkipped ? "warning" : "success",
       );
       onClose();
     } catch (caught) {

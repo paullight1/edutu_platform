@@ -1,5 +1,7 @@
 import { Bug, Plus, RadioTower, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { adminRoutePath } from "../../../app/route-manifest";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
 import AddSourceDialog from "../components/AddSourceDialog";
 import EnginePartialDataBanner from "../components/EnginePartialDataBanner";
@@ -16,11 +18,14 @@ import "../engine-sources.css";
 interface Notice {
   message: string;
   tone: "success" | "warning" | "error";
+  action?: { label: string; to: string };
 }
 
 export default function EngineSourcesPage() {
   const engine = useEngineSources();
+  const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"single" | "group">("single");
   const [deleteTarget, setDeleteTarget] = useState<ScrapeSource | null>(null);
   const [runTarget, setRunTarget] = useState<ScrapeSource | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -54,8 +59,19 @@ export default function EngineSourcesPage() {
   const showNotice = (
     message: string,
     tone: "success" | "warning" | "error",
+    action?: Notice["action"],
   ) => {
-    setNotice({ message, tone });
+    setNotice({ message, tone, action });
+  };
+
+  const openAddSource = () => {
+    setAddMode("single");
+    setAddOpen(true);
+  };
+
+  const openAddGroup = () => {
+    setAddMode("group");
+    setAddOpen(true);
   };
 
   const toggleSource = async (source: ScrapeSource, enabled: boolean) => {
@@ -70,6 +86,28 @@ export default function EngineSourcesPage() {
         caught instanceof Error
           ? caught.message
           : "The source could not be updated.",
+        "error",
+      );
+    }
+  };
+
+  const moveSource = async (source: ScrapeSource, parentId: number | null) => {
+    try {
+      await engine.updateSource(source, { parent_id: parentId });
+      const destination = sources.find(
+        (candidate) => candidate.is_group && candidate.id === parentId,
+      );
+      showNotice(
+        destination
+          ? `Moved ${source.name} into ${destination.name}.`
+          : `Moved ${source.name} out of its group.`,
+        "success",
+      );
+    } catch (caught) {
+      showNotice(
+        caught instanceof Error
+          ? caught.message
+          : `Could not move ${source.name}.`,
         "error",
       );
     }
@@ -134,7 +172,7 @@ export default function EngineSourcesPage() {
             type="button"
             className="engine-primary-button"
             aria-label="Add source"
-            onClick={() => setAddOpen(true)}
+            onClick={openAddSource}
           >
             <Plus size={16} aria-hidden="true" />
             Add source
@@ -150,6 +188,17 @@ export default function EngineSourcesPage() {
         >
           <Bug size={17} aria-hidden="true" />
           <span>{notice.message}</span>
+          {notice.action ? (
+            <button
+              type="button"
+              onClick={() => {
+                navigate(notice.action.to);
+                setNotice(null);
+              }}
+            >
+              {notice.action.label}
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label="Dismiss notice"
@@ -189,7 +238,7 @@ export default function EngineSourcesPage() {
             <button
               type="button"
               className="engine-primary-button"
-              onClick={() => setAddOpen(true)}
+              onClick={openAddSource}
             >
               <Plus size={16} aria-hidden="true" />
               Add your first source
@@ -209,6 +258,8 @@ export default function EngineSourcesPage() {
             pendingOperations={engine.pendingOperations}
             onToggle={(source, enabled) => void toggleSource(source, enabled)}
             onDelete={setDeleteTarget}
+            onMove={(source, parentId) => void moveSource(source, parentId)}
+            onAddGroup={openAddGroup}
             onReviewRun={setRunTarget}
           />
           {engine.sites.status === "success" ? (
@@ -225,6 +276,7 @@ export default function EngineSourcesPage() {
 
       <AddSourceDialog
         isOpen={addOpen}
+        initialMode={addMode}
         sources={sources}
         pending={
           engine.pendingOperations.has("create-source") ||
@@ -248,6 +300,7 @@ export default function EngineSourcesPage() {
         onClose={() => setRunTarget(null)}
         onStart={engine.startRun}
         onNotice={showNotice}
+        monitorPath={adminRoutePath("engine-runs")}
       />
 
       <ConfirmDialog
