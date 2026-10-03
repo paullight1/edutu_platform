@@ -27,6 +27,7 @@ interface PaywallContextValue {
   /** Full billing status (credits, expiry, transactions) or null when signed out. */
   billing: BillingStatus | null;
   billingLoading: boolean;
+  billingError: string | null;
   /** Open the upgrade modal with optional context. */
   openPaywall: (input?: OpenPaywallInput) => void;
   closePaywall: () => void;
@@ -50,13 +51,13 @@ const PaywallContext = createContext<PaywallContextValue | null>(null);
 const UPGRADE_ROUTE = '/upgrade';
 
 export function PaywallProvider({ children }: { children: ReactNode }) {
-  const { status, loading, refresh } = useBillingStatus();
+  const { status, loading, error, refresh } = useBillingStatus();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
 
   const openPaywall = useCallback((input: OpenPaywallInput = {}) => {
-    setReason(input.reason ?? null);
+    setReason(input.reason ?? (input.feature ? `Unlock ${input.feature.toLowerCase()} with an Edutu paid plan.` : null));
     setOpen(true);
   }, []);
 
@@ -74,12 +75,14 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   const handleUpgradeError = useCallback(
     (error: unknown): boolean => {
       if (isUpgradeRequiredError(error)) {
+        // A paid user at a daily limit should see the reset time, not a checkout.
+        if (error.code === "limit" && status?.planTier !== "none") return false;
         openPaywall({ reason: error.message });
         return true;
       }
       return false;
     },
-    [openPaywall],
+    [openPaywall, status],
   );
 
   const value = useMemo<PaywallContextValue>(
@@ -88,12 +91,13 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
       planTier: status?.planTier ?? 'none',
       billing: status,
       billingLoading: loading,
+      billingError: error,
       openPaywall,
       closePaywall,
       refreshBilling: refresh,
       handleUpgradeError,
     }),
-    [status, loading, openPaywall, closePaywall, refresh, handleUpgradeError],
+    [status, loading, error, openPaywall, closePaywall, refresh, handleUpgradeError],
   );
 
   return (

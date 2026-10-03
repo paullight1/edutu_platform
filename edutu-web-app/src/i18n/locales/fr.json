@@ -189,7 +189,9 @@
         "wallet": "Portefeuille",
         "creator": "Créateur",
         "upgradeToPro": "Passer à Pro",
-        "community": "Communauté"
+        "community": "Communauté",
+        "coachShort": "Coach",
+        "planShort": "Plan"
     },
     "myPlan": {
         "workspaceLabel": "Espace de travail intentionnel",
@@ -199,8 +201,27 @@
         "overview": "Mon plan",
         "applications": "Candidatures",
         "calendar": "Calendrier",
-        "stages": { "pursuing": "En cours", "discover": "Sélection", "applied": "Candidatures", "outcome": "Clôturé" },
-        "states": { "shortlisted": "Sélectionné", "pursuing": "En cours", "preparing": "Préparation", "ready_to_apply": "Prêt à postuler", "application_opened": "Candidature ouverte", "applied": "Candidature envoyée", "interview": "Entretien", "offer": "Offre", "rejected": "Refusé", "withdrawn": "Retiré", "no_response": "Sans réponse", "expired": "Expiré", "archived": "Archivé" },
+        "stages": {
+            "pursuing": "En cours",
+            "discover": "Sélection",
+            "applied": "Candidatures",
+            "outcome": "Clôturé"
+        },
+        "states": {
+            "shortlisted": "Sélectionné",
+            "pursuing": "En cours",
+            "preparing": "Préparation",
+            "ready_to_apply": "Prêt à postuler",
+            "application_opened": "Candidature ouverte",
+            "applied": "Candidature envoyée",
+            "interview": "Entretien",
+            "offer": "Offre",
+            "rejected": "Refusé",
+            "withdrawn": "Retiré",
+            "no_response": "Sans réponse",
+            "expired": "Expiré",
+            "archived": "Archivé"
+        },
         "primaryFocus": "Priorité principale",
         "opportunity": "Opportunité",
         "continueWith": "Continuer avec {{title}}",
@@ -301,5 +322,8 @@
         "checkEligibility": "Vérifiez les conditions avant de décider.",
         "yourOpportunity": "votre opportunité",
         "basedOnProfile": "D’après votre profil"
+    },
+    "cv": {
+        "health": {}
     }
 }

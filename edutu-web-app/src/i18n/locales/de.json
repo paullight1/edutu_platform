@@ -189,7 +189,9 @@
         "wallet": "Wallet",
         "creator": "Ersteller",
         "upgradeToPro": "Auf Pro upgraden",
-        "community": "Community"
+        "community": "Community",
+        "coachShort": "Coach",
+        "planShort": "Plan"
     },
     "myPlan": {
         "workspaceLabel": "Gezielter Arbeitsbereich",
@@ -199,8 +201,27 @@
         "overview": "Mein Plan",
         "applications": "Bewerbungen",
         "calendar": "Kalender",
-        "stages": { "pursuing": "In Bearbeitung", "discover": "Auswahl", "applied": "Beworben", "outcome": "Abgeschlossen" },
-        "states": { "shortlisted": "Ausgewählt", "pursuing": "In Bearbeitung", "preparing": "Vorbereitung", "ready_to_apply": "Bereit zur Bewerbung", "application_opened": "Bewerbung geöffnet", "applied": "Beworben", "interview": "Vorstellungsgespräch", "offer": "Angebot", "rejected": "Abgelehnt", "withdrawn": "Zurückgezogen", "no_response": "Keine Antwort", "expired": "Abgelaufen", "archived": "Archiviert" },
+        "stages": {
+            "pursuing": "In Bearbeitung",
+            "discover": "Auswahl",
+            "applied": "Beworben",
+            "outcome": "Abgeschlossen"
+        },
+        "states": {
+            "shortlisted": "Ausgewählt",
+            "pursuing": "In Bearbeitung",
+            "preparing": "Vorbereitung",
+            "ready_to_apply": "Bereit zur Bewerbung",
+            "application_opened": "Bewerbung geöffnet",
+            "applied": "Beworben",
+            "interview": "Vorstellungsgespräch",
+            "offer": "Angebot",
+            "rejected": "Abgelehnt",
+            "withdrawn": "Zurückgezogen",
+            "no_response": "Keine Antwort",
+            "expired": "Abgelaufen",
+            "archived": "Archiviert"
+        },
         "primaryFocus": "Hauptfokus",
         "opportunity": "Möglichkeit",
         "continueWith": "Mit {{title}} fortfahren",
@@ -301,5 +322,8 @@
         "checkEligibility": "Prüfe die Voraussetzungen, bevor du dich entscheidest.",
         "yourOpportunity": "dein Angebot",
         "basedOnProfile": "Basierend auf deinem Profil"
+    },
+    "cv": {
+        "health": {}
     }
 }

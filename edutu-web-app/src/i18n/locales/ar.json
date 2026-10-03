@@ -189,7 +189,9 @@
         "wallet": "المحفظة",
         "creator": "المنشئ",
         "upgradeToPro": "الترقية إلى Pro",
-        "community": "المجتمع"
+        "community": "المجتمع",
+        "coachShort": "المدرب",
+        "planShort": "الخطة"
     },
     "myPlan": {
         "workspaceLabel": "مساحة التخطيط",
@@ -199,8 +201,27 @@
         "overview": "خطتي",
         "applications": "الطلبات",
         "calendar": "التقويم",
-        "stages": { "pursuing": "قيد المتابعة", "discover": "القائمة المختصرة", "applied": "تم التقديم", "outcome": "مغلقة" },
-        "states": { "shortlisted": "ضمن القائمة المختصرة", "pursuing": "قيد المتابعة", "preparing": "قيد التحضير", "ready_to_apply": "جاهز للتقديم", "application_opened": "فُتح الطلب", "applied": "تم التقديم", "interview": "مقابلة", "offer": "عرض", "rejected": "مرفوض", "withdrawn": "منسحب", "no_response": "لا توجد استجابة", "expired": "منتهية", "archived": "مؤرشفة" },
+        "stages": {
+            "pursuing": "قيد المتابعة",
+            "discover": "القائمة المختصرة",
+            "applied": "تم التقديم",
+            "outcome": "مغلقة"
+        },
+        "states": {
+            "shortlisted": "ضمن القائمة المختصرة",
+            "pursuing": "قيد المتابعة",
+            "preparing": "قيد التحضير",
+            "ready_to_apply": "جاهز للتقديم",
+            "application_opened": "فُتح الطلب",
+            "applied": "تم التقديم",
+            "interview": "مقابلة",
+            "offer": "عرض",
+            "rejected": "مرفوض",
+            "withdrawn": "منسحب",
+            "no_response": "لا توجد استجابة",
+            "expired": "منتهية",
+            "archived": "مؤرشفة"
+        },
         "primaryFocus": "التركيز الأساسي",
         "opportunity": "فرصة",
         "continueWith": "المتابعة مع {{title}}",
@@ -301,5 +322,8 @@
         "checkEligibility": "تحقق من الشروط قبل اتخاذ القرار.",
         "yourOpportunity": "فرصتك",
         "basedOnProfile": "استنادًا إلى ملفك الشخصي"
+    },
+    "cv": {
+        "health": {}
     }
 }

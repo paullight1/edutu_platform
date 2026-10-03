@@ -1,11 +1,11 @@
-import { getApiBaseUrl } from '../lib/apiBaseUrl';
+import { getApiBaseUrl } from "../lib/apiBaseUrl";
 
-export type BillingInterval = 'weekly' | 'monthly' | 'yearly';
-export type RenewalMode = 'recurring' | 'one_time';
+export type BillingInterval = "weekly" | "monthly" | "yearly";
+export type RenewalMode = "recurring" | "one_time";
 
 export interface BillingStatus {
   isPro: boolean;
-  planTier: 'none' | 'lite' | 'pro' | 'scholar';
+  planTier: "none" | "lite" | "pro" | "scholar";
   proSince: string | null;
   proExpiresAt: string | null;
   credits: number;
@@ -22,7 +22,7 @@ export interface CreditProduct {
   price: number;
   currency: string;
   label?: string;
-  renewalMode: 'one_time';
+  renewalMode: "one_time";
   validityDays: null;
 }
 
@@ -42,6 +42,7 @@ export interface CheckoutResponse {
   intentId: string;
   checkoutUrl: string;
   expiresAt: string;
+  handoffExpiresAt?: string;
   /** Optional for compatibility while the checkout controller rolls out the richer response. */
   renewalMode?: RenewalMode;
   accessUntil?: string | null;
@@ -54,26 +55,28 @@ export class BillingRequestError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = 'BillingRequestError';
+    this.name = "BillingRequestError";
   }
 }
 
 export interface CreateCheckoutInput {
   /** Server-owned catalogue key; price, provider product, and fulfilment stay server-side. */
   productKey: string;
-  returnSurface: 'web';
+  returnSurface: "web";
   /** One UUID generated for a user action and reused after a timeout retry. */
   idempotencyKey: string;
 }
 
 export type ManageDestination =
-  | { kind: 'portal-session' }
-  | { kind: 'external'; url: string }
-  | { kind: 'none' };
+  | { kind: "portal-session" }
+  | { kind: "external"; url: string }
+  | { kind: "none" };
 
-const APP_STORE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
-const PLAY_STORE_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
-const BACHS_CHECKOUT_ORIGINS = new Set(['https://checkout.bachs.io']);
+const APP_STORE_SUBSCRIPTIONS_URL =
+  "https://apps.apple.com/account/subscriptions";
+const PLAY_STORE_SUBSCRIPTIONS_URL =
+  "https://play.google.com/store/account/subscriptions";
+const BACHS_CHECKOUT_ORIGINS = new Set(["https://checkout.bachs.io"]);
 const activeCheckoutRequests = new Map<string, Promise<CheckoutResponse>>();
 
 async function requestBilling<T>(
@@ -81,11 +84,11 @@ async function requestBilling<T>(
   token: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const apiBaseUrl = getApiBaseUrl('Billing API');
+  const apiBaseUrl = getApiBaseUrl("Billing API");
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
       ...(options.headers ?? {}),
     },
@@ -93,24 +96,28 @@ async function requestBilling<T>(
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const body = data && typeof data === 'object' ? data as Record<string, unknown> : {};
-    const nestedError = body.error && typeof body.error === 'object'
-      ? body.error as Record<string, unknown>
-      : {};
-    const code = typeof body.code === 'string'
-      ? body.code
-      : typeof nestedError.code === 'string'
-        ? nestedError.code
-        : response.status === 402
-          ? 'credits_exhausted'
-          : response.status === 503
-            ? 'billing_unavailable'
-            : 'billing_request_failed';
-    const message = typeof body.message === 'string'
-      ? body.message
-      : typeof nestedError.message === 'string'
-        ? nestedError.message
-        : 'Billing request failed';
+    const body =
+      data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const nestedError =
+      body.error && typeof body.error === "object"
+        ? (body.error as Record<string, unknown>)
+        : {};
+    const code =
+      typeof body.code === "string"
+        ? body.code
+        : typeof nestedError.code === "string"
+          ? nestedError.code
+          : response.status === 402
+            ? "credits_exhausted"
+            : response.status === 503
+              ? "billing_unavailable"
+              : "billing_request_failed";
+    const message =
+      typeof body.message === "string"
+        ? body.message
+        : typeof nestedError.message === "string"
+          ? nestedError.message
+          : "Billing request failed";
     throw new BillingRequestError(response.status, code, message);
   }
 
@@ -118,23 +125,25 @@ async function requestBilling<T>(
 }
 
 export async function getBillingStatus(token: string): Promise<BillingStatus> {
-  return requestBilling<BillingStatus>('/billing/status', token);
+  return requestBilling<BillingStatus>("/billing/status", token);
 }
 
 function isBillingCreditProduct(value: unknown): value is CreditProduct {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
   const product = value as Record<string, unknown>;
-  return typeof product.productKey === 'string' &&
-    product.productKey.startsWith('api_credits_') &&
+  return (
+    typeof product.productKey === "string" &&
+    product.productKey.startsWith("api_credits_") &&
     Number.isSafeInteger(product.creditQuantity) &&
     Number(product.creditQuantity) > 0 &&
-    typeof product.price === 'number' &&
+    typeof product.price === "number" &&
     Number.isFinite(product.price) &&
     product.price > 0 &&
-    typeof product.currency === 'string' &&
+    typeof product.currency === "string" &&
     /^[A-Z]{3}$/.test(product.currency) &&
-    product.renewalMode === 'one_time' &&
-    product.validityDays === null;
+    product.renewalMode === "one_time" &&
+    product.validityDays === null
+  );
 }
 
 /**
@@ -142,69 +151,89 @@ function isBillingCreditProduct(value: unknown): value is CreditProduct {
  * The browser does not map quantities to product keys or fall back to the
  * general admin pricing config; all displayed values come from this response.
  */
-export async function getCreditProducts(token: string): Promise<CreditProduct[]> {
-  const data = await requestBilling<unknown>('/billing/catalog', token);
-  const products = data && typeof data === 'object' && 'products' in data
-    ? (data as { products?: unknown }).products
-    : null;
+export async function getCreditProducts(
+  token: string,
+): Promise<CreditProduct[]> {
+  const data = await requestBilling<unknown>("/billing/catalog", token);
+  const products =
+    data && typeof data === "object" && "products" in data
+      ? (data as { products?: unknown }).products
+      : null;
 
   return Array.isArray(products)
     ? products.filter(isBillingCreditProduct).map((product) => ({
         ...product,
         currency: product.currency.toUpperCase(),
-        label: typeof product.label === 'string' && product.label.trim()
-          ? product.label.trim()
-          : undefined,
+        label:
+          typeof product.label === "string" && product.label.trim()
+            ? product.label.trim()
+            : undefined,
       }))
     : [];
 }
 
 /** Bachs is opt-in until the server-side launch gate has passed. */
 export function isBachsCheckoutEnabled(): boolean {
-  return import.meta.env.VITE_BACHS_CHECKOUT_ENABLED === 'true';
+  return import.meta.env.VITE_BACHS_CHECKOUT_ENABLED === "true";
 }
 
 export function validateBachsCheckoutUrl(value: unknown): string {
-  if (typeof value !== 'string') {
-    throw new Error('Billing returned an invalid checkout URL.');
+  if (typeof value !== "string") {
+    throw new Error("Billing returned an invalid checkout URL.");
   }
 
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new Error('Billing returned an invalid checkout URL.');
+    throw new Error("Billing returned an invalid checkout URL.");
   }
 
-  if (url.protocol !== 'https:' || url.username || url.password || !BACHS_CHECKOUT_ORIGINS.has(url.origin)) {
-    throw new Error('Billing did not return a trusted Bachs checkout URL.');
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    !BACHS_CHECKOUT_ORIGINS.has(url.origin)
+  ) {
+    throw new Error("Billing did not return a trusted Bachs checkout URL.");
   }
 
   return url.toString();
 }
 
+/** Accept only the first-party shell's exact, opaque single-use handoff. */
+export function validatePaymentHandoffUrl(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Billing returned an invalid payment link.");
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("Billing returned an invalid payment link."); }
+  if (url.origin !== "https://pay.edutu.org" || url.pathname !== "/start" || url.search || url.username || url.password || !/^#code=[A-Za-z0-9_-]{43}$/.test(url.hash)) throw new Error("Billing did not return a trusted Edutu payment link.");
+  return url.toString();
+}
+
 function validateCheckoutResponse(value: unknown): CheckoutResponse {
-  if (!value || typeof value !== 'object') {
-    throw new Error('Billing returned an invalid checkout response.');
+  if (!value || typeof value !== "object") {
+    throw new Error("Billing returned an invalid checkout response.");
   }
 
   const response = value as Record<string, unknown>;
   if (
-    typeof response.intentId !== 'string' ||
-    typeof response.expiresAt !== 'string' ||
+    typeof response.intentId !== "string" ||
+    typeof response.expiresAt !== "string" ||
     (response.renewalMode !== undefined &&
-      response.renewalMode !== 'recurring' &&
-      response.renewalMode !== 'one_time')
+      response.renewalMode !== "recurring" &&
+      response.renewalMode !== "one_time")
   ) {
-    throw new Error('Billing returned an invalid checkout response.');
+    throw new Error("Billing returned an invalid checkout response.");
   }
 
   return {
     intentId: response.intentId,
-    checkoutUrl: validateBachsCheckoutUrl(response.checkoutUrl),
+    checkoutUrl: validatePaymentHandoffUrl(response.checkoutUrl),
+    handoffExpiresAt: typeof response.handoffExpiresAt === "string" ? response.handoffExpiresAt : undefined,
     expiresAt: response.expiresAt,
     renewalMode: response.renewalMode,
-    accessUntil: typeof response.accessUntil === 'string' ? response.accessUntil : null,
+    accessUntil:
+      typeof response.accessUntil === "string" ? response.accessUntil : null,
   };
 }
 
@@ -215,22 +244,31 @@ function validateCheckoutResponse(value: unknown): CheckoutResponse {
 export function createCheckout(
   token: string,
   input: CreateCheckoutInput,
+  audience: "legacy" | "consumer" = "legacy",
 ): Promise<CheckoutResponse> {
   if (!isBachsCheckoutEnabled()) {
-    return Promise.reject(new Error('Payments are not ready yet. Please try again later.'));
+    return Promise.reject(
+      new Error("Payments are not ready yet. Please try again later."),
+    );
   }
 
   const activeRequest = activeCheckoutRequests.get(input.idempotencyKey);
   if (activeRequest) return activeRequest;
 
-  const request = requestBilling<unknown>('/billing/checkout', token, {
-    method: 'POST',
-    headers: { 'Idempotency-Key': input.idempotencyKey },
-    body: JSON.stringify({
-      productKey: input.productKey,
-      returnSurface: input.returnSurface,
-    }),
-  }).then(validateCheckoutResponse);
+  const request = requestBilling<unknown>(
+    audience === "consumer"
+      ? "/billing/consumer-checkout"
+      : "/billing/checkout",
+    token,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": input.idempotencyKey },
+      body: JSON.stringify({
+        productKey: input.productKey,
+        returnSurface: input.returnSurface,
+      }),
+    },
+  ).then(validateCheckoutResponse);
 
   activeCheckoutRequests.set(input.idempotencyKey, request);
   void request
@@ -240,15 +278,17 @@ export function createCheckout(
 }
 
 /** Management is chosen from the provider, never a remotely configured URL. */
-export function getManageDestination(provider: string | null | undefined): ManageDestination {
+export function getManageDestination(
+  provider: string | null | undefined,
+): ManageDestination {
   switch (provider) {
-    case 'bachs':
-      return { kind: 'portal-session' };
-    case 'revenuecat_app_store':
-      return { kind: 'external', url: APP_STORE_SUBSCRIPTIONS_URL };
-    case 'revenuecat_play_store':
-      return { kind: 'external', url: PLAY_STORE_SUBSCRIPTIONS_URL };
+    case "bachs":
+      return { kind: "portal-session" };
+    case "revenuecat_app_store":
+      return { kind: "external", url: APP_STORE_SUBSCRIPTIONS_URL };
+    case "revenuecat_play_store":
+      return { kind: "external", url: PLAY_STORE_SUBSCRIPTIONS_URL };
     default:
-      return { kind: 'none' };
+      return { kind: "none" };
   }
 }

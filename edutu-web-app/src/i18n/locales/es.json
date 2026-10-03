@@ -189,7 +189,9 @@
         "wallet": "Billetera",
         "creator": "Creador",
         "upgradeToPro": "Hazte Pro",
-        "community": "Comunidad"
+        "community": "Comunidad",
+        "coachShort": "Coach",
+        "planShort": "Plan"
     },
     "myPlan": {
         "workspaceLabel": "Espacio de trabajo intencional",
@@ -199,8 +201,27 @@
         "overview": "Mi plan",
         "applications": "Solicitudes",
         "calendar": "Calendario",
-        "stages": { "pursuing": "En curso", "discover": "Lista corta", "applied": "Solicitado", "outcome": "Cerrado" },
-        "states": { "shortlisted": "En lista corta", "pursuing": "En curso", "preparing": "Preparando", "ready_to_apply": "Listo para solicitar", "application_opened": "Solicitud abierta", "applied": "Solicitado", "interview": "Entrevista", "offer": "Oferta", "rejected": "Rechazado", "withdrawn": "Retirado", "no_response": "Sin respuesta", "expired": "Vencido", "archived": "Archivado" },
+        "stages": {
+            "pursuing": "En curso",
+            "discover": "Lista corta",
+            "applied": "Solicitado",
+            "outcome": "Cerrado"
+        },
+        "states": {
+            "shortlisted": "En lista corta",
+            "pursuing": "En curso",
+            "preparing": "Preparando",
+            "ready_to_apply": "Listo para solicitar",
+            "application_opened": "Solicitud abierta",
+            "applied": "Solicitado",
+            "interview": "Entrevista",
+            "offer": "Oferta",
+            "rejected": "Rechazado",
+            "withdrawn": "Retirado",
+            "no_response": "Sin respuesta",
+            "expired": "Vencido",
+            "archived": "Archivado"
+        },
         "primaryFocus": "Enfoque principal",
         "opportunity": "Oportunidad",
         "continueWith": "Continuar con {{title}}",
@@ -301,5 +322,8 @@
         "checkEligibility": "Revisa los requisitos antes de decidir.",
         "yourOpportunity": "tu oportunidad",
         "basedOnProfile": "Según tu perfil"
+    },
+    "cv": {
+        "health": {}
     }
 }

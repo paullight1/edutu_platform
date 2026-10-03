@@ -8,7 +8,8 @@ import {
 } from '../services/billing';
 
 export function useBillingStatus() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken, userId } = useAuth();
+  const [statusOwner, setStatusOwner] = useState<string | null>(null);
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [products, setProducts] = useState<CreditProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ export function useBillingStatus() {
   const refresh = useCallback(async () => {
     if (!isLoaded) return;
     if (!isSignedIn) {
+      setStatusOwner(null);
       setStatus(null);
       setProducts([]);
       setLoading(false);
@@ -47,6 +49,7 @@ export function useBillingStatus() {
       ]);
 
       if (version !== requestVersion.current) return;
+      setStatusOwner(userId ?? null);
 
       if (statusResult.status === 'fulfilled') {
         setStatus(statusResult.value);
@@ -74,6 +77,8 @@ export function useBillingStatus() {
       }
     } catch (err) {
       if (version === requestVersion.current) {
+        setStatus(null);
+        setStatusOwner(userId ?? null);
         setError(err instanceof Error ? err.message : 'Unable to load billing status');
         setErrorCode(
           err && typeof err === 'object' && 'code' in err
@@ -85,10 +90,14 @@ export function useBillingStatus() {
       if (version === requestVersion.current) setLoading(false);
       if (version === requestVersion.current) setProductsLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, userId]);
 
   useEffect(() => {
+    requestVersion.current++;
+    setStatus(null);
+    setProducts([]);
     void refresh();
+    return () => { requestVersion.current++; };
   }, [refresh]);
 
   useEffect(() => {
@@ -100,9 +109,9 @@ export function useBillingStatus() {
   }, [refresh]);
 
   return {
-    status,
-    products,
-    loading,
+    status: isSignedIn && statusOwner === userId ? status : null,
+    products: isSignedIn && statusOwner === userId ? products : [],
+    loading: loading || (!!isSignedIn && statusOwner !== userId),
     productsLoading,
     error,
     errorCode,

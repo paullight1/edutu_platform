@@ -189,7 +189,9 @@
         "wallet": "钱包",
         "creator": "创作者",
         "upgradeToPro": "升级到 Pro",
-        "community": "社区"
+        "community": "社区",
+        "coachShort": "教练",
+        "planShort": "计划"
     },
     "myPlan": {
         "workspaceLabel": "行动工作区",
@@ -199,8 +201,27 @@
         "overview": "我的计划",
         "applications": "申请",
         "calendar": "日历",
-        "stages": { "pursuing": "进行中", "discover": "候选名单", "applied": "已申请", "outcome": "已结束" },
-        "states": { "shortlisted": "已入选", "pursuing": "进行中", "preparing": "准备中", "ready_to_apply": "准备申请", "application_opened": "申请已打开", "applied": "已申请", "interview": "面试", "offer": "录取通知", "rejected": "未通过", "withdrawn": "已撤回", "no_response": "无回复", "expired": "已过期", "archived": "已归档" },
+        "stages": {
+            "pursuing": "进行中",
+            "discover": "候选名单",
+            "applied": "已申请",
+            "outcome": "已结束"
+        },
+        "states": {
+            "shortlisted": "已入选",
+            "pursuing": "进行中",
+            "preparing": "准备中",
+            "ready_to_apply": "准备申请",
+            "application_opened": "申请已打开",
+            "applied": "已申请",
+            "interview": "面试",
+            "offer": "录取通知",
+            "rejected": "未通过",
+            "withdrawn": "已撤回",
+            "no_response": "无回复",
+            "expired": "已过期",
+            "archived": "已归档"
+        },
         "primaryFocus": "主要目标",
         "opportunity": "机会",
         "continueWith": "继续 {{title}}",
@@ -301,5 +322,8 @@
         "checkEligibility": "决定之前请先查看申请条件。",
         "yourOpportunity": "你的机会",
         "basedOnProfile": "根据你的个人资料"
+    },
+    "cv": {
+        "health": {}
     }
 }

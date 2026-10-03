@@ -1,506 +1,818 @@
 {
-    "common": {
-        "appName": "Edutu",
-        "tagline": "AI Opportunity Coach",
-        "loading": "Loading...",
-        "error": "Something went wrong",
-        "retry": "Try Again",
-        "cancel": "Cancel",
-        "save": "Save",
-        "delete": "Delete",
-        "edit": "Edit",
-        "close": "Close",
-        "back": "Back",
-        "next": "Next",
-        "done": "Done",
-        "search": "Search",
-        "filter": "Filter",
-        "sort": "Sort",
-        "all": "All",
-        "none": "None",
-        "yes": "Yes",
-        "no": "No",
-        "ok": "OK",
-        "showAll": "Show all"
+  "common": {
+    "appName": "Edutu",
+    "tagline": "AI Opportunity Coach",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try Again",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "showAll": "Show all"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "signInWithGoogle": "Continue with Google",
+    "welcome": "Welcome back!",
+    "createAccount": "Create your account",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "termsAgree": "By continuing, you agree to our",
+    "termsOfService": "Terms of Service",
+    "and": "and",
+    "privacyPolicy": "Privacy Policy",
+    "or": "OR",
+    "agreeTerms": "I agree to Edutu's terms and privacy policy.",
+    "footerTerms": "By continuing, you agree to Edutu's Terms & Privacy Policy.",
+    "recoverPrompt": "Password not working? Send a recovery code to reset it.",
+    "recoverPassword": "Recover password",
+    "titles": {
+      "welcomeBack": "Welcome back",
+      "createAccount": "Create Account",
+      "checkEmail": "Check your email",
+      "oneMoreStep": "One more step",
+      "resetPassword": "Reset password"
     },
-    "auth": {
-        "signIn": "Sign In",
-        "signUp": "Sign Up",
-        "signOut": "Sign Out",
-        "signInWithGoogle": "Continue with Google",
-        "welcome": "Welcome back!",
-        "createAccount": "Create your account",
-        "forgotPassword": "Forgot password?",
-        "noAccount": "Don't have an account?",
-        "hasAccount": "Already have an account?",
-        "termsAgree": "By continuing, you agree to our",
-        "termsOfService": "Terms of Service",
-        "and": "and",
-        "privacyPolicy": "Privacy Policy",
-        "or": "OR",
-        "agreeTerms": "I agree to Edutu's terms and privacy policy.",
-        "footerTerms": "By continuing, you agree to Edutu's Terms & Privacy Policy.",
-        "recoverPrompt": "Password not working? Send a recovery code to reset it.",
-        "recoverPassword": "Recover password",
-        "titles": {
-            "welcomeBack": "Welcome back",
-            "createAccount": "Create Account",
-            "checkEmail": "Check your email",
-            "oneMoreStep": "One more step",
-            "resetPassword": "Reset password"
-        },
-        "subtitles": {
-            "verifyEmail": "We sent a verification code to {{email}}",
-            "secondFactorTotp": "Enter the code from your authenticator app.",
-            "secondFactorBackup": "Enter one of your backup codes.",
-            "secondFactorCode": "For extra security, enter the verification code we just sent you.",
-            "secondFactorEmail": "For extra security, enter the code we sent to {{email}}.",
-            "resetSent": "Enter the reset code sent to {{email}}",
-            "resetPrompt": "Enter your email and we will send you a reset code.",
-            "signIn": "Sign in to continue with Edutu",
-            "signUp": "Your information is secure and will not be shared."
-        },
-        "fields": {
-            "verificationCode": "Verification code",
-            "email": "Email",
-            "resetCode": "Reset code",
-            "newPassword": "New password",
-            "name": "Name",
-            "password": "Password",
-            "confirmPassword": "Confirm password"
-        },
-        "placeholders": {
-            "email": "e.g. ahmed@edutu.org",
-            "name": "e.g. Amina Bello",
-            "password": "Enter your password",
-            "confirmPassword": "Repeat your password",
-            "newPassword": "Create a new password",
-            "backupCode": "BACKUPCODE",
-            "code": "000000"
-        },
-        "buttons": {
-            "verifying": "Verifying...",
-            "verifyAndSignIn": "Verify and sign in",
-            "verifyEmail": "Verify email",
-            "resendCode": "Resend code",
-            "resendCodeIn": "Resend code in {{seconds}}s",
-            "pleaseWait": "Please wait...",
-            "resetPassword": "Reset password",
-            "sendResetCode": "Send reset code",
-            "backToSignIn": "Back to sign in",
-            "signingIn": "Signing in...",
-            "creatingAccount": "Creating account...",
-            "signIn": "Sign in",
-            "createAccount": "Create an account",
-            "signUp": "Sign up",
-            "logIn": "Log in"
-        },
-        "errors": {
-            "authenticationFailed": "Authentication failed",
-            "invalidCredentials": "Invalid email or password",
-            "tooManyAttempts": "Too many attempts. Please try again later.",
-            "failed": "Failed to authenticate. Please try again.",
-            "enterEmail": "Please enter your email",
-            "enterPassword": "Please enter your password",
-            "enterName": "Please enter your name",
-            "passwordTooShort": "Password must be at least 8 characters",
-            "passwordsDontMatch": "Passwords do not match",
-            "acceptTerms": "Please accept the terms and privacy policy",
-            "clerkLoading": "We're still getting things ready. Please try again in a moment.",
-            "enterCode": "Please enter your verification code",
-            "enter6DigitCode": "Please enter the 6-digit code",
-            "enterResetCode": "Please enter the 6-digit reset code",
-            "resetIncomplete": "Password reset is not complete yet.",
-            "verifyIncomplete": "Verification is not complete yet.",
-            "enterEmailFirst": "Please enter your email first",
-            "accountExists": "That account already exists. Sign in with the same email to finish verification or resend the code."
-        }
+    "subtitles": {
+      "verifyEmail": "We sent a verification code to {{email}}",
+      "secondFactorTotp": "Enter the code from your authenticator app.",
+      "secondFactorBackup": "Enter one of your backup codes.",
+      "secondFactorCode": "For extra security, enter the verification code we just sent you.",
+      "secondFactorEmail": "For extra security, enter the code we sent to {{email}}.",
+      "resetSent": "Enter the reset code sent to {{email}}",
+      "resetPrompt": "Enter your email and we will send you a reset code.",
+      "signIn": "Sign in to continue with Edutu",
+      "signUp": "Your information is secure and will not be shared."
     },
-    "workspace": {
-        "greeting": "Greetings {{name}}",
-        "there": "there",
-        "section": "Workspace",
-        "developers": "Developers",
-        "menu": "Menu"
+    "fields": {
+      "verificationCode": "Verification code",
+      "email": "Email",
+      "resetCode": "Reset code",
+      "newPassword": "New password",
+      "name": "Name",
+      "password": "Password",
+      "confirmPassword": "Confirm password"
     },
-    "dashboard": {
-        "greeting": {
-            "morning": "Good morning",
-            "afternoon": "Good afternoon",
-            "evening": "Good evening",
-            "night": "Good night"
-        },
-        "stats": {
-            "goalsActive": "Active Goals",
-            "streak": "Day Streak",
-            "completed": "Completed",
-            "progress": "Progress"
-        },
-        "sections": {
-            "recentActivity": "Recent Activity",
-            "upcomingDeadlines": "Upcoming Deadlines",
-            "quickActions": "Quick Actions",
-            "exploreOpportunities": "Explore opportunities",
-            "recommendedPicks": "Recommended picks"
-        },
-        "forYou": "For you",
-        "completeProfile": "Complete your profile",
-        "reviewProfile": "Review profile",
-        "needForMatches": "Need 60% for matches",
-        "moreCount": "+{{count}} more",
-        "categoryOpportunities": "{{category}} opportunities",
-        "moreOpportunities": "More opportunities",
-        "filteredBySelection": "Filtered by your selection",
-        "scrollDown": "Scroll down to keep reviewing cards",
-        "browseAll": "Browse all",
-        "improveProfile": "Improve profile",
-        "shuffle": "Shuffle",
-        "viewMore": "View more",
-        "viewAll": "View all",
-        "savedCount": "Saved {{count}}",
-        "applicationsCount": "Applications {{count}}",
-        "latestActivity": "Latest saved and tracked opportunities",
-        "profileBanner": {
-            "unlock": "Unlock personalized matches at {{score}}%"
-        },
-        "empty": {
-            "noRecommendations": "No recommendations yet",
-            "noRecommendationsDescription": "Complete your profile or browse the full opportunity feed while Edutu prepares better matches.",
-            "browseOpportunities": "Browse opportunities",
-            "showAll": "Show all",
-            "noCategoryFound": "No {{category}} found",
-            "tryAnotherCategory": "Try another category or clear the filter to return to the full feed."
-        }
+    "placeholders": {
+      "email": "e.g. ahmed@edutu.org",
+      "name": "e.g. Amina Bello",
+      "password": "Enter your password",
+      "confirmPassword": "Repeat your password",
+      "newPassword": "Create a new password",
+      "backupCode": "BACKUPCODE",
+      "code": "000000"
     },
-    "opportunities": {
-        "title": "Opportunities",
-        "searchPlaceholder": "Search by title, location, or keyword",
-        "showClosed": "Show closed",
-        "browseCategory": "Browse {{label}} from the Edutu opportunity feed.",
-        "filters": {
-            "deadline": "Deadline",
-            "funding": "Funding"
-        },
-        "deadlineWindows": {
-            "any": "Any time",
-            "week": "Closing this week",
-            "month": "Closing this month",
-            "90days": "Next 90 days"
-        },
-        "funding": {
-            "any": "Any funding",
-            "paid": "Paid / funded"
-        },
-        "remoteOnly": "Remote only",
-        "featured": "Featured",
-        "sort": {
-            "recommended": "Recommended",
-            "latest": "Latest",
-            "deadline": "Deadline (soonest)",
-            "newest": "Newest",
-            "funding": "Funding (highest)"
-        },
-        "showing": {
-            "opportunities_one": "Showing {{shown}} of {{total}} opportunity",
-            "opportunities_other": "Showing {{shown}} of {{total}} opportunities"
-        },
-        "clearAll": "Clear all",
-        "clearFilters": "Clear filters",
-        "loadMore": "Load more",
-        "errorTitle": "Unable to load opportunities",
-        "categories": {
-            "scholarships": "Scholarships",
-            "internships": "Internships",
-            "programs": "Programs",
-            "fellowships": "Fellowships"
-        },
-        "empty": {
-            "title": "No opportunities found",
-            "description": "Try a broader search term or clear the current filters to see more listings."
-        },
-        "rails": {
-            "recommended": "Recommended for you",
-            "recommendedSubtitle": "Strong matches for your profile",
-            "latest": "Just added",
-            "latestSubtitle": "The newest opportunities on Edutu",
-            "closing": "Closing soon",
-            "closingSubtitle": "Deadlines around the corner — apply now"
-        }
-    },
-    "goals": {
-        "title": "Goals",
-        "createGoal": "Create Goal",
-        "editGoal": "Edit Goal",
-        "noGoals": "No goals yet. Create your first goal!",
-        "status": {
-            "active": "Active",
-            "completed": "Completed",
-            "archived": "Archived"
-        },
-        "priority": {
-            "low": "Low Priority",
-            "medium": "Medium Priority",
-            "high": "High Priority"
-        },
-        "fields": {
-            "title": "Goal Title",
-            "description": "Description",
-            "deadline": "Deadline",
-            "category": "Category",
-            "progress": "Progress"
-        }
-    },
-    "ai": {
-        "title": "Edutu AI",
-        "subtitle": "Your personal AI coach",
-        "placeholder": "Ask me anything...",
-        "send": "Send",
-        "thinking": "Thinking...",
-        "suggestions": {
-            "title": "Try asking:",
-            "goal": "Help me set a career goal",
-            "opportunity": "Find opportunities in tech",
-            "advice": "Give me productivity tips"
-        }
-    },
-    "marketplace": {
-        "title": "Community Marketplace",
-        "subtitle": "Discover roadmaps and resources",
-        "featured": "Featured",
-        "trending": "Trending",
-        "newest": "Newest",
-        "categories": {
-            "all": "All",
-            "education": "Education",
-            "career": "Career",
-            "programming": "Programming",
-            "business": "Business",
-            "personal": "Personal Growth"
-        },
-        "roadmap": {
-            "by": "By",
-            "views": "views",
-            "downloads": "downloads",
-            "rating": "rating"
-        },
-        "actions": {
-            "download": "Download",
-            "preview": "Preview",
-            "share": "Share",
-            "publish": "Publish Your Roadmap"
-        }
-    },
-    "settings": {
-        "title": "Settings",
-        "sections": {
-            "profile": "Profile Settings",
-            "appearance": "Appearance",
-            "notifications": "Notifications",
-            "privacy": "Privacy & Security",
-            "language": "Language",
-            "about": "About"
-        },
-        "theme": {
-            "title": "Theme",
-            "light": "Light",
-            "dark": "Dark",
-            "system": "System"
-        },
-        "language": {
-            "title": "Language",
-            "select": "Select Language"
-        }
-    },
-    "notifications": {
-        "title": "Notifications",
-        "empty": "No new notifications",
-        "markRead": "Mark as read",
-        "markAllRead": "Mark all as read",
-        "settings": "Notification Settings"
+    "buttons": {
+      "verifying": "Verifying...",
+      "verifyAndSignIn": "Verify and sign in",
+      "verifyEmail": "Verify email",
+      "resendCode": "Resend code",
+      "resendCodeIn": "Resend code in {{seconds}}s",
+      "pleaseWait": "Please wait...",
+      "resetPassword": "Reset password",
+      "sendResetCode": "Send reset code",
+      "backToSignIn": "Back to sign in",
+      "signingIn": "Signing in...",
+      "creatingAccount": "Creating account...",
+      "signIn": "Sign in",
+      "createAccount": "Create an account",
+      "signUp": "Sign up",
+      "logIn": "Log in"
     },
     "errors": {
-        "networkError": "Network error. Please check your connection.",
-        "serverError": "Server error. Please try again later.",
-        "notFound": "Page not found",
-        "unauthorized": "Please sign in to continue",
-        "forbidden": "You don't have permission to access this"
+      "authenticationFailed": "Authentication failed",
+      "invalidCredentials": "Invalid email or password",
+      "tooManyAttempts": "Too many attempts. Please try again later.",
+      "failed": "Failed to authenticate. Please try again.",
+      "enterEmail": "Please enter your email",
+      "enterPassword": "Please enter your password",
+      "enterName": "Please enter your name",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordsDontMatch": "Passwords do not match",
+      "acceptTerms": "Please accept the terms and privacy policy",
+      "clerkLoading": "We're still getting things ready. Please try again in a moment.",
+      "enterCode": "Please enter your verification code",
+      "enter6DigitCode": "Please enter the 6-digit code",
+      "enterResetCode": "Please enter the 6-digit reset code",
+      "resetIncomplete": "Password reset is not complete yet.",
+      "verifyIncomplete": "Verification is not complete yet.",
+      "enterEmailFirst": "Please enter your email first",
+      "accountExists": "That account already exists. Sign in with the same email to finish verification or resend the code."
+    }
+  },
+  "workspace": {
+    "greeting": "Greetings {{name}}",
+    "there": "there",
+    "section": "Workspace",
+    "developers": "Developers",
+    "menu": "Menu"
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening",
+      "night": "Good night"
     },
-    "accessibility": {
-        "skipToMain": "Skip to main content",
-        "openMenu": "Open menu",
-        "closeMenu": "Close menu",
-        "loading": "Content is loading",
-        "newNotification": "New notification"
+    "stats": {
+      "goalsActive": "Active Goals",
+      "streak": "Day Streak",
+      "completed": "Completed",
+      "progress": "Progress"
     },
-    "navigation": {
-        "home": "Home",
-        "discover": "Discover",
-        "explore": "Explore",
-        "plan": "Plan",
-        "track": "Track",
-        "me": "Me",
-        "ai": "Edutu AI",
-        "market": "Market",
-        "more": "More",
-        "settings": "Settings",
-        "profile": "Profile",
-        "notifications": "Notifications",
-        "saved": "Saved",
-        "applied": "Applied",
-        "applications": "Applications",
-        "myPlan": "My Plan",
-        "opportunities": "Opportunities",
-        "opportunityDetail": "Opportunity",
-        "deadlines": "Deadlines",
-        "dates": "Dates",
-        "developerApi": "Developer API",
-        "wallet": "Wallet",
-        "creator": "Creator",
-        "logOut": "Log out",
-        "signingOut": "Signing out...",
-        "upgradeToPro": "Upgrade to Pro",
-        "community": "Community"
+    "sections": {
+      "recentActivity": "Recent Activity",
+      "upcomingDeadlines": "Upcoming Deadlines",
+      "quickActions": "Quick Actions",
+      "exploreOpportunities": "Explore opportunities",
+      "recommendedPicks": "Recommended picks"
     },
-    "myPlan": {
-        "workspaceLabel": "Intentional workspace",
-        "workspaceDescription": "Keep your opportunities, applications, and deadlines moving together.",
-        "workspaceNav": "Plan workspace",
-        "stagesLabel": "Plan stages",
-        "overview": "My Plan",
-        "applications": "Applications",
-        "calendar": "Calendar",
-        "stages": {
-            "pursuing": "Pursuing",
-            "discover": "Shortlist",
-            "applied": "Applied",
-            "outcome": "Closed"
-        },
-        "states": {
-            "shortlisted": "Shortlisted",
-            "pursuing": "Pursuing",
-            "preparing": "Preparing",
-            "ready_to_apply": "Ready to apply",
-            "application_opened": "Application opened",
-            "applied": "Applied",
-            "interview": "Interview",
-            "offer": "Offer",
-            "rejected": "Rejected",
-            "withdrawn": "Withdrawn",
-            "no_response": "No response",
-            "expired": "Expired",
-            "archived": "Archived"
-        },
-        "primaryFocus": "Primary focus",
-        "opportunity": "Opportunity",
-        "signInToView": "Sign in again to view your plan.",
-        "signInToUpdate": "Sign in again to update your plan.",
-        "continueWith": "Continue with {{title}}",
-        "preparation": "Preparation",
-        "preparationProgress": "Preparation progress",
-        "nextStep": "Next step",
-        "reviewPlan": "Review your plan",
-        "exploreOpportunities": "Explore opportunities",
-        "title": "Make progress on purpose.",
-        "description": "Turn opportunities into clear next steps, with one place to keep moving.",
-        "refresh": "Refresh",
-        "stageCount_one": "{{count}} in this stage",
-        "stageCount_other": "{{count}} in this stage",
-        "loading": "Loading your plan",
-        "retry": "Retry",
-        "emptyTitle": "Nothing here yet",
-        "emptyDescription": "Choose an opportunity and make it part of your plan when you are ready to take the next step.",
-        "unavailableTitle": "This plan is unavailable",
-        "unavailableBody": "We could not load this journey. Try again in a moment.",
-        "deadline": "Deadline {{date}}",
-        "stepsComplete": "{{completed}} of {{total}} required steps complete",
-        "keepMoving": "Keep moving",
-        "preparationSteps": "Your preparation steps",
-        "required": "Required",
-        "optional": "Optional",
-        "completed": "Completed",
-        "markComplete": "Mark complete",
-        "openApplication": "Open application",
-        "confirmSubmitted": "I submitted this application",
-        "recordOutcome": "Record an application outcome",
-        "updatedElsewhere": "This plan changed in another session. We refreshed it; review the current step and try again.",
-        "updateFailed": "We could not save that update. Your plan has been refreshed; try again.",
-        "outcomes": {
-            "offer": "Offer",
-            "rejected": "Not selected",
-            "withdrawn": "Withdrawn",
-            "no_response": "No response",
-            "expired": "Expired"
-        }
+    "forYou": "For you",
+    "completeProfile": "Complete your profile",
+    "reviewProfile": "Review profile",
+    "needForMatches": "Need 60% for matches",
+    "moreCount": "+{{count}} more",
+    "categoryOpportunities": "{{category}} opportunities",
+    "moreOpportunities": "More opportunities",
+    "filteredBySelection": "Filtered by your selection",
+    "scrollDown": "Scroll down to keep reviewing cards",
+    "browseAll": "Browse all",
+    "improveProfile": "Improve profile",
+    "shuffle": "Shuffle",
+    "viewMore": "View more",
+    "viewAll": "View all",
+    "savedCount": "Saved {{count}}",
+    "applicationsCount": "Applications {{count}}",
+    "latestActivity": "Latest saved and tracked opportunities",
+    "profileBanner": {
+      "unlock": "Unlock personalized matches at {{score}}%"
     },
-    "saved": {
-        "title": "Saved Opportunities",
-        "all": "All",
-        "urgent": "Urgent",
-        "upcoming": "Upcoming",
-        "empty": "No saved opportunities yet. Explore and save opportunities you're interested in."
+    "empty": {
+      "noRecommendations": "No recommendations yet",
+      "noRecommendationsDescription": "Complete your profile or browse the full opportunity feed while Edutu prepares better matches.",
+      "browseOpportunities": "Browse opportunities",
+      "showAll": "Show all",
+      "noCategoryFound": "No {{category}} found",
+      "tryAnotherCategory": "Try another category or clear the filter to return to the full feed."
+    }
+  },
+  "opportunities": {
+    "title": "Opportunities",
+    "searchPlaceholder": "Search by title, location, or keyword",
+    "showClosed": "Show closed",
+    "browseCategory": "Browse {{label}} from the Edutu opportunity feed.",
+    "filters": {
+      "deadline": "Deadline",
+      "funding": "Funding"
     },
-    "applied": {
-        "title": "Applied Opportunities",
-        "all": "All",
-        "submitted": "Submitted",
-        "under_review": "Under Review",
-        "accepted": "Accepted",
-        "rejected": "Rejected",
-        "empty": "No applications yet. Start applying to opportunities to track your progress."
+    "deadlineWindows": {
+      "any": "Any time",
+      "week": "Closing this week",
+      "month": "Closing this month",
+      "90days": "Next 90 days"
     },
-    "deadlines": {
-        "title": "Upcoming Deadlines",
-        "this_week": "This Week",
-        "next_week": "Next Week",
-        "this_month": "This Month",
-        "later": "Later",
-        "empty": "No upcoming deadlines. Save opportunities to track their deadlines."
+    "funding": {
+      "any": "Any funding",
+      "paid": "Paid / funded"
     },
-    "wallet": {
-        "title": "Wallet",
-        "balance": "Balance",
-        "buy_credits": "Buy Credits",
-        "history": "Transaction History",
-        "empty": "No transactions yet."
+    "remoteOnly": "Remote only",
+    "featured": "Featured",
+    "sort": {
+      "recommended": "Recommended",
+      "latest": "Latest",
+      "deadline": "Deadline (soonest)",
+      "newest": "Newest",
+      "funding": "Funding (highest)"
     },
-    "creator": {
-        "apply": "Apply as Creator",
-        "dashboard": "Creator Dashboard",
-        "status_pending": "Pending Review",
-        "status_approved": "Approved",
-        "status_rejected": "Rejected"
+    "showing": {
+      "opportunities_one": "Showing {{shown}} of {{total}} opportunity",
+      "opportunities_other": "Showing {{shown}} of {{total}} opportunities"
+    },
+    "clearAll": "Clear all",
+    "clearFilters": "Clear filters",
+    "loadMore": "Load more",
+    "errorTitle": "Unable to load opportunities",
+    "categories": {
+      "scholarships": "Scholarships",
+      "internships": "Internships",
+      "programs": "Programs",
+      "fellowships": "Fellowships"
+    },
+    "empty": {
+      "title": "No opportunities found",
+      "description": "Try a broader search term or clear the current filters to see more listings."
+    },
+    "rails": {
+      "recommended": "Recommended for you",
+      "recommendedSubtitle": "Strong matches for your profile",
+      "latest": "Just added",
+      "latestSubtitle": "The newest opportunities on Edutu",
+      "closing": "Closing soon",
+      "closingSubtitle": "Deadlines around the corner — apply now"
+    }
+  },
+  "goals": {
+    "title": "Goals",
+    "createGoal": "Create Goal",
+    "editGoal": "Edit Goal",
+    "noGoals": "No goals yet. Create your first goal!",
+    "status": {
+      "active": "Active",
+      "completed": "Completed",
+      "archived": "Archived"
+    },
+    "priority": {
+      "low": "Low Priority",
+      "medium": "Medium Priority",
+      "high": "High Priority"
+    },
+    "fields": {
+      "title": "Goal Title",
+      "description": "Description",
+      "deadline": "Deadline",
+      "category": "Category",
+      "progress": "Progress"
+    }
+  },
+  "ai": {
+    "title": "Edutu AI",
+    "subtitle": "Your personal AI coach",
+    "placeholder": "Ask me anything...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "suggestions": {
+      "title": "Try asking:",
+      "goal": "Help me set a career goal",
+      "opportunity": "Find opportunities in tech",
+      "advice": "Give me productivity tips"
+    }
+  },
+  "marketplace": {
+    "title": "Community Marketplace",
+    "subtitle": "Discover roadmaps and resources",
+    "featured": "Featured",
+    "trending": "Trending",
+    "newest": "Newest",
+    "categories": {
+      "all": "All",
+      "education": "Education",
+      "career": "Career",
+      "programming": "Programming",
+      "business": "Business",
+      "personal": "Personal Growth"
     },
     "roadmap": {
-        "wizard": {
-            "step_overview": "Overview",
-            "step_milestones": "Milestones",
-            "step_weekly": "Weekly Plan",
-            "step_checklist": "Checklist",
-            "step_review": "Review"
-        }
+      "by": "By",
+      "views": "views",
+      "downloads": "downloads",
+      "rating": "rating"
     },
-    "profile": {
-        "completeness": {
-            "banner": "Complete your profile to unlock personalized recommendations and better opportunities."
-        }
-    },
-    "guidanceHome": {
-        "eyebrow": "Your next step",
-        "loading": "Loading your next step",
-        "unavailableTitle": "Next step unavailable",
-        "unavailableBody": "Explore opportunities while we reconnect.",
-        "retry": "Try again",
-        "explore": "Explore opportunities",
-        "forOpportunity": "For {{title}}",
-        "dueDate": "Due {{date}}",
-        "continuePlan": "Continue plan",
-        "editPreferences": "Edit preferences",
-        "viewOpportunity": "View opportunity",
-        "noRecommendationTitle": "Find an opportunity to work toward",
-        "noRecommendationBody": "Your matches will appear here when we find a useful next step.",
-        "limitedBody": "Recommendations are limited right now. Browse current opportunities instead.",
-        "checkEligibility": "Check the requirements before you decide.",
-        "yourOpportunity": "your opportunity",
-        "basedOnProfile": "Based on your profile"
+    "actions": {
+      "download": "Download",
+      "preview": "Preview",
+      "share": "Share",
+      "publish": "Publish Your Roadmap"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "profile": "Profile Settings",
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "privacy": "Privacy & Security",
+      "language": "Language",
+      "about": "About"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "language": {
+      "title": "Language",
+      "select": "Select Language"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No new notifications",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read",
+    "settings": "Notification Settings"
+  },
+  "errors": {
+    "networkError": "Network error. Please check your connection.",
+    "serverError": "Server error. Please try again later.",
+    "notFound": "Page not found",
+    "unauthorized": "Please sign in to continue",
+    "forbidden": "You don't have permission to access this"
+  },
+  "accessibility": {
+    "skipToMain": "Skip to main content",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "loading": "Content is loading",
+    "newNotification": "New notification"
+  },
+  "navigation": {
+    "home": "Home",
+    "discover": "Discover",
+    "explore": "Explore",
+    "plan": "Plan",
+    "track": "Track",
+    "me": "Me",
+    "ai": "Edutu AI",
+    "market": "Market",
+    "more": "More",
+    "settings": "Settings",
+    "profile": "Profile",
+    "notifications": "Notifications",
+    "saved": "Saved",
+    "applied": "Applied",
+    "applications": "Applications",
+    "myPlan": "My Plan",
+    "opportunities": "Opportunities",
+    "opportunityDetail": "Opportunity",
+    "deadlines": "Deadlines",
+    "dates": "Dates",
+    "developerApi": "Developer API",
+    "wallet": "Wallet & payments",
+    "creator": "Creator",
+    "logOut": "Log out",
+    "signingOut": "Signing out...",
+    "upgradeToPro": "Upgrade to Pro",
+    "community": "Community",
+    "coach": "AI Coach",
+    "coachShort": "Coach",
+    "planShort": "Plan",
+    "cv": "CV & AI tools",
+    "copilot": "Application Copilot",
+    "documents": "My Documents",
+    "documentShort": "Document",
+    "alerts": "Searches & alerts",
+    "alertsShort": "Alerts",
+    "goals": "Goals"
+  },
+  "myPlan": {
+    "workspaceLabel": "Intentional workspace",
+    "workspaceDescription": "Keep your opportunities, applications, and deadlines moving together.",
+    "workspaceNav": "Plan workspace",
+    "stagesLabel": "Plan stages",
+    "overview": "My Plan",
+    "applications": "Applications",
+    "calendar": "Calendar",
+    "stages": {
+      "pursuing": "Pursuing",
+      "discover": "Shortlist",
+      "applied": "Applied",
+      "outcome": "Closed"
+    },
+    "states": {
+      "shortlisted": "Shortlisted",
+      "pursuing": "Pursuing",
+      "preparing": "Preparing",
+      "ready_to_apply": "Ready to apply",
+      "application_opened": "Application opened",
+      "applied": "Applied",
+      "interview": "Interview",
+      "offer": "Offer",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn",
+      "no_response": "No response",
+      "expired": "Expired",
+      "archived": "Archived"
+    },
+    "primaryFocus": "Primary focus",
+    "opportunity": "Opportunity",
+    "signInToView": "Sign in again to view your plan.",
+    "signInToUpdate": "Sign in again to update your plan.",
+    "continueWith": "Continue with {{title}}",
+    "preparation": "Preparation",
+    "preparationProgress": "Preparation progress",
+    "nextStep": "Next step",
+    "reviewPlan": "Review your plan",
+    "exploreOpportunities": "Explore opportunities",
+    "title": "Make progress on purpose.",
+    "description": "Turn opportunities into clear next steps, with one place to keep moving.",
+    "refresh": "Refresh",
+    "stageCount_one": "{{count}} in this stage",
+    "stageCount_other": "{{count}} in this stage",
+    "loading": "Loading your plan",
+    "retry": "Retry",
+    "emptyTitle": "Nothing here yet",
+    "emptyDescription": "Choose an opportunity and make it part of your plan when you are ready to take the next step.",
+    "unavailableTitle": "This plan is unavailable",
+    "unavailableBody": "We could not load this journey. Try again in a moment.",
+    "deadline": "Deadline {{date}}",
+    "stepsComplete": "{{completed}} of {{total}} required steps complete",
+    "keepMoving": "Keep moving",
+    "preparationSteps": "Your preparation steps",
+    "required": "Required",
+    "optional": "Optional",
+    "completed": "Completed",
+    "markComplete": "Mark complete",
+    "openApplication": "Open application",
+    "confirmSubmitted": "I submitted this application",
+    "recordOutcome": "Record an application outcome",
+    "updatedElsewhere": "This plan changed in another session. We refreshed it; review the current step and try again.",
+    "updateFailed": "We could not save that update. Your plan has been refreshed; try again.",
+    "outcomes": {
+      "offer": "Offer",
+      "rejected": "Not selected",
+      "withdrawn": "Withdrawn",
+      "no_response": "No response",
+      "expired": "Expired"
+    }
+  },
+  "saved": {
+    "title": "Saved Opportunities",
+    "all": "All",
+    "urgent": "Urgent",
+    "upcoming": "Upcoming",
+    "empty": "No saved opportunities yet. Explore and save opportunities you're interested in."
+  },
+  "applied": {
+    "title": "Applied Opportunities",
+    "all": "All",
+    "submitted": "Submitted",
+    "under_review": "Under Review",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "empty": "No applications yet. Start applying to opportunities to track your progress."
+  },
+  "deadlines": {
+    "title": "Upcoming Deadlines",
+    "this_week": "This Week",
+    "next_week": "Next Week",
+    "this_month": "This Month",
+    "later": "Later",
+    "empty": "No upcoming deadlines. Save opportunities to track their deadlines."
+  },
+  "wallet": {
+    "title": "Wallet",
+    "balance": "Balance",
+    "buy_credits": "Buy Credits",
+    "history": "Transaction History",
+    "empty": "No transactions yet."
+  },
+  "creator": {
+    "apply": "Apply as Creator",
+    "dashboard": "Creator Dashboard",
+    "status_pending": "Pending Review",
+    "status_approved": "Approved",
+    "status_rejected": "Rejected"
+  },
+  "roadmap": {
+    "wizard": {
+      "step_overview": "Overview",
+      "step_milestones": "Milestones",
+      "step_weekly": "Weekly Plan",
+      "step_checklist": "Checklist",
+      "step_review": "Review"
+    }
+  },
+  "profile": {
+    "completeness": {
+      "banner": "Complete your profile to unlock personalized recommendations and better opportunities."
+    }
+  },
+  "guidanceHome": {
+    "eyebrow": "Your next step",
+    "loading": "Loading your next step",
+    "unavailableTitle": "Next step unavailable",
+    "unavailableBody": "Explore opportunities while we reconnect.",
+    "retry": "Try again",
+    "explore": "Explore opportunities",
+    "forOpportunity": "For {{title}}",
+    "dueDate": "Due {{date}}",
+    "continuePlan": "Continue plan",
+    "editPreferences": "Edit preferences",
+    "viewOpportunity": "View opportunity",
+    "noRecommendationTitle": "Find an opportunity to work toward",
+    "noRecommendationBody": "Your matches will appear here when we find a useful next step.",
+    "limitedBody": "Recommendations are limited right now. Browse current opportunities instead.",
+    "checkEligibility": "Check the requirements before you decide.",
+    "yourOpportunity": "your opportunity",
+    "basedOnProfile": "Based on your profile"
+  },
+  "cv": {
+    "health": {
+      "title": "CV Health",
+      "close": "Close",
+      "fix": "Fix",
+      "pillAccessibility": "CV health score {{score}} out of 100",
+      "toFix": "{{count}} to fix",
+      "passing": "{{count}} looking good",
+      "band": {
+        "weak": {
+          "title": "Needs work",
+          "description": "{{count}} things are holding this CV back. Each one is a quick fix."
+        },
+        "fair": {
+          "title": "Nearly there",
+          "description": "The essentials are in place. {{count}} improvements would make it competitive."
+        },
+        "strong": {
+          "title": "Strong CV",
+          "description": "Everything essential checks out. Ready to send."
+        }
+      },
+      "checks": {
+        "fullName": {
+          "pass": "Your full name is on the CV",
+          "fail": "Add your full name"
+        },
+        "email": {
+          "pass": "Contact email looks valid",
+          "fail": "Add a valid email address"
+        },
+        "reachable": {
+          "pass": "You're reachable by phone or location",
+          "fail": "Add a phone number or your location"
+        },
+        "summary": {
+          "pass": "Your summary sets the scene",
+          "fail": "Write a summary of at least 15 words"
+        },
+        "summaryLength": {
+          "pass": "Summary is a readable length",
+          "fail": "Your summary runs to {{words}} words — trim it under 120"
+        },
+        "experience": {
+          "pass": "You've listed experience",
+          "fail": "Add at least one role, internship or volunteer position"
+        },
+        "experienceComplete": {
+          "pass": "Every role has a title, employer and start date",
+          "fail": "{{count}} role(s) are missing a title, employer or start date"
+        },
+        "quantified": {
+          "pass": "Your achievements carry numbers",
+          "fail": "{{count}} bullet(s) have no number — add a figure, percentage or scale"
+        },
+        "education": {
+          "pass": "Education is listed",
+          "fail": "Add your education"
+        },
+        "skills": {
+          "pass": "You've listed enough skills",
+          "fail": "Only {{count}} skill(s) listed — aim for five or more"
+        },
+        "datesParse": {
+          "pass": "All dates are readable",
+          "fail": "{{count}} date(s) can't be read — pick them from the calendar"
+        },
+        "datesOrder": {
+          "pass": "Your dates run in order",
+          "fail": "{{count}} entry(ies) end before they start"
+        },
+        "length": {
+          "pass": "Length is about right",
+          "fail": "This runs to roughly {{pages}} pages — most reviewers prefer one or two"
+        },
+        "templateFit": {
+          "pass": "Your content fits this template",
+          "fail": "This template features {{sections}} — add content or pick another template"
+        }
+      }
+    }
+  },
+  "coachPage": {
+    "kicker": "EDUTU AI",
+    "placeholder": "Message Edutu…",
+    "welcomeTitle": "I’m Edutu, your AI Coach",
+    "welcomeBody": "Ask for real scholarships, deadlines, roadmaps, or application next steps.",
+    "findScholarships": "Find scholarships",
+    "findScholarshipsDetail": "Available this month",
+    "buildRoadmap": "Build roadmap",
+    "buildRoadmapDetail": "Plan my next application",
+    "history": "History",
+    "conversation": "Conversation",
+    "conversations": "Conversations",
+    "loadingHistory": "Loading conversations…",
+    "emptyHistory": "Your conversations will appear here.",
+    "untitled": "New conversation",
+    "delete": "Delete conversation",
+    "deleteConfirm": "Delete this conversation?",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "thisWeek": "This week",
+    "older": "Older",
+    "send": "Send message",
+    "startDictation": "Voice type",
+    "stopDictation": "Stop voice typing",
+    "startVoice": "Start live voice",
+    "dictationUnavailable": "Voice typing isn’t available in this browser. You can still type your question.",
+    "dictationError": "Couldn’t access voice typing. Check your microphone permission and try again.",
+    "savedQuestion": "Your question is saved",
+    "savedQuestionDetail": "After reviewing your access, you can send it again with one tap.",
+    "resend": "Resend",
+    "listening": "Listening…",
+    "readAloud": "Read aloud",
+    "stopReading": "Stop reading",
+    "thinking": "Edutu is thinking…",
+    "stoppedBeforeReply": "You stopped before Edutu replied.",
+    "stopped": "You stopped this reply — it may be incomplete.",
+    "interrupted": "The connection dropped, so this reply may be incomplete.",
+    "partial": "This answer is partial.",
+    "recommended": "Recommended from Opportunities",
+    "viewMore": "View more",
+    "roadmapTitle": "Build your roadmap",
+    "roadmapDetail": "Goals, deadlines, and reminders",
+    "build": "Build",
+    "calendarTitle": "Add these dates to your calendar?",
+    "calendarDetail": "Download a calendar file with reminders for your plan.",
+    "calendarUnavailable": "No dated milestones are available to add.",
+    "addDates": "Add dates",
+    "sharedImage": "Shared image",
+    "shareImage": "Share image",
+    "report": "Report this response",
+    "reportTitle": "Report this response",
+    "reportDescription": "What was wrong with this answer?",
+    "reportCancel": "Cancel",
+    "reportSubmitted": "Thanks. Your report was submitted.",
+    "reportReasons": {
+      "inaccurate": "Inaccurate or misleading",
+      "offensive": "Inappropriate or offensive",
+      "other": "Something else"
+    },
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "older": "Older"
+    }
+  },
+  "workspaceCopy": {
+    "conversations": "Conversations",
+    "yourConversationsWillAppearHere": "Your conversations will appear here.",
+    "aLittleClarityGoesALongWay": "A little clarity goes a long way",
+    "whatWouldYouLikeToWorkOn": "What would you like to work on?",
+    "startWithAQuestionWeLlTakeItOne": "Start with a question. We’ll take it one step at a time.",
+    "yourQuestion": "Your question",
+    "stop": "Stop",
+    "aiSuggestionsCanBeIncompleteCheckTheOpportunityS": "AI suggestions can be incomplete. Check the opportunity’s official requirements before applying.",
+    "speakFreely": "Speak freely",
+    "voiceCoach": "Voice coach",
+    "end": "End",
+    "startVoice": "Start voice",
+    "liveVoiceRequiresAnActivePaidPlanTextCoaching": "Live voice requires an active paid plan. Text coaching is still available.",
+    "enableAudio": "Enable audio",
+    "documents": "Documents",
+    "newCV": "New CV",
+    "saveCV": "Save CV",
+    "reloadSavedVersion": "Reload saved version",
+    "versionName": "Version name",
+    "template": "Template",
+    "professionalSummary": "Professional summary",
+    "skillsCommaSeparated": "Skills (comma separated)",
+    "currentRole": "Current role",
+    "highlightsOnePerLine": "Highlights (one per line)",
+    "removeEntry": "Remove entry",
+    "add": "Add",
+    "printSavePDF": "Print / save PDF",
+    "downloadText": "Download text",
+    "cvHealth": "CV health ·",
+    "aPreparationChecklistNotAGuaranteeOfAcceptance": "A preparation checklist, not a guarantee of acceptance.",
+    "aiWritingTools": "AI writing tools",
+    "reviewEveryProposedChangeBeforeApplyingItYourOriginal": "Review every proposed change before applying it. Your original stays intact.",
+    "whatShouldWeFocusOn": "What should we focus on?",
+    "targetOpportunityID": "Target opportunity ID",
+    "draftPolishCV": "Draft / polish CV",
+    "tailorToOpportunity": "Tailor to opportunity",
+    "draftCoverLetter": "Draft cover letter",
+    "importLinkedInPDFZIP": "Import LinkedIn PDF / ZIP",
+    "proposedVersion": "Proposed version",
+    "acceptChanges": "Accept changes",
+    "keepOriginal": "Keep original",
+    "coverLetterDraft": "Cover letter draft",
+    "downloadDraft": "Download draft",
+    "myDocuments": "My Documents",
+    "cvStudio": "CV studio",
+    "checklistItemsComplete": "checklist items complete",
+    "chooseAnOpportunityToBegin": "Choose an opportunity to begin",
+    "openAnOpportunityAndSelectPrepareApplication": "Open an opportunity and select Prepare application.",
+    "exploreOpportunities": "Explore opportunities",
+    "reusableAnswerBank": "Reusable answer bank",
+    "yourSavedEssaysStayUsefulAcrossApplications": "Your saved essays stay useful across applications.",
+    "readSavedAnswer": "Read saved answer",
+    "export": "Export",
+    "prepareThisApplication": "Prepare this application",
+    "createAPersonalizedStrategyUsingYourProfileThisUses": "Create a personalized strategy using your profile. This uses your current AI allowance.",
+    "completeYourProfileForMoreRelevantGuidance": "Complete your profile for more relevant guidance.",
+    "updateProfile": "Update profile",
+    "discussWithAICoach": "Discuss with AI Coach",
+    "applicationChecklist": "Application checklist",
+    "prepareRefereeRequest": "Prepare referee request",
+    "exportRequest": "Export request",
+    "editThePlaceholdersBeforeSharing": "Edit the placeholders before sharing.",
+    "essayWorkspace": "Essay workspace",
+    "thisKitHasNoEssayPrompts": "This kit has no essay prompts.",
+    "prompt": "Prompt",
+    "words": "words ·",
+    "saveEssay": "Save essay",
+    "suggestOutline": "Suggest outline",
+    "getFeedback": "Get feedback",
+    "suggestedOutline": "Suggested outline",
+    "avoid": "Avoid:",
+    "feedback": "Feedback ·",
+    "strengths": "Strengths",
+    "suggestedImprovements": "Suggested improvements",
+    "suggestionsDoNotChangeYourSavedEssay": "Suggestions do not change your saved essay.",
+    "uploadDocument": "Upload document",
+    "uploadAs": "Upload as",
+    "cvVersions": "CV versions",
+    "startInTheCVStudioSyncedMobileCVsWill": "Start in the CV studio. Synced mobile CVs will appear here too.",
+    "editableCV": "Editable CV ·",
+    "open": "Open",
+    "earlierWebRecord": "Earlier web record",
+    "uploadedMaterials": "Uploaded materials",
+    "uploadAPDFWordDocumentOrTextFileUp": "Upload a PDF, Word document or text file up to 10 MB.",
+    "readFile": "Read file",
+    "newAlert": "New alert",
+    "remoteOpportunitiesOnly": "Remote opportunities only",
+    "sendMatchingDigests": "Send matching digests",
+    "onlyTheCriteriaAboveAreSavedSortingAndOpen": "Only the criteria above are saved. Sorting and open/closed display filters do not affect this alert. Choose at least one search criterion.",
+    "saveAlert": "Save alert",
+    "cancel": "Cancel",
+    "yourNextOpportunityCouldFindYou": "Your next opportunity could find you",
+    "createAnAlertForYourInterestsFundingNeedsOr": "Create an alert for your interests, funding needs or target region.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "previewCurrentMatches": "Preview current matches",
+    "noCurrentMatchesThisAlertStaysReadyForNew": "No current matches. This alert stays ready for new opportunities.",
+    "deliveryPreferences": "Delivery preferences",
+    "matchesAreCheckedOnTheServerDigestDeliveryRuns": "Matches are checked on the server. Digest delivery runs every 30 minutes, with at most one matching push per six hours, subject to your preferences and quiet hours.",
+    "addGoal": "Add goal",
+    "goalTitle": "Goal title",
+    "description": "Description",
+    "targetDate": "Target date",
+    "priority": "Priority",
+    "progress": "Progress ·",
+    "datesAreSavedAtNoonInYourCurrentTimezone": "Dates are saved at noon in your current timezone (",
+    "dueDateRemindersFollowYourNotificationPreferencesChangingA": "). Due-date reminders follow your notification preferences; changing a goal updates its server reminders.",
+    "saveGoal": "Save goal",
+    "aGoalGivesYourNextStepDirection": "A goal gives your next step direction",
+    "addAPersonalTargetAndTrackYourProgressHere": "Add a personal target and track your progress here.",
+    "priority7ecf": "priority",
+    "complete": "% complete",
+    "refreshAccess": "Refresh access",
+    "currentAccess": "Current access",
+    "manageWebBilling": "Manage web billing",
+    "manageAppStoreOrPlayStoreSubscriptionsThroughThe": "Manage App Store or Play Store subscriptions through the store where you purchased them.",
+    "appleSubscriptions": "Apple subscriptions",
+    "googlePlaySubscriptions": "Google Play subscriptions",
+    "aiCreditBalance": "AI credit balance",
+    "creditsPlanAllowancesAndDailyLimitsAreSeparateBuying": "Credits, plan allowances, and daily limits are separate. Buying credits does not reset a daily limit or unlock voice without an active plan.",
+    "openAICoach": "Open AI Coach",
+    "theServerChecksYourAllowanceBeforeEachAIAction": "The server checks your allowance before each AI action.",
+    "aSuccessfulRedirectDoesNotProvePaymentOrFulfillment": "A successful redirect does not prove payment or fulfillment. Refresh after your payment is processed.",
+    "checkPayment": "Check payment",
+    "clearReminder": "Clear reminder",
+    "availablePlansAndCredits": "Available plans and credits",
+    "pricesAndAccessDurationsComeFromTheConfiguredCatalog": "Prices and access durations come from the configured catalog.",
+    "onlineCheckoutIsCurrentlyUnavailable": "Online checkout is currently unavailable.",
+    "noPurchaseOptionsAreEnabledForThisEnvironment": "No purchase options are enabled for this environment.",
+    "paymentHistory": "Payment history",
+    "noTransactionsToDisplay": "No transactions to display.",
+    "resets": "Resets",
+    "viewAccess": "View access",
+    "unsavedEditsFromThisBrowserTabAreAvailable": "Unsaved edits from this browser tab are available.",
+    "restoreDraft": "Restore draft",
+    "discardRecoveryCopy": "Discard recovery copy"
+  },
+  "planWorkspace": {
+    "label": "My Plan workspace",
+    "description": "Bring your CV, documents, applications, and goals together.",
+    "cv": "CV & AI tools",
+    "documents": "Documents",
+    "toolsTitle": "Prepare your next application",
+    "toolsDescription": "Your essentials, ready when the right opportunity comes along.",
+    "cvTitle": "CV & AI tools",
+    "cvDetail": "Build your CV, tailor it, and draft a cover letter.",
+    "copilotTitle": "Application Copilot",
+    "copilotDetail": "Turn an opportunity into a checklist and stronger answers.",
+    "documentsTitle": "My Documents",
+    "documentsDetail": "Keep your CVs, transcripts, and supporting files together.",
+    "goalsTitle": "Personal goals",
+    "goalsDetail": "Set your next milestone and keep track of your progress."
+  }
 }
