@@ -28,7 +28,6 @@ import {
   type DeadlinesResponse,
 } from "../services/deadlines";
 import WebPushPrompt from "./WebPushPrompt";
-import PlanWorkspaceHeader from "./PlanWorkspaceHeader";
 
 type WorkItemKind = Deadline["type"] | "saved";
 
@@ -473,7 +472,6 @@ export default function DeadlinesPage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
         <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:py-8">
-          <PlanWorkspaceHeader section="deadlines" hideIntroOnMobile />
           {error && showsContent(screenState) ? (
             // Content is already on screen, so recover in place rather than
             // replacing what the user was reading.
@@ -502,7 +500,7 @@ export default function DeadlinesPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
                   {eyebrow}
                 </p>
-                <h1 className="mt-1 text-xl font-display font-semibold tracking-tight">
+                <h1 className={`${isSavedRoute ? "" : "workspace-shell-title-duplicate"} mt-1 text-xl font-display font-semibold tracking-tight`}>
                   {pageTitle}
                 </h1>
               </div>

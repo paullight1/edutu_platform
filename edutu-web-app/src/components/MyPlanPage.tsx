@@ -3,17 +3,16 @@ import {
   ArrowRight,
   CalendarDays,
   Loader2,
-  Plus,
   RefreshCcw,
   Sparkles,
   Target,
 } from "lucide-react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import { StateView, useScreenState } from "./state";
-import PlanWorkspaceHeader from "./PlanWorkspaceHeader";
+import PlanPreparationTools from "./PlanPreparationTools";
 import PlanMascotWelcome from "./PlanMascotWelcome";
 import {
   listOpportunityJourneys,
@@ -47,18 +46,18 @@ function statusLabel(value: string) {
 function planCardPalette(category: string, title: string) {
   const value = `${category} ${title}`.toLowerCase();
   if (/\bintern(ship)?s?\b|\bcareer(s)?\b|\bjobs?\b/.test(value)) {
-    return { surface: "border-emerald-500/20 bg-emerald-500/[0.06]", accent: "bg-emerald-500", text: "text-emerald-500", badge: "bg-emerald-500/10", hover: "group-hover:bg-emerald-500" };
+    return { surface: "border-emerald-500/30 bg-emerald-500/[0.10]", accent: "bg-emerald-500", text: "text-emerald-500", badge: "bg-emerald-500/10", hover: "group-hover:bg-emerald-500" };
   }
   if (/fellow|leader/.test(value)) {
-    return { surface: "border-violet-500/20 bg-violet-500/[0.06]", accent: "bg-violet-500", text: "text-violet-500", badge: "bg-violet-500/10", hover: "group-hover:bg-violet-500" };
+    return { surface: "border-violet-500/30 bg-violet-500/[0.10]", accent: "bg-violet-500", text: "text-violet-500", badge: "bg-violet-500/10", hover: "group-hover:bg-violet-500" };
   }
   if (/science|research|stem/.test(value)) {
-    return { surface: "border-cyan-500/20 bg-cyan-500/[0.06]", accent: "bg-cyan-500", text: "text-cyan-500", badge: "bg-cyan-500/10", hover: "group-hover:bg-cyan-500" };
+    return { surface: "border-cyan-500/30 bg-cyan-500/[0.10]", accent: "bg-cyan-500", text: "text-cyan-500", badge: "bg-cyan-500/10", hover: "group-hover:bg-cyan-500" };
   }
   if (/grant|fund|business/.test(value)) {
-    return { surface: "border-amber-500/20 bg-amber-500/[0.06]", accent: "bg-amber-500", text: "text-amber-500", badge: "bg-amber-500/10", hover: "group-hover:bg-amber-500" };
+    return { surface: "border-amber-500/30 bg-amber-500/[0.10]", accent: "bg-amber-500", text: "text-amber-500", badge: "bg-amber-500/10", hover: "group-hover:bg-amber-500" };
   }
-  return { surface: "border-blue-500/20 bg-blue-500/[0.06]", accent: "bg-blue-500", text: "text-blue-500", badge: "bg-blue-500/10", hover: "group-hover:bg-blue-500" };
+  return { surface: "border-blue-500/30 bg-blue-500/[0.10]", accent: "bg-blue-500", text: "text-blue-500", badge: "bg-blue-500/10", hover: "group-hover:bg-blue-500" };
 }
 
 function PlanCard({
@@ -81,7 +80,7 @@ function PlanCard({
   const palette = planCardPalette(category, title);
 
   return (
-    <article className={`group relative overflow-hidden rounded-[20px] border p-4 shadow-soft transition hover:-translate-y-0.5 sm:p-5 ${palette.surface}`}>
+    <article className={`group relative overflow-hidden rounded-xl border p-4 shadow-soft transition hover:-translate-y-0.5 sm:p-5 ${palette.surface}`}>
       <span className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${palette.accent}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-3">
         <span className={`inline-flex min-w-0 items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold text-text-secondary ${palette.badge}`}>
@@ -161,12 +160,25 @@ function PlanCard({
 export default function MyPlanPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { stage: routeStage } = useParams<{ stage?: string }>();
   const { getToken } = useClerkAuth();
   const { user } = useAppAuth();
-  const [stage, setStage] = useState<OpportunityPublicStage>("pursuing");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isDedicatedStagePage = STAGES.includes(routeStage as OpportunityPublicStage);
+  const requestedStage = routeStage ?? searchParams.get("stage");
+  const stage = STAGES.includes(requestedStage as OpportunityPublicStage)
+    ? (requestedStage as OpportunityPublicStage)
+    : "pursuing";
   const [journeys, setJourneys] = useState<OpportunityJourneyView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+
+  const selectStage = (nextStage: OpportunityPublicStage) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("stage", nextStage);
+    setSearchParams(nextParams);
+  };
 
   const loadPlan = useCallback(async () => {
     if (!user?.id) return;
@@ -191,19 +203,33 @@ export default function MyPlanPage() {
   return (
     <main className="min-h-[100dvh] bg-surface-body px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-10">
       <div className="mx-auto max-w-6xl">
-        <PlanWorkspaceHeader section="overview" hideIntroOnMobile />
-        <PlanMascotWelcome />
-        <button
-          type="button"
-          onClick={() => navigate("/app/opportunities")}
-          className="fixed bottom-24 right-4 z-20 inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand/20 bg-brand px-4 text-sm font-semibold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-body sm:hidden"
-          aria-label={t("myPlan.exploreOpportunities")}
-          title={t("myPlan.exploreOpportunities")}
-        >
-          <Plus size={18} aria-hidden="true" />
-          <span>{t("myPlan.exploreOpportunities")}</span>
-        </button>
-        <header className="hidden flex-col gap-5 border-b border-subtle pb-6 sm:flex sm:flex-row sm:items-end sm:justify-between">
+        {isDedicatedStagePage ? (
+          <header className="mb-5 flex items-center justify-between gap-4 border-b border-subtle pb-4">
+            <div>
+              <p className="text-sm font-medium text-text-muted">{t("myPlan.title")}</p>
+              <h1 className="workspace-shell-title-duplicate mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
+                {t(`myPlan.stages.${stage}`)}
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/app/my-plan")}
+              className="shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5"
+            >
+              {t("myPlan.viewAll", { defaultValue: "View all" })}
+            </button>
+          </header>
+        ) : (
+          <>
+            <div className="hidden sm:block">
+              <PlanMascotWelcome />
+            </div>
+            <div className="hidden sm:block">
+              <PlanPreparationTools />
+            </div>
+          </>
+        )}
+        <header className={`${isDedicatedStagePage ? "hidden" : "hidden sm:flex"} flex-col gap-5 border-b border-subtle pb-6 sm:flex-row sm:items-end sm:justify-between`}>
           <div>
             <h1 className="mt-3 font-display text-4xl font-semibold tracking-[-0.045em] text-text-primary sm:text-5xl">
               {t("myPlan.title")}
@@ -223,13 +249,13 @@ export default function MyPlanPage() {
           </button>
         </header>
 
-        <section className="mt-4" aria-label={t("myPlan.stagesLabel")}>
+        {!isDedicatedStagePage ? <section className="mt-4" aria-label={t("myPlan.stagesLabel")}>
           <div className="flex max-w-full gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {STAGES.map((item) => (
               <button
                 key={item}
                 type="button"
-                onClick={() => setStage(item)}
+                onClick={() => selectStage(item)}
                 aria-pressed={stage === item}
                 className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors active:scale-[0.98] ${stage === item ? "border-brand/25 bg-brand/10 text-brand" : "border-transparent bg-surface-layer text-text-secondary hover:border-brand/15 hover:bg-brand/5 hover:text-brand"}`}
               >
@@ -240,7 +266,7 @@ export default function MyPlanPage() {
           <p className="mt-1 px-1 text-sm text-text-muted">
             {t("myPlan.stageCount", { count: journeys.length })}
           </p>
-        </section>
+        </section> : <p className="mb-5 text-sm text-text-muted">{t("myPlan.stageCount", { count: journeys.length })}</p>}
 
         <section className="mt-7" aria-live="polite">
           {screenState.kind === "loading" ? (
@@ -261,7 +287,7 @@ export default function MyPlanPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {journeys.map((item) => (
-                <PlanCard key={item.journey.id} item={item} t={t} onContinue={() => navigate(`/app/my-plan/${encodeURIComponent(item.journey.id)}`)} />
+                <PlanCard key={item.journey.id} item={item} t={t} onContinue={() => navigate(`/app/my-plan/${encodeURIComponent(item.journey.id)}`, { state: { workspaceBack: { pathname: location.pathname, search: location.search, hash: location.hash, state: location.state } } })} />
               ))}
             </div>
           )}

@@ -41,7 +41,6 @@ import {
 } from '../services/applications';
 import { latestApplicationReflection } from '../services/applicationReflectionState';
 import WebPushPrompt from './WebPushPrompt';
-import PlanWorkspaceHeader from './PlanWorkspaceHeader';
 
 type ApplicationFilter = 'all' | ApplicationStatus;
 
@@ -456,7 +455,6 @@ export default function ApplicationsPage() {
         className="min-h-[calc(100dvh-4rem)]"
       >
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <PlanWorkspaceHeader section="applications" hideIntroOnMobile />
         {error && showsContent(screenState) ? (
           // A status update or delete that failed while the list is on screen:
           // recover in place rather than replacing what the user was reading.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, ExternalLink, Loader2 } from "lucide-react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import { useAnalytics } from "../hooks/useAnalytics";
 import ImageWithFallback from "./ImageWithFallback";
@@ -151,6 +151,10 @@ export default function MyPlanDetailPage() {
           </div>
           </div>
         </header>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link className="rounded-xl border border-subtle px-4 py-3 text-sm font-semibold text-brand" to={`/app/copilot/${item.journey.opportunityId}`}>Prepare application materials</Link>
+          <Link className="rounded-xl border border-subtle px-4 py-3 text-sm font-semibold" to={`/app/cv?opportunityId=${item.journey.opportunityId}`}>Tailor CV</Link>
+        </div>
 
         <section className="mt-8">
           <div className="flex items-end justify-between gap-4">

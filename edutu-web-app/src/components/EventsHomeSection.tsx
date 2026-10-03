@@ -58,7 +58,9 @@ export default function EventsHomeSection({
   if (events.length === 0 && isPublic) return null;
 
   const grid = (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div
+      className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${desktopPriority ? "lg:grid-cols-1" : "lg:grid-cols-3"}`}
+    >
       {events.map((event) => (
         <article
           key={event.id}
@@ -113,11 +115,11 @@ export default function EventsHomeSection({
           aria-label="Calendar and upcoming dates"
           className={`group relative flex min-h-[82px] items-center gap-3 rounded-[18px] border border-subtle bg-surface-layer p-4 text-left text-text-primary no-underline shadow-sm transition hover:border-brand/40 hover:bg-surface-elevated active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
             desktopPriority
-              ? "lg:order-1 lg:col-span-3 lg:min-h-[190px] lg:flex-col lg:items-start lg:p-5"
+              ? "lg:col-span-1 lg:min-h-[160px] lg:flex-col lg:items-start lg:gap-2.5 lg:p-4"
               : ""
           }`}
         >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+          <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 ${desktopPriority ? "lg:h-9 lg:w-9" : ""}`}>
             <Calendar size={21} />
           </span>
           <span className="min-w-0 flex-1 lg:flex lg:flex-col">
@@ -132,8 +134,8 @@ export default function EventsHomeSection({
             >
               Calendar &amp; upcoming
             </span>
-            <span className="mt-0.5 block text-sm leading-5 text-text-secondary">
-              See deadlines, goals, and upcoming events in one place.
+            <span className="mt-0.5 block text-sm leading-5 text-text-secondary lg:line-clamp-2">
+              See deadlines and upcoming events in one place.
             </span>
             {desktopPriority ? (
               <span className="mt-auto hidden pt-4 text-xs font-semibold text-brand-600 lg:block">
@@ -150,7 +152,7 @@ export default function EventsHomeSection({
         </Link>
 
         {events.length > 0 ? (
-          <div className={desktopPriority ? "lg:order-3 lg:col-span-12" : ""}>
+          <div className={desktopPriority ? "lg:col-span-1" : ""}>
             <div className="mb-4 flex items-end justify-between gap-4">
               <h2 className="font-display text-lg font-bold tracking-tight text-text-primary">
                 Upcoming events
