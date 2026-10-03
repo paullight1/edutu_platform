@@ -1,0 +1,46 @@
+.coach-composer.coach-composer-refined {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 10px 12px 10px;
+  border-radius: 20px;
+  border: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--surface-elevated));
+  box-shadow: 0 4px 16px rgb(15 23 42 / .04);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.coach-composer-wrap { flex-shrink: 0; }
+.coach-composer.coach-composer-refined.is-empty { flex-direction: row; align-items: center; gap: 8px; }
+.coach-composer.coach-composer-refined:focus-within {
+  border-color: rgb(var(--color-brand-500) / .6);
+  box-shadow: 0 0 0 3px rgb(var(--color-brand-500) / .08);
+}
+.coach-composer.coach-composer-refined textarea {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  flex: none;
+  padding: 4px 2px;
+  resize: none;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.coach-composer-controls { display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 12px; }
+.coach-composer-refined.is-empty .coach-composer-controls { width: auto; flex-shrink: 0; gap: 8px; }
+.coach-composer-refined.is-empty textarea { width: auto; min-width: 0; flex: 1; }
+.coach-composer-refined.is-empty .coach-composer-count { white-space: nowrap; }
+.coach-composer-caveat { margin: 7px 4px 0; color: rgb(var(--text-muted)); font-size: 11px; line-height: 1.4; }
+.coach-composer-count { color: rgb(var(--text-muted)); font-size: 11px; font-variant-numeric: tabular-nums; }
+.coach-composer-controls .coach-composer-submit {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgb(var(--color-brand-500));
+  box-shadow: none;
+  color: white;
+}
+.coach-composer-controls .coach-composer-submit:disabled { background: rgb(var(--text-muted) / .12); color: rgb(var(--text-muted)); opacity: 1; }
