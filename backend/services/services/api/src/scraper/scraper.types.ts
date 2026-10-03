@@ -52,6 +52,8 @@ export interface RawItem {
   image_url?: string | null;
   source_image_url?: string | null;
   description?: string;
+  /** True when description contains the cleaned full detail-page body. */
+  source_content_complete?: boolean;
   amount?: number | null;
   deadline?: string | null;
   location?: string;

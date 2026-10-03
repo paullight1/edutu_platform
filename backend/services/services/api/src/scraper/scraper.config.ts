@@ -54,7 +54,9 @@ export type FetchRoute = "direct" | "proxy" | "relay";
 
 export const DEFAULT_CONTENT_SELECTORS =
   'article, .entry-content, .post-content, main, [class*="content"], [class*="article"]';
-export const DEEP_TEXT_MAX_CHARS = 10_000;
+// Keep enough of long-form source articles for full descriptions and accurate
+// field extraction, while still bounding model input and storage work.
+export const DEEP_TEXT_MAX_CHARS = 40_000;
 export const DEEP_FETCH_DELAY_MS = 2_000;
 export const LIST_PAGE_DELAY_MS = 1_500;
 export const MAX_ITEMS_PER_PAGE = 20;

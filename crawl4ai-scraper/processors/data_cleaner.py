@@ -350,7 +350,7 @@ class DataCleaner:
             final_seen.add(key)
             final_paragraphs.append(paragraph)
 
-        text = '\n\n'.join(final_paragraphs)[:6000].strip()
+        text = '\n\n'.join(final_paragraphs)[:40000].strip()
         return text, {
             'removed_noise': removed_noise,
             'removed_duplicates': removed_duplicates,

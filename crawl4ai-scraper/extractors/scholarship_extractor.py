@@ -67,7 +67,7 @@ class ScholarshipExtractor:
                     'organization': source,
                     'source': source,
                     'source_url': source_url,
-                    'description': text[:5000] if text else '',
+                    'description': text if text else '',
                 })
 
         return items
@@ -241,14 +241,14 @@ class ScholarshipExtractor:
             paragraphs.append(text)
 
         if paragraphs:
-            return '\n\n'.join(paragraphs)[:5000]
+            return '\n\n'.join(paragraphs)
 
         lines: list[str] = []
         for line in root.get_text('\n', strip=True).split('\n'):
             text = re.sub(r'\s+', ' ', line).strip()
             if self._meaningful_text(text):
                 lines.append(text)
-        return '\n\n'.join(lines[:12])[:5000]
+        return '\n\n'.join(lines)
 
     def _extract_section_items(
         self,
@@ -388,7 +388,7 @@ class ScholarshipExtractor:
             'title': title,
             'amount': amount,
             'deadline': deadline,
-            'description': '\n'.join(lines[:50]),
+            'description': '\n'.join(lines),
             'organization': source,
             'source': source,
         }

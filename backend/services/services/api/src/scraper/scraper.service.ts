@@ -6,6 +6,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { z } from "zod";
 import * as cheerio from "cheerio";
+import type { PoolClient } from "pg";
 import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
@@ -65,6 +66,7 @@ import {
 } from "./scraper.config";
 import { categorizeOpportunityTitle } from "./scraper-classification";
 import { createTitleFingerprint } from "./scraper-title-fingerprint";
+const SOURCE_CONTENT_FORMAT_VERSION = "source-content-v1";
 export {
   DeepSeekExtractionSchema,
   type DeepSeekExtraction,
@@ -511,7 +513,7 @@ export class ScraperService implements OnModuleInit {
         target_region: enriched.target_region ?? null,
         category: classification.canonicalCategory,
         canonical_category: classification.canonicalCategory,
-        metadata: {
+  metadata: {
           ...(input.metadata || {}),
           ai_improved_at: new Date().toISOString(),
           extraction_quality_score: quality.score,
@@ -585,8 +587,46 @@ export class ScraperService implements OnModuleInit {
     return this.runControl.stop();
   }
 
-  getRunStatus(): { running: boolean; paused: boolean; stopping: boolean } {
-    return this.runControl.status();
+  async getRunStatus(): Promise<{
+    running: boolean;
+    paused: boolean;
+    stopping: boolean;
+  }> {
+    const localStatus = this.runControl.status();
+    let client: PoolClient | null = null;
+
+    try {
+      client = await pool.connect();
+      const result = await client.query<{ locked: boolean }>(
+        "select pg_try_advisory_lock($1) as locked",
+        [SCRAPE_ADVISORY_LOCK_KEY],
+      );
+      const acquired = Boolean(result.rows[0]?.locked);
+
+      if (acquired) {
+        await client
+          .query("select pg_advisory_unlock($1)", [SCRAPE_ADVISORY_LOCK_KEY])
+          .catch((error) =>
+            this.logger.warn(
+              `Failed to release Engine status probe lock: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+          );
+      }
+
+      return {
+        ...localStatus,
+        // The advisory lock is shared across API instances; local run control
+        // still supplies pause/stop details when this process owns the run.
+        running: localStatus.running || !acquired,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Could not inspect shared Engine run status: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return localStatus;
+    } finally {
+      client?.release();
+    }
   }
 
   /** Block while the run is paused (unless a stop was requested). */
@@ -731,6 +771,10 @@ export class ScraperService implements OnModuleInit {
 
       await this.finishJobLog(jobLogId, runSucceeded ? "completed" : "failed", {
         itemsFound: results.length,
+        urlsDiscovered: sourceResults.reduce(
+          (sum, source) => sum + (source.urlsDiscovered || 0),
+          0,
+        ),
         itemsSkipped,
         duration,
         sourceResults,
@@ -1055,6 +1099,7 @@ export class ScraperService implements OnModuleInit {
     const { data, error } = await this.supabase
       .from("scrape_logs")
       .insert({
+        ...(options.sourceId != null && { source_id: options.sourceId }),
         status: "running",
         started_at: new Date().toISOString(),
         run_type: options.runType === "scheduled" ? "scheduled" : "manual",
@@ -1080,6 +1125,7 @@ export class ScraperService implements OnModuleInit {
     status: "completed" | "failed",
     extra: {
       itemsFound?: number;
+      urlsDiscovered?: number;
       itemsSkipped?: number;
       duration?: number;
       sourceResults?: SourceResult[];
@@ -1094,6 +1140,9 @@ export class ScraperService implements OnModuleInit {
         status,
         completed_at: new Date().toISOString(),
         ...(extra.itemsFound != null && { urls_scraped: extra.itemsFound }),
+        ...(extra.urlsDiscovered != null && {
+          urls_discovered: extra.urlsDiscovered,
+        }),
         ...(extra.itemsSkipped != null && {
           urls_skipped: extra.itemsSkipped,
         }),
@@ -1412,6 +1461,14 @@ export class ScraperService implements OnModuleInit {
               if (page > 1 && basicItems.length === 0) {
                 this.logger.log(
                   `  → DixcoverHub adapter found no items on page ${page}, stopping.`,
+                );
+                break;
+              }
+            } else if (this.isMindshipGlobalSource(source)) {
+              basicItems = await this.extractMindshipGlobalItems(source, page);
+              if (page > 1 && basicItems.length === 0) {
+                this.logger.log(
+                  `  → Mindship Global REST returned no opportunities on page ${page}, stopping.`,
                 );
                 break;
               }
@@ -1879,6 +1936,7 @@ export class ScraperService implements OnModuleInit {
         cached?.application_process,
       );
       if (
+        cached?.description_format_version === SOURCE_CONTENT_FORMAT_VERSION &&
         cached &&
         cachedSummary.trim().length >= 80 &&
         cachedDescription.trim().length >= 180 &&
@@ -1927,6 +1985,7 @@ export class ScraperService implements OnModuleInit {
             cached.enrichment_notes ?? item.enrichment_notes ?? [],
           description:
             (existing?.description as string | undefined) ?? item.description,
+          source_content_complete: true,
           direct_apply_url: existing?.application_url ?? item.direct_apply_url,
           image_url: existing?.image_url ?? item.image_url,
           source_image_url:
@@ -1993,6 +2052,7 @@ export class ScraperService implements OnModuleInit {
       }
       const text = this.extractTextFromHTML(html, customContentSelectors);
       const fallbackDescription = this.createBriefDescriptionFromText(text);
+      const sourceDeadline = this.extractDeadline(text);
 
       if (directApplyUrl)
         this.logger.log(`    ↳ Direct apply link: ${directApplyUrl}`);
@@ -2034,10 +2094,15 @@ export class ScraperService implements OnModuleInit {
         benefits: this.normalizeStringList(
           ai.benefits?.length ? ai.benefits : (item.benefits ?? []),
         ),
+        // Keep the cleaned source article as the public description. The AI
+        // overview belongs in summary and must not replace source content.
         description: this.normalizeDescription(
-          ai.description || item.description || fallbackDescription || "",
+          text || item.description || fallbackDescription || "",
         ),
-        deadline: ai.deadline || item.deadline,
+        source_content_complete: Boolean(text),
+        // Prefer dates tied to deadline language in the source. AI can mistake
+        // publication dates for application deadlines.
+        deadline: sourceDeadline || item.deadline,
         application_process: this.normalizeStringList(
           ai.application_process?.length
             ? ai.application_process
@@ -2140,19 +2205,35 @@ export class ScraperService implements OnModuleInit {
     const candidates: string[] = [];
 
     $(selector).each((_, el) => {
-      const candidate = $(el).text().replace(/\s+/g, " ").trim();
+      const $candidate = $(el).clone();
+      $candidate
+        .find(
+          "script, style, noscript, nav, footer, header, aside, form, iframe, .share, .social, .related, .comments, .newsletter, .sidebar, [class*=advert]",
+        )
+        .remove();
+      const blocks = $candidate
+        .find("h1, h2, h3, h4, h5, h6, p, li, blockquote, th, td")
+        .toArray()
+        .map((block) => $(block).text().replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      const candidate = (blocks.length ? blocks.join("\n") : $candidate.text())
+        .replace(/[ \t]+/g, " ")
+        .replace(/ *\n */g, "\n")
+        .trim();
       if (candidate.length >= 120) {
         candidates.push(candidate);
       }
     });
 
     const text = candidates.length
-      ? candidates
-          .sort((a, b) => b.length - a.length)
-          .slice(0, 3)
-          .join("\n\n")
+      ? candidates.sort((a, b) => b.length - a.length)[0]
       : $("body").text();
-    return text.replace(/\s+/g, " ").trim().substring(0, DEEP_TEXT_MAX_CHARS);
+    return text
+      .replace(/[ \t]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      .substring(0, DEEP_TEXT_MAX_CHARS);
   }
 
   // ─── DeepSeek Refinement ────────────────────────────────────────────────────
@@ -2300,6 +2381,107 @@ ${text}`;
     } catch {
       return /jobs\.smartyacad\.com/i.test(source.url);
     }
+  }
+
+  private isMindshipGlobalSource(source: ScrapeSource): boolean {
+    try {
+      const url = new URL(source.url);
+      return (
+        url.hostname.replace(/^www\./, "").toLowerCase() ===
+          "mindshipglobal.com" &&
+        /^\/opportunities(?:\/|$)/i.test(url.pathname)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Mindship Global publishes opportunities as a dedicated WordPress custom
+   * post type. Reading that collection avoids treating generic blog/article
+   * markup as opportunities, while the normal deep-enrichment step still
+   * fetches each detail page for its complete source content.
+   */
+  private async extractMindshipGlobalItems(
+    source: ScrapeSource,
+    page: number,
+  ): Promise<RawItem[]> {
+    const sourceUrl = new URL(source.url);
+    const postsUrl = new URL("/wp-json/wp/v2/opportunities", sourceUrl.origin);
+    postsUrl.searchParams.set("per_page", String(MAX_ITEMS_PER_PAGE));
+    postsUrl.searchParams.set("page", String(page));
+    postsUrl.searchParams.set("_embed", "1");
+
+    const response = await this.httpClient.fetchRestResponse(
+      postsUrl.toString(),
+      20_000,
+    );
+    if (response.status === 400 && page > 1) return [];
+    if (response.status >= 400) {
+      throw new Error(`Mindship Global opportunities REST returned HTTP ${response.status}`);
+    }
+
+    const records = Array.isArray(response.data) ? response.data : [];
+    const sourceHost = sourceUrl.hostname.replace(/^www\./, "").toLowerCase();
+
+    return records
+      .map((record: any) => {
+        const title = this.cleanHtmlText(record?.title?.rendered ?? "", 240);
+        const applyUrl = this.resolveUrl(record?.link ?? "", source.url);
+        const contentHtml = record?.content?.rendered ?? "";
+        const contentText = this.cleanHtmlText(contentHtml, 3000);
+        const imageUrl =
+          record?._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
+          record?._embedded?.["wp:featuredmedia"]?.[0]?.media_details?.sizes
+            ?.medium?.source_url ||
+          this.extractBestImageFromHTML(contentHtml, applyUrl || source.url) ||
+          null;
+        const directApplyUrl = this.extractApplyLink(
+          contentHtml,
+          sourceHost,
+          applyUrl || source.url,
+        );
+
+        return {
+          title,
+          apply_url: applyUrl,
+          direct_apply_url: directApplyUrl,
+          image_url: imageUrl,
+          description:
+            this.cleanHtmlText(record?.excerpt?.rendered ?? "", 1200) ||
+            this.createBriefDescriptionFromText(contentText) ||
+            "",
+          amount: this.extractAmount(contentText),
+          deadline: this.extractDeadline(contentText),
+          location: this.extractLocation(contentText),
+          source: source.name,
+          source_url: source.url,
+          source_id: source.id,
+        } satisfies RawItem;
+      })
+      .filter((item: RawItem) => {
+        if (
+          !this.isValidOpportunityCandidate(
+            item.title,
+            item.apply_url,
+            source.url,
+          ) ||
+          !item.apply_url
+        ) {
+          return false;
+        }
+
+        try {
+          const itemUrl = new URL(item.apply_url);
+          return (
+            itemUrl.hostname.replace(/^www\./, "").toLowerCase() ===
+              sourceHost &&
+            /^\/opportunities\/[^/]+\/?$/i.test(itemUrl.pathname)
+          );
+        } catch {
+          return false;
+        }
+      });
   }
 
   private async extractDixcoverHubItems(
@@ -3075,6 +3257,9 @@ ${text}`;
         deadline_confidence: parsedDeadline.confidence,
         low_extraction_confidence: lowExtractionConfidence,
         description_length: item.description?.length ?? 0,
+        description_format_version: item.source_content_complete
+          ? SOURCE_CONTENT_FORMAT_VERSION
+          : null,
         needs_review: !publishable,
         has_core_content: hasCoreContent,
         source_name: item.source,
@@ -3212,7 +3397,14 @@ ${text}`;
   }
 
   private normalizeDescription(description: string | null | undefined): string {
-    return this.cleanOptionalText(description, 1800) || "";
+    const maxChars = DEEP_TEXT_MAX_CHARS;
+    return String(description || "")
+      .replace(/\r\n?/g, "\n")
+      .split(/\n+/)
+      .map((paragraph) => this.scrubPublicText(paragraph, maxChars))
+      .filter(Boolean)
+      .join("\n\n")
+      .substring(0, maxChars);
   }
 
   private normalizeStringList(value: unknown): string[] {
