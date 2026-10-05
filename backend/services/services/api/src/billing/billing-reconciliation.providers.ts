@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { decimalToMinorUnits } from "./bachs-webhook.service";
+import { decimalToMinorUnits } from "./providers/bachs/bachs-money";
 import { BachsClient } from "./providers/bachs/bachs.client";
 import type { BachsConfig } from "./providers/bachs/bachs.config";
 import type { BachsPayment } from "./providers/bachs/bachs.types";
@@ -182,12 +182,16 @@ export class BillingReconciliationStoreService implements BillingReconciliationS
     until: Date;
     statuses: string[];
   }): Promise<Array<{ id: string; status: string }>> {
+    if (!input.statuses.length) return [];
     const result = await db.execute(sql`
       select id, status
       from public.billing_checkout_intents
       where updated_at >= ${input.since.toISOString()}::timestamptz
         and updated_at <= ${input.until.toISOString()}::timestamptz
-        and status = any(${input.statuses}::text[])
+        and status = any(array[${sql.join(
+          input.statuses.map((status) => sql`${status}`),
+          sql`, `,
+        )}]::text[])
       order by updated_at asc
       limit 1000
     `);
@@ -203,12 +207,16 @@ export class BillingReconciliationStoreService implements BillingReconciliationS
     until: Date;
     statuses: string[];
   }): Promise<Array<{ id: string; status: string }>> {
+    if (!input.statuses.length) return [];
     const result = await db.execute(sql`
       select id, status
       from public.billing_provider_events
       where updated_at >= ${input.since.toISOString()}::timestamptz
         and updated_at <= ${input.until.toISOString()}::timestamptz
-        and status = any(${input.statuses}::text[])
+        and status = any(array[${sql.join(
+          input.statuses.map((status) => sql`${status}`),
+          sql`, `,
+        )}]::text[])
       order by updated_at asc
       limit 1000
     `);
@@ -485,6 +493,7 @@ export class PostgresRevenueCatReconciliationPersistence implements RevenueCatRe
             and grant_row.feature_key = subscription.entitlement_key
             and grant_row.status = 'active'
             and grant_row.revoked_at is null
+              and grant_row.valid_from <= now()
             and (grant_row.valid_until is null or grant_row.valid_until > now())
         ) as has_active_grant
       from public.billing_provider_subscriptions subscription

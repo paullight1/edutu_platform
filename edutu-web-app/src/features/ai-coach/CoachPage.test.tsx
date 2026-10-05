@@ -37,6 +37,7 @@ it("renders opportunity links from the backend history metadata contract", async
       <CoachPage />
     </MemoryRouter>,
   );
+  fireEvent.click(await screen.findByRole("button", { name: /history/i }));
   fireEvent.click(await screen.findByRole("button", { name: "Scholarships" }));
   expect(
     await screen.findByRole("link", { name: /Research Fellowship/ }),

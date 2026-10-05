@@ -32,6 +32,8 @@ import {
   mergePricing,
   type AdminSettings,
   type BillingOverview,
+  type BillingCatalog,
+  type BillingCatalogProduct,
   type BillingTransaction,
   type CreditPack,
   type PricingSettings,
@@ -79,11 +81,24 @@ function shortId(value: string): string {
   return value.length > 14 ? `${value.slice(0, 14)}…` : value;
 }
 
-// Paystack NGN fee: 1.5% (+₦100 when charge ≥ ₦2,500), capped at ₦2,000.
-function paystackFee(amount: number): number {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  const fee = amount * 0.015 + (amount >= 2500 ? 100 : 0);
-  return Math.min(fee, 2000);
+function currencyDigits(currency: string): number {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits;
+  } catch {
+    return 2;
+  }
+}
+
+function amountInMajorUnits(amountMinor: number, currency: string): number {
+  return amountMinor / 10 ** currencyDigits(currency);
+}
+
+function parseMinorUnits(value: string, currency: string): number | null {
+  const fractionDigits = currencyDigits(currency);
+  if (!new RegExp(`^\\d+(?:\\.\\d{0,${fractionDigits}})?$`).test(value)) return null;
+  const [whole, fraction = ''] = value.split('.');
+  const minor = BigInt(whole) * 10n ** BigInt(fractionDigits) + BigInt(fraction.padEnd(fractionDigits, '0') || '0');
+  return minor <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(minor) : null;
 }
 
 function statusBadgeClass(status: string): string {
@@ -112,6 +127,13 @@ export default function Monetization() {
   const [pricing, setPricing] = useState<PricingSettings | null>(null);
   const [savedPricing, setSavedPricing] = useState<PricingSettings | null>(null);
   const [transactions, setTransactions] = useState<BillingTransaction[]>([]);
+  const [billingCatalog, setBillingCatalog] = useState<BillingCatalog | null>(null);
+  const [catalogDraft, setCatalogDraft] = useState<BillingCatalogProduct[]>([]);
+  const [catalogAmountDrafts, setCatalogAmountDrafts] = useState<Record<string, string>>({});
+  const [catalogReason, setCatalogReason] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [txLoading, setTxLoading] = useState(false);
   const [txStatusFilter, setTxStatusFilter] = useState('all');
@@ -122,10 +144,18 @@ export default function Monetization() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
-  const currency = pricing?.currency || 'NGN';
+  const currency = pricing?.currency || 'USD';
   const dirty = useMemo(
     () => JSON.stringify(pricing) !== JSON.stringify(savedPricing),
     [pricing, savedPricing],
+  );
+  const catalogDirty = useMemo(
+    () => JSON.stringify(catalogDraft) !== JSON.stringify(billingCatalog?.products ?? []) ||
+      Object.entries(catalogAmountDrafts).some(([key, value]) => {
+        const product = billingCatalog?.products.find((item) => item.productKey === key);
+        return !!product && value !== String(amountInMajorUnits(product.amountMinor, product.currency));
+      }),
+    [billingCatalog, catalogAmountDrafts, catalogDraft],
   );
 
   const showToast = useCallback((kind: 'success' | 'error', message: string) => {
@@ -176,6 +206,66 @@ export default function Monetization() {
     void load();
   }, [load]);
 
+  const loadBillingCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const result = await monetizationApi.getCatalog();
+      setBillingCatalog(result);
+      setCatalogDraft(result.products);
+      setCatalogAmountDrafts(Object.fromEntries(result.products.map((product) => [
+        product.productKey,
+        String(amountInMajorUnits(product.amountMinor, product.currency)),
+      ])));
+    } catch (err) {
+      setCatalogError(err instanceof Error ? err.message : 'Could not load the Bachs plan catalog.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === 'pricing') void loadBillingCatalog();
+  }, [section, loadBillingCatalog]);
+
+  function updateCatalogProduct(productKey: string, patch: Partial<BillingCatalogProduct>) {
+    setCatalogDraft((current) => current.map((product) => (
+      product.productKey === productKey ? { ...product, ...patch } : product
+    )));
+  }
+
+  async function saveBillingCatalog() {
+    if (!catalogReason.trim() || !catalogDraft.length) return;
+    const products = catalogDraft.map((product) => {
+      const amountMinor = parseMinorUnits(
+        catalogAmountDrafts[product.productKey] ?? '',
+        product.currency,
+      );
+      return amountMinor === null ? null : { ...product, amountMinor };
+    });
+    if (products.some((product) => !product)) {
+      setCatalogError('Enter a valid positive amount using the selected currency precision.');
+      return;
+    }
+    setCatalogSaving(true);
+    setCatalogError(null);
+    try {
+      const result = await monetizationApi.saveCatalog({ reason: catalogReason.trim(), products: products as BillingCatalogProduct[] });
+      setBillingCatalog(result);
+      setCatalogDraft(result.products);
+      setCatalogAmountDrafts(Object.fromEntries(result.products.map((product) => [
+        product.productKey,
+        String(amountInMajorUnits(product.amountMinor, product.currency)),
+      ])));
+      setCatalogReason('');
+      showToast('success', 'Bachs sandbox catalog saved and audited.');
+    } catch (err) {
+      setCatalogError(err instanceof Error ? err.message : 'Could not save the Bachs plan catalog.');
+    } finally {
+      setCatalogSaving(false);
+    }
+  }
+
   async function savePricing() {
     if (!pricing) return;
     setSaving(true);
@@ -186,7 +276,7 @@ export default function Monetization() {
       const merged = mergePricing((result.settings || payload).pricing);
       setPricing(merged);
       setSavedPricing(merged);
-      showToast('success', 'Pricing settings saved — live for all apps.');
+      showToast('success', 'Display and usage settings saved.');
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Could not save pricing settings');
     } finally {
@@ -397,7 +487,7 @@ export default function Monetization() {
             )}
           </div>
           <p style={{ color: 'var(--text-tertiary)', margin: '4px 0 0 0', fontSize: 15 }}>
-            Control subscription prices, credit packs, AI costs — and oversee every purchase.
+            Manage display defaults, AI usage limits, the Bachs sandbox catalog, and billing records.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -777,7 +867,7 @@ export default function Monetization() {
             </div>
           </div>
 
-          {/* Plan preview cards: what users pay, promo, Paystack fee, your net */}
+          {/* Legacy display defaults; the Bachs catalog below is the checkout source of truth. */}
           <div className="mz-plan-grid">
             {(
               [
@@ -787,7 +877,6 @@ export default function Monetization() {
               ] as const
             ).map(({ plan, label, price, promo }) => {
               const effective = pricing.promo.active && promo != null ? promo : price;
-              const fee = paystackFee(effective);
               return (
                 <div key={plan} className="card mz-plan-card" style={{ borderTop: `3px solid ${PLAN_COLORS[plan]}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -803,8 +892,7 @@ export default function Monetization() {
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    Paystack fee ≈ {formatMoney(fee, currency)} · you net{' '}
-                    <strong style={{ color: '#10b981' }}>{formatMoney(effective - fee, currency)}</strong>
+                    Display default only · purchase amount comes from the Bachs catalog below
                   </div>
                 </div>
               );
@@ -972,6 +1060,118 @@ export default function Monetization() {
               </div>
             </EditorCard>
           </div>
+
+          <section className="card" style={{ marginTop: 24, padding: 20 }} aria-labelledby="bachs-catalog-heading">
+            <div className="mz-section-head" style={{ marginBottom: 8 }}>
+              <div>
+                <h2 id="bachs-catalog-heading" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 19, margin: 0 }}>
+                  <span className="mz-chip" style={{ background: '#0071e31f', color: '#0071e3' }}><CreditCard size={16} /></span>
+                  Bachs plan catalog
+                </h2>
+                <p className="mz-hint" style={{ marginTop: 8 }}>
+                  Sandbox only. Match each amount and currency to the Bachs product. Learner checkout reads these server-owned catalog values.
+                </p>
+              </div>
+              <button className="btn btn-secondary" onClick={() => void loadBillingCatalog()} disabled={catalogLoading || catalogSaving}>
+                {catalogLoading ? <Loader2 className="mz-spin" size={16} /> : <RefreshCw size={16} />} Refresh catalog
+              </button>
+            </div>
+
+            {catalogError && <div className="mz-alert" role="alert">{catalogError}</div>}
+            {catalogLoading && !billingCatalog ? (
+              <div className="mz-loading"><Loader2 className="mz-spin" size={18} /> Loading server catalog…</div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12, color: 'var(--text-tertiary)', fontSize: 12 }}>
+                  Environment: <strong>{billingCatalog?.environment ?? 'sandbox'}</strong> · Live catalog editing is disabled.
+                </div>
+                {billingCatalog && (
+                  <div className="mz-alert" role="status" style={{ marginBottom: 16 }}>
+                    <strong>{billingCatalog.readiness.purchasesReady ? 'Sandbox purchase gates are ready.' : 'Sandbox checkout is not ready yet.'}</strong>
+                    <div className="mz-hint" style={{ marginTop: 6 }}>
+                      Bachs API: {billingCatalog.readiness.providerApiConfigured ? 'ready' : 'missing configuration'} ·
+                      Webhook: {billingCatalog.readiness.webhookConfigured ? 'ready' : 'missing configuration'} ·
+                      Payment shell key: {billingCatalog.readiness.paymentShellConfigured ? 'ready' : 'missing configuration'} ·
+                      Payment shell schema: {billingCatalog.readiness.paymentShellSchemaReady ? 'ready' : 'migration not applied'} ·
+                      Plans mapped: {billingCatalog.readiness.mappedPlanCount}/{catalogDraft.length} ·
+                      Plans enabled: {billingCatalog.readiness.enabledPlanCount} ·
+                      Enabled plans mapped: {billingCatalog.readiness.mappedEnabledPlanCount}/{billingCatalog.readiness.enabledPlanCount}
+                    </div>
+                  </div>
+                )}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="mz-table" style={{ minWidth: 880 }}>
+                    <thead><tr><th>Plan</th><th>Price</th><th>Currency</th><th>Bachs product ID</th><th>Visible</th></tr></thead>
+                    <tbody>
+                      {catalogDraft.map((product) => (
+                        <tr key={product.productKey}>
+                          <td>
+                            <strong style={{ textTransform: 'capitalize' }}>{product.productKey.replace(/_/g, ' ').replace(/ pass$/, '')}</strong>
+                            <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{product.renewalMode === 'one_time' ? 'One-time pass' : product.renewalMode} · {product.validityDays ?? '—'} days</div>
+                          </td>
+                          <td>
+                            <input
+                              className="input-field"
+                              aria-label={`${product.productKey} price`}
+                              type="number"
+                              min="0.01"
+                              step={10 ** -currencyDigits(product.currency)}
+                              value={catalogAmountDrafts[product.productKey] ?? ''}
+                              onChange={(event) => setCatalogAmountDrafts((current) => ({ ...current, [product.productKey]: event.target.value }))}
+                              style={{ width: 125 }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="input-field"
+                              aria-label={`${product.productKey} currency`}
+                              value={product.currency}
+                              maxLength={3}
+                              onChange={(event) => updateCatalogProduct(product.productKey, { currency: event.target.value.toUpperCase().slice(0, 3) })}
+                              style={{ width: 90 }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="input-field"
+                              aria-label={`${product.productKey} Bachs product ID`}
+                              value={product.providerProductId}
+                              placeholder="Paste product ID from Bachs sandbox"
+                              onChange={(event) => updateCatalogProduct(product.productKey, { providerProductId: event.target.value })}
+                              style={{ minWidth: 250 }}
+                            />
+                          </td>
+                          <td>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                              <input
+                                aria-label={`${product.productKey} visible`}
+                                type="checkbox"
+                                checked={product.enabled}
+                                disabled={!product.providerProductId.trim()}
+                                onChange={(event) => updateCatalogProduct(product.productKey, { enabled: event.target.checked })}
+                              />
+                              {product.enabled ? 'Enabled' : 'Off'}
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mz-form" style={{ marginTop: 16, gridTemplateColumns: 'minmax(260px, 1fr) auto', alignItems: 'end' }}>
+                  <Field label="Reason for catalog change (required for the audit log)">
+                    <input className="input-field" value={catalogReason} onChange={(event) => setCatalogReason(event.target.value)} maxLength={500} placeholder="e.g. Configure verified sandbox prices and product IDs" />
+                  </Field>
+                  <button className="btn btn-primary" onClick={() => void saveBillingCatalog()} disabled={!catalogDirty || !catalogReason.trim() || catalogSaving || catalogLoading}>
+                    {catalogSaving ? <Loader2 className="mz-spin" size={16} /> : <Save size={16} />} Save Bachs catalog
+                  </button>
+                </div>
+                <p className="mz-hint" style={{ marginTop: 12 }}>
+                  Saving only changes the sandbox catalog. Purchase is still blocked until the API, webhook, payment shell and database readiness gates all pass.
+                </p>
+              </>
+            )}
+          </section>
 
           {dirty && (
             <div className="mz-savebar">

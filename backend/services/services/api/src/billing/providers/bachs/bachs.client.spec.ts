@@ -8,15 +8,12 @@ const validEnvironment = {
   BACHS_API_KEY: "test-api-key",
   BACHS_WEBHOOK_SECRET: "test-webhook-secret",
   BACHS_EXPECTED_ORGANIZATION_ID: "org_test",
-  BACHS_PRODUCT_MAPPINGS: JSON.stringify({
-    pro_monthly_card: "prod_monthly",
-  }),
+  BACHS_PRODUCT_MAPPINGS: "{}",
 };
 
 const validApiCreditEnvironment = {
   ...validEnvironment,
   BACHS_PRODUCT_MAPPINGS: JSON.stringify({
-    pro_monthly_card: "prod_monthly",
     api_credits_100: "prod_api_credits_100_sandbox",
     api_credits_250: "prod_api_credits_250_sandbox",
     api_credits_700: "prod_api_credits_700_sandbox",
@@ -187,6 +184,55 @@ describe("BachsClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("retrieves sandbox product status and fixed one-time price metadata", async () => {
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "prod_monthly",
+          organization_id: "org_test",
+          status: "active",
+          price: { price_type: "fixed", currency: "USD", amount: "15.00" },
+          billing_cycle: null,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(createClient().getProduct("prod_monthly")).resolves.toEqual({
+      id: "prod_monthly",
+      status: "active",
+      price: { priceType: "fixed", currency: "USD", amount: "15.00" },
+      billingCycle: null,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sandbox-api.bachs.io/v1/products/prod_monthly",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("rejects a product returned from another Bachs organization", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "prod_monthly",
+          organization_id: "org_someone_else",
+          status: "active",
+          price: { price_type: "fixed", currency: "USD", amount: "15.00" },
+          billing_cycle: null,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      createClient().getProduct("prod_monthly"),
+    ).rejects.toMatchObject({
+      code: "invalid_provider_response",
+      operation: "get_product",
+      retryable: false,
+    });
+  });
+
   it("creates a catalog checkout with an idempotency key and no client money amount", async () => {
     const fetchMock = jest
       .spyOn(global, "fetch")
@@ -198,6 +244,12 @@ describe("BachsClient", () => {
       productId: "prod_monthly",
       customer: { email: "buyer@example.test", name: "Buyer Example" },
       billingCurrency: "USD",
+      paymentMethodTypes: [
+        "USD_CARD",
+        "NGN_BANK_TRANSFER",
+        "MOMO_KES",
+        "CRYPTO",
+      ],
       successUrl: "https://pay.edutu.org/result",
       cancelUrl: "https://pay.edutu.org/result?state=cancelled",
       reference: "intent_123",
@@ -222,6 +274,12 @@ describe("BachsClient", () => {
       customer: { email: "buyer@example.test", name: "Buyer Example" },
       product_cart: [{ product_id: "prod_monthly", quantity: 1 }],
       billing_currency: "USD",
+      payment_method_types: [
+        "USD_CARD",
+        "NGN_BANK_TRANSFER",
+        "MOMO_KES",
+        "CRYPTO",
+      ],
       success_url: "https://pay.edutu.org/result",
       cancel_url: "https://pay.edutu.org/result?state=cancelled",
       reference: "intent_123",

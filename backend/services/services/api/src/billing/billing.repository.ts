@@ -395,7 +395,7 @@ export class BillingRepository {
              provider_reference, status, expires_at,
              product_snapshot->>'renewalMode' as renewal_mode,
              expected_amount_minor, currency,
-             (select max(grant_row.valid_until)
+             coalesce((select max(grant_row.valid_until)
                 from billing_payment_ledger ledger
                 join billing_entitlement_grants grant_row
                   on grant_row.provider = ledger.provider
@@ -405,7 +405,23 @@ export class BillingRepository {
                where ledger.checkout_intent_id = billing_checkout_intents.id
                  and ledger.user_id = ${userId}
                  and grant_row.status = 'active' and grant_row.revoked_at is null
-                 and billing_checkout_intents.status = 'fulfilled') as access_until
+                 and grant_row.valid_from <= now()
+                 and (grant_row.valid_until is null or grant_row.valid_until > now())
+                 and billing_checkout_intents.status = 'fulfilled'),
+             (select max(grant_row.valid_until)
+              from billing_provider_subscriptions subscription
+              join billing_entitlement_grants grant_row
+                on grant_row.provider = subscription.provider
+               and grant_row.environment = subscription.environment
+               and grant_row.source_kind = 'subscription'
+               and grant_row.source_resource_id = subscription.provider_subscription_id
+               and grant_row.user_id = subscription.user_id
+              where subscription.checkout_intent_id = billing_checkout_intents.id
+                and subscription.user_id = ${userId}
+                and grant_row.status = 'active' and grant_row.revoked_at is null
+                 and grant_row.valid_from <= now()
+                 and (grant_row.valid_until is null or grant_row.valid_until > now())
+                and billing_checkout_intents.status = 'fulfilled')) as access_until
       from billing_checkout_intents
       where id = ${intentId}::uuid and user_id = ${userId}
       limit 1

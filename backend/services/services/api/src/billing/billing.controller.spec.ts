@@ -53,8 +53,8 @@ describe("BillingController Bachs routes", () => {
     jest.clearAllMocks();
   });
 
-  it("rejects learner checkout before provider calls while the hosted completion contract is absent", () => {
-    expect(() => createController().createConsumerCheckout()).toThrow(
+  it("rejects learner checkout before provider calls while the hosted completion contract is absent", async () => {
+    await expect(createController().createConsumerCheckout()).rejects.toThrow(
       "Hosted payment completion is not ready yet",
     );
     expect(checkout.createCheckout).not.toHaveBeenCalled();

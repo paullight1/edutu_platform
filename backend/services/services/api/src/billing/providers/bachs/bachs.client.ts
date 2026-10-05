@@ -13,6 +13,7 @@ import type {
   BachsListQuery,
   BachsListResult,
   BachsPayment,
+  BachsProduct,
   BachsPortalSession,
   BachsPortalSessionInput,
   BachsRefund,
@@ -89,6 +90,18 @@ const subscriptionResponseSchema = z.object({
   current_period_end: dateTimeSchema.nullable().optional(),
 });
 
+const productResponseSchema = z.object({
+  id: identifierSchema,
+  organization_id: identifierSchema,
+  status: z.string().min(1),
+  price: z.object({
+    price_type: z.string().min(1),
+    currency: isoCurrencySchema,
+    amount: decimalAmountSchema,
+  }),
+  billing_cycle: z.record(z.string(), z.unknown()).nullable(),
+});
+
 const refundResponseSchema = z.object({
   refund_id: identifierSchema,
   charge_id: identifierSchema,
@@ -114,6 +127,7 @@ const listQuerySchema = z.object({
 });
 
 export type BachsOperation =
+  | "get_product"
   | "create_checkout_session"
   | "get_checkout_session"
   | "create_customer"
@@ -171,6 +185,36 @@ export class BachsClient {
     this.config = config;
   }
 
+  async getProduct(productId: string): Promise<BachsProduct> {
+    const id = this.identifier("get_product", productId);
+    const response = await this.request(
+      "get_product",
+      "GET",
+      `/v1/products/${encodeURIComponent(id)}`,
+    );
+    const product = this.parse("get_product", productResponseSchema, response);
+    if (
+      !("expectedOrganizationId" in this.config) ||
+      product.organization_id !== this.config.expectedOrganizationId
+    ) {
+      throw new BachsProviderError({
+        code: "invalid_provider_response",
+        operation: "get_product",
+        retryable: false,
+      });
+    }
+    return {
+      id: product.id,
+      status: product.status,
+      price: {
+        priceType: product.price.price_type,
+        currency: product.price.currency,
+        amount: product.price.amount,
+      },
+      billingCycle: product.billing_cycle,
+    };
+  }
+
   async createCheckoutSession(
     input: BachsCheckoutInput,
   ): Promise<BachsCheckoutSession> {
@@ -185,8 +229,24 @@ export class BachsClient {
           metadata: metadataSchema.optional(),
         }),
         billingCurrency: isoCurrencySchema.optional(),
-        allowedPaymentMethodTypes: z
-          .array(z.enum(["card", "crypto", "bank_transfer", "mobile_money"]))
+        paymentMethodTypes: z
+          .array(
+            z.enum([
+              "USD_CARD",
+              "NGN_CARD",
+              "NGN_BANK_TRANSFER",
+              "MOMO_GHS",
+              "MOMO_KES",
+              "MOMO_TZS",
+              "MOMO_UGX",
+              "MOMO_XAF",
+              "MOMO_XOF",
+              "MOMO_RWF",
+              "MOMO_MWK",
+              "MOMO_ZMW",
+              "CRYPTO",
+            ]),
+          )
           .min(1)
           .optional(),
         successUrl: urlSchema,
@@ -218,8 +278,8 @@ export class BachsClient {
           ...(value.billingCurrency
             ? { billing_currency: value.billingCurrency }
             : {}),
-          ...(value.allowedPaymentMethodTypes
-            ? { allowed_payment_method_types: value.allowedPaymentMethodTypes }
+          ...(value.paymentMethodTypes
+            ? { payment_method_types: value.paymentMethodTypes }
             : {}),
           success_url: value.successUrl,
           cancel_url: value.cancelUrl,

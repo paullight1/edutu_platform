@@ -209,10 +209,20 @@ export class MonetizationService {
       // profiles/billing_entitlements user_id may hold the raw auth subject
       // or the derived uuid — match both (see matchUserIdRef).
       const result = await db.execute(sql`
+        with effective_entitlements as (
+          select user_id, feature_key, status, valid_until as expires_at
+          from public.billing_entitlement_grants
+          where environment = 'live' and status = 'active' and revoked_at is null
+            and valid_from <= now() and (valid_until is null or valid_until > now())
+          union all
+          select user_id, feature_key, status, expires_at
+          from public.billing_entitlements
+          where source is distinct from 'derived_grants'
+        )
         select
           exists (
             select 1
-            from billing_entitlements e
+            from effective_entitlements e
             where ${matchUserIdRef("e.user_id", userId)}
               and e.feature_key = 'pro'
               and e.status = 'active'
@@ -220,7 +230,7 @@ export class MonetizationService {
           ) as is_pro,
           exists (
             select 1
-            from billing_entitlements e
+            from effective_entitlements e
             where ${matchUserIdRef("e.user_id", userId)}
               and e.feature_key = 'lite'
               and e.status = 'active'
@@ -228,7 +238,7 @@ export class MonetizationService {
           ) as is_lite,
           exists (
             select 1
-            from billing_entitlements e
+            from effective_entitlements e
             where ${matchUserIdRef("e.user_id", userId)}
               and e.feature_key = 'scholar'
               and e.status = 'active'

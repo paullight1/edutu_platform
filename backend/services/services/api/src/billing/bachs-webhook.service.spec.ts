@@ -47,6 +47,20 @@ function signedPayload(overrides: Record<string, unknown> = {}) {
   return { payload, rawBody, timestamp, signature };
 }
 
+function signedEvent(type: string, dataOverrides: Record<string, unknown> = {}) {
+  const signed = signedPayload({
+    type,
+    data: {
+      ...(signedPayload().payload.data as Record<string, unknown>),
+      ...dataOverrides,
+    },
+  });
+  signed.signature = createHmac("sha256", config.webhookSecret)
+    .update(`${signed.timestamp}.${signed.rawBody.toString("utf8")}`)
+    .digest("hex");
+  return signed;
+}
+
 describe("BachsWebhookService", () => {
   afterEach(() => jest.restoreAllMocks());
 
@@ -117,6 +131,102 @@ describe("BachsWebhookService", () => {
       }),
       expect.objectContaining({ eventRowId: "event-row-1" }),
     );
+  });
+
+  it.each([
+    ["checkout.completed", "processing"],
+    ["checkout.expired", "expired"],
+    ["collection.failed", "failed"],
+  ])("records %s as %s without granting access", async (eventType, nextStatus) => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "11111111-1111-4111-8111-111111111111",
+            provider_checkout_id: "chk_1234567890abcdef",
+            status: "open",
+            expected_amount_minor: "499",
+            currency: "USD",
+          }],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent(eventType);
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "processed" });
+    expect(tx.execute).toHaveBeenCalledTimes(4);
+  });
+
+  it("quarantines underpayments and keeps their intent unfulfilled", async () => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "11111111-1111-4111-8111-111111111111",
+            provider_checkout_id: "chk_1234567890abcdef",
+            status: "processing",
+            expected_amount_minor: "499",
+            currency: "USD",
+          }],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent("collection.underpaid", {
+      amount: "2.00",
+      amount_remaining: "2.99",
+      currency: "USD",
+    });
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "review" });
+    expect(tx.execute).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not downgrade a fulfilled intent when a late failure arrives", async () => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-1" }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "11111111-1111-4111-8111-111111111111",
+            provider_checkout_id: "chk_1234567890abcdef",
+            status: "fulfilled",
+            expected_amount_minor: "499",
+            currency: "USD",
+          }],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent("collection.failed");
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "processed" });
+    // Inbox insert, locked intent read, event completion; no intent downgrade.
+    expect(tx.execute).toHaveBeenCalledTimes(3);
   });
 
   it("fulfills a Lite/Pro one-time pass into the entitlement grant function", async () => {

@@ -1,8 +1,9 @@
 import type {
   BachsCheckoutInput,
   BachsCheckoutSession,
-  BachsPaymentMethod,
+  BillingPaymentMethod,
   BachsPortalSession,
+  BachsProduct,
 } from "../providers/bachs/bachs.types";
 
 export type BillingEnvironment = "sandbox" | "live";
@@ -67,7 +68,7 @@ export interface BillingCheckoutProduct {
   cadence: string | null;
   creditQuantity: number | null;
   validityDays: number | null;
-  allowedPaymentMethods: BachsPaymentMethod[];
+  allowedPaymentMethods: BillingPaymentMethod[];
   catalogVersion: number;
   /** The only permitted zero-price catalog row. */
   isFree?: boolean;
@@ -144,7 +145,7 @@ export interface BillingProductSnapshot {
   cadence: string | null;
   creditQuantity: number | null;
   validityDays: number | null;
-  allowedPaymentMethods: BachsPaymentMethod[];
+  allowedPaymentMethods: BillingPaymentMethod[];
   catalogVersion: number;
 }
 
@@ -225,6 +226,7 @@ export interface BillingPortalRepositoryPort {
 }
 
 export interface BillingCheckoutProviderPort {
+  getProduct(productId: string): Promise<BachsProduct>;
   createCheckoutSession(
     input: BachsCheckoutInput,
   ): Promise<BachsCheckoutSession>;

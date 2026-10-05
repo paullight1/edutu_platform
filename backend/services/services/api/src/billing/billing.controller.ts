@@ -11,6 +11,7 @@ import {
   Optional,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UnauthorizedException,
@@ -21,6 +22,11 @@ import { randomUUID } from "crypto";
 import { Public, CurrentUser } from "../auth";
 import { AdminGuard } from "../auth/admin.guard";
 import { BillingCheckoutService } from "./billing-checkout.service";
+import {
+  BillingCatalogAdminService,
+  type BillingCatalogEdit,
+  type BillingCatalogOperator,
+} from "./billing-catalog-admin.service";
 import { BillingPayShellService } from "./billing-pay-shell.service";
 import { isApiCreditProductKey } from "./types/billing-checkout.types";
 import { BillingPortalService } from "./billing-portal.service";
@@ -46,6 +52,7 @@ export class BillingController {
     @Inject(REVENUECAT_WEBHOOK_SERVICES)
     private readonly revenueCatWebhookServices?: RevenueCatWebhookServices,
     @Optional() private readonly payShell?: BillingPayShellService,
+    @Optional() private readonly catalogAdmin?: BillingCatalogAdminService,
   ) {}
 
   @Get("status")
@@ -204,6 +211,33 @@ export class BillingController {
     return this.billingService.listAdminTransactions(limit, offset);
   }
 
+  @Get("admin/catalog")
+  @UseGuards(AdminGuard)
+  getAdminCatalog() {
+    if (!this.catalogAdmin)
+      throw new ServiceUnavailableException(
+        "Billing catalog administration is unavailable.",
+      );
+    return this.catalogAdmin.list();
+  }
+
+  @Put("admin/catalog")
+  @UseGuards(AdminGuard)
+  updateAdminCatalog(
+    @CurrentUser() operator: BillingCatalogOperator,
+    @Body() body: { reason?: string; products?: BillingCatalogEdit[] },
+  ) {
+    if (!this.catalogAdmin)
+      throw new ServiceUnavailableException(
+        "Billing catalog administration is unavailable.",
+      );
+    return this.catalogAdmin.save(
+      operator,
+      body?.reason ?? "",
+      body?.products ?? [],
+    );
+  }
+
   @Public()
   @Post("webhooks/paystack")
   handlePaystackWebhook(
@@ -231,6 +265,7 @@ export class BillingController {
   handleBachsWebhook(
     @Headers("x-bachs-timestamp") timestamp: string | undefined,
     @Headers("x-bachs-signature") signature: string | undefined,
+    @Headers("x-bachs-signature-v2") signatureV2: string | undefined,
     @Req() request: any,
   ) {
     if (!this.bachsWebhookService) {
@@ -245,6 +280,7 @@ export class BillingController {
       request.rawBody,
       timestamp,
       signature,
+      signatureV2,
     );
   }
 

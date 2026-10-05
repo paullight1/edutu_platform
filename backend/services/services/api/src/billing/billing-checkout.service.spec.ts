@@ -30,7 +30,7 @@ const product: BillingCheckoutProduct = {
   cadence: "monthly",
   creditQuantity: null,
   validityDays: 31,
-  allowedPaymentMethods: ["card", "crypto"],
+  allowedPaymentMethods: ["card", "bank_transfer", "mobile_money", "crypto"],
   catalogVersion: 3,
 };
 
@@ -182,6 +182,11 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
 }
 
 class FakeProvider implements BillingCheckoutProviderPort {
+  productCalls: string[] = [];
+  productOverride: Awaited<
+    ReturnType<BillingCheckoutProviderPort["getProduct"]>
+  > | null = null;
+  productError: Error | null = null;
   calls: Array<
     Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0]
   > = [];
@@ -195,6 +200,25 @@ class FakeProvider implements BillingCheckoutProviderPort {
     createdAt: "2026-08-11T10:00:01.000Z",
     reference: "intent-1",
   };
+
+  async getProduct(productId: string) {
+    this.productCalls.push(productId);
+    if (this.productError) throw this.productError;
+    if (this.productOverride) return this.productOverride;
+    const credits = productId.includes("api_credits_100");
+    return {
+      id: productId,
+      status: "active",
+      price: {
+        priceType: "fixed",
+        currency: "USD",
+        amount: credits ? "4.99" : "6.99",
+      },
+      billingCycle: productId.includes("recurring")
+        ? { interval: "month", frequency: 1 }
+        : null,
+    };
+  }
 
   async createCheckoutSession(
     input: Parameters<BillingCheckoutProviderPort["createCheckoutSession"]>[0],
@@ -228,7 +252,7 @@ function createFixture() {
 }
 
 describe("BillingCheckoutService", () => {
-  it("creates the local intent before calling Bachs and returns a server-owned snapshot", async () => {
+  it("verifies the current Bachs price before opening hosted checkout and returns a server-owned snapshot", async () => {
     const { service, repository, provider } = createFixture();
 
     const result = await service.createCheckout("user_123", "request-1", {
@@ -237,10 +261,26 @@ describe("BillingCheckoutService", () => {
     });
 
     expect(repository.calls).toHaveLength(1);
+    expect(provider.productCalls).toEqual([product.providerProductId]);
     expect(provider.calls).toHaveLength(1);
     expect(repository.calls[0].userId).toBe("user_123");
     expect(provider.calls[0]).toMatchObject({
       productId: product.providerProductId,
+      paymentMethodTypes: [
+        "USD_CARD",
+        "NGN_CARD",
+        "NGN_BANK_TRANSFER",
+        "MOMO_GHS",
+        "MOMO_KES",
+        "MOMO_TZS",
+        "MOMO_UGX",
+        "MOMO_XAF",
+        "MOMO_XOF",
+        "MOMO_RWF",
+        "MOMO_MWK",
+        "MOMO_ZMW",
+        "CRYPTO",
+      ],
       reference: "intent-1",
       successUrl: BACHS_CHECKOUT_SUCCESS_URL,
       cancelUrl: "https://pay.edutu.org/result?state=cancelled",
@@ -318,6 +358,33 @@ describe("BillingCheckoutService", () => {
     );
   });
 
+  it("leaves an intent retryable when Bachs product verification has a temporary failure", async () => {
+    const fixture = createFixture();
+    fixture.provider.productError = Object.assign(
+      new Error("provider temporarily unavailable"),
+      { retryable: true, code: "network_error" },
+    );
+
+    await expect(
+      fixture.service.createCheckout("user_123", "product-check-retry", {
+        productKey: product.productKey,
+        returnSurface: "web",
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(fixture.repository.failed).toHaveLength(0);
+    expect(fixture.provider.calls).toHaveLength(0);
+
+    fixture.provider.productError = null;
+    fixture.repository.nextCreated = false;
+    await fixture.service.createCheckout("user_123", "product-check-retry", {
+      productKey: product.productKey,
+      returnSurface: "web",
+    });
+
+    expect(fixture.provider.productCalls).toHaveLength(2);
+    expect(fixture.provider.calls).toHaveLength(1);
+  });
+
   it("marks a non-retryable provider error and never claims a checkout URL", async () => {
     const fixture = createFixture();
     fixture.provider.error = Object.assign(new Error("invalid product"), {
@@ -367,6 +434,7 @@ describe("BillingCheckoutService", () => {
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(fixture.repository.calls).toHaveLength(0);
+    expect(fixture.repository.failed).toHaveLength(0);
     expect(fixture.provider.calls).toHaveLength(0);
   });
 
@@ -387,19 +455,40 @@ describe("BillingCheckoutService", () => {
     expect(fixture.provider.calls).toHaveLength(0);
   });
 
-  it("rejects an enabled catalog product whose provider mapping does not match", async () => {
+  it("rejects an API credit product whose provider mapping does not match", async () => {
     const fixture = createFixture();
     fixture.repository.product = {
-      ...product,
+      ...apiCreditProduct,
       providerProductId: "prod_other",
     };
 
     await expect(
       fixture.service.createCheckout("user_123", "wrong-map", {
-        productKey: product.productKey,
+        productKey: apiCreditProduct.productKey,
         returnSurface: "web",
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fixture.provider.productCalls).toHaveLength(0);
+  });
+
+  it("pauses checkout when the sandbox product price drifts", async () => {
+    const fixture = createFixture();
+    fixture.provider.productOverride = {
+      id: product.providerProductId!,
+      status: "active",
+      price: { priceType: "fixed", currency: "USD", amount: "1.00" },
+      billingCycle: null,
+    };
+
+    await expect(
+      fixture.service.createCheckout("user_123", "price-drift", {
+        productKey: product.productKey,
+        returnSurface: "web",
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(fixture.repository.calls).toHaveLength(1);
+    expect(fixture.repository.failed).toHaveLength(1);
+    expect(fixture.provider.calls).toHaveLength(0);
   });
 
   it("rejects missing, ambiguous, and invalid billing customer identity", async () => {
@@ -433,6 +522,7 @@ describe("BillingCheckoutService", () => {
       }),
     ).rejects.toThrow("try again");
     expect(fixture.provider.calls).toHaveLength(0);
+    expect(fixture.provider.productCalls).toHaveLength(0);
 
     fixture.repository.nextCreated = false;
     await expect(
@@ -549,6 +639,34 @@ describe("learner wallet contracts", () => {
       renewalMode: product.renewalMode,
     });
   });
+
+  it("serves learner plans from the database catalog without duplicated environment mappings", async () => {
+    const fixture = createFixture();
+    Object.assign(fixture.repository, {
+      listEnabledUserProducts: async () => [product],
+    });
+    const service = new BillingCheckoutService(
+      fixture.repository,
+      fixture.provider,
+      fixture.identity,
+      fixture.clock,
+      fixture.rateLimiter,
+      { ...config, productMappings: {} },
+    );
+
+    const catalog = await service.getUserCatalog();
+
+    expect(catalog.products.map((row) => row.productKey)).toEqual([
+      product.productKey,
+    ]);
+    const checkout = await service.createCheckout("user_123", "database-plan", {
+      productKey: product.productKey,
+      returnSurface: "web",
+    });
+    expect(checkout.productSnapshot.productKey).toBe(product.productKey);
+    expect(fixture.provider.calls).toHaveLength(1);
+  });
+
   it("does not report paid-but-unfulfilled checkout as completed", async () => {
     const { service, repository } = createFixture();
     const id = "f1458648-4ee2-4f45-bf0a-cc0a6c82dc9d";

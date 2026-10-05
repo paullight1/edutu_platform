@@ -14,6 +14,9 @@ import { sql } from "drizzle-orm";
 import { isSubscriptionProductKey } from "./plan-tiers";
 import { CacheService } from "../common/cache/cache.service";
 import { db } from "../db";
+import { decimalToMinorUnits } from "./providers/bachs/bachs-money";
+import { matchesBachsCadence } from "./providers/bachs/bachs-cadence";
+import { toBachsPaymentMethodTypes } from "./providers/bachs/bachs.types";
 import {
   BACHS_CHECKOUT_CANCEL_URL,
   BACHS_CHECKOUT_CONFIG,
@@ -52,6 +55,15 @@ type ProviderFailure = {
   code?: unknown;
   retryable?: unknown;
 };
+
+class ProductVerificationUnavailableException extends ServiceUnavailableException {
+  constructor(
+    message: string,
+    readonly retryable = false,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Resolves a billing email from the canonical, server-owned auth subject. The
@@ -164,11 +176,6 @@ export class BillingCheckoutService {
           (product) =>
             !isApiCreditProductKey(product.productKey) &&
             this.isHostedFulfillableProduct(product),
-        )
-        .filter(
-          (product) =>
-            this.config.productMappings?.[product.productKey] ===
-            product.providerProductId,
         )
         .map((product) => ({
           productKey: product.productKey,
@@ -283,7 +290,7 @@ export class BillingCheckoutService {
       });
     } catch (error) {
       throw new ConflictException(
-        "The idempotency key cannot be reused for this product.",
+        "This checkout conflicts with an existing purchase. Resume it or manage your subscription from your wallet.",
       );
     }
 
@@ -320,6 +327,9 @@ export class BillingCheckoutService {
     }
 
     try {
+      // Verify against the provider only after idempotency and cooldown checks,
+      // so rejected attempts cannot force unbounded provider reads.
+      await this.assertProviderProduct(product);
       const session = await this.provider.createCheckoutSession({
         productId: product.providerProductId!,
         customer: {
@@ -330,7 +340,10 @@ export class BillingCheckoutService {
             : {}),
         },
         billingCurrency: product.currency,
-        allowedPaymentMethodTypes: product.allowedPaymentMethods,
+        paymentMethodTypes:
+          product.renewalMode === "recurring"
+            ? ["USD_CARD"]
+            : toBachsPaymentMethodTypes(product.allowedPaymentMethods),
         successUrl: BACHS_CHECKOUT_SUCCESS_URL,
         cancelUrl: BACHS_CHECKOUT_CANCEL_URL,
         reference: intent.id,
@@ -465,8 +478,10 @@ export class BillingCheckoutService {
     }
     if (
       !product.providerProductId ||
-      this.config.productMappings[product.productKey] !==
-        product.providerProductId
+      !/^prod_[A-Za-z0-9_-]+$/.test(product.providerProductId) ||
+      (isApiCreditProductKey(product.productKey) &&
+        this.config.productMappings[product.productKey] !==
+          product.providerProductId)
     ) {
       throw new BadRequestException(
         "This billing product is not correctly configured.",
@@ -523,7 +538,60 @@ export class BillingCheckoutService {
     }
   }
 
+  private async assertProviderProduct(
+    product: BillingCheckoutProduct,
+  ): Promise<void> {
+    let current;
+    try {
+      current = await this.provider.getProduct(product.providerProductId!);
+    } catch (error) {
+      const failure = error as ProviderFailure | undefined;
+      throw new ProductVerificationUnavailableException(
+        "Bachs could not verify the current product price. Retry shortly.",
+        Boolean(failure?.retryable),
+      );
+    }
+
+    let currentAmount: bigint;
+    try {
+      currentAmount = decimalToMinorUnits(
+        current.price.amount,
+        current.price.currency,
+      );
+    } catch {
+      throw new ProductVerificationUnavailableException(
+        "Bachs returned an invalid product price. Checkout is unavailable.",
+      );
+    }
+
+    const expectsRecurring = product.renewalMode === "recurring";
+    if (
+      current.id !== product.providerProductId ||
+      current.status.toLowerCase() !== "active" ||
+      current.price.priceType.toLowerCase() !== "fixed" ||
+      (current.billingCycle !== null) !== expectsRecurring ||
+      (expectsRecurring &&
+        !matchesBachsCadence(current.billingCycle, product.cadence)) ||
+      current.price.currency.toUpperCase() !== product.currency.toUpperCase() ||
+      currentAmount !== BigInt(product.expectedAmountMinor)
+    )
+      throw new ProductVerificationUnavailableException(
+        "This plan’s Bachs product no longer matches its approved price. Checkout is paused while the catalog is reviewed.",
+      );
+  }
+
   private isHostedFulfillableProduct(product: BillingCheckoutProduct): boolean {
+    if (product.renewalMode === "recurring") {
+      return (
+        product.fulfillmentKind === "pro" &&
+        isSubscriptionProductKey(product.productKey) &&
+        product.validityDays === null &&
+        product.currency === "USD" &&
+        ["weekly", "monthly", "yearly"].includes(product.cadence ?? "") &&
+        product.allowedPaymentMethods.length === 1 &&
+        product.allowedPaymentMethods[0] === "card"
+      );
+    }
     if (product.renewalMode !== "one_time") return false;
     if (product.fulfillmentKind === "credits") {
       return (

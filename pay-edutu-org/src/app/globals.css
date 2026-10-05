@@ -453,8 +453,14 @@ p strong { color: var(--text); font-weight: 650; }
 }
 .btn.danger:hover { box-shadow: 0 12px 26px -14px rgba(239, 68, 68, 0.5); }
 
-.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-.btn-row .btn { margin-top: 0; }
+.btn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.btn-row .btn {
+  min-width: 0;
+  margin-top: 0;
+  padding: 12px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
 
 .btn:focus-visible,
 input:focus-visible,
@@ -674,8 +680,13 @@ tbody tr:last-child td { border-bottom: 0; }
   .shell { padding: 20px 14px 32px; }
   .card { padding: 26px 20px; border-radius: 18px; }
   .card::before { inset: -5px; border-radius: 23px; }
-  .btn-row { grid-template-columns: 1fr; }
+  .btn-row { gap: 8px; }
+  .btn-row .btn { padding-inline: 8px; font-size: 12px; }
   .secure-chip span { display: none; }
   .secure-chip { padding: 8px; }
   .site-foot { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 340px) {
+  .btn-row .btn { padding-inline: 5px; font-size: 11px; }
 }

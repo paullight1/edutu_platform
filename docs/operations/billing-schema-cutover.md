@@ -43,6 +43,22 @@ Supabase deployment process:
 3. `20260811122000_atomic_billing_fulfillment.sql`
 4. `20260811123000_derived_entitlements.sql`
 
+Continue with every later root migration in timestamp order before deploying
+application code that depends on it. In particular, the hosted payment shell
+requires these migrations after the billing core and RevenueCat schema are
+present (with all intervening root migrations applied first):
+
+- `20261002090000_billing_pay_shell_sessions.sql`
+- `20261003120000_billing_provider_event_reference.sql`
+- `20261003121000_billing_pay_shell_constraints.sql`
+
+The pay-shell migrations add only server-owned, short-lived handoff/session
+records and a provider-event reconciliation reference. They do not enable
+checkout or add plan prices. The final migration rejects rows where account
+handoffs carry a checkout intent or where a record expires at or before
+creation. Apply all earlier root migrations first; do not jump directly to
+these versions on a database whose migration history has gaps.
+
 The core migration establishes provider/environment lookups, a disabled
 server-owned catalog, text external/user identifiers, bigint minor-unit money,
 separate customer and settlement money, durable event idempotency, append-only
@@ -75,6 +91,8 @@ Before application behavior changes, confirm:
 - Money is integer minor units with uppercase three-letter currencies, and
   customer money is not conflated with settlement money.
 - Every Bachs catalog row remains disabled until the separate launch gate.
+- Pay-shell codes and sessions have RLS enabled, are inaccessible to
+  `anon`/`authenticated`, and have destination/intent and expiry constraints.
 - `billing_entitlement_grants` is authoritative. `billing_entitlements` and
   `profiles.is_pro` are projections only, with profile cache expiry updated in
   the same transaction.

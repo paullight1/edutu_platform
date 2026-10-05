@@ -5,23 +5,31 @@ alter table public.community_groups
   add column if not exists trending_rank integer,
   add column if not exists updated_at timestamptz not null default now();
 
-alter table public.community_groups
-  add constraint community_groups_management_scope_check
-  check (management_scope in ('member', 'platform'));
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.community_groups'::regclass and conname = 'community_groups_management_scope_check') then
+    alter table public.community_groups add constraint community_groups_management_scope_check check (management_scope in ('member', 'platform'));
+  end if;
+end;
+$$;
 
-alter table public.community_groups
-  add constraint community_groups_trending_rank_check
-  check (trending_rank is null or trending_rank > 0);
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.community_groups'::regclass and conname = 'community_groups_trending_rank_check') then
+    alter table public.community_groups add constraint community_groups_trending_rank_check check (trending_rank is null or trending_rank > 0);
+  end if;
+end;
+$$;
 
-create unique index community_groups_trending_rank_unique
+create unique index if not exists community_groups_trending_rank_unique
   on public.community_groups (trending_rank)
   where trending_rank is not null;
 
-create index community_groups_management_scope_owner_idx
+create index if not exists community_groups_management_scope_owner_idx
   on public.community_groups (management_scope, owner_id)
   where archived_at is null;
 
-create table public.community_creation_requests (
+create table if not exists public.community_creation_requests (
   id uuid primary key default gen_random_uuid(),
   requester_id text not null,
   name text not null,
@@ -43,14 +51,14 @@ create table public.community_creation_requests (
   updated_at timestamptz not null default now()
 );
 
-create index community_creation_requests_requester_status_idx
+create index if not exists community_creation_requests_requester_status_idx
   on public.community_creation_requests (requester_id, status, created_at desc);
 
-create index community_creation_requests_pending_queue_idx
+create index if not exists community_creation_requests_pending_queue_idx
   on public.community_creation_requests (created_at asc, id asc)
   where status = 'pending';
 
-create unique index community_creation_requests_approved_group_unique
+create unique index if not exists community_creation_requests_approved_group_unique
   on public.community_creation_requests (approved_group_id)
   where approved_group_id is not null;
 

@@ -10,14 +10,14 @@ export default function HomePage() {
       <h1>{checkoutEnabled ? 'Manage your Edutu payment' : 'Payments are not ready yet'}</h1>
       <p>
         {checkoutEnabled
-          ? 'Edutu starts checkout securely through its billing service. Bachs hosts payment collection and account management.'
+          ? 'Start a purchase in Edutu and complete payment on Bachs. This page keeps account access and payment status available.'
           : 'New payments are temporarily unavailable while we finish secure billing setup. Existing payment status and account management remain available.'}
       </p>
       <div className="btn-row">
-        <a className="btn" href="/account">Manage account</a>
-        <a className="btn secondary" href="/result">Check payment status</a>
+        <a className="btn" href="/account" aria-label="Manage account">Account</a>
+        <a className="btn secondary" href="/result" aria-label="Check payment status">Payment status</a>
       </div>
-      <p className="muted" style={{ marginBottom: 0 }}>To start a new purchase, return to Edutu. Payment details are handled on Bachs&apos; hosted pages.</p>
+      <p className="muted" style={{ marginBottom: 0 }}>Choose your plan in Edutu. Payment details are entered on Bachs&apos; hosted checkout.</p>
     </div>
   );
 }

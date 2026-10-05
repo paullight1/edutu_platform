@@ -84,16 +84,18 @@ function parseProductMappings(value: string): Readonly<Record<string, string>> {
 
   const mappings = Object.entries(parsed);
   if (
-    mappings.length === 0 ||
     mappings.some(
       ([productKey, productId]) =>
-        !productKey.trim() ||
+        !Object.prototype.hasOwnProperty.call(
+          API_CREDIT_PRODUCT_QUANTITIES,
+          productKey,
+        ) ||
         typeof productId !== "string" ||
         !productId.trim(),
     )
   ) {
     throw new BachsConfigError(
-      "BACHS_PRODUCT_MAPPINGS must contain non-empty product keys and product IDs.",
+      "BACHS_PRODUCT_MAPPINGS may contain only server-owned API credit products; learner plans are mapped in the billing database.",
     );
   }
 
@@ -212,6 +214,11 @@ export function loadBachsConfig(
         environment.BACHS_EXPECTED_ORGANIZATION_ID?.trim(),
       ),
   );
+  if (checkoutEnabled && !webhookEnabled) {
+    throw new BachsConfigError(
+      "BACHS_WEBHOOK_ENABLED must be true while Bachs checkout is enabled.",
+    );
+  }
   if (!checkoutEnabled && !webhookEnabled) {
     return {
       checkoutEnabled: false,
@@ -248,7 +255,7 @@ export function loadBachsConfig(
   }
 
   const productMappings = parseProductMappings(
-    required(environment, "BACHS_PRODUCT_MAPPINGS"),
+    environment.BACHS_PRODUCT_MAPPINGS?.trim() || "{}",
   );
 
   return {

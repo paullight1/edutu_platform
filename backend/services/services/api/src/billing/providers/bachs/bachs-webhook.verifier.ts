@@ -11,6 +11,8 @@ const DEFAULT_TOLERANCE_SECONDS = 5 * 60;
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 const DEFAULT_MAX_JSON_DEPTH = 20;
 const SHA_256_HEX_LENGTH = 64;
+const MAX_SIGNATURE_V2_HEADER_LENGTH = 4096;
+const MAX_SIGNATURE_V2_VALUES = 8;
 
 type JsonObject = Record<string, unknown>;
 
@@ -74,7 +76,17 @@ export class BachsWebhookVerifier {
       );
     }
 
-    const timestampHeader = input.timestampHeader;
+    const v2Header = input.signatureV2Header;
+    const v2 = v2Header === undefined ? null : parseV2Signature(v2Header);
+    if (v2Header !== undefined && v2 === null) {
+      throw webhookError(
+        "invalid_signature",
+        401,
+        "Bachs webhook signature is invalid",
+      );
+    }
+
+    const timestampHeader = v2?.timestamp ?? input.timestampHeader;
     if (
       typeof timestampHeader !== "string" ||
       !/^\d{1,16}$/.test(timestampHeader)
@@ -83,6 +95,14 @@ export class BachsWebhookVerifier {
         "invalid_timestamp",
         401,
         "Bachs webhook timestamp is invalid",
+      );
+    }
+
+    if (v2 && input.timestampHeader && input.timestampHeader !== v2.timestamp) {
+      throw webhookError(
+        "invalid_timestamp",
+        401,
+        "Bachs webhook timestamp headers do not match",
       );
     }
 
@@ -117,16 +137,27 @@ export class BachsWebhookVerifier {
       new RegExp(`^[a-fA-F0-9]{${SHA_256_HEX_LENGTH}}$`).test(
         input.signatureHeader,
       );
-    const suppliedSignature =
+    const legacySignature =
       signatureIsWellFormed && typeof input.signatureHeader === "string"
         ? Buffer.from(input.signatureHeader, "hex")
         : Buffer.alloc(expectedSignature.byteLength);
-    const signatureMatches = timingSafeEqual(
+    const legacySignatureMatches = timingSafeEqual(
       expectedSignature,
-      suppliedSignature,
+      legacySignature,
     );
+    const v2SignatureMatches = v2
+      ? v2.signatures
+          .map((signature) => Buffer.from(signature, "hex"))
+          .some((signature) => timingSafeEqual(expectedSignature, signature))
+      : false;
 
-    if (!signatureIsWellFormed || !signatureMatches) {
+    // Bachs recommends V2 for new integrations. If a V2 header is present,
+    // require it to validate instead of silently downgrading to the legacy
+    // signature; V2 can carry both secrets during a signing-secret rotation.
+    const signatureMatches = v2
+      ? v2SignatureMatches
+      : signatureIsWellFormed && legacySignatureMatches;
+    if (!signatureMatches) {
       throw webhookError(
         "invalid_signature",
         401,
@@ -214,6 +245,40 @@ export class BachsWebhookVerifier {
       data,
     };
   }
+}
+
+function parseV2Signature(
+  value: string,
+): { timestamp: string; signatures: string[] } | null {
+  if (!value || value.length > MAX_SIGNATURE_V2_HEADER_LENGTH) return null;
+
+  let timestamp: string | null = null;
+  const signatures: string[] = [];
+  for (const rawPart of value.split(",")) {
+    const part = rawPart.trim();
+    const separator = part.indexOf("=");
+    if (separator < 1) return null;
+    const key = part.slice(0, separator);
+    const field = part.slice(separator + 1);
+    if (key === "t") {
+      if (timestamp !== null || !/^\d{1,16}$/.test(field)) return null;
+      timestamp = field;
+      continue;
+    }
+    if (key === "v1") {
+      if (
+        signatures.length >= MAX_SIGNATURE_V2_VALUES ||
+        !new RegExp(`^[a-fA-F0-9]{${SHA_256_HEX_LENGTH}}$`).test(field)
+      ) {
+        return null;
+      }
+      signatures.push(field);
+    }
+    // Unknown schemes are ignored for forward compatibility. At least one
+    // supported v1 signature is still required before the header is accepted.
+  }
+
+  return timestamp && signatures.length > 0 ? { timestamp, signatures } : null;
 }
 
 function isBachsEnvironment(value: unknown): value is BachsEnvironment {

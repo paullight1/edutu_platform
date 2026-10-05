@@ -2,7 +2,7 @@ import "../../i18n";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi, it, expect, beforeEach } from "vitest";
-const { request } = vi.hoisted(() => ({ request: vi.fn() }));
+const { request, billing } = vi.hoisted(() => ({ request: vi.fn(), billing: { isPro: false } }));
 vi.mock("../workspace/shared", async () => {
   const actual = await vi.importActual<typeof import("../workspace/shared")>(
     "../workspace/shared",
@@ -14,7 +14,7 @@ vi.mock("../workspace/shared", async () => {
 });
 vi.mock("../../hooks/usePaywall", () => ({
   usePaywall: () => ({
-    isPro: false,
+    isPro: billing.isPro,
     billingLoading: false,
     openPaywall: vi.fn(),
     handleUpgradeError: vi.fn(() => false),
@@ -36,6 +36,7 @@ const cv = {
   source: "mobile",
 };
 beforeEach(() => {
+  billing.isPro = false;
   sessionStorage.clear();
   request.mockReset();
   request.mockImplementation((path: string) =>
@@ -152,6 +153,7 @@ it("does not render a redundant empty-state panel when there are no saved CVs", 
 });
 
 it("submits LinkedIn PDF or ZIP files to the import endpoint and opens the review draft", async () => {
+  billing.isPro = true;
   const importedCv = { header: { full_name: "LinkedIn Test" }, experience: [] };
   request.mockImplementation((path: string) =>
     path === "/cv/editor"
@@ -176,6 +178,7 @@ it("submits LinkedIn PDF or ZIP files to the import endpoint and opens the revie
 });
 
 it("sends a draft request from the AI tools flow and shows the generated proposal", async () => {
+  billing.isPro = true;
   const proposal = { ...cv.data, summary: "Clearer, outcome-focused summary." };
   request.mockImplementation((path: string) =>
     path === "/cv/editor"

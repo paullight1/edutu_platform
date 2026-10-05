@@ -38,6 +38,7 @@ describe("BachsWebhookVerifier", () => {
       signingSecret?: string;
       deliveryEnvironment?: "sandbox" | "live";
       rawBody?: Buffer;
+      signatureV2Header?: string;
     } = {},
   ) {
     const rawBody = options.rawBody ?? Buffer.from(JSON.stringify(payload));
@@ -55,9 +56,72 @@ describe("BachsWebhookVerifier", () => {
       rawBody,
       timestampHeader,
       signatureHeader,
+      ...(options.signatureV2Header
+        ? { signatureV2Header: options.signatureV2Header }
+        : {}),
       deliveryEnvironment: options.deliveryEnvironment ?? ("sandbox" as const),
     };
   }
+
+  function v2Signature(rawBody: Buffer, signingSecret = secret) {
+    return createHmac("sha256", signingSecret)
+      .update(String(nowSeconds), "utf8")
+      .update(".", "utf8")
+      .update(rawBody)
+      .digest("hex");
+  }
+
+  it("prefers the V2 header and accepts a matching signature during secret rotation", () => {
+    const rawBody = Buffer.from(JSON.stringify(envelope()));
+    const currentSignature = v2Signature(rawBody);
+    const previousSignature = v2Signature(
+      rawBody,
+      "whsec_previous_rotation_secret",
+    );
+    const input = {
+      rawBody,
+      timestampHeader: String(nowSeconds),
+      // A valid V2 header is authoritative even if the legacy value is bad.
+      signatureHeader: "invalid legacy signature",
+      signatureV2Header: `t=${nowSeconds},v1=${previousSignature},v1=${currentSignature}`,
+      deliveryEnvironment: "sandbox" as const,
+    };
+
+    expect(createVerifier().verify(input).id).toBe("evt_valid_1");
+  });
+
+  it("accepts V2 without legacy headers and rejects a bad V2 header without downgrade", () => {
+    const rawBody = Buffer.from(JSON.stringify(envelope()));
+    const good = {
+      rawBody,
+      signatureHeader: undefined,
+      signatureV2Header: `t=${nowSeconds},v1=${v2Signature(rawBody)}`,
+      deliveryEnvironment: "sandbox" as const,
+    };
+    expect(createVerifier().verify(good).id).toBe("evt_valid_1");
+
+    expect(() =>
+      createVerifier().verify({
+        ...good,
+        timestampHeader: String(nowSeconds),
+        signatureHeader: signedInput(envelope()).signatureHeader,
+        signatureV2Header: `t=${nowSeconds},v1=${"0".repeat(64)}`,
+      }),
+    ).toThrow(expect.objectContaining({ code: "invalid_signature" }));
+  });
+
+  it("rejects conflicting legacy and V2 timestamps", () => {
+    const rawBody = Buffer.from(JSON.stringify(envelope()));
+    expect(() =>
+      createVerifier().verify({
+        rawBody,
+        timestampHeader: String(nowSeconds - 1),
+        signatureHeader: signedInput(envelope()).signatureHeader,
+        signatureV2Header: `t=${nowSeconds},v1=${v2Signature(rawBody)}`,
+        deliveryEnvironment: "sandbox",
+      }),
+    ).toThrow(expect.objectContaining({ code: "invalid_timestamp" }));
+  });
 
   it("verifies the signature over the exact timestamp and raw body bytes", () => {
     const rawBody = Buffer.from(

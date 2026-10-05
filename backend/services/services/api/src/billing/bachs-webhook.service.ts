@@ -9,6 +9,8 @@ import {
   BachsWebhookVerifier,
 } from "./providers/bachs/bachs-webhook.verifier";
 import type { BachsWebhookEvent } from "./providers/bachs/bachs-webhook.types";
+import { decimalToMinorUnits } from "./providers/bachs/bachs-money";
+export { decimalToMinorUnits } from "./providers/bachs/bachs-money";
 import {
   CreditPurchaseService,
   type CreditPurchaseTransaction,
@@ -22,31 +24,9 @@ import {
   isSubscriptionProductKey,
 } from "./plan-tiers";
 import { redactProviderPayload } from "./provider-payload-redaction";
+import { BachsSubscriptionProcessor } from "./bachs-subscription.processor";
 
 type JsonRecord = Record<string, unknown>;
-
-export function decimalToMinorUnits(value: string, currency: string): bigint {
-  const normalizedCurrency = currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(normalizedCurrency)) {
-    throw new Error("Bachs currency is invalid");
-  }
-  const fractionDigits =
-    new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: normalizedCurrency,
-    }).resolvedOptions().maximumFractionDigits ?? 2;
-  const trimmed = value.trim();
-  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
-    throw new Error("Bachs amount is invalid");
-  }
-  const [whole, fraction = ""] = trimmed.split(".");
-  if (fraction.length > fractionDigits) {
-    throw new Error("Bachs amount has too many decimal places");
-  }
-  const scale = 10n ** BigInt(fractionDigits);
-  const fractionValue = BigInt(fraction.padEnd(fractionDigits, "0") || "0");
-  return BigInt(whole) * scale + fractionValue;
-}
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -93,7 +73,8 @@ export class BachsWebhookService {
     rawBody: Buffer,
     timestamp: string | undefined,
     signature: string | undefined,
-  ): Promise<{ status: "fulfilled" | "duplicate" | "review" }> {
+    signatureV2?: string,
+  ): Promise<{ status: "fulfilled" | "processed" | "duplicate" | "review" }> {
     if (!this.config.webhookEnabled) {
       throw new HttpException("Bachs webhook is not configured", 503);
     }
@@ -104,6 +85,7 @@ export class BachsWebhookService {
         rawBody,
         timestampHeader: timestamp,
         signatureHeader: signature,
+        signatureV2Header: signatureV2,
         deliveryEnvironment: this.config.environment,
       });
     } catch (error) {
@@ -178,7 +160,41 @@ export class BachsWebhookService {
         return { status: "duplicate" as const };
       }
 
+      if (
+        [
+          "customer.subscription.created",
+          "customer.subscription.updated",
+          "customer.subscription.deleted",
+          "invoice.paid",
+          "invoice.payment_failed",
+        ].includes(event.type)
+      ) {
+        const reason = await new BachsSubscriptionProcessor(
+          this.config.environment,
+        ).process(tx, event);
+        if (reason) {
+          await this.markReview(tx, insertedRow.id, event, reason);
+          return { status: "review" as const };
+        }
+        await this.markProcessed(tx, insertedRow.id);
+        return { status: "processed" as const };
+      }
       if (event.type !== "collection.succeeded") {
+        if (
+          [
+            "checkout.completed",
+            "checkout.expired",
+            "collection.failed",
+            "collection.underpaid",
+          ].includes(event.type)
+        ) {
+          const status = await this.handleNonSuccessEvent(
+            tx,
+            insertedRow.id,
+            event,
+          );
+          return { status };
+        }
         await this.markReview(
           tx,
           insertedRow.id,
@@ -215,11 +231,134 @@ export class BachsWebhookService {
     });
   }
 
+  private async handleNonSuccessEvent(
+    tx: CreditPurchaseTransaction,
+    eventRowId: unknown,
+    event: BachsWebhookEvent,
+  ): Promise<"processed" | "review"> {
+    const data = event.data;
+    const checkoutId = stringValue(data.checkout_id);
+    const reference = stringValue(data.reference);
+    const metadata = recordValue(data.metadata);
+    const metadataIntentId = stringValue(metadata?.edutu_intent_id);
+    if (
+      !checkoutId ||
+      (reference && metadataIntentId && reference !== metadataIntentId)
+    ) {
+      await this.markReview(
+        tx,
+        eventRowId,
+        event,
+        "checkout_correlation_missing",
+      );
+      return "review";
+    }
+
+    const intentId = metadataIntentId ?? reference;
+    if (!intentId || !isUuid(intentId)) {
+      await this.markReview(tx, eventRowId, event, "checkout_intent_not_found");
+      return "review";
+    }
+
+    const intentResult = await tx.execute(sql`
+      select id, user_id, product_key, product_snapshot, provider_checkout_id, status, expected_amount_minor, currency
+      from public.billing_checkout_intents
+      where id = ${intentId}::uuid
+        and provider = 'bachs'
+        and environment = ${this.config.environment}
+      for update
+    `);
+    const intent = (intentResult as { rows?: Array<JsonRecord> }).rows?.[0];
+    if (!intent || String(intent.provider_checkout_id) !== checkoutId) {
+      await this.markReview(
+        tx,
+        eventRowId,
+        event,
+        "checkout_identity_mismatch",
+      );
+      return "review";
+    }
+
+    if (
+      event.type === "checkout.completed" &&
+      recordValue(intent.product_snapshot)?.renewalMode === "recurring"
+    ) {
+      const reason = await new BachsSubscriptionProcessor(
+        this.config.environment,
+      ).bindCheckout(tx, event, intent);
+      if (reason) {
+        await this.markReview(tx, eventRowId, event, reason, intentId);
+        return "review";
+      }
+    }
+    const currentStatus = String(intent.status);
+    if (event.type === "collection.underpaid") {
+      const paidAmount = stringValue(data.amount);
+      const remainingAmount = stringValue(data.amount_remaining);
+      const currency = stringValue(data.currency)?.toUpperCase() ?? null;
+      const amountForReview = (value: string | null) =>
+        value && /^\d{1,12}(?:\.\d{1,6})?$/.test(value) ? value : null;
+      await tx.execute(sql`
+        insert into public.billing_review_cases (
+          provider, environment, event_id, case_type, details
+        ) values (
+          'bachs', ${this.config.environment}, ${eventRowId}, 'collection_underpaid',
+          ${JSON.stringify({
+            eventId: event.id,
+            eventType: event.type,
+            checkoutId,
+            expectedAmountMinor: String(intent.expected_amount_minor),
+            expectedCurrency: String(intent.currency).trim().toUpperCase(),
+            paidAmount: amountForReview(paidAmount),
+            amountRemaining: amountForReview(remainingAmount),
+            currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : null,
+          })}::jsonb
+        )
+      `);
+      if (["open", "processing"].includes(currentStatus)) {
+        await tx.execute(sql`
+          update public.billing_checkout_intents
+          set status = 'underpaid', failure_code = 'provider_collection_underpaid',
+              updated_at = now()
+          where id = ${intentId}::uuid and status in ('open', 'processing')
+        `);
+      }
+      await tx.execute(sql`
+        update public.billing_provider_events
+        set status = 'review', last_error = 'collection_underpaid', updated_at = now()
+        where id = ${eventRowId}
+      `);
+      return "review";
+    }
+
+    if (event.type === "checkout.completed") {
+      if (currentStatus === "open") {
+        await tx.execute(sql`
+          update public.billing_checkout_intents
+          set status = 'processing', updated_at = now()
+          where id = ${intentId}::uuid and status = 'open'
+        `);
+      }
+    } else if (["open", "processing"].includes(currentStatus)) {
+      const nextStatus =
+        event.type === "checkout.expired" ? "expired" : "failed";
+      await tx.execute(sql`
+        update public.billing_checkout_intents
+        set status = ${nextStatus}, failure_code = ${`provider_${event.type.replaceAll(".", "_")}`},
+            updated_at = now()
+        where id = ${intentId}::uuid and status in ('open', 'processing')
+      `);
+    }
+
+    await this.markProcessed(tx, eventRowId);
+    return "processed";
+  }
+
   private async fulfillCollection(
     tx: CreditPurchaseTransaction,
     eventRowId: unknown,
     event: BachsWebhookEvent,
-  ): Promise<"fulfilled" | "review"> {
+  ): Promise<"fulfilled" | "processed" | "review"> {
     const data = event.data;
     const chargeId = stringValue(data.charge_id);
     const checkoutId = stringValue(data.checkout_id);
@@ -312,7 +451,8 @@ export class BachsWebhookService {
     const commonIntentValid =
       String(intent.provider_checkout_id) !== checkoutId ||
       !snapshotProductKey ||
-      this.config.productMappings[snapshotProductKey] !== productId ||
+      (isApiCredit &&
+        this.config.productMappings[snapshotProductKey] !== productId) ||
       String(snapshot.providerProductId) !== productId ||
       !providerIdentityIsExact ||
       providerUserId !== String(intent.user_id) ||
@@ -347,9 +487,19 @@ export class BachsWebhookService {
       snapshotQuantity > 0 &&
       snapshotValidity === null;
 
+    const validRecurringSubscription =
+      isOneTimeSubscription &&
+      Boolean(subscriptionTier) &&
+      ["pro", "subscription"].includes(String(snapshot.fulfillmentKind)) &&
+      snapshot.renewalMode === "recurring" &&
+      snapshotValidity === null &&
+      currency === "USD";
     if (
       commonIntentValid ||
-      (!validApiCredit && !validOneTimeSubscription && !validConsumerCredit)
+      (!validApiCredit &&
+        !validOneTimeSubscription &&
+        !validConsumerCredit &&
+        !validRecurringSubscription)
     ) {
       await this.markReview(
         tx,
@@ -361,6 +511,16 @@ export class BachsWebhookService {
       return "review";
     }
 
+    if (validRecurringSubscription) {
+      // Initial collection confirms money only. Subscription lifecycle events
+      // own access and invoice.paid owns the recurring payment ledger.
+      await tx.execute(sql`
+        update public.billing_checkout_intents set status = 'processing', updated_at = now()
+        where id = ${intentId}::uuid and status = 'open'
+      `);
+      await this.markProcessed(tx, eventRowId);
+      return "processed";
+    }
     if (validOneTimeSubscription) {
       await tx.execute(sql`
         select public.billing_fulfill_one_time_purchase(

@@ -12,8 +12,9 @@ export interface BachsWebhookVerifierConfig {
 
 export interface BachsWebhookVerificationInput {
   rawBody: Buffer;
-  timestampHeader: string | undefined;
+  timestampHeader?: string;
   signatureHeader: string | undefined;
+  signatureV2Header?: string;
   deliveryEnvironment: BachsEnvironment;
 }
 

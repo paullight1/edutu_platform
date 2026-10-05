@@ -1,113 +1,87 @@
-import { Link } from "react-router-dom";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
-import PublicHeader from "./PublicHeader";
-import SiteFooter from "./SiteFooter";
+import { useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, ChevronDown, Sparkles, X } from "lucide-react";
 import Seo from "./Seo";
 import PlanPicker from "../features/feature-access/PlanPicker";
 import { usePaywall } from "../hooks/usePaywall";
-const benefits = [
-  "Get profile-based opportunity matches and fit insights",
-  "Use AI Coach chat and voice, with application-specific Copilot guidance",
-  "Draft, improve and tailor your CV; create cover letters",
-  "Generate preparation plans and analyze application documents",
-  "Save preparation goals and track progress",
-  "Keep up with saved searches and alerts",
+import "./upgradePage.css";
+
+const faqs = [
+  { question: "What does a paid plan include?", answer: "Every paid plan unlocks AI Coach, CV and cover letter help, opportunity fit insights, document analysis, preparation plans and goals." },
+  { question: "How are Lite, Pro and Scholar different?", answer: "All three unlock the preparation toolkit. Their AI and voice allowances differ. Your wallet shows the limits and remaining usage for your active plan." },
+  { question: "Will my plan renew automatically?", answer: "All Lite, Pro, and Scholar plans renew automatically on their weekly, monthly, or yearly schedule. Manage or cancel renewal from your wallet." },
+  { question: "When does my access start?", answer: "Access is added once your payment is confirmed. If a payment is pending, open your wallet to check its status before starting another checkout." },
+  { question: "Can I use my plan on web and mobile?", answer: "Yes. Sign in with the same Edutu account on both to use your active plan." },
+  { question: "Can I keep using Edutu for free?", answer: "Yes. Browsing and searching opportunities, including archived listings, stays free. AI guidance and preparation features require a paid plan." },
 ];
+
 export default function UpgradePage() {
   const { billing } = usePaywall();
+  const navigate = useNavigate();
+  const close = () => navigate("/app/opportunities", { replace: true });
+  const faqRef = useRef<HTMLDetailsElement>(null);
   return (
-    <>
+    <div className="upgrade-page min-h-screen bg-[#090d18] text-white">
       <Seo
         title="Edutu plans — prepare your next application"
         description="AI coaching, opportunity guidance and application preparation tools in the Edutu web app. Browse opportunities for free."
       />
-      <PublicHeader />
-      <main className="mx-auto max-w-5xl px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
-        <header className="mb-12 max-w-2xl">
-          <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-brand">
-            <Sparkles size={18} /> More support for your next application
+      <button className="upgrade-sheet-backdrop" aria-label="Close premium plans" onClick={close} />
+      <main className="upgrade-main" id="main-content" aria-label="Edutu Premium plans" onKeyDown={(event) => { if (event.key === "Escape") close(); }}>
+        <span className="upgrade-sheet-handle" aria-hidden="true" />
+        <button type="button" className="upgrade-sheet-close" aria-label="Close premium plans" onClick={close}><X size={20} /></button>
+        <div className="upgrade-hero" aria-hidden="true"><img src="/images/edutu-premium-hero.png" alt="" /></div>
+        <header className="upgrade-intro">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-200">
+            <Sparkles size={15} aria-hidden="true" /> Edutu Premium
           </p>
-          <h1 className="font-display text-[clamp(2.5rem,6vw,4.25rem)] font-semibold leading-[1.05] tracking-tight">
-            Find your opportunity.
-            <br />
-            <span className="text-brand">Make your next move.</span>
+          <h1 className="font-display text-[clamp(2rem,7vw,3.5rem)] font-semibold leading-[1.04] tracking-tight">
+            Your ambition.
+            <br />A stronger application.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-text-secondary">
-            Bring the guidance and preparation tools from Edutu mobile to your
-            browser. Get practical AI help for the opportunity in front of you,
-            and keep your work in one place.
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+            Get AI guidance, sharpen your CV and prepare with confidence.
           </p>
         </header>
+
         {billing && billing.planTier !== "none" && (
-          <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/20 bg-brand/5 p-5">
-            <p className="text-sm">
-              Your <strong className="capitalize">{billing.planTier}</strong>{" "}
-              plan is active. Review your access, allowances and renewal in your
-              wallet.
+          <div className="mx-auto mb-6 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4 text-sm">
+            <p>
+              Your <strong className="capitalize">{billing.planTier}</strong> plan is active. Review your access and limits in your wallet.
             </p>
-            <Link
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand"
-              to="/app/wallet"
-            >
+            <Link className="inline-flex items-center gap-2 font-semibold text-blue-300" to="/app/wallet">
               Open wallet <ArrowRight size={16} />
             </Link>
           </div>
         )}
-        <PlanPicker />
-        <section className="my-14 grid gap-8 border-t border-subtle pt-10 md:grid-cols-2">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              From discovery to preparation
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              All paid tiers include these tools. AI and voice allowances vary
-              by plan and are checked before you use them.
-            </p>
+
+        <div className="upgrade-layout">
+        <section className="upgrade-plans" aria-labelledby="plan-picker-heading">
+          <div className="upgrade-section-title">
+            <h2 id="plan-picker-heading" className="text-xl font-semibold tracking-tight sm:text-2xl">Choose your plan</h2>
+            <p className="mt-1.5 text-sm text-slate-400">Pick the support that fits your next move.</p>
           </div>
-          <ul className="space-y-4">
-            {benefits.map((v) => (
-              <li key={v} className="flex gap-3 text-sm leading-relaxed">
-                <Check size={18} className="shrink-0 text-brand" />
-                {v}
-              </li>
+          <PlanPicker compact docked />
+
+        </section>
+
+        <details ref={faqRef} className="upgrade-faq-dropdown">
+          <summary>FAQs <ChevronDown size={18} aria-hidden="true" /></summary>
+          <section className="upgrade-faq" aria-label="Frequently asked questions">
+            <div className="upgrade-faq-panel-header"><h2>Questions</h2><button type="button" aria-label="Close FAQs" onClick={() => { if (faqRef.current) { faqRef.current.open = false; faqRef.current.querySelector("summary")?.focus(); } }}><X size={18} aria-hidden="true" /></button></div>
+          <div className="upgrade-faq-list">
+            {faqs.map(({ question, answer }) => (
+              <details key={question} className="upgrade-faq-item">
+                <summary><span>{question}</span><ChevronDown size={18} aria-hidden="true" /></summary>
+                <p>{answer}</p>
+              </details>
             ))}
-          </ul>
+          </div>
+          <Link className="upgrade-faq-help" to="/help">Still have a question? Visit our help center <ArrowRight size={15} aria-hidden="true" /></Link>
         </section>
-        <section className="grid gap-6 border-t border-subtle pt-10 sm:grid-cols-2">
-          <div>
-            <h2 className="font-semibold">What stays free?</h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              Explore, search and browse opportunities, including older
-              listings. Open the official application page whenever you are
-              ready.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold">Will my purchase renew?</h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              Each plan shows its renewal terms before checkout. One-time passes
-              end after the stated access period; recurring plans can be managed
-              from your wallet.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold">Does mobile access carry over?</h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              Sign in with the same Edutu account. Web tools use the shared
-              backend to check your active plan and usage.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-semibold">When does access start?</h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              After the payment is confirmed and applied on the server. If you
-              return before confirmation arrives, your wallet shows the pending
-              payment status.
-            </p>
-          </div>
-        </section>
+        </details>
+        </div>
       </main>
-      <SiteFooter />
-    </>
+    </div>
   );
 }

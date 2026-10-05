@@ -14,10 +14,16 @@ fulfillment, and the credit ledger.
   canonical API separately controls whether a checkout can be created.
 
 The canonical API requires its existing validated Bachs configuration, signed
-webhook ingress, `BILLING_PAY_SHELL_ENABLED=true`, and the additive migration
-`supabase/migrations/20261002090000_billing_pay_shell_sessions.sql`. Its catalog
-reports checkout disabled until the protocol schema can be read. Configure
-sandbox first; implementing the protocol does not enable a deployment.
+webhook ingress, `BILLING_PAY_SHELL_ENABLED=true`, and the additive migrations
+`supabase/migrations/20261002090000_billing_pay_shell_sessions.sql`,
+`supabase/migrations/20261003120000_billing_provider_event_reference.sql`, and
+`supabase/migrations/20261003121000_billing_pay_shell_constraints.sql`.
+Its catalog reports checkout disabled until the protocol schema can be read.
+Configure sandbox first; implementing the protocol does not enable a deployment.
+The Bachs API key needs `products:read`: the API checks the provider product's
+active state, billing mode, currency, and exact price before enabling a plan
+and before creating checkout. Learner plan mappings live in the billing
+database; environment product mappings are reserved for developer API credits.
 
 ## Checkout and authentication
 
@@ -26,7 +32,7 @@ The Clerk-authenticated Edutu client posts a server-owned product key and
 The response includes `checkoutUrl=https://pay.edutu.org/start#code=...`,
 `intentId`, provider `expiresAt`, short `handoffExpiresAt`, `renewalMode`, and
 `validityDays`. Developer clients keep using `/billing/checkout` and receive the
-same shell handoff format. Only fulfillable one-time catalog rows are released.
+same shell handoff format. Approved recurring consumer plans and one-time catalog rows use this protocol. Recurring access requires a validated paid invoice.
 
 The code expires after two minutes and can be exchanged once. `/start` reads
 its fragment, removes it from browser history immediately, and posts it to
@@ -65,17 +71,19 @@ app rechecks the stored owner intent and canonical entitlements.
 ## Operational prerequisites
 
 Enable only configured server catalog products and verified provider mappings;
-no prices or quantities are introduced by this protocol. Recurring Bachs and
-season-pass products remain excluded from new hosted collection until their
-canonical webhook lifecycle is supported. Native RevenueCat semantics are
+no prices or quantities are introduced by this protocol. The recurring Bachs lifecycle now supports paid invoices, failed renewals, and
+terminal cancellation. The release gate remains sandbox-only until signed
+refund/chargeback handling and real provider integration are verified. Season-pass
+products remain excluded. Native RevenueCat semantics are
 unchanged. Existing legacy Paystack webhook and reconciliation routes must
 remain available for already-created transactions.
 
 The existing canonical billing migrations, including RevenueCat's
 `provider_store` column, are prerequisites for account display. Database code
 and session rows have expiry indexes; deployment maintenance should delete
-expired rows after its chosen audit retention. No migration, deployment,
-provider request, or transaction was executed for this change.
+expired rows after its chosen audit retention. The canonical schema and recurring security migrations were applied to Edutu
+on 2026-10-05. Application deployment and real-provider verification remain
+separate release steps.
 
 ## Commands
 

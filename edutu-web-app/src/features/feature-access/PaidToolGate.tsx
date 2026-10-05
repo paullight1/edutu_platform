@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BellRing,
   FileText,
@@ -90,6 +90,8 @@ export function PaidToolGate({
   paidByDefault = true,
 }: PaidToolGateProps) {
   const { isLoaded, isSignedIn } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     billing,
     billingLoading,
@@ -148,16 +150,24 @@ export function PaidToolGate({
   }
 
   const info = previewFor(feature);
+  const handleUnlock = () => {
+    // CoachSheet uses a native <dialog>, which sits above body-portalled
+    // modals. Route to the full plan page so the sheet closes before checkout.
+    if (feature === "AI Coach" && location.pathname === "/app/coach") {
+      navigate("/upgrade");
+      return;
+    }
+
+    openPaywall({
+      feature,
+      reason: `Unlock ${feature.toLowerCase()} with an Edutu paid plan.`,
+    });
+  };
   return (
     <LockedFeature feature={feature}>
       <button
         className="feature-button"
-        onClick={() =>
-          openPaywall({
-            feature,
-            reason: `Unlock ${feature.toLowerCase()} with an Edutu paid plan.`,
-          })
-        }
+        onClick={handleUnlock}
       >
         {info.action}
       </button>
@@ -179,9 +189,12 @@ function LockedFeature({
 
   return (
     <section className="feature-workspace tool-page">
-      <div className="tool-locked">
-        <span className="tool-icon">
-          <Icon size={26} />
+      <div
+        className={`tool-locked${feature === "AI opportunity preparation" ? " tool-locked--compact" : ""}`}
+      >
+        <span className="tool-icon paid-tool-icon">
+          <PaidFeatureIllustration />
+          <span className="paid-tool-icon-symbol"><Icon size={24} strokeWidth={1.9} /></span>
         </span>
         <h2>{info.title}</h2>
         <p>{message || info.description}</p>
@@ -197,6 +210,32 @@ function LockedFeature({
         )}
       </div>
     </section>
+  );
+}
+
+/** Small, original vector scene for a locked tool: clear at phone scale and
+ * crisp at any density, without shipping a bitmap or a stock icon tile. */
+function PaidFeatureIllustration() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="paid-feature-illustration"
+      viewBox="0 0 96 96"
+      fill="none"
+    >
+      <defs>
+        <linearGradient id="paid-feature-glow" x1="17" y1="15" x2="79" y2="84" gradientUnits="userSpaceOnUse">
+          <stop stopColor="currentColor" stopOpacity=".2" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".04" />
+        </linearGradient>
+      </defs>
+      <path d="M48 4 56 10 66 9 70 18 80 22 80 32 88 39 84 49 88 59 80 66 80 76 70 80 66 89 56 88 48 94 40 88 30 89 26 80 16 76 16 66 8 59 12 49 8 39 16 32 16 22 26 18 30 9 40 10 48 4Z" fill="url(#paid-feature-glow)" />
+      <circle cx="48" cy="48" r="27" stroke="currentColor" strokeOpacity=".22" strokeWidth="1.5" />
+      <circle cx="48" cy="48" r="20" stroke="currentColor" strokeOpacity=".28" strokeWidth="1.5" strokeDasharray="3 4" />
+      <rect x="27" y="27" width="42" height="42" rx="14" fill="currentColor" fillOpacity=".12" />
+      <circle cx="73" cy="26" r="7" fill="currentColor" fillOpacity=".18" />
+      <path d="m70 26 2 2 4-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

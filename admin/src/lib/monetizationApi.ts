@@ -97,8 +97,37 @@ export interface BillingOverview {
   recentTransactions: BillingTransaction[];
 }
 
+export interface BillingCatalogProduct {
+  productKey: string;
+  fulfillmentKind: string;
+  renewalMode: string;
+  amountMinor: number;
+  currency: string;
+  cadence: string;
+  validityDays: number | null;
+  enabled: boolean;
+  catalogVersion: number;
+  providerProductId: string;
+}
+
+export interface BillingCatalog {
+  environment: 'sandbox';
+  liveEditingEnabled: false;
+  readiness: {
+    providerApiConfigured: boolean;
+    webhookConfigured: boolean;
+    paymentShellConfigured: boolean;
+    paymentShellSchemaReady: boolean;
+    mappedPlanCount: number;
+    enabledPlanCount: number;
+    mappedEnabledPlanCount: number;
+    purchasesReady: boolean;
+  };
+  products: BillingCatalogProduct[];
+}
+
 export const DEFAULT_PRICING: PricingSettings = {
-  currency: 'NGN',
+  currency: 'USD',
   usdToNgnRate: 1000,
   weeklyPrice: 0,
   monthlyPrice: 0,
@@ -188,6 +217,16 @@ export const monetizationApi = {
     return backendFetchJson<{ transactions: BillingTransaction[] }>(
       `/billing/admin/transactions?limit=${limit}&offset=${offset}`,
     );
+  },
+  getCatalog() {
+    return backendFetchJson<BillingCatalog>('/billing/admin/catalog');
+  },
+  saveCatalog(input: { reason: string; products: BillingCatalogProduct[] }) {
+    return backendFetchJson<BillingCatalog>('/billing/admin/catalog', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
   },
   getVoiceUsage(days = 30) {
     return backendFetchJson<VoiceUsageSummary>(`/admin/ai-usage/voice?days=${days}`);

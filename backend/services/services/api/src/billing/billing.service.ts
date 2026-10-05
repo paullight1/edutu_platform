@@ -332,6 +332,7 @@ export class BillingService {
               and grant_row.environment = 'live'
               and grant_row.status = 'active'
               and grant_row.revoked_at is null
+              and grant_row.valid_from <= now()
               and (grant_row.valid_until is null or grant_row.valid_until > now())
           ), '[]'::jsonb) as active_grants
       `);

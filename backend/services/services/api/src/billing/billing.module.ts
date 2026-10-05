@@ -14,6 +14,7 @@ import {
 } from "./billing-checkout.service";
 import { BillingController } from "./billing.controller";
 import { BillingPortalService } from "./billing-portal.service";
+import { BillingCatalogAdminService } from "./billing-catalog-admin.service";
 import { BillingRepository } from "./billing.repository";
 import { BachsClient } from "./providers/bachs/bachs.client";
 import { loadBachsConfig } from "./providers/bachs/bachs.config";
@@ -186,6 +187,7 @@ import {
     BillingPayShellPersistence,
     BillingPayShellService,
     BillingRepository,
+    BillingCatalogAdminService,
     BillingCheckoutService,
     BillingPortalService,
     ProfileBillingCustomerIdentityResolver,

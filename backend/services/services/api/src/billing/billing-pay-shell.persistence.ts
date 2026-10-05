@@ -36,6 +36,9 @@ export class BillingPayShellPersistence {
       await this.database.execute(
         sql`select session_hash, environment, user_id, intent_id, destination, checkout_url, revoked_at, expires_at from billing_pay_shell_sessions limit 0`,
       );
+      await this.database.execute(
+        sql`select checkout_intent_id from billing_provider_subscriptions limit 0`,
+      );
       return true;
     } catch {
       return false;
@@ -92,18 +95,26 @@ export class BillingPayShellPersistence {
   async account(userId: string, environment: string) {
     const databaseUserId = toDatabaseUserId(userId);
     const result = await this.database.execute(sql`
-      select case when provider = 'bachs' then 'bachs'
-                  when provider_store = 'PLAY_STORE' then 'play_store'
-                  when provider_store = 'APP_STORE' then 'app_store' end as provider,
-             case when current_period_end <= now() then 'expired'
-                  when status in ('past_due', 'billing_issue', 'grace_period') then 'past_due'
-                  when status in ('cancelled', 'canceled') then 'cancelled'
-                  when status = 'active' then 'active' else 'expired' end as status,
-             current_period_end as paid_through, 'recurring' as renewal_mode,
-             id::text as support_reference
-      from billing_provider_subscriptions
-      where user_id in (${userId}, ${databaseUserId}) and environment = ${environment}
-        and (provider = 'bachs' or provider_store in ('APP_STORE', 'PLAY_STORE'))
+      select case when subscription.provider = 'bachs' then 'bachs'
+                  when subscription.provider_store = 'PLAY_STORE' then 'play_store'
+                  when subscription.provider_store = 'APP_STORE' then 'app_store' end as provider,
+             case when subscription.status in ('cancelled', 'canceled') then 'cancelled'
+                  when subscription.status in ('past_due', 'billing_issue', 'grace_period') then 'past_due'
+                  when paid.valid_until is null or paid.valid_until <= now() then 'expired'
+                  when subscription.status = 'active' then 'active' else 'expired' end as status,
+             paid.valid_until as paid_through, 'recurring' as renewal_mode,
+             subscription.id::text as support_reference
+      from billing_provider_subscriptions subscription
+      left join lateral (
+        select max(g.valid_until) as valid_until
+        from billing_entitlement_grants g
+        where g.provider = subscription.provider and g.environment = subscription.environment
+          and g.source_kind = 'subscription' and g.source_resource_id = subscription.provider_subscription_id
+          and g.user_id = subscription.user_id and g.status = 'active' and g.revoked_at is null
+          and g.valid_from <= now()
+      ) paid on true
+      where subscription.user_id in (${userId}, ${databaseUserId}) and subscription.environment = ${environment}
+        and (subscription.provider = 'bachs' or subscription.provider_store in ('APP_STORE', 'PLAY_STORE'))
       union all
       select 'one_time_pass',
              case when revoked_at is not null or status <> 'active' then 'cancelled'

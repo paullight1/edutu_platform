@@ -1,11 +1,67 @@
 /** Provider money stays in its documented decimal-string representation. */
 export type BachsDecimalAmount = string;
 
-export type BachsPaymentMethod =
+export interface BachsProduct {
+  id: string;
+  status: string;
+  price: {
+    priceType: string;
+    currency: string;
+    amount: BachsDecimalAmount;
+  };
+  billingCycle: Record<string, unknown> | null;
+}
+
+/** Edutu catalog policy categories. */
+export type BillingPaymentMethod =
   | "card"
   | "crypto"
   | "bank_transfer"
   | "mobile_money";
+
+/** Exact corridors accepted by Bachs' `payment_method_types` field. */
+export type BachsPaymentMethod =
+  | "USD_CARD"
+  | "NGN_CARD"
+  | "NGN_BANK_TRANSFER"
+  | "MOMO_GHS"
+  | "MOMO_KES"
+  | "MOMO_TZS"
+  | "MOMO_UGX"
+  | "MOMO_XAF"
+  | "MOMO_XOF"
+  | "MOMO_RWF"
+  | "MOMO_MWK"
+  | "MOMO_ZMW"
+  | "CRYPTO";
+
+const PAYMENT_METHOD_CORRIDORS: Record<
+  BillingPaymentMethod,
+  readonly BachsPaymentMethod[]
+> = {
+  card: ["USD_CARD", "NGN_CARD"],
+  bank_transfer: ["NGN_BANK_TRANSFER"],
+  mobile_money: [
+    "MOMO_GHS",
+    "MOMO_KES",
+    "MOMO_TZS",
+    "MOMO_UGX",
+    "MOMO_XAF",
+    "MOMO_XOF",
+    "MOMO_RWF",
+    "MOMO_MWK",
+    "MOMO_ZMW",
+  ],
+  crypto: ["CRYPTO"],
+};
+
+export function toBachsPaymentMethodTypes(
+  methods: readonly BillingPaymentMethod[],
+): BachsPaymentMethod[] {
+  return [
+    ...new Set(methods.flatMap((method) => PAYMENT_METHOD_CORRIDORS[method])),
+  ];
+}
 
 export interface BachsCustomerInput {
   email: string;
@@ -18,7 +74,7 @@ export interface BachsCheckoutInput {
   productId: string;
   customer: BachsCustomerInput;
   billingCurrency?: string;
-  allowedPaymentMethodTypes?: BachsPaymentMethod[];
+  paymentMethodTypes?: BachsPaymentMethod[];
   successUrl: string;
   cancelUrl: string;
   reference?: string;

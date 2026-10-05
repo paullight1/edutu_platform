@@ -93,11 +93,12 @@ export function useBillingStatus() {
   }, [getToken, isLoaded, isSignedIn, userId]);
 
   useEffect(() => {
+    const versionRef = requestVersion;
     requestVersion.current++;
     setStatus(null);
     setProducts([]);
     void refresh();
-    return () => { requestVersion.current++; };
+    return () => { versionRef.current++; };
   }, [refresh]);
 
   useEffect(() => {

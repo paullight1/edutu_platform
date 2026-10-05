@@ -1,0 +1,157 @@
+
+.upgrade-main { max-width:1100px; margin:0 auto; padding:32px 24px 64px; }
+.upgrade-intro { max-width:650px; margin-bottom:32px; }
+.upgrade-intro > p:first-child { padding:0; border:0; border-radius:0; background:none; color:#81b8ff; font-size:11px; letter-spacing:.13em; text-transform:uppercase; }
+.upgrade-intro h1 { margin-top:14px; font-size:clamp(32px,4.8vw,52px); line-height:1.12; font-weight:600; letter-spacing:-.035em; }
+.upgrade-intro > p:last-child { margin-left:0; max-width:510px; color:#aab7ca; font-size:15px; line-height:1.7; }
+.upgrade-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:40px; align-items:start; }
+.upgrade-plans { min-width:0; padding:26px; border:1px solid #273246; border-radius:24px; background:#111827; }
+.upgrade-section-title { margin-bottom:24px; }
+.upgrade-section-title h2 { font-size:21px; font-weight:600; letter-spacing:-.025em; }
+.upgrade-section-title p { font-size:13px; line-height:1.5; color:#aab7ca; }
+.upgrade-back { display:inline-flex; align-items:center; gap:8px; min-height:44px; margin-top:28px; color:#aab7ca; font-size:13px; }
+.upgrade-page .upgrade-plans .text-text-secondary, .upgrade-page .upgrade-plans .text-text-muted { color:#aab7ca; }
+.upgrade-page .upgrade-plans .text-text-primary { color:#edf2fa; }
+.upgrade-page .upgrade-plans .bg-surface-layer { background:#172033; }
+.upgrade-page .upgrade-plans .border-subtle { border-color:#344258; }
+.upgrade-page .upgrade-plans button:focus-visible, .upgrade-page a:focus-visible { outline:2px solid #81b8ff; outline-offset:4px; }
+.upgrade-page .upgrade-plans [aria-label="Choose a billing period"] { gap:8px; }
+.upgrade-page .upgrade-plans [aria-label="Choose a billing period"] button { min-height:110px; padding:12px 10px; border-radius:14px; }
+@media (max-width:767px) {
+ .upgrade-main { padding:24px 16px 48px; }
+ .upgrade-intro { margin-bottom:26px; }
+ .upgrade-intro h1 { font-size:34px; }
+ .upgrade-intro > p:last-child { font-size:14px; line-height:1.65; }
+ .upgrade-layout { grid-template-columns:minmax(0,1fr); gap:26px; }
+ .upgrade-plans { padding:20px 16px; border-radius:20px; }
+ .upgrade-section-title { margin-bottom:20px; }
+}
+
+.upgrade-page .plan-picker-loading { display:grid; gap:18px; padding:0; }
+.upgrade-page .plan-picker-loading-tabs { display:flex; gap:8px; padding:7px; border:1px solid #344258; border-radius:12px; }
+.upgrade-page .plan-picker-loading-tabs span { height:36px; flex:1; background:#1c2a40; border-radius:8px; }
+.upgrade-page .plan-picker-loading-periods { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.upgrade-page .plan-picker-loading-periods > div { display:grid; gap:12px; padding:17px 12px; border:1px solid #273246; border-radius:14px; }
+.upgrade-page .plan-picker-loading-periods span { height:10px; background:#273246; border-radius:4px; }
+.upgrade-page .plan-picker-loading-periods span:nth-child(2) { height:24px; width:70%; }
+.upgrade-page .plan-picker-loading-periods span:last-child { width:60%; }
+@media (prefers-reduced-motion:reduce) { .upgrade-page .animate-spin { animation:none; } }
+.upgrade-page h1, .upgrade-page h2, .upgrade-page h3 { color:#edf2fa; }
+.upgrade-page .text-text-primary { color:#edf2fa; }
+.upgrade-page .text-text-secondary { color:#aab7ca; }
+.upgrade-page > header button { background:#172033; color:#edf2fa; border-color:#344258; }
+.upgrade-page .upgrade-plans [role="status"] { border-radius:14px; padding:18px 16px; }
+.upgrade-page .upgrade-plans [role="status"] svg { color:#81b8ff; }
+.upgrade-page .upgrade-plans > .space-y-5 > p:last-child { display:none; }
+.upgrade-page > header nav a { color:#aab7ca; }
+.upgrade-faq { min-width:0; padding:22px 0; }
+.upgrade-faq h2 { font-size:24px; font-weight:600; letter-spacing:-.025em; line-height:1.25; }
+.upgrade-faq-intro { margin:8px 0 22px; color:#aab7ca; font-size:13px; line-height:1.65; }
+.upgrade-faq-item { border-bottom:1px solid #273246; }
+.upgrade-faq-item:first-child { border-top:1px solid #273246; }
+.upgrade-faq-item summary { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:58px; padding:16px 0; list-style:none; cursor:pointer; font-size:14px; font-weight:500; line-height:1.5; color:#edf2fa; }
+.upgrade-faq-item summary::-webkit-details-marker { display:none; }
+.upgrade-faq-item summary svg { flex-shrink:0; color:#aab7ca; transition:transform .15s ease; }
+.upgrade-faq-item[open] summary svg { transform:rotate(180deg); }
+.upgrade-faq-item summary:focus-visible { outline:2px solid #81b8ff; outline-offset:4px; border-radius:4px; }
+.upgrade-faq-item > p { padding:0 24px 18px 0; color:#aab7ca; font-size:13px; line-height:1.75; }
+.upgrade-faq-help { display:inline-flex; align-items:center; gap:8px; margin-top:18px; min-height:44px; color:#81b8ff; font-size:12px; line-height:1.6; }
+@media(max-width:767px) { .upgrade-faq { padding:0 4px; } .upgrade-faq h2 { font-size:23px; } }
+@media(prefers-reduced-motion:reduce) { .upgrade-faq-item summary svg { transition:none; } }
+
+.upgrade-page .plan-picker { display:flex; flex-direction:column; gap:16px; }
+.upgrade-page .plan-picker > * { margin-top:0 !important; }
+.upgrade-page .plan-picker-products:empty { display:none; }
+.upgrade-page .plan-picker-step { font-size:12px; font-weight:500; color:#c1cbda; }
+.upgrade-page .plan-picker > .plan-picker-step { margin-bottom:-6px; }
+.upgrade-page .plan-picker-period-section > .plan-picker-step { margin-bottom:10px; }
+.upgrade-page .plan-picker-periods { display:flex; flex-direction:column; gap:8px; }
+.upgrade-page .upgrade-plans .plan-picker-periods button { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:12px; min-height:62px; padding:14px; border-radius:12px; }
+.upgrade-page .plan-period-mark { display:grid; place-items:center; width:20px; height:20px; flex-shrink:0; border-radius:50%; border:1px solid #6d7c92; color:white; }
+.upgrade-page .plan-picker-periods button[aria-pressed="true"] .plan-period-mark { background:#377ff4; border-color:#377ff4; }
+.upgrade-page .plan-period-name { font-size:14px; font-weight:500; }
+.upgrade-page .plan-period-price { margin-left:auto; font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.upgrade-page .plan-period-unit { font-size:12px; font-weight:400; }
+.upgrade-page .upgrade-plans .plan-picker-availability { flex-direction:row; align-items:center; gap:12px; padding:14px 0; background:none; border:0; border-top:1px solid #273246; border-radius:0; text-align:left; }
+.upgrade-page .plan-picker-availability p { flex:1; }
+.upgrade-page .plan-picker-availability button { margin-top:0; padding:0 10px; min-height:44px; font-size:12px; }
+.upgrade-price-note { margin-top:16px; color:#aab7ca; font-size:11px; line-height:1.6; }
+@media(max-width:767px) {
+ .upgrade-plans { padding:20px 0; border:0; border-top:1px solid #273246; border-bottom:1px solid #273246; border-radius:0; background:none; }
+ .upgrade-section-title { margin-bottom:18px; }
+ .upgrade-section-title > p { display:none; }
+ .upgrade-intro h1 { font-size:30px; }
+ .upgrade-intro { margin-bottom:20px; }
+}
+/* Compact paywall: one decision surface and a persistent primary action. */
+.upgrade-main { max-width:520px; padding:18px 20px 126px; }
+.upgrade-intro { margin-bottom:18px; }
+.upgrade-intro > p:first-child { margin-bottom:8px; }
+.upgrade-intro h1 { margin:8px 0; font-size:28px; line-height:1.15; }
+.upgrade-intro > p:last-child { margin-top:8px; font-size:13px; line-height:1.5; }
+.upgrade-layout { display:block; }
+.upgrade-plans { padding:0; border:0; border-radius:0; background:none; }
+.upgrade-section-title { display:none; }
+.upgrade-page .plan-picker { gap:12px; }
+.upgrade-page .plan-picker > p.text-sm { font-size:12px; line-height:1.5; }
+.upgrade-page .upgrade-plans .plan-picker-periods button { min-height:52px; padding:10px 13px; }
+.upgrade-page .plan-product-choice { background:#172033; border:1px solid #344258; color:#edf2fa; }
+.upgrade-page .plan-product-choice[aria-pressed="true"] { border-color:#377ff4; background:#14223a; }
+.upgrade-page .upgrade-plans .plan-picker-availability { padding:8px 0; }
+.upgrade-faq-dropdown { margin-top:12px; border-top:1px solid #273246; border-bottom:1px solid #273246; }
+.upgrade-faq-dropdown > summary { display:flex; justify-content:space-between; align-items:center; min-height:44px; list-style:none; cursor:pointer; font-size:13px; color:#c1cbda; }
+.upgrade-faq-dropdown > summary::-webkit-details-marker { display:none; }
+.upgrade-faq-dropdown[open] > summary svg { transform:rotate(180deg); }
+.upgrade-faq-dropdown > summary:focus-visible { outline:2px solid #81b8ff; outline-offset:3px; }
+.upgrade-faq-dropdown .upgrade-faq { position:fixed; z-index:40; inset:auto 16px 112px; max-width:488px; margin:auto; max-height:46dvh; overflow:auto; padding:16px; background:#111827; border:1px solid #344258; border-radius:16px; box-shadow:0 12px 40px #0008; }
+.upgrade-back { display:flex; justify-content:center; margin-top:4px; font-size:12px; min-height:36px; }
+.upgrade-docked-action { position:fixed; z-index:30; bottom:0; left:0; right:0; padding:12px 20px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid #273246; background:#090d18; }
+.upgrade-docked-action > p { max-width:480px; margin:0 auto 8px; text-align:center; color:#aab7ca; font-size:11px; line-height:1.4; }
+.upgrade-docked-button { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; max-width:480px; min-height:52px; margin:0 auto; padding:12px 16px; border-radius:16px; background:#377ff4; color:white; font-size:15px; font-weight:600; }
+.upgrade-docked-button:disabled { opacity:.6; cursor:wait; }
+.upgrade-page [role="status"] > .upgrade-docked-button { position:fixed; z-index:30; bottom:calc(14px + env(safe-area-inset-bottom)); left:20px; right:20px; width:calc(100% - 40px); }
+@media(max-height:740px) { .upgrade-main { padding-top:8px; } .upgrade-intro { margin-bottom:12px; } .upgrade-intro h1 { font-size:24px; } .upgrade-page .plan-picker { gap:8px; } .upgrade-page .upgrade-plans .plan-picker-periods button { min-height:46px; } }
+.upgrade-faq-panel-header { display:flex; align-items:center; justify-content:space-between; position:sticky; top:-16px; background:#111827; padding:8px 0; z-index:1; }
+.upgrade-faq-panel-header h2 { font-size:15px; }
+.upgrade-faq-panel-header button { display:grid; place-items:center; width:44px; height:44px; border-radius:10px; color:#edf2fa; }
+@media(max-height:740px) { .upgrade-main { padding-bottom:116px; } }
+
+/* Immersive premium artwork and compact comparison cards. */
+.upgrade-page { background:#090d18; }
+.upgrade-page > header { position:relative; z-index:10; background:transparent; }
+.upgrade-main { position:relative; padding-top:156px; }
+.upgrade-hero { position:absolute; top:-76px; left:50%; width:min(100vw,620px); height:310px; transform:translateX(-50%); pointer-events:none; overflow:hidden; }
+.upgrade-hero img { width:100%; height:100%; object-fit:cover; object-position:center 30%; }
+.upgrade-hero::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,#090d1820 0%,#090d1800 35%,#090d18 100%); }
+.upgrade-intro { position:relative; text-align:center; margin-bottom:18px; }
+.upgrade-intro h1 { font-size:30px; line-height:1.1; letter-spacing:-.04em; }
+.upgrade-intro > p:last-child { margin:10px auto 0; max-width:320px; font-size:13px; }
+.upgrade-intro > p:first-child { font-size:10px; letter-spacing:.15em; }
+.upgrade-page .plan-picker-step { display:none; }
+.upgrade-page .plan-picker > p.text-sm { text-align:center; font-size:11px; }
+.upgrade-page .plan-picker-periods { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.upgrade-page .upgrade-plans .plan-picker-periods button { position:relative; flex-direction:column; justify-content:center; gap:7px; min-height:100px; padding:12px 5px; border-radius:18px; text-align:center; background:linear-gradient(160deg,#1b2538,#0c1220); border-color:#334158; }
+.upgrade-page .upgrade-plans .plan-picker-periods button[aria-pressed="true"] { border:2px solid #6bafff; box-shadow:0 0 18px #377ff420; background:linear-gradient(160deg,#203752,#111c2d); }
+.upgrade-page .plan-period-mark { display:none; }
+.upgrade-page .plan-period-name { font-size:12px; }
+.upgrade-page .plan-period-price { margin:0; font-size:21px; white-space:normal; line-height:1.15; }
+.upgrade-page .plan-period-unit { display:block; margin-top:5px; font-size:10px; color:#aab7ca; }
+.upgrade-page .upgrade-plans .plan-picker-availability { justify-content:center; text-align:center; padding:4px 0; border:0; }
+.upgrade-page .plan-picker { gap:12px; }
+.upgrade-faq-dropdown { margin-top:8px; }
+.upgrade-docked-action { border:0; background:linear-gradient(180deg,#090d1800,#090d18 18%); padding-top:22px; }
+.upgrade-docked-button { border-radius:999px; background:linear-gradient(105deg,#2475ee,#509bf8); box-shadow:0 5px 24px #2e78ee26; }
+@media(min-width:768px) { .upgrade-main { padding-top:180px; } .upgrade-hero { height:350px; } }
+@media(max-height:760px) { .upgrade-main { padding-top:94px; padding-bottom:112px; } .upgrade-hero { height:220px; } .upgrade-intro h1 { font-size:25px; } .upgrade-intro { margin-bottom:12px; } .upgrade-page .upgrade-plans .plan-picker-periods button { min-height:86px; } .upgrade-page .plan-picker { gap:8px; } }
+
+/* Route-backed bottom sheet, with a visible surrounding backdrop. */
+.upgrade-page { min-height:100dvh; background:radial-gradient(ellipse at top,#17263a,#030610 70%); padding-top:28px; }
+.upgrade-sheet-backdrop { position:fixed; inset:0; width:100%; height:100%; background:#0005; }
+.upgrade-main { position:relative; width:min(100%,520px); min-height:calc(100dvh - 28px); margin:0 auto; padding-top:184px; border-radius:30px 30px 0 0; background:#090d18; overflow:hidden; box-shadow:0 -8px 50px #0005; animation:premium-sheet-enter .25s ease-out; }
+.upgrade-hero { top:0; height:280px; width:100%; }
+.upgrade-sheet-handle { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:36px; height:4px; border-radius:99px; background:#ffffff50; z-index:12; }
+.upgrade-sheet-close { position:absolute; z-index:12; right:14px; top:18px; display:grid; place-items:center; width:44px; height:44px; border-radius:50%; background:#090d18a8; border:1px solid #ffffff20; color:white; }
+.upgrade-docked-action { max-width:520px; margin:auto; }
+@keyframes premium-sheet-enter { from { transform:translateY(24px); opacity:.6; } to { transform:translateY(0); opacity:1; } }
+@media(max-height:760px) { .upgrade-page { padding-top:20px; } .upgrade-main { min-height:calc(100dvh - 20px); padding-top:130px; } .upgrade-hero { height:210px; } }
+@media(prefers-reduced-motion:reduce) { .upgrade-main { animation:none; } }

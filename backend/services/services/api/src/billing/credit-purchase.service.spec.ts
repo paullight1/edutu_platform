@@ -54,6 +54,14 @@ describe("CreditPurchaseService", () => {
             user_id: "user_123",
             amount: 100,
             related_type: "api_credit_purchase",
+            metadata: {
+              provider: "bachs",
+              environment: "sandbox",
+              productKey: "api_credits_100",
+              amountMinor: 499,
+              currency: "USD",
+              intentId: null,
+            },
           },
         ],
       })
