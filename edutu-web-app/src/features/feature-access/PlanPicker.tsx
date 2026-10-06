@@ -243,6 +243,12 @@ export default function PlanPicker({
   const configuredPricing = priceState.pricing
     ? { ...priceState.pricing, currency: "USD" }
     : null;
+  const allowance = configuredPricing?.[tier === "lite" ? "liteFairUse" : tier === "pro" ? "proFairUse" : "scholarFairUse"];
+  const tierSummary = {
+    lite: "A focused starting point for occasional applications.",
+    pro: "More room for regular coaching and application preparation.",
+    scholar: "Our highest allowance for intensive scholarship and career work.",
+  }[tier];
   return (
     <div className="plan-picker space-y-5">
       <p className="plan-picker-step">Plan</p>
@@ -263,7 +269,7 @@ export default function PlanPicker({
         ))}
       </div>
       <p className="text-sm text-text-secondary">
-        Every AI tool. Choose the usage allowance that fits you.
+        {tierSummary}
       </p>
       {error && (
         <div
@@ -299,6 +305,7 @@ export default function PlanPicker({
           {products.map((product) => (
             <button key={product.productKey} type="button" aria-pressed={product.productKey === selectedProduct?.productKey} disabled={!!busy || !!checkout} onClick={() => setSelectedProductKey(product.productKey)} className="plan-product-choice">
               <span className="plan-period-mark" aria-hidden="true">{product.productKey === selectedProduct?.productKey && <Check size={13} />}</span>
+              {product.cadence === "monthly" || product.cadence === "yearly" ? <span className="plan-period-badge">{product.cadence === "yearly" ? (products.some((monthly) => monthly.cadence === "monthly" && monthly.currency === product.currency && product.amountMinor < monthly.amountMinor * 12) ? "Best value" : "Year-round") : "Hot"}</span> : null}
               <span className="plan-period-name capitalize">{product.cadence || title(product.productKey)}</span>
               <span className="plan-period-price">{price(product)}</span>
             </button>
@@ -370,6 +377,7 @@ export default function PlanPicker({
                     className={`relative flex min-h-[104px] flex-col items-start justify-center rounded-2xl border p-3 text-left transition ${selected ? "border-brand bg-brand/10 ring-1 ring-brand/30" : "border-subtle bg-surface-layer hover:border-brand/40"}`}
                   >
                     <span className="plan-period-mark" aria-hidden="true">{selected && <Check size={13} />}</span>
+                    {period !== "weekly" ? <span className="plan-period-badge">{period === "yearly" ? (amount < effectivePrice(configuredPricing, "monthly", tier, { applyPromo: false }) * 12 ? "Best value" : "Year-round") : "Hot"}</span> : null}
                     <span className="plan-period-name text-text-primary">{period === "weekly" ? "Weekly" : period === "monthly" ? "Monthly" : "Yearly"}</span>
                     <span className="plan-period-price text-text-primary">{formatMoney(amount, configuredPricing.currency)}<span className="plan-period-unit text-text-muted"> / {period === "yearly" ? "year" : period === "weekly" ? "week" : "month"}</span></span>
                   </button>
@@ -385,7 +393,7 @@ export default function PlanPicker({
               <p className="mt-1.5 max-w-sm text-xs leading-5 text-text-muted">Please check again in a moment.</p>
             </div>
           )}
-          <div role="status" className="plan-picker-availability flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-center sm:flex-row sm:justify-between sm:text-left">
+          {!docked && <div role="status" className="plan-picker-availability flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-center sm:flex-row sm:justify-between sm:text-left">
             <p className="text-xs leading-5 text-text-muted">
               {!isSignedIn
                 ? "Sign in to check checkout availability and continue securely."
@@ -408,9 +416,23 @@ export default function PlanPicker({
                 Check again
               </button>
             ))}
-          </div>
+          </div>}
         </>
       )}
+      <section className="plan-benefits" aria-label={`${tier} plan benefits`}>
+        <div className="plan-benefits-heading">
+          <h3 className="capitalize">{tier} daily allowance</h3>
+          <span className="plan-benefits-tag">{tier === "lite" ? "Start here" : tier === "pro" ? "Hot" : "Maximum access"}</span>
+        </div>
+        <ul>
+          {(allowance ? [
+            `${allowance.dailyChatMessages.toLocaleString()} AI Coach messages per day`,
+            `${allowance.dailyVoiceMinutes.toLocaleString()} voice minutes per day`,
+            `${allowance.dailyActionCredits.toLocaleString()} AI preparation credits per day`,
+          ] : [tierSummary]).map((benefit) => <li key={benefit}><Check size={15} aria-hidden="true" /><span>{benefit}</span></li>)}
+        </ul>
+        <p className="plan-benefits-shared">All tiers include fit insights, AI Coach, Copilot, plans and document tools. Preparation credits are shared across AI actions; each tool uses a different amount.</p>
+      </section>
       {checkout && (
         <div
           className="rounded-2xl border border-brand bg-brand/5 p-5"
@@ -451,11 +473,11 @@ export default function PlanPicker({
         <div className="upgrade-docked-action">
           <p>{enabled && selectedProduct ? `${tier.charAt(0).toUpperCase() + tier.slice(1)} · ${price(selectedProduct)} · ${selectedProduct.cadence || "One-time access"}` : "Prices in USD · Access after confirmed payment"}</p>
           {!isSignedIn ? <Link className="upgrade-docked-button" to="/auth?mode=sign-in&redirect=%2Fupgrade">Sign in to continue <ArrowRight size={17} /></Link> : (
-            <button className="upgrade-docked-button" disabled={!!busy} onClick={() => {
+            <button className="upgrade-docked-button" disabled={!!busy || loading || (!!catalog && (!enabled || !selectedProduct))} onClick={() => {
               const selected = selectedProduct;
               if (enabled && selected) void begin(selected);
               else void load(new AbortController().signal);
-            }}>{busy ? "Starting…" : enabled && selectedProduct ? "Continue to checkout" : "Check availability"}<ArrowRight size={17} /></button>
+            }}>{busy ? "Starting…" : loading ? "Loading checkout…" : enabled && selectedProduct ? "Continue to checkout" : catalog ? "Checkout unavailable" : "Try again"}<ArrowRight size={17} /></button>
           )}
         </div>
       )}

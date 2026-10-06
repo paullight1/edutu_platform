@@ -127,4 +127,14 @@ describe("PlanPicker unavailable catalog recovery", () => {
     expect(await screen.findByRole("button", { name: /Continue to secure checkout/i })).toBeInTheDocument();
   });
 
+  it("does not offer a repeated availability action when the server disables checkout", async () => {
+    mocks.request.mockResolvedValueOnce({ checkoutEnabled: false, products: [] });
+    render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
+    const action = await screen.findByRole("button", { name: "Checkout unavailable" });
+    expect(action).toBeDisabled();
+    fireEvent.click(action);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
+
 });

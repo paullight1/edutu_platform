@@ -22,6 +22,9 @@ export interface MobileCampaign {
 // Admin-controlled display pricing (admin_settings.pricing) served on the
 // public config. Display-only — charge amounts are resolved server-side.
 export interface RemotePricing {
+  liteFairUse?: RemotePlanAllowance;
+  proFairUse?: RemotePlanAllowance;
+  scholarFairUse?: RemotePlanAllowance;
   currency: string;
   weeklyPrice: number;
   monthlyPrice: number;
@@ -44,6 +47,12 @@ export interface RemotePricing {
     durationDays: number;
     label: string;
   };
+}
+
+export interface RemotePlanAllowance {
+  dailyChatMessages: number;
+  dailyActionCredits: number;
+  dailyVoiceMinutes: number;
 }
 
 export interface MobileControlConfig {
