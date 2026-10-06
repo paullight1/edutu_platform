@@ -7,7 +7,7 @@ vi.mock("../../services/n8nIntegration", () => ({
   updateOpportunitiesInN8n: vi.fn().mockResolvedValue(undefined),
 }));
 
-const SNAPSHOT_KEY = "edutu:opportunities:snapshot:v1";
+const SNAPSHOT_KEY = "edutu:opportunities:snapshot:v2";
 
 const backendRow = {
   id: "opp-1",

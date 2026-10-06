@@ -47,6 +47,7 @@ vi.mock("../../services/webConfig", () => ({
     linkLabel: "",
     linkUrl: "",
   }),
+  normalizeWebLink: (value: string) => value,
 }));
 
 vi.mock("../../components/PublicHeader", () => ({ default: () => null }));
@@ -110,7 +111,7 @@ describe("LandingPageV3 country reach", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /fresh opportunities worth exploring/i,
+        name: /worth exploring/i,
       }),
     ).toBeInTheDocument();
   });

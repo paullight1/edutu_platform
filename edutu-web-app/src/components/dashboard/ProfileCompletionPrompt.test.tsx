@@ -90,7 +90,9 @@ describe("ProfileCompletionPrompt", () => {
     expect(
       screen.getByRole("dialog", { name: /welcome to edutu/i }),
     ).toBeInTheDocument();
-    expect(screen.getByAltText(/edutu mascot/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Your profile connected to new opportunities" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /maybe later/i }));
 

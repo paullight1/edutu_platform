@@ -75,10 +75,10 @@ describe("shuffleLatestOpportunityFeed", () => {
     const result = shuffleLatestOpportunityFeed(items, 29, (item) => item.timestamp);
 
     expect(result.slice(0, 3).map((item) => item.id).sort()).toEqual([
+      "this-week",
       "today-a",
       "today-b",
-      "this-week",
-    ]);
+    ].sort());
     expect(result[3].id).toBe("older");
     expect(result[4].id).toBe("undated");
     expect(items[0].id).toBe("undated");

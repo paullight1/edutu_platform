@@ -13,8 +13,11 @@ describe("PlanWorkspaceHeader", () => {
     );
 
     expect(screen.getByRole("navigation", { name: "Plan workspace" })).toBeInTheDocument();
-    expect(screen.getByText("Intentional workspace")).toHaveClass("hidden", "sm:inline-flex");
-    expect(screen.getByRole("button", { name: "Calendar" })).toHaveClass("text-brand");
-    expect(screen.getByRole("button", { name: "My Plan" })).toHaveClass("text-text-secondary");
+    expect(screen.getByText("My Plan workspace").parentElement?.parentElement).toHaveClass(
+      "hidden",
+      "sm:flex",
+    );
+    expect(screen.getByRole("link", { name: "Calendar" })).toHaveClass("text-brand");
+    expect(screen.getByRole("link", { name: "My Plan" })).toHaveClass("text-text-secondary");
   });
 });
