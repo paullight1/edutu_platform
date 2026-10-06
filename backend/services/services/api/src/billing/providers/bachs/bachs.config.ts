@@ -82,20 +82,22 @@ function parseProductMappings(value: string): Readonly<Record<string, string>> {
     );
   }
 
-  const mappings = Object.entries(parsed);
+  // Learner plan products are managed in the billing database. Ignore legacy
+  // plan mappings that may remain in deployment secrets; only API credit
+  // products are read from this environment variable.
+  const mappings = Object.entries(parsed).filter(([productKey]) =>
+    Object.prototype.hasOwnProperty.call(
+      API_CREDIT_PRODUCT_QUANTITIES,
+      productKey,
+    ),
+  );
   if (
     mappings.some(
-      ([productKey, productId]) =>
-        !Object.prototype.hasOwnProperty.call(
-          API_CREDIT_PRODUCT_QUANTITIES,
-          productKey,
-        ) ||
-        typeof productId !== "string" ||
-        !productId.trim(),
+      ([, productId]) => typeof productId !== "string" || !productId.trim(),
     )
   ) {
     throw new BachsConfigError(
-      "BACHS_PRODUCT_MAPPINGS may contain only server-owned API credit products; learner plans are mapped in the billing database.",
+      "BACHS_PRODUCT_MAPPINGS contains an invalid API credit product mapping.",
     );
   }
 
@@ -112,19 +114,13 @@ function parseProductCatalog(
     Object.prototype.hasOwnProperty.call(productMappings, key),
   );
 
-  if (mappedApiProductKeys.length === 0) {
-    if (value?.trim()) {
+  if (!value?.trim()) {
+    if (mappedApiProductKeys.length > 0) {
       throw new BachsConfigError(
-        "BACHS_PRODUCT_CATALOG may only contain mapped API credit products.",
+        "BACHS_PRODUCT_CATALOG and BACHS_PRODUCT_MAPPINGS must configure all API credit products.",
       );
     }
     return Object.freeze({});
-  }
-
-  if (mappedApiProductKeys.length !== apiProductKeys.length || !value?.trim()) {
-    throw new BachsConfigError(
-      "BACHS_PRODUCT_CATALOG and BACHS_PRODUCT_MAPPINGS must configure all API credit products.",
-    );
   }
 
   let parsed: unknown;
@@ -140,10 +136,22 @@ function parseProductCatalog(
     );
   }
 
-  const entries = Object.entries(parsed);
+  const entries = Object.entries(parsed).filter(([key]) =>
+    apiProductKeys.includes(key),
+  );
+  if (mappedApiProductKeys.length === 0) {
+    if (entries.length > 0) {
+      throw new BachsConfigError(
+        "BACHS_PRODUCT_CATALOG may only contain mapped API credit products.",
+      );
+    }
+    return Object.freeze({});
+  }
+
   if (
+    mappedApiProductKeys.length !== apiProductKeys.length ||
     entries.length !== apiProductKeys.length ||
-    entries.some(([key]) => !apiProductKeys.includes(key))
+    entries.some(([key]) => !mappedApiProductKeys.includes(key))
   ) {
     throw new BachsConfigError(
       "BACHS_PRODUCT_CATALOG must contain exactly the API credit products.",

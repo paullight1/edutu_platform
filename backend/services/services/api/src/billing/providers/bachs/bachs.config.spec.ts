@@ -18,15 +18,24 @@ describe("Bachs configuration", () => {
     expect(config.productCatalog).toEqual({});
   });
 
-  it("rejects learner plan mappings in environment config to prevent catalog drift", () => {
-    expect(() =>
-      loadBachsConfig({
-        ...baseEnvironment,
-        BACHS_PRODUCT_MAPPINGS: JSON.stringify({
-          pro_monthly_pass: "prod_pro_monthly",
-        }),
+  it("ignores legacy learner plan mappings and catalogs in environment config", () => {
+    const config = loadBachsConfig({
+      ...baseEnvironment,
+      BACHS_PRODUCT_MAPPINGS: JSON.stringify({
+        pro_monthly_pass: "prod_pro_monthly",
       }),
-    ).toThrow(BachsConfigError);
+      BACHS_PRODUCT_CATALOG: JSON.stringify({
+        pro_monthly_pass: {
+          providerProductId: "prod_pro_monthly",
+          expectedAmountMinor: 1500,
+          currency: "USD",
+          environment: "sandbox",
+        },
+      }),
+    });
+
+    expect(config.productMappings).toEqual({});
+    expect(config.productCatalog).toEqual({});
   });
 
   it("requires signed webhooks whenever checkout can start", () => {
