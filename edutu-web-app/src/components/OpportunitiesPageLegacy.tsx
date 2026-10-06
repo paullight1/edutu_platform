@@ -68,7 +68,6 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
 import { Skeleton } from "./ui/Skeleton";
-import Pagination from "./ui/Pagination";
 import { InlineError, StateView, showsContent, useScreenState } from "./state";
 import {
   shareOpportunity,
@@ -788,7 +787,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [closedLoadError, setClosedLoadError] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(DEFAULT_PAGE_SIZE);
   const pageSize = DEFAULT_PAGE_SIZE;
   const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
@@ -1158,38 +1157,14 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     [trackInteraction],
   );
 
-  // Reset to the first page only when the user changes what they're browsing —
-  // NOT when server match scores hydrate and re-sort the list, which would
-  // otherwise snap the user off the page they're reading.
+  // Start a fresh browse window only when the user changes what they're
+  // browsing — NOT when server match scores hydrate and re-sort the list.
   useEffect(() => {
-    setPage(1);
+    setVisibleCount(DEFAULT_PAGE_SIZE);
   }, [searchTerm, selectedCategoryId, showClosed, sortOption]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(sortedOpportunities.length / pageSize),
-  );
-
-  // A shrinking result set (new filter, closed toggle) can leave `page` past
-  // the end — clamp it back into range.
-  useEffect(() => {
-    setPage((current) => Math.min(current, totalPages));
-  }, [totalPages]);
-
-  const visibleOpportunities = sortedOpportunities.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
-
-  const goToPage = useCallback((next: number) => {
-    setPage(next);
-    // Jump back to the top of the grid so the new page starts in view. The
-    // grid's scroll-margin clears the sticky filter bar.
-    resultsRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, []);
+  const visibleOpportunities = sortedOpportunities.slice(0, visibleCount);
+  const hasMoreOpportunities = visibleOpportunities.length < sortedOpportunities.length;
 
   const hasActiveFilters = Boolean(
     searchTerm.trim() || selectedCategoryId || showClosed,
@@ -1610,14 +1585,23 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </ImpressionTracker>
               ))}
             </section>
-            <div className="mt-4 flex justify-center sm:mt-8">
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={goToPage}
-                arrowsOnly
-                className="gap-3"
-              />
+            <div className="mt-5 flex flex-col items-center gap-3 pb-4 sm:mt-8">
+              <p className="text-center text-sm text-text-secondary" role="status" aria-live="polite">
+                Showing {visibleOpportunities.length} of {sortedOpportunities.length} opportunities
+              </p>
+              {hasMoreOpportunities ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((current) =>
+                      Math.min(current + pageSize, sortedOpportunities.length),
+                    )
+                  }
+                  className="min-h-11 w-full max-w-sm rounded-full border border-brand/25 bg-brand/10 px-5 py-3 font-semibold text-brand transition hover:bg-brand/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                >
+                  Load more opportunities
+                </button>
+              ) : null}
             </div>
           </>
         ) : (
