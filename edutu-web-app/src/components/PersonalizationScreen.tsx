@@ -26,6 +26,7 @@ import { COUNTRIES } from "../data/countries";
 import { syncOpportunityPreferences } from "../services/opportunityPreferences";
 import MultiSelectDropdown from "./ui/MultiSelectDropdown";
 import WelcomeIllustration from "./onboarding/WelcomeIllustration";
+import { markPremiumWelcomePending } from "../lib/premiumWelcome";
 
 const INTEREST_OPTIONS = [
   "Technology",
@@ -717,11 +718,15 @@ export function OnboardingFlow({
 
 export default function PersonalizationScreen() {
   const navigate = useNavigate();
+  const { userId } = useClerkAuth();
 
   return (
     <OnboardingFlow
       presentation="page"
-      onComplete={() => navigate("/dashboard?focus=next-step", { replace: true })}
+      onComplete={() => {
+        markPremiumWelcomePending(userId);
+        navigate("/dashboard?focus=next-step", { replace: true });
+      }}
       onDismiss={() => navigate("/dashboard", { replace: true })}
     />
   );

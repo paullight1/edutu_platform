@@ -43,7 +43,7 @@ vi.mock("react-i18next", () => ({
       ({
         "workspace.greeting": `Greetings ${options?.name ?? "there"}`,
         "dashboard.sections.exploreOpportunities": "Explore opportunities",
-        "dashboard.sections.recommendedPicks": "Recommended picks",
+        "dashboard.sections.recommendedPicks": "Explore opportunities",
         "dashboard.completeProfile": "Complete your profile",
         "dashboard.needForMatches": "Need 60% for matches",
         "dashboard.forYou": "For you",
@@ -183,7 +183,7 @@ describe("Dashboard desktop priority layout", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByRole("region", { name: /recommended picks/i });
+    await screen.findByRole("region", { name: /explore opportunities/i });
     expect(screen.queryByRole("region", { name: /edutu update/i })).toBeNull();
   });
 
@@ -213,7 +213,7 @@ describe("Dashboard desktop priority layout", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /recommended picks/i }),
+      screen.getByRole("heading", { name: /explore opportunities/i }),
     ).toBeInTheDocument();
   });
 
@@ -235,7 +235,7 @@ describe("Dashboard desktop priority layout", () => {
       screen.getByRole("heading", { name: "Your next steps" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Recommended picks" }),
+      screen.getByRole("heading", { name: "Explore opportunities" }),
     ).toBeInTheDocument();
   });
 
@@ -280,7 +280,7 @@ describe("Dashboard desktop priority layout", () => {
     );
 
     const recommendations = await screen.findByRole("region", {
-      name: /recommended picks/i,
+      name: /explore opportunities/i,
     });
 
     expect(

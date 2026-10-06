@@ -6,12 +6,10 @@ import {
   Bookmark,
   ChevronRight,
   Clock,
-  Download,
   FolderOpen,
   GraduationCap,
   LayoutGrid,
   List,
-  Share2,
   Send,
   Shuffle,
   Sparkles,
@@ -35,7 +33,6 @@ import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunit
 import { usePersonalization } from "../hooks/usePersonalization";
 import { useAnalytics } from "../hooks/useAnalytics";
 import { usePersistentState } from "../hooks/usePersistentState";
-import { usePWA } from "../hooks/usePWA";
 import { useToast } from "./ui/ToastProvider";
 import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
@@ -54,7 +51,6 @@ import { getOpportunityHome, type OpportunityHomeView } from "../services/opport
 import { getProductApiToken } from "../lib/clerkToken";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import type { Opportunity } from "../types/opportunity";
-import { isOpportunityExpired } from "../services/opportunities";
 import {
   shareOpportunity,
   shareOutcomeMessage,
@@ -68,7 +64,6 @@ import BannerCarousel, {
   type BannerAd,
 } from "./dashboard/BannerCarousel";
 import { ProfileCompletionPrompt } from "./dashboard/ProfileCompletionPrompt";
-import { PaidToolGate } from "../features/feature-access/PaidToolGate";
 import {
   dismissProfilePromptForSession,
   readDismissedProfilePromptSession,
@@ -81,11 +76,12 @@ import {
 import { useWorkspaceNotice } from "./workspaceNoticeContext";
 import NextStepCard from "./dashboard/NextStepCard";
 import { isInternalDestination } from "../lib/googleSignupWelcome";
+import { consumePremiumWelcome } from "../lib/premiumWelcome";
+import { PremiumWelcomeDialog } from "./dashboard/PremiumWelcomeDialog";
 
 // The home feed is a fixed shortlist, not an endless scroll: six picks at a
 // time, with opened items advancing to the next unseen opportunity this session.
 const HOME_FEED_SIZE = 9;
-const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 const HOME_VIEWED_OPPORTUNITIES_KEY = "edutu_home_viewed_opportunities:v1";
 
 function readViewedOpportunityIds(userId: string | null | undefined): string[] {
@@ -316,12 +312,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [homeShuffleSeed, setHomeShuffleSeed] = useState(() =>
       createOpportunityShuffleSeed(),
     );
-    const [dismissHomeScreenPrompt, setDismissHomeScreenPrompt] = useState(() => {
-      if (typeof window === "undefined") return false;
-      return (
-        window.localStorage.getItem(HOME_SCREEN_PROMPT_DISMISSED_KEY) === "1"
-      );
-    });
     const [activeDiscoveryCategory, setActiveDiscoveryCategory] =
       useState<DiscoveryCategoryId | null>(null);
     const { isDarkMode } = useDarkMode();
@@ -335,9 +325,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const { trackEvent } = useAnalytics();
     const {
       preferences: personalizationPreferences,
-      personalizeFeed,
       trackInteraction,
-      explainOpportunity,
       isPersonalized,
       ready: personalizationReady,
       refresh: refreshPersonalization,
@@ -570,6 +558,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           typeof window === "undefined" ? null : window.sessionStorage,
         ),
       );
+    const [premiumWelcomeOpen, setPremiumWelcomeOpen] = useState(false);
     const [backendProfile, setBackendProfile] = useState<BackendProfile | null>(null);
     // Hero banners are admin-managed (Settings → Web hero banners); the
     // hardcoded defaults only show until the public config loads or when the
@@ -590,6 +579,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     });
 
     const profileNoticePending = Boolean(user?.id) && profileScore === null;
+
+    useEffect(() => {
+      if (!user?.id || profileNoticePending || showProfileCompletionPrompt) return;
+      if (consumePremiumWelcome(user.id)) setPremiumWelcomeOpen(true);
+    }, [profileNoticePending, showProfileCompletionPrompt, user?.id]);
 
     useEffect(() => {
       setBlockingNotice({
@@ -627,10 +621,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         );
       }
     }, [googleSignupWelcome, location.hash, location.pathname, location.search, profilePromptSessionId, routerNavigate]);
-
-    const reopenProfileCompletionPrompt = useCallback(() => {
-      setDismissedProfilePromptSessionId(null);
-    }, []);
 
     const refreshProfileCompleteness = useCallback(async () => {
       if (!user?.id) {
@@ -686,29 +676,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       };
     }, []);
 
-    const {
-      isInstallable,
-      isInstalled,
-      isManualInstallAvailable,
-      promptInstall,
-    } = usePWA();
-
     const opportunities = useOpportunities();
     const personalized = usePersonalizedOpportunities();
-    const {
-      setUserProfile: setPersonalizedUserProfile,
-      error: personalizedError,
-    } = personalized;
-    const { error: fallbackFeedError } = opportunities;
+    const { setUserProfile: setPersonalizedUserProfile } = personalized;
     const {
       data: opportunityFeed,
       loading: opportunitiesLoading,
       error: opportunityFeedError,
       refresh: hookRefreshOpportunities,
-    } = user?.id ? personalized : opportunities;
-    const feedErrorMessage = user?.id
-      ? personalizedError
-      : fallbackFeedError ?? opportunityFeedError;
+    } = opportunities;
+    const feedErrorMessage = opportunityFeedError;
 
     useEffect(() => {
       opportunitiesRefreshRef.current = hookRefreshOpportunities;
@@ -908,30 +885,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       );
     }, [availableOpportunityFeed, selectedDiscoveryCategory]);
 
-    // Rank by personalization score; only same-score tiers rotate between
-    // visits so relevance survives while the feed still feels fresh.
+    // Keep discovery open to everyone. Profile-based rankings and fit
+    // explanations remain available through the paid personalized tool.
     const shuffledOpportunityFeed = useMemo(
-      () =>
-        isPersonalized
-          ? personalizeFeed(filteredOpportunityFeed, { seed: homeShuffleSeed })
-          : shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
-      [filteredOpportunityFeed, homeShuffleSeed, isPersonalized, personalizeFeed],
+      () => shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
+      [filteredOpportunityFeed, homeShuffleSeed],
     );
-
-    // "Your Best Shots" — the top 3 genuinely winnable matches (score >= 60).
-    // Deliberately tiny: the product promise is narrowing, not more scrolling.
-    const bestShots = useMemo(() => {
-      if (!user?.id || !isPersonalized) return [];
-      return availableOpportunityFeed
-        .filter((opportunity: Opportunity) => !isOpportunityExpired(opportunity))
-        .map((opportunity: Opportunity) => ({
-          opportunity,
-          match: explainOpportunity(opportunity),
-        }))
-        .filter((item) => item.match.score >= 60)
-        .sort((a, b) => b.match.score - a.match.score)
-        .slice(0, 3);
-    }, [availableOpportunityFeed, explainOpportunity, isPersonalized, user?.id]);
 
     const visibleHomeOpportunities = useMemo(
       () => shuffledOpportunityFeed.slice(0, HOME_FEED_SIZE),
@@ -965,7 +924,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           onClick: onViewAllOpportunities,
         };
 
-    const mobilePersonalizedOpportunities = visibleHomeOpportunities.slice(0, 6);
+    const mobileOpportunityCards = visibleHomeOpportunities.slice(0, 6);
 
     const homeFeedItems = useMemo(() => {
       return visibleHomeOpportunities.map((opportunity: Opportunity, index) => ({
@@ -980,24 +939,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     function handleShuffleOpportunities() {
       setHomeShuffleSeed(createOpportunityShuffleSeed());
     }
-
-    const showHomeScreenPrompt =
-      !dismissHomeScreenPrompt &&
-      !isInstalled &&
-      (isInstallable || isManualInstallAvailable);
-
-    const closeHomeScreenPrompt = () => {
-      setDismissHomeScreenPrompt(true);
-      window.localStorage.setItem(HOME_SCREEN_PROMPT_DISMISSED_KEY, "1");
-    };
-
-    const handleInstallPrompt = async () => {
-      if (!isInstallable) return;
-      const accepted = await promptInstall();
-      if (accepted) {
-        closeHomeScreenPrompt();
-      }
-    };
 
     const handleCalendarEventClick = (event: CalendarEvent) => {
       if (event.type === "goal") {
@@ -1366,6 +1307,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       <div
         className={`dashboard-screen min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
+        <PremiumWelcomeDialog
+          open={premiumWelcomeOpen}
+          onClose={() => setPremiumWelcomeOpen(false)}
+        />
         <ProfileCompletionPrompt
           open={showProfileCompletionPrompt}
           onComplete={completeProfileOnboarding}
@@ -1654,64 +1599,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </section>
                 )}
 
-              {showHomeScreenPrompt ? (
-                <section className="sm:hidden">
-                  <div
-                    className={`relative overflow-hidden rounded-[18px] border border-subtle bg-white p-4 shadow-sm`}
-                  >
-                    <button
-                      type="button"
-                      onClick={closeHomeScreenPrompt}
-                      className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary`}
-                      aria-label="Dismiss add to home screen prompt"
-                    >
-                      <X size={16} />
-                    </button>
-                    <div className="flex items-start gap-3 pr-8">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-                        {isInstallable ? (
-                          <Download size={19} />
-                        ) : (
-                          <Share2 size={19} />
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <h2 className="text-sm font-semibold text-text-primary">
-                          Add Edutu to Home Screen
-                        </h2>
-                        <p className="mt-1 text-xs font-semibold leading-5 text-text-muted">
-                          Keep opportunities, saved picks, and deadlines one tap
-                          away.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      {isInstallable ? (
-                        <button
-                          type="button"
-                          onClick={handleInstallPrompt}
-                          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
-                        >
-                          <Download size={16} />
-                          Add app
-                        </button>
-                      ) : (
-                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-semibold leading-5 text-brand-700">
-                          Tap Share, then Add to Home Screen.
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={closeHomeScreenPrompt}
-                        className={`h-10 rounded-2xl bg-surface-elevated px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-brand`}
-                      >
-                        Later
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              ) : null}
-
               <section className="sm:hidden mb-6">
                 <BannerCarousel banners={heroBanners} mobileHeight="150px" />
               </section>
@@ -1726,11 +1613,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 so the feed always gets the full width. */}
             <div className="pb-8 lg:col-span-12 lg:col-start-1 lg:row-start-4">
               <div className="lg:col-span-12 space-y-10">
-                {/* Recommended Opportunities */}
-                <PaidToolGate
-                  feature="Personalized opportunity recommendations"
-                  paidByDefault
-                >
+                {/* Free browsing remains visible; the paid feature is profile
+                    based ranking and insight, not access to the opportunity feed. */}
                   <section aria-labelledby="recommended-picks-heading">
                   <div className="mb-5">
                     <div className="flex items-center justify-between gap-3 lg:items-end">
@@ -1743,14 +1627,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             id="recommended-picks-heading"
                             className="truncate text-lg font-semibold tracking-tight text-text-primary lg:font-display lg:text-2xl"
                           >
-                            {t("dashboard.sections.recommendedPicks")}
+                            Explore opportunities
                           </h2>
                           <p className="truncate text-xs font-medium text-text-muted lg:mt-0.5">
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
-                              : bestShots.length > 0
-                                ? `${bestShots.length} best matches from ${visibleHomeOpportunities.length}`
-                                : `${visibleHomeOpportunities.length} selected for you`}
+                              : `${visibleHomeOpportunities.length} opportunities to explore`}
                           </p>
                         </div>
                       </div>
@@ -1819,22 +1701,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   </div>
 
-                  {user?.id && personalizationReady && isPersonalized && !opportunitiesLoading && bestShots.length === 0 ? (
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-subtle/70 pb-3">
-                      <p className="text-xs font-medium text-text-muted">
-                        Complete your profile to sharpen these recommendations.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={reopenProfileCompletionPrompt}
-                        className="inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-                      >
-                        Refine profile
-                        <ChevronRight size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ) : null}
-
                   <div className="space-y-6 sm:hidden">
                     {opportunitiesLoading ? (
                       <div className="-mx-4 flex gap-3 overflow-x-auto overscroll-x-contain px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1855,7 +1721,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           onRetry={hookRefreshOpportunities}
                         />
                       </div>
-                    ) : mobilePersonalizedOpportunities.length === 0 ? (
+                    ) : mobileOpportunityCards.length === 0 ? (
                       <div
                         className={`rounded-[18px] border border-subtle bg-white`}
                       >
@@ -1873,9 +1739,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div>
                           <div
                             className="mobile-personalized-carousel -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                            aria-label="Personalized opportunities carousel"
+                            aria-label="Opportunities carousel"
                           >
-                            {mobilePersonalizedOpportunities.map(
+                            {mobileOpportunityCards.map(
                               (opportunity: Opportunity, index: number) => (
                                 <DashboardOpportunityCard
                                   key={
@@ -2062,7 +1928,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   )}
                   </section>
-                </PaidToolGate>
 
               </div>
 
