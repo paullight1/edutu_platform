@@ -31,7 +31,9 @@ describe("BillingCatalogAdminService", () => {
   it("loads the live catalog when production is selected", async () => {
     process.env.BACHS_ENVIRONMENT = "live";
     jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
-    await expect(new BillingCatalogAdminService().list()).resolves.toMatchObject({
+    await expect(
+      new BillingCatalogAdminService().list(),
+    ).resolves.toMatchObject({
       environment: "live",
       liveEditingEnabled: true,
     });
@@ -132,7 +134,8 @@ describe("BillingCatalogAdminService", () => {
       BACHS_API_KEY: process.env.BACHS_API_KEY,
       BACHS_WEBHOOK_ENABLED: process.env.BACHS_WEBHOOK_ENABLED,
       BACHS_WEBHOOK_SECRET: process.env.BACHS_WEBHOOK_SECRET,
-      BACHS_EXPECTED_ORGANIZATION_ID: process.env.BACHS_EXPECTED_ORGANIZATION_ID,
+      BACHS_EXPECTED_ORGANIZATION_ID:
+        process.env.BACHS_EXPECTED_ORGANIZATION_ID,
       BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
       BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
     };
@@ -163,7 +166,9 @@ describe("BillingCatalogAdminService", () => {
     const payShell = { ready: jest.fn().mockResolvedValue(true) };
 
     try {
-      const result = await new BillingCatalogAdminService(payShell as never).list();
+      const result = await new BillingCatalogAdminService(
+        payShell as never,
+      ).list();
       expect(result.readiness).toMatchObject({
         providerApiConfigured: true,
         webhookConfigured: true,

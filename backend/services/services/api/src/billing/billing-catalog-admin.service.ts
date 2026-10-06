@@ -349,10 +349,7 @@ export class BillingCatalogAdminService {
     });
   }
 
-  private async listWithin(
-    tx: Transaction,
-    environment: "sandbox" | "live",
-  ) {
+  private async listWithin(tx: Transaction, environment: "sandbox" | "live") {
     const result = await tx.execute(sql`
       select product.product_key, product.fulfillment_kind,
              product.renewal_mode, product.expected_amount_minor::text as amount_minor,
@@ -409,9 +406,10 @@ export class BillingCatalogAdminService {
         ? "true"
         : "false");
     const environment = this.getEnvironment();
-    const expectedApiBaseUrl = environment === "live"
-      ? "https://api.bachs.io"
-      : "https://sandbox-api.bachs.io";
+    const expectedApiBaseUrl =
+      environment === "live"
+        ? "https://api.bachs.io"
+        : "https://sandbox-api.bachs.io";
     const providerApiConfigured =
       process.env.BACHS_API_BASE_URL?.trim() === expectedApiBaseUrl &&
       Boolean(process.env.BACHS_API_KEY?.trim());
