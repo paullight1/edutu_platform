@@ -29,8 +29,8 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
 );
 
 export const DialogContent: React.FC<
-  React.HTMLAttributes<HTMLDivElement> & { preventCloseOnBackdropClick?: boolean; ariaLabel?: string }
-> = ({ className, children, preventCloseOnBackdropClick = false, ariaLabel, ...props }) => {
+  React.HTMLAttributes<HTMLDivElement> & { preventCloseOnBackdropClick?: boolean; ariaLabel?: string; overlayClassName?: string }
+> = ({ className, children, preventCloseOnBackdropClick = false, ariaLabel, overlayClassName, ...props }) => {
   const { open, onOpenChange } = useDialogContext();
   const reducedMotion = useReducedMotion();
 
@@ -81,7 +81,7 @@ export const DialogContent: React.FC<
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 z-50 flex items-center justify-center p-4", overlayClassName)}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleBackdrop} />
       <div
         ref={containerRef}
