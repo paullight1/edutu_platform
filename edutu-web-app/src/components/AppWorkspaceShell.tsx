@@ -1,5 +1,6 @@
 import type { ReactNode, TouchEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -283,7 +284,7 @@ export default function AppWorkspaceShell({
     {
       label: "Documents & tools",
       items: mobileMoreWorkspaceNavItems.filter((item) =>
-        ["cv", "documents"].includes(item.icon),
+        ["cv", "documents", "coach"].includes(item.icon),
       ),
     },
     {
@@ -305,8 +306,12 @@ export default function AppWorkspaceShell({
     pathname === "/app/coach" || pathname.startsWith("/app/coach/");
   const isMyPlanOverviewRoute = pathname === "/app/my-plan";
   const openOpportunitySearch = () => {
-    setOpportunitySearchDraft(new URLSearchParams(location.search).get("search") ?? "");
-    setIsOpportunitySearchOpen(true);
+    // iOS requires input focus inside the tap gesture to open its keyboard.
+    flushSync(() => {
+      setOpportunitySearchDraft(new URLSearchParams(location.search).get("search") ?? "");
+      setIsOpportunitySearchOpen(true);
+    });
+    opportunitySearchInputRef.current?.focus({ preventScroll: true });
   };
   const updateOpportunitySearch = (value: string) => {
     setOpportunitySearchDraft(value);
@@ -320,12 +325,6 @@ export default function AppWorkspaceShell({
       { replace: true },
     );
   };
-  useEffect(() => {
-    if (!isOpportunitySearchOpen) return;
-    const frame = window.requestAnimationFrame(() => opportunitySearchInputRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [isOpportunitySearchOpen]);
-
   useEffect(() => {
     if (!isOpportunitiesRoute) setIsOpportunitySearchOpen(false);
   }, [isOpportunitiesRoute]);
@@ -1119,7 +1118,7 @@ export default function AppWorkspaceShell({
           <div
             data-keyboard-hide={!isOpportunitySearchOpen ? "" : undefined}
             data-keyboard-avoid={isOpportunitySearchOpen ? "" : undefined}
-            className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] lg:hidden"
+            className={cn("pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] lg:hidden", isOpportunitySearchOpen && "workspace-search-dock")}
           >
             <nav
               className={cn(
@@ -1190,18 +1189,23 @@ export default function AppWorkspaceShell({
               </div>
               </LiquidGlass> : null}
               <LiquidGlass
-                className={cn("workspace-nav-glass workspace-nav-glass--action h-[60px] shrink-0 overflow-hidden", isOpportunitySearchOpen ? "w-full" : "w-[60px]")}
-                style={{ width: isOpportunitySearchOpen ? "min(420px, calc(100vw - 24px))" : 60, transition: "width 360ms cubic-bezier(0.22, 1, 0.36, 1)" }}
-                radius={30} strength={16} blur={8} tint={12} chroma={0.15} mode="frost"
+                className={cn(
+                  "workspace-nav-glass h-[60px] shrink-0 overflow-hidden",
+                  isOpportunitySearchOpen
+                    ? "workspace-nav-glass--search min-w-0 flex-1"
+                    : "workspace-nav-glass--action workspace-nav-glass--action-circle w-[60px]",
+                )}
+                style={{ width: isOpportunitySearchOpen ? "calc(100% - 68px)" : 60, transition: "width 360ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+                radius={30} strength={18} blur={10} tint={12} chroma={0.15} mode="frost"
               >
               <div className="ps-glass__content h-full">
               {isOpportunitySearchOpen ? (
                 <form
                   role="search"
                   onSubmit={(event) => event.preventDefault()}
-                  className="flex h-full min-w-0 items-center gap-1.5 px-3"
+                  className="workspace-search-form flex h-full min-w-0 items-center gap-1 rounded-full ps-4 pe-2"
                 >
-                  <Search size={20} className="shrink-0 text-white/90" aria-hidden="true" />
+                  <Search size={19} strokeWidth={2} className="me-1 shrink-0 text-text-muted" aria-hidden="true" />
                   <label className="sr-only" htmlFor="glass-opportunity-search">Search opportunities</label>
                   <input
                     ref={opportunitySearchInputRef}
@@ -1212,8 +1216,8 @@ export default function AppWorkspaceShell({
                     value={opportunitySearchDraft}
                     onChange={(event) => updateOpportunitySearch(event.target.value)}
                     onKeyDown={(event) => { if (event.key === "Escape") setIsOpportunitySearchOpen(false); }}
-                    placeholder="Search opportunities"
-                    className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/70 [color-scheme:dark]"
+                    placeholder="Search"
+                    className="workspace-search-input min-w-0 flex-1 appearance-none rounded-full border-0 bg-transparent text-[17px] text-text-primary shadow-none outline-none ring-0 placeholder:text-text-muted focus:border-0 focus:outline-none focus:ring-0 [color-scheme:light] dark:[color-scheme:dark] [&::-webkit-search-cancel-button]:hidden"
                   />
                   <button
                     type="button"
@@ -1222,17 +1226,9 @@ export default function AppWorkspaceShell({
                       window.dispatchEvent(new Event(OPEN_OPPORTUNITY_FILTERS_EVENT));
                     }}
                     aria-label="Filter opportunities"
-                    className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/15 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="workspace-search-filter relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
                   >
-                    <SlidersHorizontal size={20} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsOpportunitySearchOpen(false)}
-                    aria-label="Close search"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/90 transition hover:bg-white/15 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                  >
-                    <X size={19} aria-hidden="true" />
+                    <SlidersHorizontal size={20} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                 </form>
               ) : contextualAction ? (
@@ -1268,6 +1264,19 @@ export default function AppWorkspaceShell({
                 })}
               </div>
               </LiquidGlass>
+              {isOpportunitySearchOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    opportunitySearchInputRef.current?.blur();
+                    setIsOpportunitySearchOpen(false);
+                  }}
+                  aria-label="Close search"
+                  className="workspace-search-dismiss grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-text-primary transition active:scale-95"
+                >
+                  <X size={25} strokeWidth={1.8} aria-hidden="true" />
+                </button>
+              ) : null}
             </nav>
           </div>
         ) : null}

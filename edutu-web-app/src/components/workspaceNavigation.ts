@@ -44,6 +44,7 @@ export const mobilePrimaryWorkspaceNavItems: WorkspaceNavItemConfig[] = [
 export function isMobilePrimaryWorkspaceRoute(pathname: string) {
   const path = pathname.replace(/\/+$/, "") || "/";
   return mobilePrimaryWorkspaceNavItems.some((item) => {
+    if (item.icon === "coach") return false;
     const aliases =
       item.to === "/dashboard"
         ? ["/dashboard", "/app/home"]
@@ -80,6 +81,11 @@ export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
 ].filter(enabled) as WorkspaceNavItemConfig[];
 export const mobileMoreWorkspaceNavItems = personalWorkspaceNavItems.filter(
   (item) => !mobilePrimaryWorkspaceNavItems.some((tab) => tab.to === item.to),
+);
+// The coach has a dedicated desktop rail item, while the compact mobile bar
+// reserves its tabs for Home and Explore. Keep it reachable from More.
+mobileMoreWorkspaceNavItems.unshift(
+  ...mobilePrimaryWorkspaceNavItems.filter((item) => item.icon === "coach"),
 );
 const matches = (pathname: string, route: string) =>
   pathname === route || pathname.startsWith(`${route}/`);

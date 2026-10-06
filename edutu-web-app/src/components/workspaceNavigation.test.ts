@@ -21,8 +21,6 @@ describe("workspace navigation", () => {
       "/dashboard",
       "/app/opportunities",
       "/app/coach",
-      "/app/my-plan",
-      "/app/profile",
     ]);
   });
 
@@ -35,9 +33,9 @@ describe("workspace navigation", () => {
     expect(moreRoutes).not.toContain("/dashboard");
     expect(moreRoutes).not.toContain("/app/opportunities");
     expect(moreRoutes).not.toContain("/app/community");
-    expect(moreRoutes).not.toContain("/app/my-plan");
-    expect(moreRoutes).not.toContain("/app/coach");
-    expect(moreRoutes).not.toContain("/app/profile");
+    expect(moreRoutes).toContain("/app/my-plan");
+    expect(moreRoutes).toContain("/app/coach");
+    expect(moreRoutes).toContain("/app/profile");
   });
   it.each([
     ["/app/cv", "myPlan"],

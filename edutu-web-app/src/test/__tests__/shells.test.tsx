@@ -210,7 +210,7 @@ describe("AppWorkspaceShell", () => {
     expect(workspaceMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("uses compact visible labels while preserving full accessible names", () => {
+  it("keeps compact mobile navigation labels and exposes the coach from More", () => {
     const primary = render(
       <MemoryRouter initialEntries={["/app/coach"]}>
         <AppWorkspaceShell>
@@ -222,18 +222,13 @@ describe("AppWorkspaceShell", () => {
       name: "Mobile app navigation",
     });
     const links = within(nav).getAllByRole("link");
-    const coach = within(nav).getByRole("link", { name: "AI Coach" });
-    expect(coach).toHaveAttribute("href", "/app/coach");
-    expect(coach).toHaveAttribute("aria-current", "page");
-    expect(coach.textContent).toBe("Coach");
-    const plan = within(nav).queryByRole("link", { name: "My Plan" });
-    if (plan) expect(plan.textContent).toBe("Plan");
     expect(links.some((link) => link.textContent?.trim() === "Home")).toBe(
       true,
     );
-    expect(links.some((link) => link.textContent?.trim() === "Explore")).toBe(
-      true,
-    );
+    expect(links.some((link) => link.textContent?.trim() === "Explore")).toBe(true);
+    fireEvent.click(within(nav).getByRole("button", { name: "More" }));
+    const more = screen.getByRole("dialog", { name: "More" });
+    expect(within(more).getByRole("link", { name: "AI Coach" })).toHaveAttribute("href", "/app/coach");
     primary.unmount();
 
     render(
