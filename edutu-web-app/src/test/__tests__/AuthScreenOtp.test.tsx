@@ -18,6 +18,8 @@ const clerkMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/clerk-react", () => ({
+  useAuth: () => ({ isLoaded: true, isSignedIn: false, userId: null }),
+  useUser: () => ({ user: null, isLoaded: true }),
   useClerk: () => ({ setActive: clerkMocks.setActive }),
   useSignIn: () => ({
     signIn: {

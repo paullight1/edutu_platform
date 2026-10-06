@@ -595,16 +595,17 @@ function App() {
     };
   }, [navigate]);
 
+  const handleGetStarted = useCallback(() => {
+    navigate(
+      isSignedIn ? "/dashboard" : "/auth?mode=sign-in&screen=full",
+    );
+  }, [isSignedIn, navigate]);
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
       navigate(consumePostAuthRedirect("/dashboard"), { replace: true });
     },
     [navigate],
   );
-
-  const handleGetStarted = useCallback(() => {
-    navigate(isSignedIn ? "/dashboard" : "/auth?mode=sign-in");
-  }, [isSignedIn, navigate]);
 
   return (
     <>
@@ -939,7 +940,13 @@ function App() {
           />
           <Route
             path="/auth"
-            element={<AuthScreen onAuthSuccess={handleAuthSuccess} />}
+            element={
+              new URLSearchParams(location.search).get("screen") === "full" ? (
+                <AuthScreen onAuthSuccess={handleAuthSuccess} />
+              ) : (
+                <LandingPageV3 onGetStarted={handleGetStarted} />
+              )
+            }
           />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route
