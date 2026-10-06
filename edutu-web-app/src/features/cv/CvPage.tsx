@@ -510,8 +510,8 @@ export default function CvPage() {
     {loading ? <Loading/> : <>
       {dirty && <button className="feature-button secondary mb-4" onClick={() => setView("edit")}>Resume draft · {name}</button>}
       <div className="cv-quick-actions">
-        <button onClick={() => { if (!requestPremiumCvAccess("Importing a LinkedIn export uses AI and requires an Edutu paid plan.")) return; if(navigateCv(null)) fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn <span className="cv-ai-pro-badge">Paid</span></strong><small>LinkedIn PDF or ZIP</small></span><ChevronRight size={17}/></button>
-        <button onClick={() => { setProposal(null); setLetter(""); setReturnView(null); setView("ai"); }} disabled={busy}><Sparkles size={20}/><span><strong>AI tools</strong><small>Draft, tailor & write cover letters</small></span><ChevronRight size={17}/></button>
+        <button className="cv-quick-action--linkedin" onClick={() => { if (!requestPremiumCvAccess("Importing a LinkedIn export uses AI and requires an Edutu paid plan.")) return; if(navigateCv(null)) fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn <span className="cv-ai-pro-badge">Paid</span></strong><small>LinkedIn PDF or ZIP</small></span><ChevronRight size={17}/></button>
+        <button className="cv-quick-action--ai" onClick={() => { setProposal(null); setLetter(""); setReturnView(null); setView("ai"); }} disabled={busy}><Sparkles size={20}/><span><strong>AI tools</strong><small>Draft, tailor & write cover letters</small></span><ChevronRight size={17}/></button>
       </div>
       {!view && <CvTemplatePicker
         compact

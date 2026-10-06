@@ -4,6 +4,18 @@
 .cv-quick-actions>button>svg:last-child {margin-left:auto;flex:none}
 .cv-quick-actions span {display:grid;gap:4px;min-width:0}
 .cv-quick-actions strong {font-size:14px}.cv-quick-actions small {font-size:12px;color:rgb(var(--text-muted))}
+.cv-quick-actions > .cv-quick-action--linkedin {background:#0a66c2;border-color:#0a66c2;color:#fff}
+.cv-quick-actions > .cv-quick-action--linkedin > svg:first-child {color:#fff}
+.cv-quick-action--linkedin small {color:rgb(255 255 255 / .85)}
+.cv-quick-action--linkedin .cv-ai-pro-badge {background:rgb(255 255 255 / .18);color:#fff}
+.cv-quick-actions > .cv-quick-action--ai {background:#eee9ff;border-color:#e0d5ff;color:#442575}
+.cv-quick-actions > .cv-quick-action--ai > svg:first-child {color:#7547cf}
+.cv-quick-action--ai small {color:#70548e}
+.dark .cv-quick-actions > .cv-quick-action--ai {background:#302344;border-color:#493360;color:#eee5ff}
+.dark .cv-quick-action--ai small {color:#c4b3dd}
+.dark .cv-quick-actions > .cv-quick-action--ai > svg:first-child {color:#c9adff}
+.cv-quick-actions > button {transition:filter 150ms ease}
+.cv-quick-actions > button:hover:not(:disabled) {filter:brightness(.96)}
 .cv-library-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}
 .cv-saved-card {border:1px solid rgb(var(--border-subtle));border-radius:14px;background:rgb(var(--surface-layer));min-width:0}
 .cv-card-preview {display:grid;place-items:center;width:100%;padding:25px;background:rgb(var(--surface-body));border-radius:14px 14px 0 0}
