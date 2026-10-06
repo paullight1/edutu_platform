@@ -1,0 +1,20 @@
+.upgrade-prompt-overlay {z-index:110}
+.upgrade-prompt-overlay > div:first-child {background:rgb(3 7 18 / .7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.upgrade-prompt {max-width:400px;max-height:calc(100dvh - 32px);overflow-y:auto;padding:0;border:1px solid #27344a;border-radius:24px;background:#0d1525;color:#f1f5fc}
+.upgrade-prompt-art {position:relative;height:142px;overflow:hidden;border-radius:23px 23px 0 0}
+.upgrade-prompt-art img {height:100%;width:100%;object-fit:cover;object-position:center 35%}
+.upgrade-prompt-art::after {content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,#0d1525)}
+.upgrade-prompt-close {position:absolute;top:10px;right:10px;display:grid;place-items:center;width:44px;height:44px;border:1px solid #ffffff20;border-radius:50%;background:#0d1525b3;color:#e9eff9;backdrop-filter:blur(10px)}
+.upgrade-prompt-content {padding:0 24px 22px}
+.upgrade-prompt-eyebrow {display:flex;align-items:center;gap:7px;margin:4px 0 10px;color:#84baff;font-size:10px;font-weight:600;letter-spacing:.12em}
+.upgrade-prompt h2 {color:#f1f5fc;font-size:26px;line-height:1.15;font-weight:650;letter-spacing:-.035em}
+.upgrade-prompt-description {margin-top:10px;color:#b0bed3;font-size:14px;line-height:1.6}
+.upgrade-prompt-benefits {display:grid;gap:16px;margin:22px 0 24px}
+.upgrade-prompt-benefits li {display:flex;gap:11px;align-items:flex-start}
+.upgrade-prompt-check {display:grid;place-items:center;width:25px;height:25px;flex-shrink:0;border-radius:50%;background:#6bafff18;color:#8cc3ff}
+.upgrade-prompt-benefits strong {font-size:13px;line-height:1.5;font-weight:600}
+.upgrade-prompt-benefits p {margin-top:3px;color:#9cacbf;font-size:12px;line-height:1.5}
+.upgrade-prompt-action {display:flex;align-items:center;justify-content:center;gap:9px;min-height:48px;width:100%;border-radius:14px;background:#337df0;color:#fff;font-size:14px;font-weight:600;transition:background .15s}
+.upgrade-prompt-action:hover {background:#458bf7}
+.upgrade-prompt-note {margin-top:12px;text-align:center;color:#8595ab;font-size:11px;line-height:1.5}
+@media(max-height:650px) {.upgrade-prompt-art {height:96px}.upgrade-prompt-benefits {gap:12px;margin:16px 0 20px}}
