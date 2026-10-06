@@ -258,7 +258,7 @@ export default function Monetization() {
         String(amountInMajorUnits(product.amountMinor, product.currency)),
       ])));
       setCatalogReason('');
-      showToast('success', 'Bachs sandbox catalog saved and audited.');
+      showToast('success', `Bachs ${result.environment} catalog saved and audited.`);
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : 'Could not save the Bachs plan catalog.');
     } finally {
@@ -487,7 +487,7 @@ export default function Monetization() {
             )}
           </div>
           <p style={{ color: 'var(--text-tertiary)', margin: '4px 0 0 0', fontSize: 15 }}>
-            Manage display defaults, AI usage limits, the Bachs sandbox catalog, and billing records.
+            Manage display defaults, AI usage limits, the Bachs catalog for the active environment, and billing records.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -1069,7 +1069,7 @@ export default function Monetization() {
                   Bachs plan catalog
                 </h2>
                 <p className="mz-hint" style={{ marginTop: 8 }}>
-                  Sandbox only. Match each amount and currency to the Bachs product. Learner checkout reads these server-owned catalog values.
+                  Match each amount and currency to the Bachs product in the selected environment. Learner checkout reads these server-owned catalog values.
                 </p>
               </div>
               <button className="btn btn-secondary" onClick={() => void loadBillingCatalog()} disabled={catalogLoading || catalogSaving}>
@@ -1083,11 +1083,11 @@ export default function Monetization() {
             ) : (
               <>
                 <div style={{ marginBottom: 12, color: 'var(--text-tertiary)', fontSize: 12 }}>
-                  Environment: <strong>{billingCatalog?.environment ?? 'sandbox'}</strong> · Live catalog editing is disabled.
+                  Environment: <strong>{billingCatalog?.environment ?? 'sandbox'}</strong> · Catalog edits apply only to this environment.
                 </div>
                 {billingCatalog && (
                   <div className="mz-alert" role="status" style={{ marginBottom: 16 }}>
-                    <strong>{billingCatalog.readiness.purchasesReady ? 'Sandbox purchase gates are ready.' : 'Sandbox checkout is not ready yet.'}</strong>
+                    <strong>{billingCatalog.readiness.purchasesReady ? `${billingCatalog.environment === 'live' ? 'Live' : 'Sandbox'} purchase gates are ready.` : `${billingCatalog.environment === 'live' ? 'Live' : 'Sandbox'} checkout is not ready yet.`}</strong>
                     <div className="mz-hint" style={{ marginTop: 6 }}>
                       Bachs API: {billingCatalog.readiness.providerApiConfigured ? 'ready' : 'missing configuration'} ·
                       Webhook: {billingCatalog.readiness.webhookConfigured ? 'ready' : 'missing configuration'} ·
@@ -1160,14 +1160,14 @@ export default function Monetization() {
                 </div>
                 <div className="mz-form" style={{ marginTop: 16, gridTemplateColumns: 'minmax(260px, 1fr) auto', alignItems: 'end' }}>
                   <Field label="Reason for catalog change (required for the audit log)">
-                    <input className="input-field" value={catalogReason} onChange={(event) => setCatalogReason(event.target.value)} maxLength={500} placeholder="e.g. Configure verified sandbox prices and product IDs" />
+                    <input className="input-field" value={catalogReason} onChange={(event) => setCatalogReason(event.target.value)} maxLength={500} placeholder={`e.g. Configure verified ${billingCatalog?.environment ?? 'sandbox'} prices and product IDs`} />
                   </Field>
                   <button className="btn btn-primary" onClick={() => void saveBillingCatalog()} disabled={!catalogDirty || !catalogReason.trim() || catalogSaving || catalogLoading}>
                     {catalogSaving ? <Loader2 className="mz-spin" size={16} /> : <Save size={16} />} Save Bachs catalog
                   </button>
                 </div>
                 <p className="mz-hint" style={{ marginTop: 12 }}>
-                  Saving only changes the sandbox catalog. Purchase is still blocked until the API, webhook, payment shell and database readiness gates all pass.
+                  Saving changes only the active environment’s catalog. Purchase remains disabled until the API, webhook, payment shell and database readiness gates all pass.
                 </p>
               </>
             )}

@@ -198,11 +198,11 @@ import {
         const config = loadBachsConfig();
         return {
           ...config,
-          // The current Bachs adapter fulfills settled collections only. Keep
-          // this shell sandbox-only until signed refund/chargeback events can
-          // reverse an already fulfilled entitlement or credit grant.
+          // Keep the shell closed until Bachs, signed webhooks, and the
+          // persistent handoff protocol are all configured for the selected
+          // environment. Bachs configuration already enforces environment
+          // matched API origins, credentials, organization, and webhook keys.
           hostedCompletionEnabled:
-            config.environment === "sandbox" &&
             process.env.BILLING_PAY_SHELL_ENABLED === "true" &&
             config.checkoutEnabled &&
             config.webhookEnabled &&

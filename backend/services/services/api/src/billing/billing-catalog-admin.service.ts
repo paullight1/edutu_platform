@@ -65,13 +65,8 @@ export class BillingCatalogAdminService {
     private readonly bachsClient?: BachsClient,
   ) {}
 
-  private getEnvironment(): "sandbox" {
-    if (process.env.BACHS_ENVIRONMENT === "live") {
-      throw new ServiceUnavailableException(
-        "Live billing catalog changes are disabled. Configure the sandbox catalog first.",
-      );
-    }
-    return "sandbox";
+  private getEnvironment(): "sandbox" | "live" {
+    return process.env.BACHS_ENVIRONMENT === "live" ? "live" : "sandbox";
   }
 
   async list() {
@@ -96,7 +91,7 @@ export class BillingCatalogAdminService {
       (await this.payShellPersistence?.ready().catch(() => false)) ?? false;
     return {
       environment,
-      liveEditingEnabled: false,
+      liveEditingEnabled: environment === "live",
       readiness: this.readiness(rows, paymentShellSchemaReady),
       products: rows.map((row) => ({
         productKey: String(row.product_key),
@@ -354,7 +349,10 @@ export class BillingCatalogAdminService {
     });
   }
 
-  private async listWithin(tx: Transaction, environment: "sandbox") {
+  private async listWithin(
+    tx: Transaction,
+    environment: "sandbox" | "live",
+  ) {
     const result = await tx.execute(sql`
       select product.product_key, product.fulfillment_kind,
              product.renewal_mode, product.expected_amount_minor::text as amount_minor,
@@ -410,9 +408,12 @@ export class BillingCatalogAdminService {
       process.env.BACHS_EXPECTED_ORGANIZATION_ID?.trim()
         ? "true"
         : "false");
+    const environment = this.getEnvironment();
+    const expectedApiBaseUrl = environment === "live"
+      ? "https://api.bachs.io"
+      : "https://sandbox-api.bachs.io";
     const providerApiConfigured =
-      process.env.BACHS_API_BASE_URL?.trim() ===
-        "https://sandbox-api.bachs.io" &&
+      process.env.BACHS_API_BASE_URL?.trim() === expectedApiBaseUrl &&
       Boolean(process.env.BACHS_API_KEY?.trim());
     const webhookConfigured =
       webhookFlag === "true" &&
@@ -441,7 +442,6 @@ export class BillingCatalogAdminService {
       enabledPlanCount,
       mappedEnabledPlanCount,
       purchasesReady:
-        process.env.BACHS_ENVIRONMENT !== "live" &&
         checkoutFlag &&
         providerApiConfigured &&
         webhookConfigured &&

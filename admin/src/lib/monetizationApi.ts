@@ -111,8 +111,8 @@ export interface BillingCatalogProduct {
 }
 
 export interface BillingCatalog {
-  environment: 'sandbox';
-  liveEditingEnabled: false;
+  environment: 'sandbox' | 'live';
+  liveEditingEnabled: boolean;
   readiness: {
     providerApiConfigured: boolean;
     webhookConfigured: boolean;

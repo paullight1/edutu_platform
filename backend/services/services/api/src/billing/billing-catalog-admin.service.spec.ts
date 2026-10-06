@@ -28,11 +28,13 @@ describe("BillingCatalogAdminService", () => {
     delete process.env.BACHS_ENVIRONMENT;
   });
 
-  it("keeps live catalog edits unavailable", async () => {
+  it("loads the live catalog when production is selected", async () => {
     process.env.BACHS_ENVIRONMENT = "live";
-    await expect(new BillingCatalogAdminService().list()).rejects.toThrow(
-      "Live billing catalog changes are disabled",
-    );
+    jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
+    await expect(new BillingCatalogAdminService().list()).resolves.toMatchObject({
+      environment: "live",
+      liveEditingEnabled: true,
+    });
   });
 
   it("reports checkout gates without exposing provider secrets", async () => {
@@ -112,6 +114,64 @@ describe("BillingCatalogAdminService", () => {
         mappedPlanCount: planKeys.length,
         enabledPlanCount: 1,
         mappedEnabledPlanCount: 1,
+        purchasesReady: true,
+      });
+    } finally {
+      for (const [key, value] of Object.entries(env)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it("recognizes live Bachs API configuration and live product mappings as ready", async () => {
+    const env = {
+      BACHS_ENVIRONMENT: process.env.BACHS_ENVIRONMENT,
+      BACHS_CHECKOUT_ENABLED: process.env.BACHS_CHECKOUT_ENABLED,
+      BACHS_API_BASE_URL: process.env.BACHS_API_BASE_URL,
+      BACHS_API_KEY: process.env.BACHS_API_KEY,
+      BACHS_WEBHOOK_ENABLED: process.env.BACHS_WEBHOOK_ENABLED,
+      BACHS_WEBHOOK_SECRET: process.env.BACHS_WEBHOOK_SECRET,
+      BACHS_EXPECTED_ORGANIZATION_ID: process.env.BACHS_EXPECTED_ORGANIZATION_ID,
+      BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
+      BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
+    };
+    Object.assign(process.env, {
+      BACHS_ENVIRONMENT: "live",
+      BACHS_CHECKOUT_ENABLED: "true",
+      BACHS_API_BASE_URL: "https://api.bachs.io",
+      BACHS_API_KEY: "sk_live_test_key",
+      BACHS_WEBHOOK_ENABLED: "true",
+      BACHS_WEBHOOK_SECRET: "whsec_test_key",
+      BACHS_EXPECTED_ORGANIZATION_ID: "org_edutu_test",
+      BILLING_PAY_SHELL_ENABLED: "true",
+      BILLING_PAY_SHELL_API_KEY: "x".repeat(40),
+    });
+    const rows = products.map((product) => ({
+      product_key: product.productKey,
+      fulfillment_kind: "subscription",
+      renewal_mode: "recurring",
+      amount_minor: String(product.amountMinor),
+      currency: product.currency,
+      cadence: product.productKey.split("_")[1],
+      entitlement_duration: null,
+      enabled: true,
+      catalog_version: 1,
+      provider_product_id: `prod_${product.productKey}`,
+    }));
+    jest.spyOn(db, "execute").mockResolvedValue({ rows } as never);
+    const payShell = { ready: jest.fn().mockResolvedValue(true) };
+
+    try {
+      const result = await new BillingCatalogAdminService(payShell as never).list();
+      expect(result.readiness).toMatchObject({
+        providerApiConfigured: true,
+        webhookConfigured: true,
+        paymentShellConfigured: true,
+        paymentShellSchemaReady: true,
+        mappedPlanCount: planKeys.length,
+        enabledPlanCount: planKeys.length,
+        mappedEnabledPlanCount: planKeys.length,
         purchasesReady: true,
       });
     } finally {
