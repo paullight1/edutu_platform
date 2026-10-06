@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,9 +16,9 @@ vi.mock("../hooks/usePWA", () => ({
 
 const mockUsePWA = vi.mocked(usePWA);
 
-function renderPrompt() {
+function renderPrompt(path = "/opportunities") {
   return render(
-    <MemoryRouter initialEntries={["/opportunities"]}>
+    <MemoryRouter initialEntries={[path]}>
       <InstallAppPrompt />
     </MemoryRouter>,
   );
@@ -47,11 +46,24 @@ describe("InstallAppPrompt", () => {
     vi.clearAllMocks();
   });
 
+  it("shows the install popup on the dashboard", () => {
+    setPwaState({ isInstallable: true });
+    renderPrompt("/dashboard");
+    expect(screen.getByRole("dialog", { name: "Add Edutu to your home screen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Add$/ })).toBeInTheDocument();
+  });
+
+  it("does not prompt dashboard users who already installed Edutu", () => {
+    setPwaState({ isInstalled: true, isInstallable: true });
+    renderPrompt("/app/home");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("waits until the first-visit cookie notice has cleared", async () => {
     window.localStorage.removeItem("edutu_cookie_consent");
-    setPwaState({ isManualInstallAvailable: true });
+    setPwaState({ isInstallable: true });
 
-    renderPrompt();
+    renderPrompt("/dashboard");
 
     expect(
       screen.queryByRole("dialog", {
@@ -78,33 +90,19 @@ describe("InstallAppPrompt", () => {
     ).toBeInTheDocument();
   });
 
-  it("presents the manual iOS flow as two scannable steps", () => {
+  it("does not offer an Add action where native installation is unavailable", () => {
     setPwaState({ isManualInstallAvailable: true });
-
-    renderPrompt();
-
-    expect(
-      screen.getByRole("dialog", {
-        name: "Add Edutu to your home screen",
-      }),
-    ).toBeInTheDocument();
-
-    const instructions = screen.getByRole("list", {
-      name: "How to add Edutu on iPhone or iPad",
-    });
-    const steps = within(instructions).getAllByRole("listitem");
-
-    expect(steps).toHaveLength(2);
-    expect(steps[0]).toHaveTextContent("Tap Share in Safari");
-    expect(steps[1]).toHaveTextContent("Choose Add to Home Screen");
+    renderPrompt("/dashboard");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Add$/ })).not.toBeInTheDocument();
   });
 
   it("dismisses after an accepted browser install", async () => {
     const promptInstall = vi.fn().mockResolvedValue(true);
     setPwaState({ isInstallable: true, promptInstall });
 
-    renderPrompt();
-    fireEvent.click(screen.getByRole("button", { name: "Install Edutu" }));
+    renderPrompt("/dashboard");
+    fireEvent.click(screen.getByRole("button", { name: /^Add$/ }));
 
     expect(promptInstall).toHaveBeenCalledOnce();
     await waitFor(() => {

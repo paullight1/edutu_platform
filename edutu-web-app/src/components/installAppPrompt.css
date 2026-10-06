@@ -1,0 +1,21 @@
+.install-app-modal {
+  width: min(360px, calc(100vw - 40px));
+  margin: auto;
+  padding: 30px 24px 24px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 18px;
+  background: rgb(var(--surface-layer));
+  color: rgb(var(--text-primary));
+  text-align: center;
+}
+.install-app-modal::backdrop {
+  background: rgb(3 7 18 / .65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.install-app-modal-close {position:absolute;top:8px;right:8px;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:rgb(var(--text-secondary))}
+.install-app-modal-logo {width:64px;height:64px;object-fit:contain;margin:0 auto 18px}
+.install-app-modal h2 {font-size:22px;line-height:1.25;font-weight:650;letter-spacing:-.03em}
+.install-app-modal p {margin-top:12px;font-size:14px;line-height:1.6;color:rgb(var(--text-secondary))}
+.install-app-modal-add {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:48px;margin-top:24px;border-radius:12px;background:rgb(var(--color-brand-600));color:white;font-weight:600}
+.install-app-modal-add:disabled {opacity:.6;cursor:wait}

@@ -55,7 +55,7 @@ export default defineConfig(({ mode, command }) => {
           display: 'standalone',
           orientation: 'portrait-primary',
           scope: '/',
-          start_url: '/dashboard',
+          start_url: '/',
           icons: [
             {
               src: 'icons/icon-192x192.png',
