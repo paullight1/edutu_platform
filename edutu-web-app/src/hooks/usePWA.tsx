@@ -135,17 +135,13 @@ export function usePWA() {
     const promptInstall = async (): Promise<boolean> => {
         if (!deferredPrompt) return false;
 
-        deferredPrompt.prompt();
+        await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
 
-        if (outcome === 'accepted') {
-            capturedInstallPrompt = null;
-            setDeferredPrompt(null);
-            setState((prev) => ({ ...prev, isInstallable: false }));
-            return true;
-        }
-
-        return false;
+        // A browser install event can be prompted only once, even if declined.
+        capturedInstallPrompt = null;
+        installPromptListeners.forEach((listener) => listener(null));
+        return outcome === 'accepted';
     };
 
     // Reload page to get update
