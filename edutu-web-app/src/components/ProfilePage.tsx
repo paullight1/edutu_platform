@@ -502,7 +502,7 @@ export default function ProfilePage() {
   }, [profileStats.savedRecords, profileStats.applicationRecords]);
 
   return (
-    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
+    <div data-release-draft-managed data-release-busy={saving || isDirty} className="min-h-[100dvh] bg-surface-body text-text-primary">
       <PullToRefresh
         onRefresh={loadProfile}
         disabled={loading || saving}

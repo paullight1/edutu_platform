@@ -146,14 +146,7 @@ export function usePWA() {
 
     // Reload page to get update
     const applyUpdate = () => {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then((registration) => {
-                if (registration.waiting) {
-                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                }
-            });
-        }
-        window.location.reload();
+        window.dispatchEvent(new Event('release-refresh-request'));
     };
 
     return {
@@ -167,14 +160,14 @@ export function usePWA() {
  * Component to show install banner
  */
 import React from 'react';
-import { Download, X, RefreshCw, WifiOff } from 'lucide-react';
+import { Download, X, WifiOff } from 'lucide-react';
 
 interface PWABannerProps {
     className?: string;
 }
 
 export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) => {
-    const { isInstallable, isUpdateAvailable, isOffline, promptInstall, applyUpdate } =
+    const { isInstallable, isOffline, promptInstall } =
         usePWA();
     const [dismissed, setDismissed] = useState(false);
 
@@ -190,45 +183,6 @@ export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) =
                 <span className="text-sm font-medium">
                     You are offline. Some features may be limited.
                 </span>
-            </div>
-        );
-    }
-
-    // Update available
-    if (isUpdateAvailable) {
-        return (
-            <div
-                className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 bg-gradient-to-r from-brand-600 to-brand-800 rounded-xl p-4 shadow-lg z-50 ${className}`}
-            >
-                <div className="flex items-start gap-3">
-                    <RefreshCw className="w-6 h-6 text-white mt-0.5" />
-                    <div className="flex-1">
-                        <h4 className="text-white font-semibold">Update Available</h4>
-                        <p className="text-white/80 text-sm mt-1">
-                            A new version of Edutu is ready. Refresh to update.
-                        </p>
-                        <div className="flex gap-2 mt-3">
-                            <button
-                                onClick={applyUpdate}
-                                className="px-3 py-1.5 bg-white text-blue-600 text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
-                            >
-                                Update Now
-                            </button>
-                            <button
-                                onClick={() => setDismissed(true)}
-                                className="px-3 py-1.5 text-white/80 text-sm hover:text-white transition-colors"
-                            >
-                                Later
-                            </button>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => setDismissed(true)}
-                        className="text-white/60 hover:text-white"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
             </div>
         );
     }

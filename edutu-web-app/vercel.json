@@ -116,11 +116,20 @@
       "destination": "/terms/index.html"
     },
     {
-      "source": "/((?!assets/|og/|icons/|manifest.webmanifest|registerSW.js|sw.js|workbox-.*\\.js|favicon.ico|apple-touch-icon.png).*)",
+      "source": "/((?!version.json|sw-custom.js|push-sw.js|assets/|og/|icons/|manifest.webmanifest|registerSW.js|sw.js|workbox-.*\\.js|favicon.ico|apple-touch-icon.png).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
     {
       "source": "/(index.html|community/index.html|about/index.html|impact/index.html|edutuforyou/index.html|whats-new/index.html|events/index.html|download/index.html|what-we-believe/index.html|upgrade/index.html|mentor/index.html|scholarship-engine/index.html|scholarship-api/index.html|developers/index.html|developers/docs/index.html|help/index.html|careers/index.html|privacy/index.html|terms/index.html)",
       "headers": [
@@ -135,7 +144,7 @@
       ]
     },
     {
-      "source": "/(sw.js|registerSW.js|workbox-.*\\.js|manifest.webmanifest)",
+      "source": "/(version.json|sw-custom.js|push-sw.js|sw.js|registerSW.js|workbox-.*\\.js|manifest.webmanifest)",
       "headers": [
         {
           "key": "Cache-Control",

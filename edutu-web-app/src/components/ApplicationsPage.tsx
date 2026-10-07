@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { registerReleaseDraftSaver } from '../lib/releaseSafety';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -313,7 +314,9 @@ export default function ApplicationsPage() {
         const token = await resolveToken();
         await addApplicationReflection(applicationId, draft, token);
         setPersistedReflections((current) => ({ ...current, [applicationId]: draft }));
-        setReflections((current) => ({ ...current, [applicationId]: draft }));
+        setReflections((current) => (current[applicationId] ?? '').trim() === draft
+          ? { ...current, [applicationId]: draft }
+          : current);
       } catch (saveError) {
         setError(
           saveError instanceof Error
@@ -326,6 +329,18 @@ export default function ApplicationsPage() {
     },
     [persistedReflections, reflections, resolveToken],
   );
+
+  useEffect(() => registerReleaseDraftSaver(async () => {
+    const pending = Object.entries(reflections).filter(([id, value]) =>
+      value.trim() && value.trim() !== (persistedReflections[id] ?? ''),
+    );
+    if (!pending.length) return;
+    const token = await resolveToken();
+    for (const [id, value] of pending) {
+      await addApplicationReflection(id, value.trim(), token);
+      setPersistedReflections(current => ({ ...current, [id]: value.trim() }));
+    }
+  }), [reflections, persistedReflections, resolveToken]);
 
   // Lazily count the answer bank only once a closure panel actually opens —
   // never on page load. Failures resolve to 0 and simply hide the line.
@@ -425,7 +440,7 @@ export default function ApplicationsPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
+    <div data-release-busy={Boolean(reflectionSavingId)} className="min-h-[100dvh] bg-surface-body text-text-primary">
       {celebrating ? <CelebrationBurst onDone={() => setCelebrating(false)} /> : null}
       <header className="sticky top-0 z-30 hidden border-b border-subtle bg-surface-layer/90 backdrop-blur-xl lg:block">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -698,9 +713,15 @@ export default function ApplicationsPage() {
                       </div>
 
                       <textarea
+                        data-release-draft-managed
                         value={reflections[application.id] ?? ''}
                         onChange={(event) => saveReflection(application.id, event.target.value)}
-                        onBlur={() => void persistReflection(application.id)}
+                        onBlur={(event) => {
+                          // The refresh flow owns this save, avoiding two ledger writes.
+                          if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-release-refresh]'))) {
+                            void persistReflection(application.id);
+                          }
+                        }}
                         rows={3}
                         placeholder="Optional: what would you try differently next time?"
                         className="mt-3 w-full resize-none rounded-xl border border-subtle bg-surface-layer p-3 text-sm text-text-secondary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
