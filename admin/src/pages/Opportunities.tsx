@@ -1686,70 +1686,93 @@ export default function Opportunities() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
     setBulkAction("findDeadlines");
-    setBulkProgress({ done: 0, total: ids.length });
+    setBulkProgress({
+      done: 0,
+      total: ids.length,
+      note: "Starting source checks",
+    });
     setVerifyingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
-    let updated = 0;
-    let checked = 0;
-    let unchanged = 0;
+
+    let found = 0;
+    let rolling = 0;
+    let needsReview = 0;
     let failed = 0;
+    let unchanged = 0;
     let done = 0;
     try {
-      // Use the source-only endpoint in small concurrent batches. The generic
-      // bulk verification endpoint can infer dates from non-deadline page data.
-      for (const chunk of chunkArray(ids, 10)) {
-        const results = await Promise.allSettled(
-          chunk.map(async (id) => {
-            const response = await fetch(
-              `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
-              {
-                method: "POST",
-                headers: await getAdminHeaders(),
-              },
-            );
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok || !result.success) {
-              throw new Error(result.error || "Deadline check failed");
-            }
-            return result.result;
-          }),
+      // Send bounded batches to the API. It loads each batch once and checks
+      // sources with bounded server-side concurrency instead of 200 browser
+      // requests, while the UI reports real per-batch progress.
+      for (const chunk of chunkArray(ids, 6)) {
+        const controller = new AbortController();
+        const requestTimeout = window.setTimeout(
+          () => controller.abort(),
+          55_000,
         );
-        for (const result of results) {
-          checked += 1;
-          if (result.status === "rejected") {
-            failed += 1;
-          } else if (result.value?.updated) {
-            updated += 1;
-          } else {
-            unchanged += 1;
-          }
+        let response: Response;
+        try {
+          response = await fetch(
+            `${NEST_API_URL}/opportunities/admin/verification/deadlines/bulk`,
+            {
+              method: "POST",
+              headers: await getAdminHeaders(),
+              body: JSON.stringify({ ids: chunk }),
+              signal: controller.signal,
+            },
+          );
+        } finally {
+          window.clearTimeout(requestTimeout);
         }
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.error || "Could not check the selected source deadlines.",
+          );
+        }
+
+        found += Number(result.found) || 0;
+        rolling += Number(result.rolling) || 0;
+        needsReview += Number(result.needsReview) || 0;
+        failed += Number(result.failed) || 0;
+        const checked = Array.isArray(result.outcomes)
+          ? result.outcomes.length
+          : chunk.length;
+        unchanged += Math.max(
+          0,
+          checked -
+            (Number(result.found) || 0) -
+            (Number(result.rolling) || 0) -
+            (Number(result.needsReview) || 0) -
+            (Number(result.failed) || 0),
+        );
         done += chunk.length;
         setBulkProgress({
           done,
           total: ids.length,
-          note: `${updated} source date${updated === 1 ? "" : "s"} updated`,
+          note: `${found} deadline${found === 1 ? "" : "s"} found`,
         });
         setVerifyingIds((prev) => {
           const next = new Set(prev);
           chunk.forEach((id) => next.delete(id));
           return next;
         });
-        // Refresh between batches so recovered dates appear as they land
-        // instead of only after the whole run.
-        void fetchOpportunities({ silent: true });
+        await fetchOpportunities({ silent: true });
       }
 
       showPageNotice(
-        failed ? "warning" : "success",
-        `Rechecked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, updated ${updated} source date${updated === 1 ? "" : "s"}${
-          unchanged ? `, ${unchanged} unchanged` : ""
-        }${failed ? `, ${failed} failed` : ""}.`,
+        failed ? "warning" : found || rolling ? "success" : "warning",
+        `Checked ${done} ${done === 1 ? "opportunity" : "opportunities"}: found ${found} deadline${found === 1 ? "" : "s"}${rolling ? `, ${rolling} confirmed rolling` : ""}${needsReview ? `, ${needsReview} need review` : ""}${unchanged ? `, ${unchanged} with no deadline stated` : ""}${failed ? `, ${failed} could not be checked` : ""}.`,
       );
       await fetchOpportunities();
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "Deadline checks could not be completed."),
+      );
     } finally {
       setBulkAction(null);
       setBulkProgress(null);

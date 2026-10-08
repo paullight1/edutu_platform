@@ -451,6 +451,18 @@ export class OpportunitiesController {
     return { success: true, ...result };
   }
 
+  @Post("admin/verification/deadlines/bulk")
+  @UseGuards(AdminGuard)
+  async refreshOpportunityDeadlinesBulk(
+    @Body(new ZodValidationPipe(BulkIdsSchema)) body: BulkIdsDto,
+  ) {
+    const result =
+      await this.opportunityVerificationService.refreshDeadlinesFromSource(
+        body.ids,
+      );
+    return { success: true, ...result };
+  }
+
   @Post("admin/verification/:id")
   @UseGuards(AdminGuard)
   async verifyOpportunity(

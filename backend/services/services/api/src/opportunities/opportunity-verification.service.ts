@@ -681,6 +681,114 @@ export class OpportunityVerificationService {
     const candidate = this.firstRow<CandidateRow>(result);
     if (!candidate?.id) return null;
 
+    return this.refreshCandidateDeadline(candidate);
+  }
+
+  /** Recheck selected missing deadlines with bounded server-side concurrency. */
+  async refreshDeadlinesFromSource(ids: string[]) {
+    const result = await db.execute(sql`
+      select
+        opportunity.id,
+        opportunity.title,
+        opportunity.status,
+        opportunity.apply_url,
+        opportunity.application_url,
+        opportunity.source_url,
+        opportunity.deadline,
+        opportunity.close_date,
+        opportunity.verification_attempts,
+        opportunity.broken_link_count,
+        opportunity.metadata
+      from public.opportunities opportunity
+      where opportunity.id = any(${sql.param(ids)}::uuid[])
+    `);
+    const candidates = this.rows<CandidateRow>(result);
+    const outcomes = await this.mapConcurrent(
+      candidates,
+      6,
+      async (candidate) => {
+        try {
+          const outcome = await this.refreshCandidateDeadline(candidate);
+          return {
+            opportunityId: candidate.id,
+            updated: Boolean(outcome.updated),
+            deadline: outcome.deadline ?? null,
+            confidence: outcome.confidence ?? null,
+            failed: Boolean(outcome.failed),
+            needsReview: Boolean(outcome.needsReview),
+            reason: outcome.reason ?? null,
+          };
+        } catch (error) {
+          return {
+            opportunityId: candidate.id,
+            updated: false,
+            deadline: null,
+            confidence: null,
+            failed: true,
+            needsReview: false,
+            reason:
+              error instanceof Error ? error.message : "Deadline check failed.",
+          };
+        }
+      },
+    );
+    const checkedIds = new Set(candidates.map((candidate) => candidate.id));
+    for (const id of ids) {
+      if (!checkedIds.has(id)) {
+        outcomes.push({
+          opportunityId: id,
+          updated: false,
+          deadline: null,
+          confidence: null,
+          failed: true,
+          needsReview: false,
+          reason: "Opportunity not found.",
+        });
+      }
+    }
+
+    return {
+      requested: ids.length,
+      checked: candidates.length,
+      found: outcomes.filter((outcome) => Boolean(outcome.deadline)).length,
+      rolling: outcomes.filter((outcome) => outcome.confidence === "rolling")
+        .length,
+      failed: outcomes.filter((outcome) => Boolean(outcome.failed)).length,
+      needsReview: outcomes.filter((outcome) => Boolean(outcome.needsReview))
+        .length,
+      outcomes,
+    };
+  }
+
+  private async refreshCandidateDeadline(candidate: CandidateRow) {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(new Error("Source deadline check timed out.")),
+      45_000,
+    );
+    try {
+      return await this.refreshCandidateDeadlineWithSignal(
+        candidate,
+        controller.signal,
+      );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return {
+          updated: false,
+          failed: true,
+          reason: "Source check timed out after 45 seconds.",
+        };
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async refreshCandidateDeadlineWithSignal(
+    candidate: CandidateRow,
+    signal: AbortSignal,
+  ) {
     // The article/source page is the strongest place to distinguish its own
     // posted date from the opportunity's closing date. Fall back to the
     // application URL only when no source URL was stored.
@@ -694,14 +802,17 @@ export class OpportunityVerificationService {
     if (!url) {
       return {
         updated: false,
+        failed: true,
         reason: "No source or application URL is available.",
       };
     }
 
-    const page = await this.fetchPageText(url);
+    const page = await this.fetchPageText(url, signal);
+    if (signal.aborted) throw signal.reason;
     if (!page.text) {
       return {
         updated: false,
+        failed: true,
         reason: page.error || "The source page could not be read.",
       };
     }
@@ -710,6 +821,7 @@ export class OpportunityVerificationService {
       await this.flagUnconfirmedDeadline(candidate.id, url);
       return {
         updated: false,
+        needsReview: true,
         reason:
           "The source states multiple closing dates. Review the application round before changing the deadline.",
       };
@@ -717,7 +829,7 @@ export class OpportunityVerificationService {
 
     const refreshed =
       this.parsePageDeadline(candidate, page.text) ??
-      (await this.extractDeadlineWithAi(candidate, page.text));
+      (await this.extractDeadlineWithAi(candidate, page.text, signal));
     const currentDate =
       this.expiryDate(candidate)?.toISOString().slice(0, 10) ?? null;
     let nextDate: string | null | undefined = refreshed?.date;
@@ -763,7 +875,7 @@ export class OpportunityVerificationService {
           'deadline_reverification_result', ${clearedAsPublicationDate ? "cleared_publication_date" : "source_deadline_found"}::text
         ),
         updated_at = now()
-      where id = ${id}::uuid
+      where id = ${candidate.id}::uuid
       returning id
     `);
     const changed = this.rows<{ id: string }>(update).length > 0;
@@ -1221,6 +1333,7 @@ export class OpportunityVerificationService {
       // explicit label — never claim "explicit" for an LLM-derived date.
       return { date: parsed.date, confidence: "inferred" };
     } catch (error) {
+      if (signal?.aborted) throw error;
       this.logger.warn(
         `AI deadline extraction failed for ${candidate.id}: ${
           error instanceof Error ? error.message : "unknown error"
