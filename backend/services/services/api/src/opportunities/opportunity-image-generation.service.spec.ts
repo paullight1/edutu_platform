@@ -52,7 +52,8 @@ describe("OpportunityImageGenerationService", () => {
     );
     const prompt = aiService.generateImage.mock.calls[0][0].prompt as string;
     expect(prompt).toContain("ECOWAS Young Professional Programme");
-    expect(prompt).toContain("Do not depict people, portraits");
+    expect(prompt).toContain("full-bleed 4:5 campaign-poster illustration");
+    expect(prompt).toContain("Do not use generic smiling professionals");
     expect(opportunitiesService.updateGeneratedImage).toHaveBeenCalledWith(
       "opp-1",
       flyer.url,
@@ -60,7 +61,7 @@ describe("OpportunityImageGenerationService", () => {
         path: flyer.path,
         provider: "openai",
         model: "gpt-image-2.5-sunburst",
-        composition: "ai-artwork-with-verified-opportunity-details",
+        composition: "creative-ai-poster-with-verified-opportunity-details",
         format: "png",
         source_image_url: "https://source.example/person.jpg",
       }),

@@ -105,12 +105,6 @@ interface PageNotice {
   message: string;
 }
 
-interface EnhanceOpportunityResponse {
-  success?: boolean;
-  opportunity?: Opportunity;
-  error?: string;
-}
-
 interface DeadlineVerificationResponse {
   success?: boolean;
   error?: string;
@@ -1039,6 +1033,9 @@ export default function Opportunities() {
     aiEnhanced: boolean;
     aiFallback: boolean;
     payload: OpportunityShareResponse | null;
+    brandedPayload?: OpportunityShareResponse | null;
+    creativePayload?: OpportunityShareResponse | null;
+    selectedDesign?: "branded" | "creative";
     sharing: boolean;
     preparing?: boolean;
     preparationMessage?: string;
@@ -1933,48 +1930,6 @@ export default function Opportunities() {
     }, 3500);
   }
 
-  async function getAiImprovedOpportunityForShare(opp: Opportunity) {
-    try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/${opp.id}/enhance`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-        },
-      );
-      const result = (await response
-        .json()
-        .catch(() => ({}))) as EnhanceOpportunityResponse;
-
-      if (!response.ok || !result.success || !result.opportunity) {
-        return { opportunity: opp, aiEnhanced: false, aiFallback: true };
-      }
-
-      const enhancedOpportunity = {
-        ...opp,
-        ...result.opportunity,
-        metadata: {
-          ...opp.metadata,
-          ...result.opportunity.metadata,
-        },
-      };
-
-      setFilteredOpps((current) =>
-        current.map((item) =>
-          item.id === opp.id ? enhancedOpportunity : item,
-        ),
-      );
-
-      return {
-        opportunity: enhancedOpportunity,
-        aiEnhanced: true,
-        aiFallback: false,
-      };
-    } catch {
-      return { opportunity: opp, aiEnhanced: false, aiFallback: true };
-    }
-  }
-
   async function copyShareTextToClipboard(text: string) {
     if (navigator.clipboard?.writeText && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -2030,8 +1985,7 @@ export default function Opportunities() {
             ...current,
             preparing: true,
             preparationError: undefined,
-            preparationMessage:
-              "Generating AI artwork and composing the flyer…",
+            preparationMessage: "Creating a full-bleed AI poster…",
           }
         : current,
     );
@@ -2054,8 +2008,8 @@ export default function Opportunities() {
       );
       return;
     }
-    const payload = await getOpportunitySharePayload(opportunityId);
-    if (!payload?.shareCard?.url) {
+    const creativePayload = await getOpportunitySharePayload(opportunityId);
+    if (!creativePayload?.shareCard?.url) {
       setSharePreviewFailed(true);
       setShareChooser((current) =>
         current
@@ -2074,7 +2028,10 @@ export default function Opportunities() {
       current?.opportunity.id === opportunityId
         ? {
             ...current,
-            payload,
+            payload: creativePayload,
+            creativePayload,
+            brandedPayload: current.brandedPayload ?? current.payload,
+            selectedDesign: "creative",
             preparing: false,
             preparationMessage: undefined,
             preparationError: undefined,
@@ -2118,110 +2075,31 @@ export default function Opportunities() {
       aiEnhanced: false,
       aiFallback: false,
       payload: null,
+      brandedPayload: null,
+      creativePayload: null,
+      selectedDesign: "branded",
       sharing: false,
       preparing: true,
-      preparationMessage: "Checking the opportunity details…",
+      preparationMessage: "Preparing the Edutu flyer…",
     });
 
     try {
-      const storedGeneratedFlyer =
-        opp.metadata?.generated_flyer &&
-        typeof opp.metadata.generated_flyer === "object"
-          ? (opp.metadata.generated_flyer as Record<string, unknown>)
-          : {};
-      const storedShareCard =
-        opp.metadata?.share_card && typeof opp.metadata.share_card === "object"
-          ? (opp.metadata.share_card as Record<string, unknown>)
-          : {};
-      const alreadyHasCurrentAiFlyer =
-        storedGeneratedFlyer.composition ===
-          "ai-artwork-with-verified-opportunity-details" &&
-        storedGeneratedFlyer.content_fingerprint ===
-          storedShareCard.fingerprint &&
-        storedGeneratedFlyer.path === storedShareCard.path;
-      let opportunity = opp;
-      let aiEnhanced = false;
-      let aiFallback = false;
-      if (!alreadyHasCurrentAiFlyer) {
-        setShareChooser((current) =>
-          current?.opportunity.id === opp.id
-            ? {
-                ...current,
-                preparationMessage: "Preparing verified listing details…",
-              }
-            : current,
-        );
-        const prepared = await getAiImprovedOpportunityForShare(opp);
-        opportunity = prepared.opportunity;
-        aiEnhanced = prepared.aiEnhanced;
-        aiFallback = prepared.aiFallback;
-      }
-
-      setShareChooser((current) =>
-        current?.opportunity.id === opp.id
-          ? {
-              ...current,
-              opportunity,
-              aiEnhanced,
-              aiFallback,
-              preparationMessage: "Loading the opportunity flyer…",
-            }
-          : current,
-      );
-      let sharePayload = await getOpportunitySharePayload(opportunity.id);
-      let hasCard = Boolean(sharePayload?.shareCard?.url);
-      if (!hasCard) {
+      const brandedPayload = await getOpportunitySharePayload(opp.id);
+      if (!brandedPayload?.shareCard?.url) {
         throw new Error(
-          "The AI flyer preview could not be loaded. Retry or generate the flyer again before sharing.",
+          "The Edutu flyer could not be loaded. Retry before sharing.",
         );
-      }
-
-      const generatedFlyer =
-        opportunity.metadata?.generated_flyer &&
-        typeof opportunity.metadata.generated_flyer === "object"
-          ? (opportunity.metadata.generated_flyer as Record<string, unknown>)
-          : {};
-      const hasCurrentAiFlyer =
-        generatedFlyer.composition ===
-          "ai-artwork-with-verified-opportunity-details" &&
-        generatedFlyer.content_fingerprint ===
-          sharePayload?.shareCard?.fingerprint &&
-        generatedFlyer.path === sharePayload?.shareCard?.path;
-      if (!hasCurrentAiFlyer) {
-        setShareChooser((current) =>
-          current?.opportunity.id === opp.id
-            ? {
-                ...current,
-                preparationMessage:
-                  "Generating AI artwork and composing the flyer…",
-              }
-            : current,
-        );
-        if (
-          !(await handleGenerateOpportunityImage(opportunity.id, opportunity, {
-            showProgress: false,
-            notify: false,
-          }))
-        ) {
-          throw new Error(
-            "Could not generate the AI flyer. Check the AI image service and retry.",
-          );
-        }
-        sharePayload = await getOpportunitySharePayload(opportunity.id);
-        hasCard = Boolean(sharePayload?.shareCard?.url);
-        if (!hasCard) {
-          throw new Error(
-            "The AI flyer was generated, but its preview could not be loaded. Try sharing again.",
-          );
-        }
       }
 
       setSharePreviewFailed(false);
       setShareChooser({
-        opportunity,
-        aiEnhanced,
-        aiFallback,
-        payload: sharePayload,
+        opportunity: opp,
+        aiEnhanced: false,
+        aiFallback: false,
+        payload: brandedPayload,
+        brandedPayload,
+        creativePayload: null,
+        selectedDesign: "branded",
         sharing: false,
         preparing: false,
         preparationMessage: undefined,
@@ -4785,144 +4663,233 @@ export default function Opportunities() {
                 </button>
               </div>
             ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr)",
-                  gap: "14px",
-                }}
-              >
-                {[
-                  {
-                    key: "card" as const,
-                    label: "AI-generated opportunity flyer",
-                    hint: "AI artwork with verified opportunity details",
-                    imageUrl: shareChooser.payload?.shareCard?.url || "",
-                    badge: <Sparkles size={11} />,
-                  },
-                ].map((option) => {
-                  const available =
-                    Boolean(option.imageUrl) && !sharePreviewFailed;
-                  const selected = available;
-                  return (
-                    <div
-                      key={option.key}
-                      style={{
-                        position: "relative",
-                        padding: 0,
-                        textAlign: "left",
-                        borderRadius: "14px",
-                        overflow: "hidden",
-                        cursor: "default",
-                        opacity: available ? 1 : 0.55,
-                        background: "var(--bg-primary)",
-                        border: selected
-                          ? "2px solid var(--accent, #6366F1)"
-                          : "2px solid var(--border-color)",
-                        boxShadow: selected
-                          ? "0 0 0 3px rgba(99,102,241,0.22)"
-                          : "none",
-                        transition: "border-color 0.15s, box-shadow 0.15s",
-                      }}
-                    >
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr)",
+                    gap: "14px",
+                  }}
+                >
+                  {[
+                    {
+                      key: "card" as const,
+                      label:
+                        shareChooser.selectedDesign === "creative"
+                          ? "Creative AI poster"
+                          : "Edutu designed flyer",
+                      hint:
+                        shareChooser.selectedDesign === "creative"
+                          ? "Full-bleed original artwork with verified details"
+                          : "A polished, text-accurate layout with no AI artwork",
+                      imageUrl: shareChooser.payload?.shareCard?.url || "",
+                      badge:
+                        shareChooser.selectedDesign === "creative" ? (
+                          <Sparkles size={11} />
+                        ) : (
+                          <ImageIcon size={11} />
+                        ),
+                    },
+                  ].map((option) => {
+                    const available =
+                      Boolean(option.imageUrl) && !sharePreviewFailed;
+                    const selected = available;
+                    return (
                       <div
+                        key={option.key}
                         style={{
-                          aspectRatio: "4 / 3",
-                          background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          position: "relative",
+                          padding: 0,
+                          textAlign: "left",
+                          borderRadius: "14px",
                           overflow: "hidden",
+                          cursor: "default",
+                          opacity: available ? 1 : 0.55,
+                          background: "var(--bg-primary)",
+                          border: selected
+                            ? "2px solid var(--accent, #6366F1)"
+                            : "2px solid var(--border-color)",
+                          boxShadow: selected
+                            ? "0 0 0 3px rgba(99,102,241,0.22)"
+                            : "none",
+                          transition: "border-color 0.15s, box-shadow 0.15s",
                         }}
                       >
-                        {available ? (
-                          <img
-                            src={option.imageUrl}
-                            alt={option.label}
-                            onError={() => setSharePreviewFailed(true)}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "contain",
-                            }}
-                          />
-                        ) : (
-                          <div
-                            role="status"
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: "10px",
-                              padding: "20px",
-                              textAlign: "center",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            <Sparkles size={22} />
-                            <span>Flyer preview could not be loaded.</span>
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              disabled={generatingImageIds.has(
-                                shareChooser.opportunity.id,
-                              )}
-                              onClick={() =>
-                                void handleRegenerateSharePreview()
-                              }
-                            >
-                              {generatingImageIds.has(
-                                shareChooser.opportunity.id,
-                              )
-                                ? "Generating AI flyer…"
-                                : "Generate AI flyer"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {selected && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "8px",
-                            right: "8px",
-                            background: "var(--accent, #6366F1)",
-                            color: "#fff",
-                            borderRadius: "999px",
-                            display: "inline-flex",
-                            padding: "3px",
-                          }}
-                        >
-                          <CheckCircle2 size={16} />
-                        </span>
-                      )}
-                      <div style={{ padding: "10px 12px" }}>
                         <div
                           style={{
+                            aspectRatio: "4 / 3",
+                            background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
                             display: "flex",
                             alignItems: "center",
-                            gap: "6px",
-                            fontSize: "13px",
-                            fontWeight: 600,
+                            justifyContent: "center",
+                            overflow: "hidden",
                           }}
                         >
-                          {option.badge}
-                          {option.label}
+                          {available ? (
+                            <img
+                              src={option.imageUrl}
+                              alt={option.label}
+                              onError={() => setSharePreviewFailed(true)}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "contain",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              role="status"
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: "10px",
+                                padding: "20px",
+                                textAlign: "center",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              <Sparkles size={22} />
+                              <span>Flyer preview could not be loaded.</span>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                disabled={generatingImageIds.has(
+                                  shareChooser.opportunity.id,
+                                )}
+                                onClick={() =>
+                                  void handleRegenerateSharePreview()
+                                }
+                              >
+                                {generatingImageIds.has(
+                                  shareChooser.opportunity.id,
+                                )
+                                  ? "Creating AI poster…"
+                                  : "Create AI poster"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div
-                          style={{
-                            fontSize: "11.5px",
-                            color: "var(--text-tertiary)",
-                            marginTop: "2px",
-                          }}
-                        >
-                          {option.hint}
+                        {selected && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              top: "8px",
+                              right: "8px",
+                              background: "var(--accent, #6366F1)",
+                              color: "#fff",
+                              borderRadius: "999px",
+                              display: "inline-flex",
+                              padding: "3px",
+                            }}
+                          >
+                            <CheckCircle2 size={16} />
+                          </span>
+                        )}
+                        <div style={{ padding: "10px 12px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {option.badge}
+                            {option.label}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11.5px",
+                              color: "var(--text-tertiary)",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {option.hint}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginTop: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button
+                      type="button"
+                      className={
+                        shareChooser.selectedDesign === "branded"
+                          ? "btn btn-primary"
+                          : "btn btn-secondary"
+                      }
+                      disabled={!shareChooser.brandedPayload?.shareCard?.url}
+                      onClick={() =>
+                        setShareChooser((current) =>
+                          current?.brandedPayload
+                            ? {
+                                ...current,
+                                payload: current.brandedPayload,
+                                selectedDesign: "branded",
+                              }
+                            : current,
+                        )
+                      }
+                    >
+                      <ImageIcon size={14} /> Edutu template
+                    </button>
+                    {shareChooser.creativePayload?.shareCard?.url && (
+                      <button
+                        type="button"
+                        className={
+                          shareChooser.selectedDesign === "creative"
+                            ? "btn btn-primary"
+                            : "btn btn-secondary"
+                        }
+                        onClick={() =>
+                          setShareChooser((current) =>
+                            current?.creativePayload
+                              ? {
+                                  ...current,
+                                  payload: current.creativePayload,
+                                  selectedDesign: "creative",
+                                }
+                              : current,
+                          )
+                        }
+                      >
+                        <Sparkles size={14} /> Creative AI poster
+                      </button>
+                    )}
+                  </div>
+                  {!shareChooser.creativePayload?.shareCard?.url && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={
+                        shareChooser.preparing ||
+                        generatingImageIds.has(shareChooser.opportunity.id)
+                      }
+                      onClick={() => void handleRegenerateSharePreview()}
+                    >
+                      {generatingImageIds.has(shareChooser.opportunity.id) ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+                      Create AI poster
+                    </button>
+                  )}
+                </div>
+              </>
             )}
 
             <div

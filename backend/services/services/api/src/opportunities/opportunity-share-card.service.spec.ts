@@ -134,8 +134,28 @@ describe("OpportunityShareCardService", () => {
     );
 
     expect(svg).toContain("data:image/png;base64,Z2VuZXJhdGVkLWFydHdvcms=");
-    expect(svg).toContain("url(#artworkFade)");
+    expect(svg).toContain('<image x="0" y="0" width="1080" height="1350"');
+    expect(svg).toContain("url(#creativeShade)");
     expect(svg).toContain("ECOWAS Young Professional");
     expect(svg).toContain("OPPORTUNITY BRIEF");
+  });
+
+  it("fills sparse no-AI flyers with honest next steps instead of fake details", () => {
+    const service = new OpportunityShareCardService();
+    const svg = (service as any).renderSvg({
+      id: "opp-sparse-flyer",
+      title: "LAEL Fellowship Program",
+      category: "Fellowships",
+      summary: "A leadership fellowship for emerging environmental leaders.",
+      application_url: "https://apply.example.org/form?campaign=long-token",
+      metadata: {},
+    });
+
+    expect(svg).toContain("A GOOD PLACE TO START");
+    expect(svg).toContain("Check your eligibility.");
+    expect(svg).toContain("apply.example.org");
+    expect(svg).not.toContain("Worldwide");
+    expect(svg).not.toContain("Open opportunity");
+    expect(svg).not.toContain("campaign=long-token");
   });
 });

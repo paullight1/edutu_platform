@@ -43,7 +43,7 @@ const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v8-ai-artwork-flyer";
+const DESIGN_VERSION = "v9-creative-poster-and-dense-flyer";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -289,6 +289,10 @@ export class OpportunityShareCardService {
     opportunity: OpportunityRecord,
     artwork?: ShareCardArtwork,
   ): string {
+    if (artwork?.data?.length) {
+      return this.renderCreativePosterSvg(opportunity, artwork);
+    }
+
     const metadata = this.asRecord(opportunity.metadata);
     const title = this.clean(opportunity.title, "Opportunity");
     const provider = this.clean(
@@ -298,7 +302,7 @@ export class OpportunityShareCardService {
     const category = this.clean(opportunity.category, "Opportunity");
     const summary = this.clean(
       opportunity.summary || opportunity.description,
-      "A curated opportunity from Edutu. Review the full details and apply through the official source.",
+      "A promising opportunity to explore. Review the provider’s official listing for complete application details.",
     );
     const benefits = this.arrayFrom(opportunity.benefits ?? metadata.benefits);
     const requirements = this.arrayFrom(
@@ -339,15 +343,9 @@ export class OpportunityShareCardService {
     // Page + header band
     layers.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`);
     layers.push(`<rect width="${W}" height="${headerH}" fill="url(#brand)"/>`);
-    if (artwork?.data?.length) {
-      const dataUri = `data:${artwork.mimeType};base64,${artwork.data.toString("base64")}`;
-      layers.push(
-        `<image x="490" y="0" width="590" height="${headerH}" preserveAspectRatio="xMidYMid slice" opacity="0.88" href="${dataUri}" xlink:href="${dataUri}"/>`,
-      );
-      layers.push(
-        `<rect x="490" y="0" width="590" height="${headerH}" fill="url(#artworkFade)"/>`,
-      );
-    }
+    layers.push(
+      `<rect x="0" y="${headerH}" width="${W}" height="${H - headerH - FOOTER_H}" fill="#F4F7FC"/>`,
+    );
     layers.push(
       `<circle cx="${W - 40}" cy="40" r="230" fill="#FFFFFF" fill-opacity="0.06"/>`,
     );
@@ -394,38 +392,47 @@ export class OpportunityShareCardService {
     y += summaryLines.length * 37 + 26;
 
     // Fact tiles (2 x 2)
+    const reward = this.funding(opportunity, benefits);
+    const eligibility = this.eligibility(opportunity);
+    const location = this.clean(
+      opportunity.location || opportunity.target_region,
+      "",
+    );
     const facts: Array<[string, string, string]> = [
-      ["Reward", this.funding(opportunity, benefits), "#0F172A"],
-      ["Deadline", this.deadline(deadlineRaw), status.valueColor],
-      ["Eligibility", this.eligibility(opportunity), "#0F172A"],
+      ...(reward
+        ? [["Award", reward, "#0F172A"] as [string, string, string]]
+        : []),
       [
-        "Location",
-        this.clean(
-          opportunity.location || opportunity.target_region,
-          "Worldwide",
-        ),
-        "#0F172A",
+        "Deadline",
+        deadlineRaw ? this.deadline(deadlineRaw) : "Not listed",
+        status.valueColor,
       ],
+      ...(eligibility
+        ? [["Eligibility", eligibility, "#0F172A"] as [string, string, string]]
+        : []),
+      ...(location
+        ? [["Location", location, "#0F172A"] as [string, string, string]]
+        : []),
     ];
     const tileW = (CW - 24) / 2;
-    const tileH = 98;
+    const tileH = 108;
     facts.forEach(([label, value, color], i) => {
       const tx = M + (i % 2) * (tileW + 24);
       const ty = y + Math.floor(i / 2) * (tileH + 18);
       layers.push(this.factTile(tx, ty, tileW, tileH, label, value, color));
     });
-    y += 2 * (tileH + 18) + 22;
+    y += Math.ceil(facts.length / 2) * (tileH + 18) + 22;
 
     // How-to-apply is measured FIRST and the band is anchored just above the
     // footer, so it always renders. The benefit/requirement columns then fill
     // the space above it — no fragile "is there room?" guard that could drop it.
     const applyItems = application.length
       ? application
-      : applyUrl
-        ? [applyUrl]
-        : [
-            "Open this opportunity in Edutu and follow the official application link.",
-          ];
+      : [
+          applyUrl
+            ? `Visit ${this.urlHost(applyUrl) || "the official listing"} to apply.`
+            : "Open the official listing for current application instructions.",
+        ];
     const applyLinesAll = applyItems
       .slice(0, 2)
       .flatMap((step, i) => this.wrap(`${i + 1}.  ${this.clean(step)}`, 58, 2));
@@ -479,15 +486,10 @@ export class OpportunityShareCardService {
       y = block.y;
     }
 
-    // Quiet closing mark if the lists leave a big gap above the apply band.
-    if (applyTop - y > 190) {
-      const mid = Math.round((y + applyTop) / 2);
-      layers.push(
-        `<circle cx="${W / 2}" cy="${mid - 30}" r="5" fill="#C7D6F5"/>`,
-      );
-      layers.push(
-        `<text x="${W / 2}" y="${mid + 8}" text-anchor="middle" font-family="${FONT}" font-size="20" font-weight="700" letter-spacing="0.4" fill="#94A3B8">Shared via Edutu — ${BRAND_DOMAIN}</text>`,
-      );
+    // Give listings with sparse source data useful, honest content instead of
+    // leaving a large white gap or inventing benefits and eligibility.
+    if (!benefits.length && !requirements.length && applyTop - y > 170) {
+      layers.push(this.renderNextSteps(M, y, CW, applyTop - y - 8));
     }
 
     // Apply band (anchored above footer) + footer
@@ -502,11 +504,6 @@ export class OpportunityShareCardService {
       <stop offset="0.55" stop-color="#173C82"/>
       <stop offset="1" stop-color="#2563EB"/>
     </linearGradient>
-    <linearGradient id="artworkFade" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#173C82" stop-opacity="0.92"/>
-      <stop offset="0.35" stop-color="#0B1E45" stop-opacity="0.46"/>
-      <stop offset="1" stop-color="#0B1E45" stop-opacity="0.2"/>
-    </linearGradient>
     <linearGradient id="footer" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#0B1E45"/>
       <stop offset="1" stop-color="#1D4ED8"/>
@@ -514,6 +511,129 @@ export class OpportunityShareCardService {
   </defs>
   ${layers.join("\n  ")}
 </svg>`;
+  }
+
+  private renderCreativePosterSvg(
+    opportunity: OpportunityRecord,
+    artwork: ShareCardArtwork,
+  ): string {
+    const metadata = this.asRecord(opportunity.metadata);
+    const title = this.clean(opportunity.title, "Opportunity");
+    const provider = this.clean(
+      opportunity.organization || opportunity.source,
+      "Opportunity provider",
+    );
+    const category = this.clean(opportunity.category, "Opportunity");
+    const summary = this.clean(
+      opportunity.summary || opportunity.description,
+      "Explore the opportunity and confirm application details with the official provider.",
+    );
+    const deadlineRaw = opportunity.close_date || opportunity.deadline;
+    const status = this.statusInfo(deadlineRaw);
+    const dataUri = `data:${artwork.mimeType};base64,${artwork.data.toString("base64")}`;
+    const layers: string[] = [
+      `<rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="#08142C"/>`,
+      `<image x="0" y="0" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" preserveAspectRatio="xMidYMid slice" href="${dataUri}" xlink:href="${dataUri}"/>`,
+      `<rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="url(#creativeShade)"/>`,
+      this.brandMark(72, 58),
+      this.statusPill(CARD_WIDTH - 72, 68, status),
+      this.chip(72, 156, category.toUpperCase(), {
+        bg: "#FFFFFF",
+        bgOpacity: 0.18,
+        fg: "#FFFFFF",
+        size: 19,
+        tracking: 2.3,
+      }),
+    ];
+
+    const titleLines = this.wrap(title, 27, 3);
+    const titleTop = 772;
+    const titleLineHeight = 66;
+    titleLines.forEach((line, index) => {
+      layers.push(
+        `<text x="72" y="${titleTop + index * titleLineHeight}" font-family="${FONT}" font-size="58" font-weight="850" letter-spacing="-0.6" fill="#FFFFFF">${this.escape(line)}</text>`,
+      );
+    });
+
+    const providerY = titleTop + titleLines.length * titleLineHeight + 22;
+    layers.push(
+      `<text x="76" y="${providerY}" font-family="${FONT}" font-size="28" font-weight="700" fill="#DCE9FF">${this.escape(this.truncate(provider, 62))}</text>`,
+    );
+
+    const summaryTop = providerY + 52;
+    const summaryLines = this.wrap(summary, 62, 2);
+    summaryLines.forEach((line, index) => {
+      layers.push(
+        `<text x="76" y="${summaryTop + index * 36}" font-family="${FONT}" font-size="25" font-weight="500" fill="#F1F5F9">${this.escape(line)}</text>`,
+      );
+    });
+
+    const badgeY = Math.min(summaryTop + summaryLines.length * 36 + 26, 1164);
+    const badges: string[] = [];
+    if (deadlineRaw) badges.push(`DEADLINE  ·  ${this.deadline(deadlineRaw)}`);
+    const funding = this.funding(
+      opportunity,
+      this.arrayFrom(opportunity.benefits ?? metadata.benefits),
+    );
+    if (funding) badges.push(`AWARD  ·  ${funding}`);
+    const location = this.clean(
+      opportunity.location || opportunity.target_region,
+      "",
+    );
+    if (location) badges.push(location);
+    badges.slice(0, 2).forEach((label, index) => {
+      const x = 76 + index * 454;
+      layers.push(
+        `<rect x="${x}" y="${badgeY}" width="430" height="62" rx="20" fill="#FFFFFF" fill-opacity="0.16" stroke="#FFFFFF" stroke-opacity="0.24"/>`,
+        `<text x="${x + 22}" y="${badgeY + 39}" font-family="${FONT}" font-size="22" font-weight="750" fill="#FFFFFF">${this.escape(this.truncate(label, 34))}</text>`,
+      );
+    });
+
+    layers.push(
+      `<rect x="72" y="1252" width="936" height="3" rx="1.5" fill="#FFFFFF" fill-opacity="0.38"/>`,
+      `<text x="76" y="1304" font-family="${FONT}" font-size="22" font-weight="800" letter-spacing="1.2" fill="#FFFFFF">VIEW DETAILS &amp; APPLY</text>`,
+      `<text x="1008" y="1304" text-anchor="end" font-family="${FONT}" font-size="21" font-weight="700" fill="#DCE9FF">${BRAND_DOMAIN}</text>`,
+    );
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="creativeShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#071329" stop-opacity="0.46"/>
+      <stop offset="0.35" stop-color="#071329" stop-opacity="0.1"/>
+      <stop offset="0.52" stop-color="#071329" stop-opacity="0.18"/>
+      <stop offset="0.7" stop-color="#071329" stop-opacity="0.86"/>
+      <stop offset="1" stop-color="#071329" stop-opacity="0.98"/>
+    </linearGradient>
+  </defs>
+  ${layers.join("\n  ")}
+</svg>`;
+  }
+
+  private renderNextSteps(x: number, y: number, w: number, h: number): string {
+    const items = [
+      "Check your eligibility.",
+      "Prepare requested documents.",
+      "Apply on the official site.",
+    ];
+    const titleY = y + 32;
+    const itemY = y + 86;
+    const cardW = (w - 28) / 3;
+    const parts = [
+      `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(132, h)}" rx="26" fill="#EAF1FC" stroke="#D6E4F8" stroke-width="2"/>`,
+      `<text x="${x + 30}" y="${titleY}" font-family="${FONT}" font-size="23" font-weight="900" letter-spacing="1.3" fill="#17428A">A GOOD PLACE TO START</text>`,
+    ];
+    items.forEach((item, index) => {
+      const bx = x + index * (cardW + 14);
+      parts.push(
+        `<rect x="${bx}" y="${itemY}" width="${cardW}" height="${Math.max(62, h - 104)}" rx="18" fill="#FFFFFF"/>`,
+        `<circle cx="${bx + 26}" cy="${itemY + 27}" r="15" fill="#2563EB"/>`,
+        `<text x="${bx + 26}" y="${itemY + 33}" text-anchor="middle" font-family="${FONT}" font-size="17" font-weight="800" fill="#FFFFFF">${index + 1}</text>`,
+        `<text x="${bx + 50}" y="${itemY + 24}" font-family="${FONT}" font-size="17" font-weight="650" fill="#26364F">${this.escape(this.wrap(item, 24, 2)[0])}</text>`,
+        `<text x="${bx + 50}" y="${itemY + 47}" font-family="${FONT}" font-size="17" font-weight="650" fill="#26364F">${this.escape(this.wrap(item, 24, 2)[1] || "")}</text>`,
+      );
+    });
+    return parts.join("\n  ");
   }
 
   private brandMark(x: number, y: number): string {
@@ -956,11 +1076,16 @@ export class OpportunityShareCardService {
         /fund|stipend|tuition|grant|award/i.test(benefit),
       ) ||
       opportunity.funding_type ||
-      "Open opportunity"
+      ""
     );
   }
 
   private eligibility(opportunity: OpportunityRecord): string {
+    const criteria = this.clean(
+      opportunity.eligibility_criteria || opportunity.eligibilityCriteria,
+      "",
+    );
+    if (criteria) return criteria;
     const eligibility = this.asRecord(
       opportunity.eligibility ??
         this.asRecord(opportunity.metadata).eligibility,
@@ -972,11 +1097,15 @@ export class OpportunityShareCardService {
         : countries.join(", ");
     }
     if (typeof countries === "string") return countries;
-    return (
-      opportunity.target_region ||
-      opportunity.location ||
-      "Open to eligible applicants"
-    );
+    return "";
+  }
+
+  private urlHost(value: string): string | null {
+    try {
+      return new URL(value).hostname.replace(/^www\./i, "");
+    } catch {
+      return null;
+    }
   }
 
   private deadline(value?: string | Date | null): string {
