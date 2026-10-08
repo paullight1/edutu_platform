@@ -4,17 +4,34 @@ import { resolveShareImage } from "./opportunity-share-image";
 const DEFAULT = "https://www.edutu.org/icons/icon-512x512.png";
 
 describe("resolveShareImage", () => {
-  it("prefers the scraped source flyer", () => {
+  it("prefers the generated opportunity flyer to source-page images", () => {
     const r = resolveShareImage(
       {
-        metadata: { source_image_url: "https://cdn/flyer.jpg" },
+        metadata: {
+          source_image_url: "https://cdn/person.jpg",
+          share_card: { url: "https://cdn/edutu-flyer.png" },
+        },
         image_url: "https://cdn/other.jpg",
       },
       { defaultImage: DEFAULT },
     );
-    expect(r.url).toBe("https://cdn/flyer.jpg");
-    expect(r.usingBrandedCard).toBe(false);
+    expect(r.url).toBe("https://cdn/edutu-flyer.png");
+    expect(r.usingBrandedCard).toBe(true);
     expect(r.needsCard).toBe(false);
+  });
+
+  it("prefers an existing card over the source image", () => {
+    const r = resolveShareImage(
+      {
+        metadata: {
+          source_image_url: "https://cdn/person.jpg",
+          share_card: { url: "https://cdn/edutu-flyer.png" },
+        },
+      },
+      { defaultImage: DEFAULT },
+    );
+    expect(r.url).toBe("https://cdn/edutu-flyer.png");
+    expect(r.usingBrandedCard).toBe(true);
   });
 
   it("falls to image_url then share card", () => {

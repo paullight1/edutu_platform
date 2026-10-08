@@ -18,9 +18,8 @@ export interface ResolvedShareImage {
 
 /**
  * Resolve the image a shared opportunity link should unfurl with.
- * Priority: scraped source flyer → opportunity image → existing/just-generated
- * branded card. The generic icon is returned ONLY when nothing else exists and
- * no card could be generated — callers should generate a card when `needsCard`.
+ * Prefer the Edutu opportunity flyer, which uses the listing's exact text.
+ * Source-page images may be portraits or decorative photos rather than flyers.
  */
 export function resolveShareImage(
   opp: OpportunityRecord,
@@ -36,12 +35,12 @@ export function resolveShareImage(
   const existingCard = clean(asRecord(metadata.share_card).url);
   const card = clean(opts.cardUrl) || existingCard;
 
-  const real = sourceImage || image;
-  if (real) {
-    return { url: real, usingBrandedCard: false, needsCard: false };
-  }
   if (card) {
     return { url: card, usingBrandedCard: true, needsCard: false };
+  }
+  const real = sourceImage || image;
+  if (real) {
+    return { url: real, usingBrandedCard: false, needsCard: true };
   }
   return { url: opts.defaultImage, usingBrandedCard: false, needsCard: true };
 }

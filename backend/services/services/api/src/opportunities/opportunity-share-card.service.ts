@@ -38,7 +38,7 @@ const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v6-brief-logo-org";
+const DESIGN_VERSION = "v7-opportunity-flyer";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -307,7 +307,7 @@ export class OpportunityShareCardService {
 
     // ---- Layout frame ----
     const W = CARD_WIDTH; // 1080
-    const H = CARD_HEIGHT; // 1680
+    const H = CARD_HEIGHT; // 1350
     const M = 72; // page margin
     const CW = W - M * 2; // content width
     const FOOTER_H = 124;

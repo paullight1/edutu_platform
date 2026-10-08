@@ -91,4 +91,30 @@ describe("OpportunityShareCardService", () => {
     expect(result?.sharePdf).toEqual(cachedSharePdf);
     expect(result?.buffer).toBeInstanceOf(Buffer);
   });
+
+  it("renders a flyer canvas containing the opportunity's real details", () => {
+    const service = new OpportunityShareCardService();
+    const svg = (service as any).renderSvg({
+      id: "opp-flyer",
+      title: "ECOWAS Young Professional Programme",
+      organization: "ECOWAS Bank for Investment and Development",
+      category: "Fellowship",
+      summary: "A professional development opportunity.",
+      close_date: "2026-10-30",
+      location: "West Africa",
+      application_url: "https://example.org/apply",
+      benefits: ["Competitive salary"],
+      requirements: ["Bachelor's degree"],
+      metadata: {},
+    });
+
+    expect(svg).toContain('width="1080" height="1350"');
+    expect(svg).toContain('viewBox="0 0 1080 1350"');
+    expect(svg).toContain("ECOWAS Young Professional");
+    expect(svg).toContain("Programme");
+    expect(svg).toContain("ECOWAS Bank for Investment and");
+    expect(svg).toContain("FELLOWSHIP");
+    expect(svg).toContain("Competitive salary");
+    expect(svg).toContain("Bachelor's degree");
+  });
 });

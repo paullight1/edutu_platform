@@ -1857,7 +1857,7 @@ export class OpportunitiesService {
         .from("opportunities")
         .update({
           image_url: imageUrl,
-          metadata: { ...metadata, ai_generated_image: imageMetadata },
+          metadata: { ...metadata, generated_flyer: imageMetadata },
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -1869,7 +1869,7 @@ export class OpportunitiesService {
       .update(opportunities)
       .set({
         imageUrl,
-        metadata: sql`coalesce(${opportunities.metadata}, '{}'::jsonb) || ${JSON.stringify({ ai_generated_image: imageMetadata })}::jsonb`,
+        metadata: sql`coalesce(${opportunities.metadata}, '{}'::jsonb) || ${JSON.stringify({ generated_flyer: imageMetadata })}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(opportunities.id, id))

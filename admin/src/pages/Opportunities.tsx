@@ -1015,14 +1015,13 @@ export default function Opportunities() {
     new Set(),
   );
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
-  // Share image chooser: lets the admin visually pick between the generated
-  // branded card and the opportunity's original (meta) image before sharing.
+  // Share links always use the readable Edutu flyer, never an arbitrary
+  // portrait or decorative image scraped from the source page.
   const [shareChooser, setShareChooser] = useState<{
     opportunity: Opportunity;
     aiEnhanced: boolean;
     aiFallback: boolean;
     payload: OpportunityShareResponse | null;
-    choice: "card" | "meta";
     sharing: boolean;
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1570,11 +1569,11 @@ export default function Opportunities() {
         return next;
       });
       await fetchOpportunities();
-      showPageNotice("success", "AI opportunity image generated and saved.");
+      showPageNotice("success", "Opportunity flyer generated and saved.");
     } catch (error: unknown) {
       showPageNotice(
         "error",
-        getErrorMessage(error, "AI image generation failed"),
+        getErrorMessage(error, "Flyer generation failed"),
       );
     } finally {
       setGeneratingImageIds((prev) => {
@@ -1998,33 +1997,6 @@ export default function Opportunities() {
     }
   }
 
-  async function buildMetaImageFile(opportunity: Opportunity) {
-    const metaUrl = normalizeText(opportunity.image_url);
-    if (!metaUrl) return null;
-
-    try {
-      const response = await fetch(metaUrl);
-      if (!response.ok) return null;
-      const blob = await response.blob();
-      if (!blob.type.startsWith("image/")) return null;
-      const ext = blob.type.includes("svg")
-        ? "svg"
-        : blob.type.includes("jpeg") || blob.type.includes("jpg")
-          ? "jpg"
-          : blob.type.includes("webp")
-            ? "webp"
-            : "png";
-      const baseName = buildShareImageFileName(opportunity, "png").replace(
-        /\.png$/,
-        `.${ext}`,
-      );
-      return { blob, file: new File([blob], baseName, { type: blob.type }) };
-    } catch {
-      // Cross-origin source images can refuse fetches — share text-only then.
-      return null;
-    }
-  }
-
   // Step 1: prepare the share payload, then open the visual image chooser.
   async function handleShareOpportunity(opp: Opportunity) {
     setSharingIds((prev) => new Set(prev).add(opp.id));
@@ -2034,18 +2006,10 @@ export default function Opportunities() {
         await getAiImprovedOpportunityForShare(opp);
       const sharePayload = await getOpportunitySharePayload(opportunity.id);
       const hasCard = Boolean(sharePayload?.shareCard?.url);
-      const hasMeta = Boolean(normalizeText(opportunity.image_url));
-
-      if (!hasCard && !hasMeta) {
-        // Nothing to choose between — share straight away without an image.
-        await executeShare(
-          opportunity,
-          sharePayload,
-          "card",
-          aiEnhanced,
-          aiFallback,
+      if (!hasCard) {
+        throw new Error(
+          "Could not generate the opportunity flyer. Try again before sharing.",
         );
-        return;
       }
 
       setShareChooser({
@@ -2053,7 +2017,6 @@ export default function Opportunities() {
         aiEnhanced,
         aiFallback,
         payload: sharePayload,
-        choice: hasCard ? "card" : "meta",
         sharing: false,
       });
     } catch (error: unknown) {
@@ -2070,11 +2033,10 @@ export default function Opportunities() {
     }
   }
 
-  // Step 2: share with the image source the admin picked in the chooser.
+  // Step 2: share with the generated, text-accurate opportunity flyer.
   async function executeShare(
     opportunity: Opportunity,
     sharePayload: OpportunityShareResponse | null,
-    imageChoice: "card" | "meta",
     aiEnhanced: boolean,
     aiFallback: boolean,
   ) {
@@ -2087,10 +2049,10 @@ export default function Opportunities() {
           sharePayload?.shareUrl || shareUrl,
         );
       const finalShareUrl = sharePayload?.shareUrl || shareUrl;
-      const shareImage =
-        imageChoice === "meta"
-          ? await buildMetaImageFile(opportunity)
-          : await buildShareImageFile(opportunity, sharePayload?.shareCard);
+      const shareImage = await buildShareImageFile(
+        opportunity,
+        sharePayload?.shareCard,
+      );
       // The caption already embeds the link ("Click the link below to apply");
       // passing `url` too makes most targets render the link twice.
       const shareData = {
@@ -2171,13 +2133,13 @@ export default function Opportunities() {
 
   async function confirmShareChoice() {
     if (!shareChooser || shareChooser.sharing) return;
-    const { opportunity, payload, choice, aiEnhanced, aiFallback } =
+    const { opportunity, payload, aiEnhanced, aiFallback } =
       shareChooser;
     setShareChooser((current) =>
       current ? { ...current, sharing: true } : current,
     );
     try {
-      await executeShare(opportunity, payload, choice, aiEnhanced, aiFallback);
+      await executeShare(opportunity, payload, aiEnhanced, aiFallback);
     } finally {
       setShareChooser(null);
     }
@@ -3783,7 +3745,7 @@ export default function Opportunities() {
                             ) : (
                               <ImageIcon size={14} />
                             )}
-                            {isGeneratingImage ? "Generating image" : "Generate image"}
+                            {isGeneratingImage ? "Generating flyer" : "Generate flyer"}
                           </button>
                           {opp.status === "pending_review" && (
                             <>
@@ -4229,7 +4191,7 @@ export default function Opportunities() {
         </div>
       )}
 
-      {/* Share image chooser — pick the branded card or the source image */}
+      {/* Share image chooser — always use the details-based Edutu flyer */}
       {shareChooser && (
         <div
           className="modal-overlay"
@@ -4252,7 +4214,7 @@ export default function Opportunities() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 600 }}>
-                  Choose share image
+                  Share opportunity flyer
                 </h2>
                 <p
                   style={{
@@ -4285,46 +4247,31 @@ export default function Opportunities() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 1fr)",
                 gap: "14px",
               }}
             >
               {[
                 {
                   key: "card" as const,
-                  label: "Branded card",
-                  hint: "Generated Edutu design",
+                  label: "Edutu opportunity flyer",
+                  hint: "Uses listing details; excludes source-page photos",
                   imageUrl: shareChooser.payload?.shareCard?.url || "",
                   badge: <Sparkles size={11} />,
                 },
-                {
-                  key: "meta" as const,
-                  label: "Original image",
-                  hint: "Auto-loaded from the source page",
-                  imageUrl: normalizeText(shareChooser.opportunity.image_url),
-                  badge: <LinkIcon size={11} />,
-                },
               ].map((option) => {
                 const available = Boolean(option.imageUrl);
-                const selected =
-                  available && shareChooser.choice === option.key;
+                const selected = available;
                 return (
-                  <button
+                  <div
                     key={option.key}
-                    type="button"
-                    disabled={!available || shareChooser.sharing}
-                    onClick={() =>
-                      setShareChooser((current) =>
-                        current ? { ...current, choice: option.key } : current,
-                      )
-                    }
                     style={{
                       position: "relative",
                       padding: 0,
                       textAlign: "left",
                       borderRadius: "14px",
                       overflow: "hidden",
-                      cursor: available ? "pointer" : "not-allowed",
+                      cursor: "default",
                       opacity: available ? 1 : 0.55,
                       background: "var(--bg-primary)",
                       border: selected
@@ -4353,8 +4300,7 @@ export default function Opportunities() {
                           style={{
                             width: "100%",
                             height: "100%",
-                            objectFit:
-                              option.key === "card" ? "contain" : "cover",
+                            objectFit: "contain",
                           }}
                         />
                       ) : (
@@ -4407,7 +4353,7 @@ export default function Opportunities() {
                         {option.hint}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
