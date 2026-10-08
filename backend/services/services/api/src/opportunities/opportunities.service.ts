@@ -1002,6 +1002,30 @@ export class OpportunitiesService {
     };
   }
 
+  async ensureAdminShareCard(id: string) {
+    const opportunity = await this.findOneForAdmin(id);
+    if (!opportunity) {
+      return null;
+    }
+
+    const shareUrl = buildOpportunityPublicShareUrl(
+      id,
+      this.getPublicAppBaseUrl(),
+    );
+    const shareText = buildOpportunityShareText(opportunity, shareUrl);
+    const shareCard =
+      await this.opportunityShareCardService.ensureShareCardForOpportunity(
+        opportunity,
+      );
+
+    return {
+      opportunityId: id,
+      shareCard,
+      shareUrl,
+      shareText,
+    };
+  }
+
   async getSharePdf(id: string) {
     const opportunity = await this.findOne(id);
     if (!opportunity) {

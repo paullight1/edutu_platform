@@ -1026,6 +1026,12 @@ export default function Opportunities() {
     new Set(),
   );
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
+  const [flyerGeneration, setFlyerGeneration] = useState<{
+    opportunity: Opportunity;
+    status: "generating" | "success" | "error";
+    imageUrl?: string;
+    message?: string;
+  } | null>(null);
   // Share links always use the readable Edutu flyer, never an arbitrary
   // portrait or decorative image scraped from the source page.
   const [shareChooser, setShareChooser] = useState<{
@@ -1034,6 +1040,9 @@ export default function Opportunities() {
     aiFallback: boolean;
     payload: OpportunityShareResponse | null;
     sharing: boolean;
+    preparing?: boolean;
+    preparationMessage?: string;
+    preparationError?: string;
   } | null>(null);
   const [sharePreviewFailed, setSharePreviewFailed] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1563,7 +1572,15 @@ export default function Opportunities() {
     }
   }
 
-  async function handleGenerateOpportunityImage(id: string): Promise<boolean> {
+  async function handleGenerateOpportunityImage(
+    id: string,
+    opportunity: Opportunity,
+    options: { showProgress?: boolean; notify?: boolean } = {},
+  ): Promise<boolean> {
+    const showProgress = options.showProgress !== false;
+    if (showProgress) {
+      setFlyerGeneration({ opportunity, status: "generating" });
+    }
     setGeneratingImageIds((prev) => new Set(prev).add(id));
     try {
       const response = await fetch(
@@ -1574,9 +1591,9 @@ export default function Opportunities() {
         },
       );
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) {
+      if (!response.ok || !result.success || !result.imageUrl) {
         throw new Error(
-          result.message || result.error || "Image generation failed",
+          result.message || result.error || "Flyer image was not returned",
         );
       }
       setBrokenImageIds((prev) => {
@@ -1585,14 +1602,26 @@ export default function Opportunities() {
         return next;
       });
       await fetchOpportunities();
-      showPageNotice("success", "Opportunity flyer generated and saved.");
+      if (showProgress) {
+        setFlyerGeneration({
+          opportunity,
+          status: "success",
+          imageUrl: result.imageUrl,
+        });
+      } else if (options.notify !== false) {
+        showPageNotice("success", "Opportunity flyer generated and saved.");
+      }
       return true;
     } catch (error: unknown) {
       const message =
         error instanceof TypeError && /fetch|network/i.test(error.message)
           ? "Could not reach the API to generate this flyer. Check that the backend server is running, then retry."
           : getErrorMessage(error, "Flyer generation failed");
-      showPageNotice("error", message);
+      if (showProgress) {
+        setFlyerGeneration({ opportunity, status: "error", message });
+      } else if (options.notify !== false) {
+        showPageNotice("error", message);
+      }
       return false;
     } finally {
       setGeneratingImageIds((prev) => {
@@ -1974,7 +2003,7 @@ export default function Opportunities() {
   ): Promise<OpportunityShareResponse | null> {
     try {
       const response = await fetch(
-        `${NEST_API_URL}/opportunities/${opportunityId}/share-card`,
+        `${NEST_API_URL}/opportunities/admin/${encodeURIComponent(opportunityId)}/share-card`,
         {
           method: "POST",
           headers: await getAdminHeaders(),
@@ -1995,16 +2024,61 @@ export default function Opportunities() {
     if (!opportunityId) return;
 
     setSharePreviewFailed(false);
-    if (!(await handleGenerateOpportunityImage(opportunityId))) return;
+    setShareChooser((current) =>
+      current
+        ? {
+            ...current,
+            preparing: true,
+            preparationError: undefined,
+            preparationMessage:
+              "Generating AI artwork and composing the flyer…",
+          }
+        : current,
+    );
+    if (
+      !(await handleGenerateOpportunityImage(
+        opportunityId,
+        shareChooser.opportunity,
+        { showProgress: false, notify: false },
+      ))
+    ) {
+      setShareChooser((current) =>
+        current
+          ? {
+              ...current,
+              preparing: false,
+              preparationError:
+                "Flyer generation failed. Retry or close this dialog.",
+            }
+          : current,
+      );
+      return;
+    }
     const payload = await getOpportunitySharePayload(opportunityId);
     if (!payload?.shareCard?.url) {
       setSharePreviewFailed(true);
+      setShareChooser((current) =>
+        current
+          ? {
+              ...current,
+              preparing: false,
+              preparationError:
+                "The flyer was saved, but its preview could not be loaded.",
+            }
+          : current,
+      );
       return;
     }
 
     setShareChooser((current) =>
       current?.opportunity.id === opportunityId
-        ? { ...current, payload }
+        ? {
+            ...current,
+            payload,
+            preparing: false,
+            preparationMessage: undefined,
+            preparationError: undefined,
+          }
         : current,
     );
   }
@@ -2038,6 +2112,16 @@ export default function Opportunities() {
   // Step 1: prepare the share payload, then open the visual image chooser.
   async function handleShareOpportunity(opp: Opportunity) {
     setSharingIds((prev) => new Set(prev).add(opp.id));
+    setSharePreviewFailed(false);
+    setShareChooser({
+      opportunity: opp,
+      aiEnhanced: false,
+      aiFallback: false,
+      payload: null,
+      sharing: false,
+      preparing: true,
+      preparationMessage: "Checking the opportunity details…",
+    });
 
     try {
       const storedGeneratedFlyer =
@@ -2059,12 +2143,31 @@ export default function Opportunities() {
       let aiEnhanced = false;
       let aiFallback = false;
       if (!alreadyHasCurrentAiFlyer) {
+        setShareChooser((current) =>
+          current?.opportunity.id === opp.id
+            ? {
+                ...current,
+                preparationMessage: "Preparing verified listing details…",
+              }
+            : current,
+        );
         const prepared = await getAiImprovedOpportunityForShare(opp);
         opportunity = prepared.opportunity;
         aiEnhanced = prepared.aiEnhanced;
         aiFallback = prepared.aiFallback;
       }
 
+      setShareChooser((current) =>
+        current?.opportunity.id === opp.id
+          ? {
+              ...current,
+              opportunity,
+              aiEnhanced,
+              aiFallback,
+              preparationMessage: "Loading the opportunity flyer…",
+            }
+          : current,
+      );
       let sharePayload = await getOpportunitySharePayload(opportunity.id);
       let hasCard = Boolean(sharePayload?.shareCard?.url);
       if (!hasCard) {
@@ -2085,7 +2188,21 @@ export default function Opportunities() {
           sharePayload?.shareCard?.fingerprint &&
         generatedFlyer.path === sharePayload?.shareCard?.path;
       if (!hasCurrentAiFlyer) {
-        if (!(await handleGenerateOpportunityImage(opportunity.id))) {
+        setShareChooser((current) =>
+          current?.opportunity.id === opp.id
+            ? {
+                ...current,
+                preparationMessage:
+                  "Generating AI artwork and composing the flyer…",
+              }
+            : current,
+        );
+        if (
+          !(await handleGenerateOpportunityImage(opportunity.id, opportunity, {
+            showProgress: false,
+            notify: false,
+          }))
+        ) {
           throw new Error(
             "Could not generate the AI flyer. Check the AI image service and retry.",
           );
@@ -2106,11 +2223,24 @@ export default function Opportunities() {
         aiFallback,
         payload: sharePayload,
         sharing: false,
+        preparing: false,
+        preparationMessage: undefined,
+        preparationError: undefined,
       });
     } catch (error: unknown) {
-      showPageNotice(
-        "error",
-        getErrorMessage(error, "Could not prepare this share"),
+      const message =
+        error instanceof TypeError && /fetch|network/i.test(error.message)
+          ? "Could not reach the API to prepare this share. Check that the backend server is running, then retry."
+          : getErrorMessage(error, "Could not prepare this share");
+      setShareChooser((current) =>
+        current?.opportunity.id === opp.id
+          ? {
+              ...current,
+              preparing: false,
+              preparationError: message,
+              preparationMessage: undefined,
+            }
+          : current,
       );
     } finally {
       setSharingIds((prev) => {
@@ -3825,7 +3955,7 @@ export default function Opportunities() {
                             disabled={isGeneratingImage}
                             onClick={(e) => {
                               e.stopPropagation();
-                              void handleGenerateOpportunityImage(opp.id);
+                              void handleGenerateOpportunityImage(opp.id, opp);
                             }}
                           >
                             {isGeneratingImage ? (
@@ -4279,12 +4409,252 @@ export default function Opportunities() {
         </div>
       )}
 
+      {flyerGeneration && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (flyerGeneration.status !== "generating") {
+              setFlyerGeneration(null);
+            }
+          }}
+        >
+          <div
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="flyer-generation-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{ maxWidth: "560px", borderRadius: "18px" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "16px",
+                alignItems: "flex-start",
+                marginBottom: "18px",
+              }}
+            >
+              <div>
+                <h2
+                  id="flyer-generation-title"
+                  style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}
+                >
+                  {flyerGeneration.status === "generating"
+                    ? "Creating AI opportunity flyer"
+                    : flyerGeneration.status === "success"
+                      ? "Your flyer is ready"
+                      : "Flyer generation failed"}
+                </h2>
+                <p
+                  style={{
+                    margin: "5px 0 0",
+                    color: "var(--text-tertiary)",
+                    fontSize: "13px",
+                  }}
+                >
+                  {normalizeText(
+                    flyerGeneration.opportunity.title,
+                    "Edutu opportunity",
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary opportunity-icon-button"
+                aria-label="Close flyer dialog"
+                disabled={flyerGeneration.status === "generating"}
+                onClick={() => setFlyerGeneration(null)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {flyerGeneration.status === "generating" && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "14px",
+                  padding: "24px 20px",
+                  textAlign: "center",
+                  background: "var(--bg-secondary)",
+                }}
+              >
+                <Loader2
+                  size={34}
+                  className="animate-spin"
+                  style={{ color: "var(--apple-blue)", margin: "0 auto 12px" }}
+                />
+                <strong style={{ display: "block", marginBottom: "6px" }}>
+                  Generating artwork and composing your flyer
+                </strong>
+                <span
+                  style={{
+                    display: "block",
+                    color: "var(--text-tertiary)",
+                    fontSize: "13px",
+                  }}
+                >
+                  Using this opportunity’s details. This may take a little
+                  while.
+                </span>
+                <div
+                  role="progressbar"
+                  aria-label="AI flyer generation in progress"
+                  aria-valuetext="Generating artwork and saving the flyer"
+                  style={{
+                    height: 6,
+                    marginTop: 20,
+                    borderRadius: 99,
+                    overflow: "hidden",
+                    background: "var(--bg-tertiary)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "35%",
+                      height: "100%",
+                      borderRadius: 99,
+                      background: "var(--apple-blue)",
+                      animation: "indeterminateBar 1.5s ease-in-out infinite",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    marginTop: 12,
+                    color: "var(--text-tertiary)",
+                    fontSize: "11px",
+                  }}
+                >
+                  <span style={{ color: "var(--success)" }}>
+                    <CheckCircle2 size={12} style={{ verticalAlign: "-2px" }} />{" "}
+                    Details loaded
+                  </span>
+                  <span>AI artwork</span>
+                  <span>Compose &amp; save</span>
+                </div>
+              </div>
+            )}
+
+            {flyerGeneration.status === "success" &&
+              flyerGeneration.imageUrl && (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      padding: 12,
+                      borderRadius: 14,
+                      background: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <img
+                      src={flyerGeneration.imageUrl}
+                      alt={`AI-generated flyer for ${flyerGeneration.opportunity.title}`}
+                      onError={() =>
+                        setFlyerGeneration((current) =>
+                          current?.status === "success"
+                            ? {
+                                ...current,
+                                status: "error",
+                                message:
+                                  "The flyer was saved, but its preview could not be loaded. Try generating it again.",
+                              }
+                            : current,
+                        )
+                      }
+                      style={{
+                        display: "block",
+                        maxWidth: "100%",
+                        maxHeight: "52vh",
+                        objectFit: "contain",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </div>
+                  <a
+                    href={flyerGeneration.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary"
+                    style={{ marginTop: 12, display: "inline-flex" }}
+                  >
+                    <ExternalLink size={14} /> Open full-size flyer
+                  </a>
+                </>
+              )}
+
+            {flyerGeneration.status === "error" && (
+              <div
+                role="alert"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: 16,
+                  borderRadius: 12,
+                  color: "var(--danger, #ef4444)",
+                  background: "var(--bg-secondary)",
+                }}
+              >
+                <AlertCircle size={18} />
+                <span>
+                  {flyerGeneration.message || "Please retry flyer generation."}
+                </span>
+              </div>
+            )}
+
+            {flyerGeneration.status !== "generating" && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 10,
+                  marginTop: 18,
+                }}
+              >
+                {flyerGeneration.status === "error" && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() =>
+                      void handleGenerateOpportunityImage(
+                        flyerGeneration.opportunity.id,
+                        flyerGeneration.opportunity,
+                      )
+                    }
+                  >
+                    <RefreshCw size={14} /> Retry
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setFlyerGeneration(null)}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Share image chooser — always use the details-based Edutu flyer */}
       {shareChooser && (
         <div
           className="modal-overlay"
           onClick={() => {
-            if (!shareChooser.sharing) setShareChooser(null);
+            if (!shareChooser.sharing && !shareChooser.preparing) {
+              setShareChooser(null);
+            }
           }}
         >
           <div
@@ -4302,7 +4672,11 @@ export default function Opportunities() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 600 }}>
-                  Share opportunity flyer
+                  {shareChooser.preparing
+                    ? "Preparing your share"
+                    : shareChooser.preparationError
+                      ? "Share preparation failed"
+                      : "Share opportunity flyer"}
                 </h2>
                 <p
                   style={{
@@ -4325,147 +4699,231 @@ export default function Opportunities() {
                 type="button"
                 className="btn btn-secondary opportunity-icon-button"
                 aria-label="Close share chooser"
-                disabled={shareChooser.sharing}
+                disabled={shareChooser.sharing || shareChooser.preparing}
                 onClick={() => setShareChooser(null)}
               >
                 <X size={15} />
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr)",
-                gap: "14px",
-              }}
-            >
-              {[
-                {
-                  key: "card" as const,
-                  label: "AI-generated opportunity flyer",
-                  hint: "AI artwork with verified opportunity details",
-                  imageUrl: shareChooser.payload?.shareCard?.url || "",
-                  badge: <Sparkles size={11} />,
-                },
-              ].map((option) => {
-                const available =
-                  Boolean(option.imageUrl) && !sharePreviewFailed;
-                const selected = available;
-                return (
+            {shareChooser.preparing ? (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  padding: "28px 20px",
+                  borderRadius: 14,
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  textAlign: "center",
+                }}
+              >
+                <Loader2
+                  size={30}
+                  className="animate-spin"
+                  style={{ color: "var(--apple-blue)", margin: "0 auto 12px" }}
+                />
+                <strong style={{ display: "block", marginBottom: 6 }}>
+                  {shareChooser.preparationMessage || "Preparing the flyer…"}
+                </strong>
+                <span
+                  style={{
+                    color: "var(--text-tertiary)",
+                    fontSize: 13,
+                  }}
+                >
+                  We’ll show the finished flyer here before you share it.
+                </span>
+                <div
+                  role="progressbar"
+                  aria-label="Preparing share flyer"
+                  aria-valuetext={shareChooser.preparationMessage || "Working"}
+                  style={{
+                    height: 6,
+                    marginTop: 20,
+                    borderRadius: 99,
+                    overflow: "hidden",
+                    background: "var(--bg-tertiary)",
+                  }}
+                >
                   <div
-                    key={option.key}
                     style={{
-                      position: "relative",
-                      padding: 0,
-                      textAlign: "left",
-                      borderRadius: "14px",
-                      overflow: "hidden",
-                      cursor: "default",
-                      opacity: available ? 1 : 0.55,
-                      background: "var(--bg-primary)",
-                      border: selected
-                        ? "2px solid var(--accent, #6366F1)"
-                        : "2px solid var(--border-color)",
-                      boxShadow: selected
-                        ? "0 0 0 3px rgba(99,102,241,0.22)"
-                        : "none",
-                      transition: "border-color 0.15s, box-shadow 0.15s",
+                      width: "35%",
+                      height: "100%",
+                      borderRadius: 99,
+                      background: "var(--apple-blue)",
+                      animation: "indeterminateBar 1.5s ease-in-out infinite",
                     }}
-                  >
+                  />
+                </div>
+              </div>
+            ) : shareChooser.preparationError ? (
+              <div
+                role="alert"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: 22,
+                  borderRadius: 14,
+                  background: "var(--bg-secondary)",
+                  color: "var(--danger, #ef4444)",
+                  textAlign: "center",
+                }}
+              >
+                <AlertCircle size={24} />
+                <span>{shareChooser.preparationError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    void handleShareOpportunity(shareChooser.opportunity)
+                  }
+                >
+                  <RefreshCw size={14} /> Try again
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr)",
+                  gap: "14px",
+                }}
+              >
+                {[
+                  {
+                    key: "card" as const,
+                    label: "AI-generated opportunity flyer",
+                    hint: "AI artwork with verified opportunity details",
+                    imageUrl: shareChooser.payload?.shareCard?.url || "",
+                    badge: <Sparkles size={11} />,
+                  },
+                ].map((option) => {
+                  const available =
+                    Boolean(option.imageUrl) && !sharePreviewFailed;
+                  const selected = available;
+                  return (
                     <div
+                      key={option.key}
                       style={{
-                        aspectRatio: "4 / 3",
-                        background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        position: "relative",
+                        padding: 0,
+                        textAlign: "left",
+                        borderRadius: "14px",
                         overflow: "hidden",
+                        cursor: "default",
+                        opacity: available ? 1 : 0.55,
+                        background: "var(--bg-primary)",
+                        border: selected
+                          ? "2px solid var(--accent, #6366F1)"
+                          : "2px solid var(--border-color)",
+                        boxShadow: selected
+                          ? "0 0 0 3px rgba(99,102,241,0.22)"
+                          : "none",
+                        transition: "border-color 0.15s, box-shadow 0.15s",
                       }}
                     >
-                      {available ? (
-                        <img
-                          src={option.imageUrl}
-                          alt={option.label}
-                          onError={() => setSharePreviewFailed(true)}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "contain",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          role="status"
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "20px",
-                            textAlign: "center",
-                            color: "var(--text-secondary)",
-                          }}
-                        >
-                          <Sparkles size={22} />
-                          <span>Flyer preview could not be loaded.</span>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            disabled={generatingImageIds.has(
-                              shareChooser.opportunity.id,
-                            )}
-                            onClick={() => void handleRegenerateSharePreview()}
-                          >
-                            {generatingImageIds.has(shareChooser.opportunity.id)
-                              ? "Generating AI flyer…"
-                              : "Generate AI flyer"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {selected && (
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: "8px",
-                          right: "8px",
-                          background: "var(--accent, #6366F1)",
-                          color: "#fff",
-                          borderRadius: "999px",
-                          display: "inline-flex",
-                          padding: "3px",
-                        }}
-                      >
-                        <CheckCircle2 size={16} />
-                      </span>
-                    )}
-                    <div style={{ padding: "10px 12px" }}>
                       <div
                         style={{
+                          aspectRatio: "4 / 3",
+                          background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
                           display: "flex",
                           alignItems: "center",
-                          gap: "6px",
-                          fontSize: "13px",
-                          fontWeight: 600,
+                          justifyContent: "center",
+                          overflow: "hidden",
                         }}
                       >
-                        {option.badge}
-                        {option.label}
+                        {available ? (
+                          <img
+                            src={option.imageUrl}
+                            alt={option.label}
+                            onError={() => setSharePreviewFailed(true)}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "contain",
+                            }}
+                          />
+                        ) : (
+                          <div
+                            role="status"
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: "10px",
+                              padding: "20px",
+                              textAlign: "center",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            <Sparkles size={22} />
+                            <span>Flyer preview could not be loaded.</span>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              disabled={generatingImageIds.has(
+                                shareChooser.opportunity.id,
+                              )}
+                              onClick={() =>
+                                void handleRegenerateSharePreview()
+                              }
+                            >
+                              {generatingImageIds.has(
+                                shareChooser.opportunity.id,
+                              )
+                                ? "Generating AI flyer…"
+                                : "Generate AI flyer"}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div
-                        style={{
-                          fontSize: "11.5px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {option.hint}
+                      {selected && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "8px",
+                            right: "8px",
+                            background: "var(--accent, #6366F1)",
+                            color: "#fff",
+                            borderRadius: "999px",
+                            display: "inline-flex",
+                            padding: "3px",
+                          }}
+                        >
+                          <CheckCircle2 size={16} />
+                        </span>
+                      )}
+                      <div style={{ padding: "10px 12px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {option.badge}
+                          {option.label}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11.5px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {option.hint}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div
               style={{
@@ -4478,7 +4936,7 @@ export default function Opportunities() {
               <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={shareChooser.sharing}
+                disabled={shareChooser.sharing || shareChooser.preparing}
                 onClick={() => setShareChooser(null)}
               >
                 Cancel
@@ -4486,7 +4944,11 @@ export default function Opportunities() {
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={shareChooser.sharing}
+                disabled={
+                  shareChooser.sharing ||
+                  shareChooser.preparing ||
+                  !shareChooser.payload?.shareCard?.url
+                }
                 onClick={() => void confirmShareChoice()}
                 style={{
                   display: "inline-flex",

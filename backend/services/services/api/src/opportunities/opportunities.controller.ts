@@ -472,7 +472,8 @@ export class OpportunitiesController {
   @Post("admin/verification/:id/deadline")
   @UseGuards(AdminGuard)
   async refreshOpportunityDeadline(@Param("id") id: string) {
-    const result = await this.opportunityVerificationService.refreshDeadlineFromSource(id);
+    const result =
+      await this.opportunityVerificationService.refreshDeadlineFromSource(id);
     if (!result) {
       return { success: false, error: "Opportunity not found" };
     }
@@ -508,6 +509,16 @@ export class OpportunitiesController {
   @Post(":id/share-card")
   async ensureShareCard(@Param("id") id: string) {
     const result = await this.opportunitiesService.ensureShareCard(id);
+    if (!result) {
+      return { success: false, error: "Opportunity not found" };
+    }
+    return { success: true, ...result };
+  }
+
+  @Post("admin/:id/share-card")
+  @UseGuards(AdminGuard)
+  async ensureAdminShareCard(@Param("id") id: string) {
+    const result = await this.opportunitiesService.ensureAdminShareCard(id);
     if (!result) {
       return { success: false, error: "Opportunity not found" };
     }

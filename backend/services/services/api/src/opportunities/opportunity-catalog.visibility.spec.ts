@@ -262,6 +262,29 @@ describe("persisted shared catalog visibility", () => {
     });
   });
 
+  it("prepares share cards for admin review rows while public lookups stay hidden", async () => {
+    const ensureShareCardForOpportunity = jest
+      .fn()
+      .mockResolvedValue({ url: "https://cdn.example.test/review-flyer.png" });
+    const service = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      { ensureShareCardForOpportunity } as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await service.ensureAdminShareCard(PENDING_ID);
+
+    expect(result).toMatchObject({
+      opportunityId: PENDING_ID,
+      shareCard: { url: "https://cdn.example.test/review-flyer.png" },
+    });
+    expect(ensureShareCardForOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({ id: PENDING_ID, status: "pending_review" }),
+    );
+  });
+
   it("only exposes a pending-review row after the persisted verification transition", async () => {
     const learnerService = new OpportunitiesService(
       {} as any,
