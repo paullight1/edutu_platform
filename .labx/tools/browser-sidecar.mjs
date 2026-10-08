@@ -152,11 +152,11 @@ async function waitForFile(filePath, timeoutMs = 30_000, pollMs = 150) {
   throw new Error(`Timed out waiting for browser bridge result: ${path.basename(filePath)}`);
 }
 
-async function writeBrowserCommandAndAwait(paths, command) {
+async function writeBrowserCommandAndAwait(paths, command, timeoutMs = 30_000) {
   await ensureBrowserBridge(paths);
   const id = command.id || `browser-${randomUUID()}`;
   const createdAt = command.createdAt || new Date().toISOString();
-  const payload = {
+  const record = {
     version: BROWSER_BRIDGE_VERSION,
     id,
     kind: command.kind,
@@ -167,10 +167,19 @@ async function writeBrowserCommandAndAwait(paths, command) {
     mode: command.mode ?? null,
     viewport: command.viewport ?? null,
     tabIndex: command.tabIndex ?? null,
+    payload: command.payload ?? null,
   };
 
-  await writeJsonAtomic(browserBridgeCommandFile(paths, id), payload);
-  const result = normalizeBrowserBridgeResultRecord(await waitForFile(browserBridgeResultFile(paths, id)));
+  await writeJsonAtomic(browserBridgeCommandFile(paths, id), record);
+  const result = normalizeBrowserBridgeResultRecord(
+    await waitForFile(browserBridgeResultFile(paths, id), timeoutMs),
+  );
+
+  // The sidecar is the only consumer of its own results — clean up the pair
+  // so files never accumulate during a long agent session.
+  await fs.rm(browserBridgeCommandFile(paths, id), { force: true }).catch(() => undefined);
+  await fs.rm(browserBridgeResultFile(paths, id), { force: true }).catch(() => undefined);
+
   if (!result || result.id !== id) {
     throw new Error(`Browser bridge returned an invalid result for ${id}`);
   }
@@ -270,6 +279,8 @@ async function snapshot() {
   }
 
   const selector = readArg('--selector') ?? 'body';
+  const width = Number(readArg('--width')) || 1280;
+  const height = Number(readArg('--height')) || 800;
   let chromium;
 
   try {
@@ -287,7 +298,7 @@ async function snapshot() {
   }
 
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const page = await browser.newPage({ viewport: { width, height } });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
     const locator = page.locator(selector).first();
@@ -348,6 +359,7 @@ function normalizeBrowserBridgeCommandRecord(record) {
     tabIndex: typeof record.tabIndex === 'number' && Number.isFinite(record.tabIndex)
       ? Math.max(1, Math.floor(record.tabIndex))
       : null,
+    payload: record.payload && typeof record.payload === 'object' ? record.payload : null,
   };
 }
 
@@ -366,6 +378,7 @@ function normalizeBrowserBridgeResultRecord(record) {
     ok: Boolean(record.ok),
     message: typeof record.message === 'string' ? record.message : '',
     appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : new Date().toISOString(),
+    data: record.data ?? null,
   };
 }
 
@@ -537,10 +550,217 @@ function browserBridgeTools() {
       description: 'Read the current browser bridge state and pending queue.',
       inputSchema: noArgsSchema,
     },
+    ...browserAutomationTools(),
   ];
 }
 
+/**
+ * Automation verbs — executed against the LIVE in-app browser iframe with a
+ * visible agent cursor. DOM driving requires the page to be same-origin
+ * (localhost dev servers). On remote pages these return an actionable error;
+ * `open`, `screenshot`, and `console` always work.
+ */
+function browserAutomationTools() {
+  const targetProps = {
+    selector: {
+      type: 'string',
+      minLength: 1,
+      description: 'CSS selector of the target element (wins over x/y). Use read-page or query to discover selectors.',
+    },
+    x: { type: 'number', description: 'Iframe CSS-px X coordinate (used when selector is absent).' },
+    y: { type: 'number', description: 'Iframe CSS-px Y coordinate.' },
+  };
+
+  return [
+    {
+      name: 'click',
+      description:
+        'Click an element in the LabX in-app browser (visible cursor moves and clicks). Same-origin pages only. Provide selector OR x/y.',
+      inputSchema: {
+        type: 'object',
+        properties: { ...targetProps },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'hover',
+      description: 'Hover the agent cursor over an element (fires pointer/mouse hover events). Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: { ...targetProps },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'type',
+      description:
+        'Type text into an input, textarea, or contenteditable element. Works with controlled (React/Svelte) inputs. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          selector: targetProps.selector,
+          text: { type: 'string', description: 'Text to enter.' },
+          clear: { type: 'boolean', description: 'Clear the field first (default true).' },
+          submit: { type: 'boolean', description: 'Press Enter after typing (submits the surrounding form).' },
+        },
+        required: ['selector', 'text'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'press',
+      description: 'Press a keyboard key ("Enter", "Escape", "Tab", "ArrowDown", …) with optional modifiers. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', minLength: 1 },
+          selector: { ...targetProps.selector, description: 'Element to focus first (defaults to the focused element).' },
+          modifiers: {
+            type: 'array',
+            items: { type: 'string', enum: ['Shift', 'Control', 'Alt', 'Meta'] },
+          },
+        },
+        required: ['key'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'scroll',
+      description: 'Scroll the page (deltaY px, or to "top"/"bottom"), or scroll an element into view via selector. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          selector: targetProps.selector,
+          deltaX: { type: 'number' },
+          deltaY: { type: 'number' },
+          to: { type: 'string', enum: ['top', 'bottom'] },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'move-cursor',
+      description: 'Move the visible agent cursor to an element or coordinates without clicking. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: { ...targetProps },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'wait-for',
+      description: 'Wait until a selector becomes visible/attached/hidden (up to 20s). Use after actions that trigger async UI. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          selector: targetProps.selector,
+          timeoutMs: { type: 'integer', minimum: 100, maximum: 20000 },
+          state: { type: 'string', enum: ['visible', 'attached', 'hidden'] },
+        },
+        required: ['selector'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'read-page',
+      description:
+        'Read the LIVE page: title, URL, text, an outline of headings/landmarks, and interactive elements with ready-to-use selectors. This is the live-state source of truth. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          maxChars: { type: 'integer', minimum: 200, maximum: 40000 },
+          limit: { type: 'integer', minimum: 1, maximum: 50 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'query',
+      description: 'List elements matching a CSS selector with their text, boxes, and suggested selectors. Same-origin pages only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          selector: targetProps.selector,
+          limit: { type: 'integer', minimum: 1, maximum: 50 },
+        },
+        required: ['selector'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'screenshot',
+      description:
+        'Screenshot the current page. NOTE: the image is a fresh headless render of the same URL — in-page state from earlier actions (typed text, open dialogs) is NOT shown; use read-page for live-state truth. Works for any http(s) URL.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', minLength: 1, description: 'Optional element to focus the capture on.' },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'console',
+      description: 'Read console output and page errors captured from the live page (same-origin pages, captured after load).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          level: { type: 'string', enum: ['log', 'info', 'warn', 'error', 'debug', 'all'] },
+          limit: { type: 'integer', minimum: 1, maximum: 300 },
+        },
+        additionalProperties: false,
+      },
+    },
+  ];
+}
+
+const AUTOMATION_TOOL_KINDS = new Set([
+  'click',
+  'hover',
+  'type',
+  'press',
+  'scroll',
+  'move-cursor',
+  'wait-for',
+  'read-page',
+  'query',
+  'screenshot',
+  'console',
+]);
+
+async function callBrowserAutomationTool(name, args, paths) {
+  const payload = {};
+  for (const key of ['selector', 'x', 'y', 'text', 'clear', 'submit', 'key', 'modifiers', 'deltaX', 'deltaY', 'to', 'timeoutMs', 'state', 'limit', 'level', 'maxChars']) {
+    if (args?.[key] !== undefined) {
+      payload[key] = args[key];
+    }
+  }
+
+  if ((name === 'click' || name === 'hover' || name === 'move-cursor') && !payload.selector && (typeof payload.x !== 'number' || typeof payload.y !== 'number')) {
+    throw new Error(`The ${name} tool requires a selector or both x and y coordinates.`);
+  }
+
+  // wait-for may legitimately take up to its own timeout; give the file wait margin.
+  const timeoutMs = name === 'wait-for'
+    ? Math.min(20_000, Math.max(100, Number(payload.timeoutMs) || 5000)) + 10_000
+    : 30_000;
+
+  const result = await writeBrowserCommandAndAwait(paths, { kind: name, payload }, timeoutMs);
+  return {
+    commandId: result.id,
+    kind: name,
+    status: 'ok',
+    message: result.message,
+    appliedAt: result.appliedAt,
+    data: result.data ?? null,
+  };
+}
+
 async function callBrowserBridgeTool(name, args, paths) {
+  if (AUTOMATION_TOOL_KINDS.has(name)) {
+    return callBrowserAutomationTool(name, args, paths);
+  }
+
   switch (name) {
     case 'open': {
       const url = typeof args?.url === 'string' ? args.url.trim() : '';
@@ -804,6 +1024,36 @@ async function callBrowserBridgeTool(name, args, paths) {
   }
 }
 
+/**
+ * Serialize a tool result into MCP content blocks. Screenshots become a real
+ * image block (so models actually SEE them) plus a text block with the
+ * live-state notes; everything else is JSON text.
+ */
+function buildToolCallContent(result) {
+  const screenshotBase64 = result?.data?.screenshotBase64;
+  if (typeof screenshotBase64 === 'string' && screenshotBase64.length) {
+    const { screenshotBase64: _omitted, ...rest } = result.data;
+    return [
+      {
+        type: 'image',
+        data: screenshotBase64,
+        mimeType: 'image/png',
+      },
+      {
+        type: 'text',
+        text: JSON.stringify({ ...result, data: rest }, null, 2),
+      },
+    ];
+  }
+
+  return [
+    {
+      type: 'text',
+      text: JSON.stringify(result, null, 2),
+    },
+  ];
+}
+
 function sendMcpMessage(payload) {
   const body = Buffer.from(JSON.stringify(payload), 'utf8');
   process.stdout.write(`Content-Length: ${body.length}\r\n\r\n`);
@@ -881,14 +1131,7 @@ async function handleMcpMessage(message, paths) {
 
       try {
         const result = await callBrowserBridgeTool(message.params?.name, message.params?.arguments ?? {}, paths);
-        sendMcpResponse(id, {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        });
+        sendMcpResponse(id, { content: buildToolCallContent(result) });
       } catch (error) {
         const messageText = error instanceof Error ? error.message : 'Browser bridge tool failed.';
         sendMcpResponse(id, {

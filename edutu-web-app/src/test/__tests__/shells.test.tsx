@@ -210,7 +210,7 @@ describe("AppWorkspaceShell", () => {
     expect(workspaceMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps compact mobile navigation labels and exposes the coach from More", () => {
+  it("keeps compact mobile navigation labels without a coach shortcut in More", () => {
     const primary = render(
       <MemoryRouter initialEntries={["/app/coach"]}>
         <AppWorkspaceShell>
@@ -228,7 +228,8 @@ describe("AppWorkspaceShell", () => {
     expect(links.some((link) => link.textContent?.trim() === "Explore")).toBe(true);
     fireEvent.click(within(nav).getByRole("button", { name: "More" }));
     const more = screen.getByRole("dialog", { name: "More" });
-    expect(within(more).getByRole("link", { name: "AI Coach" })).toHaveAttribute("href", "/app/coach");
+    expect(within(more).queryByRole("link", { name: "AI Coach" })).not.toBeInTheDocument();
+    expect(within(more).getByRole("link", { name: "CV & AI tools" })).toHaveAttribute("href", "/app/cv");
     primary.unmount();
 
     render(

@@ -34,7 +34,7 @@ describe("workspace navigation", () => {
     expect(moreRoutes).not.toContain("/app/opportunities");
     expect(moreRoutes).not.toContain("/app/community");
     expect(moreRoutes).toContain("/app/my-plan");
-    expect(moreRoutes).toContain("/app/coach");
+    expect(moreRoutes).not.toContain("/app/coach");
     expect(moreRoutes).toContain("/app/profile");
   });
   it.each([

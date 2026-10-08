@@ -1586,9 +1586,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               ))}
             </section>
             <div className="mt-5 flex flex-col items-center gap-3 pb-4 sm:mt-8">
-              <p className="text-center text-sm text-text-secondary" role="status" aria-live="polite">
-                Showing {visibleOpportunities.length} of {sortedOpportunities.length} opportunities
-              </p>
               {hasMoreOpportunities ? (
                 <button
                   type="button"

@@ -80,12 +80,9 @@ export const personalWorkspaceNavItems: WorkspaceNavItemConfig[] = [
   { to: "/app/settings", label: "navigation.settings", icon: "settings" },
 ].filter(enabled) as WorkspaceNavItemConfig[];
 export const mobileMoreWorkspaceNavItems = personalWorkspaceNavItems.filter(
-  (item) => !mobilePrimaryWorkspaceNavItems.some((tab) => tab.to === item.to),
-);
-// The coach has a dedicated desktop rail item, while the compact mobile bar
-// reserves its tabs for Home and Explore. Keep it reachable from More.
-mobileMoreWorkspaceNavItems.unshift(
-  ...mobilePrimaryWorkspaceNavItems.filter((item) => item.icon === "coach"),
+  (item) =>
+    item.icon !== "coach" &&
+    !mobilePrimaryWorkspaceNavItems.some((tab) => tab.to === item.to),
 );
 const matches = (pathname: string, route: string) =>
   pathname === route || pathname.startsWith(`${route}/`);
