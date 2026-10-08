@@ -60,3 +60,60 @@ describe("OpportunitiesController learner publication surface", () => {
     expect(service.enhanceOpportunities).toHaveBeenCalledWith(ids);
   });
 });
+
+describe("admin bulk action contracts", () => {
+  const ids = ["1827885d-2d96-469e-b7f4-c580dd537334"];
+  it.each(["active", "rejected"])(
+    "updates only selected IDs to %s",
+    async (status) => {
+      const service = {
+        bulkUpdateStatus: jest.fn().mockResolvedValue({ updated: 1 }),
+      };
+      const controller = new OpportunitiesController(
+        service as any,
+        {} as any,
+        {} as any,
+      );
+      await expect(
+        controller.adminBulkStatus({ ids, status } as any),
+      ).resolves.toEqual({ updated: 1 });
+      expect(service.bulkUpdateStatus).toHaveBeenCalledWith(ids, status);
+    },
+  );
+  it("normalizes the selected category", async () => {
+    const service = {
+      bulkUpdateCategory: jest.fn().mockResolvedValue({ updated: 1 }),
+    };
+    const controller = new OpportunitiesController(
+      service as any,
+      {} as any,
+      {} as any,
+    );
+    await controller.adminBulkCategory({ ids, category: "Internships" } as any);
+    expect(service.bulkUpdateCategory).toHaveBeenCalledWith(ids, "internships");
+  });
+  it("rejects unknown categories before writing", () => {
+    const service = { bulkUpdateCategory: jest.fn() };
+    const controller = new OpportunitiesController(
+      service as any,
+      {} as any,
+      {} as any,
+    );
+    expect(() =>
+      controller.adminBulkCategory({ ids, category: "invalid" } as any),
+    ).toThrow();
+    expect(service.bulkUpdateCategory).not.toHaveBeenCalled();
+  });
+  it("deletes only selected IDs and returns the actual deleted count", async () => {
+    const service = { bulkRemove: jest.fn().mockResolvedValue({ deleted: 0 }) };
+    const controller = new OpportunitiesController(
+      service as any,
+      {} as any,
+      {} as any,
+    );
+    await expect(controller.adminBulkDelete({ ids })).resolves.toEqual({
+      deleted: 0,
+    });
+    expect(service.bulkRemove).toHaveBeenCalledWith(ids);
+  });
+});

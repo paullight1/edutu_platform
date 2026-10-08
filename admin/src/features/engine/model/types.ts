@@ -171,6 +171,7 @@ export interface ScrapeResult {
 }
 
 export interface ScrapeJob {
+  urls_skipped?: number;
   id: string;
   source_id: number;
   source_name?: string;

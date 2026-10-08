@@ -1347,7 +1347,7 @@ export default function Opportunities() {
         }
         const result = await response.json().catch(() => ({}));
         updated +=
-          typeof result.updated === "number" ? result.updated : chunk.length;
+          typeof result.updated === "number" ? result.updated : 0;
         done += chunk.length;
         if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
@@ -1398,7 +1398,7 @@ export default function Opportunities() {
         }
         const result = await response.json().catch(() => ({}));
         updated +=
-          typeof result.updated === "number" ? result.updated : chunk.length;
+          typeof result.updated === "number" ? result.updated : 0;
         done += chunk.length;
         if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
@@ -1447,7 +1447,7 @@ export default function Opportunities() {
         }
         const result = await response.json().catch(() => ({}));
         deleted +=
-          typeof result.deleted === "number" ? result.deleted : chunk.length;
+          typeof result.deleted === "number" ? result.deleted : 0;
         done += chunk.length;
         if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
@@ -1525,7 +1525,7 @@ export default function Opportunities() {
         showPageNotice(
           "success",
           deadlineResult.result.clearedAsPublicationDate
-            ? `AI enhancement complete (${score}%). Removed ${readable}, which matches the source's publication date.`
+            ? `AI enhancement complete (${score}%). Removed the stored deadline because it matches the source's publication date.`
             : `AI enhancement complete (${score}%). Source-verified deadline updated to ${readable}.`,
         );
       } else {
@@ -2711,7 +2711,7 @@ export default function Opportunities() {
       setSelectedIds(all);
       showPageNotice(
         "success",
-        `Selected all ${all.size.toLocaleString()} matching opportunit${all.size === 1 ? "y" : "ies"}.`,
+        `Selected ${all.size.toLocaleString()} matching opportunit${all.size === 1 ? "y" : "ies"}${all.size < totalOpportunities ? " (selection capped at 5,000; refine filters for the remaining rows)" : ""}.`,
       );
     } catch (error: unknown) {
       showPageNotice(

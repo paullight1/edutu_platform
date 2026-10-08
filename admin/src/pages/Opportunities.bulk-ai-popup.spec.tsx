@@ -180,4 +180,163 @@ describe("Opportunities AI completion popup", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
   });
+  it.each([
+    [
+      "Approve",
+      "/opportunities/admin/bulk-status",
+      { status: "active" },
+      { updated: 1 },
+    ],
+    [
+      "Reject",
+      "/opportunities/admin/bulk-status",
+      { status: "rejected" },
+      { updated: 1 },
+    ],
+    ["Delete", "/opportunities/admin/bulk-delete", {}, { deleted: 1 }],
+  ])(
+    "sends only selected IDs for %s",
+    async (label, endpoint, fields, response) => {
+      const existingFetch = globalThis.fetch;
+      const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).includes(endpoint)
+          ? Promise.resolve(jsonResponse(response))
+          : existingFetch(input, init),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      const user = userEvent.setup();
+      render(<Opportunities />);
+      await user.click(
+        await screen.findByRole("checkbox", {
+          name: "Select Test scholarship",
+        }),
+      );
+      await user.click(screen.getByRole("button", { name: label }));
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(([url]) => String(url).includes(endpoint)),
+        ).toBe(true),
+      );
+      const request = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes(endpoint),
+      );
+      expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+        ids: [opportunity.id],
+        ...fields,
+      });
+      if (label !== "Approve") expect(confirm).toHaveBeenCalled();
+      confirm.mockRestore();
+    },
+  );
+
+  it("clears selection without writing records", async () => {
+    const user = userEvent.setup();
+    render(<Opportunities />);
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Select Test scholarship",
+    });
+    await user.click(checkbox);
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(checkbox).not.toBeChecked();
+    expect(
+      screen.queryByRole("toolbar", { name: "Bulk actions" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("moves the selected category and rechecks selected deadlines", async () => {
+    const existingFetch = globalThis.fetch;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/bulk-category"))
+        return Promise.resolve(jsonResponse({ updated: 1 }));
+      if (url.endsWith("/deadline"))
+        return Promise.resolve(
+          jsonResponse({ result: { updated: true, deadline: "2027-01-10" } }),
+        );
+      return existingFetch(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<Opportunities />);
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Select Test scholarship" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Find Deadlines" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).endsWith(`/${opportunity.id}/deadline`),
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Move selected to category" }),
+      ).toBeEnabled(),
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Move selected to category" }),
+      "Internships",
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes("/bulk-category"),
+        ),
+      ).toBe(true),
+    );
+    const request = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("/bulk-category"),
+    );
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      ids: [opportunity.id],
+      category: "Internships",
+    });
+    confirm.mockRestore();
+  });
+
+  it("selects all matching records beyond the displayed page", async () => {
+    const existingFetch = globalThis.fetch;
+    let reads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/admin/list")) {
+          reads++;
+          const data =
+            reads === 1
+              ? [opportunity]
+              : [
+                  opportunity,
+                  { ...opportunity, id: "second", title: "Second scholarship" },
+                ];
+          return Promise.resolve(
+            jsonResponse({
+              data,
+              total: 2,
+              totalPages: 1,
+              page: 1,
+              limit: reads === 1 ? 50 : 200,
+            }),
+          );
+        }
+        return existingFetch(input, init);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Opportunities />);
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Select Test scholarship" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Select all 2" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("toolbar", { name: "Bulk actions" }),
+      ).toHaveTextContent("2 selected"),
+    );
+    expect(reads).toBe(2);
+  });
 });

@@ -27,11 +27,34 @@ export default function OpportunityReview({
   index,
   onToggle,
 }: OpportunityReviewProps) {
-  const improved = entry.current !== entry.original;
+  const fields = [
+    "title",
+    "organization",
+    "summary",
+    "description",
+    "deadline",
+    "requirements",
+    "benefits",
+    "application_process",
+    "funding_type",
+    "target_region",
+  ] as const;
+  const changedFields = fields.filter(
+    (field) =>
+      JSON.stringify(entry.current[field] ?? null) !==
+      JSON.stringify(entry.original[field] ?? null),
+  );
+  const improved = changedFields.length > 0;
+  const attempted = entry.current !== entry.original;
+  const display = (value: unknown) =>
+    Array.isArray(value) ? value.join(" • ") : String(value ?? "Not stated");
   const sourceUrl = sourceUrlFor(entry.current);
 
   return (
-    <article className="engine-opportunity-review" data-selected={entry.selected}>
+    <article
+      className="engine-opportunity-review"
+      data-selected={entry.selected}
+    >
       <header className="engine-opportunity-review-header">
         <label>
           <input
@@ -47,8 +70,12 @@ export default function OpportunityReview({
         <div>
           <h4>{entry.current.title}</h4>
           <p>
-            {entry.current.organization || entry.current.source || "Unknown organization"}
-            {entry.current.deadline ? ` · Deadline ${entry.current.deadline}` : ""}
+            {entry.current.organization ||
+              entry.current.source ||
+              "Unknown organization"}
+            {entry.current.deadline
+              ? ` · Deadline ${entry.current.deadline}`
+              : ""}
           </p>
         </div>
         {entry.improving ? (
@@ -57,7 +84,8 @@ export default function OpportunityReview({
           </span>
         ) : improved ? (
           <span className="engine-status-chip engine-status-chip--success">
-            <Sparkles size={12} aria-hidden="true" /> AI preview
+            <Sparkles size={12} aria-hidden="true" /> {changedFields.length}{" "}
+            fields changed
           </span>
         ) : null}
         {sourceUrl ? (
@@ -80,15 +108,44 @@ export default function OpportunityReview({
         </p>
       ) : null}
 
-      <div className={`engine-opportunity-compare ${improved ? "" : "engine-opportunity-compare--single"}`}>
+      {attempted && !improved ? (
+        <p role="status">
+          No content changes were returned. The original is preserved.
+        </p>
+      ) : null}
+      {improved ? (
+        <p>
+          Changed:{" "}
+          {changedFields.map((field) => field.replaceAll("_", " ")).join(", ")}
+        </p>
+      ) : null}
+      <div
+        className={`engine-opportunity-compare ${improved ? "" : "engine-opportunity-compare--single"}`}
+      >
         <section>
           <span>Original</span>
           <p>{descriptionFor(entry.original)}</p>
+          {changedFields
+            .filter((field) => field !== "description")
+            .map((field) => (
+              <p key={field}>
+                <strong>{field.replaceAll("_", " ")}:</strong>{" "}
+                {display(entry.original[field])}
+              </p>
+            ))}
         </section>
         {improved ? (
           <section>
             <span>Improved preview</span>
             <p>{descriptionFor(entry.current)}</p>
+            {changedFields
+              .filter((field) => field !== "description")
+              .map((field) => (
+                <p key={field}>
+                  <strong>{field.replaceAll("_", " ")}:</strong>{" "}
+                  {display(entry.current[field])}
+                </p>
+              ))}
           </section>
         ) : null}
       </div>

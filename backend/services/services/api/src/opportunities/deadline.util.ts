@@ -173,8 +173,8 @@ export function parseDeadlineDetailed(
 }
 
 /** Pull the most likely deadline fragment out of free page text. */
-export function extractDeadlineText(text: string): string | null {
-  if (!text) return null;
+function deadlineFragments(text: string, includeLabel = false): string[] {
+  if (!text) return [];
 
   // A page usually contains several dates (publication, opening, update,
   // deadline). Only accept a date attached to deadline/closing language; a
@@ -182,26 +182,72 @@ export function extractDeadlineText(text: string): string | null {
   const date =
     "(?:20\\d{2}[-/.]\\d{1,2}[-/.]\\d{1,2}" +
     "|\\d{1,2}[/.]\\d{1,2}[/.]20\\d{2}" +
-    "|(?:" + MONTH_PATTERN + ")\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d{2})?" +
-    "|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:" + MONTH_PATTERN + ")(?:\\.?\\s*,?\\s+20\\d{2})?)";
+    "|(?:" +
+    MONTH_PATTERN +
+    ")\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d{2})?" +
+    "|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:" +
+    MONTH_PATTERN +
+    ")(?:\\.?\\s*,?\\s+20\\d{2})?)";
   const patterns = [
     new RegExp(
-      "\\b(?:(?:application|submission)\\s+)?deadline\\b\\s*(?:(?:is|of)\\s+|[:|–—-]\\s*)?(" + date + ")",
+      "\\b(?:(?:application|submission)\\s+)?deadline\\b\\s*(?:(?:is|of)\\s+|[:|–—-]\\s*)?(" +
+        date +
+        ")",
       "i",
     ),
     new RegExp(
-      "\\b(?:applications?\\s+(?:close|closes|closing)|closing\\s+date|last\\s+date(?:\\s+to\\s+apply)?)\\b\\s*(?:(?:is|on|by)\\s+|[:|–—-]\\s*)?(" + date + ")",
+      "\\b(?:applications?\\s+(?:close|closes|closing)|closing\\s+date|last\\s+date(?:\\s+to\\s+apply)?)\\b\\s*(?:(?:is|on|by)\\s+|[:|–—-]\\s*)?(" +
+        date +
+        ")",
       "i",
     ),
     new RegExp("\\bapply\\s+(?:before|by)\\s+(" + date + ")", "i"),
     new RegExp("\\bsubmit\\s+(?:before|by)\\s+(" + date + ")", "i"),
   ];
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return match[1].trim().substring(0, 60);
-  }
+  const fragments = patterns.flatMap((pattern) =>
+    [...text.matchAll(new RegExp(pattern.source, "gi"))].map((match) =>
+      (includeLabel ? match[0] : match[1]).trim(),
+    ),
+  );
+  return fragments;
+}
+
+export function hasConflictingDeadlines(text: string): boolean {
+  const dates = deadlineFragments(text)
+    .filter((fragment) => /20\d{2}/.test(fragment))
+    .map((fragment) => parseDeadlineDetailed(fragment).date)
+    .filter(Boolean);
+  return new Set(dates).size > 1;
+}
+
+export function extractDeadlineText(text: string): string | null {
+  const fragments = deadlineFragments(text);
+  const explicit = fragments.filter((fragment) => /20\d{2}/.test(fragment));
+  const dates = new Set(
+    explicit
+      .map((fragment) => parseDeadlineDetailed(fragment).date)
+      .filter(Boolean),
+  );
+  // Multiple rounds or unrelated opportunities need human review; never
+  // silently select the first of conflicting closing dates.
+  if (dates.size > 1) return null;
+  if (explicit.length) return explicit[0].substring(0, 60);
+  if (new Set(fragments.map((fragment) => fragment.toLowerCase())).size > 1)
+    return null;
+  if (fragments.length) return fragments[0].substring(0, 60);
   return null;
+}
+
+/** Retain the label alongside the date so an administrator can audit it. */
+export function extractDeadlineEvidence(text: string): string | null {
+  const fragment = extractDeadlineText(text);
+  if (!fragment) return null;
+  return (
+    deadlineFragments(text, true).find((quote) =>
+      quote.toLowerCase().includes(fragment.toLowerCase()),
+    ) ?? null
+  );
 }
 
 /**

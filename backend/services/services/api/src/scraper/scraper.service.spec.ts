@@ -742,4 +742,114 @@ describe("ScraperService", () => {
       expect(futureRecord.status).toBe("active");
     });
   });
+  describe("article identity and pagination regressions", () => {
+    function prepare() {
+      const internal = service as any;
+      internal.fetchListHTML = jest.fn().mockResolvedValue("<html></html>");
+      internal.delay = jest.fn().mockResolvedValue(undefined);
+      internal.updateSourceStatus = jest.fn().mockResolvedValue(undefined);
+      internal.scrapedUrlIndexRepository = {
+        recordDiscovered: jest.fn().mockResolvedValue(undefined),
+      };
+      internal.enrichItems = jest.fn(async (items) => items);
+      internal.persistOpportunities = jest.fn(async (items) => ({
+        saved: items.length,
+        published: 0,
+        needsReview: items.length,
+        withDeadline: 0,
+        withImage: 0,
+        withOrganization: 0,
+        withDirectApplyLink: 0,
+        duplicateImagesStripped: 0,
+        missingFieldCounts: {},
+      }));
+      return internal;
+    }
+    it("processes the last listing page before stopping", async () => {
+      const internal = prepare();
+      internal.hasNextPage = jest
+        .fn()
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false);
+      internal.extractItemsFromList = jest
+        .fn()
+        .mockReturnValueOnce([
+          {
+            title: "First Fellowship",
+            apply_url: "https://source.example/first",
+          },
+        ])
+        .mockReturnValueOnce([
+          {
+            title: "Last Fellowship",
+            apply_url: "https://source.example/last",
+          },
+        ]);
+      const result = await internal.crawlSources(
+        [
+          {
+            id: 1,
+            name: "Source",
+            url: "https://source.example/category",
+            config: {},
+          },
+        ],
+        5,
+        "job",
+      );
+      expect(internal.fetchListHTML).toHaveBeenCalledTimes(2);
+      expect(result.results.map((item) => item.title)).toEqual([
+        "First Fellowship",
+        "Last Fellowship",
+      ]);
+    });
+    it("enriches an article shared by two categories only once", async () => {
+      const internal = prepare();
+      internal.hasNextPage = jest.fn().mockReturnValue(false);
+      internal.extractItemsFromList = jest
+        .fn()
+        .mockReturnValue([
+          {
+            title: "Shared Fellowship",
+            apply_url: "https://source.example/fellowship",
+          },
+        ]);
+      const result = await internal.crawlSources(
+        [
+          { id: 1, name: "A", url: "https://source.example/a", config: {} },
+          { id: 2, name: "B", url: "https://source.example/b", config: {} },
+        ],
+        1,
+        "job",
+      );
+      expect(result.results).toHaveLength(1);
+      expect(result.sourceResults[1].itemsSkipped).toBe(1);
+    });
+    it("uses article identity for different programs sharing one application portal", () => {
+      const base = {
+        title: "Example Fellowship",
+        source: "Source",
+        source_url: "https://source.example/category",
+        direct_apply_url: "https://official.example/apply",
+      };
+      const first = (service as any).transformToOpportunity(
+        { ...base, apply_url: "https://source.example/one" },
+        "job",
+      );
+      const second = (service as any).transformToOpportunity(
+        { ...base, apply_url: "https://source.example/two" },
+        "job",
+      );
+      expect(first.canonical_url).not.toBe(second.canonical_url);
+      expect(first.application_url).toBe(second.application_url);
+    });
+    it("does not guess an application year from the program edition", () => {
+      expect(
+        (service as any).extractDeadline("Deadline: October 30"),
+      ).toBeNull();
+      expect(
+        (service as any).extractDeadline("Posted October 8, 2026"),
+      ).toBeNull();
+    });
+  });
 });

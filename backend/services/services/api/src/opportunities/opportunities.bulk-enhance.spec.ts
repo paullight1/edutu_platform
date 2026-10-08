@@ -40,6 +40,7 @@ describe("OpportunitiesService bulk AI completion", () => {
       { invalidateAllResponseCache: jest.fn() } as any,
       {
         generateJson: jest.fn().mockResolvedValue({
+          title: "International Academic Scholarship 2027",
           summary:
             "A competitive international scholarship providing academic support, research access, and professional development for qualified students pursuing degree study at participating universities.",
           description: longDescription,
@@ -65,7 +66,7 @@ describe("OpportunitiesService bulk AI completion", () => {
     (service as any).supabase = { from: () => ({ update }) };
     service.findOneForAdmin = jest.fn().mockResolvedValue({
       id: "opp-long",
-      title: "International Academic Scholarship 2027",
+      title: "Browse Scholarships",
       summary: "Short source summary.",
       description: "Short source description.",
       status: "pending_review",
@@ -78,7 +79,10 @@ describe("OpportunitiesService bulk AI completion", () => {
     await service.enhanceOpportunity("opp-long");
 
     expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({ description: longDescription }),
+      expect.objectContaining({
+        title: "International Academic Scholarship 2027",
+        description: longDescription,
+      }),
     );
   });
 

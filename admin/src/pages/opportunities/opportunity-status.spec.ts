@@ -48,6 +48,15 @@ describe("opportunity status helpers", () => {
     expect(effectiveStatus({ status: "draft" })).toBe("draft");
   });
 
+  it("marks a stored date as unverified after an inconclusive source check", () => {
+    expect(
+      deadlineDisplay({
+        close_date: "2026-10-30",
+        metadata: { deadline_needs_review: true },
+      }),
+    ).toBe("Oct 30, 2026 (unverified)");
+  });
+
   it("distinguishes inferred, rolling, and unknown deadlines", () => {
     expect(
       deadlineDisplay({

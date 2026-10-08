@@ -59,6 +59,11 @@ export function deadlineDisplay(opportunity: OpportunityDeadlineInput) {
     | string
     | undefined;
   if (formatted) {
+    if (
+      opportunity.metadata?.deadline_needs_review === true ||
+      confidence === "unknown"
+    )
+      return `${formatted} (unverified)`;
     return confidence === "inferred" ? `${formatted} (est.)` : formatted;
   }
   return confidence === "rolling" ? "Rolling" : "Unknown";

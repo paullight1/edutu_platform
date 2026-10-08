@@ -70,6 +70,10 @@ export interface RawItem {
   red_flags?: string[];
   funding_type?: string;
   target_region?: string;
+  organization?: string;
+  deadline_evidence?: string | null;
+  deadline_ambiguous?: boolean;
+  enrichment_status?: "ai" | "cached" | "failed";
   enrichment_confidence?: number;
   enrichment_notes?: string[];
   canonical_category?: string;
@@ -90,6 +94,8 @@ const boundedString = (max: number) =>
   );
 
 export const DeepSeekExtractionSchema = z.object({
+  title: boundedString(220),
+  organization: boundedString(240),
   summary: boundedString(320),
   description: boundedString(1800),
   requirements: z.array(z.string().trim().min(2)).optional().default([]),

@@ -1,3 +1,7 @@
+import {
+  articleText,
+  opportunityUrlIdentity,
+} from "../opportunities/source-evidence.util";
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -14,6 +18,8 @@ import { classifyOpportunity } from "../opportunities/opportunity-categorization
 import {
   parseDeadlineDetailed,
   extractDeadlineText,
+  extractDeadlineEvidence,
+  hasConflictingDeadlines,
 } from "../opportunities/deadline.util";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
@@ -66,7 +72,7 @@ import {
 } from "./scraper.config";
 import { categorizeOpportunityTitle } from "./scraper-classification";
 import { createTitleFingerprint } from "./scraper-title-fingerprint";
-const SOURCE_CONTENT_FORMAT_VERSION = "source-content-v1";
+const SOURCE_CONTENT_FORMAT_VERSION = "source-content-v2";
 export {
   DeepSeekExtractionSchema,
   type DeepSeekExtraction,
@@ -448,11 +454,7 @@ export class ScraperService implements OnModuleInit {
 
   async enhancePreviewOpportunity(input: Record<string, any>) {
     const sourceUrl =
-      input.source_url ||
-      input.sourceUrl ||
-      input.source ||
-      input.apply_url ||
-      "";
+      input.source_url || input.sourceUrl || input.apply_url || "";
     const applyUrl =
       input.apply_url ||
       input.applyUrl ||
@@ -461,7 +463,7 @@ export class ScraperService implements OnModuleInit {
       sourceUrl;
     const item: RawItem = {
       title: this.cleanText(input.title || "Untitled Opportunity", 240),
-      apply_url: applyUrl,
+      apply_url: sourceUrl?.startsWith("http") ? sourceUrl : applyUrl,
       direct_apply_url: input.direct_apply_url || input.directApplyUrl || null,
       image_url: input.image_url || input.imageUrl || null,
       description: input.description || input.summary || "",
@@ -480,7 +482,14 @@ export class ScraperService implements OnModuleInit {
       source_id: input.source_id,
     };
 
-    const enriched = await this.enrichItem(item);
+    const enriched = await this.enrichItem(item, undefined, 1, true);
+    if (enriched.enrichment_status !== "ai") {
+      return {
+        success: false,
+        error:
+          "AI improvement did not complete. The original opportunity has been preserved.",
+      };
+    }
     const quality = this.evaluateOpportunityQuality(enriched);
     const classification = classifyOpportunity(
       enriched as unknown as Record<string, unknown>,
@@ -491,6 +500,7 @@ export class ScraperService implements OnModuleInit {
       opportunity: {
         ...input,
         title: enriched.title,
+        organization: enriched.organization,
         summary: enriched.summary,
         description: enriched.description,
         deadline: enriched.deadline,
@@ -513,7 +523,7 @@ export class ScraperService implements OnModuleInit {
         target_region: enriched.target_region ?? null,
         category: classification.canonicalCategory,
         canonical_category: classification.canonicalCategory,
-  metadata: {
+        metadata: {
           ...(input.metadata || {}),
           ai_improved_at: new Date().toISOString(),
           extraction_quality_score: quality.score,
@@ -1399,6 +1409,7 @@ export class ScraperService implements OnModuleInit {
     const sourceResults: SourceResult[] = [];
     let runOutcome: RunOutcome | null = null;
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
+    const processedArticles = new Set<string>();
 
     for (const source of sources) {
       // Honor live pause/stop between sources.
@@ -1455,6 +1466,7 @@ export class ScraperService implements OnModuleInit {
 
           try {
             let basicItems: RawItem[] = [];
+            let hasMorePages = true;
 
             if (this.isDixcoverHubSource(source)) {
               basicItems = await this.extractDixcoverHubItems(source, page);
@@ -1474,15 +1486,11 @@ export class ScraperService implements OnModuleInit {
               }
             } else {
               const html = await this.fetchListHTML(pageUrl);
-              if (
-                page > 1 &&
-                !this.hasNextPage(html, page, source.config?.next_page_selector)
-              ) {
-                this.logger.log(
-                  `  → No next page found after page ${page - 1}, stopping.`,
-                );
-                break;
-              }
+              hasMorePages = this.hasNextPage(
+                html,
+                page,
+                source.config?.next_page_selector,
+              );
               basicItems = this.extractItemsFromList(html, source);
 
               if (basicItems.length === 0) {
@@ -1535,6 +1543,15 @@ export class ScraperService implements OnModuleInit {
               source,
               freshItems,
             );
+            freshItems = freshItems.filter((item) => {
+              const key = this.normalizeUrl(item.apply_url);
+              if (key && processedArticles.has(key)) {
+                itemsSkipped++;
+                return false;
+              }
+              if (key) processedArticles.add(key);
+              return true;
+            });
             const enrichedItems = await this.enrichItems(
               freshItems,
               source.config?.content_selectors,
@@ -1549,11 +1566,15 @@ export class ScraperService implements OnModuleInit {
             this.logger.log(
               `  ✓ ${enrichedItems.length} items enriched from page ${page}`,
             );
+            if (!hasMorePages) break;
           } catch (pageError: any) {
             // Give a failed page exactly one more chance before giving up on
             // the source (preserves prior partial-results behavior on repeat
             // failure, but no longer breaks silently).
-            if (!retriedPages.has(page)) {
+            if (
+              !retriedPages.has(page) &&
+              !/HTTP (?:401|404|410)\b/.test(pageError.message || "")
+            ) {
               retriedPages.add(page);
               this.logger.warn(
                 `  ↻ Error on page ${page} of "${source.name}": ${pageError.message} — retrying once`,
@@ -1650,6 +1671,10 @@ export class ScraperService implements OnModuleInit {
             );
             runOutcome = mergeRunOutcomes(runOutcome, sourceOutcome);
           } catch (error) {
+            if (sourceResult) {
+              sourceResult.status = "failed";
+              sourceResult.error = `Persistence failed: ${error instanceof Error ? error.message : String(error)}`;
+            }
             this.logger.error(
               `Failed to persist items for "${source.name}": ${
                 error instanceof Error ? error.message : String(error)
@@ -1698,6 +1723,29 @@ export class ScraperService implements OnModuleInit {
     const rawRecords = titled.map((item) =>
       this.transformToOpportunity(item, jobLogId),
     );
+
+    // Keep the existing key for an exact article match, avoiding duplicate rows
+    // while new records use article identity rather than a shared apply portal.
+    if (this.supabase && rawRecords.length) {
+      const { data: existing, error } = await this.supabase
+        .from("opportunities")
+        .select("apply_url, canonical_url")
+        .in(
+          "apply_url",
+          rawRecords.map((record) => record.apply_url),
+        );
+      if (error)
+        throw new Error(
+          `Cannot resolve existing opportunity identities: ${error.message}`,
+        );
+      const keys = new Map(
+        (existing || []).map((row: any) => [row.apply_url, row.canonical_url]),
+      );
+      for (const record of rawRecords) {
+        const key = keys.get(record.apply_url);
+        if (typeof key === "string" && key) record.canonical_url = key;
+      }
+    }
 
     // Deduplicate within the payload based on canonical_url to avoid Supabase ON CONFLICT errors
     const uniqueRecords: Record<string, unknown>[] = [];
@@ -1769,7 +1817,7 @@ export class ScraperService implements OnModuleInit {
     this.opportunityDedupService.applyScamGate(uniqueRecords, existingUrls);
 
     const SELECT_COLUMNS =
-      "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";
+      "id, title, status, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";
 
     const { data, error } = await this.supabase
       .from("opportunities")
@@ -1839,7 +1887,7 @@ export class ScraperService implements OnModuleInit {
       duplicateImagesStripped: strippedImages,
       missingFieldCounts: {},
     };
-    for (const rec of uniqueRecords) {
+    for (const rec of saved) {
       const metadata = rec.metadata as Record<string, unknown> | null;
       if (rec.status === "active") outcome.published++;
       else outcome.needsReview++;
@@ -1875,13 +1923,21 @@ export class ScraperService implements OnModuleInit {
     customContentSelectors?: string,
   ): Promise<RawItem[]> {
     const enriched: RawItem[] = [];
-    const candidates = items.filter((item) =>
-      this.isValidOpportunityCandidate(
-        item.title,
-        item.apply_url,
-        item.source_url,
-      ),
-    );
+    const seen = new Set<string>();
+    const candidates = items
+      .filter((item) => {
+        const key = this.normalizeUrl(item.apply_url);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .filter((item) =>
+        this.isValidOpportunityCandidate(
+          item.title,
+          item.apply_url,
+          item.source_url,
+        ),
+      );
 
     // Process in batches defined by ENRICH_CONCURRENCY
     for (let i = 0; i < candidates.length; i += ENRICH_CONCURRENCY) {
@@ -1911,16 +1967,17 @@ export class ScraperService implements OnModuleInit {
     item: RawItem,
     customContentSelectors?: string,
     retry = 1,
+    force = false,
   ): Promise<RawItem> {
     if (!item.apply_url?.startsWith("http")) return item;
 
     // Cache check: skip deep fetch if already enriched
-    if (this.supabase && retry === 1) {
+    if (this.supabase && retry === 1 && !force) {
       // Only check cache on first attempt
       const { data: existing } = await this.supabase
         .from("opportunities")
         .select(
-          "metadata, summary, description, image_url, application_url, apply_url, eligibility, funding_type, target_region",
+          "title, organization, close_date, metadata, summary, description, image_url, application_url, apply_url, eligibility, funding_type, target_region",
         )
         .eq("apply_url", item.apply_url)
         .maybeSingle();
@@ -1951,6 +2008,10 @@ export class ScraperService implements OnModuleInit {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
           ...item,
+          title: existing?.title || item.title,
+          organization: existing?.organization || item.organization,
+          deadline: existing?.close_date || null,
+          enrichment_status: "cached",
           summary: this.normalizeSummary(
             cachedSummary || item.summary || "",
             cachedDescription || item.description || "",
@@ -2058,7 +2119,7 @@ export class ScraperService implements OnModuleInit {
         this.logger.log(`    ↳ Direct apply link: ${directApplyUrl}`);
       if (imageUrl) this.logger.log(`    ↳ Image Proxied: ${imageUrl}`);
 
-      const ai = await this.refineWithDeepSeek(text);
+      let ai = await this.refineWithDeepSeek(text);
 
       // If DeepSeek returned empty data, and we have retries left, try again with a delay
       if (
@@ -2071,11 +2132,14 @@ export class ScraperService implements OnModuleInit {
           `    ↳ Empty AI extraction, retrying ${item.apply_url} (retries left: ${retry})`,
         );
         await this.delay(1000);
-        return this.enrichItem(item, customContentSelectors, retry - 1);
+        ai = await this.refineWithDeepSeek(text);
       }
 
       return {
         ...item,
+        title: ai.title || item.title,
+        organization: ai.organization || item.organization,
+        enrichment_status: ai.summary || ai.description ? "ai" : "failed",
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
         // No unique image → no image. Falling back to the (rejected) listing
         // image here is exactly what produced batches of identical banners.
@@ -2102,7 +2166,9 @@ export class ScraperService implements OnModuleInit {
         source_content_complete: Boolean(text),
         // Prefer dates tied to deadline language in the source. AI can mistake
         // publication dates for application deadlines.
-        deadline: sourceDeadline || item.deadline,
+        deadline: sourceDeadline,
+        deadline_evidence: extractDeadlineEvidence(text),
+        deadline_ambiguous: hasConflictingDeadlines(text),
         application_process: this.normalizeStringList(
           ai.application_process?.length
             ? ai.application_process
@@ -2120,7 +2186,7 @@ export class ScraperService implements OnModuleInit {
       this.logger.warn(
         `  ↳ Deep fetch failed for ${item.apply_url}: ${e.message}`,
       );
-      return item;
+      return { ...item, enrichment_status: "failed" };
     }
   }
 
@@ -2196,50 +2262,15 @@ export class ScraperService implements OnModuleInit {
   }
 
   private extractTextFromHTML(html: string, customSelector?: string): string {
-    if (!html) return "";
-    const $ = cheerio.load(html);
-    $(
-      "script, style, noscript, nav, footer, header, aside, form, iframe",
-    ).remove();
-    const selector = customSelector || DEFAULT_CONTENT_SELECTORS;
-    const candidates: string[] = [];
-
-    $(selector).each((_, el) => {
-      const $candidate = $(el).clone();
-      $candidate
-        .find(
-          "script, style, noscript, nav, footer, header, aside, form, iframe, .share, .social, .related, .comments, .newsletter, .sidebar, [class*=advert]",
-        )
-        .remove();
-      const blocks = $candidate
-        .find("h1, h2, h3, h4, h5, h6, p, li, blockquote, th, td")
-        .toArray()
-        .map((block) => $(block).text().replace(/\s+/g, " ").trim())
-        .filter(Boolean);
-      const candidate = (blocks.length ? blocks.join("\n") : $candidate.text())
-        .replace(/[ \t]+/g, " ")
-        .replace(/ *\n */g, "\n")
-        .trim();
-      if (candidate.length >= 120) {
-        candidates.push(candidate);
-      }
-    });
-
-    const text = candidates.length
-      ? candidates.sort((a, b) => b.length - a.length)[0]
-      : $("body").text();
-    return text
-      .replace(/[ \t]+/g, " ")
-      .replace(/ *\n */g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim()
-      .substring(0, DEEP_TEXT_MAX_CHARS);
+    return articleText(html, customSelector).substring(0, DEEP_TEXT_MAX_CHARS);
   }
 
   // ─── DeepSeek Refinement ────────────────────────────────────────────────────
 
   private async refineWithDeepSeek(text: string): Promise<DeepSeekExtraction> {
     const fallback: DeepSeekExtraction = {
+      title: undefined,
+      organization: undefined,
       summary: undefined,
       description: undefined,
       requirements: [],
@@ -2259,6 +2290,8 @@ export class ScraperService implements OnModuleInit {
 
 Return ONLY valid JSON matching this schema exactly:
 {
+  "title": "actual program name from source, never a navigation or category label; null if unclear",
+  "organization": "actual organizer from source, null if not stated",
   "summary": "one concise 25-45 word user-facing summary",
   "description": "4-6 sentence complete overview covering who it is for, what is funded/offered, location/level, deadline if present, and why it matters",
   "requirements": ["string"],
@@ -2302,6 +2335,8 @@ ${text}`;
         responseJsonSchema: {
           type: "object",
           properties: {
+            title: { type: ["string", "null"] },
+            organization: { type: ["string", "null"] },
             summary: { type: "string" },
             description: { type: "string" },
             requirements: { type: "array", items: { type: "string" } },
@@ -2388,8 +2423,7 @@ ${text}`;
       const url = new URL(source.url);
       return (
         url.hostname.replace(/^www\./, "").toLowerCase() ===
-          "mindshipglobal.com" &&
-        /^\/opportunities(?:\/|$)/i.test(url.pathname)
+          "mindshipglobal.com" && /^\/opportunities(?:\/|$)/i.test(url.pathname)
       );
     } catch {
       return false;
@@ -2418,7 +2452,9 @@ ${text}`;
     );
     if (response.status === 400 && page > 1) return [];
     if (response.status >= 400) {
-      throw new Error(`Mindship Global opportunities REST returned HTTP ${response.status}`);
+      throw new Error(
+        `Mindship Global opportunities REST returned HTTP ${response.status}`,
+      );
     }
 
     const records = Array.isArray(response.data) ? response.data : [];
@@ -2718,7 +2754,18 @@ ${text}`;
           source.config?.link_selector ||
           source.config?.selectors?.link ||
           "a.elementor-post__thumbnail__link, .elementor-post__title a, a[href]";
-        const href = $card.find(linkSelector).first().attr("href") ?? "";
+        const configuredLink =
+          source.config?.link_selector || source.config?.selectors?.link;
+        const titleLink = $card
+          .find(titleSelector)
+          .first()
+          .find("a[href]")
+          .first()
+          .attr("href");
+        const href =
+          (configuredLink
+            ? $card.find(linkSelector).first().attr("href")
+            : titleLink || $card.find(linkSelector).first().attr("href")) ?? "";
         const applyUrl = this.resolveUrl(href, source.url);
         if (!this.isValidOpportunityCandidate(title, applyUrl, source.url))
           return;
@@ -3149,7 +3196,7 @@ ${text}`;
     const application_url = directApplyUrl
       ? directApplyUrl.split("#")[0]
       : null;
-    const canonicalUrl = this.normalizeUrl(application_url || detailUrl);
+    const canonicalUrl = this.normalizeUrl(detailUrl || application_url || "");
     const contentFingerprint = this.createContentFingerprint(
       item.title,
       item.source,
@@ -3172,6 +3219,9 @@ ${text}`;
     // to satisfy it. Now that a missing organiser stays null, keeping it here
     // would block publication on a field real extraction often can't supply.
     const hasCoreContent =
+      !/^(?:browse|view|all|latest)\s+(?:(?:undergraduate|postgraduate|graduate|international)\s+)?(?:internships?|scholarships?|opportunities|jobs|grants|fellowships?)$/i.test(
+        item.title.trim(),
+      ) &&
       !quality.missingFields.includes("title") &&
       !quality.missingFields.includes("description") &&
       summary.length >= 60;
@@ -3188,6 +3238,7 @@ ${text}`;
       quality.score >= MIN_PUBLISH_QUALITY_SCORE &&
       hasCoreContent &&
       !deadlinePassed &&
+      !item.deadline_ambiguous &&
       !lowExtractionConfidence;
 
     return {
@@ -3244,6 +3295,9 @@ ${text}`;
         ai_model_hint: "deepseek-chat",
         enrichment_confidence: item.enrichment_confidence ?? 0,
         enrichment_notes: item.enrichment_notes ?? [],
+        enrichment_status: item.enrichment_status ?? "unknown",
+        deadline_source_evidence: item.deadline_evidence ?? null,
+        deadline_needs_review: item.deadline_ambiguous ?? false,
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         deadline_passed_at_scrape: deadlinePassed,
@@ -3351,13 +3405,9 @@ ${text}`;
   }
 
   private normalizeUrl(url: string): string {
-    return (url || "")
-      .replace(/[\s\u200B\u200C\uFEFF]+/g, "")
-      .replace(/\u200D/g, "")
-      .trim()
-      .replace(/[?#].*$/, "")
-      .replace(/\/+$/, "")
-      .toLowerCase();
+    return opportunityUrlIdentity(
+      (url || "").replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, ""),
+    );
   }
 
   private cleanOptionalText(
@@ -3520,6 +3570,7 @@ ${text}`;
     // is an outright false claim. Null is the honest value, and it routes the
     // record to re-enrichment.
     const candidates = [
+      item.organization,
       item.eligibility && typeof item.eligibility === "object"
         ? item.eligibility.organization
         : null,
@@ -3554,7 +3605,11 @@ ${text}`;
         continue;
       }
       if (SOURCE_BRAND_RE.test(cleaned)) continue;
-      if (this.organizerEchoesTitle(cleaned, title)) continue;
+      if (
+        candidate !== item.organization &&
+        this.organizerEchoesTitle(cleaned, title)
+      )
+        continue;
       return cleaned;
     }
 
@@ -3953,7 +4008,8 @@ ${text}`;
   }
 
   private extractDeadline(text: string): string | null {
-    return extractDeadlineText(text);
+    const fragment = extractDeadlineText(text);
+    return fragment && /20\d{2}/.test(fragment) ? fragment : null;
   }
 
   private extractLocation(text: string): string | undefined {

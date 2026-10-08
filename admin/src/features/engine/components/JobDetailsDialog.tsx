@@ -30,6 +30,12 @@ interface JobDetailsDialogProps {
 function diagnosticText(value: string | Record<string, unknown>): string {
   if (typeof value === "string") return value;
   if (typeof value.message === "string") return value.message;
+  if (typeof value.status === "string" && typeof value.url === "string") {
+    const warnings = Array.isArray(value.warnings)
+      ? value.warnings.join("; ")
+      : "";
+    return `${value.name || value.url}: ${value.status} — ${value.itemsFound || 0} extracted, ${value.itemsSaved || 0} saved, ${value.itemsSkipped || 0} skipped${value.error ? `; ${value.error}` : ""}${warnings ? `; ${warnings}` : ""}`;
+  }
   try {
     return JSON.stringify(value);
   } catch {
@@ -51,6 +57,9 @@ export default function JobDetailsDialog({
 }: JobDetailsDialogProps) {
   if (!job) return null;
 
+  const failedSources = job.warnings.filter(
+    (entry) => typeof entry === "object" && entry.status === "failed",
+  ).length;
   const items = opportunities.data ?? [];
   const selectedCount = items.filter((entry) => entry.selected).length;
   const improving = pendingOperations.has("improve-opportunities");
@@ -59,7 +68,10 @@ export default function JobDetailsDialog({
   const improve = async () => {
     try {
       await onImprove();
-      onNotice("AI improvement previews are ready for review.", "success");
+      onNotice(
+        "AI requests finished. Review the changes and any item errors below.",
+        "success",
+      );
     } catch (error) {
       onNotice(
         error instanceof Error ? error.message : "AI improvement failed.",
@@ -79,14 +91,20 @@ export default function JobDetailsDialog({
       );
     } catch (error) {
       onNotice(
-        error instanceof Error ? error.message : "Opportunity publication failed.",
+        error instanceof Error
+          ? error.message
+          : "Opportunity publication failed.",
         "error",
       );
     }
   };
 
   return (
-    <div className="engine-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="engine-dialog-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
       <section
         className="engine-dialog engine-job-dialog"
         role="dialog"
@@ -99,7 +117,8 @@ export default function JobDetailsDialog({
             <p className="engine-card-eyebrow">Run inspection</p>
             <h2 id="engine-job-details-title">Job details</h2>
             <p>
-              {job.source_name || `Source ${job.source_id}`} · {job.status} · {job.id}
+              {job.source_name || `Source ${job.source_id}`} · {job.status} ·{" "}
+              {job.id}
             </p>
           </div>
           <button
@@ -114,35 +133,77 @@ export default function JobDetailsDialog({
 
         <div className="engine-job-dialog-body">
           <section className="engine-job-metrics" aria-label="Job metrics">
-            <div><span>Discovered</span><strong>{job.urls_discovered.toLocaleString()}</strong></div>
-            <div><span>Scraped</span><strong>{job.urls_scraped.toLocaleString()}</strong></div>
-            <div><span>Saved</span><strong>{(job.urls_saved ?? job.items_found ?? 0).toLocaleString()}</strong></div>
-            <div><span>Failed</span><strong>{(job.urls_failed ?? 0).toLocaleString()}</strong></div>
-            <div><span>Duration</span><strong>{job.duration_seconds.toLocaleString()}s</strong></div>
+            <div>
+              <span>Discovered</span>
+              <strong>{job.urls_discovered.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Scraped</span>
+              <strong>{job.urls_scraped.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Saved</span>
+              <strong>
+                {(job.urls_saved ?? job.items_found ?? 0).toLocaleString()}
+              </strong>
+            </div>
+            <div>
+              <span>Failed sources</span>
+              <strong>{failedSources.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Skipped</span>
+              <strong>{(job.urls_skipped ?? 0).toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Duration</span>
+              <strong>{job.duration_seconds.toLocaleString()}s</strong>
+            </div>
           </section>
 
           {job.errors.length > 0 || job.warnings.length > 0 ? (
-            <section className="engine-job-diagnostics" aria-label="Run diagnostics">
+            <section
+              className="engine-job-diagnostics"
+              aria-label="Run diagnostics"
+            >
               {job.errors.length > 0 ? (
                 <div className="engine-job-diagnostics-group engine-job-diagnostics-group--error">
-                  <h3><AlertTriangle size={15} aria-hidden="true" /> Errors</h3>
-                  <ul>{job.errors.map((entry, index) => <li key={index}>{diagnosticText(entry)}</li>)}</ul>
+                  <h3>
+                    <AlertTriangle size={15} aria-hidden="true" /> Errors
+                  </h3>
+                  <ul>
+                    {job.errors.map((entry, index) => (
+                      <li key={index}>{diagnosticText(entry)}</li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
               {job.warnings.length > 0 ? (
                 <div className="engine-job-diagnostics-group engine-job-diagnostics-group--warning">
-                  <h3><AlertTriangle size={15} aria-hidden="true" /> Warnings</h3>
-                  <ul>{job.warnings.map((entry, index) => <li key={index}>{diagnosticText(entry)}</li>)}</ul>
+                  <h3>
+                    <AlertTriangle size={15} aria-hidden="true" /> Warnings
+                  </h3>
+                  <ul>
+                    {job.warnings.map((entry, index) => (
+                      <li key={index}>{diagnosticText(entry)}</li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </section>
           ) : null}
 
-          <section className="engine-job-opportunities" aria-labelledby="engine-job-opportunities-title">
+          <section
+            className="engine-job-opportunities"
+            aria-labelledby="engine-job-opportunities-title"
+          >
             <header>
               <div>
                 <h3 id="engine-job-opportunities-title">Opportunity review</h3>
-                <p>{selectedCount.toLocaleString()} of {items.length.toLocaleString()} selected</p>
+                <p>
+                  {selectedCount.toLocaleString()} of{" "}
+                  {items.length.toLocaleString()} selected
+                </p>
               </div>
               <div className="engine-job-review-actions">
                 <button
@@ -157,7 +218,11 @@ export default function JobDetailsDialog({
                   type="button"
                   className="engine-source-action engine-source-action--primary"
                   aria-label="Improve selected"
-                  disabled={selectedCount === 0 || improving || opportunities.status !== "success"}
+                  disabled={
+                    selectedCount === 0 ||
+                    improving ||
+                    opportunities.status !== "success"
+                  }
                   onClick={() => void improve()}
                 >
                   <Sparkles size={14} aria-hidden="true" />
@@ -167,7 +232,11 @@ export default function JobDetailsDialog({
                   type="button"
                   className="engine-primary-button"
                   aria-label="Save selected"
-                  disabled={selectedCount === 0 || saving || opportunities.status !== "success"}
+                  disabled={
+                    selectedCount === 0 ||
+                    saving ||
+                    opportunities.status !== "success"
+                  }
                   onClick={() => void save()}
                 >
                   <DatabaseZap size={14} aria-hidden="true" />
@@ -176,14 +245,23 @@ export default function JobDetailsDialog({
               </div>
             </header>
 
-            {opportunities.status === "loading" && opportunities.data === null ? (
-              <p className="engine-job-loading" role="status">Loading opportunities…</p>
-            ) : opportunities.status === "error" && opportunities.data === null ? (
-              <p className="engine-form-error" role="alert">{opportunities.error?.message}</p>
+            {opportunities.status === "loading" &&
+            opportunities.data === null ? (
+              <p className="engine-job-loading" role="status">
+                Loading opportunities…
+              </p>
+            ) : opportunities.status === "error" &&
+              opportunities.data === null ? (
+              <p className="engine-form-error" role="alert">
+                {opportunities.error?.message}
+              </p>
             ) : items.length === 0 ? (
               <div className="engine-job-empty">
                 <h4>No opportunities were persisted for this run</h4>
-                <p>The job record is valid, but there are no attributable review rows.</p>
+                <p>
+                  The job record is valid, but there are no attributable review
+                  rows.
+                </p>
               </div>
             ) : (
               <div className="engine-opportunity-review-list">
@@ -207,9 +285,14 @@ export default function JobDetailsDialog({
             disabled={pendingOperations.has(`delete-job:${job.id}`)}
             onClick={() => onDelete(job)}
           >
-            <Trash2 size={14} aria-hidden="true" /> Delete run and attributable data
+            <Trash2 size={14} aria-hidden="true" /> Delete run and attributable
+            data
           </button>
-          <button type="button" className="engine-secondary-button" onClick={onClose}>
+          <button
+            type="button"
+            className="engine-secondary-button"
+            onClick={onClose}
+          >
             Close
           </button>
         </footer>
