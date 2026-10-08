@@ -376,12 +376,10 @@ describe("AI deadline evidence", () => {
   });
   it("accepts an exact supported deadline quote", async () => {
     const service = new OpportunityVerificationService({
-      generateJson: jest
-        .fn()
-        .mockResolvedValue({
-          deadline: "2026-11-11",
-          evidence: "Deadline: November 11, 2026",
-        }),
+      generateJson: jest.fn().mockResolvedValue({
+        deadline: "2026-11-11",
+        evidence: "Deadline: November 11, 2026",
+      }),
     } as any);
     expect(
       await (service as any).extractDeadlineWithAi(
@@ -395,21 +393,95 @@ describe("AI deadline evidence", () => {
 describe("source deadline recovery safeguards", () => {
   function prepare(deadline: string, text: string) {
     jest.clearAllMocks();
-    mockedDb.execute.mockResolvedValueOnce({ rows: [{ id: "1827885d-2d96-469e-b7f4-c580dd537334", title: "Fellowship 2026", status: "pending_review", source_url: "https://source.example/article", close_date: deadline, metadata: {} }] }).mockResolvedValue({ rows: [{ id: "1827885d-2d96-469e-b7f4-c580dd537334" }] });
+    mockedDb.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "1827885d-2d96-469e-b7f4-c580dd537334",
+            title: "Fellowship 2026",
+            status: "pending_review",
+            source_url: "https://source.example/article",
+            close_date: deadline,
+            metadata: {},
+          },
+        ],
+      })
+      .mockResolvedValue({
+        rows: [{ id: "1827885d-2d96-469e-b7f4-c580dd537334" }],
+      });
     const service = new OpportunityVerificationService({} as any);
-    (service as any).fetchPageText = jest.fn().mockResolvedValue({ text, httpStatus: 200, error: null });
+    (service as any).fetchPageText = jest
+      .fn()
+      .mockResolvedValue({ text, httpStatus: 200, error: null });
     (service as any).extractDeadlineWithAi = jest.fn().mockResolvedValue(null);
     return service;
   }
   it("marks an unsupported stored date for review without inventing a replacement", async () => {
-    const service = prepare("2026-10-30", "Applications are open. No closing date has been announced.");
-    expect(await service.refreshDeadlineFromSource("1827885d-2d96-469e-b7f4-c580dd537334")).toMatchObject({ updated: false, needsReview: true });
+    const service = prepare(
+      "2026-10-30",
+      "Applications are open. No closing date has been announced.",
+    );
+    expect(
+      await service.refreshDeadlineFromSource(
+        "1827885d-2d96-469e-b7f4-c580dd537334",
+      ),
+    ).toMatchObject({ updated: false, needsReview: true });
     const query = new PgDialect().sqlToQuery(mockedDb.execute.mock.calls[1][0]);
     expect(query.sql).toContain("deadline_needs_review");
     expect(query.sql).not.toContain("close_date =");
   });
   it("clears a stored publication date when the source has no application deadline", async () => {
-    const service = prepare("2026-10-08", "Published: October 8, 2026. Applications are open. No closing date has been announced.");
-    expect(await service.refreshDeadlineFromSource("1827885d-2d96-469e-b7f4-c580dd537334")).toMatchObject({ updated: true, deadline: null, clearedAsPublicationDate: true });
+    const service = prepare(
+      "2026-10-08",
+      "Published: October 8, 2026. Applications are open. No closing date has been announced.",
+    );
+    expect(
+      await service.refreshDeadlineFromSource(
+        "1827885d-2d96-469e-b7f4-c580dd537334",
+      ),
+    ).toMatchObject({
+      updated: true,
+      deadline: null,
+      clearedAsPublicationDate: true,
+    });
+  });
+});
+
+describe("application page deadline fallback", () => {
+  it("recovers a labeled date from the application page when the source article is blocked", async () => {
+    jest.clearAllMocks();
+    mockedDb.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "1827885d-2d96-469e-b7f4-c580dd537334",
+            title: "Fellowship 2026",
+            source_url: "https://source.example/article",
+            application_url: "https://provider.example/apply",
+            metadata: {},
+          },
+        ],
+      })
+      .mockResolvedValue({
+        rows: [{ id: "1827885d-2d96-469e-b7f4-c580dd537334" }],
+      });
+    const service = new OpportunityVerificationService({} as any);
+    (service as any).fetchPageText = jest
+      .fn()
+      .mockResolvedValueOnce({ text: null, httpStatus: 403, error: "HTTP 403" })
+      .mockResolvedValueOnce({
+        text: "Application deadline: November 11, 2026. Applications are open.",
+        httpStatus: 200,
+        error: null,
+      });
+    expect(
+      await service.refreshDeadlineFromSource(
+        "1827885d-2d96-469e-b7f4-c580dd537334",
+      ),
+    ).toMatchObject({
+      updated: true,
+      deadline: "2026-11-11",
+      sourceUrl: "https://provider.example/apply",
+    });
   });
 });

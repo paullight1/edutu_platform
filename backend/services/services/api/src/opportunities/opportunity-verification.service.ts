@@ -1,4 +1,4 @@
-import { articleText } from "./source-evidence.util";
+import { articleText, deadlineExcerpt } from "./source-evidence.util";
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { sql } from "drizzle-orm";
@@ -18,6 +18,7 @@ import {
   hasConflictingDeadlines,
   pageSaysClosed,
   DeadlineConfidence,
+  parseDeadlineEvidence,
 } from "./deadline.util";
 import { AiService } from "../ai";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
@@ -711,21 +712,32 @@ export class OpportunityVerificationService {
           const outcome = await this.refreshCandidateDeadline(candidate);
           return {
             opportunityId: candidate.id,
+            title: candidate.title,
             updated: Boolean(outcome.updated),
             deadline: outcome.deadline ?? null,
             confidence: outcome.confidence ?? null,
             failed: Boolean(outcome.failed),
             needsReview: Boolean(outcome.needsReview),
             reason: outcome.reason ?? null,
+            sourceUrl:
+              outcome.sourceUrl ??
+              candidate.source_url ??
+              candidate.application_url ??
+              candidate.apply_url,
           };
         } catch (error) {
           return {
             opportunityId: candidate.id,
+            title: candidate.title,
             updated: false,
             deadline: null,
             confidence: null,
             failed: true,
             needsReview: false,
+            sourceUrl:
+              candidate.source_url ??
+              candidate.application_url ??
+              candidate.apply_url,
             reason:
               error instanceof Error ? error.message : "Deadline check failed.",
           };
@@ -737,11 +749,13 @@ export class OpportunityVerificationService {
       if (!checkedIds.has(id)) {
         outcomes.push({
           opportunityId: id,
+          title: null,
           updated: false,
           deadline: null,
           confidence: null,
           failed: true,
           needsReview: false,
+          sourceUrl: null,
           reason: "Opportunity not found.",
         });
       }
@@ -789,47 +803,87 @@ export class OpportunityVerificationService {
     candidate: CandidateRow,
     signal: AbortSignal,
   ) {
-    // The article/source page is the strongest place to distinguish its own
-    // posted date from the opportunity's closing date. Fall back to the
-    // application URL only when no source URL was stored.
-    const url =
-      this.preferredUrl({
-        ...candidate,
-        apply_url: null,
-        application_url: null,
-        link: null,
-      }) || this.preferredUrl(candidate);
-    if (!url) {
+    const urls = [
+      ...new Set(
+        [
+          this.preferredUrl({
+            ...candidate,
+            apply_url: null,
+            application_url: null,
+            link: null,
+          }),
+          this.preferredUrl(candidate),
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    if (!urls.length)
       return {
         updated: false,
         failed: true,
         reason: "No source or application URL is available.",
       };
-    }
 
-    const page = await this.fetchPageText(url, signal);
-    if (signal.aborted) throw signal.reason;
-    if (!page.text) {
+    const pages: Array<{ url: string; text: string }> = [];
+    const errors: string[] = [];
+    let refreshed: {
+      date: string | null;
+      confidence: DeadlineConfidence;
+    } | null = null;
+    let url = urls[0];
+    let page = { text: "" };
+    // Check both the source article and direct application page before paying
+    // for AI. A blocked article must not prevent reading the official page.
+    for (const candidateUrl of urls) {
+      const fetched = await this.fetchPageText(candidateUrl, signal);
+      if (signal.aborted) throw signal.reason;
+      if (!fetched.text) {
+        errors.push(fetched.error || "Source could not be read.");
+        continue;
+      }
+      if (hasConflictingDeadlines(fetched.text)) {
+        await this.flagUnconfirmedDeadline(candidate.id, candidateUrl);
+        return {
+          updated: false,
+          needsReview: true,
+          sourceUrl: candidateUrl,
+          reason:
+            "Multiple closing dates were found. Choose the correct application round before saving a date.",
+        };
+      }
+      pages.push({ url: candidateUrl, text: fetched.text });
+      refreshed = this.parsePageDeadline(candidate, fetched.text);
+      if (refreshed) {
+        url = candidateUrl;
+        page = { text: fetched.text };
+        break;
+      }
+    }
+    if (!pages.length)
       return {
         updated: false,
         failed: true,
-        reason: page.error || "The source page could not be read.",
+        sourceUrl: url,
+        reason: errors.join("; "),
       };
+    if (!refreshed) {
+      for (const evidence of pages) {
+        refreshed = await this.extractDeadlineWithAi(
+          candidate,
+          evidence.text,
+          signal,
+        );
+        if (signal.aborted) throw signal.reason;
+        if (refreshed) {
+          url = evidence.url;
+          page = { text: evidence.text };
+          break;
+        }
+      }
     }
-
-    if (hasConflictingDeadlines(page.text)) {
-      await this.flagUnconfirmedDeadline(candidate.id, url);
-      return {
-        updated: false,
-        needsReview: true,
-        reason:
-          "The source states multiple closing dates. Review the application round before changing the deadline.",
-      };
+    if (!page.text) {
+      url = pages[0].url;
+      page = { text: pages[0].text };
     }
-
-    const refreshed =
-      this.parsePageDeadline(candidate, page.text) ??
-      (await this.extractDeadlineWithAi(candidate, page.text, signal));
     const currentDate =
       this.expiryDate(candidate)?.toISOString().slice(0, 10) ?? null;
     let nextDate: string | null | undefined = refreshed?.date;
@@ -1254,7 +1308,7 @@ export class OpportunityVerificationService {
 
     // Deadlines live near the top or in an "how to apply" block; sending the
     // whole page burns tokens for no accuracy.
-    const excerpt = pageText.slice(0, 12000);
+    const excerpt = deadlineExcerpt(pageText);
     if (excerpt.trim().length < 80) return null;
 
     // This path costs money and is otherwise invisible — without a log there's
@@ -1313,10 +1367,8 @@ export class OpportunityVerificationService {
       ) {
         return { date: null, confidence: "rolling" };
       }
-      const fragment = extractDeadlineText(evidence);
-      if (!fragment || !/20\d{2}/.test(fragment)) return null;
-      const supported = parseDeadlineDetailed(fragment, null);
-      if (!supported.date || supported.date !== result?.deadline) return null;
+      const supported = parseDeadlineEvidence(evidence, result?.deadline);
+      if (!supported) return null;
 
       // Run the model's answer back through the same parser as everything else:
       // it keeps the date-column contract in one place, and rejects the model
@@ -1797,7 +1849,14 @@ export class OpportunityVerificationService {
     if (!raw) return null;
 
     try {
-      const url = new URL(raw);
+      let url = new URL(raw);
+      if (
+        url.hostname === "www.addtoany.com" ||
+        url.hostname === "addtoany.com"
+      ) {
+        const destination = url.searchParams.get("linkurl");
+        if (destination) url = new URL(destination);
+      }
       if (!["http:", "https:"].includes(url.protocol)) return null;
       return url.toString();
     } catch {

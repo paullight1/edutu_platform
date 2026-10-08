@@ -250,9 +250,23 @@ describe("Opportunities AI completion popup", () => {
       const url = String(input);
       if (url.includes("/bulk-category"))
         return Promise.resolve(jsonResponse({ updated: 1 }));
-      if (url.endsWith("/deadline"))
+      if (url.endsWith("/deadlines/bulk"))
         return Promise.resolve(
-          jsonResponse({ result: { updated: true, deadline: "2027-01-10" } }),
+          jsonResponse({
+            success: true,
+            found: 1,
+            rolling: 0,
+            failed: 0,
+            needsReview: 0,
+            outcomes: [
+              {
+                opportunityId: opportunity.id,
+                title: opportunity.title,
+                updated: true,
+                deadline: "2027-01-10",
+              },
+            ],
+          }),
         );
       return existingFetch(input, init);
     });
@@ -267,7 +281,7 @@ describe("Opportunities AI completion popup", () => {
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url).endsWith(`/${opportunity.id}/deadline`),
+          String(url).endsWith("/deadlines/bulk"),
         ),
       ).toBe(true),
     );

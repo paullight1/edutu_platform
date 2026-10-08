@@ -108,8 +108,8 @@ describe("OpportunityShareCardService", () => {
       metadata: {},
     });
 
-    expect(svg).toContain('width="1080" height="1350"');
-    expect(svg).toContain('viewBox="0 0 1080 1350"');
+    expect(svg).toContain('width="1080" height="1080"');
+    expect(svg).toContain('viewBox="0 0 1080 1080"');
     expect(svg).toContain("ECOWAS Young Professional");
     expect(svg).toContain("Programme");
     expect(svg).toContain("ECOWAS Bank for Investment and");
@@ -134,7 +134,7 @@ describe("OpportunityShareCardService", () => {
     );
 
     expect(svg).toContain("data:image/png;base64,Z2VuZXJhdGVkLWFydHdvcms=");
-    expect(svg).toContain('<image x="0" y="0" width="1080" height="1350"');
+    expect(svg).toContain('<image x="0" y="0" width="1080" height="1080"');
     expect(svg).toContain("url(#creativeShade)");
     expect(svg).toContain("ECOWAS Young Professional");
     expect(svg).toContain("OPPORTUNITY BRIEF");

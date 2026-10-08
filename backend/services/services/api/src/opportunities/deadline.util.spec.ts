@@ -2,6 +2,7 @@ import {
   parseDeadlineDetailed,
   extractDeadlineText,
   pageSaysClosed,
+  parseDeadlineEvidence,
 } from "./deadline.util";
 
 describe("parseDeadlineDetailed", () => {
@@ -90,5 +91,38 @@ describe("pageSaysClosed", () => {
 
   it("does not treat a past date alone as closure", () => {
     expect(pageSaysClosed("Deadline was 1 April 2026")).toBe(false);
+  });
+});
+
+describe("closing-date wording", () => {
+  it.each([
+    "Deadline for nominations: November 11, 2026",
+    "Nominations close on November 11, 2026",
+    "Applications must be received by November 11, 2026",
+  ])("reads %s", (text) =>
+    expect(extractDeadlineText(text)).toBe("November 11, 2026"),
+  );
+  it("supports an exact AI quote with different closing language", () => {
+    expect(
+      parseDeadlineEvidence(
+        "All nominations must reach the committee by November 11, 2026.",
+        "2026-11-11",
+      ),
+    ).toBe("2026-11-11");
+    expect(
+      parseDeadlineEvidence(
+        "Applications were posted on November 11, 2026.",
+        "2026-11-11",
+      ),
+    ).toBeNull();
+    expect(
+      parseDeadlineEvidence("Apply by November 11.", "2026-11-11"),
+    ).toBeNull();
+    expect(
+      parseDeadlineEvidence(
+        "Apply by November 11, 2026 or December 11, 2026.",
+        "2026-11-11",
+      ),
+    ).toBeNull();
   });
 });

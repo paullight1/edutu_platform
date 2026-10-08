@@ -118,7 +118,7 @@ export class OpportunityImageGenerationService {
       : "";
 
     return [
-      "Create an original, premium, full-bleed 4:5 campaign-poster illustration for this specific opportunity. The artwork itself should define the composition and feel; it will not be placed inside a standard card or template.",
+      "Create an original, premium, full-bleed square 1:1 campaign-poster illustration for this specific opportunity. The artwork itself should define the composition and feel; it will not be placed inside a standard card or template.",
       `Opportunity title: ${title}`,
       organization ? `Organization: ${organization}` : "",
       category ? `Opportunity type: ${category}` : "",

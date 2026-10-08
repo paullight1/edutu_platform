@@ -1,3 +1,7 @@
+import DeadlineRecoveryPopup, {
+  type DeadlineJob,
+  type DeadlineOutcome,
+} from "./opportunities/DeadlineRecoveryPopup";
 import {
   useCallback,
   useEffect,
@@ -1046,6 +1050,9 @@ export default function Opportunities() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
+  const [deadlineJob, setDeadlineJob] = useState<DeadlineJob | null>(null);
+  const [deadlineMinimized, setDeadlineMinimized] = useState(false);
+  const deadlineStopRef = useRef(false);
   const [aiCompletionJob, setAiCompletionJob] =
     useState<AiCompletionJobState | null>(null);
   const [aiCompletionMinimized, setAiCompletionMinimized] = useState(false);
@@ -1682,9 +1689,12 @@ export default function Opportunities() {
     }
   }
 
-  async function handleBulkFindDeadlines() {
-    const ids = Array.from(selectedIds);
+  async function handleBulkFindDeadlines(retryIds?: string[]) {
+    const ids = retryIds ?? Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
+    deadlineStopRef.current = false;
+    setDeadlineMinimized(false);
+    setDeadlineJob({ ids, done: 0, status: "running", outcomes: [] });
     setBulkAction("findDeadlines");
     setBulkProgress({
       done: 0,
@@ -1708,6 +1718,7 @@ export default function Opportunities() {
       // sources with bounded server-side concurrency instead of 200 browser
       // requests, while the UI reports real per-batch progress.
       for (const chunk of chunkArray(ids, 6)) {
+        if (deadlineStopRef.current) break;
         const controller = new AbortController();
         const requestTimeout = window.setTimeout(
           () => controller.abort(),
@@ -1750,6 +1761,25 @@ export default function Opportunities() {
             (Number(result.failed) || 0),
         );
         done += chunk.length;
+        const batchOutcomes: DeadlineOutcome[] = (result.outcomes || []).map(
+          (outcome: DeadlineOutcome) => ({
+            ...outcome,
+            title:
+              outcome.title ||
+              filteredOpps.find((item) => item.id === outcome.opportunityId)
+                ?.title ||
+              outcome.opportunityId,
+          }),
+        );
+        setDeadlineJob((current) =>
+          current
+            ? {
+                ...current,
+                done,
+                outcomes: [...current.outcomes, ...batchOutcomes],
+              }
+            : current,
+        );
         setBulkProgress({
           done,
           total: ids.length,
@@ -1763,6 +1793,14 @@ export default function Opportunities() {
         await fetchOpportunities({ silent: true });
       }
 
+      setDeadlineJob((current) =>
+        current
+          ? {
+              ...current,
+              status: deadlineStopRef.current ? "stopped" : "completed",
+            }
+          : current,
+      );
       showPageNotice(
         failed ? "warning" : found || rolling ? "success" : "warning",
         `Checked ${done} ${done === 1 ? "opportunity" : "opportunities"}: found ${found} deadline${found === 1 ? "" : "s"}${rolling ? `, ${rolling} confirmed rolling` : ""}${needsReview ? `, ${needsReview} need review` : ""}${unchanged ? `, ${unchanged} with no deadline stated` : ""}${failed ? `, ${failed} could not be checked` : ""}.`,
@@ -1772,6 +1810,18 @@ export default function Opportunities() {
       showPageNotice(
         "error",
         getErrorMessage(error, "Deadline checks could not be completed."),
+      );
+      setDeadlineJob((current) =>
+        current
+          ? {
+              ...current,
+              status: "error",
+              message: getErrorMessage(
+                error,
+                "Deadline checks could not be completed.",
+              ),
+            }
+          : current,
       );
     } finally {
       setBulkAction(null);
@@ -3373,6 +3423,29 @@ export default function Opportunities() {
         </div>
       )}
 
+      {deadlineJob && !deadlineMinimized && (
+        <DeadlineRecoveryPopup
+          job={deadlineJob}
+          onClose={() => setDeadlineMinimized(true)}
+          onStop={() => {
+            deadlineStopRef.current = true;
+            setDeadlineJob((current) =>
+              current ? { ...current, stopping: true } : current,
+            );
+          }}
+          onRetry={(ids) => void handleBulkFindDeadlines(ids)}
+        />
+      )}
+      {deadlineJob && deadlineMinimized && (
+        <button
+          className="btn btn-secondary"
+          onClick={() => setDeadlineMinimized(false)}
+          style={{ marginBottom: 12 }}
+        >
+          <CalendarClock size={16} /> Deadline results · {deadlineJob.done}/
+          {deadlineJob.ids.length}
+        </button>
+      )}
       {aiCompletionJob && (
         <BulkEnhancementProgressPopup
           job={aiCompletionJob}
@@ -4480,7 +4553,8 @@ export default function Opportunities() {
                       style={{
                         display: "block",
                         maxWidth: "100%",
-                        maxHeight: "52vh",
+                        width: "min(100%, 52vh)",
+                        aspectRatio: "1 / 1",
                         objectFit: "contain",
                         borderRadius: 8,
                       }}
@@ -4746,7 +4820,7 @@ export default function Opportunities() {
                       >
                         <div
                           style={{
-                            aspectRatio: "4 / 5",
+                            aspectRatio: "1 / 1",
                             maxWidth: "440px",
                             margin: "0 auto",
                             background: "var(--bg-tertiary, rgba(0,0,0,0.06))",

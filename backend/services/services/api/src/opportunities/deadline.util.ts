@@ -190,6 +190,25 @@ function deadlineFragments(text: string, includeLabel = false): string[] {
     ")(?:\\.?\\s*,?\\s+20\\d{2})?)";
   const patterns = [
     new RegExp(
+      "\\bdeadline\\s+for\\s+(?:applications?|nominations?|submissions?|proposals?)\\s*(?:is|:)?\\s*(" +
+        date +
+        ")",
+      "i",
+    ),
+    new RegExp(
+      "\\b(?:nominations?|submissions?|proposals?)\\s+(?:close|closes|closing|are due)\\s*(?:on|by|:)?\\s*(" +
+        date +
+        ")",
+      "i",
+    ),
+    new RegExp(
+      "\\b(?:applications?|nominations?|submissions?|proposals?)\\s+(?:must|should)\\s+be\\s+(?:received|submitted)\\s+(?:by|before|no later than)\\s*(" +
+        date +
+        ")",
+      "i",
+    ),
+
+    new RegExp(
       "\\b(?:(?:application|submission)\\s+)?deadline\\b\\s*(?:(?:is|of)\\s+|[:|–—-]\\s*)?(" +
         date +
         ")",
@@ -248,6 +267,47 @@ export function extractDeadlineEvidence(text: string): string | null {
       quote.toLowerCase().includes(fragment.toLowerCase()),
     ) ?? null
   );
+}
+
+/** Validate an AI quote against an explicit closing intent and one written date.
+ * This permits phrasing outside the deterministic label patterns, but never
+ * accepts an unquoted, publication, or year-inferred date.
+ */
+export function parseDeadlineEvidence(
+  evidence: string,
+  claimed?: string | null,
+): string | null {
+  if (
+    !claimed ||
+    !/deadline|closing|apply|applications?|nominations?|submissions?|proposals?/i.test(
+      evidence,
+    )
+  )
+    return null;
+  if (
+    /\b(?:published|posted|updated|modified|opening date|opens on)\b/i.test(
+      evidence,
+    )
+  )
+    return null;
+  if (
+    !/deadline|closing|\b(?:close|closes|due|before|by|until|no later than)\b/i.test(
+      evidence,
+    )
+  )
+    return null;
+  const dates =
+    evidence.match(
+      /20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]20\d{2}|[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?[,]?\s+20\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?[,]?\s+20\d{2}/g,
+    ) || [];
+  const supported = [
+    ...new Set(
+      dates
+        .map((date) => parseDeadlineDetailed(date, null).date)
+        .filter(Boolean),
+    ),
+  ];
+  return supported.length === 1 && supported[0] === claimed ? claimed : null;
 }
 
 /**

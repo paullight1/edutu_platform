@@ -1,4 +1,8 @@
-import { articleText, opportunityUrlIdentity } from "./source-evidence.util";
+import {
+  articleText,
+  opportunityUrlIdentity,
+  deadlineExcerpt,
+} from "./source-evidence.util";
 import { extractDeadlineText } from "./deadline.util";
 
 describe("opportunity source evidence", () => {
@@ -39,5 +43,31 @@ describe("opportunity source evidence", () => {
       `<article><p>Posted October 8, 2026. Applications are welcome from qualified candidates for this fellowship.</p><p>Application deadline: November 11, 2026</p></article>`,
     );
     expect(extractDeadlineText(text)).toBe("November 11, 2026");
+  });
+});
+
+describe("deadline sections", () => {
+  it("keeps a closing section after a long introduction", () => {
+    const excerpt = deadlineExcerpt(
+      "Intro text. ".repeat(1800) +
+        "Applications must be received by November 11, 2026. Send the requested documents.",
+    );
+    expect(excerpt.length).toBeLessThanOrEqual(12000);
+    expect(excerpt).toContain("November 11, 2026");
+  });
+  it("reads a matching JobPosting validThrough without substituting datePublished", () => {
+    const html =
+      '<script type="application/ld+json">{"@type":"JobPosting","title":"Graduate Fellowship","validThrough":"2026-11-11T12:00:00Z","datePublished":"2026-10-08"}</script><article><h1>Graduate Fellowship</h1><p>Applications are invited from qualified graduates for the annual fellowship. Please use the official application form.</p></article>';
+    expect(extractDeadlineText(articleText(html))).toBe("2026-11-11");
+    expect(
+      extractDeadlineText(
+        articleText(
+          html.replace(
+            "Graduate Fellowship</h1>",
+            "Unrelated Scholarship</h1>",
+          ),
+        ),
+      ),
+    ).toBeNull();
   });
 });

@@ -36,14 +36,14 @@ export interface ShareCardArtwork {
 const BUCKET =
   process.env.OPPORTUNITY_SHARE_CARD_BUCKET || "opportunity-share-cards";
 const CARD_WIDTH = 1080;
-const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
+const CARD_HEIGHT = 1080; // Square feed and share image (1:1)
 
 // Font stack limited to what the render container (librsvg via sharp) can
 // resolve — no exotic webfonts. We win on layout, colour and hierarchy.
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v10-distinct-designs-and-compact-guidance";
+const DESIGN_VERSION = "v11-square-flyers";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -344,14 +344,14 @@ export class OpportunityShareCardService {
 
     // ---- Layout frame ----
     const W = CARD_WIDTH; // 1080
-    const H = CARD_HEIGHT; // 1350
+    const H = CARD_HEIGHT; // 1080
     const M = 72; // page margin
     const CW = W - M * 2; // content width
     const FOOTER_H = 124;
     const footerTop = H - FOOTER_H;
 
     // Header height flexes with the title so long titles never clip.
-    // Compact scale for the 4:5 feed portrait — leaves the body room to breathe.
+    // Compact scale for the square feed image — leaves the body room to breathe.
     const titleLines = this.wrap(title, 27, 3);
     const titleStart = 232;
     const titleLH = 60;
@@ -565,29 +565,6 @@ export class OpportunityShareCardService {
       }),
     ];
 
-    const titleLines = this.wrap(title, 27, 3);
-    const titleTop = 772;
-    const titleLineHeight = 66;
-    titleLines.forEach((line, index) => {
-      layers.push(
-        `<text x="72" y="${titleTop + index * titleLineHeight}" font-family="${FONT}" font-size="58" font-weight="850" letter-spacing="-0.6" fill="#FFFFFF">${this.escape(line)}</text>`,
-      );
-    });
-
-    const providerY = titleTop + titleLines.length * titleLineHeight + 22;
-    layers.push(
-      `<text x="76" y="${providerY}" font-family="${FONT}" font-size="28" font-weight="700" fill="#DCE9FF">${this.escape(this.truncate(provider, 62))}</text>`,
-    );
-
-    const summaryTop = providerY + 52;
-    const summaryLines = this.wrap(summary, 62, 2);
-    summaryLines.forEach((line, index) => {
-      layers.push(
-        `<text x="76" y="${summaryTop + index * 36}" font-family="${FONT}" font-size="25" font-weight="500" fill="#F1F5F9">${this.escape(line)}</text>`,
-      );
-    });
-
-    const badgeY = Math.min(summaryTop + summaryLines.length * 36 + 26, 1164);
     const badges: string[] = [];
     if (deadlineRaw) badges.push(`DEADLINE  ·  ${this.deadline(deadlineRaw)}`);
     const funding = this.funding(
@@ -600,6 +577,32 @@ export class OpportunityShareCardService {
       "",
     );
     if (location) badges.push(location);
+    const titleLines = this.wrap(title, 29, 3);
+    const summaryLines = this.wrap(summary, 62, 2);
+    const titleLineHeight = 62;
+    const detailHeight =
+      (titleLines.length - 1) * titleLineHeight +
+      (provider ? 92 : 48) +
+      (summaryLines.length - 1) * 32 +
+      (badges.length ? 86 : 0);
+    const titleTop = CARD_HEIGHT - 124 - detailHeight;
+    titleLines.forEach((line, index) => {
+      layers.push(
+        `<text x="72" y="${titleTop + index * titleLineHeight}" font-family="${FONT}" font-size="54" font-weight="850" letter-spacing="-0.6" fill="#FFFFFF">${this.escape(line)}</text>`,
+      );
+    });
+    const titleBottom = titleTop + (titleLines.length - 1) * titleLineHeight;
+    if (provider)
+      layers.push(
+        `<text x="76" y="${titleBottom + 44}" font-family="${FONT}" font-size="26" font-weight="700" fill="#DCE9FF">${this.escape(this.truncate(provider, 60))}</text>`,
+      );
+    const summaryTop = titleBottom + (provider ? 92 : 48);
+    summaryLines.forEach((line, index) => {
+      layers.push(
+        `<text x="76" y="${summaryTop + index * 32}" font-family="${FONT}" font-size="25" font-weight="500" fill="#F1F5F9">${this.escape(line)}</text>`,
+      );
+    });
+    const badgeY = summaryTop + (summaryLines.length - 1) * 32 + 24;
     badges.slice(0, 2).forEach((label, index) => {
       const x = 76 + index * 454;
       layers.push(
@@ -609,9 +612,9 @@ export class OpportunityShareCardService {
     });
 
     layers.push(
-      `<rect x="72" y="1252" width="936" height="3" rx="1.5" fill="#FFFFFF" fill-opacity="0.38"/>`,
-      `<text x="76" y="1304" font-family="${FONT}" font-size="22" font-weight="800" letter-spacing="1.2" fill="#FFFFFF">VIEW DETAILS &amp; APPLY</text>`,
-      `<text x="1008" y="1304" text-anchor="end" font-family="${FONT}" font-size="21" font-weight="700" fill="#DCE9FF">${BRAND_DOMAIN}</text>`,
+      `<rect x="72" y="${CARD_HEIGHT - 92}" width="936" height="3" rx="1.5" fill="#FFFFFF" fill-opacity="0.38"/>`,
+      `<text x="76" y="${CARD_HEIGHT - 40}" font-family="${FONT}" font-size="22" font-weight="800" letter-spacing="1.2" fill="#FFFFFF">VIEW DETAILS &amp; APPLY</text>`,
+      `<text x="1008" y="${CARD_HEIGHT - 40}" text-anchor="end" font-family="${FONT}" font-size="21" font-weight="700" fill="#DCE9FF">${BRAND_DOMAIN}</text>`,
     );
 
     return `<?xml version="1.0" encoding="UTF-8"?>
