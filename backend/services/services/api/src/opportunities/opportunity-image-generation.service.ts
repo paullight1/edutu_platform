@@ -44,9 +44,7 @@ export class OpportunityImageGenerationService {
         format: flyer.format,
         generated_at: new Date().toISOString(),
         source_image_url:
-          metadata.source_image_url ||
-          opportunity.image_url ||
-          null,
+          metadata.source_image_url || opportunity.image_url || null,
       },
     );
     return {

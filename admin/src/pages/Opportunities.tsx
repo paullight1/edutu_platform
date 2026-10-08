@@ -111,6 +111,17 @@ interface EnhanceOpportunityResponse {
   error?: string;
 }
 
+interface DeadlineVerificationResponse {
+  success?: boolean;
+  error?: string;
+  result?: {
+    updated?: boolean;
+    deadline?: string | null;
+    clearedAsPublicationDate?: boolean;
+    reason?: string;
+  };
+}
+
 interface OpportunityShareCard {
   url: string;
   path: string;
@@ -1483,7 +1494,7 @@ export default function Opportunities() {
       // AI generated copy can mistake an article's publication date for an
       // application deadline. Re-read the source with the deadline verifier
       // after enrichment; it updates only dates supported by deadline context.
-      let deadlineResult: any = null;
+      let deadlineResult: DeadlineVerificationResponse = {};
       let deadlineError = "";
       try {
         const deadlineResponse = await fetch(
@@ -1493,7 +1504,9 @@ export default function Opportunities() {
             headers: await getAdminHeaders(),
           },
         );
-        deadlineResult = await deadlineResponse.json().catch(() => ({}));
+        deadlineResult = await deadlineResponse
+          .json()
+          .catch((): DeadlineVerificationResponse => ({}));
         if (!deadlineResponse.ok || !deadlineResult.success) {
           deadlineError =
             deadlineResult.error || "The source deadline could not be checked.";
