@@ -126,6 +126,7 @@ interface OpportunityShareCard {
 }
 
 interface OpportunityShareResponse {
+  creativeShareCard?: OpportunityShareCard | null;
   success?: boolean;
   opportunityId?: string;
   shareCard?: OpportunityShareCard | null;
@@ -2008,7 +2009,10 @@ export default function Opportunities() {
       );
       return;
     }
-    const creativePayload = await getOpportunitySharePayload(opportunityId);
+    const generatedPayload = await getOpportunitySharePayload(opportunityId);
+    const creativePayload = generatedPayload?.creativeShareCard
+      ? { ...generatedPayload, shareCard: generatedPayload.creativeShareCard }
+      : null;
     if (!creativePayload?.shareCard?.url) {
       setSharePreviewFailed(true);
       setShareChooser((current) =>
@@ -2098,7 +2102,9 @@ export default function Opportunities() {
         aiFallback: false,
         payload: brandedPayload,
         brandedPayload,
-        creativePayload: null,
+        creativePayload: brandedPayload.creativeShareCard
+          ? { ...brandedPayload, shareCard: brandedPayload.creativeShareCard }
+          : null,
         selectedDesign: "branded",
         sharing: false,
         preparing: false,
@@ -4696,7 +4702,7 @@ export default function Opportunities() {
                     const selected = available;
                     return (
                       <div
-                        key={option.key}
+                        key={option.imageUrl || option.key}
                         style={{
                           position: "relative",
                           padding: 0,
@@ -4717,7 +4723,9 @@ export default function Opportunities() {
                       >
                         <div
                           style={{
-                            aspectRatio: "4 / 3",
+                            aspectRatio: "4 / 5",
+                            maxWidth: "440px",
+                            margin: "0 auto",
                             background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
                             display: "flex",
                             alignItems: "center",
@@ -4832,7 +4840,8 @@ export default function Opportunities() {
                           : "btn btn-secondary"
                       }
                       disabled={!shareChooser.brandedPayload?.shareCard?.url}
-                      onClick={() =>
+                      onClick={() => {
+                        setSharePreviewFailed(false);
                         setShareChooser((current) =>
                           current?.brandedPayload
                             ? {
@@ -4841,8 +4850,8 @@ export default function Opportunities() {
                                 selectedDesign: "branded",
                               }
                             : current,
-                        )
-                      }
+                        );
+                      }}
                     >
                       <ImageIcon size={14} /> Edutu template
                     </button>
@@ -4854,7 +4863,8 @@ export default function Opportunities() {
                             ? "btn btn-primary"
                             : "btn btn-secondary"
                         }
-                        onClick={() =>
+                        onClick={() => {
+                          setSharePreviewFailed(false);
                           setShareChooser((current) =>
                             current?.creativePayload
                               ? {
@@ -4863,8 +4873,8 @@ export default function Opportunities() {
                                   selectedDesign: "creative",
                                 }
                               : current,
-                          )
-                        }
+                          );
+                        }}
                       >
                         <Sparkles size={14} /> Creative AI poster
                       </button>
@@ -4914,6 +4924,7 @@ export default function Opportunities() {
                 disabled={
                   shareChooser.sharing ||
                   shareChooser.preparing ||
+                  sharePreviewFailed ||
                   !shareChooser.payload?.shareCard?.url
                 }
                 onClick={() => void confirmShareChoice()}

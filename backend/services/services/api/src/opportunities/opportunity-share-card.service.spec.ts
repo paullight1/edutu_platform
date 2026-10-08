@@ -158,4 +158,57 @@ describe("OpportunityShareCardService", () => {
     expect(svg).not.toContain("Open opportunity");
     expect(svg).not.toContain("campaign=long-token");
   });
+  it("invalidates saved creative posters when verified details change", () => {
+    const service = new OpportunityShareCardService();
+    const opportunity = {
+      id: "cache",
+      title: "Fellowship",
+      stipend: 1000,
+      metadata: {},
+    };
+    const card = {
+      url: "https://example.org/poster.png",
+      fingerprint: (service as any).createFingerprint(opportunity),
+    };
+    const saved = { ...opportunity, metadata: { creative_share_card: card } };
+    expect(service.getCreativeShareCard(saved)).toBe(card);
+    expect(
+      service.getCreativeShareCard({ ...saved, stipend: 2000 }),
+    ).toBeNull();
+    expect(
+      service.getCreativeShareCard({
+        ...saved,
+        application_url: "https://example.org/apply",
+      }),
+    ).toBeNull();
+  });
+
+  it("does not advertise scraper machinery as the provider", () => {
+    const service = new OpportunityShareCardService();
+    const svg = (service as any).renderSvg({
+      title: "Fellowship",
+      source: "scraper",
+      metadata: {},
+    });
+    expect(svg).not.toContain(">scraper<");
+    expect(svg).not.toContain("Opportunity provider");
+  });
+  it("returns the branded cache separately without replacing the opportunity image", async () => {
+    const service = new OpportunityShareCardService();
+    const opportunity = { id: "variants", title: "Fellowship", metadata: {} };
+    const fingerprint = (service as any).createFingerprint(opportunity);
+    const branded = { url: "https://example.org/template.png", fingerprint };
+    const creative = { url: "https://example.org/ai.png", fingerprint };
+    const fallback = jest
+      .spyOn(service as any, "ensureImageFallback")
+      .mockResolvedValue(undefined);
+    const saved = {
+      ...opportunity,
+      metadata: { share_card: creative, branded_share_card: branded },
+    };
+    expect(
+      await service.ensureShareCardForOpportunity(saved, { design: "branded" }),
+    ).toBe(branded);
+    expect(fallback).not.toHaveBeenCalled();
+  });
 });

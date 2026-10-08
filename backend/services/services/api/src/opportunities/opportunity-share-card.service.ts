@@ -43,7 +43,7 @@ const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v9-creative-poster-and-dense-flyer";
+const DESIGN_VERSION = "v10-distinct-designs-and-compact-guidance";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -68,15 +68,33 @@ export class OpportunityShareCardService {
         : null;
   }
 
+  getCreativeShareCard(opportunity: OpportunityRecord): ShareCardResult | null {
+    const card = this.asRecord(
+      this.asRecord(opportunity.metadata).creative_share_card,
+    );
+    return card.url && card.fingerprint === this.createFingerprint(opportunity)
+      ? (card as ShareCardResult)
+      : null;
+  }
+
   async ensureShareCardForOpportunity(
     opportunity: OpportunityRecord,
-    options: { force?: boolean; artwork?: ShareCardArtwork } = {},
+    options: {
+      force?: boolean;
+      artwork?: ShareCardArtwork;
+      design?: "branded";
+    } = {},
   ): Promise<ShareCardResult | null> {
     if (!this.supabase || !opportunity?.id) return null;
 
     const metadata = this.asRecord(opportunity.metadata);
     const fingerprint = this.createFingerprint(opportunity);
-    const existing = this.asRecord(metadata.share_card);
+    const variantKey = options.artwork
+      ? "creative_share_card"
+      : "branded_share_card";
+    const existing = this.asRecord(
+      options.design ? metadata.branded_share_card : metadata.share_card,
+    );
 
     if (
       !options.force &&
@@ -84,11 +102,12 @@ export class OpportunityShareCardService {
       existing?.url &&
       existing?.fingerprint === fingerprint
     ) {
-      await this.ensureImageFallback(
-        opportunity.id,
-        opportunity.image_url,
-        String(existing.url),
-      );
+      if (!options.design)
+        await this.ensureImageFallback(
+          opportunity.id,
+          opportunity.image_url,
+          String(existing.url),
+        );
       return existing as ShareCardResult;
     }
 
@@ -131,21 +150,26 @@ export class OpportunityShareCardService {
         expiresAt: this.computeExpiry(opportunity),
       };
 
-      await this.supabase
+      const { error: saveError } = await this.supabase
         .from("opportunities")
         .update({
           metadata: {
             ...latestMetadata,
-            share_card: shareCard,
+            share_card: options.design
+              ? latestMetadata.share_card || shareCard
+              : shareCard,
+            [variantKey]: shareCard,
           },
           updated_at: new Date().toISOString(),
         })
         .eq("id", opportunity.id);
-      await this.ensureImageFallback(
-        opportunity.id,
-        latestOpportunity?.image_url ?? opportunity.image_url,
-        shareCard.url,
-      );
+      if (saveError) throw saveError;
+      if (!options.design)
+        await this.ensureImageFallback(
+          opportunity.id,
+          latestOpportunity?.image_url ?? opportunity.image_url,
+          shareCard.url,
+        );
 
       return shareCard;
     } catch (error) {
@@ -295,10 +319,7 @@ export class OpportunityShareCardService {
 
     const metadata = this.asRecord(opportunity.metadata);
     const title = this.clean(opportunity.title, "Opportunity");
-    const provider = this.clean(
-      opportunity.organization || opportunity.source,
-      "Opportunity provider",
-    );
+    const provider = this.clean(opportunity.organization, "");
     const category = this.clean(opportunity.category, "Opportunity");
     const summary = this.clean(
       opportunity.summary || opportunity.description,
@@ -336,7 +357,7 @@ export class OpportunityShareCardService {
     const titleLH = 60;
     const titleBottom = titleStart + (titleLines.length - 1) * titleLH;
     const providerY = titleBottom + 70;
-    const headerH = providerY + 74;
+    const headerH = provider ? providerY + 74 : titleBottom + 72;
 
     const layers: string[] = [];
 
@@ -376,7 +397,8 @@ export class OpportunityShareCardService {
     });
 
     // Provider row
-    layers.push(this.providerRow(M, providerY, provider, opportunity));
+    if (provider)
+      layers.push(this.providerRow(M, providerY, provider, opportunity));
 
     // ---- Body (flowing cursor, budget-aware) ----
     let y = headerH + 44;
@@ -519,10 +541,7 @@ export class OpportunityShareCardService {
   ): string {
     const metadata = this.asRecord(opportunity.metadata);
     const title = this.clean(opportunity.title, "Opportunity");
-    const provider = this.clean(
-      opportunity.organization || opportunity.source,
-      "Opportunity provider",
-    );
+    const provider = this.clean(opportunity.organization, "");
     const category = this.clean(opportunity.category, "Opportunity");
     const summary = this.clean(
       opportunity.summary || opportunity.description,
@@ -617,16 +636,17 @@ export class OpportunityShareCardService {
       "Apply on the official site.",
     ];
     const titleY = y + 32;
-    const itemY = y + 86;
+    const panelHeight = Math.min(190, Math.max(160, h));
+    const itemY = y + 68;
     const cardW = (w - 28) / 3;
     const parts = [
-      `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(132, h)}" rx="26" fill="#EAF1FC" stroke="#D6E4F8" stroke-width="2"/>`,
+      `<rect x="${x}" y="${y}" width="${w}" height="${panelHeight}" rx="26" fill="#EAF1FC" stroke="#D6E4F8" stroke-width="2"/>`,
       `<text x="${x + 30}" y="${titleY}" font-family="${FONT}" font-size="23" font-weight="900" letter-spacing="1.3" fill="#17428A">A GOOD PLACE TO START</text>`,
     ];
     items.forEach((item, index) => {
       const bx = x + index * (cardW + 14);
       parts.push(
-        `<rect x="${bx}" y="${itemY}" width="${cardW}" height="${Math.max(62, h - 104)}" rx="18" fill="#FFFFFF"/>`,
+        `<rect x="${bx}" y="${itemY}" width="${cardW}" height="${panelHeight - 86}" rx="18" fill="#FFFFFF"/>`,
         `<circle cx="${bx + 26}" cy="${itemY + 27}" r="15" fill="#2563EB"/>`,
         `<text x="${bx + 26}" y="${itemY + 33}" text-anchor="middle" font-family="${FONT}" font-size="17" font-weight="800" fill="#FFFFFF">${index + 1}</text>`,
         `<text x="${bx + 50}" y="${itemY + 24}" font-family="${FONT}" font-size="17" font-weight="650" fill="#26364F">${this.escape(this.wrap(item, 24, 2)[0])}</text>`,
@@ -1055,9 +1075,22 @@ export class OpportunityShareCardService {
           category: opportunity.category,
           location: opportunity.location || opportunity.target_region,
           deadline: opportunity.close_date || opportunity.deadline,
-          requirements: metadata.requirements,
-          benefits: metadata.benefits,
-          application_process: metadata.application_process,
+          requirements: opportunity.requirements ?? metadata.requirements,
+          eligibility:
+            opportunity.eligibility_criteria ||
+            opportunity.eligibilityCriteria ||
+            opportunity.eligibility ||
+            metadata.eligibility,
+          stipend: opportunity.stipend,
+          currency: opportunity.currency,
+          funding: opportunity.funding_type,
+          applyUrl:
+            opportunity.application_url ||
+            opportunity.apply_url ||
+            opportunity.link,
+          benefits: opportunity.benefits ?? metadata.benefits,
+          application_process:
+            opportunity.application_process ?? metadata.application_process,
         }),
       )
       .digest("hex")

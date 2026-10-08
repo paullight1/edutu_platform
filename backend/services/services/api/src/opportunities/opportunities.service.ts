@@ -1016,11 +1016,14 @@ export class OpportunitiesService {
     const shareCard =
       await this.opportunityShareCardService.ensureShareCardForOpportunity(
         opportunity,
+        { design: "branded" },
       );
 
     return {
       opportunityId: id,
       shareCard,
+      creativeShareCard:
+        this.opportunityShareCardService.getCreativeShareCard(opportunity),
       shareUrl,
       shareText,
     };
