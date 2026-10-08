@@ -1035,6 +1035,7 @@ export default function Opportunities() {
     payload: OpportunityShareResponse | null;
     sharing: boolean;
   } | null>(null);
+  const [sharePreviewFailed, setSharePreviewFailed] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
@@ -1562,7 +1563,7 @@ export default function Opportunities() {
     }
   }
 
-  async function handleGenerateOpportunityImage(id: string) {
+  async function handleGenerateOpportunityImage(id: string): Promise<boolean> {
     setGeneratingImageIds((prev) => new Set(prev).add(id));
     try {
       const response = await fetch(
@@ -1574,7 +1575,9 @@ export default function Opportunities() {
       );
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) {
-        throw new Error(result.message || result.error || "Image generation failed");
+        throw new Error(
+          result.message || result.error || "Image generation failed",
+        );
       }
       setBrokenImageIds((prev) => {
         const next = new Set(prev);
@@ -1583,11 +1586,14 @@ export default function Opportunities() {
       });
       await fetchOpportunities();
       showPageNotice("success", "Opportunity flyer generated and saved.");
+      return true;
     } catch (error: unknown) {
-      showPageNotice(
-        "error",
-        getErrorMessage(error, "Flyer generation failed"),
-      );
+      const message =
+        error instanceof TypeError && /fetch|network/i.test(error.message)
+          ? "Could not reach the API to generate this flyer. Check that the backend server is running, then retry."
+          : getErrorMessage(error, "Flyer generation failed");
+      showPageNotice("error", message);
+      return false;
     } finally {
       setGeneratingImageIds((prev) => {
         const next = new Set(prev);
@@ -1984,6 +1990,25 @@ export default function Opportunities() {
     }
   }
 
+  async function handleRegenerateSharePreview() {
+    const opportunityId = shareChooser?.opportunity.id;
+    if (!opportunityId) return;
+
+    setSharePreviewFailed(false);
+    if (!(await handleGenerateOpportunityImage(opportunityId))) return;
+    const payload = await getOpportunitySharePayload(opportunityId);
+    if (!payload?.shareCard?.url) {
+      setSharePreviewFailed(true);
+      return;
+    }
+
+    setShareChooser((current) =>
+      current?.opportunity.id === opportunityId
+        ? { ...current, payload }
+        : current,
+    );
+  }
+
   async function buildShareImageFile(
     opportunity: Opportunity,
     shareCard?: OpportunityShareCard | null,
@@ -2015,16 +2040,66 @@ export default function Opportunities() {
     setSharingIds((prev) => new Set(prev).add(opp.id));
 
     try {
-      const { opportunity, aiEnhanced, aiFallback } =
-        await getAiImprovedOpportunityForShare(opp);
-      const sharePayload = await getOpportunitySharePayload(opportunity.id);
-      const hasCard = Boolean(sharePayload?.shareCard?.url);
+      const storedGeneratedFlyer =
+        opp.metadata?.generated_flyer &&
+        typeof opp.metadata.generated_flyer === "object"
+          ? (opp.metadata.generated_flyer as Record<string, unknown>)
+          : {};
+      const storedShareCard =
+        opp.metadata?.share_card && typeof opp.metadata.share_card === "object"
+          ? (opp.metadata.share_card as Record<string, unknown>)
+          : {};
+      const alreadyHasCurrentAiFlyer =
+        storedGeneratedFlyer.composition ===
+          "ai-artwork-with-verified-opportunity-details" &&
+        storedGeneratedFlyer.content_fingerprint ===
+          storedShareCard.fingerprint &&
+        storedGeneratedFlyer.path === storedShareCard.path;
+      let opportunity = opp;
+      let aiEnhanced = false;
+      let aiFallback = false;
+      if (!alreadyHasCurrentAiFlyer) {
+        const prepared = await getAiImprovedOpportunityForShare(opp);
+        opportunity = prepared.opportunity;
+        aiEnhanced = prepared.aiEnhanced;
+        aiFallback = prepared.aiFallback;
+      }
+
+      let sharePayload = await getOpportunitySharePayload(opportunity.id);
+      let hasCard = Boolean(sharePayload?.shareCard?.url);
       if (!hasCard) {
         throw new Error(
-          "Could not generate the opportunity flyer. Try again before sharing.",
+          "The AI flyer preview could not be loaded. Retry or generate the flyer again before sharing.",
         );
       }
 
+      const generatedFlyer =
+        opportunity.metadata?.generated_flyer &&
+        typeof opportunity.metadata.generated_flyer === "object"
+          ? (opportunity.metadata.generated_flyer as Record<string, unknown>)
+          : {};
+      const hasCurrentAiFlyer =
+        generatedFlyer.composition ===
+          "ai-artwork-with-verified-opportunity-details" &&
+        generatedFlyer.content_fingerprint ===
+          sharePayload?.shareCard?.fingerprint &&
+        generatedFlyer.path === sharePayload?.shareCard?.path;
+      if (!hasCurrentAiFlyer) {
+        if (!(await handleGenerateOpportunityImage(opportunity.id))) {
+          throw new Error(
+            "Could not generate the AI flyer. Check the AI image service and retry.",
+          );
+        }
+        sharePayload = await getOpportunitySharePayload(opportunity.id);
+        hasCard = Boolean(sharePayload?.shareCard?.url);
+        if (!hasCard) {
+          throw new Error(
+            "The AI flyer was generated, but its preview could not be loaded. Try sharing again.",
+          );
+        }
+      }
+
+      setSharePreviewFailed(false);
       setShareChooser({
         opportunity,
         aiEnhanced,
@@ -4267,13 +4342,14 @@ export default function Opportunities() {
               {[
                 {
                   key: "card" as const,
-                  label: "Edutu opportunity flyer",
-                  hint: "Uses listing details; excludes source-page photos",
+                  label: "AI-generated opportunity flyer",
+                  hint: "AI artwork with verified opportunity details",
                   imageUrl: shareChooser.payload?.shareCard?.url || "",
                   badge: <Sparkles size={11} />,
                 },
               ].map((option) => {
-                const available = Boolean(option.imageUrl);
+                const available =
+                  Boolean(option.imageUrl) && !sharePreviewFailed;
                 const selected = available;
                 return (
                   <div
@@ -4310,6 +4386,7 @@ export default function Opportunities() {
                         <img
                           src={option.imageUrl}
                           alt={option.label}
+                          onError={() => setSharePreviewFailed(true)}
                           style={{
                             width: "100%",
                             height: "100%",
@@ -4317,14 +4394,33 @@ export default function Opportunities() {
                           }}
                         />
                       ) : (
-                        <span
+                        <div
+                          role="status"
                           style={{
-                            fontSize: "12px",
-                            color: "var(--text-tertiary)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "20px",
+                            textAlign: "center",
+                            color: "var(--text-secondary)",
                           }}
                         >
-                          No image available
-                        </span>
+                          <Sparkles size={22} />
+                          <span>Flyer preview could not be loaded.</span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={generatingImageIds.has(
+                              shareChooser.opportunity.id,
+                            )}
+                            onClick={() => void handleRegenerateSharePreview()}
+                          >
+                            {generatingImageIds.has(shareChooser.opportunity.id)
+                              ? "Generating AI flyer…"
+                              : "Generate AI flyer"}
+                          </button>
+                        </div>
                       )}
                     </div>
                     {selected && (

@@ -117,4 +117,25 @@ describe("OpportunityShareCardService", () => {
     expect(svg).toContain("Competitive salary");
     expect(svg).toContain("Bachelor's degree");
   });
+
+  it("places generated artwork behind the verified flyer text", () => {
+    const service = new OpportunityShareCardService();
+    const svg = (service as any).renderSvg(
+      {
+        id: "opp-ai-flyer",
+        title: "ECOWAS Young Professional Programme",
+        organization: "ECOWAS Bank for Investment and Development",
+        category: "Fellowship",
+        summary: "A professional development opportunity.",
+        close_date: "2026-10-30",
+        metadata: {},
+      },
+      { data: Buffer.from("generated-artwork"), mimeType: "image/png" },
+    );
+
+    expect(svg).toContain("data:image/png;base64,Z2VuZXJhdGVkLWFydHdvcms=");
+    expect(svg).toContain("url(#artworkFade)");
+    expect(svg).toContain("ECOWAS Young Professional");
+    expect(svg).toContain("OPPORTUNITY BRIEF");
+  });
 });

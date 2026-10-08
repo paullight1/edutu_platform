@@ -28,6 +28,11 @@ interface SharePdfPreparationResult {
   buffer?: Buffer;
 }
 
+export interface ShareCardArtwork {
+  data: Buffer;
+  mimeType: "image/png" | "image/jpeg" | "image/webp";
+}
+
 const BUCKET =
   process.env.OPPORTUNITY_SHARE_CARD_BUCKET || "opportunity-share-cards";
 const CARD_WIDTH = 1080;
@@ -38,7 +43,7 @@ const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v7-opportunity-flyer";
+const DESIGN_VERSION = "v8-ai-artwork-flyer";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -65,7 +70,7 @@ export class OpportunityShareCardService {
 
   async ensureShareCardForOpportunity(
     opportunity: OpportunityRecord,
-    options: { force?: boolean } = {},
+    options: { force?: boolean; artwork?: ShareCardArtwork } = {},
   ): Promise<ShareCardResult | null> {
     if (!this.supabase || !opportunity?.id) return null;
 
@@ -75,6 +80,7 @@ export class OpportunityShareCardService {
 
     if (
       !options.force &&
+      !options.artwork &&
       existing?.url &&
       existing?.fingerprint === fingerprint
     ) {
@@ -88,9 +94,12 @@ export class OpportunityShareCardService {
 
     try {
       await this.ensureBucket();
-      const svg = this.renderSvg(opportunity);
+      const svg = this.renderSvg(opportunity, options.artwork);
       const rendered = await this.renderImage(svg);
-      const path = `${this.storageFolder(opportunity)}/${opportunity.id}-${fingerprint}.${rendered.format}`;
+      const artworkVersion = options.artwork
+        ? `-${createHash("sha256").update(options.artwork.data).digest("hex").slice(0, 12)}`
+        : "";
+      const path = `${this.storageFolder(opportunity)}/${opportunity.id}-${fingerprint}${artworkVersion}.${rendered.format}`;
 
       const { error: uploadError } = await this.supabase.storage
         .from(BUCKET)
@@ -276,7 +285,10 @@ export class OpportunityShareCardService {
     return this.renderPdf(svg);
   }
 
-  private renderSvg(opportunity: OpportunityRecord): string {
+  private renderSvg(
+    opportunity: OpportunityRecord,
+    artwork?: ShareCardArtwork,
+  ): string {
     const metadata = this.asRecord(opportunity.metadata);
     const title = this.clean(opportunity.title, "Opportunity");
     const provider = this.clean(
@@ -327,6 +339,15 @@ export class OpportunityShareCardService {
     // Page + header band
     layers.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`);
     layers.push(`<rect width="${W}" height="${headerH}" fill="url(#brand)"/>`);
+    if (artwork?.data?.length) {
+      const dataUri = `data:${artwork.mimeType};base64,${artwork.data.toString("base64")}`;
+      layers.push(
+        `<image x="490" y="0" width="590" height="${headerH}" preserveAspectRatio="xMidYMid slice" opacity="0.88" href="${dataUri}" xlink:href="${dataUri}"/>`,
+      );
+      layers.push(
+        `<rect x="490" y="0" width="590" height="${headerH}" fill="url(#artworkFade)"/>`,
+      );
+    }
     layers.push(
       `<circle cx="${W - 40}" cy="40" r="230" fill="#FFFFFF" fill-opacity="0.06"/>`,
     );
@@ -480,6 +501,11 @@ export class OpportunityShareCardService {
       <stop offset="0" stop-color="#0B1E45"/>
       <stop offset="0.55" stop-color="#173C82"/>
       <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="artworkFade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#173C82" stop-opacity="0.92"/>
+      <stop offset="0.35" stop-color="#0B1E45" stop-opacity="0.46"/>
+      <stop offset="1" stop-color="#0B1E45" stop-opacity="0.2"/>
     </linearGradient>
     <linearGradient id="footer" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#0B1E45"/>
