@@ -450,10 +450,10 @@ function buildShareImageFileName(
 function getExistingOpportunityImage(opportunity: Opportunity) {
   const metadata = opportunity.metadata;
   const candidates = [
-    opportunity.image_url,
     typeof metadata?.source_image_url === "string"
       ? metadata.source_image_url
       : "",
+    opportunity.image_url,
   ];
   const url = candidates.find(
     (candidate) =>
@@ -2187,18 +2187,21 @@ export default function Opportunities() {
   async function handleShareOpportunity(opp: Opportunity) {
     setSharingIds((prev) => new Set(prev).add(opp.id));
     setSharePreviewFailed(false);
+    const existingImage = getExistingOpportunityImage(opp);
     setShareChooser({
       opportunity: opp,
       aiEnhanced: false,
       aiFallback: false,
-      payload: null,
+      payload: existingImage ? { shareCard: existingImage } : null,
       brandedPayload: null,
       creativePayload: null,
-      existingImage: getExistingOpportunityImage(opp),
-      selectedDesign: "branded",
+      existingImage,
+      selectedDesign: existingImage ? "existing" : "branded",
       sharing: false,
-      preparing: true,
-      preparationMessage: "Preparing the Edutu flyer…",
+      preparing: !existingImage,
+      preparationMessage: existingImage
+        ? undefined
+        : "Preparing the Edutu flyer…",
     });
 
     try {
@@ -2209,22 +2212,22 @@ export default function Opportunities() {
         );
       }
 
-      setSharePreviewFailed(false);
-      setShareChooser({
-        opportunity: opp,
-        aiEnhanced: false,
-        aiFallback: false,
-        payload: brandedPayload,
-        brandedPayload,
-        creativePayload: brandedPayload.creativeShareCard
-          ? { ...brandedPayload, shareCard: brandedPayload.creativeShareCard }
-          : null,
-        existingImage: getExistingOpportunityImage(opp),
-        selectedDesign: "branded",
-        sharing: false,
-        preparing: false,
-        preparationMessage: undefined,
-        preparationError: undefined,
+      setShareChooser((current) => {
+        if (current?.opportunity.id !== opp.id) return current;
+        return {
+          ...current,
+          payload:
+            current.selectedDesign === "existing" && existingImage
+              ? { ...brandedPayload, shareCard: existingImage }
+              : current.payload || brandedPayload,
+          brandedPayload,
+          creativePayload: brandedPayload.creativeShareCard
+            ? { ...brandedPayload, shareCard: brandedPayload.creativeShareCard }
+            : null,
+          preparing: false,
+          preparationMessage: undefined,
+          preparationError: undefined,
+        };
       });
     } catch (error: unknown) {
       const message =
@@ -2236,7 +2239,7 @@ export default function Opportunities() {
           ? {
               ...current,
               preparing: false,
-              preparationError: message,
+              preparationError: existingImage ? undefined : message,
               preparationMessage: undefined,
             }
           : current,
