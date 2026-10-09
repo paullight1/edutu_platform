@@ -38,12 +38,12 @@ const BUCKET =
 const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1080; // Square feed and share image (1:1)
 
-// Font stack limited to what the render container (librsvg via sharp) can
-// resolve — no exotic webfonts. We win on layout, colour and hierarchy.
-const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
+// The API rasterizes SVGs with librsvg via sharp. Use the font installed by
+// the API image instead of relying on fonts from the host container.
+const FONT = "'DejaVu Sans', sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v11-square-flyers";
+const DESIGN_VERSION = "v12-server-fonts";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
