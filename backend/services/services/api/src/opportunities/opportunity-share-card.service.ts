@@ -42,8 +42,10 @@ const CARD_HEIGHT = 1080; // Square feed and share image (1:1)
 // the API image instead of relying on fonts from the host container.
 const FONT = "'DejaVu Sans', sans-serif";
 
-// Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v13-creative-flyers";
+// Template and AI artwork have separate cache versions. A template redesign
+// must not invalidate an already generated AI flyer.
+const DESIGN_VERSION = "v14-editorial-template";
+const CREATIVE_DESIGN_VERSION = "v13-creative-flyers";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";
@@ -72,7 +74,9 @@ export class OpportunityShareCardService {
     const card = this.asRecord(
       this.asRecord(opportunity.metadata).creative_share_card,
     );
-    return card.url && card.fingerprint === this.createFingerprint(opportunity)
+    return card.url &&
+      card.fingerprint ===
+        this.createFingerprint(opportunity, CREATIVE_DESIGN_VERSION)
       ? (card as ShareCardResult)
       : null;
   }
@@ -88,7 +92,10 @@ export class OpportunityShareCardService {
     if (!this.supabase || !opportunity?.id) return null;
 
     const metadata = this.asRecord(opportunity.metadata);
-    const fingerprint = this.createFingerprint(opportunity);
+    const fingerprint = this.createFingerprint(
+      opportunity,
+      options.artwork ? CREATIVE_DESIGN_VERSION : DESIGN_VERSION,
+    );
     const variantKey = options.artwork
       ? "creative_share_card"
       : "branded_share_card";
@@ -321,10 +328,13 @@ export class OpportunityShareCardService {
     const title = this.clean(opportunity.title, "Opportunity");
     const provider = this.clean(opportunity.organization, "");
     const category = this.clean(opportunity.category, "Opportunity");
-    const summary = this.clean(
+    const rawSummary = this.clean(
       opportunity.summary || opportunity.description,
       "A promising opportunity to explore. Review the provider’s official listing for complete application details.",
     );
+    const summary = rawSummary.toLowerCase().startsWith(title.toLowerCase())
+      ? rawSummary.slice(title.length).replace(/^[\s:–—-]+/, "") || rawSummary
+      : rawSummary;
     const benefits = this.arrayFrom(opportunity.benefits ?? metadata.benefits);
     const requirements = this.arrayFrom(
       opportunity.requirements ?? metadata.requirements,
@@ -352,47 +362,48 @@ export class OpportunityShareCardService {
 
     // Header height flexes with the title so long titles never clip.
     // Compact scale for the square feed image — leaves the body room to breathe.
-    const titleLines = this.wrap(title, 27, 3);
-    const titleStart = 232;
-    const titleLH = 60;
+    const longTitle = title.length > 65;
+    const titleLines = this.wrap(title, longTitle ? 32 : 26, 3);
+    const titleStart = 224;
+    const titleLH = longTitle ? 57 : 62;
     const titleBottom = titleStart + (titleLines.length - 1) * titleLH;
     const providerY = titleBottom + 70;
     const headerH = provider ? providerY + 74 : titleBottom + 72;
 
     const layers: string[] = [];
 
-    // Page + header band
-    layers.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`);
+    // Editorial cover: a strong title plane with restrained brand geometry.
+    layers.push(`<rect width="${W}" height="${H}" fill="#F6F5F1"/>`);
     layers.push(`<rect width="${W}" height="${headerH}" fill="url(#brand)"/>`);
     layers.push(
-      `<rect x="0" y="${headerH}" width="${W}" height="${H - headerH - FOOTER_H}" fill="#F4F7FC"/>`,
+      `<rect x="0" y="${headerH}" width="${W}" height="${H - headerH - FOOTER_H}" fill="#F6F5F1"/>`,
     );
     layers.push(
-      `<circle cx="${W - 40}" cy="40" r="230" fill="#FFFFFF" fill-opacity="0.06"/>`,
+      `<path d="M 630 0 H ${W} V ${headerH} H 955 Z" fill="#FFFFFF" fill-opacity="0.035"/>`,
     );
     layers.push(
-      `<circle cx="130" cy="${headerH - 20}" r="180" fill="#38BDF8" fill-opacity="0.12"/>`,
+      `<path d="M 775 0 H ${W} V ${headerH} H 1030 Z" fill="#4C9AFF" fill-opacity="0.065"/>`,
+    );
+    layers.push(
+      `<path d="M ${M} 129 H ${W - M}" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>`,
     );
 
     // Brand mark + live status
     layers.push(this.brandMark(M, 58));
     layers.push(this.statusPill(W - M, 70, status));
 
-    // Category chip
+    // Category is an editorial kicker, not a second button.
     layers.push(
-      this.chip(M, 144, category.toUpperCase(), {
-        bg: "#FFFFFF",
-        bgOpacity: 0.14,
-        fg: "#DBEAFE",
-        size: 19,
-        tracking: 2.5,
-      }),
+      `<rect x="${M}" y="160" width="10" height="10" fill="#67E8F9"/>`,
+    );
+    layers.push(
+      `<text x="${M + 26}" y="171" font-family="${FONT}" font-size="20" font-weight="800" letter-spacing="3" fill="#BEE9FF">${this.escape(this.truncate(category.toUpperCase(), 32))}</text>`,
     );
 
     // Title (hero, on the gradient)
     titleLines.forEach((line, i) => {
       layers.push(
-        `<text x="${M}" y="${titleStart + i * titleLH}" font-family="${FONT}" font-size="50" font-weight="800" letter-spacing="-0.5" fill="#FFFFFF">${this.escape(line)}</text>`,
+        `<text x="${M}" y="${titleStart + i * titleLH}" font-family="${FONT}" font-size="${longTitle ? 46 : 53}" font-weight="800" letter-spacing="-0.9" fill="#FFFFFF">${this.escape(line)}</text>`,
       );
     });
 
@@ -401,53 +412,11 @@ export class OpportunityShareCardService {
       layers.push(this.providerRow(M, providerY, provider, opportunity));
 
     // ---- Body (flowing cursor, budget-aware) ----
-    let y = headerH + 44;
+    let y = headerH + 38;
     const bodyBottom = footerTop - 36; // hard floor above footer
 
-    // Summary (wrap kept conservative so it survives wider fallback fonts)
-    const summaryLines = this.wrap(summary, 58, 2);
-    summaryLines.forEach((line, i) => {
-      layers.push(
-        `<text x="${M}" y="${y + i * 37}" font-family="${FONT}" font-size="26" font-weight="500" fill="#475569">${this.escape(line)}</text>`,
-      );
-    });
-    y += summaryLines.length * 37 + 26;
-
-    // Fact tiles (2 x 2)
-    const reward = this.funding(opportunity, benefits);
-    const eligibility = this.eligibility(opportunity);
-    const location = this.clean(
-      opportunity.location || opportunity.target_region,
-      "",
-    );
-    const facts: Array<[string, string, string]> = [
-      ...(reward
-        ? [["Award", reward, "#0F172A"] as [string, string, string]]
-        : []),
-      [
-        "Deadline",
-        deadlineRaw ? this.deadline(deadlineRaw) : "Not listed",
-        status.valueColor,
-      ],
-      ...(eligibility
-        ? [["Eligibility", eligibility, "#0F172A"] as [string, string, string]]
-        : []),
-      ...(location
-        ? [["Location", location, "#0F172A"] as [string, string, string]]
-        : []),
-    ];
-    const tileW = (CW - 24) / 2;
-    const tileH = 108;
-    facts.forEach(([label, value, color], i) => {
-      const tx = M + (i % 2) * (tileW + 24);
-      const ty = y + Math.floor(i / 2) * (tileH + 18);
-      layers.push(this.factTile(tx, ty, tileW, tileH, label, value, color));
-    });
-    y += Math.ceil(facts.length / 2) * (tileH + 18) + 22;
-
-    // How-to-apply is measured FIRST and the band is anchored just above the
-    // footer, so it always renders. The benefit/requirement columns then fill
-    // the space above it — no fragile "is there room?" guard that could drop it.
+    // Reserve application instructions first so long source text cannot crowd
+    // the deadline or run into the footer.
     const applyItems = application.length
       ? application
       : [
@@ -467,9 +436,53 @@ export class OpportunityShareCardService {
     const applyTop = bodyBottom - applyH;
     const listBottom = applyTop - 28;
 
-    // Benefits + Requirements. On the wide 4:5 canvas they sit in two columns
-    // so BOTH show (fuller detail). A single list spans the full width.
-    if (benefits.length && requirements.length) {
+    const summaryLines = this.wrap(summary, 58, applyTop - y > 340 ? 2 : 1);
+    layers.push(
+      `<text x="${M}" y="${y + 15}" font-family="${FONT}" font-size="18" font-weight="800" letter-spacing="3" fill="#2057A0">THE OPPORTUNITY</text>`,
+    );
+    summaryLines.forEach((line, i) => {
+      layers.push(
+        `<text x="${M}" y="${y + 56 + i * 38}" font-family="${FONT}" font-size="26" font-weight="500" fill="#34445C">${this.escape(line)}</text>`,
+      );
+    });
+    y += 82 + (summaryLines.length - 1) * 38;
+
+    const hasDetailLists = benefits.length > 0 || requirements.length > 0;
+    const deadlineH = hasDetailLists
+      ? Math.max(84, Math.min(100, applyTop - y - 118))
+      : Math.max(92, Math.min(152, applyTop - y - 26));
+    const deadlineLabel = deadlineRaw
+      ? this.deadline(deadlineRaw)
+      : "Not listed";
+    const sourceHost = this.urlHost(applyUrl);
+    layers.push(
+      this.deadlineFeature(
+        M,
+        y,
+        CW,
+        deadlineH,
+        deadlineLabel,
+        sourceHost || "",
+        status,
+      ),
+    );
+    y += deadlineH + (hasDetailLists ? 24 : 18);
+
+    const reward = this.funding(opportunity, benefits);
+    const location = this.clean(
+      opportunity.location || opportunity.target_region,
+      "",
+    );
+    const detail = reward || location || this.eligibility(opportunity);
+    if (detail && !hasDetailLists && listBottom - y > 40) {
+      layers.push(
+        `<text x="${M}" y="${y + 22}" font-family="${FONT}" font-size="21" font-weight="700" fill="#34445C">${this.escape(this.truncate(detail, 76))}</text>`,
+      );
+      y += 42;
+    }
+
+    // Benefits and requirements are optional; never invent details to fill space.
+    if (listBottom - y > 78 && benefits.length && requirements.length) {
       const block = this.dualLists(
         { title: "Benefits", items: benefits, marker: "check", max: 3 },
         { title: "Requirements", items: requirements, marker: "dot", max: 3 },
@@ -480,7 +493,7 @@ export class OpportunityShareCardService {
       );
       layers.push(block.svg);
       y = block.y;
-    } else if (benefits.length) {
+    } else if (listBottom - y > 78 && benefits.length) {
       const block = this.listSection(
         "Benefits",
         benefits,
@@ -493,7 +506,7 @@ export class OpportunityShareCardService {
       );
       layers.push(block.svg);
       y = block.y;
-    } else if (requirements.length) {
+    } else if (listBottom - y > 78 && requirements.length) {
       const block = this.listSection(
         "Requirements",
         requirements,
@@ -510,7 +523,7 @@ export class OpportunityShareCardService {
 
     // Give listings with sparse source data useful, honest content instead of
     // leaving a large white gap or inventing benefits and eligibility.
-    if (!benefits.length && !requirements.length && applyTop - y > 170) {
+    if (!benefits.length && !requirements.length && applyTop - y > 48) {
       layers.push(this.renderNextSteps(M, y, CW, applyTop - y - 8));
     }
 
@@ -522,9 +535,9 @@ export class OpportunityShareCardService {
 <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs>
     <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0B1E45"/>
-      <stop offset="0.55" stop-color="#173C82"/>
-      <stop offset="1" stop-color="#2563EB"/>
+      <stop offset="0" stop-color="#091A37"/>
+      <stop offset="0.62" stop-color="#123876"/>
+      <stop offset="1" stop-color="#1D58B3"/>
     </linearGradient>
     <linearGradient id="footer" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#0B1E45"/>
@@ -633,30 +646,31 @@ export class OpportunityShareCardService {
   }
 
   private renderNextSteps(x: number, y: number, w: number, h: number): string {
-    const items = [
-      "Check your eligibility.",
-      "Prepare requested documents.",
-      "Apply on the official site.",
-    ];
-    const titleY = y + 32;
-    const panelHeight = Math.min(190, Math.max(160, h));
-    const itemY = y + 68;
-    const cardW = (w - 28) / 3;
-    const parts = [
-      `<rect x="${x}" y="${y}" width="${w}" height="${panelHeight}" rx="26" fill="#EAF1FC" stroke="#D6E4F8" stroke-width="2"/>`,
-      `<text x="${x + 30}" y="${titleY}" font-family="${FONT}" font-size="23" font-weight="900" letter-spacing="1.3" fill="#17428A">A GOOD PLACE TO START</text>`,
-    ];
-    items.forEach((item, index) => {
-      const bx = x + index * (cardW + 14);
-      parts.push(
-        `<rect x="${bx}" y="${itemY}" width="${cardW}" height="${panelHeight - 86}" rx="18" fill="#FFFFFF"/>`,
-        `<circle cx="${bx + 26}" cy="${itemY + 27}" r="15" fill="#2563EB"/>`,
-        `<text x="${bx + 26}" y="${itemY + 33}" text-anchor="middle" font-family="${FONT}" font-size="17" font-weight="800" fill="#FFFFFF">${index + 1}</text>`,
-        `<text x="${bx + 50}" y="${itemY + 24}" font-family="${FONT}" font-size="17" font-weight="650" fill="#26364F">${this.escape(this.wrap(item, 24, 2)[0])}</text>`,
-        `<text x="${bx + 50}" y="${itemY + 47}" font-family="${FONT}" font-size="17" font-weight="650" fill="#26364F">${this.escape(this.wrap(item, 24, 2)[1] || "")}</text>`,
-      );
-    });
-    return parts.join("\n  ");
+    return `<g>
+      <path d="M ${x} ${y + 4} H ${x + w}" stroke="#C9D5E7" stroke-width="2"/>
+      <text x="${x}" y="${y + 32}" font-family="${FONT}" font-size="17" font-weight="800" letter-spacing="2.2" fill="#2057A0">A GOOD PLACE TO START</text>
+      <text x="${x + w}" y="${y + 32}" text-anchor="end" font-family="${FONT}" font-size="20" font-weight="600" fill="#34445C">Check your eligibility.</text>
+      ${h > 88 ? `<text x="${x}" y="${y + 68}" font-family="${FONT}" font-size="21" font-weight="500" fill="#52627A">Confirm requirements and documents on the official listing.</text>` : ""}
+    </g>`;
+  }
+
+  private deadlineFeature(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    deadline: string,
+    sourceHost: string,
+    status: ShareStatus,
+  ): string {
+    const dateSize = h < 120 || deadline.length > 21 ? 33 : 42;
+    return `<g>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="#E9EFF9"/>
+      <path d="M ${x + 5} ${y + 18} V ${y + h - 18}" stroke="#2366C7" stroke-width="8" stroke-linecap="round"/>
+      <text x="${x + 34}" y="${y + 38}" font-family="${FONT}" font-size="18" font-weight="800" letter-spacing="2.1" fill="#2057A0">APPLICATION DEADLINE</text>
+      <text x="${x + 34}" y="${y + Math.min(h - 17, 100)}" font-family="${FONT}" font-size="${dateSize}" font-weight="800" letter-spacing="-1" fill="${status.valueColor === "#DC2626" ? "#B42318" : "#112B53"}">${this.escape(deadline)}</text>
+      ${sourceHost && h >= 126 ? `<text x="${x + w - 30}" y="${y + 39}" text-anchor="end" font-family="${FONT}" font-size="18" font-weight="600" fill="#516682">${this.escape(this.truncate(sourceHost, 25))}</text>` : ""}
+    </g>`;
   }
 
   private brandMark(x: number, y: number): string {
@@ -720,24 +734,8 @@ export class OpportunityShareCardService {
     return `<g>
     <circle cx="${x + 34}" cy="${y - 6}" r="34" fill="#FFFFFF"/>
     <text x="${x + 34}" y="${y + 4}" text-anchor="middle" font-family="${FONT}" font-size="26" font-weight="900" fill="#123C82">${this.escape(initials)}</text>
-    <text x="${x + 88}" y="${y - 10}" font-family="${FONT}" font-size="27" font-weight="800" fill="#FFFFFF">${this.escape(this.truncate(provider, 34))}</text>
+    <text x="${x + 88}" y="${y - 10}" font-family="${FONT}" font-size="23" font-weight="800" fill="#FFFFFF">${this.escape(this.truncate(provider, 48))}</text>
     <text x="${x + 88}" y="${y + 18}" font-family="${FONT}" font-size="20" font-weight="600" fill="#AFC7FF">${this.escape(this.truncate(sub, 42))}</text>
-  </g>`;
-  }
-
-  private factTile(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    label: string,
-    value: string,
-    color: string,
-  ): string {
-    return `<g>
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="20" fill="#F4F8FF" stroke="#E1EAFF" stroke-width="1.5"/>
-    <text x="${x + 28}" y="${y + 40}" font-family="${FONT}" font-size="16" font-weight="800" letter-spacing="1.8" fill="#2563EB">${this.escape(label.toUpperCase())}</text>
-    <text x="${x + 28}" y="${y + 76}" font-family="${FONT}" font-size="26" font-weight="800" fill="${color}">${this.escape(this.truncate(value, 24))}</text>
   </g>`;
   }
 
@@ -842,13 +840,14 @@ export class OpportunityShareCardService {
   ): string {
     const h = 78 + lines.length * 32 + 18;
     const parts: string[] = [
-      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="#EEF4FF" stroke="#D6E4FF" stroke-width="1.5"/>`,
-      `<text x="${x + 34}" y="${y + 52}" font-family="${FONT}" font-size="22" font-weight="900" letter-spacing="2" fill="#2563EB">HOW TO APPLY</text>`,
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="#FFFFFF" stroke="#DCE4F0" stroke-width="2"/>`,
+      `<path d="M ${x + 30} ${y + 24} H ${x + w - 30}" stroke="#2366C7" stroke-width="4"/>`,
+      `<text x="${x + 34}" y="${y + 62}" font-family="${FONT}" font-size="20" font-weight="800" letter-spacing="2.1" fill="#2057A0">HOW TO APPLY</text>`,
     ];
-    let cy = y + 88;
+    let cy = y + 94;
     lines.forEach((line) => {
       parts.push(
-        `<text x="${x + 34}" y="${cy}" font-family="${FONT}" font-size="22" font-weight="600" fill="#1E293B">${this.escape(line)}</text>`,
+        `<text x="${x + 34}" y="${cy}" font-family="${FONT}" font-size="22" font-weight="600" fill="#1D314F">${this.escape(line)}</text>`,
       );
       cy += 32;
     });
@@ -859,8 +858,8 @@ export class OpportunityShareCardService {
     const cy = top + h / 2;
     return `<g>
     <rect x="0" y="${top}" width="${w}" height="${h}" fill="url(#footer)"/>
-    <text x="72" y="${cy - 4}" font-family="${FONT}" font-size="24" font-weight="800" fill="#FFFFFF">Discover more opportunities</text>
-    <text x="72" y="${cy + 26}" font-family="${FONT}" font-size="19" font-weight="600" fill="#AFC7FF">Personalized matches, roadmaps &amp; deadline reminders</text>
+    <text x="72" y="${cy - 5}" font-family="${FONT}" font-size="25" font-weight="800" fill="#FFFFFF">Find your next opportunity.</text>
+    <text x="72" y="${cy + 27}" font-family="${FONT}" font-size="19" font-weight="600" fill="#B7D0F2">Explore more at ${BRAND_DOMAIN}</text>
     <g transform="translate(${w - 72 - 196} ${cy - 26})">
       <rect x="0" y="0" width="196" height="52" rx="26" fill="#FFFFFF"/>
       <image x="16" y="9" width="34" height="34" xlink:href="${EDUTU_LOGO_DATA_URI}" href="${EDUTU_LOGO_DATA_URI}" preserveAspectRatio="xMidYMid meet"/>
@@ -1065,12 +1064,15 @@ export class OpportunityShareCardService {
     return date.toISOString();
   }
 
-  private createFingerprint(opportunity: OpportunityRecord): string {
+  private createFingerprint(
+    opportunity: OpportunityRecord,
+    designVersion = DESIGN_VERSION,
+  ): string {
     const metadata = this.asRecord(opportunity.metadata);
     return createHash("sha1")
       .update(
         JSON.stringify({
-          design: DESIGN_VERSION,
+          design: designVersion,
           title: opportunity.title,
           summary: opportunity.summary,
           description: opportunity.description,
@@ -1175,7 +1177,9 @@ export class OpportunityShareCardService {
       lines.length === maxLines &&
       words.join(" ").length > lines.join(" ").length
     ) {
-      lines[maxLines - 1] = this.truncate(lines[maxLines - 1], maxChars);
+      const last = lines[maxLines - 1].replace(/[\s.,;:]+$/, "");
+      lines[maxLines - 1] =
+        last.length >= maxChars ? this.truncate(last, maxChars) : `${last}…`;
     }
     return lines;
   }

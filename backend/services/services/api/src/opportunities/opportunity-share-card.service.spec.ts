@@ -168,7 +168,10 @@ describe("OpportunityShareCardService", () => {
     };
     const card = {
       url: "https://example.org/poster.png",
-      fingerprint: (service as any).createFingerprint(opportunity),
+      fingerprint: (service as any).createFingerprint(
+        opportunity,
+        "v13-creative-flyers",
+      ),
     };
     const saved = { ...opportunity, metadata: { creative_share_card: card } };
     expect(service.getCreativeShareCard(saved)).toBe(card);
