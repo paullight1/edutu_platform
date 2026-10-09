@@ -147,6 +147,54 @@ describe("AdminAuthProvider", () => {
     expect(mocks.onAuthStateChange).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the admin app mounted while the same user's role is rechecked", async () => {
+    let resolveRoleCheck!: (value: {
+      data: { role: string };
+      error: null;
+    }) => void;
+    const pendingRoleCheck = new Promise<{
+      data: { role: string };
+      error: null;
+    }>((resolve) => {
+      resolveRoleCheck = resolve;
+    });
+    const profileQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { role: "admin" },
+        error: null,
+      }),
+    };
+    mocks.isConfiguredAdminEmail.mockReturnValue(false);
+    mocks.isAdminRole.mockReturnValue(true);
+    mocks.from.mockReturnValue(profileQuery);
+
+    renderProvider();
+    await waitFor(() =>
+      expect(screen.getByTestId("loading")).toHaveTextContent("false"),
+    );
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+
+    mocks.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() => pendingRoleCheck),
+    });
+
+    await act(async () => {
+      authCallback?.("TOKEN_REFRESHED", createSession());
+    });
+
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+
+    await act(async () => {
+      resolveRoleCheck({ data: { role: "admin" }, error: null });
+      await pendingRoleCheck;
+    });
+  });
+
   it("delegates sign-out through the shared auth boundary", async () => {
     const user = userEvent.setup();
     renderProvider();

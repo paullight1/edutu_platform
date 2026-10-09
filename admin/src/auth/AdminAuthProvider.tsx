@@ -150,13 +150,18 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setAuth((current) => ({
-        ...current,
-        session,
-        user: session.user,
-        loading: true,
-        error: null,
-      }));
+      setAuth((current) => {
+        const sameUser = current.user?.id === session.user.id;
+        return {
+          ...current,
+          session,
+          user: session.user,
+          // Refreshing an access token is not a new sign-in. Keep the current
+          // admin UI mounted while revalidating the same user's role.
+          loading: sameUser ? current.loading : true,
+          error: null,
+        };
+      });
 
       const admin = await checkAdminRole(session.user);
       if (version !== requestVersion.current) return;

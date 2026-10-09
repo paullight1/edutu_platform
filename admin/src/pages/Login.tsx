@@ -16,18 +16,27 @@ const Login: FC = () => {
     setError(null);
 
     try {
-      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-
       const login = supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Sign in timed out. Refresh the page and try again.')), 12000);
+        timeoutId = setTimeout(
+          () => reject(new Error('Sign in timed out. Refresh the page and try again.')),
+          12000,
+        );
       });
 
-      const { error } = await Promise.race([login, timeout]);
+      let result: Awaited<typeof login>;
+      try {
+        result = await Promise.race([login, timeout]);
+      } finally {
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
+      }
+
+      const { error } = result;
 
       if (error) {
         setError(error.message);
