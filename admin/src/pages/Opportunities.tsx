@@ -453,9 +453,10 @@ function getGeneratedOpportunityFlyer(opportunity: Opportunity) {
     | Record<string, unknown>
     | undefined;
   const imageUrl =
-    typeof generatedCard?.url === "string"
-      ? generatedCard.url
-      : opportunity.image_url;
+    typeof opportunity.image_url === "string" &&
+    opportunity.image_url.includes("/opportunity-share-cards/")
+      ? opportunity.image_url
+      : generatedCard?.url;
   if (
     typeof imageUrl !== "string" ||
     !/^https?:\/\//i.test(imageUrl) ||
@@ -484,16 +485,16 @@ function getGeneratedOpportunityFlyer(opportunity: Opportunity) {
 function getExistingOpportunityImage(opportunity: Opportunity) {
   const metadata = opportunity.metadata;
   const candidates = [
+    // The card thumbnail uses image_url; Share should open with that same image.
+    opportunity.image_url,
     typeof metadata?.source_image_url === "string"
       ? metadata.source_image_url
       : "",
-    opportunity.image_url,
   ];
   const url = candidates.find(
     (candidate) =>
       typeof candidate === "string" &&
-      /^https?:\/\//i.test(candidate) &&
-      !candidate.includes("/opportunity-share-cards/"),
+      /^https?:\/\//i.test(candidate),
   );
   if (!url) return null;
 
@@ -4899,13 +4900,13 @@ export default function Opportunities() {
                         shareChooser.selectedDesign === "creative"
                           ? "AI-created opportunity flyer"
                           : shareChooser.selectedDesign === "existing"
-                            ? "Original source image"
+                            ? "Current opportunity image"
                             : "Edutu designed flyer",
                       hint:
                         shareChooser.selectedDesign === "creative"
                           ? "Original AI artwork shaped by this opportunity, with verified details and Edutu branding"
                           : shareChooser.selectedDesign === "existing"
-                            ? "Use the image from the opportunity’s source listing"
+                            ? "The image shown on this opportunity card"
                             : "Use Edutu’s clean, text-accurate flyer design",
                       imageUrl: shareChooser.payload?.shareCard?.url || "",
                       badge:
@@ -5098,7 +5099,7 @@ export default function Opportunities() {
                           );
                         }}
                       >
-                        <ImageIcon size={14} /> Use existing image
+                        <ImageIcon size={14} /> Use current image
                       </button>
                     )}
                     {shareChooser.creativePayload?.shareCard?.url && (
