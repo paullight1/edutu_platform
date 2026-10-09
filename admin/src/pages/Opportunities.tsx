@@ -447,6 +447,40 @@ function buildShareImageFileName(
   return `${slug || "edutu-opportunity"}-edutu.${format}`;
 }
 
+function getGeneratedOpportunityFlyer(opportunity: Opportunity) {
+  const metadata = opportunity.metadata;
+  const generatedCard = metadata?.creative_share_card as
+    | Record<string, unknown>
+    | undefined;
+  const imageUrl =
+    typeof generatedCard?.url === "string"
+      ? generatedCard.url
+      : opportunity.image_url;
+  if (
+    typeof imageUrl !== "string" ||
+    !/^https?:\/\//i.test(imageUrl) ||
+    !imageUrl.includes("/opportunity-share-cards/")
+  ) {
+    return null;
+  }
+
+  let extension = "";
+  try {
+    extension = new URL(imageUrl).pathname.split(".").pop()?.toLowerCase() || "";
+  } catch {
+    // Keep malformed URLs out of the preview.
+  }
+  const format: OpportunityShareCard["format"] =
+    extension === "svg"
+      ? "svg"
+      : extension === "webp"
+        ? "webp"
+        : extension === "jpg" || extension === "jpeg"
+          ? "jpeg"
+          : "png";
+  return { url: imageUrl, path: "", format };
+}
+
 function getExistingOpportunityImage(opportunity: Opportunity) {
   const metadata = opportunity.metadata;
   const candidates = [
@@ -1081,6 +1115,35 @@ export default function Opportunities() {
     preparationError?: string;
   } | null>(null);
   const [sharePreviewFailed, setSharePreviewFailed] = useState(false);
+
+  useEffect(() => {
+    if (!sharePreviewFailed || !shareChooser?.payload?.shareCard?.url) return;
+
+    const failedUrl = shareChooser.payload.shareCard.url;
+    const alternatives =
+      shareChooser.selectedDesign === "creative"
+        ? [shareChooser.brandedPayload]
+        : shareChooser.selectedDesign === "existing"
+          ? [shareChooser.creativePayload, shareChooser.brandedPayload]
+          : [shareChooser.creativePayload];
+    const fallback = alternatives.find(
+      (candidate) =>
+        candidate?.shareCard?.url && candidate.shareCard.url !== failedUrl,
+    );
+    if (!fallback) return;
+
+    setSharePreviewFailed(false);
+    setShareChooser((current) =>
+      current?.payload?.shareCard?.url === failedUrl
+        ? {
+            ...current,
+            payload: fallback,
+            selectedDesign:
+              fallback === current.creativePayload ? "creative" : "branded",
+          }
+        : current,
+    );
+  }, [sharePreviewFailed, shareChooser]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
@@ -2121,7 +2184,6 @@ export default function Opportunities() {
       ? { ...generatedPayload, shareCard: generatedPayload.creativeShareCard }
       : null;
     if (!creativePayload?.shareCard?.url) {
-      setSharePreviewFailed(true);
       setShareChooser((current) =>
         current
           ? {
@@ -2188,18 +2250,27 @@ export default function Opportunities() {
     setSharingIds((prev) => new Set(prev).add(opp.id));
     setSharePreviewFailed(false);
     const existingImage = getExistingOpportunityImage(opp);
+    const savedFlyer = getGeneratedOpportunityFlyer(opp);
+    const savedCreativePayload = savedFlyer ? { shareCard: savedFlyer } : null;
+    const initialPayload = existingImage
+      ? { shareCard: existingImage }
+      : savedCreativePayload;
     setShareChooser({
       opportunity: opp,
       aiEnhanced: false,
       aiFallback: false,
-      payload: existingImage ? { shareCard: existingImage } : null,
+      payload: initialPayload,
       brandedPayload: null,
-      creativePayload: null,
+      creativePayload: savedCreativePayload,
       existingImage,
-      selectedDesign: existingImage ? "existing" : "branded",
+      selectedDesign: existingImage
+        ? "existing"
+        : savedCreativePayload
+          ? "creative"
+          : "branded",
       sharing: false,
-      preparing: !existingImage,
-      preparationMessage: existingImage
+      preparing: !initialPayload,
+      preparationMessage: initialPayload
         ? undefined
         : "Preparing the Edutu flyer…",
     });
@@ -2219,11 +2290,13 @@ export default function Opportunities() {
           payload:
             current.selectedDesign === "existing" && existingImage
               ? { ...brandedPayload, shareCard: existingImage }
-              : current.payload || brandedPayload,
+              : current.selectedDesign === "creative" && current.creativePayload
+                ? current.creativePayload
+                : current.payload || brandedPayload,
           brandedPayload,
           creativePayload: brandedPayload.creativeShareCard
             ? { ...brandedPayload, shareCard: brandedPayload.creativeShareCard }
-            : null,
+            : current.creativePayload || null,
           preparing: false,
           preparationMessage: undefined,
           preparationError: undefined,
@@ -2239,7 +2312,7 @@ export default function Opportunities() {
           ? {
               ...current,
               preparing: false,
-              preparationError: existingImage ? undefined : message,
+              preparationError: initialPayload ? undefined : message,
               preparationMessage: undefined,
             }
           : current,
