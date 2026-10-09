@@ -132,6 +132,32 @@ export async function getAdminAuthHeaders(
   return headersToRecord(headers);
 }
 
+async function refreshAdminAuthHeaders(
+  extraHeaders?: HeadersInit,
+): Promise<Record<string, string> | null> {
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.refreshSession();
+    if (error || !session?.access_token) return null;
+
+    const headers = new Headers(extraHeaders);
+    headers.set("Authorization", `Bearer ${session.access_token}`);
+    headers.set("X-Edutu-Admin-Email", session.user?.email || "");
+    return headersToRecord(headers);
+  } catch {
+    return null;
+  }
+}
+
+function canRetryRequestBody(body: BodyInit | null | undefined): boolean {
+  return !(
+    typeof ReadableStream !== "undefined" &&
+    body instanceof ReadableStream
+  );
+}
+
 export async function adminApiJson<T>(
   path: string,
   init: AdminApiRequestInit = {},
@@ -187,11 +213,32 @@ export async function adminApiJson<T>(
   }
 
   try {
-    const response = await fetch(buildRequestUrl(apiOrigin, path), {
+    const url = buildRequestUrl(apiOrigin, path);
+    let response = await fetch(url, {
       ...requestInit,
       headers: authenticatedHeaders,
       signal: controller.signal,
     });
+
+    // Tabs can sleep long enough for a Supabase access token to expire before
+    // the SDK's refresh timer runs. Refresh once and retry the request; the API
+    // guard rejects a 401 before the route handler can apply any changes.
+    if (
+      response.status === 401 &&
+      !isLocalAdminBypassEnabled() &&
+      canRetryRequestBody(requestInit.body)
+    ) {
+      const refreshedHeaders = await refreshAdminAuthHeaders(requestHeaders);
+      if (refreshedHeaders && !controller.signal.aborted) {
+        authenticatedHeaders = refreshedHeaders;
+        response = await fetch(url, {
+          ...requestInit,
+          headers: authenticatedHeaders,
+          signal: controller.signal,
+        });
+      }
+    }
+
     const responseRequestId =
       response.headers.get("x-request-id") || requestId;
     const text = await response.text();

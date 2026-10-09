@@ -7,6 +7,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  refreshSession: vi.fn(),
   getAdminRuntimeConfig: vi.fn(),
   isLocalAdminBypassEnabled: vi.fn(),
   getLocalAdminEmail: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("./supabase", () => ({
   supabase: {
     auth: {
       getSession: mocks.getSession,
+      refreshSession: mocks.refreshSession,
     },
   },
 }));
@@ -118,6 +120,61 @@ describe("adminApiJson", () => {
     expect(headers.get("X-Edutu-Admin-Email")).toBe("admin@edutu.org");
     expect(headers.get("X-Custom")).toBe("yes");
     expect(headers.get("X-Request-Id")).toMatch(/\S+/u);
+  });
+
+  it("refreshes an expired session and retries a rejected API request once", async () => {
+    mocks.refreshSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "refreshed-access-token",
+          user: { email: "admin@edutu.org" },
+        },
+      },
+      error: null,
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { message: "Invalid or expired token" },
+          { status: 401 },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ totalUsers: 42 }));
+
+    await expect(
+      adminApiJson<{ totalUsers: number }>("/admin/dashboard"),
+    ).resolves.toEqual({ totalUsers: 42 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization"),
+    ).toBe("Bearer test-access-token");
+    expect(
+      new Headers(fetchMock.mock.calls[1][1]?.headers).get("Authorization"),
+    ).toBe("Bearer refreshed-access-token");
+    expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry when the session refresh fails", async () => {
+    mocks.refreshSession.mockResolvedValue({
+      data: { session: null },
+      error: new Error("refresh token expired"),
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(
+          { message: "Invalid or expired token" },
+          { status: 401 },
+        ),
+      );
+
+    await expect(
+      adminApiJson("/admin/dashboard"),
+    ).rejects.toMatchObject({ category: "authentication", status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
   });
 
   it.each([
