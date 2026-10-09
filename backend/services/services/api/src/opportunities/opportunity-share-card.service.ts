@@ -43,7 +43,7 @@ const CARD_HEIGHT = 1080; // Square feed and share image (1:1)
 const FONT = "'DejaVu Sans', sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v12-server-fonts";
+const DESIGN_VERSION = "v13-creative-flyers";
 
 // Public marketing site — shown on the card CTA and used as the share landing.
 const BRAND_DOMAIN = "www.edutu.org";

@@ -123,7 +123,7 @@ interface DeadlineVerificationResponse {
 interface OpportunityShareCard {
   url: string;
   path: string;
-  format: "png" | "svg";
+  format: "png" | "svg" | "jpeg" | "webp";
   generatedAt?: string;
   fingerprint?: string;
   expiresAt?: string | null;
@@ -438,13 +438,46 @@ function downloadShareBlob(blob: Blob, fileName: string) {
 
 function buildShareImageFileName(
   opportunity: Opportunity,
-  format: "png" | "svg",
+  format: "png" | "svg" | "jpeg" | "webp",
 ) {
   const slug = normalizeText(opportunity.title, "edutu-opportunity")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return `${slug || "edutu-opportunity"}-edutu.${format}`;
+}
+
+function getExistingOpportunityImage(opportunity: Opportunity) {
+  const metadata = opportunity.metadata;
+  const candidates = [
+    opportunity.image_url,
+    typeof metadata?.source_image_url === "string"
+      ? metadata.source_image_url
+      : "",
+  ];
+  const url = candidates.find(
+    (candidate) =>
+      typeof candidate === "string" &&
+      /^https?:\/\//i.test(candidate) &&
+      !candidate.includes("/opportunity-share-cards/"),
+  );
+  if (!url) return null;
+
+  let extension = "";
+  try {
+    extension = new URL(url).pathname.split(".").pop()?.toLowerCase() || "";
+  } catch {
+    // The validated absolute URL above should parse, but keep the fallback safe.
+  }
+  const format: "svg" | "webp" | "jpeg" | "png" =
+    extension === "svg"
+      ? "svg"
+      : extension === "webp"
+        ? "webp"
+        : extension === "jpg" || extension === "jpeg"
+          ? "jpeg"
+          : "png";
+  return { url, path: "", format };
 }
 
 function openExternalUrl(rawUrl?: string | null) {
@@ -1040,7 +1073,8 @@ export default function Opportunities() {
     payload: OpportunityShareResponse | null;
     brandedPayload?: OpportunityShareResponse | null;
     creativePayload?: OpportunityShareResponse | null;
-    selectedDesign?: "branded" | "creative";
+    existingImage?: OpportunityShareCard | null;
+    selectedDesign?: "branded" | "creative" | "existing";
     sharing: boolean;
     preparing?: boolean;
     preparationMessage?: string;
@@ -2059,7 +2093,7 @@ export default function Opportunities() {
             ...current,
             preparing: true,
             preparationError: undefined,
-            preparationMessage: "Creating a full-bleed AI poster…",
+            preparationMessage: "Generating an original AI flyer…",
           }
         : current,
     );
@@ -2129,7 +2163,13 @@ export default function Opportunities() {
       const blob = await response.blob();
       const type =
         blob.type ||
-        (shareCard.format === "svg" ? "image/svg+xml" : "image/png");
+        (shareCard.format === "svg"
+          ? "image/svg+xml"
+          : shareCard.format === "jpeg"
+            ? "image/jpeg"
+            : shareCard.format === "webp"
+              ? "image/webp"
+              : "image/png");
       return {
         blob,
         file: new File(
@@ -2154,6 +2194,7 @@ export default function Opportunities() {
       payload: null,
       brandedPayload: null,
       creativePayload: null,
+      existingImage: getExistingOpportunityImage(opp),
       selectedDesign: "branded",
       sharing: false,
       preparing: true,
@@ -2178,6 +2219,7 @@ export default function Opportunities() {
         creativePayload: brandedPayload.creativeShareCard
           ? { ...brandedPayload, shareCard: brandedPayload.creativeShareCard }
           : null,
+        existingImage: getExistingOpportunityImage(opp),
         selectedDesign: "branded",
         sharing: false,
         preparing: false,
@@ -4779,12 +4821,16 @@ export default function Opportunities() {
                       key: "card" as const,
                       label:
                         shareChooser.selectedDesign === "creative"
-                          ? "Creative AI poster"
-                          : "Edutu designed flyer",
+                          ? "AI-created opportunity flyer"
+                          : shareChooser.selectedDesign === "existing"
+                            ? "Original source image"
+                            : "Edutu designed flyer",
                       hint:
                         shareChooser.selectedDesign === "creative"
-                          ? "Full-bleed original artwork with verified details"
-                          : "A polished, text-accurate layout with no AI artwork",
+                          ? "Original AI artwork shaped by this opportunity, with verified details and Edutu branding"
+                          : shareChooser.selectedDesign === "existing"
+                            ? "Use the image from the opportunity’s source listing"
+                            : "Use Edutu’s clean, text-accurate flyer design",
                       imageUrl: shareChooser.payload?.shareCard?.url || "",
                       badge:
                         shareChooser.selectedDesign === "creative" ? (
@@ -4869,8 +4915,8 @@ export default function Opportunities() {
                                 {generatingImageIds.has(
                                   shareChooser.opportunity.id,
                                 )
-                                  ? "Creating AI poster…"
-                                  : "Create AI poster"}
+                                  ? "Generating AI flyer…"
+                                  : "Generate AI flyer"}
                               </button>
                             </div>
                           )}
@@ -4952,6 +4998,33 @@ export default function Opportunities() {
                     >
                       <ImageIcon size={14} /> Edutu template
                     </button>
+                    {shareChooser.existingImage?.url && (
+                      <button
+                        type="button"
+                        className={
+                          shareChooser.selectedDesign === "existing"
+                            ? "btn btn-primary"
+                            : "btn btn-secondary"
+                        }
+                        onClick={() => {
+                          setSharePreviewFailed(false);
+                          setShareChooser((current) =>
+                            current?.existingImage
+                              ? {
+                                  ...current,
+                                  payload: {
+                                    ...(current.payload || {}),
+                                    shareCard: current.existingImage,
+                                  },
+                                  selectedDesign: "existing",
+                                }
+                              : current,
+                          );
+                        }}
+                      >
+                        <ImageIcon size={14} /> Use existing image
+                      </button>
+                    )}
                     {shareChooser.creativePayload?.shareCard?.url && (
                       <button
                         type="button"
@@ -4973,7 +5046,7 @@ export default function Opportunities() {
                           );
                         }}
                       >
-                        <Sparkles size={14} /> Creative AI poster
+                        <Sparkles size={14} /> AI-created flyer
                       </button>
                     )}
                   </div>
@@ -4992,7 +5065,7 @@ export default function Opportunities() {
                       ) : (
                         <Sparkles size={14} />
                       )}
-                      Create AI poster
+                      Generate AI flyer
                     </button>
                   )}
                 </div>
