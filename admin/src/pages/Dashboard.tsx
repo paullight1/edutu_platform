@@ -430,6 +430,13 @@ const Dashboard = () => {
       },
     ];
   }, [health]);
+  const healthLabel = !health
+    ? "Unavailable"
+    : health.status !== "ready"
+      ? "Degraded"
+      : health.checks.ai.status === "degraded"
+        ? "AI unavailable"
+        : "Healthy";
 
   const handleExport = useCallback(() => {
     downloadJson(`edutu-dashboard-${new Date().toISOString().slice(0, 10)}.json`, {
@@ -707,9 +714,9 @@ const Dashboard = () => {
             </p>
             </div>
             <span
-              className={`badge ${health ? (health.status === "ready" ? "badge-success" : "badge-warning") : "badge-danger"}`}
+              className={`badge ${healthLabel === "Healthy" ? "badge-success" : health ? "badge-warning" : "badge-danger"}`}
             >
-              {health ? (health.status === "ready" ? "Healthy" : "Degraded") : "Unavailable"}
+              {healthLabel}
             </span>
           </div>
 
@@ -781,6 +788,24 @@ const Dashboard = () => {
                 OpenRouter: {health.checks.ai.providers.openrouter}
               </span>
             </div>
+          )}
+          {health?.checks.ai.status === "degraded" && (
+            <p
+              role="status"
+              style={{
+                margin: "14px 0 0",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                background: "rgba(255, 102, 0, 0.1)",
+                color: "var(--text-secondary)",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              AI features may fail because neither Gemini nor OpenRouter is
+              configured. Configure at least one provider on the backend to
+              restore them.
+            </p>
           )}
         </div>
       </div>

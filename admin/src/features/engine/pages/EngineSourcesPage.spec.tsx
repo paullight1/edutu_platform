@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScrapeSource } from "../model/types";
@@ -61,6 +62,14 @@ function state(sources: ScrapeSource[] = []) {
   };
 }
 
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <EngineSourcesPage />
+    </MemoryRouter>,
+  );
+}
+
 describe("EngineSourcesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,14 +88,14 @@ describe("EngineSourcesPage", () => {
       },
     });
 
-    render(<EngineSourcesPage />);
+    renderPage();
 
     expect(screen.getByText("Sources unavailable")).toBeVisible();
     expect(screen.queryByText("No sources configured")).not.toBeInTheDocument();
   });
 
   it("renders a truthful empty state after a successful empty response", () => {
-    render(<EngineSourcesPage />);
+    renderPage();
 
     expect(
       screen.getByRole("heading", { name: "Engine sources" }),
@@ -97,12 +106,16 @@ describe("EngineSourcesPage", () => {
     ).toBeEnabled();
   });
 
-  it("prevents a disabled source from starting a run", () => {
+  it("prevents a disabled source from starting a run", async () => {
+    const user = userEvent.setup();
     mocks.useEngineSources.mockReturnValue(
       state([source({ id: 7, name: "Disabled source", enabled: false })]),
     );
 
-    render(<EngineSourcesPage />);
+    renderPage();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Disabled source" }),
+    );
 
     expect(
       screen.getByRole("button", { name: "Run Disabled source" }),
@@ -114,7 +127,10 @@ describe("EngineSourcesPage", () => {
     const current = source({ id: 8, name: "Disposable source" });
     mocks.useEngineSources.mockReturnValue(state([current]));
 
-    render(<EngineSourcesPage />);
+    renderPage();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Disposable source" }),
+    );
 
     await user.click(
       screen.getByRole("button", { name: "Delete Disposable source" }),
@@ -153,7 +169,7 @@ describe("EngineSourcesPage", () => {
       state([group, childOne, childTwo, unrelated]),
     );
 
-    render(<EngineSourcesPage />);
+    renderPage();
 
     await user.click(
       screen.getByRole("button", {

@@ -83,7 +83,7 @@ export class BillingCatalogAdminService {
         on mapping.product_key = product.product_key
        and mapping.provider = 'bachs'
        and mapping.environment = ${environment}
-      where product.product_key = any(${[...PLAN_PRODUCT_KEYS]}::text[])
+      where product.product_key = any(${sql.param([...PLAN_PRODUCT_KEYS])}::text[])
       order by product.product_key
     `);
     const rows = (result as { rows?: Record<string, unknown>[] }).rows ?? [];

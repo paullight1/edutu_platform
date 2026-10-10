@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { BillingCatalogAdminService } from "./billing-catalog-admin.service";
 
 const planKeys = [
@@ -37,6 +38,18 @@ describe("BillingCatalogAdminService", () => {
       environment: "live",
       liveEditingEnabled: true,
     });
+  });
+
+  it("binds plan keys as one PostgreSQL array for the ANY filter", async () => {
+    const execute = jest
+      .spyOn(db, "execute")
+      .mockResolvedValue({ rows: [] } as never);
+
+    await new BillingCatalogAdminService().list();
+
+    const query = new PgDialect().sqlToQuery(execute.mock.calls[0][0]);
+    expect(query.sql).toContain("product.product_key = any($2::text[])");
+    expect(query.params).toEqual(["sandbox", planKeys]);
   });
 
   it("reports checkout gates without exposing provider secrets", async () => {

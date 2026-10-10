@@ -115,6 +115,30 @@ describe("Dashboard health telemetry", () => {
     expect(screen.getByText("Degraded")).toBeInTheDocument();
   });
 
+  it("marks the platform degraded when no AI provider is configured", async () => {
+    healthResponse = {
+      ...readyHealthResponse,
+      checks: {
+        ...readyHealthResponse.checks,
+        ai: {
+          status: "degraded",
+          providers: { gemini: "missing", openrouter: "missing" },
+        },
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("AI unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText(/AI features may fail because neither Gemini nor OpenRouter is configured/i),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the dashboard usable when a legacy health payload is returned", async () => {
     healthResponse = {
       status: "ok",
