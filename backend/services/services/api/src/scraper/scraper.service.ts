@@ -15,7 +15,7 @@ import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
-import { removeContradictoryDeadlineClaims } from "../opportunities/deadline-description.util";
+import { normalizeAndSanitizeOpportunityCopy } from "../opportunities/deadline-description.util";
 import {
   parseDeadlineDetailed,
   extractDeadlineText,
@@ -3184,22 +3184,14 @@ ${text}`;
     );
     const closeDate = parsedDeadline.date;
     const quality = this.evaluateOpportunityQuality(item);
-    const rawSummary = this.normalizeSummary(
-      item.summary || this.createFallbackSummary(item),
+    const copy = normalizeAndSanitizeOpportunityCopy(
       item.description || "",
+      item.summary || this.createFallbackSummary(item),
       item.title,
+      closeDate,
+      this.normalizeDescription.bind(this),
+      this.normalizeSummary.bind(this),
     );
-    const rawDescription = this.normalizeDescription(item.description || "");
-    const summary = removeContradictoryDeadlineClaims(
-      rawSummary,
-      closeDate,
-    ) as string;
-    const description = removeContradictoryDeadlineClaims(
-      rawDescription,
-      closeDate,
-    ) as string;
-    const deadlineTextConflict =
-      summary !== rawSummary || description !== rawDescription;
     // Strip whitespace/wrapping junk so stored links are always clickable — a
     // scraped URL with a space in it breaks the "Apply" button on web + mobile.
     const detailUrl = this.sanitizeUrl(item.apply_url) || "";
@@ -3223,26 +3215,17 @@ ${text}`;
       classification.canonicalCategory,
     );
 
-    // Hard publish gate: a record may only go live when its core fields hold
-    // real scraped content — a passing score alone is not enough.
-    // `organization` is deliberately NOT part of this gate. It used to be, but
-    // the organiser was inferred by slicing the title, so the check passed for
-    // essentially every record — it gated on a value the pipeline manufactured
-    // to satisfy it. Now that a missing organiser stays null, keeping it here
-    // would block publication on a field real extraction often can't supply.
+    // Publish only real core content; inferred organizer names are unreliable.
     const hasCoreContent =
       !/^(?:browse|view|all|latest)\s+(?:(?:undergraduate|postgraduate|graduate|international)\s+)?(?:internships?|scholarships?|opportunities|jobs|grants|fellowships?)$/i.test(
         item.title.trim(),
       ) &&
       !quality.missingFields.includes("title") &&
       !quality.missingFields.includes("description") &&
-      summary.length >= 60;
-    // A deadline that already passed at scrape time means a stale post or a
-    // misparsed date — either way it would confuse users if published.
+      copy.summary.length >= 60;
+    // Past deadlines indicate stale posts or misparsed dates.
     const deadlinePassed = Boolean(closeDate && closeDate < now.split("T")[0]);
-    // Low LLM extraction confidence means the fields themselves are suspect —
-    // cap at pending_review. Only applies to AI-enriched items (confidence 0
-    // simply means "no AI enrichment ran", which is not a trust signal).
+    // Cap low-confidence AI extractions at pending review; 0 means no AI ran.
     const enrichmentConfidence = item.enrichment_confidence ?? 0;
     const lowExtractionConfidence =
       enrichmentConfidence > 0 && enrichmentConfidence < 0.5;
@@ -3251,12 +3234,12 @@ ${text}`;
       hasCoreContent &&
       !deadlinePassed &&
       !item.deadline_ambiguous &&
-      !deadlineTextConflict &&
+      !copy.needsReview &&
       !lowExtractionConfidence;
 
     return {
       title: item.title,
-      summary,
+      summary: copy.summary,
       organization,
       category:
         categorizeOpportunityTitle(item.title) ??
@@ -3274,7 +3257,7 @@ ${text}`;
       eligibility: item.eligibility ?? {},
       funding_type: item.funding_type ?? null,
       target_region: item.target_region ?? null,
-      description,
+      description: copy.description,
       application_url,
       apply_url: detailUrl || null,
       source_url: detailUrl || sourceUrl || null,
@@ -3310,8 +3293,9 @@ ${text}`;
         enrichment_notes: item.enrichment_notes ?? [],
         enrichment_status: item.enrichment_status ?? "unknown",
         deadline_source_evidence: item.deadline_evidence ?? null,
-        deadline_needs_review:
-          Boolean(item.deadline_ambiguous) || deadlineTextConflict,
+        deadline_needs_review: Boolean(
+          item.deadline_ambiguous || copy.needsReview,
+        ),
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         deadline_passed_at_scrape: deadlinePassed,

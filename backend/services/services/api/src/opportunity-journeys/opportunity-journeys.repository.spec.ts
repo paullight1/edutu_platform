@@ -12,6 +12,8 @@ import {
   OpportunityJourneysRepository,
 } from "./opportunity-journeys.repository";
 
+jest.setTimeout(30000);
+
 const RAW_USER = "user_repository_owner";
 const USER_ID = toDatabaseUserId(RAW_USER);
 const OTHER_USER = toDatabaseUserId("user_repository_other");

@@ -49,3 +49,45 @@ export function removeContradictoryDeadlineClaims(
     .replace(/\s{2,}/g, " ")
     .trim();
 }
+
+export function sanitizeOpportunityDeadlineCopy(
+  description: string,
+  summary: string,
+  canonicalDeadline: unknown,
+) {
+  const safeDescription = removeContradictoryDeadlineClaims(
+    description,
+    canonicalDeadline,
+  ) as string;
+  const safeSummary = removeContradictoryDeadlineClaims(
+    summary,
+    canonicalDeadline,
+  ) as string;
+
+  return {
+    description: safeDescription,
+    summary: safeSummary,
+    needsReview: safeDescription !== description || safeSummary !== summary,
+  };
+}
+
+export function normalizeAndSanitizeOpportunityCopy(
+  descriptionText: string,
+  summaryText: string,
+  title: string,
+  canonicalDeadline: unknown,
+  normalizeDescription: (text: string) => string,
+  normalizeSummary: (
+    summary: string,
+    description: string,
+    title: string,
+  ) => string,
+) {
+  const description = normalizeDescription(descriptionText);
+  const summary = normalizeSummary(summaryText, description, title);
+  return sanitizeOpportunityDeadlineCopy(
+    description,
+    summary,
+    canonicalDeadline,
+  );
+}

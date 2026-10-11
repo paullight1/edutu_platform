@@ -59,7 +59,11 @@ import {
   publicOpportunityDetailConditions,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
-import { removeContradictoryDeadlineClaims } from "./deadline-description.util";
+import { sanitizeOpportunityDeadlineCopy } from "./deadline-description.util";
+import {
+  normalizeOpportunityDescription,
+  normalizeOpportunitySummary,
+} from "./opportunity-content-normalization.util";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -2248,26 +2252,26 @@ export class OpportunitiesService {
     // confuse a publication date with an application deadline, so AI
     // enrichment is never allowed to set or replace close_date.
     const closeDate = opportunity.close_date || opportunity.deadline;
-    const rawDescription = this.normalizeDescription(descriptionText);
-    const description = removeContradictoryDeadlineClaims(
-      rawDescription,
-      closeDate,
-    ) as string;
     const titleText =
       this.cleanOptionalText(aiData.title, 220) ||
       this.cleanOptionalText(opportunity.title, 220) ||
       "";
-    const rawSummary = this.normalizeSummary(
+    const normalizedDescription =
+      normalizeOpportunityDescription(descriptionText);
+    const normalizedSummary = normalizeOpportunitySummary(
       summaryText,
-      description,
+      normalizedDescription,
       titleText,
     );
-    const summary = removeContradictoryDeadlineClaims(
-      rawSummary,
+    const {
+      description,
+      summary,
+      needsReview: deadlineTextConflict,
+    } = sanitizeOpportunityDeadlineCopy(
+      normalizedDescription,
+      normalizedSummary,
       closeDate,
-    ) as string;
-    const deadlineTextConflict =
-      rawDescription !== description || rawSummary !== summary;
+    );
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -2616,7 +2620,7 @@ export class OpportunitiesService {
     metadata.classification_signals = classification.matchedSignals;
     metadata.classification_needs_review = classification.needsReview;
 
-    const summary = this.normalizeSummary(
+    const summary = normalizeOpportunitySummary(
       record.summary ?? record.description ?? "",
       record.description ?? "",
       String(input.title ?? ""),
@@ -2804,12 +2808,12 @@ export class OpportunitiesService {
         item.application_process ||
         item.metadata?.application_process,
     );
-    const summary = this.normalizeSummary(
+    const summary = normalizeOpportunitySummary(
       aiData?.summary || item.summary || item.description || "",
       aiData?.description || item.description || "",
       String(item.title ?? ""),
     );
-    const description = this.normalizeDescription(
+    const description = normalizeOpportunityDescription(
       aiData?.description || item.description || "",
     );
 
@@ -3237,27 +3241,6 @@ ${sourceText || "No source page text was available. Still write a complete summa
     }
   }
 
-  private normalizeSummary(
-    summary: string | null | undefined,
-    description: string | null | undefined,
-    title: string,
-  ): string {
-    const cleanedSummary = this.cleanOptionalText(summary, 420);
-    const cleanedDescription = this.cleanText(String(description || ""), 1200);
-    const fallback =
-      this.firstSentence(cleanedDescription) || this.cleanText(title, 220);
-    const candidate = cleanedSummary || fallback;
-    if (!candidate) return "";
-    const words = candidate.split(/\s+/).filter(Boolean);
-    const limited =
-      words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
-    return /[.!?]$/.test(limited) ? limited : `${limited}.`;
-  }
-
-  private normalizeDescription(description: string | null | undefined): string {
-    return this.cleanOptionalText(description, 1800) || "";
-  }
-
   private cleanText(text: string, maxChars = 500): string {
     return (text ?? "").replace(/\s+/g, " ").trim().substring(0, maxChars);
   }
@@ -3510,7 +3493,7 @@ ${sourceText || "No source page text was available. Still write a complete summa
 
     if (this.supabase) {
       const records: Record<string, any>[] = validItems.map((item) => {
-        const summary = this.normalizeSummary(
+        const summary = normalizeOpportunitySummary(
           item.summary || "",
           item.description || "",
           item.title,
@@ -3647,7 +3630,7 @@ ${sourceText || "No source page text was available. Still write a complete summa
     }
 
     const values = validItems.map((item) => {
-      const summary = this.normalizeSummary(
+      const summary = normalizeOpportunitySummary(
         item.summary || "",
         item.description || "",
         item.title,

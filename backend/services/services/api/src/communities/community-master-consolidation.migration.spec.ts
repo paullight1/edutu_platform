@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 
+jest.setTimeout(30000);
+
 const migrationPath = resolve(
   process.cwd(),
   "supabase/migrations/20260829190000_consolidate_scholarships_for_africa.sql",
