@@ -62,6 +62,19 @@ describe("resolveAdminRuntimeConfig", () => {
     });
   });
 
+  it("migrates the broken production API hostname to the active Render service", () => {
+    expect(
+      resolveAdminRuntimeConfig(
+        { VITE_BACKEND_URL: "https://backend.edutu.org/" },
+        "production",
+      ),
+    ).toMatchObject({
+      apiOrigin: "https://edutu-platform.onrender.com",
+      source: "VITE_BACKEND_URL",
+      explicit: true,
+    });
+  });
+
   it("accepts VITE_API_URL only as a marked compatibility alias", () => {
     expect(
       resolveAdminRuntimeConfig(
