@@ -1,4 +1,18 @@
+import { StreamableFile } from "@nestjs/common";
 import { OpportunitiesController } from "./opportunities.controller";
+
+function createController(
+  opportunitiesService: Record<string, unknown>,
+  sourceImageService: Record<string, unknown> = {},
+) {
+  return new OpportunitiesController(
+    opportunitiesService as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    sourceImageService as any,
+  );
+}
 
 describe("OpportunitiesController learner publication surface", () => {
   it("requests active opportunities for the learner feed", async () => {
@@ -11,11 +25,7 @@ describe("OpportunitiesController learner publication surface", () => {
       findAll: jest.fn().mockResolvedValue([approved]),
     };
     const response = { setHeader: jest.fn() };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
 
     const result = await controller.findAll(response as any, 20, 0);
 
@@ -28,11 +38,7 @@ describe("OpportunitiesController learner publication surface", () => {
     const service = {
       getQualityScorecard: jest.fn().mockResolvedValue(quality),
     };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
 
     await expect(controller.getQualityScorecard()).resolves.toEqual(quality);
     expect(service.getQualityScorecard).toHaveBeenCalledTimes(1);
@@ -47,11 +53,7 @@ describe("OpportunitiesController learner publication surface", () => {
     const service = {
       enhanceOpportunities: jest.fn().mockResolvedValue(outcome),
     };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
 
     await expect(controller.adminBulkEnhance({ ids })).resolves.toEqual({
       success: true,
@@ -69,11 +71,7 @@ describe("admin bulk action contracts", () => {
       const service = {
         bulkUpdateStatus: jest.fn().mockResolvedValue({ updated: 1 }),
       };
-      const controller = new OpportunitiesController(
-        service as any,
-        {} as any,
-        {} as any,
-      );
+      const controller = createController(service);
       await expect(
         controller.adminBulkStatus({ ids, status } as any),
       ).resolves.toEqual({ updated: 1 });
@@ -84,21 +82,13 @@ describe("admin bulk action contracts", () => {
     const service = {
       bulkUpdateCategory: jest.fn().mockResolvedValue({ updated: 1 }),
     };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
     await controller.adminBulkCategory({ ids, category: "Internships" } as any);
     expect(service.bulkUpdateCategory).toHaveBeenCalledWith(ids, "internships");
   });
   it("rejects unknown categories before writing", () => {
     const service = { bulkUpdateCategory: jest.fn() };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
     expect(() =>
       controller.adminBulkCategory({ ids, category: "invalid" } as any),
     ).toThrow();
@@ -106,14 +96,61 @@ describe("admin bulk action contracts", () => {
   });
   it("deletes only selected IDs and returns the actual deleted count", async () => {
     const service = { bulkRemove: jest.fn().mockResolvedValue({ deleted: 0 }) };
-    const controller = new OpportunitiesController(
-      service as any,
-      {} as any,
-      {} as any,
-    );
+    const controller = createController(service);
     await expect(controller.adminBulkDelete({ ids })).resolves.toEqual({
       deleted: 0,
     });
     expect(service.bulkRemove).toHaveBeenCalledWith(ids);
+  });
+});
+
+describe("admin original source image", () => {
+  it("streams the original image with private caching and content sniffing disabled", async () => {
+    const image = {
+      buffer: Buffer.from("image-data"),
+      contentType: "image/jpeg",
+    };
+    const sourceImageService = {
+      getForOpportunity: jest.fn().mockResolvedValue(image),
+    };
+    const response = { setHeader: jest.fn() };
+    const controller = createController({}, sourceImageService);
+
+    const result = await controller.getAdminSourceImage(
+      "opportunity-1",
+      response as any,
+    );
+
+    expect(sourceImageService.getForOpportunity).toHaveBeenCalledWith(
+      "opportunity-1",
+    );
+    expect(response.setHeader).toHaveBeenCalledWith(
+      "Content-Type",
+      "image/jpeg",
+    );
+    expect(response.setHeader).toHaveBeenCalledWith(
+      "Cache-Control",
+      "private, max-age=300",
+    );
+    expect(response.setHeader).toHaveBeenCalledWith(
+      "X-Content-Type-Options",
+      "nosniff",
+    );
+    expect(result).toBeInstanceOf(StreamableFile);
+  });
+
+  it("returns not found when no original source image exists", async () => {
+    const controller = createController(
+      {},
+      {
+        getForOpportunity: jest.fn().mockResolvedValue(null),
+      },
+    );
+
+    await expect(
+      controller.getAdminSourceImage("opportunity-1", {
+        setHeader: jest.fn(),
+      } as any),
+    ).rejects.toThrow("Original image not found.");
   });
 });

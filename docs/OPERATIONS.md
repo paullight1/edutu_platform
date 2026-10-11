@@ -125,7 +125,7 @@ Admin:
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_API_URL=https://edutu-api.onrender.com
+VITE_API_URL=https://edutu-platform.onrender.com
 ```
 
 Main web app:
@@ -133,7 +133,7 @@ Main web app:
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_API_URL=https://edutu-api.onrender.com
+VITE_API_URL=https://edutu-platform.onrender.com
 VITE_CLERK_PUBLISHABLE_KEY=...
 ```
 

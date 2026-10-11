@@ -11,7 +11,7 @@ https://admin.edutu.org
 Backend target:
 
 ```txt
-https://edutu-api.onrender.com
+https://edutu-platform.onrender.com
 ```
 
 ## Why admin stays separate
@@ -34,8 +34,8 @@ Set these in the hosting dashboard for the admin site:
 ```env
 VITE_SUPABASE_URL=https://sioxocmrjmdevsdlzjns.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_API_URL=https://edutu-api.onrender.com
-VITE_BACKEND_URL=https://edutu-api.onrender.com
+VITE_API_URL=https://edutu-platform.onrender.com
+VITE_BACKEND_URL=https://edutu-platform.onrender.com
 ```
 
 Do not put service-role keys, DeepSeek keys, Clerk secret keys, or backend-only secrets in this admin frontend.

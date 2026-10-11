@@ -1,8 +1,123 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  createOpportunityShareImageFile,
+  getShareImageFetchTarget,
   getExistingOpportunityImage,
   preserveBrandedSharePayload,
 } from "./opportunityShareImages";
+
+describe("getShareImageFetchTarget", () => {
+  it("fetches original source images through the authenticated API proxy", () => {
+    expect(
+      getShareImageFetchTarget("https://api.example.org/", "opp/1", {
+        url: "https://source.example.org/flyer.jpg",
+        path: "",
+      }),
+    ).toEqual({
+      url: "https://api.example.org/opportunities/admin/opp%2F1/source-image",
+      requiresAdminAuth: true,
+    });
+  });
+
+  it("fetches generated flyers directly from their hosted asset URL", () => {
+    expect(
+      getShareImageFetchTarget("https://api.example.org", "opp-1", {
+        url: "https://cdn.example.org/generated.png",
+        path: "opportunity-share-cards/opp-1.png",
+      }),
+    ).toEqual({
+      url: "https://cdn.example.org/generated.png",
+      requiresAdminAuth: false,
+    });
+  });
+});
+
+describe("createOpportunityShareImageFile", () => {
+  const opportunity = { id: "opp-1", title: "WCSJ2027 Travel Fellowship" };
+
+  it("uses the authenticated proxy for originals and creates a named image file", async () => {
+    const blob = new Blob(["image"], { type: "image/jpeg" });
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: async () => blob,
+    });
+    const getAdminHeaders = vi.fn().mockResolvedValue({ Authorization: "Bearer test" });
+    const image = {
+      url: "https://source.example.org/flyer.jpg",
+      path: "",
+      format: "jpeg" as const,
+    };
+
+    const result = await createOpportunityShareImageFile(
+      "https://api.example.org",
+      opportunity,
+      image,
+      getAdminHeaders,
+      fetcher as typeof fetch,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.org/opportunities/admin/opp-1/source-image",
+      { headers: { Authorization: "Bearer test" } },
+    );
+    expect(result?.file.name).toBe("wcsj2027-travel-fellowship-edutu.jpeg");
+    expect(result?.file.type).toBe("image/jpeg");
+  });
+
+  it("does not send admin credentials to the public generated-image host", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(["image"], { type: "image/png" }),
+    });
+    const getAdminHeaders = vi.fn();
+
+    await createOpportunityShareImageFile(
+      "https://api.example.org",
+      opportunity,
+      {
+        url: "https://cdn.example.org/flyer.png",
+        path: "opportunity-share-cards/opp-1.png",
+        format: "png",
+      },
+      getAdminHeaders,
+      fetcher as typeof fetch,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://cdn.example.org/flyer.png",
+      undefined,
+    );
+    expect(getAdminHeaders).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the image cannot be fetched or is missing", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ok: false });
+    const getAdminHeaders = vi.fn().mockResolvedValue({});
+
+    await expect(
+      createOpportunityShareImageFile(
+        "https://api.example.org",
+        opportunity,
+        {
+          url: "https://source.example.org/flyer.png",
+          path: "",
+          format: "png",
+        },
+        getAdminHeaders,
+        fetcher as typeof fetch,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      createOpportunityShareImageFile(
+        "https://api.example.org",
+        opportunity,
+        null,
+        getAdminHeaders,
+        fetcher as typeof fetch,
+      ),
+    ).resolves.toBeNull();
+  });
+});
 
 describe("getExistingOpportunityImage", () => {
   it("prefers the original source image over a generated flyer stored as image_url", () => {

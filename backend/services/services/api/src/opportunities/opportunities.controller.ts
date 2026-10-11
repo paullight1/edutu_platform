@@ -60,6 +60,7 @@ import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projection";
 import { OpportunityImageGenerationService } from "./opportunity-image-generation.service";
+import { OpportunitySourceImageService } from "./opportunity-source-image.service";
 import { WebPaidToolsGuard } from "../monetization/web-paid-tools.guard";
 
 // Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
@@ -76,6 +77,7 @@ export class OpportunitiesController {
     private readonly opportunityVerificationService: OpportunityVerificationService,
     private readonly opportunityEmbeddingService: OpportunityEmbeddingService,
     private readonly opportunityImageGenerationService: OpportunityImageGenerationService,
+    private readonly opportunitySourceImageService: OpportunitySourceImageService,
   ) {}
 
   @Public()
@@ -535,6 +537,29 @@ export class OpportunitiesController {
       return { success: false, error: "Opportunity not found" };
     }
     return { success: true, ...result };
+  }
+
+  @Get("admin/:id/source-image")
+  @UseGuards(AdminGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async getAdminSourceImage(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    let image;
+    try {
+      image = await this.opportunitySourceImageService.getForOpportunity(id);
+    } catch {
+      throw new ServiceUnavailableException(
+        "The original image could not be prepared for sharing.",
+      );
+    }
+    if (!image) throw new NotFoundException("Original image not found.");
+
+    response.setHeader("Content-Type", image.contentType);
+    response.setHeader("Cache-Control", "private, max-age=300");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    return new StreamableFile(image.buffer);
   }
 
   @Public()

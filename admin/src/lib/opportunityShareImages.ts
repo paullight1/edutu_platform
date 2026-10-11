@@ -4,6 +4,68 @@ export interface OpportunityShareImage {
   format: "png" | "svg" | "jpeg" | "webp";
 }
 
+export interface ShareImageFetchTarget {
+  url: string;
+  requiresAdminAuth: boolean;
+}
+
+export function getShareImageFetchTarget(
+  apiBaseUrl: string,
+  opportunityId: string,
+  image: Pick<OpportunityShareImage, "url" | "path">,
+): ShareImageFetchTarget {
+  if (image.path) return { url: image.url, requiresAdminAuth: false };
+
+  return {
+    url: `${apiBaseUrl.replace(/\/+$/, "")}/opportunities/admin/${encodeURIComponent(opportunityId)}/source-image`,
+    requiresAdminAuth: true,
+  };
+}
+
+export async function createOpportunityShareImageFile(
+  apiBaseUrl: string,
+  opportunity: { id: string; title: string },
+  image: OpportunityShareImage | null | undefined,
+  getAdminHeaders: () => Promise<HeadersInit>,
+  fetcher: typeof fetch = fetch,
+): Promise<{ blob: Blob; file: File } | null> {
+  if (!image?.url) return null;
+
+  try {
+    const target = getShareImageFetchTarget(apiBaseUrl, opportunity.id, image);
+    const response = await fetcher(
+      target.url,
+      target.requiresAdminAuth ? { headers: await getAdminHeaders() } : undefined,
+    );
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    const type =
+      blob.type ||
+      ({
+        svg: "image/svg+xml",
+        jpeg: "image/jpeg",
+        webp: "image/webp",
+        png: "image/png",
+      }[image.format] ?? "image/png");
+    const slug = opportunity.title
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    return {
+      blob,
+      file: new File([blob], `${slug || "edutu-opportunity"}-edutu.${image.format}`, {
+        type,
+      }),
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface OpportunityImageSources {
   image_url?: unknown;
   metadata?: Record<string, unknown> | null;

@@ -51,11 +51,11 @@ describe("resolveAdminRuntimeConfig", () => {
   it("uses the explicit canonical production origin", () => {
     expect(
       resolveAdminRuntimeConfig(
-        { VITE_BACKEND_URL: "https://edutu-api.onrender.com/" },
+        { VITE_BACKEND_URL: "https://edutu-platform.onrender.com/" },
         "production",
       ),
     ).toEqual({
-      apiOrigin: "https://edutu-api.onrender.com",
+      apiOrigin: "https://edutu-platform.onrender.com",
       source: "VITE_BACKEND_URL",
       explicit: true,
       mode: "production",

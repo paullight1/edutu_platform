@@ -15,6 +15,7 @@ import { OpportunityShareCardService } from "./opportunity-share-card.service";
 import { OpportunityShareEnrichService } from "./opportunity-share-enrich.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { OpportunityImageGenerationService } from "./opportunity-image-generation.service";
+import { OpportunitySourceImageService } from "./opportunity-source-image.service";
 
 @Module({
   imports: [AiModule, SavedSearchesModule],
@@ -31,6 +32,7 @@ import { OpportunityImageGenerationService } from "./opportunity-image-generatio
     OpportunityShareCardService,
     OpportunityShareEnrichService,
     OpportunityImageGenerationService,
+    OpportunitySourceImageService,
     OpportunityEmbeddingService,
     OpportunityContentRefinementService,
   ],
@@ -43,6 +45,7 @@ import { OpportunityImageGenerationService } from "./opportunity-image-generatio
     OpportunityEmbeddingService,
     OpportunityContentRefinementService,
     OpportunityImageGenerationService,
+    OpportunitySourceImageService,
   ],
 })
 export class OpportunitiesModule implements OnModuleDestroy {
