@@ -51,6 +51,7 @@ describe("parseDeadlineDetailed", () => {
   it("rejects implausible dates as unknown", () => {
     expect(parseDeadlineDetailed("2031-01-01").date).toBeNull();
     expect(parseDeadlineDetailed("2020-01-01").date).toBeNull();
+    expect(parseDeadlineDetailed("December 2, 2926").date).toBeNull();
   });
 });
 
@@ -62,6 +63,12 @@ describe("extractDeadlineText", () => {
     expect(
       extractDeadlineText("Apply before 1 September 2026 to be considered"),
     ).toContain("1 September 2026");
+  });
+
+  it("extracts implausible four-digit years so sanitizers can flag them", () => {
+    expect(extractDeadlineText("Application deadline: December 2, 2926.")).toBe(
+      "December 2, 2926",
+    );
   });
 
   it("prefers a complete source date over a shorter yearless deadline phrase", () => {
@@ -113,6 +120,12 @@ describe("closing-date wording", () => {
       parseDeadlineEvidence(
         "Applications were posted on November 11, 2026.",
         "2026-11-11",
+      ),
+    ).toBeNull();
+    expect(
+      parseDeadlineEvidence(
+        "Application deadline: December 2, 2926.",
+        "2026-12-02",
       ),
     ).toBeNull();
     expect(

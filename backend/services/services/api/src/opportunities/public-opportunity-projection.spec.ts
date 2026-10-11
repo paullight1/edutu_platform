@@ -123,4 +123,19 @@ describe("public-opportunity-projection", () => {
       "The application deadline is October 15, 2026.",
     );
   });
+
+  it("removes an impossible year that conflicts with the canonical deadline", () => {
+    const out = stripInternalOpportunityFields({
+      title: "Yale World Fellows Program 2027",
+      summary:
+        "Application Deadline: December 2, 2926. Applications are open now.",
+      description:
+        "The application deadline is December 2, 2926. Applications close. Visit the official site.",
+      close_date: "2026-12-02",
+    });
+
+    expect(out.summary).toBe("Applications are open now.");
+    expect(out.description).toBe("Visit the official site.");
+    expect(out.trust).toMatchObject({ deadlineNeedsReview: true });
+  });
 });

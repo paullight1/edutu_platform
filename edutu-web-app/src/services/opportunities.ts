@@ -25,9 +25,10 @@ let cachedOpportunities: Opportunity[] | null = null;
 let cachedOpportunitiesAt = 0;
 let revalidatePromise: Promise<void> | null = null;
 
-// v2 drops legacy snapshots that may contain client-generated, non-resolvable
-// IDs from rows that did not include a canonical database ID.
-const SNAPSHOT_STORAGE_KEY = "edutu:opportunities:snapshot:v2";
+// v4 drops cached descriptions that predate the stricter public deadline
+// sanitizer. Otherwise an updated app can keep showing stale deadline copy
+// from localStorage even after the API has corrected the public projection.
+const SNAPSHOT_STORAGE_KEY = "edutu:opportunities:snapshot:v4";
 const SNAPSHOT_FRESH_MS = 10 * 60 * 1000;
 
 type OpportunitiesListener = (opportunities: Opportunity[]) => void;

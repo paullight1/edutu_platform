@@ -38,9 +38,19 @@ export function removeContradictoryDeadlineClaims(
     if (!DEADLINE_CLAIM.test(sentence)) return true;
 
     const evidence = extractDeadlineText(sentence);
-    if (!evidence) return !hasConflictingDeadlines(sentence);
+    if (!evidence) {
+      const isBareClosingClaim =
+        /^\s*applications?\s+(?:close|closes|closing)\s*[.!?]*\s*$/i.test(
+          sentence,
+        );
+      return !isBareClosingClaim && !hasConflictingDeadlines(sentence);
+    }
 
     const sentenceDate = toIsoDate(evidence);
+    // Keep malformed or implausible dates out of learner-facing copy when a
+    // canonical deadline exists. In particular, "December 2, 2926" used to
+    // evade the conflict check because the parser only recognized 20xx years.
+    if (!sentenceDate && /\b\d{4}\b/.test(evidence)) return false;
     return !sentenceDate || sentenceDate === canonicalDate;
   });
 

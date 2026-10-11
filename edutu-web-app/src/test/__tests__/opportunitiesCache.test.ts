@@ -7,7 +7,7 @@ vi.mock("../../services/n8nIntegration", () => ({
   updateOpportunitiesInN8n: vi.fn().mockResolvedValue(undefined),
 }));
 
-const SNAPSHOT_KEY = "edutu:opportunities:snapshot:v2";
+const SNAPSHOT_KEY = "edutu:opportunities:snapshot:v4";
 
 const backendRow = {
   id: "opp-1",
@@ -69,6 +69,33 @@ describe("opportunities snapshot cache", () => {
       "Test Scholarship",
     );
   });
+
+  it.each(["v2", "v3"])(
+    "replaces a %s snapshot that may contain unsanitized deadline copy",
+    async (version) => {
+      window.localStorage.setItem(
+        "edutu:opportunities:snapshot:" + version,
+        JSON.stringify({
+          savedAt: Date.now(),
+          rows: [
+            {
+              ...backendRow,
+              summary: "Application deadline: December 2, 2926.",
+            },
+          ],
+        }),
+      );
+      mockFetchSuccess();
+
+      const service = await importOpportunities();
+      expect(service.getCachedOpportunitiesSync()).toBeNull();
+
+      const rows = await service.fetchOpportunities();
+
+      expect(rows[0].summary).not.toContain("2926");
+      expect(window.localStorage.getItem(SNAPSHOT_KEY)).toBeTruthy();
+    },
+  );
 
   it("falls back to the stale snapshot when the backend and static snapshot both fail", async () => {
     mockFetchSuccess();

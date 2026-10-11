@@ -80,20 +80,23 @@ export function parseDeadlineDetailed(
   let month: number | null = null;
   let day: number | null = null;
 
-  const iso = cleaned.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  // Capture any four-digit year so implausible values (such as a scraped
+  // 2926 typo) are rejected by the plausibility window instead of being
+  // mistaken for text with no date at all.
+  const iso = cleaned.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
   const dayFirst = cleaned.match(
     new RegExp(
-      `\\b(\\d{1,2})\\s+(${MONTH_NAME_RE})\\.?(?:\\s*,?\\s+(20\\d{2}))?`,
+      `\\b(\\d{1,2})\\s+(${MONTH_NAME_RE})\\.?(?:\\s*,?\\s+(\\d{4}))?`,
       "i",
     ),
   );
   const monthFirst = cleaned.match(
     new RegExp(
-      `\\b(${MONTH_NAME_RE})\\.?\\s+(\\d{1,2})(?:\\s*,?\\s+(20\\d{2}))?`,
+      `\\b(${MONTH_NAME_RE})\\.?\\s+(\\d{1,2})(?:\\s*,?\\s+(\\d{4}))?`,
       "i",
     ),
   );
-  const numeric = cleaned.match(/\b(\d{1,2})[/.](\d{1,2})[/.](20\d{2})\b/);
+  const numeric = cleaned.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/);
 
   if (iso) {
     year = Number(iso[1]);
@@ -180,14 +183,14 @@ function deadlineFragments(text: string, includeLabel = false): string[] {
   // deadline). Only accept a date attached to deadline/closing language; a
   // bare first date silently turns article publication dates into deadlines.
   const date =
-    "(?:20\\d{2}[-/.]\\d{1,2}[-/.]\\d{1,2}" +
-    "|\\d{1,2}[/.]\\d{1,2}[/.]20\\d{2}" +
+    "(?:\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}" +
+    "|\\d{1,2}[/.]\\d{1,2}[/.]\\d{4}" +
     "|(?:" +
     MONTH_PATTERN +
-    ")\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d{2})?" +
+    ")\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?" +
     "|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:" +
     MONTH_PATTERN +
-    ")(?:\\.?\\s*,?\\s+20\\d{2})?)";
+    ")(?:\\.?\\s*,?\\s+\\d{4})?)";
   const patterns = [
     new RegExp(
       "\\bdeadline\\s+for\\s+(?:applications?|nominations?|submissions?|proposals?)\\s*(?:is|:)?\\s*(" +
@@ -234,7 +237,7 @@ function deadlineFragments(text: string, includeLabel = false): string[] {
 
 export function hasConflictingDeadlines(text: string): boolean {
   const dates = deadlineFragments(text)
-    .filter((fragment) => /20\d{2}/.test(fragment))
+    .filter((fragment) => /\d{4}/.test(fragment))
     .map((fragment) => parseDeadlineDetailed(fragment).date)
     .filter(Boolean);
   return new Set(dates).size > 1;
@@ -242,7 +245,7 @@ export function hasConflictingDeadlines(text: string): boolean {
 
 export function extractDeadlineText(text: string): string | null {
   const fragments = deadlineFragments(text);
-  const explicit = fragments.filter((fragment) => /20\d{2}/.test(fragment));
+  const explicit = fragments.filter((fragment) => /\d{4}/.test(fragment));
   const dates = new Set(
     explicit
       .map((fragment) => parseDeadlineDetailed(fragment).date)
@@ -298,7 +301,7 @@ export function parseDeadlineEvidence(
     return null;
   const dates =
     evidence.match(
-      /20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]20\d{2}|[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?[,]?\s+20\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?[,]?\s+20\d{2}/g,
+      /\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]\d{4}|[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?[,]?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?[,]?\s+\d{4}/g,
     ) || [];
   const supported = [
     ...new Set(
