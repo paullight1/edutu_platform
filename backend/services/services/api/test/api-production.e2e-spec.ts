@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { INestApplication, UnauthorizedException } from "@nestjs/common";
+import { jest } from "@jest/globals";
 import { Reflector } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
+import { fileURLToPath } from "node:url";
 import request from "supertest";
 import { EdutuApiController } from "../src/edutu-api/edutu-api.controller";
 import { EdutuApiKeyGuard } from "../src/edutu-api/edutu-api-key.guard";
@@ -12,6 +14,8 @@ import { EdutuApiService } from "../src/edutu-api/edutu-api.service";
 import { EdutuApiUsageInterceptor } from "../src/edutu-api/edutu-api-usage.interceptor";
 import type { ApiConsumerContext } from "../src/edutu-api/current-api-consumer.decorator";
 import { EdutuApiUsageService } from "../src/edutu-api/edutu-api-usage.service";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const TEST_KEYS = {
   ownerA: "edu_test_owner_a_fixture",
