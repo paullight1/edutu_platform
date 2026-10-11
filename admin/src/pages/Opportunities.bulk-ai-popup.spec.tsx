@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Opportunities from "./Opportunities";
 
 const realtimeChannel = {
@@ -56,6 +56,10 @@ function jsonResponse(body: unknown): Response {
 }
 
 let resolveBulkResponse: (response: Response) => void;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("Opportunities AI completion popup", () => {
   beforeEach(() => {
@@ -242,6 +246,21 @@ describe("Opportunities AI completion popup", () => {
     expect(
       screen.queryByRole("toolbar", { name: "Bulk actions" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the shared API-origin migration for legacy production settings", async () => {
+    vi.stubEnv("VITE_BACKEND_URL", "https://backend.edutu.org");
+    render(<Opportunities />);
+
+    await screen.findByRole("checkbox", { name: "Select Test scholarship" });
+
+    expect(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) =>
+        String(url).startsWith(
+          "https://edutu-platform.onrender.com/opportunities/admin/list?",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("moves the selected category and rechecks selected deadlines", async () => {

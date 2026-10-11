@@ -12,6 +12,7 @@ import {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { getAdminAuthHeaders } from "../lib/backend";
+import { getBackendBaseUrl } from "../lib/runtimeConfig";
 import {
   createOpportunityShareImageFile,
   createOpportunityShareImagePreviewUrl,
@@ -1157,11 +1158,10 @@ export default function Opportunities() {
   const aiCompletionStopRef = useRef<AbortController | null>(null);
   const aiCompletionRequestAbortRef = useRef<AbortController | null>(null);
 
-  const NEST_API_URL = (
-    import.meta.env.VITE_BACKEND_URL ||
-    import.meta.env.VITE_API_URL ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
+  // Keep this page on the same canonical API origin as the shared admin
+  // client. Older admin deployments still inject backend.edutu.org, which
+  // must pass through the compatibility resolver to reach the active API.
+  const NEST_API_URL = getBackendBaseUrl();
 
   const getAdminHeaders = useCallback(async () => {
     return getAdminAuthHeaders({
