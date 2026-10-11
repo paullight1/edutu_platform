@@ -1,7 +1,9 @@
 name: CI
 
-# The backend uses Node 22 because its patched HTML sanitizer requires Node
-# 22.12 or newer. Frontend/mobile/voice jobs also use Node 22.
+# The backend runtime supports Node 22.12 and newer. Its Jest E2E harness needs
+# Node 24.9+ to load the sanitizer's ESM-only HTML parser under Jest; the
+# backend lint job stays on Node 22 to cover the minimum supported runtime.
+# Frontend/mobile/voice jobs also use Node 22.
 
 on:
   push:
@@ -111,7 +113,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: backend/services/services/api/package-lock.json
       - run: npm ci
