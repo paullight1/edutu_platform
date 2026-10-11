@@ -13,10 +13,9 @@ test('passes when there are no high or critical vulnerabilities', () => {
   const result = evaluateMobileAudit(report({}));
   assert.equal(result.ok, true);
   assert.deepEqual(result.blocking, []);
-  assert.deepEqual(result.exceptions, []);
 });
 
-test('allows only the documented Expo Metro image-size high chain', () => {
+test('fails on high Expo Metro image-size vulnerabilities', () => {
   const result = evaluateMobileAudit(
     report({
       'image-size': { severity: 'high' },
@@ -27,9 +26,8 @@ test('allows only the documented Expo Metro image-size high chain', () => {
     }),
   );
 
-  assert.equal(result.ok, true);
-  assert.deepEqual(result.blocking, []);
-  assert.deepEqual(result.exceptions.sort(), ['@expo/metro', 'expo', 'image-size', 'metro']);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.blocking.sort(), ['@expo/metro', 'expo', 'image-size', 'metro']);
 });
 
 test('fails on an unrelated high vulnerability', () => {
@@ -41,10 +39,10 @@ test('fails on an unrelated high vulnerability', () => {
   );
 
   assert.equal(result.ok, false);
-  assert.deepEqual(result.blocking, ['lodash']);
+  assert.deepEqual(result.blocking.sort(), ['image-size', 'lodash']);
 });
 
-test('fails on every critical vulnerability even when the package is allowlisted', () => {
+test('fails on critical and high vulnerabilities', () => {
   const result = evaluateMobileAudit(
     report({
       'image-size': { severity: 'critical' },
@@ -54,16 +52,4 @@ test('fails on every critical vulnerability even when the package is allowlisted
 
   assert.equal(result.ok, false);
   assert.deepEqual(result.blocking, ['image-size', 'metro']);
-});
-
-test('does not activate the Expo exception without the image-size root advisory', () => {
-  const result = evaluateMobileAudit(
-    report({
-      metro: { severity: 'high' },
-      expo: { severity: 'high' },
-    }),
-  );
-
-  assert.equal(result.ok, false);
-  assert.deepEqual(result.blocking.sort(), ['expo', 'metro']);
 });
