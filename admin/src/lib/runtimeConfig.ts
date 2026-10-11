@@ -20,15 +20,6 @@ export class AdminRuntimeConfigError extends Error {
   }
 }
 
-const LEGACY_BACKEND_ORIGIN = "https://backend.edutu.org";
-const ACTIVE_BACKEND_ORIGIN = "https://edutu-platform.onrender.com";
-
-function migrateKnownBackendOrigin(value: string): string {
-  return value.replace(/\/+$/u, "").toLowerCase() === LEGACY_BACKEND_ORIGIN
-    ? ACTIVE_BACKEND_ORIGIN
-    : value;
-}
-
 function readString(
   env: Record<string, string | boolean | undefined>,
   key: string,
@@ -86,13 +77,7 @@ export function resolveAdminRuntimeConfig(
     };
   }
 
-  // Some existing static-host builds still inject backend.edutu.org, which
-  // currently points at a failing proxy. Keep those installs working while
-  // their deployment environment is corrected to the active Render origin.
-  const apiOrigin = normalizeExplicitOrigin(
-    migrateKnownBackendOrigin(selected),
-    mode,
-  );
+  const apiOrigin = normalizeExplicitOrigin(selected, mode);
 
   if (canonical) {
     return {

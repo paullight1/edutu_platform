@@ -248,8 +248,8 @@ describe("Opportunities AI completion popup", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the shared API-origin migration for legacy production settings", async () => {
-    vi.stubEnv("VITE_BACKEND_URL", "https://backend.edutu.org");
+  it("uses the explicitly configured production API origin", async () => {
+    vi.stubEnv("VITE_BACKEND_URL", "https://edutu-platform.onrender.com");
     render(<Opportunities />);
 
     await screen.findByRole("checkbox", { name: "Select Test scholarship" });

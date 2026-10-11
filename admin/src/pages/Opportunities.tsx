@@ -965,9 +965,8 @@ export default function Opportunities() {
   const aiCompletionStopRef = useRef<AbortController | null>(null);
   const aiCompletionRequestAbortRef = useRef<AbortController | null>(null);
 
-  // Keep this page on the same canonical API origin as the shared admin
-  // client. Older admin deployments still inject backend.edutu.org, which
-  // must pass through the compatibility resolver to reach the active API.
+  // Keep this page on the same explicitly configured API origin as the shared
+  // admin client. Development requests use the Vite proxy when no origin is set.
   const NEST_API_URL = getBackendBaseUrl();
 
   const getAdminHeaders = useCallback(async () => {
