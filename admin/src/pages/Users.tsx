@@ -211,6 +211,7 @@ const Users = () => {
     const [canManageUsers, setCanManageUsers] = useState(false);
 
     const [stats, setStats] = useState<AdminUsersStats>(DEFAULT_STATS);
+    const [dataAvailable, setDataAvailable] = useState(false);
 
     const fetchUsers = useCallback(async (options: { preserveBanner?: boolean } = {}) => {
         setLoading(true);
@@ -218,6 +219,7 @@ const Users = () => {
             const response = await backendFetchJson<AdminUsersResponse>('/admin/users?limit=500');
             setUsers(response.users);
             setStats(response.stats);
+            setDataAvailable(true);
             setCanManageUsers(Boolean(response.currentAdmin?.canManageUsers));
 
             if (!response.success) {
@@ -232,7 +234,7 @@ const Users = () => {
             }
         } catch (error) {
             setUsers([]);
-            setStats(DEFAULT_STATS);
+            setDataAvailable(false);
             setCanManageUsers(false);
             setBanner({
                 type: 'error',
@@ -649,6 +651,7 @@ const Users = () => {
             {banner && (
                 <div
                     className="card"
+                    role={banner.type === 'error' ? 'alert' : 'status'}
                     style={{
                         padding: '16px 20px',
                         borderLeft: `4px solid ${
@@ -679,6 +682,17 @@ const Users = () => {
                         <div style={{ flex: 1, fontSize: '14px', color: 'var(--text-secondary)' }}>
                             {banner.message}
                         </div>
+                        {banner.type === 'error' && !dataAvailable && (
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 10px' }}
+                                onClick={() => void fetchUsers()}
+                                disabled={loading}
+                            >
+                                Retry
+                            </button>
+                        )}
                         <button
                             className="btn btn-secondary"
                             style={{ padding: '6px 10px' }}
@@ -728,7 +742,7 @@ const Users = () => {
                                 textShadow: '0 1px 2px rgba(0,0,0,0.15)',
                             }}
                         >
-                            {loading ? '—' : stat.value}
+                            {loading || !dataAvailable ? '—' : stat.value}
                         </div>
                         <div style={{ fontWeight: 600, color: '#ffffff', fontSize: '14px' }}>
                             {stat.label}
@@ -810,6 +824,11 @@ const Users = () => {
                     <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
                         <Loader2 size={24} style={{ marginBottom: '12px', animation: 'spin 1s linear infinite' }} />
                         <div>Loading users...</div>
+                    </div>
+                ) : !dataAvailable ? (
+                    <div style={{ padding: '60px', textAlign: 'center' }}>
+                        <UsersIcon size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+                        <p style={{ color: 'var(--text-tertiary)' }}>User records are unavailable until the connection is restored.</p>
                     </div>
                 ) : filteredUsers.length === 0 ? (
                     <div style={{ padding: '60px', textAlign: 'center' }}>

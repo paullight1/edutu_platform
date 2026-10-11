@@ -192,6 +192,7 @@ const Dashboard = () => {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsageSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statsAvailable, setStatsAvailable] = useState(false);
   const [dataBanner, setDataBanner] = useState<{ type: string; message: string } | null>(
     null,
   );
@@ -227,6 +228,7 @@ const Dashboard = () => {
       if (dashboardResponse) {
         setStats(dashboardResponse.stats);
         setRecentActivity(dashboardResponse.recentActivity);
+        setStatsAvailable(true);
         setDataBanner(
           dashboardResponse.success
             ? null
@@ -244,15 +246,7 @@ const Dashboard = () => {
               ? dashboardResult.reason.message
               : "Failed to load dashboard"
             : "Failed to load dashboard";
-        setStats({
-          totalUsers: 0,
-          activeOpportunities: 0,
-          applications: 0,
-          approvedCreators: 0,
-          pendingCreators: 0,
-          newUsersThisWeek: 0,
-          newOpportunitiesThisWeek: 0,
-        });
+        setStatsAvailable(false);
         setRecentActivity([]);
         setDataBanner({ type: "error", message });
       }
@@ -274,15 +268,7 @@ const Dashboard = () => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to load dashboard";
-      setStats({
-        totalUsers: 0,
-        activeOpportunities: 0,
-        applications: 0,
-        approvedCreators: 0,
-        pendingCreators: 0,
-        newUsersThisWeek: 0,
-        newOpportunitiesThisWeek: 0,
-      });
+      setStatsAvailable(false);
       setRecentActivity([]);
       setHealth(null);
       setHealthError(null);
@@ -373,18 +359,28 @@ const Dashboard = () => {
   const insightItems = [
     {
       label: "Creator queue",
-      value: stats.pendingCreators.toLocaleString(),
+      value: statsAvailable ? stats.pendingCreators.toLocaleString() : "—",
       description:
-        stats.pendingCreators > 0
-          ? "profiles need review"
-          : "nothing waiting for review",
+        !statsAvailable
+          ? loading
+            ? "Loading dashboard data"
+            : "Dashboard data unavailable"
+          : stats.pendingCreators > 0
+            ? "profiles need review"
+            : "nothing waiting for review",
       icon: Users,
       tone: "blue",
     },
     {
       label: "Opportunity flow",
-      value: stats.newOpportunitiesThisWeek.toLocaleString(),
-      description: "new this week",
+      value: statsAvailable
+        ? stats.newOpportunitiesThisWeek.toLocaleString()
+        : "—",
+      description: statsAvailable
+        ? "new this week"
+        : loading
+          ? "Loading dashboard data"
+          : "Dashboard data unavailable",
       icon: Target,
       tone: "green",
     },
@@ -407,23 +403,25 @@ const Dashboard = () => {
     return [
       {
         label: "Database",
-        value: databaseConnected
-          ? `${health?.checks.database.responseTimeMs ?? 0} ms`
-          : "Disconnected",
+        value: !health
+          ? "Unavailable"
+          : databaseConnected
+            ? `${health.checks.database.responseTimeMs} ms`
+            : "Disconnected",
         progress: databaseConnected ? 100 : 0,
         color: databaseConnected ? "#34c759" : "#ef4444",
         icon: CheckCircle2,
       },
       {
         label: "API Readiness",
-        value: apiReady ? "Ready" : "Not ready",
+        value: !health ? "Unavailable" : apiReady ? "Ready" : "Not ready",
         progress: apiReady ? 100 : 0,
         color: apiReady ? "#0071e3" : "#ef4444",
         icon: Award,
       },
       {
         label: "AI Providers",
-        value: `${aiConfigured}/2 configured`,
+        value: health ? `${aiConfigured}/2 configured` : "Unavailable",
         progress: (aiConfigured / 2) * 100,
         color: "#ff6600",
         icon: Zap,
@@ -440,14 +438,15 @@ const Dashboard = () => {
 
   const handleExport = useCallback(() => {
     downloadJson(`edutu-dashboard-${new Date().toISOString().slice(0, 10)}.json`, {
-      stats,
-      recentActivity,
+      stats: statsAvailable ? stats : null,
+      statsAvailable,
+      recentActivity: statsAvailable ? recentActivity : null,
       health,
       exportedAt: new Date().toISOString(),
     });
     setActionBanner({ type: "success", message: "Dashboard export downloaded." });
     setTimeout(() => setActionBanner(null), 3500);
-  }, [health, recentActivity, stats]);
+  }, [health, recentActivity, stats, statsAvailable]);
 
   return (
     <div className="dashboard-container">
@@ -489,6 +488,17 @@ const Dashboard = () => {
         >
           <AlertTriangle size={18} aria-hidden="true" />
           <span>{dataBanner.message}</span>
+          {dataBanner.type === "error" && (
+            <button
+              type="button"
+              className="dashboard-alert-action"
+              onClick={() => void fetchDashboard()}
+              disabled={loading}
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              Retry
+            </button>
+          )}
         </div>
       )}
 
@@ -558,7 +568,7 @@ const Dashboard = () => {
                 textShadow: "0 1px 2px rgba(0,0,0,0.15)",
               }}
             >
-              {loading ? "-" : stat.value.toLocaleString()}
+              {loading || !statsAvailable ? "—" : stat.value.toLocaleString()}
             </div>
             <div className="dashboard-stat-label">
               {stat.label}
@@ -647,6 +657,10 @@ const Dashboard = () => {
             {loading ? (
               <div style={{ padding: "18px 0", color: "var(--text-tertiary)" }}>
                 Loading activity...
+              </div>
+            ) : !statsAvailable ? (
+              <div style={{ padding: "18px 0", color: "var(--text-tertiary)" }}>
+                Activity could not be loaded.
               </div>
             ) : recentActivity.length === 0 ? (
               <div style={{ padding: "18px 0", color: "var(--text-tertiary)" }}>

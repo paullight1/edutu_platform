@@ -481,6 +481,7 @@ function buildOpportunityPayload(
 export default function Opportunities() {
   const [filteredOpps, setFilteredOpps] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [opportunitiesAvailable, setOpportunitiesAvailable] = useState(false);
   const [stats, setStats] = useState<Stats>({
     total: 0,
     active: 0,
@@ -490,6 +491,7 @@ export default function Opportunities() {
     expiringSoon: 0,
     needsReview: 0,
   });
+  const [statsAvailable, setStatsAvailable] = useState(false);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -1104,15 +1106,27 @@ export default function Opportunities() {
         const result = (await listResponse.json()) as OpportunityListResponse;
         const opps = result.data || [];
         setFilteredOpps(opps);
+        setOpportunitiesAvailable(true);
         setTotalOpportunities(result.total || 0);
         setTotalPages(result.totalPages || 1);
 
         if (statsResponse.ok) {
           setStats(await statsResponse.json());
+          setStatsAvailable(true);
+        } else {
+          setStatsAvailable(false);
+          if (!silent) {
+            showNotification(
+              "Opportunity counts are unavailable. Retry to load the latest totals.",
+              "warning",
+            );
+          }
         }
       } catch (error: unknown) {
         console.error("Failed to load opportunities:", error);
         if (!silent) {
+          setStatsAvailable(false);
+          setOpportunitiesAvailable(false);
           showNotification(
             getErrorMessage(error, "Failed to load opportunities"),
             "error",
@@ -3463,7 +3477,9 @@ export default function Opportunities() {
           ];
           return cards.map((stat) => ({
             ...stat,
-            onClick: () => applyStatCardView(stat.view, stat.isActive),
+            onClick: statsAvailable
+              ? () => applyStatCardView(stat.view, stat.isActive)
+              : undefined,
           }));
         })().map((stat, index) => (
           <div
@@ -3472,6 +3488,11 @@ export default function Opportunities() {
             onClick={stat.onClick}
             role={stat.onClick ? "button" : undefined}
             tabIndex={stat.onClick ? 0 : undefined}
+            aria-label={
+              statsAvailable
+                ? `${stat.label}: ${stat.value.toLocaleString()}`
+                : `${stat.label}: data unavailable`
+            }
             onKeyDown={
               stat.onClick
                 ? (e) => {
@@ -3500,7 +3521,9 @@ export default function Opportunities() {
             >
               <stat.icon size={20} strokeWidth={1.8} />
             </div>
-            <div className="opportunities-stat-value">{stat.value}</div>
+            <div className="opportunities-stat-value">
+              {statsAvailable ? stat.value.toLocaleString() : "—"}
+            </div>
             <div className="opportunities-stat-label">{stat.label}</div>
           </div>
         ))}
@@ -3623,6 +3646,20 @@ export default function Opportunities() {
           <div className="opportunities-state">
             <Loader2 size={40} className="animate-spin" />
             <p>Loading opportunities...</p>
+          </div>
+        ) : !opportunitiesAvailable ? (
+          <div className="opportunities-state" role="alert">
+            <AlertCircle size={40} />
+            <p>Couldn&apos;t load opportunities</p>
+            <span>Check your connection or admin session, then try again.</span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void fetchOpportunities()}
+            >
+              <RefreshCw size={16} />
+              Retry
+            </button>
           </div>
         ) : filteredOpps.length === 0 ? (
           <div className="opportunities-state">

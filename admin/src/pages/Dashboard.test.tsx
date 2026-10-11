@@ -157,6 +157,49 @@ describe("Dashboard health telemetry", () => {
 
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
     expect(screen.getByText("Live server telemetry unavailable")).toBeVisible();
-    expect(screen.getByText("Unavailable")).toBeVisible();
+    expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(1);
+  });
+
+  it("shows unavailable metrics and a retry action when dashboard data fails", async () => {
+    mockedBackendFetchJson.mockImplementation(async (path: string) => {
+      if (path === "/admin/dashboard") {
+        throw new Error("Your admin session is required or has expired.");
+      }
+      if (path === "/health") return readyHealthResponse;
+      if (path === "/admin/ai-usage/summary?days=30") {
+        return {
+          success: true,
+          days: 30,
+          totals: {
+            calls: 0,
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            estimatedCostUsd: 0,
+            errorCount: 0,
+          },
+          perDay: [],
+          perRoute: [],
+        };
+      }
+      throw new Error(`Unexpected backend path: ${path}`);
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your admin session is required or has expired.",
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    expect(
+      Array.from(container.querySelectorAll(".dashboard-stat-value")).map(
+        (value) => value.textContent,
+      ),
+    ).toEqual(["—", "—", "—", "—"]);
+    expect(screen.getByText("Activity could not be loaded.")).toBeVisible();
   });
 });
