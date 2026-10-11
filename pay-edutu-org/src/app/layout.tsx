@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Edutu Pay — Billing account',
   description: 'Securely view Edutu billing status and manage web purchases.',
+  icons: { icon: '/edutu-logo.png', apple: '/edutu-logo.png' },
   robots: { index: false, follow: false },
 };
 
