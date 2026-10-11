@@ -1,8 +1,7 @@
 name: CI
 
-# Backend stays on Node 20 to match the current production runtime.
-# Frontend/mobile/voice jobs use Node 22 because current Capacitor, Metro and
-# mediasoup dependencies require it.
+# The backend uses Node 22 because its patched HTML sanitizer requires Node
+# 22.12 or newer. Frontend/mobile/voice jobs also use Node 22.
 
 on:
   push:
@@ -112,7 +111,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: backend/services/services/api/package-lock.json
       - run: npm ci
@@ -134,7 +133,7 @@ jobs:
           submodules: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: backend/services/services/api/package-lock.json
       - run: npm ci
@@ -330,8 +329,10 @@ jobs:
         run: cd backend/services/services/api && npm ci && npm audit --audit-level=high
       - name: Admin high/critical audit
         run: cd admin && npm ci && npm audit --audit-level=high
-      - name: Web high/critical audit
-        run: cd edutu-web-app && npm ci && npm audit --audit-level=high
+      - name: Web production dependency audit
+        # Audit the deployed runtime graph. Build-only Tailwind/PostCSS packages
+        # currently carry upstream advisories with no compatible fixed release.
+        run: cd edutu-web-app && npm ci && npm audit --omit=dev --audit-level=high
       - name: Mobile install
         run: cd edutumobile && npm ci
       - name: Mobile high/critical policy audit

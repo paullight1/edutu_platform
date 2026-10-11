@@ -1,5 +1,9 @@
 import { SeoController } from "./seo.controller";
 
+// This controller test injects a BlogService-shaped object and does not exercise
+// HTML sanitization. Keep the ESM-only sanitizer parser out of Jest's CJS path.
+jest.mock("sanitize-html", () => jest.fn((html: string) => html));
+
 const SHELL = `<!doctype html><html lang="en"><head><title>Edutu</title><meta name="description" content="Generic"><link rel="canonical" href="https://www.edutu.org/"></head><body><div id="root"></div><script type="module" src="/assets/index.js"></script></body></html>`;
 
 function makeResponse() {

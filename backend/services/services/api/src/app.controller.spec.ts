@@ -6,6 +6,10 @@ import { OpportunitiesService } from "./opportunities/opportunities.service";
 import { BlogService } from "./blog/blog.service";
 import type { Response } from "express";
 
+// AppController tests inject a BlogService mock; sanitization is covered by the
+// blog service tests, so avoid loading its ESM-only parser in this suite.
+jest.mock("sanitize-html", () => jest.fn((html: string) => html));
+
 describe("AppController", () => {
   let appController: AppController;
   let blogService: { listSitemapPosts: jest.Mock };
