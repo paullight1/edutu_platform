@@ -66,15 +66,17 @@ Preview production output:
 npm run preview
 ```
 
-## Spaceship deployment
+## Vercel deployment
 
-Use Spaceship static hosting or any static web hosting product that can serve a Vite build.
+The production domain `admin.edutu.org` is attached to the Vercel project
+`edutu-admin`. Keep the project root set to `admin`; `admin/vercel.json`
+contains the Vite build, output, install, and SPA rewrite settings.
 
-Build settings:
+Expected build settings:
 
 ```txt
-Root directory: edutu-platform/admin
-Install command: npm install
+Root directory: admin
+Install command: npm install --legacy-peer-deps
 Build command: npm run build
 Publish/output directory: dist
 ```
@@ -85,35 +87,9 @@ Domain:
 admin.edutu.org
 ```
 
-SPA fallback:
-
-```txt
-/* -> /index.html
-```
-
-This repo includes `public/_redirects` for hosts that support Netlify-style redirects. If Spaceship has its own rewrite UI, add the same SPA fallback there too.
-
-## DNS setup on Spaceship
-
-In Spaceship DNS for `edutu.org`, add the record requested by the hosting provider.
-
-Common patterns:
-
-```txt
-Type: CNAME
-Host: admin
-Value: <hosting-provider-target>
-```
-
-or:
-
-```txt
-Type: A
-Host: admin
-Value: <hosting-provider-ip>
-```
-
-Use the exact target Spaceship/host gives you.
+The Vercel rewrite in `admin/vercel.json` serves the SPA entry point for
+client-side routes. Keep DNS attached to the verified Vercel project; do not
+change the domain record when only deploying a new build.
 
 ## Backend CORS
 
