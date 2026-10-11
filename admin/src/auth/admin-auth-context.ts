@@ -10,6 +10,7 @@ export interface AdminAuthState {
 }
 
 export interface AdminAuthContextValue extends AdminAuthState {
+  retryVerification(): Promise<void>;
   signOut(): Promise<void>;
 }
 

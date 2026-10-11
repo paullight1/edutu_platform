@@ -76,8 +76,12 @@ function Consumer() {
       <span data-testid="loading">{String(auth.loading)}</span>
       <span data-testid="email">{auth.user?.email || "anonymous"}</span>
       <span data-testid="admin">{String(auth.isAdmin)}</span>
+      <span data-testid="error">{auth.error || "none"}</span>
       <button type="button" onClick={() => void auth.signOut()}>
         Sign out through provider
+      </button>
+      <button type="button" onClick={() => void auth.retryVerification()}>
+        Retry verification
       </button>
     </div>
   );
@@ -175,6 +179,64 @@ describe("AdminAuthProvider", () => {
 
     expect(screen.getByTestId("email")).toHaveTextContent("new-admin@edutu.org");
     expect(screen.getByTestId("admin")).toHaveTextContent("true");
+  });
+
+  it("does not leave the app loading forever when an auth event role check stalls", async () => {
+    vi.useFakeTimers();
+    mocks.getSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    mocks.isConfiguredAdminEmail.mockReturnValue(false);
+    mocks.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() => new Promise(() => {})),
+    });
+
+    try {
+      renderProvider();
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(authCallback).toBeTypeOf("function");
+
+      await act(async () => {
+        authCallback?.("SIGNED_IN", createSession("not-configured@edutu.org"));
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("loading")).toHaveTextContent("true");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+      expect(screen.getByTestId("error")).toHaveTextContent(
+        "Admin access verification timed out",
+      );
+
+      mocks.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { role: "admin" },
+          error: null,
+        }),
+      });
+      mocks.isAdminRole.mockReturnValue(true);
+      await act(async () => {
+        screen.getByRole("button", { name: "Retry verification" }).click();
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+      expect(screen.getByTestId("admin")).toHaveTextContent("true");
+      expect(screen.getByTestId("error")).toHaveTextContent("none");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the admin app mounted while the same user's role is rechecked", async () => {

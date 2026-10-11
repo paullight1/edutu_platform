@@ -47,8 +47,9 @@ const LoadingScreen: FC = () => (
 
 const UnauthorizedScreen: FC<{
   error?: string;
+  onRetry(): Promise<void>;
   onSignOut(): Promise<void>;
-}> = ({ error, onSignOut }) => (
+}> = ({ error, onRetry, onSignOut }) => (
   <div
     style={{
       height: "100vh",
@@ -89,26 +90,45 @@ const UnauthorizedScreen: FC<{
     >
       {error || "You do not have admin privileges to access this area."}
     </p>
-    <button
-      type="button"
-      onClick={() => void onSignOut()}
-      style={{
-        padding: "12px 24px",
-        background: "#007aff",
-        color: "white",
-        border: "none",
-        borderRadius: "8px",
-        cursor: "pointer",
-      }}
-    >
-      Sign Out
-    </button>
+    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+      {error && (
+        <button
+          type="button"
+          onClick={() => void onRetry()}
+          style={{
+            padding: "12px 24px",
+            background: "#007aff",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Retry verification
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => void onSignOut()}
+        style={{
+          padding: "12px 24px",
+          background: "#2c2c2e",
+          color: "white",
+          border: "1px solid #3a3a3c",
+          borderRadius: "8px",
+          cursor: "pointer",
+        }}
+      >
+        Sign Out
+      </button>
+    </div>
   </div>
 );
 
 const AppRoutes: FC = () => {
   const location = useLocation();
-  const { session, isAdmin, loading, error, signOut } = useAdminAuth();
+  const { session, isAdmin, loading, error, retryVerification, signOut } =
+    useAdminAuth();
   const isPasswordRecovery =
     location.pathname === RESET_PASSWORD_PATH ||
     location.hash.includes("type=recovery");
@@ -146,7 +166,11 @@ const AppRoutes: FC = () => {
 
   if (!isAdmin) {
     return (
-      <UnauthorizedScreen error={error || undefined} onSignOut={signOut} />
+      <UnauthorizedScreen
+        error={error || undefined}
+        onRetry={retryVerification}
+        onSignOut={signOut}
+      />
     );
   }
 

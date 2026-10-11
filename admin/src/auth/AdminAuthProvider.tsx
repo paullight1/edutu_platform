@@ -105,8 +105,15 @@ function createInitialAuthMode(): InitialAuthMode {
   };
 }
 
-async function checkAdminRole(user: User): Promise<boolean> {
-  if (isConfiguredAdminEmail(user.email)) return true;
+interface AdminRoleCheckResult {
+  isAdmin: boolean;
+  error: string | null;
+}
+
+async function checkAdminRole(user: User): Promise<AdminRoleCheckResult> {
+  if (isConfiguredAdminEmail(user.email)) {
+    return { isAdmin: true, error: null };
+  }
 
   try {
     const { data: profile, error } = await supabase
@@ -115,10 +122,18 @@ async function checkAdminRole(user: User): Promise<boolean> {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) return false;
-    return isAdminRole(profile?.role);
+    if (error) {
+      return {
+        isAdmin: false,
+        error: "Admin access could not be verified. Check your connection and try again.",
+      };
+    }
+    return { isAdmin: isAdminRole(profile?.role), error: null };
   } catch {
-    return false;
+    return {
+      isAdmin: false,
+      error: "Admin access could not be verified. Check your connection and try again.",
+    };
   }
 }
 
@@ -163,16 +178,34 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         };
       });
 
-      const admin = await checkAdminRole(session.user);
-      if (version !== requestVersion.current) return;
+      let roleCheckTimeout: ReturnType<typeof setTimeout> | null = null;
+      try {
+        const result = await Promise.race([
+          checkAdminRole(session.user),
+          new Promise<AdminRoleCheckResult>((resolve) => {
+            roleCheckTimeout = setTimeout(
+              () =>
+                resolve({
+                  isAdmin: false,
+                  error:
+                    "Admin access verification timed out. Check your connection and retry.",
+                }),
+              AUTH_TIMEOUT_MS,
+            );
+          }),
+        ]);
+        if (version !== requestVersion.current) return;
 
-      setAuth({
-        session,
-        user: session.user,
-        isAdmin: admin,
-        loading: false,
-        error: null,
-      });
+        setAuth({
+          session,
+          user: session.user,
+          isAdmin: result.isAdmin,
+          loading: false,
+          error: result.error,
+        });
+      } finally {
+        if (roleCheckTimeout !== null) clearTimeout(roleCheckTimeout);
+      }
     },
     [],
   );
@@ -239,9 +272,15 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     await signOutAdmin();
   }, []);
 
+  const retryVerification = useCallback(async () => {
+    if (!auth.session) return;
+    setAuth((current) => ({ ...current, loading: true, error: null }));
+    await applySession(auth.session);
+  }, [applySession, auth.session]);
+
   const value = useMemo<AdminAuthContextValue>(
-    () => ({ ...auth, signOut }),
-    [auth, signOut],
+    () => ({ ...auth, retryVerification, signOut }),
+    [auth, retryVerification, signOut],
   );
 
   return (
