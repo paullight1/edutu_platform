@@ -186,6 +186,63 @@ describe("opportunities snapshot cache", () => {
     expect(row.description).toContain("- Current students\n- Recent graduates");
   });
 
+  it("does not let scraped page controls replace a real opportunity description", async () => {
+    const realDescription =
+      "The University of Padua is offering the International Excellence Scholarship for talented international students. Applications are assessed on academic merit.";
+    const pageChromeSummary =
+      "Home Scholarships Italy University of Padua International Excellence Scholarship 2026 Save & track deadline Partial Funding Masters, Bachelor All Subjects International Students Italy Share Expected to reopen in March 2025 Join WhatsApp Channel!";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              ...backendRow,
+              summary: pageChromeSummary,
+              description: realDescription,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const service = await importOpportunities();
+    const [row] = await service.fetchOpportunities();
+
+    expect(row.summary).toBe("");
+    expect(row.description).toBe(realDescription);
+    expect(row.description).not.toContain("Join WhatsApp Channel");
+  });
+
+  it("keeps the truncation marker on source descriptions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              ...backendRow,
+              description:
+                "The University offers this award to international students...",
+            },
+          ],
+        }),
+      }),
+    );
+
+    const service = await importOpportunities();
+    const [row] = await service.fetchOpportunities();
+
+    expect(row.description).toBe(
+      "The University offers this award to international students…",
+    );
+  });
+
   it("uses the canonical category when the stored display category is stale", async () => {
     vi.stubGlobal(
       "fetch",

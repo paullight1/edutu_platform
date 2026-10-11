@@ -115,6 +115,8 @@ export function getCachedOpportunitiesSync(): Opportunity[] | null {
 
 const SOURCE_BRAND_RE =
   /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
+const SOURCE_PAGE_CHROME_RE =
+  /save\s*(?:&|and)\s*track\s*(?:the\s+)?deadline|join\s+(?:our\s+)?whatsapp(?:\s+channel)?|expected\s+to\s+reopen|all\s+subjects|international\s+students/gi;
 const SCRAPER_ARTIFACT_RE =
   /\b(?:by\s+admin|posted\s+by|written\s+by|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b/i;
 const PUBLIC_TAG_BLOCKLIST = new Set([
@@ -401,7 +403,8 @@ function cleanOpportunityLongFormText(value: unknown): string {
     return "";
   }
 
-  return value
+  const wasTruncated = /(?:\.{3}|…)\s*$/u.test(value.trim());
+  const cleaned = value
     .replace(/\r\n?/g, "\n")
     .replace(/<br\s*\/?>(?=\s*)/gi, "\n")
     .replace(/<\/(?:p|div|li|h[1-6])>/gi, "\n\n")
@@ -419,11 +422,21 @@ function cleanOpportunityLongFormText(value: unknown): string {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  return wasTruncated && cleaned ? `${cleaned}…` : cleaned;
 }
 
 function isSourceArtifact(value: unknown): boolean {
   if (typeof value !== "string") return false;
   return SOURCE_BRAND_RE.test(value) || SCRAPER_ARTIFACT_RE.test(value);
+}
+
+function isSourcePageChromeDump(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  // A single phrase can occur in legitimate copy. Several independent page
+  // controls/content-index labels in one short summary indicate that the
+  // scraper captured a page shell instead of the opportunity description.
+  return new Set(value.match(SOURCE_PAGE_CHROME_RE) ?? []).size >= 2;
 }
 
 function pickPublicStringValue(fallback: string, ...values: unknown[]): string {
@@ -468,6 +481,7 @@ function pickLongestStringValue(
   ...values: unknown[]
 ): string {
   const candidates = values
+    .filter((value) => !isSourcePageChromeDump(value))
     .map(cleanOpportunityLongFormText)
     .filter(Boolean)
     .sort((left, right) => right.length - left.length);
@@ -573,9 +587,9 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
   const category = pickCategory(row, metadata);
   const summary = pickStringValue(
     "",
-    row.refined_summary,
-    row.summary,
-    metadata.summary,
+    ...[row.refined_summary, row.summary, metadata.summary].filter(
+      (value) => !isSourcePageChromeDump(value),
+    ),
   );
   const description = pickLongestStringValue(
     "",
