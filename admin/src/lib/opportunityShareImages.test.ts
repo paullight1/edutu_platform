@@ -1,4 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+
+const { adminApiFetch } = vi.hoisted(() => ({
+  adminApiFetch: vi.fn(),
+}));
+
+vi.mock("./apiClient", () => ({ adminApiFetch }));
+
 import {
   createOpportunityShareImageFile,
   createOpportunityShareImagePreviewUrl,
@@ -65,6 +72,31 @@ describe("createOpportunityShareImageFile", () => {
     expect(result?.file.type).toBe("image/jpeg");
   });
 
+  it("uses the shared refresh-capable API client for production image downloads", async () => {
+    const blob = new Blob(["image"], { type: "image/jpeg" });
+    adminApiFetch.mockResolvedValue({ ok: true, blob: async () => blob });
+    const getAdminHeaders = vi.fn().mockResolvedValue({
+      Authorization: "Bearer stale-token",
+    });
+
+    const result = await createOpportunityShareImageFile(
+      "https://api.example.org",
+      opportunity,
+      {
+        url: "https://source.example.org/flyer.jpg",
+        path: "",
+        format: "jpeg",
+      },
+      getAdminHeaders,
+    );
+
+    expect(adminApiFetch).toHaveBeenCalledWith(
+      "https://api.example.org/opportunities/admin/opp-1/source-image",
+      { headers: { Authorization: "Bearer stale-token" } },
+    );
+    expect(result?.file.type).toBe("image/jpeg");
+  });
+
   it("does not send admin credentials to the public generated-image host", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
@@ -84,10 +116,7 @@ describe("createOpportunityShareImageFile", () => {
       fetcher as typeof fetch,
     );
 
-    expect(fetcher).toHaveBeenCalledWith(
-      "https://cdn.example.org/flyer.png",
-      undefined,
-    );
+    expect(fetcher).toHaveBeenCalledWith("https://cdn.example.org/flyer.png");
     expect(getAdminHeaders).not.toHaveBeenCalled();
   });
 

@@ -8,6 +8,7 @@ import type {
 } from "../model/types";
 
 const mocks = vi.hoisted(() => ({
+  adminApiFetch: vi.fn(),
   adminApiJson: vi.fn(),
   getAdminAuthHeaders: vi.fn(),
   getBackendBaseUrl: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("../../../lib/apiClient", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../lib/apiClient")>();
   return {
     ...actual,
+    adminApiFetch: mocks.adminApiFetch,
     adminApiJson: mocks.adminApiJson,
     getAdminAuthHeaders: mocks.getAdminAuthHeaders,
   };
@@ -46,6 +48,18 @@ function streamFromTextChunks(chunks: string[]): ReadableStream<Uint8Array> {
 
 describe("engineApi JSON contracts", () => {
   beforeEach(() => {
+    mocks.adminApiFetch.mockImplementation(
+      async (input: string | URL, init: RequestInit = {}) => {
+        const headers = new Headers(await mocks.getAdminAuthHeaders());
+        new Headers(init.headers).forEach((value, key) => {
+          headers.set(key, value);
+        });
+        return fetch(new URL(input, mocks.getBackendBaseUrl()).href, {
+          ...init,
+          headers,
+        });
+      },
+    );
     mocks.adminApiJson.mockResolvedValue({ success: true });
     mocks.getAdminAuthHeaders.mockResolvedValue({
       Authorization: "Bearer test-token",

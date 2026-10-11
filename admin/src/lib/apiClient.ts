@@ -140,6 +140,105 @@ export async function getAdminAuthHeaders(
   return headersToRecord(headers);
 }
 
+/**
+ * Authenticated response helper for API calls that need access to the raw
+ * Response (for example streaming endpoints and multipart uploads). Keep the
+ * one-time expired-token recovery consistent with adminApiJson.
+ */
+export async function adminApiFetch(
+  input: string | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const startedAt = now();
+  const requestHeaders = new Headers(init.headers);
+  const requestId = requestHeaders.get("X-Request-Id") || createRequestId();
+  requestHeaders.set("X-Request-Id", requestId);
+
+  let apiOrigin = "";
+  try {
+    apiOrigin = getAdminRuntimeConfig().apiOrigin;
+  } catch {
+    throw makeAdminApiError({
+      category: "configuration",
+      requestId,
+      targetOrigin: "unconfigured",
+      startedAt,
+    });
+  }
+
+  const targetOrigin = safeTargetOrigin(apiOrigin);
+  let url: URL;
+  try {
+    const baseUrl = apiOrigin || globalThis.location?.origin;
+    if (!baseUrl) throw new Error("No API base URL is available");
+    url = new URL(input, baseUrl);
+    if (url.origin !== new URL(baseUrl).origin) {
+      throw new Error("Admin API requests must use the configured API origin");
+    }
+  } catch {
+    throw makeAdminApiError({
+      category: "configuration",
+      requestId,
+      targetOrigin,
+      startedAt,
+    });
+  }
+
+  const externalSignal = init.signal;
+  const requestInit: RequestInit = { ...init, signal: externalSignal };
+  let authenticatedHeaders: Record<string, string>;
+  try {
+    authenticatedHeaders = await getAdminAuthHeaders(requestHeaders);
+  } catch {
+    throw makeAdminApiError({
+      category: "authentication",
+      requestId,
+      targetOrigin,
+      startedAt,
+    });
+  }
+
+  try {
+    let response = await fetch(url, {
+      ...requestInit,
+      headers: authenticatedHeaders,
+    });
+
+    if (
+      response.status === 401 &&
+      !isLocalAdminBypassEnabled() &&
+      canRetryRequestBody(requestInit.body)
+    ) {
+      const refreshedHeaders = await refreshAdminAuthHeaders(requestHeaders);
+      if (refreshedHeaders && !externalSignal?.aborted) {
+        authenticatedHeaders = refreshedHeaders;
+        response = await fetch(url, {
+          ...requestInit,
+          headers: authenticatedHeaders,
+        });
+      }
+
+      if (
+        !externalSignal?.aborted &&
+        (!refreshedHeaders || response.status === 401)
+      ) {
+        await signOutExpiredAdminSession();
+      }
+    }
+
+    return response;
+  } catch (error) {
+    if (error instanceof AdminApiError) throw error;
+    if (externalSignal?.aborted) throw error;
+    throw makeAdminApiError({
+      category: isAbortError(error) ? "timeout" : "network",
+      requestId,
+      targetOrigin,
+      startedAt,
+    });
+  }
+}
+
 async function refreshAdminAuthHeaders(
   extraHeaders?: HeadersInit,
 ): Promise<Record<string, string> | null> {

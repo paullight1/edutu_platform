@@ -6,6 +6,7 @@ import {
     Star, FileText, X, Plus, Sparkles, ArrowLeft, Users
 } from 'lucide-react';
 import { getAdminAuthHeaders, getBackendBaseUrl } from '../lib/backend';
+import { adminApiFetch } from '../lib/apiClient';
 
 const API_URL = getBackendBaseUrl();
 
@@ -102,7 +103,7 @@ const Roadmaps = () => {
         try {
             const query = new URLSearchParams({ limit: '100' });
             if (statusFilter !== 'all') query.set('status', statusFilter);
-            const res = await fetch(`${API_URL}/roadmaps/admin/list?${query.toString()}`, {
+            const res = await adminApiFetch(`${API_URL}/roadmaps/admin/list?${query.toString()}`, {
                 headers: await getAuthHeaders(),
             });
             if (res.ok) {
@@ -110,7 +111,7 @@ const Roadmaps = () => {
                 setRoadmaps(data);
             }
 
-            const statsRes = await fetch(`${API_URL}/roadmaps/stats`, {
+            const statsRes = await adminApiFetch(`${API_URL}/roadmaps/stats`, {
                 headers: await getAuthHeaders(),
             });
             if (statsRes.ok) {
@@ -137,7 +138,7 @@ const Roadmaps = () => {
         setAiLoading(true);
         setAiError('');
         try {
-            const res = await fetch(`${API_URL}/roadmaps/ai/assist`, {
+            const res = await adminApiFetch(`${API_URL}/roadmaps/ai/assist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ topic, category: formData.category }),
@@ -177,7 +178,7 @@ const Roadmaps = () => {
         setIsCreating(true);
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch(`${API_URL}/roadmaps`, {
+            const res = await adminApiFetch(`${API_URL}/roadmaps`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -201,14 +202,14 @@ const Roadmaps = () => {
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this roadmap?')) return;
         const headers = await getAuthHeaders();
-        await fetch(`${API_URL}/roadmaps/${id}`, { method: 'DELETE', headers });
+        await adminApiFetch(`${API_URL}/roadmaps/${id}`, { method: 'DELETE', headers });
         fetchRoadmaps();
     };
 
     const handleStatusToggle = async (roadmap: Roadmap) => {
         const headers = await getAuthHeaders();
         const newStatus = roadmap.status === 'published' ? 'draft' : 'published';
-        await fetch(`${API_URL}/roadmaps/${roadmap.id}`, {
+        await adminApiFetch(`${API_URL}/roadmaps/${roadmap.id}`, {
             method: 'PUT',
             headers,
             body: JSON.stringify({ status: newStatus }),

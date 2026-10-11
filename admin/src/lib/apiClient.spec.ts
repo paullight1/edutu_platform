@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AdminApiError,
+  adminApiFetch,
   adminApiJson,
   getAdminAuthHeaders,
 } from "./apiClient";
@@ -320,5 +321,63 @@ describe("adminApiJson", () => {
     await expect(
       adminApiJson("/api/scraper/engine-status"),
     ).rejects.toMatchObject({ category: "authentication" });
+  });
+});
+
+describe("adminApiFetch", () => {
+  beforeEach(() => {
+    mocks.getAdminRuntimeConfig.mockReturnValue({
+      apiOrigin: "https://api.example.com",
+      source: "VITE_BACKEND_URL",
+      explicit: true,
+      mode: "production",
+    });
+    mocks.isLocalAdminBypassEnabled.mockReturnValue(false);
+    successfulSession();
+    mocks.signOut.mockResolvedValue({ error: null });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  it("refreshes expired auth while preserving raw response handling", async () => {
+    mocks.refreshSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "refreshed-access-token",
+          user: { email: "admin@edutu.org" },
+        },
+      },
+      error: null,
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({ message: "Invalid or expired token" }, { status: 401 }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const response = await adminApiFetch(
+      "https://api.example.com/opportunities/admin/list",
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      new Headers(fetchMock.mock.calls[1][1]?.headers).get("Authorization"),
+    ).toBe("Bearer refreshed-access-token");
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("never sends admin credentials to a different origin", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      adminApiFetch("https://attacker.example/collect"),
+    ).rejects.toMatchObject({ category: "configuration" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,5 @@
+import { adminApiFetch } from "./apiClient";
+
 export interface OpportunityShareImage {
   url: string;
   path: string;
@@ -22,21 +24,33 @@ export function getShareImageFetchTarget(
   };
 }
 
+async function fetchImageTarget(
+  target: ShareImageFetchTarget,
+  getAdminHeaders: () => Promise<HeadersInit>,
+  fetcher?: typeof fetch,
+): Promise<Response> {
+  if (target.requiresAdminAuth) {
+    const init = { headers: await getAdminHeaders() };
+    return fetcher
+      ? fetcher(target.url, init)
+      : adminApiFetch(target.url, init);
+  }
+
+  return fetcher ? fetcher(target.url) : fetch(target.url);
+}
+
 export async function createOpportunityShareImageFile(
   apiBaseUrl: string,
   opportunity: { id: string; title: string },
   image: OpportunityShareImage | null | undefined,
   getAdminHeaders: () => Promise<HeadersInit>,
-  fetcher: typeof fetch = fetch,
+  fetcher?: typeof fetch,
 ): Promise<{ blob: Blob; file: File } | null> {
   if (!image?.url) return null;
 
   try {
     const target = getShareImageFetchTarget(apiBaseUrl, opportunity.id, image);
-    const response = await fetcher(
-      target.url,
-      target.requiresAdminAuth ? { headers: await getAdminHeaders() } : undefined,
-    );
+    const response = await fetchImageTarget(target, getAdminHeaders, fetcher);
     if (!response.ok) return null;
 
     const blob = await response.blob();
@@ -72,17 +86,14 @@ export async function createOpportunityShareImagePreviewUrl(
   opportunityId: string,
   image: OpportunityShareImage | null | undefined,
   getAdminHeaders: () => Promise<HeadersInit>,
-  fetcher: typeof fetch = fetch,
+  fetcher?: typeof fetch,
   createObjectUrl: (blob: Blob) => string = (blob) => URL.createObjectURL(blob),
 ): Promise<string | null> {
   if (!image?.url) return null;
 
   try {
     const target = getShareImageFetchTarget(apiBaseUrl, opportunityId, image);
-    const response = await fetcher(
-      target.url,
-      target.requiresAdminAuth ? { headers: await getAdminHeaders() } : undefined,
-    );
+    const response = await fetchImageTarget(target, getAdminHeaders, fetcher);
     if (!response.ok) return null;
 
     const blob = await response.blob();

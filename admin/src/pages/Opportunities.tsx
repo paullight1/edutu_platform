@@ -12,6 +12,7 @@ import {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { getAdminAuthHeaders } from "../lib/backend";
+import { adminApiFetch } from "../lib/apiClient";
 import { getBackendBaseUrl } from "../lib/runtimeConfig";
 import {
   createOpportunityShareImageFile,
@@ -600,7 +601,7 @@ export default function Opportunities() {
         source: "all",
         phase: "preview",
       });
-      const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
+      const response = await adminApiFetch(`${NEST_API_URL}/api/scraper/run`, {
         method: "POST",
         headers: await getAdminHeaders(),
         signal: controller.signal,
@@ -722,7 +723,7 @@ export default function Opportunities() {
           phase: "save",
         });
 
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/bulk-import`,
           {
             method: "POST",
@@ -792,7 +793,7 @@ export default function Opportunities() {
       });
 
       try {
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/api/scraper/enhance-preview`,
           {
             method: "POST",
@@ -1084,13 +1085,13 @@ export default function Opportunities() {
 
         const headers = await getAdminHeaders();
         const [listResponse, statsResponse] = await Promise.all([
-          fetch(
+          adminApiFetch(
             `${NEST_API_URL}/opportunities/admin/list?${params.toString()}`,
             {
               headers,
             },
           ),
-          fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
+          adminApiFetch(`${NEST_API_URL}/opportunities/admin/stats`, {
             headers,
           }),
         ]);
@@ -1237,7 +1238,7 @@ export default function Opportunities() {
     )
       return;
     try {
-      const response = await fetch(`${NEST_API_URL}/opportunities/${id}`, {
+      const response = await adminApiFetch(`${NEST_API_URL}/opportunities/${id}`, {
         method: "DELETE",
         headers: await getAdminHeaders(),
       });
@@ -1257,7 +1258,7 @@ export default function Opportunities() {
 
   async function handleStatusUpdate(id: string, status: OpportunityStatus) {
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/opportunities/${id}/status`,
         {
           method: "PATCH",
@@ -1296,7 +1297,7 @@ export default function Opportunities() {
       // The bulk endpoints cap at 200 ids per request; "Select all" can pick
       // more than that, so send in chunks and keep a running total.
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/bulk-status`,
           {
             method: "POST",
@@ -1347,7 +1348,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/bulk-category`,
           {
             method: "POST",
@@ -1396,7 +1397,7 @@ export default function Opportunities() {
     let done = 0;
     try {
       for (const chunk of chunkArray(ids, 200)) {
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/bulk-delete`,
           {
             method: "POST",
@@ -1432,7 +1433,7 @@ export default function Opportunities() {
     setEnhancingIds((prev) => new Set(prev).add(id));
     setVerifyingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
         {
           method: "POST",
@@ -1450,7 +1451,7 @@ export default function Opportunities() {
       let deadlineResult: DeadlineVerificationResponse = {};
       let deadlineError = "";
       try {
-        const deadlineResponse = await fetch(
+        const deadlineResponse = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
           {
             method: "POST",
@@ -1526,7 +1527,7 @@ export default function Opportunities() {
     }
     setGeneratingImageIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/opportunities/admin/${encodeURIComponent(id)}/generate-image`,
         {
           method: "POST",
@@ -1581,7 +1582,7 @@ export default function Opportunities() {
   async function handleFindDeadline(id: string) {
     setVerifyingIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/opportunities/admin/verification/${encodeURIComponent(id)}/deadline`,
         {
           method: "POST",
@@ -1664,7 +1665,7 @@ export default function Opportunities() {
         );
         let response: Response;
         try {
-          response = await fetch(
+          response = await adminApiFetch(
             `${NEST_API_URL}/opportunities/admin/verification/deadlines/bulk`,
             {
               method: "POST",
@@ -1814,7 +1815,7 @@ export default function Opportunities() {
                 "AbortError",
               );
             }
-            const response = await fetch(
+            const response = await adminApiFetch(
               `${NEST_API_URL}/opportunities/admin/bulk-enhance`,
               {
                 method: "POST",
@@ -1969,7 +1970,7 @@ export default function Opportunities() {
     opportunityId: string,
   ): Promise<OpportunityShareResponse | null> {
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/opportunities/admin/${encodeURIComponent(opportunityId)}/share-card`,
         {
           method: "POST",
@@ -2324,7 +2325,7 @@ export default function Opportunities() {
     const timeout = window.setTimeout(() => controller.abort(), 120_000);
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch(
+      const response = await adminApiFetch(
         `${NEST_API_URL}/api/scraper/enhance-preview`,
         {
           method: "POST",
@@ -2410,7 +2411,7 @@ export default function Opportunities() {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), 90_000);
         try {
-          const response = await fetch(
+          const response = await adminApiFetch(
             `${NEST_API_URL}/api/scraper/enhance-preview`,
             {
               method: "POST",
@@ -2506,7 +2507,7 @@ export default function Opportunities() {
     const payload = buildOpportunityPayload(formData);
 
     try {
-      const response = await fetch(
+      const response = await adminApiFetch(
         editingId
           ? `${NEST_API_URL}/opportunities/${editingId}`
           : `${NEST_API_URL}/opportunities`,
@@ -2760,7 +2761,7 @@ export default function Opportunities() {
       // admin tab forever.
       for (let page = 1; page <= 25; page += 1) {
         const params = buildListParams(page, limit);
-        const response = await fetch(
+        const response = await adminApiFetch(
           `${NEST_API_URL}/opportunities/admin/list?${params.toString()}`,
           { headers },
         );

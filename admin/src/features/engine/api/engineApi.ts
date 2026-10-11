@@ -1,7 +1,7 @@
 import {
   AdminApiError,
+  adminApiFetch,
   adminApiJson,
-  getAdminAuthHeaders,
   type AdminApiFailureCategory,
 } from "../../../lib/apiClient";
 import { getBackendBaseUrl } from "../../../lib/runtimeConfig";
@@ -55,11 +55,6 @@ function targetOrigin(apiOrigin: string): string {
     return window.location.origin;
   }
   return "same-origin";
-}
-
-function requestUrl(apiOrigin: string, path: string): string {
-  if (!apiOrigin) return path;
-  return `${apiOrigin.replace(/\/+$/u, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function categoryForStatus(status: number): AdminApiFailureCategory {
@@ -174,17 +169,11 @@ async function openRunStream(
   }
 
   try {
-    const headers = new Headers(await getAdminAuthHeaders());
-    headers.set("X-Request-Id", activeRequestId);
-
-    const response = await fetch(
-      requestUrl(
-        apiOrigin,
-        `/api/scraper/run/stream?${streamQuery(options)}`,
-      ),
+    const response = await adminApiFetch(
+      `/api/scraper/run/stream?${streamQuery(options)}`,
       {
         method: "GET",
-        headers,
+        headers: { "X-Request-Id": activeRequestId },
         signal: controller.signal,
       },
     );

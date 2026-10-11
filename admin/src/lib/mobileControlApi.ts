@@ -1,4 +1,5 @@
 import { getAdminAuthHeaders, getBackendBaseUrl } from './backend';
+import { adminApiFetch } from './apiClient';
 
 const API_BASE_URL = getBackendBaseUrl();
 
@@ -194,7 +195,7 @@ async function authHeaders() {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await adminApiFetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       ...(await authHeaders()),
