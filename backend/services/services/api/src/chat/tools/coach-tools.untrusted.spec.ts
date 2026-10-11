@@ -26,6 +26,7 @@ function makeService(overrides: Partial<Record<string, unknown>> = {}) {
     noop, // applicationDocs
     (overrides.uploads ?? noop) as never,
     (overrides.aiService ?? noop) as never,
+    (overrides.opportunitiesService ?? noop) as never,
   );
 }
 
@@ -109,6 +110,12 @@ describe("untrusted text framing", () => {
         }),
       },
       aiService: { generateJson },
+      opportunitiesService: {
+        findOne: async () => ({
+          title: "Some Fellowship",
+          requirements: ["MSc"],
+        }),
+      },
     });
 
     const supabase = {

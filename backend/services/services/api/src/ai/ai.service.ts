@@ -458,7 +458,12 @@ export class AiService {
     userId?: string | null;
     signal?: AbortSignal;
     metadata?: Record<string, unknown>;
-  }): Promise<{ data: Buffer; mimeType: string; provider: "openai"; model: string }> {
+  }): Promise<{
+    data: Buffer;
+    mimeType: string;
+    provider: "openai";
+    model: string;
+  }> {
     const startedAt = Date.now();
     const routeOptions: AiGenerateOptions = {
       feature: options.feature,
@@ -513,7 +518,13 @@ export class AiService {
       );
       return { ...result, provider: "openai" };
     } catch (error) {
-      void this.logUsage(routeOptions, route, null, Date.now() - startedAt, error);
+      void this.logUsage(
+        routeOptions,
+        route,
+        null,
+        Date.now() - startedAt,
+        error,
+      );
       throw error;
     }
   }

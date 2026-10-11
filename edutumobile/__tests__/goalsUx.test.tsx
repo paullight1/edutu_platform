@@ -27,6 +27,7 @@ let mockGoalRows: Goal[] = [];
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),
+  useLocalSearchParams: () => ({}),
 }));
 
 jest.mock('@clerk/clerk-expo', () => ({

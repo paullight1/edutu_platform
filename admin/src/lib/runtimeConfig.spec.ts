@@ -11,11 +11,11 @@ describe("getAdminRuntimeConfig", () => {
       configFile: false,
       logLevel: "silent",
       define: {
-        "import.meta.env": JSON.stringify({
-          VITE_BACKEND_URL: "http://localhost:3010/",
-          PROD: false,
-          MODE: "test",
-        }),
+        "import.meta.env.VITE_BACKEND_URL": JSON.stringify(
+          "http://localhost:3010/",
+        ),
+        "import.meta.env.PROD": "false",
+        "import.meta.env.MODE": JSON.stringify("test"),
       },
       build: {
         write: false,

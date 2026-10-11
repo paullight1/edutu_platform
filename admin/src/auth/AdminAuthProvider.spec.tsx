@@ -147,6 +147,36 @@ describe("AdminAuthProvider", () => {
     expect(mocks.onAuthStateChange).toHaveBeenCalledTimes(1);
   });
 
+  it("does not let a stale initial lookup overwrite a newer sign-in event", async () => {
+    let resolveInitialSession!: (value: {
+      data: { session: Session | null };
+      error: null;
+    }) => void;
+    const initialLookup = new Promise<{
+      data: { session: Session | null };
+      error: null;
+    }>((resolve) => {
+      resolveInitialSession = resolve;
+    });
+    mocks.getSession.mockReturnValue(initialLookup);
+
+    renderProvider();
+    await waitFor(() => expect(authCallback).toBeTypeOf("function"));
+
+    await act(async () => {
+      authCallback?.("SIGNED_IN", createSession("new-admin@edutu.org"));
+    });
+    expect(screen.getByTestId("email")).toHaveTextContent("new-admin@edutu.org");
+
+    await act(async () => {
+      resolveInitialSession({ data: { session: null }, error: null });
+      await initialLookup;
+    });
+
+    expect(screen.getByTestId("email")).toHaveTextContent("new-admin@edutu.org");
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+  });
+
   it("keeps the admin app mounted while the same user's role is rechecked", async () => {
     let resolveRoleCheck!: (value: {
       data: { role: string };

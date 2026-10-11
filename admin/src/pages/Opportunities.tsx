@@ -12,6 +12,10 @@ import {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { getAdminAuthHeaders } from "../lib/backend";
+import {
+  getExistingOpportunityImage,
+  preserveBrandedSharePayload,
+} from "../lib/opportunityShareImages";
 import { exportToCSV } from "../utils/export-csv";
 import {
   deadlineDisplay,
@@ -480,39 +484,6 @@ function getGeneratedOpportunityFlyer(opportunity: Opportunity) {
           ? "jpeg"
           : "png";
   return { url: imageUrl, path: "", format };
-}
-
-function getExistingOpportunityImage(opportunity: Opportunity) {
-  const metadata = opportunity.metadata;
-  const candidates = [
-    // The card thumbnail uses image_url; Share should open with that same image.
-    opportunity.image_url,
-    typeof metadata?.source_image_url === "string"
-      ? metadata.source_image_url
-      : "",
-  ];
-  const url = candidates.find(
-    (candidate) =>
-      typeof candidate === "string" &&
-      /^https?:\/\//i.test(candidate),
-  );
-  if (!url) return null;
-
-  let extension = "";
-  try {
-    extension = new URL(url).pathname.split(".").pop()?.toLowerCase() || "";
-  } catch {
-    // The validated absolute URL above should parse, but keep the fallback safe.
-  }
-  const format: "svg" | "webp" | "jpeg" | "png" =
-    extension === "svg"
-      ? "svg"
-      : extension === "webp"
-        ? "webp"
-        : extension === "jpg" || extension === "jpeg"
-          ? "jpeg"
-          : "png";
-  return { url, path: "", format };
 }
 
 function openExternalUrl(rawUrl?: string | null) {
@@ -2204,7 +2175,7 @@ export default function Opportunities() {
             ...current,
             payload: creativePayload,
             creativePayload,
-            brandedPayload: current.brandedPayload ?? current.payload,
+            brandedPayload: preserveBrandedSharePayload(current),
             selectedDesign: "creative",
             preparing: false,
             preparationMessage: undefined,

@@ -314,6 +314,23 @@ describe("getCreditProducts", () => {
     const [, request] = fetchMock.mock.calls[0];
     expect(request?.body).toBeUndefined();
   });
+
+  it("converts the canonical API catalog's minor-unit prices without inventing checkout terms", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([
+        { productKey: "api_credits_100", creditQuantity: 100, amountMinor: 1999, currency: "USD", catalogVersion: 3 },
+        { productKey: "api_credits_700", creditQuantity: 700, amountMinor: 1500, currency: "NGN", catalogVersion: 3 },
+        { productKey: "api_credits_invalid", creditQuantity: 0, amountMinor: 500, currency: "USD" },
+        { productKey: "pro_monthly_pass", creditQuantity: 0, amountMinor: 900, currency: "USD" },
+      ]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getCreditProducts("clerk-token")).resolves.toEqual([
+      { productKey: "api_credits_100", creditQuantity: 100, price: 19.99, currency: "USD", renewalMode: "one_time", validityDays: null },
+      { productKey: "api_credits_700", creditQuantity: 700, price: 15, currency: "NGN", renewalMode: "one_time", validityDays: null },
+    ]);
+  });
 });
 
 describe("management destinations", () => {

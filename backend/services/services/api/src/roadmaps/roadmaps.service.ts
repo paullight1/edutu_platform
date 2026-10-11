@@ -890,9 +890,13 @@ export class RoadmapsService {
 
       if (!enrollment) throw new NotFoundException("Enrollment not found");
 
-      const adoptedSteps = (enrollment.adoptedPlan as { steps?: Array<{ id: string }> } | null)?.steps;
+      const adoptedSteps = (
+        enrollment.adoptedPlan as { steps?: Array<{ id: string }> } | null
+      )?.steps;
       if (!Array.isArray(adoptedSteps)) {
-        throw new BadRequestException("Adopt this roadmap before tracking progress");
+        throw new BadRequestException(
+          "Adopt this roadmap before tracking progress",
+        );
       }
       const stepIndex = adoptedSteps.findIndex((step) => step.id === stepId);
       if (stepIndex < 0) throw new BadRequestException("Unknown roadmap step");
@@ -1265,19 +1269,29 @@ Ground every claim in the details given above. Never invent requirements, eligib
     dto: OpportunityPlanDto,
   ): Promise<OpportunityPlanDto> {
     try {
-      if (!dto.opportunityId) throw new NotFoundException("Opportunity not found");
+      if (!dto.opportunityId)
+        throw new NotFoundException("Opportunity not found");
       const row = await this.opportunitiesService?.findOne(dto.opportunityId);
-      const record = row as Record<string, unknown> | null | undefined;
+      const record = row;
       const title = typeof record?.title === "string" ? record.title : null;
       if (!title) throw new NotFoundException("Opportunity not found");
-      const metadata = record?.metadata && typeof record.metadata === "object"
-        ? record.metadata as Record<string, unknown>
-        : {};
-      const rawDeadline = record?.close_date ?? record?.closeDate ?? record?.deadline;
+      const metadata =
+        record?.metadata && typeof record.metadata === "object"
+          ? (record.metadata as Record<string, unknown>)
+          : {};
+      const rawDeadline =
+        record?.close_date ?? record?.closeDate ?? record?.deadline;
       const rowDeadline = typeof rawDeadline === "string" ? rawDeadline : null;
-      const organization = typeof record?.organization === "string" ? record.organization : dto.organization;
-      const category = typeof record?.category === "string" ? record.category : dto.category;
-      const description = typeof record?.description === "string" ? record.description : undefined;
+      const organization =
+        typeof record?.organization === "string"
+          ? record.organization
+          : dto.organization;
+      const category =
+        typeof record?.category === "string" ? record.category : dto.category;
+      const description =
+        typeof record?.description === "string"
+          ? record.description
+          : undefined;
 
       const requirements = Array.isArray(metadata.requirements)
         ? metadata.requirements.filter((r: unknown) => typeof r === "string")
@@ -1288,9 +1302,7 @@ Ground every claim in the details given above. Never invent requirements, eligib
         title,
         organization,
         category,
-        description: description
-          ? description.slice(0, 4000)
-          : dto.description,
+        description: description ? description.slice(0, 4000) : dto.description,
         deadline: rowDeadline
           ? new Date(rowDeadline).toISOString().split("T")[0]
           : dto.deadline,

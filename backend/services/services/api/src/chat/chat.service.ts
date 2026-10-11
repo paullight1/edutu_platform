@@ -1598,7 +1598,9 @@ ${input.message}`;
 
     if (context.opportunityId) {
       try {
-        const data = await this.opportunitiesService?.findOne(context.opportunityId);
+        const data = await this.opportunitiesService?.findOne(
+          context.opportunityId,
+        );
         if (data) {
           lines.push(
             `- Viewing OPPORTUNITY "${data.title}" (${data.organization ?? "org unknown"}), id ${data.id}, deadline ${data.close_date ?? data.deadline ?? "unknown"}. Use this id directly in tools like analyze_fit or create_roadmap — don't ask which opportunity.`,

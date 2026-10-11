@@ -48,6 +48,13 @@ export interface CheckoutResponse {
   accessUntil?: string | null;
 }
 
+export interface CheckoutIntentStatus {
+  intentId: string;
+  status: string;
+  fulfilled: boolean;
+  expiresAt: string | null;
+}
+
 export class BillingRequestError extends Error {
   constructor(
     readonly status: number,
@@ -128,6 +135,17 @@ export async function getBillingStatus(token: string): Promise<BillingStatus> {
   return requestBilling<BillingStatus>("/billing/status", token);
 }
 
+/** Read an authenticated user's server-confirmed checkout result. */
+export async function getCheckoutIntent(
+  token: string,
+  intentId: string,
+): Promise<CheckoutIntentStatus> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(intentId)) {
+    throw new Error("Checkout reference is invalid.");
+  }
+  return requestBilling<CheckoutIntentStatus>(`/billing/intents/${encodeURIComponent(intentId)}`, token);
+}
+
 function isBillingCreditProduct(value: unknown): value is CreditProduct {
   if (!value || typeof value !== "object") return false;
   const product = value as Record<string, unknown>;
@@ -146,29 +164,74 @@ function isBillingCreditProduct(value: unknown): value is CreditProduct {
   );
 }
 
+interface ApiCreditCatalogRow {
+  productKey: string;
+  creditQuantity: number;
+  amountMinor: number;
+  currency: string;
+}
+
+function isApiCreditCatalogRow(value: unknown): value is ApiCreditCatalogRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.productKey === "string" &&
+    row.productKey.startsWith("api_credits_") &&
+    Number.isSafeInteger(row.creditQuantity) &&
+    Number(row.creditQuantity) > 0 &&
+    Number.isSafeInteger(row.amountMinor) &&
+    Number(row.amountMinor) > 0 &&
+    typeof row.currency === "string" &&
+    /^[A-Z]{3}$/.test(row.currency)
+  );
+}
+
+function currencyMinorDigits(currency: string): number {
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency,
+  }).resolvedOptions().maximumFractionDigits ?? 2;
+}
+
 /**
  * Reads display metadata from the billing catalog that also resolves checkout.
- * The browser does not map quantities to product keys or fall back to the
- * general admin pricing config; all displayed values come from this response.
+ * The canonical API returns an array of minor-unit catalog rows. Retain support
+ * for the earlier { products } response during a rolling deployment.
+ * Prices are for display only; checkout sends only the product key.
  */
 export async function getCreditProducts(
   token: string,
 ): Promise<CreditProduct[]> {
   const data = await requestBilling<unknown>("/billing/catalog", token);
   const products =
-    data && typeof data === "object" && "products" in data
+    Array.isArray(data)
+      ? data
+      : data && typeof data === "object" && "products" in data
       ? (data as { products?: unknown }).products
       : null;
 
   return Array.isArray(products)
-    ? products.filter(isBillingCreditProduct).map((product) => ({
-        ...product,
-        currency: product.currency.toUpperCase(),
-        label:
-          typeof product.label === "string" && product.label.trim()
-            ? product.label.trim()
-            : undefined,
-      }))
+    ? products.flatMap((product): CreditProduct[] => {
+        if (isApiCreditCatalogRow(product)) {
+          return [{
+            productKey: product.productKey,
+            creditQuantity: product.creditQuantity,
+            price: product.amountMinor / 10 ** currencyMinorDigits(product.currency),
+            currency: product.currency,
+            renewalMode: "one_time",
+            validityDays: null,
+          }];
+        }
+        if (!isBillingCreditProduct(product)) return [];
+        return [{
+          ...product,
+          currency: product.currency.toUpperCase(),
+          label:
+            typeof product.label === "string" && product.label.trim()
+              ? product.label.trim()
+              : undefined,
+        }];
+      })
     : [];
 }
 

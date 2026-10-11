@@ -8,6 +8,7 @@ import {
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   refreshSession: vi.fn(),
+  signOut: vi.fn(),
   getAdminRuntimeConfig: vi.fn(),
   isLocalAdminBypassEnabled: vi.fn(),
   getLocalAdminEmail: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("./supabase", () => ({
     auth: {
       getSession: mocks.getSession,
       refreshSession: mocks.refreshSession,
+      signOut: mocks.signOut,
     },
   },
 }));
@@ -57,6 +59,7 @@ describe("getAdminAuthHeaders", () => {
     mocks.isLocalAdminBypassEnabled.mockReturnValue(false);
     mocks.getLocalAdminEmail.mockReturnValue("local-admin@edutu.org");
     successfulSession();
+    mocks.signOut.mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
@@ -94,6 +97,7 @@ describe("adminApiJson", () => {
     mocks.isLocalAdminBypassEnabled.mockReturnValue(false);
     mocks.getLocalAdminEmail.mockReturnValue("local-admin@edutu.org");
     successfulSession();
+    mocks.signOut.mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
@@ -156,6 +160,44 @@ describe("adminApiJson", () => {
     expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
   });
 
+  it("shares one token refresh across concurrent requests", async () => {
+    let finishRefresh!: () => void;
+    const refreshGate = new Promise<void>((resolve) => {
+      finishRefresh = resolve;
+    });
+    mocks.refreshSession.mockImplementation(async () => {
+      await refreshGate;
+      return {
+        data: {
+          session: {
+            access_token: "refreshed-access-token",
+            user: { email: "admin@edutu.org" },
+          },
+        },
+        error: null,
+      };
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const token = new Headers(init?.headers).get("Authorization");
+      return token === "Bearer test-access-token"
+        ? jsonResponse({ message: "Invalid or expired token" }, { status: 401 })
+        : jsonResponse({ ok: true });
+    });
+
+    const results = Promise.all([
+      adminApiJson<{ ok: boolean }>("/admin/dashboard"),
+      adminApiJson<{ ok: boolean }>("/admin/opportunities"),
+    ]);
+    await vi.waitFor(() =>
+      expect(mocks.refreshSession).toHaveBeenCalledTimes(1),
+    );
+    finishRefresh();
+
+    await expect(results).resolves.toEqual([{ ok: true }, { ok: true }]);
+    expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
   it("does not retry when the session refresh fails", async () => {
     mocks.refreshSession.mockResolvedValue({
       data: { session: null },
@@ -175,6 +217,32 @@ describe("adminApiJson", () => {
     ).rejects.toMatchObject({ category: "authentication", status: 401 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("clears a session when the refreshed token is still rejected", async () => {
+    mocks.refreshSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "refreshed-access-token",
+          user: { email: "admin@edutu.org" },
+        },
+      },
+      error: null,
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse({ message: "Invalid or expired token" }, { status: 401 }),
+      );
+
+    await expect(adminApiJson("/admin/dashboard")).rejects.toMatchObject({
+      category: "authentication",
+      status: 401,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it.each([

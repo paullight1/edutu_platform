@@ -12,7 +12,7 @@ export interface CreditPurchasePanelProps {
   checkoutToConfirm: CheckoutResponse | null;
   checkoutError: { code: string | null; message: string } | null;
   hasPendingPayment: boolean;
-  paymentState: 'idle' | 'pending' | 'confirmed' | 'cancelled' | 'expired';
+  paymentState: 'idle' | 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'failed';
   checkoutBaselineKnown: boolean;
   onPurchase: (productKey: string) => void;
   onContinueToCheckout: () => void;
@@ -99,7 +99,7 @@ export default function CreditPurchasePanel({
         <div className="mt-5 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-text-primary" role="status">
           <p className="font-semibold">Payment confirmed</p>
           <p className="mt-1 leading-6 text-text-muted">
-            Your API credit balance has been refreshed from the verified billing status.
+            Edutu has verified this specific checkout with the payment provider. Refresh your balance to see the added credits.
           </p>
         </div>
       ) : paymentState === 'cancelled' ? (
@@ -108,6 +108,11 @@ export default function CreditPurchasePanel({
           <p className="mt-1 leading-6 text-text-muted">
             No payment was confirmed and no credits were added. Choose a pack below to start a new checkout when you are ready.
           </p>
+        </div>
+      ) : paymentState === 'failed' ? (
+        <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-text-primary" role="status">
+          <p className="font-semibold">Payment could not be completed</p>
+          <p className="mt-1 leading-6 text-text-muted">The billing service has marked this checkout as failed. You can choose another pack to try again.</p>
         </div>
       ) : paymentState === 'expired' ? (
         <div className="mt-5 rounded-2xl border border-subtle bg-surface-elevated px-4 py-3 text-sm text-text-primary" role="status">
@@ -121,8 +126,8 @@ export default function CreditPurchasePanel({
           <p className="font-semibold">Waiting for payment confirmation</p>
           <p className="mt-1 leading-6 text-text-muted">
             {checkoutBaselineKnown
-              ? 'Credits appear only after provider verification. Keep this dashboard open and check your balance again after returning from secure checkout.'
-              : 'We could not capture a verified starting balance for this checkout. Credits appear only after provider verification; refresh after returning from secure checkout and do not treat the displayed balance as confirmation.'}
+              ? 'We are checking this specific checkout with the billing service. Your API credits appear after confirmed fulfillment.'
+              : 'Your starting balance was unavailable. We will use the verified checkout result to confirm payment, not a balance change.'}
           </p>
           <button
             type="button"
@@ -130,7 +135,7 @@ export default function CreditPurchasePanel({
             className="mt-3 inline-flex items-center gap-2 rounded-full border border-warning/30 bg-white px-4 py-2 text-sm font-semibold text-text-primary"
           >
             <RefreshCw size={14} aria-hidden="true" />
-            Check balance again
+            Check payment status
           </button>
         </div>
       ) : null}

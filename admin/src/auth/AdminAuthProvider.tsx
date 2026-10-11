@@ -185,8 +185,11 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     }
 
     let disposed = false;
+    let authStateChanged = false;
+    let initialAuthCheckTimedOut = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       if (disposed) return;
+      initialAuthCheckTimedOut = true;
       setAuth((current) =>
         current.loading
           ? signedOutState("Authentication check timed out.")
@@ -197,7 +200,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     void supabase.auth
       .getSession()
       .then(({ data, error }) => {
-        if (disposed) return;
+        if (disposed || authStateChanged || initialAuthCheckTimedOut) return;
         if (error) {
           setAuth(signedOutState("Authentication session is unavailable."));
           return;
@@ -205,7 +208,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return applySession(data.session);
       })
       .catch(() => {
-        if (!disposed) {
+        if (!disposed && !authStateChanged && !initialAuthCheckTimedOut) {
           setAuth(signedOutState("Authentication initialization failed."));
         }
       })
@@ -220,6 +223,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (disposed) return;
+      authStateChanged = true;
       void applySession(session, event);
     });
 

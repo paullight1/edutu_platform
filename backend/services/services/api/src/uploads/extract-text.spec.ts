@@ -1,4 +1,5 @@
 import { extractText } from "./extract-text";
+import { Document, Packer, Paragraph } from "docx";
 
 describe("extractText", () => {
   it("reads plain text", async () => {
@@ -9,6 +10,20 @@ describe("extractText", () => {
   it("trims surrounding whitespace", async () => {
     const out = await extractText(Buffer.from("  spaced  "), "text/plain");
     expect(out).toBe("spaced");
+  });
+
+  it("extracts text from a DOCX upload", async () => {
+    const document = new Document({
+      sections: [{ children: [new Paragraph("DOCX extraction still works")] }],
+    });
+    const buffer = await Packer.toBuffer(document);
+
+    await expect(
+      extractText(
+        Buffer.from(buffer),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    ).resolves.toContain("DOCX extraction still works");
   });
 
   it("rejects unsupported types", async () => {

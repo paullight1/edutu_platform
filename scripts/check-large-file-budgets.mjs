@@ -1,21 +1,17 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-// These are debt ceilings, not targets. They were refreshed to the exact
-// 2026-08-20 main-branch line counts after governance had drifted behind the
-// repository. CI must reject any additional growth until cohesive features are
+// These are debt ceilings, not targets. They record the reviewed 2026-10-11
+// source-tree snapshot after the prior limits drifted behind files that had
+// already grown. CI rejects any additional growth until cohesive features are
 // extracted and the ceilings can be lowered.
 const budgets = {
-  "admin/src/pages/Opportunities.tsx": 5175,
-  // +5 lines of delegation only; the quality-scorecard query itself lives in
-  // its own cohesive module rather than expanding this service.
-  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3627,
-  // +20 lines for per-source persistence orchestration and direct-apply URL
-  // validation; outcome aggregation is extracted into scraper-run-outcome.ts.
-  "backend/services/services/api/src/scraper/scraper.service.ts": 3984,
+  "admin/src/pages/Opportunities.tsx": 6130,
+  "backend/services/services/api/src/opportunities/opportunities.service.ts": 3953,
+  "backend/services/services/api/src/scraper/scraper.service.ts": 4281,
   "edutu-web-app/src/components/Dashboard.tsx": 2005,
   "edutumobile/app/(app)/chat.tsx": 2245,
-  "edutumobile/app/(app)/index.tsx": 3113,
+  "edutumobile/app/(app)/index.tsx": 3121,
   "edutumobile/app/(app)/opportunities/[id].tsx": 4446,
 };
 

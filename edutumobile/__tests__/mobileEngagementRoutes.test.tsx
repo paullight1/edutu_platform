@@ -79,6 +79,7 @@ jest.mock('expo-router', () => {
   const React = require('react');
   return {
     useRouter: () => ({ push: mockPush, replace: mockReplace }),
+    useLocalSearchParams: () => ({}),
     Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });

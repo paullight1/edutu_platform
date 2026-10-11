@@ -55,7 +55,8 @@ export class WebPaidToolsGuard implements CanActivate {
     expiresAt: number;
     locks: Record<string, ModuleAccess>;
   } | null = null;
-  private moduleLocksRefresh: Promise<Record<string, ModuleAccess>> | null = null;
+  private moduleLocksRefresh: Promise<Record<string, ModuleAccess>> | null =
+    null;
 
   constructor(
     private readonly monetization: MonetizationService,

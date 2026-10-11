@@ -444,14 +444,13 @@ export class OgController {
     const sourceImage =
       clean(metadata.source_image_url) ||
       clean(opp.source_image_url || opp.sourceImageUrl);
-    const brandedCard =
-      clean(asRecord(metadata.share_card).url) ||
-      (hostedIsShareCard ? hostedImage : "");
+    const brandedCard = clean(asRecord(metadata.share_card).url);
     const image =
       brandedCard ||
       clean(opp.share_image_url || opp.shareImageUrl) ||
-      (hostedIsShareCard ? "" : hostedImage) ||
-      sourceImage ||
+      (hostedIsShareCard
+        ? sourceImage || hostedImage
+        : hostedImage || sourceImage) ||
       this.defaultImage;
     const usingBrandedCard = Boolean(brandedCard) && image === brandedCard;
 

@@ -49,7 +49,7 @@ describe("PlanPicker unavailable catalog recovery", () => {
     mocks.pricing = null;
   });
 
-  it("shows web plan prices in the USD currency used by the Bachs catalog", async () => {
+  it("never relabels legacy admin pricing as a checkout offer when the catalog is empty", async () => {
     mocks.pricing = {
       currency: "NGN",
       weeklyPrice: 2000,
@@ -65,7 +65,8 @@ describe("PlanPicker unavailable catalog recovery", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("USD 15")).toBeInTheDocument();
+    expect(await screen.findByText("No prices available for this plan yet")).toBeInTheDocument();
+    expect(screen.queryByText("USD 15")).not.toBeInTheDocument();
     expect(screen.queryByText("NGN 15")).not.toBeInTheDocument();
   });
 

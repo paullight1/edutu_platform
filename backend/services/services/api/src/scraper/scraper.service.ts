@@ -3406,7 +3406,7 @@ ${text}`;
 
   private normalizeUrl(url: string): string {
     return opportunityUrlIdentity(
-      (url || "").replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, ""),
+      (url || "").replace(/(?:\s|\u200B|\u200C|\u200D|\uFEFF)+/gu, ""),
     );
   }
 

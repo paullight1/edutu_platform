@@ -8,7 +8,13 @@ import { OpportunitiesModule } from "../opportunities/opportunities.module";
 import { MonetizationModule } from "../monetization/monetization.module";
 
 @Module({
-  imports: [AiModule, GoalsModule, NotificationsModule, OpportunitiesModule, MonetizationModule],
+  imports: [
+    AiModule,
+    GoalsModule,
+    NotificationsModule,
+    OpportunitiesModule,
+    MonetizationModule,
+  ],
   controllers: [RoadmapsController],
   providers: [RoadmapsService],
   exports: [RoadmapsService],

@@ -679,7 +679,10 @@ export class CvService {
     if (dto.cvId && UUID_PATTERN.test(dto.cvId) && this.supabase) {
       let userCv: { data_json: Record<string, unknown> } | null = null;
       try {
-        const owned = await new CvEditorService(this.supabase).get(userId, dto.cvId);
+        const owned = await new CvEditorService(this.supabase).get(
+          userId,
+          dto.cvId,
+        );
         userCv = { data_json: owned.data };
       } catch (error) {
         if (!(error instanceof NotFoundException)) throw error;

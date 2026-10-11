@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   rotateDeveloperProject: vi.fn(),
   revokeDeveloperProject: vi.fn(),
   createCheckout: vi.fn(),
+  getCheckoutIntent: vi.fn(),
   billingRefresh: vi.fn(),
   billingStatus: null as BillingStatusMock | null,
 }));
@@ -49,6 +50,7 @@ vi.mock('../../services/billing', async () => {
   return {
     ...actual,
     createCheckout: mocks.createCheckout,
+    getCheckoutIntent: mocks.getCheckoutIntent,
     isBachsCheckoutEnabled: () => true,
   };
 });
@@ -118,10 +120,16 @@ describe('developer dashboard credit top-ups', () => {
       project: { id: 'project-1' },
     });
     mocks.createCheckout.mockReset().mockResolvedValue({
-      intentId: 'intent-1',
+      intentId: '11111111-1111-4111-8111-111111111111',
       checkoutUrl: 'https://checkout.bachs.io/session/1',
       expiresAt: '2026-08-13T12:00:00.000Z',
       renewalMode: 'one_time',
+    });
+    mocks.getCheckoutIntent.mockReset().mockResolvedValue({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      status: 'creating',
+      fulfilled: false,
+      expiresAt: '2026-08-13T12:00:00.000Z',
     });
     mocks.billingRefresh.mockReset();
     mocks.billingStatus = {
@@ -221,21 +229,32 @@ describe('developer dashboard credit top-ups', () => {
     await waitFor(() => expect(mocks.billingRefresh).toHaveBeenCalled());
   });
 
-  it('shows a confirmed state after the returned balance increases', async () => {
+  it('shows a confirmed state only after the API verifies this checkout', async () => {
     const view = renderDashboard();
 
     fireEvent.click(await screen.findByRole('button', { name: /buy 700 credits/i }));
     fireEvent.click(await screen.findByRole('button', { name: /continue to secure checkout/i }));
 
     mocks.billingStatus = { ...mocks.billingStatus!, credits: 700 };
+    mocks.getCheckoutIntent.mockResolvedValue({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      status: 'fulfilled',
+      fulfilled: true,
+      expiresAt: null,
+    });
     view.rerender(
       <MemoryRouter initialEntries={['/dashboard/developer']}>
         <DeveloperDashboardPage />
       </MemoryRouter>,
     );
+    fireEvent(window, new Event('focus'));
 
     expect(await screen.findByRole('status')).toHaveTextContent(/payment confirmed/i);
     expect(screen.getByText(/700 api credits available/i)).toBeInTheDocument();
+    expect(mocks.getCheckoutIntent).toHaveBeenCalledWith(
+      'token-123',
+      '11111111-1111-4111-8111-111111111111',
+    );
   });
 
   it('does not confirm a purchase when its starting balance was unavailable', async () => {
@@ -273,12 +292,18 @@ describe('developer dashboard credit top-ups', () => {
 
   it('renders a cancelled checkout outcome for the matching stored intent', async () => {
     sessionStorage.setItem('edutu.billing.dashboard-handoff', JSON.stringify({
-      intentId: 'intent-1',
+      intentId: '11111111-1111-4111-8111-111111111111',
       startingCredits: 0,
       state: 'pending',
       startedAt: Date.now(),
     }));
-    window.history.replaceState({}, '', '/dashboard/developer?state=cancelled&intentId=intent-1');
+    window.history.replaceState({}, '', '/dashboard/developer?state=cancelled&intentId=11111111-1111-4111-8111-111111111111');
+    mocks.getCheckoutIntent.mockResolvedValue({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      status: 'cancelled',
+      fulfilled: false,
+      expiresAt: null,
+    });
 
     renderDashboard();
 
@@ -286,13 +311,19 @@ describe('developer dashboard credit top-ups', () => {
     expect(screen.queryByText(/waiting for payment confirmation/i)).not.toBeInTheDocument();
   });
 
-  it('renders an expired outcome and clears the stale handoff after its safe TTL', async () => {
+  it('renders an expired outcome only after the API confirms it and clears the handoff', async () => {
     sessionStorage.setItem('edutu.billing.dashboard-handoff', JSON.stringify({
-      intentId: 'intent-1',
+      intentId: '11111111-1111-4111-8111-111111111111',
       startingCredits: 0,
       state: 'pending',
       startedAt: Date.now() - (30 * 60 * 1000 + 1),
     }));
+    mocks.getCheckoutIntent.mockResolvedValue({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      status: 'expired',
+      fulfilled: false,
+      expiresAt: null,
+    });
 
     renderDashboard();
 
@@ -335,7 +366,32 @@ describe('developer dashboard credit top-ups', () => {
     renderDashboard();
 
     expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
-    fireEvent.click(screen.getByRole('button', { name: /check balance again/i }));
+    fireEvent.click(screen.getByRole('button', { name: /check payment status/i }));
     expect(mocks.billingRefresh).toHaveBeenCalled();
+  });
+
+  it('does not trust a confirmed state in session storage or a success query parameter', async () => {
+    sessionStorage.setItem('edutu.billing.dashboard-handoff', JSON.stringify({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      startingCredits: 0,
+      state: 'confirmed',
+      startedAt: Date.now(),
+    }));
+    window.history.replaceState({}, '', '/dashboard/developer?state=success&intentId=11111111-1111-4111-8111-111111111111');
+    mocks.getCheckoutIntent.mockResolvedValue({
+      intentId: '11111111-1111-4111-8111-111111111111',
+      status: 'creating',
+      fulfilled: false,
+      expiresAt: '2026-08-13T12:00:00.000Z',
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/waiting for payment confirmation/i);
+    expect(screen.queryByText(/payment confirmed/i)).not.toBeInTheDocument();
+    expect(mocks.getCheckoutIntent).toHaveBeenCalledWith(
+      'token-123',
+      '11111111-1111-4111-8111-111111111111',
+    );
   });
 });

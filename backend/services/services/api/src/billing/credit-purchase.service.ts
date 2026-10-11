@@ -234,7 +234,8 @@ export class CreditPurchaseService {
       existingMetadata?.environment !== input.environment ||
       existingMetadata?.productKey !== input.productKey ||
       Number(existingMetadata?.amountMinor) !== input.amountMinor ||
-      String(existingMetadata?.currency).toUpperCase() !== input.currency.toUpperCase() ||
+      String(existingMetadata?.currency).toUpperCase() !==
+        input.currency.toUpperCase() ||
       (context.intentId ?? null) !== (existingMetadata?.intentId ?? null)
     ) {
       await this.markReview(
@@ -429,7 +430,8 @@ export class CreditPurchaseService {
   }
 
   private recordValue(value: unknown): Row | null {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return null;
     return value as Row;
   }
 }

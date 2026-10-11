@@ -52,10 +52,8 @@ describe("OpportunityImageGenerationService", () => {
     );
     const prompt = aiService.generateImage.mock.calls[0][0].prompt as string;
     expect(prompt).toContain("ECOWAS Young Professional Programme");
-    expect(prompt).toContain(
-      "full-bleed square 1:1 campaign-poster illustration",
-    );
-    expect(prompt).toContain("Do not use generic smiling professionals");
+    expect(prompt).toContain("complete, premium, square 1:1 opportunity flyer");
+    expect(prompt).toContain("Avoid generic smiling professionals");
     expect(opportunitiesService.updateGeneratedImage).toHaveBeenCalledWith(
       "opp-1",
       flyer.url,

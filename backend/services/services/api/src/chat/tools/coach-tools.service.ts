@@ -668,13 +668,18 @@ export class CoachToolsService {
             ctx.userId,
           );
 
-          const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
+          const opportunity = await this.opportunitiesService?.findOne(
+            args.opportunity_id,
+          );
           if (!opportunity) {
             await this.monetizationService.refund(charge);
             return { error: "Opportunity not found" };
           }
           const title = opportunity.title || "Opportunity";
-          const rawDeadline = opportunity.close_date || opportunity.closeDate || opportunity.deadline;
+          const rawDeadline =
+            opportunity.close_date ||
+            opportunity.closeDate ||
+            opportunity.deadline;
           const deadline = typeof rawDeadline === "string" ? rawDeadline : null;
           const datedMilestones = this.scheduleMilestones(
             plan.milestones,
@@ -1083,7 +1088,9 @@ export class CoachToolsService {
       },
       schema: z.object({ opportunity_id: z.string().uuid() }),
       execute: async (ctx, args) => {
-        const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
+        const opportunity = await this.opportunitiesService?.findOne(
+          args.opportunity_id,
+        );
         if (!opportunity) return { error: "Opportunity not found" };
         const card = await this.shareCardService.ensureShareCardForOpportunity(
           opportunity as Record<string, any>,
@@ -1387,7 +1394,9 @@ export class CoachToolsService {
           "copilotAssist",
         );
         try {
-          const opportunity = await this.opportunitiesService?.findOne(args.opportunity_id);
+          const opportunity = await this.opportunitiesService?.findOne(
+            args.opportunity_id,
+          );
           if (!opportunity) {
             await this.monetizationService.refund(charge);
             return { error: "Opportunity not found" };
@@ -1396,7 +1405,11 @@ export class CoachToolsService {
           // to-do list — "retake IELTS", "get two references" — with no sense
           // of whether there were three weeks or three days to do it in, which
           // is the difference between a plan and a wish.
-          const deadlineRaw = opportunity.deadline ?? opportunity.close_date ?? opportunity.closeDate ?? null;
+          const deadlineRaw =
+            opportunity.deadline ??
+            opportunity.close_date ??
+            opportunity.closeDate ??
+            null;
           const deadlineMs =
             typeof deadlineRaw === "string" ? Date.parse(deadlineRaw) : NaN;
           const daysLeft = Number.isFinite(deadlineMs)

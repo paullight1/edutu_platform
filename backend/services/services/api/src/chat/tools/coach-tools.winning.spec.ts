@@ -94,6 +94,9 @@ describe("analyze_fit is deadline-aware", () => {
       noop,
       noop,
       { generateJson } as never,
+      {
+        findOne: async () => ({ title: "Some Fellowship", deadline }),
+      } as never,
     );
 
     const supabase = {

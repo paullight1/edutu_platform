@@ -20,6 +20,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { v4 as uuidv4 } from "uuid";
 import {
   createCheckout,
+  getCheckoutIntent,
   isBachsCheckoutEnabled,
   type BillingTransaction,
   type CheckoutResponse,
@@ -78,12 +79,11 @@ type GeneratedKey = CreateDeveloperProjectResult & {
 };
 
 const CREDIT_CHECKOUT_HANDOFF_KEY = "edutu.billing.dashboard-handoff";
-const CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS = 30 * 60 * 1000;
 
 type CreditCheckoutHandoff = {
   intentId: string;
   startingCredits: number | null;
-  state: "pending" | "confirmed" | "cancelled" | "expired";
+  state: "pending" | "confirmed" | "cancelled" | "expired" | "failed";
 };
 
 function readCheckoutReturnState(intentId: string): CreditCheckoutHandoff["state"] | null {
@@ -430,6 +430,33 @@ export default function DeveloperDashboardPage() {
     }
   };
 
+  const verifyCreditCheckout = useCallback(async (intentId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const verified = await getCheckoutIntent(token, intentId);
+      if (verified.intentId !== intentId) return;
+      const result = verified.fulfilled
+        ? "confirmed"
+        : verified.status === "expired"
+          ? "expired"
+          : verified.status === "failed"
+            ? "failed"
+            : verified.status === "cancelled" || verified.status === "canceled"
+              ? "cancelled"
+              : "pending";
+      if (result === "pending") return;
+      setCheckoutHandoff((current) =>
+        current?.intentId === intentId ? { ...current, state: result } : current,
+      );
+      sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
+      if (result === "confirmed") void refreshBilling();
+    } catch {
+      // Network or provider delays leave the purchase pending; a credit balance
+      // increase from another purchase cannot confirm this checkout.
+    }
+  }, [getToken, refreshBilling]);
+
   const refreshAfterCheckoutReturn = useCallback(() => {
     let stored: (CreditCheckoutHandoff & { startedAt?: number }) | null = null;
     try {
@@ -439,11 +466,19 @@ export default function DeveloperDashboardPage() {
         const candidate = parsed as Record<string, unknown>;
         if (
           typeof candidate.intentId === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate.intentId) &&
           (candidate.startingCredits === null || typeof candidate.startingCredits === "number") &&
-          (candidate.state === "pending" || candidate.state === "confirmed") &&
           (candidate.startedAt === undefined || typeof candidate.startedAt === "number")
         ) {
-          stored = candidate as (CreditCheckoutHandoff & { startedAt?: number });
+          // Session storage and provider return parameters are browser-controlled.
+          // Restore only the intent reference, then ask the authenticated API for
+          // its canonical state before showing any terminal payment result.
+          stored = {
+            intentId: candidate.intentId,
+            startingCredits: candidate.startingCredits,
+            state: "pending",
+            ...(typeof candidate.startedAt === "number" ? { startedAt: candidate.startedAt } : {}),
+          };
         }
       }
     } catch {
@@ -454,17 +489,7 @@ export default function DeveloperDashboardPage() {
 
     const returnState = readCheckoutReturnState(stored.intentId);
     if (returnState) {
-      setCheckoutHandoff({ ...stored, state: returnState });
-      sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
       clearCheckoutReturnState();
-      void refreshBilling();
-      return;
-    }
-
-    if (stored.startedAt && Date.now() - stored.startedAt > CREDIT_CHECKOUT_HANDOFF_MAX_AGE_MS) {
-      sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
-      setCheckoutHandoff({ ...stored, state: "expired" });
-      return;
     }
 
     setCheckoutHandoff((current) => current ?? {
@@ -473,7 +498,8 @@ export default function DeveloperDashboardPage() {
       state: stored!.state,
     });
     void refreshBilling();
-  }, [refreshBilling]);
+    void verifyCreditCheckout(stored.intentId);
+  }, [refreshBilling, verifyCreditCheckout]);
 
   useEffect(() => {
     const handleReturn = () => {
@@ -489,15 +515,19 @@ export default function DeveloperDashboardPage() {
   }, [refreshAfterCheckoutReturn]);
 
   useEffect(() => {
-    if (!checkoutHandoff || checkoutHandoff.state !== "pending" || !billing.status) return;
-    if (
-      checkoutHandoff.startingCredits === null ||
-      billing.status.credits <= checkoutHandoff.startingCredits
-    ) return;
-
-    setCheckoutHandoff({ ...checkoutHandoff, state: "confirmed" });
-    sessionStorage.removeItem(CREDIT_CHECKOUT_HANDOFF_KEY);
-  }, [billing.status, checkoutHandoff]);
+    if (checkoutHandoff?.state !== "pending") return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      if (++attempts > 12) {
+        window.clearInterval(timer);
+        return;
+      }
+      if (document.visibilityState === "visible") {
+        void verifyCreditCheckout(checkoutHandoff.intentId);
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [checkoutHandoff?.intentId, checkoutHandoff?.state, verifyCreditCheckout]);
 
   const hasPendingPayment = Boolean(
     billing.status?.transactions?.some(
@@ -1238,7 +1268,10 @@ Implement:
                 checkoutBaselineKnown={checkoutHandoff?.startingCredits !== null && checkoutHandoff !== null}
                 onPurchase={(productKey) => void handleTopUpCredits(productKey)}
                 onContinueToCheckout={continueToCheckout}
-                onRefreshBilling={() => void billing.refresh()}
+                onRefreshBilling={() => {
+                  void billing.refresh();
+                  if (checkoutHandoff?.state === "pending") void verifyCreditCheckout(checkoutHandoff.intentId);
+                }}
                 onRetryProducts={() => void billing.refresh()}
               />
 

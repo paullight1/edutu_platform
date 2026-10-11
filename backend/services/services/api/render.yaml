@@ -49,7 +49,31 @@ services:
         sync: false
       - key: PAYSTACK_SECRET_KEY
         sync: false
+      # Bachs checkout stays fail-closed until provider access, signed webhook
+      # details, shell secret, schema migrations, and catalog mappings are ready.
+      - key: BACHS_CHECKOUT_ENABLED
+        value: "false"
+      - key: BACHS_ENVIRONMENT
+        value: sandbox
+      - key: BACHS_API_BASE_URL
+        value: https://sandbox-api.bachs.io
+      - key: BACHS_API_KEY
+        sync: false
+      - key: BACHS_WEBHOOK_ENABLED
+        value: "false"
       - key: BACHS_WEBHOOK_SECRET
+        sync: false
+      - key: BACHS_EXPECTED_ORGANIZATION_ID
+        sync: false
+      # Developer API credit products are separate from the database-managed
+      # learner plan catalog; both JSON values are provider-specific.
+      - key: BACHS_PRODUCT_MAPPINGS
+        sync: false
+      - key: BACHS_PRODUCT_CATALOG
+        sync: false
+      - key: BILLING_PAY_SHELL_ENABLED
+        value: "false"
+      - key: BILLING_PAY_SHELL_API_KEY
         sync: false
       - key: ADMIN_EMAILS
         sync: false

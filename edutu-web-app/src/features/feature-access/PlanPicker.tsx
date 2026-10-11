@@ -8,7 +8,7 @@ import {
   type CheckoutResponse,
 } from "../../services/billing";
 import { productApiRequest } from "../../services/productApi";
-import { effectivePrice, formatMoney, useProPricing } from "../../lib/proPricing";
+import { useProPricing } from "../../lib/proPricing";
 interface Product {
   productKey: string;
   amountMinor: number;
@@ -80,7 +80,6 @@ export default function PlanPicker({
   const [error, setError] = useState<string | null>(null);
   const [showWalletLink, setShowWalletLink] = useState(false);
   const [tier, setTier] = useState<"lite" | "pro" | "scholar">("pro");
-  const [cadence, setCadence] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<
@@ -234,16 +233,11 @@ export default function PlanPicker({
         p.productKey.startsWith(`${tier}_`) ||
         (tier === "pro" && p.productKey === "season_pass"),
     ) || [];
-  const selectedProduct = products.find((p) => p.productKey === selectedProductKey) || products.find((p) => p.cadence === cadence) || products[0];
+  const selectedProduct = products.find((p) => p.productKey === selectedProductKey) || products.find((p) => p.cadence === "monthly") || products[0];
   const enabled = !!catalog?.checkoutEnabled && isBachsCheckoutEnabled();
-  // Learner web checkout is settled against the Bachs billing catalog, whose
-  // current plan rows are denominated in USD. The mobile-control feed still
-  // serves legacy NGN display values for native/Paystack surfaces, so do not
-  // let that display currency relabel these USD plan amounts.
-  const configuredPricing = priceState.pricing
-    ? { ...priceState.pricing, currency: "USD" }
-    : null;
-  const allowance = configuredPricing?.[tier === "lite" ? "liteFairUse" : tier === "pro" ? "proFairUse" : "scholarFairUse"];
+  // Prices and renewal terms must come only from /billing/user-catalog.
+  // The general admin pricing feed may reflect different providers/currencies.
+  const allowance = priceState.pricing?.[tier === "lite" ? "liteFairUse" : tier === "pro" ? "proFairUse" : "scholarFairUse"];
   const tierSummary = {
     lite: "A focused starting point for occasional applications.",
     pro: "More room for regular coaching and application preparation.",
@@ -261,7 +255,7 @@ export default function PlanPicker({
             key={value}
             aria-pressed={tier === value}
             disabled={!!busy || !!checkout}
-            onClick={() => setTier(value)}
+            onClick={() => { setTier(value); setSelectedProductKey(null); }}
             className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold capitalize ${tier === value ? "bg-brand text-white" : "text-text-secondary"}`}
           >
             {value}
@@ -305,9 +299,10 @@ export default function PlanPicker({
           {products.map((product) => (
             <button key={product.productKey} type="button" aria-pressed={product.productKey === selectedProduct?.productKey} disabled={!!busy || !!checkout} onClick={() => setSelectedProductKey(product.productKey)} className="plan-product-choice">
               <span className="plan-period-mark" aria-hidden="true">{product.productKey === selectedProduct?.productKey && <Check size={13} />}</span>
-              {product.cadence === "monthly" || product.cadence === "yearly" ? <span className="plan-period-badge">{product.cadence === "yearly" ? (products.some((monthly) => monthly.cadence === "monthly" && monthly.currency === product.currency && product.amountMinor < monthly.amountMinor * 12) ? "Best value" : "Year-round") : "Hot"}</span> : null}
+              {product.cadence === "yearly" && products.some((monthly) => monthly.cadence === "monthly" && monthly.currency === product.currency && monthly.renewalMode === product.renewalMode && product.amountMinor < monthly.amountMinor * 12) ? <span className="plan-period-badge">Save on yearly</span> : null}
               <span className="plan-period-name capitalize">{product.cadence || title(product.productKey)}</span>
               <span className="plan-period-price">{price(product)}</span>
+              <span className="plan-period-unit">{product.renewalMode === "recurring" ? `Renews ${product.cadence || "automatically"}` : "One-time"}</span>
             </button>
           ))}
         </div>
@@ -362,37 +357,13 @@ export default function PlanPicker({
       </div>}
       {!products.length && (catalog || !isSignedIn) && (
         <>
-          {configuredPricing ? (
-            <div className="plan-picker-period-section"><p className="plan-picker-step">Period</p>
-            <div className="plan-picker-periods grid grid-cols-3 gap-2 sm:gap-3" aria-label="Choose a billing period">
-              {(["weekly", "monthly", "yearly"] as const).map((period) => {
-                const selected = cadence === period;
-                const amount = effectivePrice(configuredPricing, period, tier, { applyPromo: false });
-                return (
-                  <button
-                    key={period}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setCadence(period)}
-                    className={`relative flex min-h-[104px] flex-col items-start justify-center rounded-2xl border p-3 text-left transition ${selected ? "border-brand bg-brand/10 ring-1 ring-brand/30" : "border-subtle bg-surface-layer hover:border-brand/40"}`}
-                  >
-                    <span className="plan-period-mark" aria-hidden="true">{selected && <Check size={13} />}</span>
-                    {period !== "weekly" ? <span className="plan-period-badge">{period === "yearly" ? (amount < effectivePrice(configuredPricing, "monthly", tier, { applyPromo: false }) * 12 ? "Best value" : "Year-round") : "Hot"}</span> : null}
-                    <span className="plan-period-name text-text-primary">{period === "weekly" ? "Weekly" : period === "monthly" ? "Monthly" : "Yearly"}</span>
-                    <span className="plan-period-price text-text-primary">{formatMoney(amount, configuredPricing.currency)}<span className="plan-period-unit text-text-muted"> / {period === "yearly" ? "year" : period === "weekly" ? "week" : "month"}</span></span>
-                  </button>
-                );
-              })}
-            </div></div>
-          ) : priceState.loading ? (
-            <p role="status" className="rounded-xl border border-subtle p-4 text-center text-sm text-text-muted">Loading your plan prices…</p>
-          ) : (
-            <div role="status" className="flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-6 text-center">
-              <PlanAvailabilityIllustration />
-              <h3 className="text-sm font-semibold text-text-primary">Plan prices aren’t available right now</h3>
-              <p className="mt-1.5 max-w-sm text-xs leading-5 text-text-muted">Please check again in a moment.</p>
-            </div>
-          )}
+          <div role="status" className="flex flex-col items-center rounded-2xl border border-subtle bg-surface-layer px-5 py-6 text-center">
+            <PlanAvailabilityIllustration />
+            <h3 className="text-sm font-semibold text-text-primary">{!isSignedIn ? "Sign in to view current plan prices" : "No prices available for this plan yet"}</h3>
+            <p className="mt-1.5 max-w-sm text-xs leading-5 text-text-muted">
+              {!isSignedIn ? "We'll show you the live price and renewal terms before you pay." : "We couldn't find a purchasable option for this tier. Try another plan or check again later."}
+            </p>
+          </div>
           {!docked && <div role="status" className="plan-picker-availability flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-center sm:flex-row sm:justify-between sm:text-left">
             <p className="text-xs leading-5 text-text-muted">
               {!isSignedIn
@@ -404,7 +375,7 @@ export default function PlanPicker({
             {!docked && (!isSignedIn ? (
               <Link
                 className="mt-3 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white sm:mt-0"
-                to="/auth?mode=sign-in&redirect=%2Fupgrade"
+                to="/auth?mode=sign-in&screen=full&redirect=%2Fupgrade"
               >
                 Sign in <ArrowRight size={16} />
               </Link>
@@ -422,7 +393,7 @@ export default function PlanPicker({
       <section className="plan-benefits" aria-label={`${tier} plan benefits`}>
         <div className="plan-benefits-heading">
           <h3 className="capitalize">{tier} daily allowance</h3>
-          <span className="plan-benefits-tag">{tier === "lite" ? "Start here" : tier === "pro" ? "Hot" : "Maximum access"}</span>
+          <span className="plan-benefits-tag">{tier === "lite" ? "Essential" : tier === "pro" ? "Expanded" : "Highest limits"}</span>
         </div>
         <ul>
           {(allowance ? [
@@ -431,14 +402,14 @@ export default function PlanPicker({
             `${allowance.dailyActionCredits.toLocaleString()} AI preparation credits per day`,
           ] : [tierSummary]).map((benefit) => <li key={benefit}><Check size={15} aria-hidden="true" /><span>{benefit}</span></li>)}
         </ul>
-        <p className="plan-benefits-shared">All tiers include fit insights, AI Coach, Copilot, plans and document tools. Preparation credits are shared across AI actions; each tool uses a different amount.</p>
+        <p className="plan-benefits-shared">All paid tiers include fit insights, AI Coach, Copilot, preparation plans and document tools. AI action credits are daily allowances; tools may use different amounts.</p>
       </section>
       {checkout && (
         <div
           className="rounded-2xl border border-brand bg-brand/5 p-5"
           role="status"
         >
-          <h3 className="font-semibold">Your checkout is ready</h3>
+          <h3 className="font-semibold">Secure checkout is ready</h3>
           <p className="mt-2 text-sm text-text-secondary">
             {checkout.renewalMode === "recurring"
               ? "This plan renews automatically. Review the renewal terms before paying."
@@ -471,8 +442,8 @@ export default function PlanPicker({
       )}
       {docked && !checkout && (
         <div className="upgrade-docked-action">
-          <p>{enabled && selectedProduct ? `${tier.charAt(0).toUpperCase() + tier.slice(1)} · ${price(selectedProduct)} · ${selectedProduct.cadence || "One-time access"}` : "Prices in USD · Access after confirmed payment"}</p>
-          {!isSignedIn ? <Link className="upgrade-docked-button" to="/auth?mode=sign-in&redirect=%2Fupgrade">Sign in to continue <ArrowRight size={17} /></Link> : (
+          <p>{enabled && selectedProduct ? `${tier.charAt(0).toUpperCase() + tier.slice(1)} · ${price(selectedProduct)} · ${selectedProduct.renewalMode === "recurring" ? `Renews ${selectedProduct.cadence || "automatically"}` : "One-time payment"}` : "You'll see the confirmed price and payment terms before paying"}</p>
+          {!isSignedIn ? <Link className="upgrade-docked-button" to="/auth?mode=sign-in&screen=full&redirect=%2Fupgrade">Sign in to continue <ArrowRight size={17} /></Link> : (
             <button className="upgrade-docked-button" disabled={!!busy || loading || (!!catalog && (!enabled || !selectedProduct))} onClick={() => {
               const selected = selectedProduct;
               if (enabled && selected) void begin(selected);

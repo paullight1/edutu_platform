@@ -90,7 +90,9 @@ export class BillingPayShellService {
     if (input.destination !== "account" && !input.intentId)
       throw new BadRequestException("Checkout id is required");
     if (input.destination === "account" && input.intentId)
-      throw new BadRequestException("Account handoff cannot include a checkout id");
+      throw new BadRequestException(
+        "Account handoff cannot include a checkout id",
+      );
     if (input.intentId)
       await this.checkout.getOwnedCheckoutStatus(userId, input.intentId);
     if (input.destination === "checkout") {

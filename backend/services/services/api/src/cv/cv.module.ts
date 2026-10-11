@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { CvEditorService } from './cv-editor.service';
+import { CvEditorService } from "./cv-editor.service";
 import { CvController } from "./cv.controller";
 import { CvService } from "./cv.service";
 import { LinkedInImportService } from "./linkedin-import.service";

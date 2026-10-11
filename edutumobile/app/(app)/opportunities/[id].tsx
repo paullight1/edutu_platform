@@ -69,6 +69,7 @@ import {
   saveOpportunity,
   unsaveOpportunity,
 } from "../../../packages/core/src/services/bookmarks";
+import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
 import { noteRecentlyOpenedOpportunity } from "../../../lib/recentlyOpenedOpportunity";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
@@ -811,15 +812,39 @@ export default function OpportunityDetailScreen() {
       ? opportunity.applyUrl.replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
       : opportunity?.applyUrl;
     if (applyUrl && id) {
+      let tracked = false;
       try {
         if (!/^https?:\/\//i.test(applyUrl)) throw new Error("Invalid application link");
+      } catch {
+        Alert.alert("Unable to open application", "Please check the application link and try again.");
+        return;
+      }
+      if (userId) {
+        try {
+          tracked = await trackOpportunityApplication(
+              supabase,
+              userId,
+              { opportunityId: id, status: "submitted" },
+              getToken,
+          );
+        } catch {
+          // Tracking is best-effort; a provider outage must not block the
+          // learner from reaching the opportunity's official application.
+        }
+      }
+      try {
         await Linking.openURL(applyUrl);
-
+        Alert.alert(
+          "Application opened",
+          tracked
+            ? "We added this opportunity to My Applications so you can track your progress."
+            : "We couldn't add this to My Applications. You can still track it there manually.",
+        );
       } catch {
         Alert.alert("Unable to open application", "Please check the application link and try again.");
       }
     }
-  }, [isGuestBrowsing, authWall, id, opportunity]);
+  }, [isGuestBrowsing, authWall, id, opportunity, getToken, userId]);
 
   const handleWinCoachRun = useCallback(
     async (action: AiAction): Promise<AiActionResult> => {

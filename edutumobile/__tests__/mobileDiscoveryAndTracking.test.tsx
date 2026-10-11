@@ -319,7 +319,7 @@ function pressNearestTouchTarget(node: any) {
     throw new Error('Could not find a pressable ancestor');
   }
 
-  current.props.onPress?.();
+  current.props.onPress?.({ stopPropagation: jest.fn() });
 }
 
 describe('mobile discovery and tracking routes', () => {

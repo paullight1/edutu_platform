@@ -150,15 +150,18 @@ describe("RoadmapsService", () => {
 
   it("rejects progress updates for non-published roadmaps before reading enrollment", async () => {
     const rejection = new NotFoundException("Roadmap not found");
-    const findPublishedById = jest
-      .spyOn(service, "findPublishedById")
+    const findAdoptableRoadmap = jest
+      .spyOn(service as any, "findAdoptableRoadmap")
       .mockRejectedValue(rejection);
 
     await expect(
       service.updateProgress("user-1", "draft-roadmap", "step-1", true),
     ).rejects.toBe(rejection);
 
-    expect(findPublishedById).toHaveBeenCalledWith("draft-roadmap");
+    expect(findAdoptableRoadmap).toHaveBeenCalledWith(
+      "user-1",
+      "draft-roadmap",
+    );
     expect(mockedDb.select).not.toHaveBeenCalled();
     expect(mockedDb.update).not.toHaveBeenCalled();
   });

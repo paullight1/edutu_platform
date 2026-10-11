@@ -14,10 +14,7 @@ import { z } from "zod";
 import { MonetizationService } from "../monetization/monetization.service";
 import { isUuid, toDatabaseUserId } from "../common/user-id";
 
-const PREMIUM_CV_TEMPLATE_SLUGS = new Set([
-  "creative-portfolio",
-  "executive",
-]);
+const PREMIUM_CV_TEMPLATE_SLUGS = new Set(["creative-portfolio", "executive"]);
 const sectionSchema = z
   .array(
     z
@@ -203,12 +200,11 @@ export class CvEditorService {
         "Could not verify CV template access",
       );
     const key = data?.name
-      ? this.templateSlug(String(data.name), templateId) ?? templateId
+      ? (this.templateSlug(String(data.name), templateId) ?? templateId)
       : templateId;
     return {
       key,
-      premium:
-        data?.is_premium === true || PREMIUM_CV_TEMPLATE_SLUGS.has(key),
+      premium: data?.is_premium === true || PREMIUM_CV_TEMPLATE_SLUGS.has(key),
     };
   }
   private async assertPremiumTemplateAccess(

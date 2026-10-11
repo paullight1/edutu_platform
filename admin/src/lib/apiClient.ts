@@ -8,6 +8,14 @@ export type { AdminApiFailureCategory } from "./apiError";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+interface RefreshedAuth {
+  accessToken: string;
+  email: string;
+}
+
+let refreshSessionPromise: Promise<RefreshedAuth | null> | null = null;
+let expiredSessionSignOutPromise: Promise<void> | null = null;
+
 export interface AdminApiRequestInit extends RequestInit {
   timeoutMs?: number;
 }
@@ -135,20 +143,48 @@ export async function getAdminAuthHeaders(
 async function refreshAdminAuthHeaders(
   extraHeaders?: HeadersInit,
 ): Promise<Record<string, string> | null> {
-  try {
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.refreshSession();
-    if (error || !session?.access_token) return null;
-
-    const headers = new Headers(extraHeaders);
-    headers.set("Authorization", `Bearer ${session.access_token}`);
-    headers.set("X-Edutu-Admin-Email", session.user?.email || "");
-    return headersToRecord(headers);
-  } catch {
-    return null;
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = (async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.refreshSession();
+        if (error || !session?.access_token) return null;
+        return {
+          accessToken: session.access_token,
+          email: session.user?.email || "",
+        };
+      } catch {
+        return null;
+      }
+    })().finally(() => {
+      refreshSessionPromise = null;
+    });
   }
+
+  const refreshed = await refreshSessionPromise;
+  if (!refreshed) return null;
+
+  const headers = new Headers(extraHeaders);
+  headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
+  headers.set("X-Edutu-Admin-Email", refreshed.email);
+  return headersToRecord(headers);
+}
+
+async function signOutExpiredAdminSession(): Promise<void> {
+  if (!expiredSessionSignOutPromise) {
+    expiredSessionSignOutPromise = (async () => {
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // Preserve the original authentication error if local cleanup fails.
+      }
+    })().finally(() => {
+      expiredSessionSignOutPromise = null;
+    });
+  }
+  await expiredSessionSignOutPromise;
 }
 
 function canRetryRequestBody(body: BodyInit | null | undefined): boolean {
@@ -236,6 +272,16 @@ export async function adminApiJson<T>(
           headers: authenticatedHeaders,
           signal: controller.signal,
         });
+      }
+
+      // Keep the UI from presenting empty dashboard data under a stale local
+      // session. A successful refresh followed by another 401 means the
+      // session is no longer accepted; a failed refresh means it cannot recover.
+      if (
+        !controller.signal.aborted &&
+        (!refreshedHeaders || response.status === 401)
+      ) {
+        await signOutExpiredAdminSession();
       }
     }
 

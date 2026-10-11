@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
+const developmentScriptPolicy =
+  process.env.NODE_ENV === 'development'
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'";
+
 const nextConfig = {
+  // This app is deployed from its own package directory. Pin tracing here so
+  // Next doesn't select the unrelated monorepo lockfile as the workspace root.
+  outputFileTracingRoot: process.cwd(),
   reactStrictMode: true,
   async headers() {
     return [
@@ -19,7 +27,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              developmentScriptPolicy,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data:",
               "connect-src 'self'",

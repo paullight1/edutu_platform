@@ -806,14 +806,12 @@ describe("ScraperService", () => {
     it("enriches an article shared by two categories only once", async () => {
       const internal = prepare();
       internal.hasNextPage = jest.fn().mockReturnValue(false);
-      internal.extractItemsFromList = jest
-        .fn()
-        .mockReturnValue([
-          {
-            title: "Shared Fellowship",
-            apply_url: "https://source.example/fellowship",
-          },
-        ]);
+      internal.extractItemsFromList = jest.fn().mockReturnValue([
+        {
+          title: "Shared Fellowship",
+          apply_url: "https://source.example/fellowship",
+        },
+      ]);
       const result = await internal.crawlSources(
         [
           { id: 1, name: "A", url: "https://source.example/a", config: {} },

@@ -1,6 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
-import { resolveAdminRuntimeConfig } from "./src/lib/runtimeConfig";
+import { resolveAdminRuntimeConfig } from "./src/lib/runtimeConfig.ts";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");

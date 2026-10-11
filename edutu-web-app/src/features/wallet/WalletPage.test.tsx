@@ -28,10 +28,10 @@ beforeEach(() => {
 
 it("shows server-confirmed plan access and catalog terms", async () => {
   render(<MemoryRouter><WalletPage /></MemoryRouter>);
-  expect(await screen.findByText("Pro", { exact: true })).toBeInTheDocument();
-  expect(screen.getByText("active")).toBeInTheDocument();
+  expect(await screen.findByText("Pro plan")).toBeInTheDocument();
+  expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.getByText(/Pro Monthly/)).toBeInTheDocument();
   expect(screen.getByText("31 days of access")).toBeInTheDocument();
-  expect(screen.getByText("One-time purchase · no automatic renewal")).toBeInTheDocument();
+  expect(screen.getByText("One-time payment. No automatic renewal.")).toBeInTheDocument();
   expect(refreshBilling).toHaveBeenCalled();
 });

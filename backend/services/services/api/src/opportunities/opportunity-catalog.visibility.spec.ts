@@ -269,7 +269,10 @@ describe("persisted shared catalog visibility", () => {
     const service = new OpportunitiesService(
       {} as any,
       {} as any,
-      { ensureShareCardForOpportunity } as any,
+      {
+        ensureShareCardForOpportunity,
+        getCreativeShareCard: jest.fn().mockReturnValue(null),
+      } as any,
       {} as any,
       {} as any,
     );
@@ -282,6 +285,7 @@ describe("persisted shared catalog visibility", () => {
     });
     expect(ensureShareCardForOpportunity).toHaveBeenCalledWith(
       expect.objectContaining({ id: PENDING_ID, status: "pending_review" }),
+      { design: "branded" },
     );
   });
 
