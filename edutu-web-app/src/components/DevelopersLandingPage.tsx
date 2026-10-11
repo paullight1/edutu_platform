@@ -18,12 +18,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
-import { getDocsUrl } from '../lib/apiProductUrls';
+import { getDocsUrl, getPublicApiBaseUrl } from '../lib/apiProductUrls';
 
 const docsUrl = getDocsUrl();
-// Clean vanity base for marketing examples — matches /scholarship-engine.
-// The real, environment-specific base lives in the docs.
-const apiBaseUrl = 'https://api.edutu.org/v1';
+const apiBaseUrl = getPublicApiBaseUrl();
 
 /* ────────────────────────────────────────────────────────────────────────
  * Content

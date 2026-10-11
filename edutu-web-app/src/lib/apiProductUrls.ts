@@ -1,5 +1,3 @@
-import { getApiBaseUrl } from './apiBaseUrl';
-
 /**
  * Canonical URLs for the Scholarship Engine API product (docs, OpenAPI,
  * public base URL). Every marketing/dashboard surface should read from here
@@ -11,13 +9,7 @@ const FALLBACK_PUBLIC_API_BASE = 'https://edutu-platform.onrender.com/v1';
 /** Base URL third parties call, e.g. shown in curl snippets. */
 export function getPublicApiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_PUBLIC_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
-
-  try {
-    return `${getApiBaseUrl('Edutu public API')}/v1`;
-  } catch {
-    return FALLBACK_PUBLIC_API_BASE;
-  }
+  return (configured || FALLBACK_PUBLIC_API_BASE).replace(/\/$/, '');
 }
 
 export function getOpenApiUrl(): string {

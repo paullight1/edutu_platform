@@ -273,6 +273,10 @@ describe("Scholarship Engine pages", () => {
     expect(screen.queryByText("GET /v1/match")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
+    expect(document.body.textContent ?? "").toContain(
+      "https://edutu-platform.onrender.com/v1/opportunities",
+    );
+    expect(document.body.textContent ?? "").not.toContain("api.edutu.org");
     for (const staleExample of ["edutu_test_", "edutu_live_", "sk_live_edutu"]) {
       expect(document.body.textContent ?? "").not.toContain(staleExample);
     }
@@ -287,6 +291,10 @@ describe("Scholarship Engine pages", () => {
     expect(screen.queryByText("GET /v1/match")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
+    expect(document.body.textContent ?? "").toContain(
+      "https://edutu-platform.onrender.com/v1/opportunities",
+    );
+    expect(document.body.textContent ?? "").not.toContain("api.edutu.org");
 
     fireEvent.click(screen.getByRole("button", { name: /how do credits work/i }));
     expect(screen.getByText(/new accounts start at zero/i)).toBeInTheDocument();

@@ -16,10 +16,10 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import PublicEditorialShell from './PublicEditorialShell';
 import Seo from './Seo';
-import { getDocsUrl } from '../lib/apiProductUrls';
+import { getDocsUrl, getPublicApiBaseUrl } from '../lib/apiProductUrls';
 
 const docsUrl = getDocsUrl();
-const API_BASE = 'https://api.edutu.org/v1';
+const API_BASE = getPublicApiBaseUrl();
 
 /* ────────────────────────────────────────────────────────────────────────
  * Data
