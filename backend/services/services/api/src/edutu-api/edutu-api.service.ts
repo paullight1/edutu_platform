@@ -16,6 +16,7 @@ import {
 import { db } from "../db";
 import { apiPartnerEvents, opportunities } from "../db/schema";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
+import { removeContradictoryDeadlineClaims } from "../opportunities/deadline-description.util";
 import {
   discoverableOpportunityConditions,
   discoverableOpportunitySql,
@@ -362,11 +363,16 @@ export class EdutuApiService {
   }
 
   private toPublicOpportunity(row: OpportunityRow & Record<string, any>) {
+    const canonicalDeadline = row.closeDate || row.deadline;
+    const description = removeContradictoryDeadlineClaims(
+      row.description,
+      canonicalDeadline,
+    );
     return {
       id: row.id,
       object: "opportunity",
       title: row.title,
-      description: row.description,
+      description,
       category: row.category,
       canonicalCategory:
         row.canonicalCategory ||
@@ -389,6 +395,10 @@ export class EdutuApiService {
         lastVerifiedAt: row.lastVerifiedAt?.toISOString?.() ?? null,
         lastSeenAt: row.lastSeenAt?.toISOString?.() ?? null,
         qualityScore: row.qualityScore ?? null,
+        deadlineNeedsReview:
+          row.metadata?.deadline_needs_review === true ||
+          (typeof row.description === "string" &&
+            description !== row.description),
       },
       match: row.match ?? null,
       matchReasons: row.match_reasons ?? row.matchReasons ?? [],

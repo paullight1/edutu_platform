@@ -15,6 +15,7 @@ import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
+import { removeContradictoryDeadlineClaims } from "../opportunities/deadline-description.util";
 import {
   parseDeadlineDetailed,
   extractDeadlineText,
@@ -3183,11 +3184,22 @@ ${text}`;
     );
     const closeDate = parsedDeadline.date;
     const quality = this.evaluateOpportunityQuality(item);
-    const summary = this.normalizeSummary(
+    const rawSummary = this.normalizeSummary(
       item.summary || this.createFallbackSummary(item),
       item.description || "",
       item.title,
     );
+    const rawDescription = this.normalizeDescription(item.description || "");
+    const summary = removeContradictoryDeadlineClaims(
+      rawSummary,
+      closeDate,
+    ) as string;
+    const description = removeContradictoryDeadlineClaims(
+      rawDescription,
+      closeDate,
+    ) as string;
+    const deadlineTextConflict =
+      summary !== rawSummary || description !== rawDescription;
     // Strip whitespace/wrapping junk so stored links are always clickable — a
     // scraped URL with a space in it breaks the "Apply" button on web + mobile.
     const detailUrl = this.sanitizeUrl(item.apply_url) || "";
@@ -3239,6 +3251,7 @@ ${text}`;
       hasCoreContent &&
       !deadlinePassed &&
       !item.deadline_ambiguous &&
+      !deadlineTextConflict &&
       !lowExtractionConfidence;
 
     return {
@@ -3261,7 +3274,7 @@ ${text}`;
       eligibility: item.eligibility ?? {},
       funding_type: item.funding_type ?? null,
       target_region: item.target_region ?? null,
-      description: this.normalizeDescription(item.description || ""),
+      description,
       application_url,
       apply_url: detailUrl || null,
       source_url: detailUrl || sourceUrl || null,
@@ -3297,7 +3310,8 @@ ${text}`;
         enrichment_notes: item.enrichment_notes ?? [],
         enrichment_status: item.enrichment_status ?? "unknown",
         deadline_source_evidence: item.deadline_evidence ?? null,
-        deadline_needs_review: item.deadline_ambiguous ?? false,
+        deadline_needs_review:
+          Boolean(item.deadline_ambiguous) || deadlineTextConflict,
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         deadline_passed_at_scrape: deadlinePassed,

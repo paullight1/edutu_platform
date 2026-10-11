@@ -59,6 +59,7 @@ import {
   publicOpportunityDetailConditions,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
+import { removeContradictoryDeadlineClaims } from "./deadline-description.util";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -2243,16 +2244,30 @@ export class OpportunitiesService {
       this.cleanOptionalText(aiData?.summary) ||
       this.cleanOptionalText(opportunity.summary) ||
       "";
-    const description = this.normalizeDescription(descriptionText);
-    const titleText =
-      this.cleanOptionalText(aiData.title, 220) ||
-      this.cleanOptionalText(opportunity.title, 220) ||
-      "";
-    const summary = this.normalizeSummary(summaryText, description, titleText);
     // Deadline ownership stays with the source verifier. Generated prose can
     // confuse a publication date with an application deadline, so AI
     // enrichment is never allowed to set or replace close_date.
     const closeDate = opportunity.close_date || opportunity.deadline;
+    const rawDescription = this.normalizeDescription(descriptionText);
+    const description = removeContradictoryDeadlineClaims(
+      rawDescription,
+      closeDate,
+    ) as string;
+    const titleText =
+      this.cleanOptionalText(aiData.title, 220) ||
+      this.cleanOptionalText(opportunity.title, 220) ||
+      "";
+    const rawSummary = this.normalizeSummary(
+      summaryText,
+      description,
+      titleText,
+    );
+    const summary = removeContradictoryDeadlineClaims(
+      rawSummary,
+      closeDate,
+    ) as string;
+    const deadlineTextConflict =
+      rawDescription !== description || rawSummary !== summary;
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -2303,6 +2318,8 @@ export class OpportunitiesService {
         extraction_quality_score: qualityScore.score,
         extraction_missing_fields: qualityScore.missingFields,
         needs_review: qualityScore.score < 70,
+        deadline_needs_review:
+          metadata.deadline_needs_review === true || deadlineTextConflict,
       },
       updated_at: new Date().toISOString(),
     };

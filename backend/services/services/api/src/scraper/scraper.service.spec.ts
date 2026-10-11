@@ -741,6 +741,33 @@ describe("ScraperService", () => {
       expect(futureRecord.close_date).toBe(`${nextYear}-03-05`);
       expect(futureRecord.status).toBe("active");
     });
+
+    it("holds a record with prose that contradicts its deadline for review", () => {
+      const item = {
+        title: "Complete Fellowship With Every Field Present",
+        apply_url: "https://source.example.com/post",
+        direct_apply_url: "https://organizer.example.com/apply",
+        image_url: "https://cdn.example.com/hero.jpg",
+        summary:
+          "A fully documented fellowship offering mentorship, funding, and a global cohort experience for early-career professionals across multiple regions.",
+        description:
+          "This fellowship provides a comprehensive programme including a living stipend, dedicated mentorship, and structured training. Applicants join a global cohort and complete a capstone project with placement support after graduation. The application deadline is September 18, 2026.",
+        requirements: ["Bachelor's degree", "Two references"],
+        benefits: ["Stipend", "Mentorship"],
+        application_process: ["Online form", "Interview"],
+        deadline: "October 15, 2026",
+        eligibility: { organization: "Global Fellowship Institute" },
+        source: "Test Source",
+        source_url: "https://source.example.com",
+      };
+
+      const record = (service as any).transformToOpportunity(item, null);
+
+      expect(record.description).not.toContain("September 18, 2026");
+      expect(record.close_date).toBe("2026-10-15");
+      expect(record.validation_status).toBe("needs_review");
+      expect(record.metadata.deadline_needs_review).toBe(true);
+    });
   });
   describe("article identity and pagination regressions", () => {
     function prepare() {

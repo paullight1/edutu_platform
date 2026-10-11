@@ -157,7 +157,9 @@ export default {
     },
     plugins: [
       "expo-router",
+      "expo-audio",
       "expo-localization",
+      "expo-web-browser",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       "@config-plugins/react-native-webrtc",

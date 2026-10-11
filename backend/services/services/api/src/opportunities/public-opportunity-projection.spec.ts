@@ -43,6 +43,7 @@ describe("public-opportunity-projection", () => {
       verificationStatus: "verified",
       lastVerifiedAt: "2026-08-20T12:00:00.000Z",
       deadlineConfidence: "explicit",
+      deadlineNeedsReview: false,
       verificationMethod: "official_source_http",
       sourceDomain: "example.org",
     });
@@ -77,6 +78,7 @@ describe("public-opportunity-projection", () => {
       verificationStatus: "unverified",
       lastVerifiedAt: null,
       deadlineConfidence: null,
+      deadlineNeedsReview: false,
       verificationMethod: null,
       sourceDomain: "apply.example.com",
     });
@@ -92,5 +94,33 @@ describe("public-opportunity-projection", () => {
     expect(second.id).toBe("opp_2");
     expect(second.original_json).toBeUndefined();
     expect(second.trust).toBeDefined();
+  });
+
+  it("removes a stale prose deadline that conflicts with the structured date", () => {
+    const out = stripInternalOpportunityFields({
+      title: "Foundation Scholarship 2026",
+      description:
+        "Applications are open to Nigerian undergraduates. The application deadline is September 18, 2026.",
+      summary: "Apply before September 18, 2026.",
+      close_date: "2026-10-15",
+    });
+
+    expect(out.description).toBe(
+      "Applications are open to Nigerian undergraduates.",
+    );
+    expect(out.summary).toBe("");
+    expect(out.close_date).toBe("2026-10-15");
+    expect(out.trust).toMatchObject({ deadlineNeedsReview: true });
+  });
+
+  it("keeps prose when it agrees with the structured deadline", () => {
+    const out = stripInternalOpportunityFields({
+      description: "The application deadline is October 15, 2026.",
+      close_date: "2026-10-15",
+    });
+
+    expect(out.description).toBe(
+      "The application deadline is October 15, 2026.",
+    );
   });
 });

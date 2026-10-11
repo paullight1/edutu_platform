@@ -21,10 +21,12 @@ export default function TrustSignal({
 
   const checkedAgo = relativeTime(trust.lastVerifiedAt);
   const confidenceNote = deadlineConfidenceNote(trust.deadlineConfidence);
+  const deadlineNeedsReview = trust.deadlineNeedsReview === true;
   const verified = trust.verificationStatus === "verified";
 
   // Nothing worth showing (unverified, never checked, confident deadline).
-  if (!verified && !checkedAgo && !confidenceNote) return null;
+  if (!verified && !checkedAgo && !confidenceNote && !deadlineNeedsReview)
+    return null;
 
   return (
     <div
@@ -33,7 +35,7 @@ export default function TrustSignal({
       {verified ? (
         <span
           className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400"
-          title="Edutu re-checks this opportunity's live page and deadline."
+          title="Edutu checked this opportunity's source page. Confirm key details before applying."
         >
           <BadgeCheck size={11} /> Verified
         </span>
@@ -49,6 +51,15 @@ export default function TrustSignal({
           title={confidenceNote.title}
         >
           <Info size={10} /> {confidenceNote.label}
+        </span>
+      ) : null}
+      {deadlineNeedsReview ? (
+        <span
+          className="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"
+          title="The deadline details conflict across this listing. Check the source page before relying on the date."
+          role="status"
+        >
+          <Info size={11} /> Check deadline
         </span>
       ) : null}
     </div>

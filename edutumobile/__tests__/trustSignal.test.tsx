@@ -38,4 +38,22 @@ describe("TrustSignal", () => {
 
     expect(toJSON()).toBeNull();
   });
+
+  it("warns when the opportunity deadline needs review", () => {
+    const { getByText } = render(
+      <TrustSignal
+        mutedColor="#64748b"
+        trust={{
+          verificationStatus: "unverified",
+          lastVerifiedAt: null,
+          deadlineConfidence: "explicit",
+          deadlineNeedsReview: true,
+          verificationMethod: null,
+          sourceDomain: null,
+        }}
+      />,
+    );
+
+    expect(getByText("Check deadline")).toBeTruthy();
+  });
 });

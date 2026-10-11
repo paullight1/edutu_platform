@@ -6,6 +6,8 @@
  * opportunity is safe to act on. Internal scores, provider ids, verification
  * errors/attempts and scheduling details remain private.
  */
+import { removeContradictoryDeadlineClaims } from "./deadline-description.util";
+
 const INTERNAL_FIELDS = [
   "original_json",
   "originalJson",
@@ -92,11 +94,19 @@ function buildLearnerTrust(row: Record<string, unknown>) {
   const deadlineConfidence = asNonEmptyString(metadata?.deadline_confidence);
   const verificationMethod = asNonEmptyString(metadata?.verification_method);
   const domain = sourceDomain(row);
+  const deadline = row.close_date ?? row.closeDate ?? row.deadline;
+  const hasContradictoryDeadlineText = [row.description, row.summary].some(
+    (text) =>
+      typeof text === "string" &&
+      removeContradictoryDeadlineClaims(text, deadline) !== text,
+  );
 
   return {
     verificationStatus,
     lastVerifiedAt,
     deadlineConfidence,
+    deadlineNeedsReview:
+      metadata?.deadline_needs_review === true || hasContradictoryDeadlineText,
     verificationMethod,
     sourceDomain: domain,
   };
@@ -109,6 +119,14 @@ export function stripInternalOpportunityFields(
   for (const [key, value] of Object.entries(row)) {
     if ((INTERNAL_FIELDS as readonly string[]).includes(key)) continue;
     cleaned[key] = value;
+  }
+
+  const canonicalDeadline = row.close_date ?? row.closeDate ?? row.deadline;
+  for (const field of ["description", "summary"] as const) {
+    cleaned[field] = removeContradictoryDeadlineClaims(
+      cleaned[field],
+      canonicalDeadline,
+    );
   }
 
   const metadata = row.metadata as Record<string, unknown> | null | undefined;

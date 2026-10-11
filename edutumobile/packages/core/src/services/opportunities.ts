@@ -318,6 +318,7 @@ function deriveTrust(row: any, meta: any): OpportunityTrust | null {
           : 'unverified',
       lastVerifiedAt: typeof row.trust.lastVerifiedAt === 'string' ? row.trust.lastVerifiedAt : null,
       deadlineConfidence: normaliseDeadlineConfidence(row.trust.deadlineConfidence),
+      deadlineNeedsReview: row.trust.deadlineNeedsReview === true,
       verificationMethod:
         typeof row.trust.verificationMethod === 'string' ? row.trust.verificationMethod : null,
       sourceDomain: typeof row.trust.sourceDomain === 'string' ? row.trust.sourceDomain : null,
@@ -335,6 +336,7 @@ function deriveTrust(row: any, meta: any): OpportunityTrust | null {
       typeof verificationStatus === 'string' ? verificationStatus : 'unverified',
     lastVerifiedAt: typeof lastVerifiedAt === 'string' ? lastVerifiedAt : null,
     deadlineConfidence: normaliseDeadlineConfidence(confidence),
+    deadlineNeedsReview: meta?.deadline_needs_review === true,
     verificationMethod:
       typeof meta?.verification_method === 'string' ? meta.verification_method : null,
     sourceDomain: opportunitySourceDomain(row),

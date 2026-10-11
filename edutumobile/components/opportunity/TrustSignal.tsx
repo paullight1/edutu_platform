@@ -22,8 +22,9 @@ export function TrustSignal({
 
   const checkedAgo = relativeTime(trust.lastVerifiedAt);
   const note = deadlineConfidenceNote(trust.deadlineConfidence);
+  const deadlineNeedsReview = trust.deadlineNeedsReview === true;
   const verified = trust.verificationStatus === "verified";
-  if (!verified && !checkedAgo && !note) return null;
+  if (!verified && !checkedAgo && !note && !deadlineNeedsReview) return null;
 
   return (
     <View style={styles.row}>
@@ -47,6 +48,14 @@ export function TrustSignal({
         <View style={styles.item}>
           <Info size={12} color={mutedColor} />
           <Text style={[styles.mutedText, { color: mutedColor }]}>{note}</Text>
+        </View>
+      ) : null}
+      {deadlineNeedsReview ? (
+        <View style={styles.item} accessibilityRole="alert">
+          <Info size={12} color="#b45309" />
+          <Text style={[styles.mutedText, styles.deadlineWarning]}>
+            Check deadline
+          </Text>
         </View>
       ) : null}
     </View>
@@ -94,4 +103,5 @@ const styles = StyleSheet.create({
   item: { flexDirection: "row", alignItems: "center", gap: 4 },
   verifiedText: { fontSize: 12, fontWeight: "700" },
   mutedText: { fontSize: 12, fontWeight: "500" },
+  deadlineWarning: { color: "#b45309" },
 });

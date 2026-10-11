@@ -50,6 +50,22 @@ describe("EdutuApiService", () => {
     });
   });
 
+  it("removes prose deadline claims that conflict with the public API date", () => {
+    const result = (service as any).toPublicOpportunity({
+      id: "opp-1",
+      title: "Foundation Scholarship",
+      description:
+        "A scholarship for undergraduates. The application deadline is September 18, 2026.",
+      category: "scholarships",
+      closeDate: new Date("2026-10-15T00:00:00.000Z"),
+      deadline: new Date("2026-10-15T00:00:00.000Z"),
+    });
+
+    expect(result.description).toBe("A scholarship for undergraduates.");
+    expect(result.deadline).toBe("2026-10-15T00:00:00.000Z");
+    expect(result.trust.deadlineNeedsReview).toBe(true);
+  });
+
   it("normalizes category slugs into a public list response", async () => {
     mockedDb.execute.mockResolvedValue({
       rows: [

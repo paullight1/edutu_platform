@@ -247,6 +247,7 @@ function pickOpportunityTrust(value: unknown): OpportunityTrust | null {
     lastVerifiedAt:
       typeof raw.lastVerifiedAt === "string" ? raw.lastVerifiedAt : null,
     deadlineConfidence: normalizeDeadlineConfidence(raw.deadlineConfidence),
+    deadlineNeedsReview: raw.deadlineNeedsReview === true,
     verificationMethod:
       typeof raw.verificationMethod === "string"
         ? raw.verificationMethod

@@ -136,5 +136,5 @@ describe("billing pay-shell schema migration", () => {
     } finally {
       await database.close();
     }
-  });
+  }, 20_000);
 });

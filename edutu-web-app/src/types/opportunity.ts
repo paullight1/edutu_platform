@@ -17,6 +17,7 @@ export interface OpportunityTrust {
   verificationStatus: string;
   lastVerifiedAt: string | null;
   deadlineConfidence: DeadlineConfidence | null;
+  deadlineNeedsReview?: boolean;
   verificationMethod: string | null;
   sourceDomain: string | null;
 }

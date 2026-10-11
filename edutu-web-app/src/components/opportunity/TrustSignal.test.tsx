@@ -36,4 +36,21 @@ describe("TrustSignal", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("warns when the listing has conflicting deadline claims", () => {
+    render(
+      <TrustSignal
+        trust={{
+          verificationStatus: "verified",
+          lastVerifiedAt: null,
+          deadlineConfidence: "explicit",
+          deadlineNeedsReview: true,
+          verificationMethod: "official_source_http",
+          sourceDomain: "example.org",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Check deadline")).toBeVisible();
+  });
 });
