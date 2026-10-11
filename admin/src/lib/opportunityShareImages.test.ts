@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createOpportunityShareImageFile,
+  createOpportunityShareImagePreviewUrl,
   getShareImageFetchTarget,
   getExistingOpportunityImage,
   preserveBrandedSharePayload,
@@ -116,6 +117,52 @@ describe("createOpportunityShareImageFile", () => {
         fetcher as typeof fetch,
       ),
     ).resolves.toBeNull();
+  });
+});
+
+describe("createOpportunityShareImagePreviewUrl", () => {
+  it("loads the original image through the authenticated proxy for previews", async () => {
+    const blob = new Blob(["image"], { type: "image/jpeg" });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, blob: async () => blob });
+    const getAdminHeaders = vi.fn().mockResolvedValue({ Authorization: "Bearer test" });
+    const createObjectUrl = vi.fn().mockReturnValue("blob:preview-image");
+
+    await expect(
+      createOpportunityShareImagePreviewUrl(
+        "https://api.example.org",
+        "opp-1",
+        { url: "https://source.example.org/flyer.jpg", path: "", format: "jpeg" },
+        getAdminHeaders,
+        fetcher as typeof fetch,
+        createObjectUrl,
+      ),
+    ).resolves.toBe("blob:preview-image");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.org/opportunities/admin/opp-1/source-image",
+      { headers: { Authorization: "Bearer test" } },
+    );
+    expect(createObjectUrl).toHaveBeenCalledWith(blob);
+  });
+
+  it("rejects non-image responses instead of previewing an error page", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(["login page"], { type: "text/html" }),
+    });
+    const createObjectUrl = vi.fn();
+
+    await expect(
+      createOpportunityShareImagePreviewUrl(
+        "https://api.example.org",
+        "opp-1",
+        { url: "https://source.example.org/flyer.jpg", path: "", format: "jpeg" },
+        async () => ({}),
+        fetcher as typeof fetch,
+        createObjectUrl,
+      ),
+    ).resolves.toBeNull();
+    expect(createObjectUrl).not.toHaveBeenCalled();
   });
 });
 

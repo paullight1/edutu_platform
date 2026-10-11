@@ -44,6 +44,36 @@ describe("OpportunitySourceImageService", () => {
     );
   });
 
+  it("falls back to the card image when the metadata source image is stale", async () => {
+    const metadataImage = "https://source.example.org/stale.jpg";
+    const cardImage = "https://source.example.org/current.jpg";
+    const image = {
+      buffer: Buffer.from("current-image"),
+      contentType: "image/jpeg",
+      extension: "jpg",
+      sha256: "def456",
+      finalUrl: cardImage,
+    };
+    const opportunitiesService = {
+      findOneForAdmin: jest.fn().mockResolvedValue({
+        image_url: cardImage,
+        metadata: { source_image_url: metadataImage },
+      }),
+    };
+    (fetchSafeImage as jest.Mock)
+      .mockRejectedValueOnce(new Error("stale image returned 404"))
+      .mockResolvedValueOnce(image);
+    const service = new OpportunitySourceImageService(
+      opportunitiesService as any,
+    );
+
+    await expect(service.getForOpportunity("opportunity-1")).resolves.toBe(
+      image,
+    );
+    expect(fetchSafeImage).toHaveBeenNthCalledWith(1, metadataImage);
+    expect(fetchSafeImage).toHaveBeenNthCalledWith(2, cardImage);
+  });
+
   it("does not fetch an image when the opportunity or original image is missing", async () => {
     const opportunitiesService = {
       findOneForAdmin: jest

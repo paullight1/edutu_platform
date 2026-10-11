@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase";
 import { getAdminAuthHeaders } from "../lib/backend";
 import {
   createOpportunityShareImageFile,
+  createOpportunityShareImagePreviewUrl,
   getExistingOpportunityImage,
   preserveBrandedSharePayload,
 } from "../lib/opportunityShareImages";
@@ -1060,8 +1061,8 @@ export default function Opportunities() {
     imageUrl?: string;
     message?: string;
   } | null>(null);
-  // Share links always use the readable Edutu flyer, never an arbitrary
-  // portrait or decorative image scraped from the source page.
+  // Keep source, branded, and AI-created options separate so switching designs
+  // never overwrites or mislabels the original opportunity image.
   const [shareChooser, setShareChooser] = useState<{
     opportunity: Opportunity;
     aiEnhanced: boolean;
@@ -1077,17 +1078,25 @@ export default function Opportunities() {
     preparationError?: string;
   } | null>(null);
   const [sharePreviewFailed, setSharePreviewFailed] = useState(false);
+  const [sourceImagePreview, setSourceImagePreview] = useState<{
+    opportunityId: string;
+    url: string;
+  } | null>(null);
+  const [sourceImagePreviewLoading, setSourceImagePreviewLoading] =
+    useState(false);
+  const [sourceImagePreviewRetry, setSourceImagePreviewRetry] = useState(0);
 
   useEffect(() => {
     if (!sharePreviewFailed || !shareChooser?.payload?.shareCard?.url) return;
+    // Keep the source image selected when its preview fails. Silently switching
+    // designs made a valid original look like it had disappeared on Share.
+    if (shareChooser.selectedDesign === "existing") return;
 
     const failedUrl = shareChooser.payload.shareCard.url;
     const alternatives =
       shareChooser.selectedDesign === "creative"
         ? [shareChooser.brandedPayload]
-        : shareChooser.selectedDesign === "existing"
-          ? [shareChooser.creativePayload, shareChooser.brandedPayload]
-          : [shareChooser.creativePayload];
+        : [shareChooser.creativePayload];
     const fallback = alternatives.find(
       (candidate) =>
         candidate?.shareCard?.url && candidate.shareCard.url !== failedUrl,
@@ -1106,6 +1115,7 @@ export default function Opportunities() {
         : current,
     );
   }, [sharePreviewFailed, shareChooser]);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
@@ -1158,6 +1168,53 @@ export default function Opportunities() {
       "Content-Type": "application/json",
     });
   }, []);
+
+  useEffect(() => {
+    const opportunityId = shareChooser?.opportunity.id;
+    const existingImage = shareChooser?.existingImage;
+    if (
+      !opportunityId ||
+      !existingImage ||
+      shareChooser?.selectedDesign !== "existing"
+    ) {
+      setSourceImagePreviewLoading(false);
+      setSourceImagePreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setSourceImagePreviewLoading(true);
+    void createOpportunityShareImagePreviewUrl(
+      NEST_API_URL,
+      opportunityId,
+      existingImage,
+      getAdminHeaders,
+    ).then((previewUrl) => {
+      objectUrl = previewUrl;
+      if (cancelled) {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        return;
+      }
+      setSourceImagePreviewLoading(false);
+      setSourceImagePreview(
+        previewUrl ? { opportunityId, url: previewUrl } : null,
+      );
+      setSharePreviewFailed(!previewUrl);
+    });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [
+    NEST_API_URL,
+    getAdminHeaders,
+    shareChooser?.existingImage,
+    shareChooser?.opportunity.id,
+    shareChooser?.selectedDesign,
+    sourceImagePreviewRetry,
+  ]);
 
   // One param builder for both the page fetch and "Select all N matching",
   // so the selection loop can never drift from what the list shows.
@@ -4675,7 +4732,7 @@ export default function Opportunities() {
         </div>
       )}
 
-      {/* Share image chooser — always use the details-based Edutu flyer */}
+      {/* Share image chooser: current source, Edutu template, or AI flyer. */}
       {shareChooser && (
         <div
           className="modal-overlay"
@@ -4836,7 +4893,13 @@ export default function Opportunities() {
                           : shareChooser.selectedDesign === "existing"
                             ? "The image shown on this opportunity card"
                             : "Use Edutu’s clean, text-accurate flyer design",
-                      imageUrl: shareChooser.payload?.shareCard?.url || "",
+                      imageUrl:
+                        shareChooser.selectedDesign === "existing"
+                          ? sourceImagePreview?.opportunityId ===
+                            shareChooser.opportunity.id
+                            ? sourceImagePreview.url
+                            : ""
+                          : shareChooser.payload?.shareCard?.url || "",
                       badge:
                         shareChooser.selectedDesign === "creative" ? (
                           <Sparkles size={11} />
@@ -4847,7 +4910,7 @@ export default function Opportunities() {
                   ].map((option) => {
                     const available =
                       Boolean(option.imageUrl) && !sharePreviewFailed;
-                    const selected = available;
+                    const selected = !sharePreviewFailed;
                     return (
                       <div
                         key={option.imageUrl || option.key}
@@ -4881,7 +4944,28 @@ export default function Opportunities() {
                             overflow: "hidden",
                           }}
                         >
-                          {available ? (
+                          {shareChooser.selectedDesign === "existing" &&
+                          sourceImagePreviewLoading ? (
+                            <div
+                              role="status"
+                              aria-live="polite"
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 10,
+                                padding: 20,
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              <Loader2
+                                size={24}
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                              <span>Loading original image…</span>
+                            </div>
+                          ) : available ? (
                             <img
                               src={option.imageUrl}
                               alt={option.label}
@@ -4906,22 +4990,35 @@ export default function Opportunities() {
                               }}
                             >
                               <Sparkles size={22} />
-                              <span>Flyer preview could not be loaded.</span>
+                              <span>
+                                {shareChooser.selectedDesign === "existing"
+                                  ? "The original image preview could not be loaded."
+                                  : "Flyer preview could not be loaded."}
+                              </span>
                               <button
                                 type="button"
                                 className="btn btn-secondary"
                                 disabled={generatingImageIds.has(
                                   shareChooser.opportunity.id,
                                 )}
-                                onClick={() =>
-                                  void handleRegenerateSharePreview()
-                                }
+                                onClick={() => {
+                                  if (
+                                    shareChooser.selectedDesign === "existing"
+                                  ) {
+                                    setSharePreviewFailed(false);
+                                    setSourceImagePreviewRetry((retry) => retry + 1);
+                                  } else {
+                                    void handleRegenerateSharePreview();
+                                  }
+                                }}
                               >
-                                {generatingImageIds.has(
+                                {shareChooser.selectedDesign === "existing"
+                                  ? "Retry original image"
+                                  : generatingImageIds.has(
                                   shareChooser.opportunity.id,
-                                )
-                                  ? "Generating AI flyer…"
-                                  : "Generate AI flyer"}
+                                    )
+                                    ? "Generating AI flyer…"
+                                    : "Generate AI flyer"}
                               </button>
                             </div>
                           )}
@@ -5099,6 +5196,7 @@ export default function Opportunities() {
                 disabled={
                   shareChooser.sharing ||
                   shareChooser.preparing ||
+                  sourceImagePreviewLoading ||
                   sharePreviewFailed ||
                   !shareChooser.payload?.shareCard?.url
                 }

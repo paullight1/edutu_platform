@@ -66,6 +66,33 @@ export async function createOpportunityShareImageFile(
   }
 }
 
+/** Load a previewable URL without exposing admin credentials to source hosts. */
+export async function createOpportunityShareImagePreviewUrl(
+  apiBaseUrl: string,
+  opportunityId: string,
+  image: OpportunityShareImage | null | undefined,
+  getAdminHeaders: () => Promise<HeadersInit>,
+  fetcher: typeof fetch = fetch,
+  createObjectUrl: (blob: Blob) => string = (blob) => URL.createObjectURL(blob),
+): Promise<string | null> {
+  if (!image?.url) return null;
+
+  try {
+    const target = getShareImageFetchTarget(apiBaseUrl, opportunityId, image);
+    const response = await fetcher(
+      target.url,
+      target.requiresAdminAuth ? { headers: await getAdminHeaders() } : undefined,
+    );
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    if (!blob.type.toLowerCase().startsWith("image/")) return null;
+    return createObjectUrl(blob);
+  } catch {
+    return null;
+  }
+}
+
 interface OpportunityImageSources {
   image_url?: unknown;
   metadata?: Record<string, unknown> | null;

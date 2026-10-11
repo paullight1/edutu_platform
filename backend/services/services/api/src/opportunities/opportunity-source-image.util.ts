@@ -19,17 +19,25 @@ function isOriginalHttpImageUrl(value: unknown): value is string {
   }
 }
 
-export function getOpportunitySourceImageUrl(
+export function getOpportunitySourceImageUrls(
   opportunity: OpportunityImageRecord,
-): string | null {
+): string[] {
   const metadata =
     opportunity.metadata && typeof opportunity.metadata === "object"
       ? (opportunity.metadata as Record<string, unknown>)
       : {};
 
-  return (
-    [metadata.source_image_url, opportunity.image_url].find(
-      isOriginalHttpImageUrl,
-    ) ?? null
+  return Array.from(
+    new Set(
+      [metadata.source_image_url, opportunity.image_url].filter(
+        isOriginalHttpImageUrl,
+      ),
+    ),
   );
+}
+
+export function getOpportunitySourceImageUrl(
+  opportunity: OpportunityImageRecord,
+): string | null {
+  return getOpportunitySourceImageUrls(opportunity)[0] ?? null;
 }

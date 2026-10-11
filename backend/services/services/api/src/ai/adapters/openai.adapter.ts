@@ -10,6 +10,35 @@ import { aiFetch } from "./ai-http";
 const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** OpenAI strict structured outputs require closed objects and every field. */
+function toStrictJsonSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toStrictJsonSchema);
+  if (!isRecord(value)) return value;
+
+  const schema = Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      toStrictJsonSchema(child),
+    ]),
+  );
+  const type = schema.type;
+  const isObject =
+    type === "object" || (Array.isArray(type) && type.includes("object"));
+
+  if (isObject) {
+    const properties = isRecord(schema.properties) ? schema.properties : {};
+    schema.properties = properties;
+    schema.required = Object.keys(properties);
+    schema.additionalProperties = false;
+  }
+
+  return schema;
+}
+
 @Injectable()
 export class OpenAiAdapter implements AiProviderAdapter {
   readonly provider = "openai";
@@ -85,7 +114,7 @@ export class OpenAiAdapter implements AiProviderAdapter {
           json_schema: {
             name: "edutu_response",
             strict: true,
-            schema: options.responseJsonSchema,
+            schema: toStrictJsonSchema(options.responseJsonSchema),
           },
         }
       : wantsJson
