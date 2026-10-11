@@ -889,6 +889,7 @@ export default function Opportunities() {
   const [sourceImagePreview, setSourceImagePreview] = useState<{
     opportunityId: string;
     url: string;
+    source: "original" | "proxy";
   } | null>(null);
   const [sourceImagePreviewLoading, setSourceImagePreviewLoading] =
     useState(false);
@@ -988,6 +989,19 @@ export default function Opportunities() {
       return;
     }
 
+    // Render the same public image URL already used by the opportunity card.
+    // <img> does not need CORS permission to display it, while fetching it as a
+    // Blob does. Only use our authenticated proxy if the direct preview fails.
+    if (sourceImagePreviewRetry === 0) {
+      setSourceImagePreviewLoading(false);
+      setSourceImagePreview({
+        opportunityId,
+        url: existingImage.url,
+        source: "original",
+      });
+      return;
+    }
+
     let cancelled = false;
     let objectUrl: string | null = null;
     setSourceImagePreviewLoading(true);
@@ -1004,7 +1018,9 @@ export default function Opportunities() {
       }
       setSourceImagePreviewLoading(false);
       setSourceImagePreview(
-        previewUrl ? { opportunityId, url: previewUrl } : null,
+        previewUrl
+          ? { opportunityId, url: previewUrl, source: "proxy" }
+          : null,
       );
       setSharePreviewFailed(!previewUrl);
     });
@@ -2042,6 +2058,7 @@ export default function Opportunities() {
   async function handleShareOpportunity(opp: Opportunity) {
     setSharingIds((prev) => new Set(prev).add(opp.id));
     setSharePreviewFailed(false);
+    setSourceImagePreviewRetry(0);
     const existingImage = getExistingOpportunityImage(opp);
     const savedFlyer = getGeneratedOpportunityFlyer(opp);
     const savedCreativePayload = savedFlyer ? { shareCard: savedFlyer } : null;
@@ -4775,7 +4792,20 @@ export default function Opportunities() {
                             <img
                               src={option.imageUrl}
                               alt={option.label}
-                              onError={() => setSharePreviewFailed(true)}
+                              onError={() => {
+                                if (
+                                  shareChooser.selectedDesign === "existing" &&
+                                  sourceImagePreview?.opportunityId ===
+                                    shareChooser.opportunity.id &&
+                                  sourceImagePreview.source === "original"
+                                ) {
+                                  setSharePreviewFailed(false);
+                                  setSourceImagePreviewLoading(true);
+                                  setSourceImagePreviewRetry(1);
+                                  return;
+                                }
+                                setSharePreviewFailed(true);
+                              }}
                               style={{
                                 width: "100%",
                                 height: "100%",
@@ -4812,7 +4842,7 @@ export default function Opportunities() {
                                     shareChooser.selectedDesign === "existing"
                                   ) {
                                     setSharePreviewFailed(false);
-                                    setSourceImagePreviewRetry((retry) => retry + 1);
+                                    setSourceImagePreviewRetry(0);
                                   } else {
                                     void handleRegenerateSharePreview();
                                   }
@@ -4916,6 +4946,7 @@ export default function Opportunities() {
                         }
                         onClick={() => {
                           setSharePreviewFailed(false);
+                          setSourceImagePreviewRetry(0);
                           setShareChooser((current) =>
                             current?.existingImage
                               ? {

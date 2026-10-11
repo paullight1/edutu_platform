@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -175,19 +175,8 @@ describe("opportunity share image chooser", () => {
     const originalPreview = await screen.findByRole("img", {
       name: "Current opportunity image",
     });
-    expect(originalPreview).toHaveAttribute(
-      "src",
-      "blob:source-opportunity-image",
-    );
-    expect(createPreviewUrl).toHaveBeenCalledWith(
-      expect.any(String),
-      opportunity.id,
-      expect.objectContaining({
-        url: opportunity.metadata.source_image_url,
-        format: "jpeg",
-      }),
-      expect.any(Function),
-    );
+    expect(originalPreview).toHaveAttribute("src", opportunity.image_url);
+    expect(createPreviewUrl).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() => expect(shareMock).toHaveBeenCalledOnce());
@@ -198,5 +187,38 @@ describe("opportunity share image chooser", () => {
     expect(shareData.files[0].name).toBe(
       "wcsj2027-travel-fellowship-in-london-edutu.jpeg",
     );
+  });
+
+  it("falls back to the authenticated image proxy when the original URL fails", async () => {
+    const user = userEvent.setup();
+    render(<Opportunities />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: `Share ${opportunity.title}`,
+      }),
+    );
+
+    const originalPreview = await screen.findByRole("img", {
+      name: "Current opportunity image",
+    });
+    expect(originalPreview).toHaveAttribute("src", opportunity.image_url);
+
+    fireEvent.error(originalPreview);
+
+    await waitFor(() => {
+      expect(createPreviewUrl).toHaveBeenCalledWith(
+        expect.any(String),
+        opportunity.id,
+        expect.objectContaining({
+          url: opportunity.metadata.source_image_url,
+          format: "jpeg",
+        }),
+        expect.any(Function),
+      );
+    });
+    expect(
+      await screen.findByRole("img", { name: "Current opportunity image" }),
+    ).toHaveAttribute("src", "blob:source-opportunity-image");
   });
 });
