@@ -15,6 +15,18 @@ realtimeChannel.subscribe.mockReturnValue(realtimeChannel);
 
 vi.mock("../lib/supabase", () => ({
   supabase: {
+    auth: {
+      getSession: vi.fn(async () => ({
+        data: {
+          session: {
+            access_token: "test-access-token",
+            user: { email: "admin@edutu.org" },
+          },
+        },
+      })),
+      refreshSession: vi.fn(async () => ({ data: { session: null } })),
+      signOut: vi.fn(async () => ({ error: null })),
+    },
     channel: vi.fn(() => realtimeChannel),
     removeChannel: vi.fn(),
   },
