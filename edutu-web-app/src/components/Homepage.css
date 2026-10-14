@@ -199,7 +199,7 @@
   width: fit-content;
   max-width: min(100%, 680px);
   margin-bottom: 2rem;
-  padding: 0.3rem 2.6rem 0.3rem 0.4rem;
+  padding: 0.3rem 0.4rem;
   border: 1px solid rgb(191 219 254 / 0.26);
   border-radius: 999px;
   background: rgb(255 255 255 / 0.09);
@@ -521,11 +521,11 @@
 .dark .homepage-hero-wave { opacity:0.15; }
 @media(max-width:760px) {
 .homepage-header-inner { min-height:72px; width:calc(100% - 32px); }
-.homepage-logo span { display:none; }
+.homepage-logo span { display:inline; }
 .homepage-logo img { width:40px; height:40px; }
 .homepage-header-actions { gap:8px; }
 .homepage-login { font-size:0.9rem; margin:0; }
-.homepage-hero { min-height:0; padding:48px 22px; margin:0 6px; border-radius:18px; align-items:center; }
+.homepage-hero { min-height:0; padding:84px 22px; margin:0 6px; border-radius:18px; align-items:center; }
 .homepage-hero-content { text-align:left; }
 .homepage-announcement { margin:0 0 30px; }
 .homepage-announcement > a { font-size:0.78rem; }

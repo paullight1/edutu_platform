@@ -52,7 +52,7 @@ export default function CookieConsent() {
           animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           exit={reduceMotion ? undefined : { opacity: 0, y: 24 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="fixed inset-x-0 bottom-0 z-[70] w-full border-t border-white/15 bg-[#0f1a2d] text-white shadow-[0_-18px_50px_-30px_rgba(2,6,23,.9)]"
+          className="fixed inset-x-0 bottom-0 z-[90] w-full border-t border-white/15 bg-[#0f1a2d] text-white shadow-[0_-18px_50px_-30px_rgba(2,6,23,.9)]"
         >
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-4 sm:px-6 lg:flex-row lg:items-center lg:gap-6 lg:px-8 lg:py-5">
             <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">

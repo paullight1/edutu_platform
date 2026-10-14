@@ -5,7 +5,6 @@ import {
     Clock,
     User,
     ChevronDown,
-    X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -204,7 +203,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [announcement, setAnnouncement] = useState<WebAnnouncement>(
         DEFAULT_WEB_ANNOUNCEMENT,
     );
-    const [announcementDismissed, setAnnouncementDismissed] = useState(false);
     const [opportunitySelection] = useState(() => ({
         seed: createOpportunityShuffleSeed(),
         selectedAt: new Date(),
@@ -259,6 +257,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const showOpportunitySkeletons = opportunitiesLoading && selectedOpportunities.length === 0;
     const opportunitiesUnavailable = !opportunitiesLoading && selectedOpportunities.length === 0;
     const showBlogSection = blogLoading || blogArticles.length > 0;
+    const announcementText = announcement.text === 'Help Edutu For You reach 1 million young people with access to global opportunities.'
+        ? 'Help 1 million young people find their next opportunity.'
+        : announcement.text;
     const announcementUrl = normalizeWebLink(announcement.linkUrl, '/edutuforyou');
     const announcementIsExternal = announcementUrl.startsWith('https://');
 
@@ -285,14 +286,13 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 <section className="homepage-hero" id="platform" aria-labelledby="homepage-hero-title">
                     <div className="homepage-hero-field" aria-hidden="true"><div className="homepage-hero-dots" /><div className="homepage-hero-wave" /></div>
                     <div className="homepage-hero-content">
-                        {announcement.enabled && announcement.text && !announcementDismissed && (
+                        {announcement.enabled && announcement.text && (
                             <aside className="homepage-announcement" aria-label="Edutu announcement">
                                 {announcementIsExternal ? (
-                                    <a href={announcementUrl} target="_blank" rel="noopener noreferrer" aria-label={`${announcement.text} — ${announcement.linkLabel}`}><span>{announcement.text}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></a>
+                                    <a href={announcementUrl} target="_blank" rel="noopener noreferrer" aria-label={`${announcementText} — ${announcement.linkLabel}`}><span>{announcementText}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></a>
                                 ) : (
-                                    <Link to={announcementUrl} aria-label={`${announcement.text} — ${announcement.linkLabel}`}><span>{announcement.text}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></Link>
+                                    <Link to={announcementUrl} aria-label={`${announcementText} — ${announcement.linkLabel}`}><span>{announcementText}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></Link>
                                 )}
-                                <button type="button" className="homepage-announcement-dismiss" aria-label="Dismiss announcement" onClick={() => setAnnouncementDismissed(true)}><X size={15} /></button>
                             </aside>
                         )}
                         <motion.h1 id="homepage-hero-title" initial={reduceMotion ? undefined : { opacity: 0, y: 24 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="homepage-hero-title">
@@ -302,7 +302,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             Scholarships, internships, and career programs — all in one place.<br />Find your fit and take your next step with Edutu.
                         </motion.p>
                         <motion.div initial={reduceMotion ? undefined : { opacity: 0, y: 16 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.24 }} className="homepage-hero-actions">
-                            <button type="button" onClick={onGetStarted} className="homepage-button homepage-button-white">Get started free</button>
+                            <button type="button" onClick={onGetStarted} className="homepage-button homepage-button-blue">Get started free</button>
                         </motion.div>
                     </div>
                 </section>

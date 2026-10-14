@@ -23,7 +23,7 @@ export interface WebAnnouncement {
 
 export const DEFAULT_WEB_ANNOUNCEMENT: WebAnnouncement = {
   enabled: true,
-  text: "Help Edutu For You reach 1 million young people with access to global opportunities.",
+  text: "Help 1 million young people find their next opportunity.",
   linkUrl: "/edutuforyou",
   linkLabel: "See Edutu For You",
 };
