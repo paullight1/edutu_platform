@@ -6,6 +6,7 @@ export default function ReleaseUpdateNotice() {
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [mobileBottom, setMobileBottom] = useState<number | null>(null);
   useEffect(() => {
     if (!import.meta.env.PROD || Capacitor.isNativePlatform()) return;
     let disposed = false;
@@ -36,6 +37,38 @@ export default function ReleaseUpdateNotice() {
       window.removeEventListener('release-refresh-request', requested);
     };
   }, []);
+  useEffect(() => {
+    const compact = window.matchMedia('(max-width: 767px)');
+    let observedGate: HTMLElement | null = null;
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => sync());
+    const sync = () => {
+      const gate = compact.matches ? document.querySelector<HTMLElement>('[data-google-sign-in-gate]') : null;
+      if (gate !== observedGate) {
+        resizeObserver?.disconnect();
+        observedGate = gate;
+        if (gate) resizeObserver?.observe(gate);
+      }
+      if (!gate) {
+        setMobileBottom(null);
+        return;
+      }
+      // Put the update card just above the sign-in invitation. Measuring the
+      // actual card avoids relying on :has() support or a guessed card height.
+      const gateTop = gate.getBoundingClientRect().top;
+      setMobileBottom(Math.max(16, Math.ceil(window.innerHeight - gateTop + 12)));
+    };
+    const mutationObserver = new MutationObserver(sync);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    compact.addEventListener('change', sync);
+    window.addEventListener('resize', sync);
+    sync();
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+      compact.removeEventListener('change', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, []);
   const refresh = async () => {
     setBusy(true);
     setMessage('');
@@ -46,7 +79,7 @@ export default function ReleaseUpdateNotice() {
     finally { setBusy(false); }
   };
   if (!available) return null;
-  return <aside data-release-refresh role="status" aria-live="polite" className="fixed bottom-20 left-4 right-4 z-[100] mx-auto max-w-md rounded-2xl border border-blue-400/30 bg-slate-950 p-4 text-white shadow-xl">
+  return <aside data-release-refresh role="status" aria-live="polite" style={mobileBottom === null ? undefined : { bottom: `calc(${mobileBottom}px + env(safe-area-inset-bottom))` }} className="fixed bottom-20 left-4 right-4 z-[100] mx-auto max-w-md rounded-2xl border border-blue-400/30 bg-slate-950 p-4 text-white shadow-xl">
     <p className="font-semibold">Top100 has been updated</p>
     {message && <p className="mt-2 text-sm">{message}</p>}
     <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
