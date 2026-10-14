@@ -35,7 +35,7 @@ it('does not show a notice for the running release', async () => {
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
 });
 
-it('stacks the release notice above the sign-in invitation on narrow screens', async () => {
+it('lifts the sign-in invitation above the release notice on narrow screens', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) }));
@@ -43,7 +43,6 @@ it('stacks the release notice above the sign-in invitation on narrow screens', a
     matches: query === '(max-width: 767px)', media: query, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
   }));
-  vi.stubGlobal('innerHeight', 932);
   const gate = document.createElement('aside');
   gate.dataset.googleSignInGate = '';
   vi.spyOn(gate, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 560, 390, 352));
@@ -52,7 +51,9 @@ it('stacks the release notice above the sign-in invitation on narrow screens', a
   try {
     render(<ReleaseUpdateNotice />);
     const notice = await screen.findByText('Top100 has been updated');
-    expect(notice.closest('[data-release-refresh]')).toHaveStyle({ bottom: 'calc(384px + env(safe-area-inset-bottom))' });
+    await waitFor(() => expect(gate.style.bottom).toBe('calc(28px + env(safe-area-inset-bottom))'));
+    expect(notice.closest('[data-release-refresh]')).toHaveClass('bottom-4');
+    expect(notice).toHaveStyle({ color: '#fff' });
   } finally {
     gate.remove();
   }
