@@ -356,6 +356,29 @@ async function loadSnapshotOpportunities() {
   }
 }
 
+async function hasLastKnownGoodSitemaps() {
+  try {
+    const [index, pages, blog, opportunities, events] = await Promise.all(
+      [
+        "sitemap.xml",
+        "sitemaps/pages.xml",
+        "sitemaps/blog.xml",
+        "sitemaps/opportunities.xml",
+        "sitemaps/events.xml",
+      ].map((file) => readFile(path.join(publicDir, file), "utf8")),
+    );
+    return (
+      index.includes("<sitemapindex") &&
+      pages.includes("<urlset") &&
+      blog.includes("<urlset") &&
+      opportunities.includes("<urlset") &&
+      events.includes("<urlset")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function integerEnvironment(name, fallback) {
   if (process.env[name] === undefined || process.env[name] === "") {
     return fallback;
@@ -412,9 +435,14 @@ async function generate() {
       ]);
     } catch (error) {
       if (strictRemote) {
-        throw new Error(
-          `Configured SEO API could not be read: ${error instanceof Error ? error.message : String(error)}`,
+        const message = error instanceof Error ? error.message : String(error);
+        if (!(await hasLastKnownGoodSitemaps())) {
+          throw new Error(`Configured SEO API could not be read: ${message}`);
+        }
+        console.warn(
+          `Configured SEO API could not be read (${message}); retaining the checked-in sitemap snapshot for this build.`,
         );
+        return;
       }
       console.warn(
         `SEO API unavailable; generating an offline fallback: ${error instanceof Error ? error.message : String(error)}`,
