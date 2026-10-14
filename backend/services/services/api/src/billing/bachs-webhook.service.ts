@@ -179,6 +179,18 @@ export class BachsWebhookService {
         await this.markProcessed(tx, insertedRow.id);
         return { status: "processed" as const };
       }
+      if (
+        [
+          "refund.created",
+          "refund.paid",
+          "refund.failed",
+          "dispute.created",
+          "dispute.updated",
+        ].includes(event.type)
+      ) {
+        await this.handleReversalEvent(tx, insertedRow.id, event);
+        return { status: "review" as const };
+      }
       if (event.type !== "collection.succeeded") {
         if (
           [
@@ -352,6 +364,89 @@ export class BachsWebhookService {
 
     await this.markProcessed(tx, eventRowId);
     return "processed";
+  }
+
+  /**
+   * Refund state is asynchronous and must be reconciled against Bachs before
+   * changing access. A dispute is different: suspend only the exact one-time
+   * grant tied to its already-verified charge, then leave an operator case.
+   */
+  private async handleReversalEvent(
+    tx: CreditPurchaseTransaction,
+    eventRowId: unknown,
+    event: BachsWebhookEvent,
+  ): Promise<void> {
+    const data = event.data;
+    const chargeId = stringValue(data.charge_id);
+    const refundId = stringValue(data.refund_id);
+    const disputeId = stringValue(data.dispute_id);
+    const paymentResult = chargeId
+      ? await tx.execute(sql`
+          select user_id, amount_minor, currency
+          from public.billing_payment_ledger
+          where provider = 'bachs'
+            and environment = ${this.config.environment}
+            and provider_resource_id = ${chargeId}
+            and entry_kind = 'charge'
+          limit 1
+        `)
+      : null;
+    const payment = paymentResult
+      ? (paymentResult as { rows?: Array<JsonRecord> }).rows?.[0]
+      : undefined;
+    const userId = stringValue(payment?.user_id);
+    const isDispute = event.type.startsWith("dispute.");
+
+    if (isDispute && event.type === "dispute.created" && chargeId && payment) {
+      await tx.execute(sql`
+        update public.billing_entitlement_grants
+        set status = 'revoked', revoked_at = ${event.createdAt}::timestamptz,
+            revoke_reason = 'provider_dispute_created', updated_at = now()
+        where provider = 'bachs'
+          and environment = ${this.config.environment}
+          and source_kind = 'payment'
+          and source_resource_id = ${chargeId}
+          and status = 'active'
+          and revoked_at is null
+      `);
+    }
+
+    const reason =
+      !chargeId || !payment
+        ? "provider_reversal_payment_not_found"
+        : isDispute
+          ? "provider_dispute_requires_review"
+          : "provider_refund_requires_reconciliation";
+    const safeDetails = {
+      eventId: event.id,
+      eventType: event.type,
+      chargeId,
+      refundId,
+      disputeId,
+      providerStatus: stringValue(data.status),
+      amount: stringValue(data.amount) ?? stringValue(data.refunded_amount),
+      currency: stringValue(data.currency)?.toUpperCase() ?? null,
+      paymentAmountMinor:
+        payment?.amount_minor == null ? null : String(payment.amount_minor),
+      paymentCurrency: stringValue(payment?.currency)?.toUpperCase() ?? null,
+      accessSuspended: Boolean(
+        isDispute && event.type === "dispute.created" && chargeId && payment,
+      ),
+      reconciliationRequired: !isDispute,
+    };
+    await tx.execute(sql`
+      insert into public.billing_review_cases (
+        provider, environment, event_id, user_id, case_type, details
+      ) values (
+        'bachs', ${this.config.environment}, ${eventRowId}, ${userId}, ${reason},
+        ${JSON.stringify(safeDetails)}::jsonb
+      )
+    `);
+    await tx.execute(sql`
+      update public.billing_provider_events
+      set status = 'review', last_error = ${reason}, updated_at = now()
+      where id = ${eventRowId}
+    `);
   }
 
   private async fulfillCollection(

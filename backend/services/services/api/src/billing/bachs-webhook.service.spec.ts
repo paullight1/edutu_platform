@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import {
   BachsWebhookService,
@@ -207,6 +208,105 @@ describe("BachsWebhookService", () => {
       }).handle(signed.rawBody, signed.timestamp, signed.signature),
     ).resolves.toEqual({ status: "review" });
     expect(tx.execute).toHaveBeenCalledTimes(5);
+  });
+
+  it("routes refund lifecycle events to reconciliation review", async () => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-refund" }] })
+        .mockResolvedValueOnce({
+          rows: [{ user_id: "user_123", amount_minor: "499", currency: "USD" }],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent("refund.paid", {
+      refund_id: "rf_1234567890abcdef",
+      refunded_amount: "4.99",
+      status: "paid",
+    });
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "review" });
+
+    // Event receipt, exact charge lookup, review case, then inbox transition.
+    expect(tx.execute).toHaveBeenCalledTimes(4);
+    const queries = tx.execute.mock.calls.map(
+      ([statement]) => new PgDialect().sqlToQuery(statement).sql,
+    );
+    expect(queries[1]).toContain("billing_payment_ledger");
+    expect(queries[2]).toContain("billing_review_cases");
+    expect(queries[2]).not.toContain("billing_entitlement_grants");
+  });
+
+  it("suspends only the entitlement tied to a matched disputed charge", async () => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-dispute" }] })
+        .mockResolvedValueOnce({
+          rows: [{ user_id: "user_123", amount_minor: "499", currency: "USD" }],
+        })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent("dispute.created", {
+      dispute_id: "dp_1234567890abcdef",
+    });
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "review" });
+
+    // Event receipt, exact charge lookup, matching grant suspension, case, inbox.
+    expect(tx.execute).toHaveBeenCalledTimes(5);
+    const queries = tx.execute.mock.calls.map(
+      ([statement]) => new PgDialect().sqlToQuery(statement).sql,
+    );
+    expect(queries[1]).toContain("billing_payment_ledger");
+    expect(queries[2]).toContain("billing_entitlement_grants");
+    expect(queries[2]).toContain("source_resource_id");
+    expect(queries[3]).toContain("billing_review_cases");
+  });
+
+  it("does not suspend access when a disputed charge cannot be matched", async () => {
+    const tx = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-row-orphan-dispute" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValue({ rows: [] }),
+    };
+    jest
+      .spyOn(db, "transaction")
+      .mockImplementation(async (callback) => callback(tx as never));
+
+    const signed = signedEvent("dispute.created", {
+      charge_id: "ch_unmatched_123",
+      dispute_id: "dp_orphan_123",
+    });
+    await expect(
+      new BachsWebhookService(config, {
+        clock: () => Date.parse("2026-08-11T12:00:00.000Z"),
+      }).handle(signed.rawBody, signed.timestamp, signed.signature),
+    ).resolves.toEqual({ status: "review" });
+
+    const queries = tx.execute.mock.calls.map(
+      ([statement]) => new PgDialect().sqlToQuery(statement).sql,
+    );
+    expect(queries).toHaveLength(4);
+    expect(queries.join(" ")).not.toContain("billing_entitlement_grants");
+    expect(queries[2]).toContain("billing_review_cases");
   });
 
   it("does not downgrade a fulfilled intent when a late failure arrives", async () => {
