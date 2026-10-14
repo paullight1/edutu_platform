@@ -3,7 +3,7 @@ name: CI
 # The backend runtime supports Node 22.12 and newer. Its Jest E2E harness needs
 # Node 24.9+ to load the sanitizer's ESM-only HTML parser under Jest; the
 # backend lint job stays on Node 22 to cover the minimum supported runtime.
-# Frontend/mobile/voice jobs also use Node 22.
+# Frontend/mobile/voice/payment-shell jobs also use Node 22.
 
 on:
   push:
@@ -316,6 +316,28 @@ jobs:
       - run: npm ci
       - run: npm run test
 
+  pay-shell:
+    name: Payment Shell Tests + Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pay-edutu-org
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: pay-edutu-org/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -335,6 +357,8 @@ jobs:
         # Audit the deployed runtime graph. Build-only Tailwind/PostCSS packages
         # currently carry upstream advisories with no compatible fixed release.
         run: cd edutu-web-app && npm ci && npm audit --omit=dev --audit-level=high
+      - name: Payment shell production dependency audit
+        run: cd pay-edutu-org && npm ci && npm audit --omit=dev --audit-level=high
       - name: Mobile install
         run: cd edutumobile && npm ci
       - name: Mobile high/critical policy audit
