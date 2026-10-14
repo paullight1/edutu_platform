@@ -31,6 +31,7 @@ import {
 } from "../services/opportunities";
 import { buildPageHref, parsePageParam } from "../lib/seoPagination";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+import { cleanOpportunityText } from "../lib/opportunityContent";
 import ImageWithFallback from "./ImageWithFallback";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
@@ -267,7 +268,9 @@ function formatDeadline(value: string | null | undefined): string {
 }
 
 function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
-  const summary = opportunity.summary || opportunity.description;
+  const summary = cleanOpportunityText(
+    opportunity.summary || opportunity.description,
+  );
   const image =
     opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
   const needsDeadlineReview =

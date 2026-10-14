@@ -26,3 +26,27 @@ describe("getPublicApiBaseUrl", () => {
     expect(getPublicApiBaseUrl()).toBe("https://api.example.test/v1");
   });
 });
+
+describe("getDocsUrl", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each(["", "/none", "none", "null", "//docs.example.test"]) (
+    "falls back to in-app docs for invalid configuration %s",
+    async (value) => {
+      vi.stubEnv("VITE_DOCS_URL", value);
+      const { getDocsUrl, isExternalDocsUrl } = await import("../../lib/apiProductUrls");
+      expect(getDocsUrl()).toBe("/developers/docs");
+      expect(isExternalDocsUrl()).toBe(false);
+    },
+  );
+
+  it("accepts a valid hosted docs URL", async () => {
+    vi.stubEnv("VITE_DOCS_URL", "https://docs.example.test");
+    const { getDocsUrl, isExternalDocsUrl } = await import("../../lib/apiProductUrls");
+    expect(getDocsUrl()).toBe("https://docs.example.test");
+    expect(isExternalDocsUrl()).toBe(true);
+  });
+});

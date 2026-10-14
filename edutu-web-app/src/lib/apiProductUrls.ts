@@ -24,7 +24,15 @@ export function getOpenApiUrl(): string {
  */
 export function getDocsUrl(): string {
   const configured = import.meta.env.VITE_DOCS_URL?.trim();
-  return configured || '/developers/docs';
+  if (!configured || /^(?:none|null|undefined|placeholder)$/i.test(configured)) {
+    return '/developers/docs';
+  }
+  if (/^https?:\/\//i.test(configured)) return configured;
+  if (configured.startsWith('/') && !configured.startsWith('//') &&
+      !/^\/(?:none|null|undefined|placeholder)(?:\/|$)/i.test(configured)) {
+    return configured;
+  }
+  return '/developers/docs';
 }
 
 export function isExternalDocsUrl(): boolean {

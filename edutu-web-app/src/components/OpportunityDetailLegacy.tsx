@@ -24,6 +24,7 @@ import {
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import { normalizeExternalUrl } from "../lib/externalUrl";
+import { cleanOpportunityText } from "../lib/opportunityContent";
 import {
   addBookmark,
   removeBookmark,
@@ -327,7 +328,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     : "Not published";
   // Only show real scraped content — never a synthesized filler paragraph.
   const fullDescription = normaliseLongFormText(
-    opportunity.description || opportunity.summary,
+    cleanOpportunityText(opportunity.description || opportunity.summary),
   );
   const descriptionParagraphs = fullDescription
     .split(/\n{2,}/)
@@ -360,7 +361,9 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
   const canonicalUrl = toAbsoluteUrl(canonicalPath);
   const seoDescription = truncateSeoText(
-    normaliseSeoText(opportunity.summary || opportunity.description) ||
+    normaliseSeoText(
+      cleanOpportunityText(opportunity.summary || opportunity.description),
+    ) ||
       `${[opportunity.title, opportunity.organization]
         .filter(Boolean)
         .join(
