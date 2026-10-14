@@ -1560,6 +1560,8 @@ export class OpportunityVerificationService {
           when ${hasDeadlineUpdate} then coalesce(metadata, '{}'::jsonb)
             || jsonb_build_object(
               'deadline_confidence', ${outcome.newDeadlineConfidence ?? "unknown"}::text,
+              'deadline_needs_review',
+                ${!outcome.newCloseDate && outcome.newDeadlineConfidence !== "rolling"}::boolean,
               'deadline_reverified_at', now()::text
             )
           else metadata

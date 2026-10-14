@@ -245,9 +245,9 @@ export default function WalletPage() {
   };
   return (
       <FeaturePage
-      eyebrow="Account and access"
-      title="Wallet & payments"
-      description="Your plan, available credits and recent payments in one place. Access updates after verified payment confirmation."
+      eyebrow="accountAccess"
+      title="walletTitle"
+      description="walletDescription"
       actions={
         <button
           className="feature-button secondary"

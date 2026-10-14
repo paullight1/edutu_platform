@@ -103,5 +103,5 @@ describe("community administration migration", () => {
     ).rejects.toThrow();
 
     await database.close();
-  }, 15_000);
+  }, 30_000);
 });

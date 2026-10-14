@@ -1,6 +1,7 @@
 import {
   articleText,
   opportunityUrlIdentity,
+  unwrapAddToAnyShareUrl,
 } from "../opportunities/source-evidence.util";
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
@@ -73,6 +74,10 @@ import {
 } from "./scraper.config";
 import { categorizeOpportunityTitle } from "./scraper-classification";
 import { createTitleFingerprint } from "./scraper-title-fingerprint";
+import {
+  cleanOpportunityTitle,
+  selectOpportunityTitle,
+} from "./scraper-opportunity-title";
 const SOURCE_CONTENT_FORMAT_VERSION = "source-content-v2";
 export {
   DeepSeekExtractionSchema,
@@ -2122,6 +2127,8 @@ export class ScraperService implements OnModuleInit {
 
       let ai = await this.refineWithDeepSeek(text);
 
+      const title = selectOpportunityTitle(ai.title, item.title, html);
+
       // If DeepSeek returned empty data, and we have retries left, try again with a delay
       if (
         !ai.requirements?.length &&
@@ -2138,7 +2145,7 @@ export class ScraperService implements OnModuleInit {
 
       return {
         ...item,
-        title: ai.title || item.title,
+        title,
         organization: ai.organization || item.organization,
         enrichment_status: ai.summary || ai.description ? "ai" : "failed",
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
@@ -3172,7 +3179,7 @@ ${text}`;
   ): Record<string, unknown> {
     // Users only ever see the cleaned title — CTA junk and aggregator
     // suffixes are stripped before anything downstream touches it.
-    item = { ...item, title: this.cleanOpportunityTitle(item.title) };
+    item = { ...item, title: cleanOpportunityTitle(item.title) };
     const now = new Date().toISOString();
     const { stipend, currency } = this.parseAmount(item.amount);
     // A year in the title ("MIP 2026") anchors year-less deadline fragments
@@ -3399,7 +3406,12 @@ ${text}`;
       .replace(/\u200D/g, "")
       .replace(/^["'<`]+|["'>`]+$/g, "")
       .trim();
-    return cleaned || null;
+    if (!cleaned) return null;
+
+    // AddToAny share buttons often appear before the article's real links in
+    // scraped markup. Persist the destination encoded in `linkurl` instead of
+    // exposing a social-share redirect as the opportunity's source URL.
+    return unwrapAddToAnyShareUrl(cleaned);
   }
 
   private normalizeUrl(url: string): string {
@@ -3939,37 +3951,6 @@ ${text}`;
     contextYear: number | null = null,
   ): string | null {
     return parseDeadlineDetailed(raw, contextYear).date;
-  }
-
-  /**
-   * Strip call-to-action junk, trailing deadline fragments, and aggregator
-   * branding from a scraped title so users see only the opportunity's name.
-   */
-  private cleanOpportunityTitle(raw: string | null | undefined): string {
-    if (!raw) return "";
-    let title = String(raw).replace(/\s+/g, " ").trim();
-
-    title = title
-      .replace(/^(?:hot|new|urgent)\s*[:\-–—]\s*/i, "")
-      .replace(/^apply\s+now\s*[:\-–—]\s*/i, "")
-      .replace(
-        /\s*[-–—|:]\s*(?:apply\s+(?:now|here|today)|applications?\s+(?:are\s+)?(?:now\s+)?open|register\s+now|read\s+more|check\s+details).*$/i,
-        "",
-      )
-      .replace(/\s*\((?:apply\s+now|now\s+open|open|ongoing)\)\s*$/i, "")
-      .replace(/\s*[-–—|]\s*(?:deadline|closing\s+date|closes)\b.*$/i, "");
-
-    // Trailing "| SiteName" / "- SiteName" aggregator suffixes.
-    title = title.replace(
-      new RegExp(`\\s*[-–—|:]\\s*(?:${SOURCE_BRAND_RE.source})\\s*$`, "i"),
-      "",
-    );
-
-    return title
-      .replace(/^[\s\-–—|:]+/, "")
-      .replace(/[\s\-–—|:]+$/, "")
-      .slice(0, 200)
-      .trim();
   }
 
   private buildPageUrl(baseUrl: string, page: number): string {

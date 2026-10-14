@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export default function HomePage() {
   const checkoutEnabled = config.bachsCheckoutEnabled();
   return (
-    <div className="card center">
+    <div className="card center payment-home">
       <div className="eyebrow">Edutu payments</div>
       <h1>{checkoutEnabled ? 'Manage your Edutu payment' : 'Payments are not ready yet'}</h1>
       <p>

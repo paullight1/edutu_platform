@@ -138,6 +138,7 @@ body::before {
 /* admin pages opt into a wider canvas */
 .shell:has(.wide) { max-width: 940px; }
 .shell > :nth-child(2) { flex: 1; }
+.shell > .payment-home { flex: 0; }
 
 /* ─── site chrome ──────────────────────────────────────────── */
 .site-head {

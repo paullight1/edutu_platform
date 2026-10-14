@@ -67,7 +67,7 @@ export default function GoalsPage() {
   const shown = useMemo(() => rows.filter(goal => filter === "all" || goal.status === filter), [rows, filter]);
   const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const offset = (month.getDay() + 6) % 7;
-  return <FeaturePage className="tool-page" eyebrow="" title="Goals" description="" actions={<button data-workspace-primary-action className="feature-button" onClick={() => { setEditing(null); setForm(empty()); }} disabled={busy}><Plus size={16}/> Add goal</button>}>
+  return <FeaturePage className="tool-page" eyebrow="" title="goalsTitle" description="" actions={<button data-workspace-primary-action className="feature-button" onClick={() => { setEditing(null); setForm(empty()); }} disabled={busy}><Plus size={16}/> Add goal</button>}>
     <ToolError error={form ? null : error} onRetry={() => void load()}/>
     <div className="tool-tabs" aria-label="Goal views"><button aria-pressed={tab === "personal"} onClick={() => setTab("personal")}>My goals</button><button aria-pressed={tab === "plans"} onClick={() => setTab("plans")}>Preparation plans</button></div>
     {tab === "plans" ? <PreparationPlans onImported={() => void load()}/> : <>

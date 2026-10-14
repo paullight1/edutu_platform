@@ -4827,29 +4827,50 @@ export default function Opportunities() {
                               <span>Loading original image…</span>
                             </div>
                           ) : available ? (
-                            <img
-                              src={option.imageUrl}
-                              alt={option.label}
-                              onError={() => {
-                                if (
-                                  shareChooser.selectedDesign === "existing" &&
-                                  sourceImagePreview?.opportunityId ===
-                                    shareChooser.opportunity.id &&
-                                  sourceImagePreview.source === "original"
-                                ) {
-                                  setSharePreviewFailed(false);
-                                  setSourceImagePreviewLoading(true);
-                                  setSourceImagePreviewRetry(1);
-                                  return;
-                                }
-                                setSharePreviewFailed(true);
-                              }}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "contain",
-                              }}
-                            />
+                            <>
+                              <img
+                                src={option.imageUrl}
+                                alt=""
+                                aria-hidden="true"
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                  filter:
+                                    "blur(18px) brightness(0.72) saturate(0.9)",
+                                  transform: "scale(1.08)",
+                                  opacity: 0.82,
+                                  pointerEvents: "none",
+                                }}
+                              />
+                              <img
+                                src={option.imageUrl}
+                                alt={option.label}
+                                onError={() => {
+                                  if (
+                                    shareChooser.selectedDesign === "existing" &&
+                                    sourceImagePreview?.opportunityId ===
+                                      shareChooser.opportunity.id &&
+                                    sourceImagePreview.source === "original"
+                                  ) {
+                                    setSharePreviewFailed(false);
+                                    setSourceImagePreviewLoading(true);
+                                    setSourceImagePreviewRetry(1);
+                                    return;
+                                  }
+                                  setSharePreviewFailed(true);
+                                }}
+                                style={{
+                                  position: "relative",
+                                  zIndex: 1,
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "contain",
+                                }}
+                              />
+                            </>
                           ) : (
                             <div
                               role="status"

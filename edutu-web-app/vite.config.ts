@@ -84,7 +84,20 @@ export default defineConfig(({ mode, command }) => {
           globIgnores: [
             'og/*',
             '**/og/*',
-            'illustrations/beliefs-sheet*.png',
+            // Editorial and campaign media is large and optional for the app
+            // shell. Cache it on first use rather than making every install
+            // download the full image library before it can go offline.
+            'illustrations/**',
+            '**/illustrations/**',
+            'images/**',
+            '**/images/**',
+            'advertising/**',
+            '**/advertising/**',
+            'community/**',
+            '**/community/**',
+            'reports/**',
+            '**/reports/**',
+            '**/pdf.worker*.mjs',
           ],
           importScripts: ['sw-custom.js'],
           runtimeCaching: [
@@ -114,6 +127,24 @@ export default defineConfig(({ mode, command }) => {
                 expiration: {
                   maxEntries: 4,
                   maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              // Cache same-origin editorial images after they are viewed. The
+              // browser downloads the image on its first visit; subsequent
+              // visits, including offline ones, can use this bounded cache.
+              urlPattern: ({ request, sameOrigin, url }) =>
+                sameOrigin &&
+                request.destination === 'image' &&
+                /^\/(illustrations|images|advertising|community)\//.test(url.pathname),
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'edutu-static-images',
+                expiration: {
+                  maxEntries: 80,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
                 },
                 cacheableResponse: { statuses: [0, 200] },
               },

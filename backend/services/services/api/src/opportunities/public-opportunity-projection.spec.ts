@@ -84,6 +84,49 @@ describe("public-opportunity-projection", () => {
     });
   });
 
+  it("unwraps stored AddToAny URLs before sending public source and apply links", () => {
+    const shareUrl = new URL("https://www.addtoany.com/add_to/x");
+    shareUrl.searchParams.set(
+      "linkurl",
+      "https://opportunitypool.org/example-opportunity/",
+    );
+    const out = stripInternalOpportunityFields({
+      id: "opp_3",
+      title: "Example Opportunity",
+      source_url: shareUrl.toString(),
+      canonical_url: shareUrl.toString(),
+      application_url: shareUrl.toString(),
+      apply_url: shareUrl.toString(),
+    });
+
+    expect(out.source_url).toBe(
+      "https://opportunitypool.org/example-opportunity/",
+    );
+    expect(out.canonical_url).toBe(
+      "https://opportunitypool.org/example-opportunity/",
+    );
+    expect(out.application_url).toBe(
+      "https://opportunitypool.org/example-opportunity/",
+    );
+    expect(out.apply_url).toBe(
+      "https://opportunitypool.org/example-opportunity/",
+    );
+    expect(out.trust).toMatchObject({ sourceDomain: "opportunitypool.org" });
+  });
+
+  it("replaces legacy bare AddToAny canonical URLs with a usable source URL", () => {
+    const sourceUrl = "https://opportunitypool.org/example-opportunity/";
+    const out = stripInternalOpportunityFields({
+      id: "opp_4",
+      title: "Example Opportunity",
+      source_url: sourceUrl,
+      canonical_url: "https://www.addtoany.com/add_to/x",
+    });
+
+    expect(out.source_url).toBe(sourceUrl);
+    expect(out.canonical_url).toBe(sourceUrl);
+  });
+
   it("returns a safe projection for every row in a batch", () => {
     const [first, second] = stripInternalOpportunityFieldsBatch([
       sampleRow,

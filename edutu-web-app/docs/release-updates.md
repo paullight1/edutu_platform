@@ -23,6 +23,15 @@ No arbitrary form values or credentials are copied to browser storage.
 
 ## Hosted acceptance check
 
+The current `www.edutu.org` origin is served by Nginx. `vercel.json` and
+`netlify.toml` preserve these headers on those providers, but they do not
+configure the live Nginx origin. Include
+[`deploy/nginx-release-cache.conf`](../deploy/nginx-release-cache.conf) inside
+the `www.edutu.org` Nginx `server` block and reload Nginx after publishing. The
+snippet disables caching for the HTML shell, release metadata, and service
+worker files while preserving immutable caching for Vite's hashed `/assets/`
+files.
+
 1. Publish build A to a staging HTTPS origin and install/open it as a PWA.
 2. Keep that session open. Publish build B to the same origin.
 3. Background and resume A. Confirm “Top100 has been updated” and “Refresh now”.

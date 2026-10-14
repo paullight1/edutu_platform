@@ -266,7 +266,6 @@ export const RoadmapScene: React.FC<{ duration: number }> = ({ duration }) => {
                   height: "100%",
                   borderRadius: 999,
                   background: `linear-gradient(90deg, ${BLUE_LIGHT}, ${GOLD})`,
-                  transition: "none",
                 }}
               />
             </div>

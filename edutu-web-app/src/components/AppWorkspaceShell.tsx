@@ -363,7 +363,7 @@ export default function AppWorkspaceShell({
     }
     if (isCoachRoute) {
       return {
-        label: t("coach.new", { defaultValue: "New conversation" }),
+        label: t("coachPage.untitled", { defaultValue: "New conversation" }),
         Icon: Plus,
         onClick: () => window.dispatchEvent(new Event(COACH_NEW_CONVERSATION_EVENT)),
       };
@@ -872,10 +872,10 @@ export default function AppWorkspaceShell({
                             new Event(COACH_NEW_CONVERSATION_EVENT),
                           )
                         }
-                        aria-label={t("coach.new", {
+                        aria-label={t("coachPage.untitled", {
                           defaultValue: "New conversation",
                         })}
-                        title={t("coach.new", {
+                        title={t("coachPage.untitled", {
                           defaultValue: "New conversation",
                         })}
                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"

@@ -4,6 +4,7 @@ import {
   pageSaysClosed,
   parseDeadlineEvidence,
 } from "./deadline.util";
+import { deadlineNeedsReview } from "./deadline-description.util";
 
 describe("parseDeadlineDetailed", () => {
   it("marks fully-stated dates as explicit", () => {
@@ -137,5 +138,56 @@ describe("closing-date wording", () => {
         "2026-11-11",
       ),
     ).toBeNull();
+  });
+});
+
+describe("deadline review state", () => {
+  it.each([
+    ["explicit", "2026-11-30"],
+    ["inferred", "2026-11-30"],
+    ["rolling", null],
+  ])(
+    "clears an old review flag after a %s source recheck",
+    (confidence, date) => {
+      expect(
+        deadlineNeedsReview(
+          {
+            deadline_needs_review: true,
+            deadline_confidence: confidence,
+            deadline_reverified_at: "2026-10-13T12:00:00.000Z",
+          },
+          "Applications are open.",
+          null,
+          date,
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("keeps an unknown or contradictory deadline flagged after a recheck", () => {
+    expect(
+      deadlineNeedsReview(
+        {
+          deadline_needs_review: true,
+          deadline_confidence: "unknown",
+          deadline_reverified_at: "2026-10-13T12:00:00.000Z",
+        },
+        "Applications are open.",
+        null,
+        "2026-11-30",
+      ),
+    ).toBe(true);
+    expect(
+      deadlineNeedsReview(
+        {
+          deadline_needs_review: true,
+          deadline_confidence: "explicit",
+          deadline_reverified_at: "2026-10-13T12:00:00.000Z",
+        },
+        "Applications close on September 18, 2026.",
+        null,
+        "2026-11-30",
+      ),
+    ).toBe(true);
   });
 });

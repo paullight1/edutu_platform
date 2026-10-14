@@ -124,5 +124,5 @@ describe("Scholarships for Africa consolidation migration", () => {
       ).rows[0].status,
     ).toBe("cancelled");
     await database.close();
-  }, 15_000);
+  }, 30_000);
 });

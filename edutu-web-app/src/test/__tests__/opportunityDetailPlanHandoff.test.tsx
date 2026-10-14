@@ -42,6 +42,31 @@ const opportunity = {
 } as Opportunity;
 
 describe("opportunity plan handoff", () => {
+  it("keeps deadline facts readable and shows the full opportunity artwork", async () => {
+    render(
+      <MemoryRouter initialEntries={["/opportunity/opportunity-1"]}>
+        <OpportunityDetail
+          opportunity={
+            {
+              ...opportunity,
+              deadline: "2026-11-01",
+              image: "https://example.test/opportunity-flyer.png",
+            } as Opportunity
+          }
+          onBack={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const facts = await screen.findByTestId("opportunity-detail-facts");
+    expect(facts).toHaveClass("grid-cols-1");
+    expect(facts).not.toHaveClass("xl:grid-cols-4");
+    expect(screen.getByText("1 Nov 2026")).toBeVisible();
+    expect(
+      screen.getByRole("img", { name: "North Star Scholarship opportunity image" }),
+    ).toHaveClass("object-contain");
+  });
+
   it("opens the plan created by the confirmed add-to-plan action", async () => {
     vi.mocked(createOpportunityJourney).mockResolvedValue({
       journey: { id: "journey-42" },

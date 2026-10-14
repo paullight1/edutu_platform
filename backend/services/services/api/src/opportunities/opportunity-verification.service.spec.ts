@@ -447,6 +447,50 @@ describe("source deadline recovery safeguards", () => {
   });
 });
 
+describe("verification deadline review metadata", () => {
+  it("clears a stale review flag when verification confirms an explicit date", async () => {
+    jest.clearAllMocks();
+    mockedDb.execute.mockResolvedValue({ rowCount: 1, rows: [] });
+    const service = new OpportunityVerificationService({} as any);
+
+    await (service as any).persistOutcome({
+      opportunityId: "1827885d-2d96-469e-b7f4-c580dd537334",
+      opportunityStatus: "active",
+      status: "verified",
+      newCloseDate: "2026-11-30",
+      newDeadlineConfidence: "explicit",
+      error: null,
+      nextCheckAt: null,
+      httpStatus: 200,
+    });
+
+    const query = new PgDialect().sqlToQuery(mockedDb.execute.mock.calls[0][0]);
+    expect(query.sql).toContain("deadline_needs_review");
+    expect(query.params).toContain(false);
+  });
+
+  it("keeps a review flag when verification clears an unsupported date", async () => {
+    jest.clearAllMocks();
+    mockedDb.execute.mockResolvedValue({ rowCount: 1, rows: [] });
+    const service = new OpportunityVerificationService({} as any);
+
+    await (service as any).persistOutcome({
+      opportunityId: "1827885d-2d96-469e-b7f4-c580dd537334",
+      opportunityStatus: "active",
+      status: "verified",
+      newCloseDate: null,
+      newDeadlineConfidence: "unknown",
+      error: null,
+      nextCheckAt: null,
+      httpStatus: 200,
+    });
+
+    const query = new PgDialect().sqlToQuery(mockedDb.execute.mock.calls[0][0]);
+    expect(query.sql).toContain("deadline_needs_review");
+    expect(query.params).toContain(true);
+  });
+});
+
 describe("application page deadline fallback", () => {
   it("recovers a labeled date from the application page when the source article is blocked", async () => {
     jest.clearAllMocks();

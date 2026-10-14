@@ -8,6 +8,12 @@ import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedd
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
+import {
+  cleanOpportunityTitle,
+  extractOpportunityPageTitle,
+  isGenericOpportunityTitle,
+  selectOpportunityTitle,
+} from "./scraper-opportunity-title";
 import axios from "axios";
 
 describe("ScraperService", () => {
@@ -393,6 +399,41 @@ describe("ScraperService", () => {
   });
 
   describe("public opportunity cleanup", () => {
+    it("unwraps AddToAny share links to the actual source opportunity", () => {
+      const addToAnyUrl = new URL("https://www.addtoany.com/add_to/x");
+      addToAnyUrl.searchParams.set(
+        "linkurl",
+        "https://opportunitypool.org/example-fellowship/",
+      );
+      addToAnyUrl.searchParams.set("linkname", "Example Fellowship");
+
+      const destination = "https://opportunitypool.org/example-fellowship/";
+      const record = (service as any).transformToOpportunity(
+        {
+          title: "Example Fellowship 2027",
+          apply_url: addToAnyUrl.toString(),
+          source_url: addToAnyUrl.toString(),
+          description:
+            "A fellowship with a year of mentorship, funding, professional development, and practical experience for early-career leaders.",
+          summary:
+            "A funded fellowship offering mentorship, professional development, and practical experience for early-career leaders worldwide.",
+          requirements: ["Bachelor's degree"],
+          benefits: ["Funding", "Mentorship"],
+          application_process: ["Complete the online application"],
+          deadline: "March 5, 2027",
+          eligibility: { organization: "Example Foundation" },
+          source: "Opportunity Pool",
+        },
+        null,
+      );
+
+      expect(record.apply_url).toBe(destination);
+      expect(record.source_url).toBe(destination);
+      expect(record.canonical_url).toBe(
+        "https://opportunitypool.org/example-fellowship",
+      );
+    });
+
     it("removes scraper source artifacts from transformed opportunities", () => {
       const transformed = (service as any).transformToOpportunity(
         {
@@ -691,8 +732,7 @@ describe("ScraperService", () => {
     });
 
     it("strips CTA junk and aggregator branding from titles", () => {
-      const clean = (value: string) =>
-        (service as any).cleanOpportunityTitle(value);
+      const clean = (value: string) => cleanOpportunityTitle(value);
 
       expect(
         clean(
@@ -708,6 +748,23 @@ describe("ScraperService", () => {
       expect(clean("  Chevening   Scholarship  ")).toBe(
         "Chevening Scholarship",
       );
+    });
+
+    it("replaces navigation titles with the actual article heading", () => {
+      const title = extractOpportunityPageTitle(
+        `<html><head><title>Browse Internships | Scholars World</title></head>
+          <body><nav>Browse Internships</nav><article>
+            <h1>Browse Internships</h1>
+            <h2 class="entry-title">FCMB Technology Graduate Trainee Program 2026</h2>
+          </article></body></html>`,
+      );
+
+      expect(isGenericOpportunityTitle("Browse Internships")).toBe(true);
+      expect(title).toBe("FCMB Technology Graduate Trainee Program 2026");
+      expect(isGenericOpportunityTitle(title)).toBe(false);
+      expect(
+        selectOpportunityTitle("Latest Fellowships", "Browse Internships", ""),
+      ).toBe("Browse Internships");
     });
 
     it("holds records with already-passed deadlines out of the live feed", () => {

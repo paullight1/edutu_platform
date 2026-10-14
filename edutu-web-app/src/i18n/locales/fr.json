@@ -323,6 +323,8 @@
         "yourOpportunity": "votre opportunité",
         "basedOnProfile": "D’après votre profil"
     },
+    "workspace": { "cvsTitle": "Mes CV", "documentsTitle": "Mes documents", "goalsTitle": "Objectifs", "searchesTitle": "Recherches et alertes", "copilotTitle": "Copilote de candidature", "accountAccess": "Compte et accès", "walletTitle": "Portefeuille et paiements", "walletDescription": "Retrouvez votre offre, vos crédits disponibles et vos paiements récents au même endroit. L’accès est mis à jour après confirmation du paiement." },
+    "coachPage": { "aiCanMakeMistakes": "L’IA peut se tromper. Vérifiez les informations importantes.", "untitled": "Nouvelle conversation" },
     "cv": {
         "health": {}
     }

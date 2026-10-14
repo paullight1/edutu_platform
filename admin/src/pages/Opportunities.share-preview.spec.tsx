@@ -67,6 +67,7 @@ const opportunity = {
     source_image_url: "https://source.example.org/wcsj-flyer.jpg",
   },
 };
+let listedOpportunity = opportunity;
 
 function jsonResponse(body: unknown): Response {
   return {
@@ -83,6 +84,7 @@ describe("opportunity share image chooser", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    listedOpportunity = opportunity;
     createPreviewUrl.mockResolvedValue("blob:source-opportunity-image");
 
     const sourceBlob = new Blob(["original source flyer"], {
@@ -95,7 +97,7 @@ describe("opportunity share image chooser", () => {
         if (url.includes("/opportunities/admin/list")) {
           return Promise.resolve(
             jsonResponse({
-              data: [opportunity],
+              data: [listedOpportunity],
               page: 1,
               limit: 50,
               total: 1,
@@ -199,6 +201,36 @@ describe("opportunity share image chooser", () => {
     expect(shareData.files[0].name).toBe(
       "wcsj2027-travel-fellowship-in-london-edutu.jpeg",
     );
+  });
+
+  it("uses the branded flyer instead of an empty state when no source image exists", async () => {
+    listedOpportunity = {
+      ...opportunity,
+      image_url: null,
+      metadata: { source_image_url: "" },
+    };
+    const user = userEvent.setup();
+    render(<Opportunities />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: `Share ${opportunity.title}`,
+      }),
+    );
+
+    const flyerPreview = await screen.findByRole("img", {
+      name: "Edutu designed flyer",
+    });
+    expect(flyerPreview).toHaveAttribute(
+      "src",
+      "https://cdn.edutu.org/opportunity-share-cards/template.png",
+    );
+    expect(
+      screen.queryByText("Flyer preview could not be loaded."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Use current image" }),
+    ).not.toBeInTheDocument();
   });
 
   it("falls back to the authenticated image proxy when the original URL fails", async () => {

@@ -193,7 +193,7 @@ export default function CopilotPage() {
     <FeaturePage
       className="tool-page"
       eyebrow=""
-      title="Application Copilot"
+      title="copilotTitle"
       description=""
     >
       <FeatureError error={error} />

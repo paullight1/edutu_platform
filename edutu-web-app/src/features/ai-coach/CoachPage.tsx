@@ -681,7 +681,7 @@ export default function CoachPage() {
             disabled={busy}
           >
             <Plus size={17} />
-            {t("coach.new", { defaultValue: "New conversation" })}
+            {t("coachPage.untitled", { defaultValue: "New conversation" })}
           </button>
           <button
             ref={historyButton}
@@ -1208,7 +1208,7 @@ export default function CoachPage() {
               <span>
                 <Plus size={18} />
               </span>
-              {t("coach.new", { defaultValue: "New conversation" })}
+              {t("coachPage.untitled", { defaultValue: "New conversation" })}
             </button>
             <div className="coach-thread-list">
               {loading ? (

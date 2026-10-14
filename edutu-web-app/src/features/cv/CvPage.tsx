@@ -505,7 +505,7 @@ export default function CvPage() {
     window.addEventListener(CV_CREATE_EVENT, handleCreateCv);
     return () => window.removeEventListener(CV_CREATE_EVENT, handleCreateCv);
   }, []);
-  return <FeaturePage eyebrow="" title="My CVs" description="">
+  return <FeaturePage eyebrow="" title="cvsTitle" description="">
     {!view && <CvError error={error}/>}
     {loading ? <Loading/> : <>
       {dirty && <button className="feature-button secondary mb-4" onClick={() => setView("edit")}>Resume draft · {name}</button>}

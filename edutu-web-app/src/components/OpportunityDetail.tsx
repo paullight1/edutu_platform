@@ -102,6 +102,8 @@ function OpportunityHero({
     }
     return next;
   }, [deadline, funding, opportunity.location]);
+  const factColumns =
+    facts.length <= 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2";
 
   return (
     <section className="opportunity-detail-hero mb-7">
@@ -133,7 +135,10 @@ function OpportunityHero({
             <TrustSignal trust={opportunity.trust} className="mt-3" />
 
             {facts.length > 0 ? (
-              <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+              <dl
+                className={`mt-5 grid ${factColumns}`}
+                data-testid="opportunity-detail-facts"
+              >
                 {facts.map(({ label, value, icon: Icon }) => (
                   <div
                     key={label}
@@ -158,7 +163,7 @@ function OpportunityHero({
               fallbackSrc={opportunity.imageFallback}
               alt={`${opportunity.title} opportunity image`}
               category={opportunity.category}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
               fallbackClassName="h-full w-full"
             />
             <div

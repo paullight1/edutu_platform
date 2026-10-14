@@ -323,6 +323,8 @@
         "yourOpportunity": "dein Angebot",
         "basedOnProfile": "Basierend auf deinem Profil"
     },
+    "workspace": { "cvsTitle": "Meine Lebensläufe", "documentsTitle": "Meine Dokumente", "goalsTitle": "Ziele", "searchesTitle": "Suchen und Hinweise", "copilotTitle": "Bewerbungsassistent", "accountAccess": "Konto und Zugriff", "walletTitle": "Wallet und Zahlungen", "walletDescription": "Dein Tarif, verfügbare Credits und letzte Zahlungen an einem Ort. Der Zugriff wird nach bestätigter Zahlung aktualisiert." },
+    "coachPage": { "aiCanMakeMistakes": "KI kann Fehler machen. Prüfe wichtige Angaben.", "untitled": "Neues Gespräch" },
     "cv": {
         "health": {}
     }

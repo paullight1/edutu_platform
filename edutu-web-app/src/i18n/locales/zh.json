@@ -323,6 +323,8 @@
         "yourOpportunity": "你的机会",
         "basedOnProfile": "根据你的个人资料"
     },
+    "workspace": { "cvsTitle": "我的简历", "documentsTitle": "我的文件", "goalsTitle": "目标", "searchesTitle": "搜索与提醒", "copilotTitle": "申请助手", "accountAccess": "账户与访问", "walletTitle": "钱包与付款", "walletDescription": "在一个地方查看你的套餐、可用点数和近期付款。付款确认后会更新访问权限。" },
+    "coachPage": { "aiCanMakeMistakes": "AI 可能会出错，请核实重要信息。", "untitled": "新对话" },
     "cv": {
         "health": {}
     }

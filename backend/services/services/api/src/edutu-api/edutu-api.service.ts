@@ -16,7 +16,10 @@ import {
 import { db } from "../db";
 import { apiPartnerEvents, opportunities } from "../db/schema";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
-import { removeContradictoryDeadlineClaims } from "../opportunities/deadline-description.util";
+import {
+  deadlineNeedsReview,
+  removeContradictoryDeadlineClaims,
+} from "../opportunities/deadline-description.util";
 import {
   discoverableOpportunityConditions,
   discoverableOpportunitySql,
@@ -395,10 +398,12 @@ export class EdutuApiService {
         lastVerifiedAt: row.lastVerifiedAt?.toISOString?.() ?? null,
         lastSeenAt: row.lastSeenAt?.toISOString?.() ?? null,
         qualityScore: row.qualityScore ?? null,
-        deadlineNeedsReview:
-          row.metadata?.deadline_needs_review === true ||
-          (typeof row.description === "string" &&
-            description !== row.description),
+        deadlineNeedsReview: deadlineNeedsReview(
+          row.metadata,
+          row.description,
+          row.summary,
+          row.deadline,
+        ),
       },
       match: row.match ?? null,
       matchReasons: row.match_reasons ?? row.matchReasons ?? [],

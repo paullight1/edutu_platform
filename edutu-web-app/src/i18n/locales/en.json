@@ -121,6 +121,14 @@
     "there": "there",
     "section": "Workspace",
     "developers": "Developers",
+    "cvsTitle": "My CVs",
+    "documentsTitle": "My documents",
+    "goalsTitle": "Goals",
+    "searchesTitle": "Searches & alerts",
+    "copilotTitle": "Application Copilot",
+    "accountAccess": "Account and access",
+    "walletTitle": "Wallet & payments",
+    "walletDescription": "Your plan, available credits and recent payments in one place. Access updates after verified payment confirmation.",
     "menu": "Menu"
   },
   "dashboard": {
@@ -600,6 +608,8 @@
     "placeholder": "Message Edutu…",
     "welcomeTitle": "I’m Edutu, your AI Coach",
     "welcomeBody": "Ask for real scholarships, deadlines, roadmaps, or application next steps.",
+    "aiCanMakeMistakes": "AI can make mistakes. Check important details.",
+    "untitled": "New conversation",
     "findScholarships": "Find scholarships",
     "findScholarshipsDetail": "Available this month",
     "buildRoadmap": "Build roadmap",

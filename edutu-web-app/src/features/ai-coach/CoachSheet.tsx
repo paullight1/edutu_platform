@@ -66,7 +66,7 @@ export default function CoachSheet({ returnTo }: { returnTo: string }) {
           <span className="coach-sheet-mark"><img src="/edutu-logo-mark.png" alt="" /></span>
           <h1 id="coach-sheet-title">{t("navigation.coach", { defaultValue: "AI Coach" })}</h1>
           <div className="coach-sheet-actions">
-            <button type="button" aria-label={t("coach.new", { defaultValue: "New conversation" })} onClick={() => window.dispatchEvent(new Event(COACH_NEW_CONVERSATION_EVENT))}><Plus size={20} /></button>
+            <button type="button" aria-label={t("coachPage.untitled", { defaultValue: "New conversation" })} onClick={() => window.dispatchEvent(new Event(COACH_NEW_CONVERSATION_EVENT))}><Plus size={20} /></button>
             <button type="button" aria-label={t("coachPage.history", { defaultValue: "Conversation history" })} onClick={() => window.dispatchEvent(new Event(COACH_OPEN_HISTORY_EVENT))}><History size={19} /></button>
             <button type="button" autoFocus onClick={() => expanded ? close() : setExpanded(true)} aria-label={expanded ? "Close AI Coach" : "Expand AI Coach"}>{expanded ? <X size={21} /> : <Maximize2 size={18} />}</button>
           </div>

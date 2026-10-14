@@ -1,6 +1,7 @@
 import {
   articleText,
   opportunityUrlIdentity,
+  unwrapAddToAnyShareUrl,
   deadlineExcerpt,
 } from "./source-evidence.util";
 import { extractDeadlineText } from "./deadline.util";
@@ -28,6 +29,16 @@ describe("opportunity source evidence", () => {
     ).toBe("https://example.com/Apply?id=42");
     expect(opportunityUrlIdentity("https://example.com/Apply?id=43")).not.toBe(
       opportunityUrlIdentity("https://example.com/Apply?id=42"),
+    );
+  });
+  it("unwraps AddToAny links without rewriting ordinary source URLs", () => {
+    const shareUrl = new URL("https://www.addtoany.com/add_to/x");
+    shareUrl.searchParams.set("linkurl", "https://opportunitypool.org/post/");
+    expect(unwrapAddToAnyShareUrl(shareUrl.toString())).toBe(
+      "https://opportunitypool.org/post/",
+    );
+    expect(unwrapAddToAnyShareUrl("https://source.example/post")).toBe(
+      "https://source.example/post",
     );
   });
   it("ignores deadlines in related opportunities and keeps the actual title", () => {

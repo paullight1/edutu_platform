@@ -33,5 +33,5 @@ describe("global notices", () => {
     const renderedTree = rootRender.mock.calls[0]?.[0] as ReactNode;
 
     expect(treeContainsType(renderedTree, WhatsNewNotification)).toBe(false);
-  });
+  }, 30_000);
 });

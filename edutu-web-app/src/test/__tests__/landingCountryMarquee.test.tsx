@@ -50,7 +50,7 @@ vi.mock("../../services/webConfig", () => ({
   normalizeWebLink: (value: string) => value,
 }));
 
-vi.mock("../../components/PublicHeader", () => ({ default: () => null }));
+vi.mock("../../components/HomepageHeader", () => ({ default: () => null }));
 vi.mock("../../components/SiteFooter", () => ({ default: () => null }));
 vi.mock("../../components/PageSeo", () => ({ default: () => null }));
 vi.mock("../../components/CommunityShowcase", () => ({ default: () => null }));
@@ -111,7 +111,7 @@ describe("LandingPageV3 country reach", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /worth exploring/i,
+        name: /a good place to start/i,
       }),
     ).toBeInTheDocument();
   });

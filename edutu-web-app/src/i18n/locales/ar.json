@@ -323,6 +323,8 @@
         "yourOpportunity": "فرصتك",
         "basedOnProfile": "استنادًا إلى ملفك الشخصي"
     },
+    "workspace": { "cvsTitle": "سيرتي الذاتية", "documentsTitle": "مستنداتي", "goalsTitle": "الأهداف", "searchesTitle": "عمليات البحث والتنبيهات", "copilotTitle": "مساعد التقديم", "accountAccess": "الحساب وإمكانية الوصول", "walletTitle": "المحفظة والمدفوعات", "walletDescription": "خطتك والرصيد المتاح والمدفوعات الأخيرة في مكان واحد. يتم تحديث إمكانية الوصول بعد تأكيد الدفع." },
+    "coachPage": { "aiCanMakeMistakes": "قد يخطئ الذكاء الاصطناعي. تحقق من التفاصيل المهمة.", "untitled": "محادثة جديدة" },
     "cv": {
         "health": {}
     }

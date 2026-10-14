@@ -56,7 +56,7 @@ export default function DocumentsPage() {
   const showUploads=tab!=="cv",showCv=tab!=="uploaded";
   const cvCount=cvs.length+legacy.length;
   const total=uploads.length+cvCount;
-  return <FeaturePage className="tool-page" eyebrow="" title="My documents" description="" actions={<button className="feature-button" data-workspace-primary-action disabled={busy} onClick={()=>{setStage("");setError(null);setUploadOpen(true);}}><Upload size={16}/> Upload file</button>}>
+  return <FeaturePage className="tool-page" eyebrow="" title="documentsTitle" description="" actions={<button className="feature-button" data-workspace-primary-action disabled={busy} onClick={()=>{setStage("");setError(null);setUploadOpen(true);}}><Upload size={16}/> Upload file</button>}>
     {!uploadOpen&&<ToolError error={error} onRetry={()=>void load()}/>}
     <div className="tool-tabs" aria-label="Document views">{(["all","uploaded","cv"] as const).map(value=><button key={value} aria-pressed={tab===value} onClick={()=>setTab(value)}>{value==="all"?`All (${total})`:value==="uploaded"?`Files (${uploads.length})`:`CVs (${cvCount})`}</button>)}</div>
     {loading?<Loading/>:<>

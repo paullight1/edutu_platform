@@ -112,6 +112,44 @@ export function opportunityUrlIdentity(value: string): string {
   }
 }
 
+/**
+ * AddToAny's share endpoints carry the actual article URL in `linkurl`. Scraped
+ * share buttons can otherwise become the opportunity's persisted source/apply
+ * link. Unwrap only this known wrapper and leave every other URL byte-for-byte
+ * unchanged.
+ */
+export function unwrapAddToAnyShareUrl(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return value;
+  }
+
+  let unwrapped = false;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (
+      parsed.hostname !== "www.addtoany.com" &&
+      parsed.hostname !== "addtoany.com"
+    ) {
+      break;
+    }
+
+    const destination = parsed.searchParams.get("linkurl");
+    if (!destination) break;
+    try {
+      const next = new URL(destination);
+      if (next.protocol !== "http:" && next.protocol !== "https:") break;
+      parsed = next;
+      unwrapped = true;
+    } catch {
+      break;
+    }
+  }
+
+  return unwrapped ? parsed.toString() : value;
+}
+
 /** Keep closing-date sections even when they occur beyond the page introduction. */
 export function deadlineExcerpt(text: string, maxChars = 12000): string {
   if (text.length <= maxChars) return text;

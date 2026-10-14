@@ -5,7 +5,6 @@ import {
     Clock,
     User,
     ChevronDown,
-    Bell,
     X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -13,7 +12,8 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
 import PageSeo from './PageSeo';
-import PublicHeader from './PublicHeader';
+import HomepageHeader from './HomepageHeader';
+import './Homepage.css';
 import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
 import EdutuForYouBand from './EdutuForYouBand';
@@ -124,7 +124,6 @@ const institutions = [
     { name: 'Michigan State', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Michigan_State_University_wordmark.svg' },
 ];
 
-const heroOpportunityWords = ['Programs', 'Scholarships', 'Internships', 'Fellowships'];
 
 /** Neutral imagery used only when a real record has no image of its own. */
 const fallbackImages = [
@@ -200,7 +199,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     } = useOpportunities();
     const reduceMotion = useReducedMotion();
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
-    const [heroWordIndex, setHeroWordIndex] = useState(0);
     const [blogArticles, setBlogArticles] = useState<LandingArticle[]>([]);
     const [blogLoading, setBlogLoading] = useState(true);
     const [announcement, setAnnouncement] = useState<WebAnnouncement>(
@@ -271,16 +269,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', illustration: '/illustrations/feature-application-tracking.png', illustrationAlt: 'Hand-drawn checklist path showing application progress', cardBg: 'linear-gradient(160deg,#d0ead9 0%,#b3e0c5 100%)', titleColor: '#123a26', descColor: '#3a6b50' },
     ];
 
-    useEffect(() => {
-        // Users who asked for reduced motion get a stable headline, not an
-        // un-animated hard cut every 2.4s.
-        if (reduceMotion) return;
-        const interval = window.setInterval(() => {
-            setHeroWordIndex((current) => (current + 1) % heroOpportunityWords.length);
-        }, 2400);
-        return () => window.clearInterval(interval);
-    }, [reduceMotion]);
-
     const fadeUp = reduceMotion
         ? {}
         : {
@@ -292,130 +280,30 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     return (
         <div className="landing-page min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
             <PageSeo path="/" />
-            <PublicHeader fixed onPrimaryAction={onGetStarted} />
-
-            {announcement.enabled && announcement.text && !announcementDismissed ? (
-                <aside
-                    role="status"
-                    className="relative z-20 mt-16 border-b border-brand/15 bg-brand-50/90 px-4 py-2.5 text-text-primary backdrop-blur dark:bg-brand-950/70 sm:px-6 sm:py-3"
-                >
-                    <div className="mx-auto flex max-w-[1200px] items-start gap-2.5 pr-8 text-xs sm:items-center sm:justify-between sm:gap-4 sm:text-[0.9375rem]">
-                        <div className="flex min-w-0 items-start gap-2.5 sm:items-center">
-                            <Bell
-                                size={15}
-                                aria-hidden="true"
-                                className="shrink-0 text-brand-700 dark:text-brand-300"
-                            />
-                            <p className="min-w-0 leading-[1.35] text-text-secondary sm:leading-[1.45]">
-                                {announcement.text}
-                            </p>
-                        </div>
-                        {announcementIsExternal ? (
-                            <a
-                                href={announcementUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hidden shrink-0 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline sm:inline-flex dark:text-brand-300 dark:hover:text-brand-200"
-                            >
-                                <span>{announcement.linkLabel}</span>
-                            </a>
-                        ) : (
-                            <Link
-                                to={announcementUrl}
-                                className="hidden shrink-0 font-semibold text-brand-700 no-underline transition hover:text-brand-800 hover:underline sm:inline-flex dark:text-brand-300 dark:hover:text-brand-200"
-                            >
-                                <span>{announcement.linkLabel}</span>
-                            </Link>
-                        )}
-                    </div>
-                    <button
-                        type="button"
-                        aria-label="Dismiss announcement"
-                        onClick={() => setAnnouncementDismissed(true)}
-                        className="absolute right-3 top-2.5 flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition hover:bg-brand/10 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
-                    >
-                        <X size={16} aria-hidden="true" />
-                    </button>
-                </aside>
-            ) : null}
-
+            <HomepageHeader onGetStarted={onGetStarted} />
             <main className="relative z-10">
-                {/* ─── Hero ─────────────────────────────────────────────── */}
-                <section
-                    className="landing-hero relative flex items-center overflow-hidden px-4 pt-24 pb-12 sm:min-h-[88vh] sm:px-6 sm:pt-28 sm:pb-16 md:min-h-[88dvh]"
-                    id="platform"
-                >
-                    {/* Theme-aware gradient field (dark = deep navy, light = soft mesh) */}
-                    <div className="mesh-gradient pointer-events-none absolute inset-0" />
-                    {/* Fine grid lines add depth over the navy field */}
-                    <div className="landing-hero-grid pointer-events-none absolute inset-0" />
-                    {/* Soft brand glow from the top */}
-                    <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"
-                        style={{
-                            background:
-                                'radial-gradient(56% 58% at 50% 0%, rgb(var(--color-brand-500) / 0.16), transparent 72%)',
-                        }}
-                    />
-                    <div className="landing-grain pointer-events-none absolute inset-0 opacity-[0.35]" />
-
-                    <div className="relative z-10 mx-auto flex w-full max-w-[960px] flex-col items-center text-center">
-                        <motion.h1
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 30 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.1 }}
-                            className="landing-hero-title font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[82px]"
-                        >
-                            Your AI guide to global{' '}
-                            <span className="landing-hero-highlight whitespace-nowrap sm:block">
-                                <span className="landing-hero-word inline-block align-baseline">
-                                    <AnimatePresence mode="wait">
-                                        <motion.span
-                                            key={heroOpportunityWords[heroWordIndex]}
-                                            initial={reduceMotion ? undefined : { opacity: 0, y: 24, filter: 'blur(8px)' }}
-                                            animate={reduceMotion ? undefined : { opacity: 1, y: 0, filter: 'blur(0px)' }}
-                                            exit={reduceMotion ? undefined : { opacity: 0, y: -24, filter: 'blur(8px)' }}
-                                            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                                            className="landing-hero-word-accent inline-block"
-                                        >
-                                            {heroOpportunityWords[heroWordIndex]}
-                                        </motion.span>
-                                    </AnimatePresence>
-                                </span>
-                            </span>
+                <section className="homepage-hero" id="platform" aria-labelledby="homepage-hero-title">
+                    <div className="homepage-hero-field" aria-hidden="true"><div className="homepage-hero-dots" /><div className="homepage-hero-wave" /></div>
+                    <div className="homepage-hero-content">
+                        {announcement.enabled && announcement.text && !announcementDismissed && (
+                            <aside className="homepage-announcement" aria-label="Edutu announcement">
+                                {announcementIsExternal ? (
+                                    <a href={announcementUrl} target="_blank" rel="noopener noreferrer" aria-label={`${announcement.text} — ${announcement.linkLabel}`}><span>{announcement.text}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></a>
+                                ) : (
+                                    <Link to={announcementUrl} aria-label={`${announcement.text} — ${announcement.linkLabel}`}><span>{announcement.text}</span><span className="homepage-announcement-arrow"><ArrowRight size={24} aria-hidden="true" /></span></Link>
+                                )}
+                                <button type="button" className="homepage-announcement-dismiss" aria-label="Dismiss announcement" onClick={() => setAnnouncementDismissed(true)}><X size={15} /></button>
+                            </aside>
+                        )}
+                        <motion.h1 id="homepage-hero-title" initial={reduceMotion ? undefined : { opacity: 0, y: 24 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="homepage-hero-title">
+                            Find your next opportunity.<br /><span>Build the future you want.</span>
                         </motion.h1>
-
-                        <motion.p
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
-                            className="landing-hero-copy mt-5 max-w-[600px] text-lg font-normal leading-[1.5] text-text-secondary sm:mt-6 sm:text-lg sm:leading-[1.55]"
-                        >
-                            Edutu finds scholarships, fellowships, and career programs matched to
-                            you — globally, automatically, before the deadline.
+                        <motion.p initial={reduceMotion ? undefined : { opacity: 0, y: 18 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12 }} className="homepage-hero-copy">
+                            Scholarships, internships, and career programs — all in one place.<br />Find your fit and take your next step with Edutu.
                         </motion.p>
-
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.3 }}
-                            className="mt-5 flex w-full flex-col gap-3 sm:mt-10 sm:w-auto sm:flex-row"
-                        >
-                            <button
-                                onClick={onGetStarted}
-                                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-9 py-4 text-base font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
-                            >
-                                Get started free
-                                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
-                            </button>
-                            <Link
-                                to="/opportunities"
-                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-9 py-4 text-base font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
-                            >
-                                Browse opportunities
-                            </Link>
+                        <motion.div initial={reduceMotion ? undefined : { opacity: 0, y: 16 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.24 }} className="homepage-hero-actions">
+                            <button type="button" onClick={onGetStarted} className="homepage-button homepage-button-white">Get started free</button>
                         </motion.div>
-
                     </div>
                 </section>
 
@@ -431,10 +319,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     <div className="mx-auto max-w-[1000px]">
                         <div className="mb-6 max-w-2xl sm:mb-10">
                             <h2 className={SECTION_TITLE}>
-                                Worth exploring
+                                A good place to start
                             </h2>
                             <p className={SECTION_COPY}>
-                                Open opportunities, refreshed each visit.
+                                Explore open scholarships, internships, and programs. Save the ones that fit your goals.
                             </p>
                         </div>
 
@@ -650,10 +538,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     <div className="mx-auto max-w-[1200px]">
                         <div className="mb-12">
                             <h2 className={SECTION_TITLE}>
-                                Built for the <span className="text-brand">ambitious</span>
+                                From discovery to <span className="text-brand">your next step</span>
                             </h2>
                             <p className={SECTION_COPY}>
-                                Modular tools designed to scale your career from day one.
+                                Find relevant opportunities, keep deadlines in view, and organise your applications in one workspace.
                             </p>
                         </div>
 

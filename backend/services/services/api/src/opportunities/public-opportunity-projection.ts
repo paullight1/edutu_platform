@@ -6,7 +6,11 @@
  * opportunity is safe to act on. Internal scores, provider ids, verification
  * errors/attempts and scheduling details remain private.
  */
-import { removeContradictoryDeadlineClaims } from "./deadline-description.util";
+import {
+  deadlineNeedsReview,
+  removeContradictoryDeadlineClaims,
+} from "./deadline-description.util";
+import { unwrapAddToAnyShareUrl } from "./source-evidence.util";
 
 const INTERNAL_FIELDS = [
   "original_json",
@@ -74,7 +78,9 @@ function sourceDomain(row: Record<string, unknown>): string | null {
     const candidate = asNonEmptyString(value);
     if (!candidate) continue;
     try {
-      return new URL(candidate).hostname.replace(/^www\./, "").toLowerCase();
+      return new URL(unwrapAddToAnyShareUrl(candidate)).hostname
+        .replace(/^www\./, "")
+        .toLowerCase();
     } catch {
       // Ignore malformed source strings; absence is safer than invented trust.
     }
@@ -95,18 +101,17 @@ function buildLearnerTrust(row: Record<string, unknown>) {
   const verificationMethod = asNonEmptyString(metadata?.verification_method);
   const domain = sourceDomain(row);
   const deadline = row.close_date ?? row.closeDate ?? row.deadline;
-  const hasContradictoryDeadlineText = [row.description, row.summary].some(
-    (text) =>
-      typeof text === "string" &&
-      removeContradictoryDeadlineClaims(text, deadline) !== text,
-  );
 
   return {
     verificationStatus,
     lastVerifiedAt,
     deadlineConfidence,
-    deadlineNeedsReview:
-      metadata?.deadline_needs_review === true || hasContradictoryDeadlineText,
+    deadlineNeedsReview: deadlineNeedsReview(
+      metadata,
+      row.description,
+      row.summary,
+      deadline,
+    ),
     verificationMethod,
     sourceDomain: domain,
   };
@@ -118,7 +123,36 @@ export function stripInternalOpportunityFields(
   const cleaned: PublicOpportunity = {};
   for (const [key, value] of Object.entries(row)) {
     if ((INTERNAL_FIELDS as readonly string[]).includes(key)) continue;
-    cleaned[key] = value;
+    cleaned[key] =
+      typeof value === "string" &&
+      [
+        "source_url",
+        "sourceUrl",
+        "canonical_url",
+        "canonicalUrl",
+        "application_url",
+        "applicationUrl",
+        "apply_url",
+        "applyUrl",
+        "link",
+      ].includes(key)
+        ? unwrapAddToAnyShareUrl(value)
+        : value;
+  }
+
+  // Some older rows stored AddToAny's bare endpoint as canonical_url, without
+  // the `linkurl` query parameter needed to unwrap it. When a usable article
+  // source is present, prefer that source as the public canonical identity.
+  const canonicalUrl = cleaned.canonical_url ?? cleaned.canonicalUrl;
+  const sourceUrl = cleaned.source_url ?? cleaned.sourceUrl;
+  if (
+    typeof canonicalUrl === "string" &&
+    typeof sourceUrl === "string" &&
+    isAddToAnyUrl(canonicalUrl) &&
+    !isAddToAnyUrl(sourceUrl)
+  ) {
+    if ("canonical_url" in cleaned) cleaned.canonical_url = sourceUrl;
+    else cleaned.canonicalUrl = sourceUrl;
   }
 
   const canonicalDeadline = row.close_date ?? row.closeDate ?? row.deadline;
@@ -150,6 +184,15 @@ export function stripInternalOpportunityFields(
 
   cleaned.trust = buildLearnerTrust(row);
   return cleaned;
+}
+
+function isAddToAnyUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return hostname === "addtoany.com" || hostname === "www.addtoany.com";
+  } catch {
+    return false;
+  }
 }
 
 export function stripInternalOpportunityFieldsBatch(

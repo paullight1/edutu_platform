@@ -60,6 +60,43 @@ export function removeContradictoryDeadlineClaims(
     .trim();
 }
 
+/**
+ * A verified deadline refresh is stronger than an older review flag. When the
+ * refresh found a dated deadline or confirmed a rolling deadline, clear that
+ * stale flag in learner-facing trust signals; keep prose conflicts visible.
+ */
+export function deadlineNeedsReview(
+  metadata: unknown,
+  description: unknown,
+  summary: unknown,
+  canonicalDeadline: unknown,
+): boolean {
+  const details =
+    typeof metadata === "object" && metadata !== null
+      ? (metadata as Record<string, unknown>)
+      : null;
+  const confidence = details?.deadline_confidence;
+  const hasReverification =
+    typeof details?.deadline_reverified_at === "string" &&
+    details.deadline_reverified_at.trim().length > 0;
+  const parsedDeadline = toIsoDate(canonicalDeadline);
+  const sourceConfirmedCurrentValue =
+    hasReverification &&
+    ((!!parsedDeadline &&
+      (confidence === "explicit" || confidence === "inferred")) ||
+      (!parsedDeadline && confidence === "rolling"));
+  const hasContradictoryText = [description, summary].some(
+    (text) =>
+      typeof text === "string" &&
+      removeContradictoryDeadlineClaims(text, canonicalDeadline) !== text,
+  );
+
+  return (
+    hasContradictoryText ||
+    (details?.deadline_needs_review === true && !sourceConfirmedCurrentValue)
+  );
+}
+
 export function sanitizeOpportunityDeadlineCopy(
   description: string,
   summary: string,
